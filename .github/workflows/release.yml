@@ -1,7 +1,7 @@
 name: Release
 
-# Pushing a tag X.Y.Z publishes every package at X.Y.Z to PyPI, then tags each
-# read-only repository X.Y.Z and makes it that repository's latest GitHub release.
+# Pushing a tag X.Y.Z publishes every package at X.Y.Z to PyPI, then creates the
+# X.Y.Z GitHub release here and in each read-only repository.
 #
 # Each package is published from its own job and environment, pypi-<package>,
 # which is what its PyPI trusted publisher names: PyPI allows only one pending
@@ -108,3 +108,21 @@ jobs:
               --title "$GITHUB_REF_NAME" \
               --notes "Released from https://github.com/xterr/python-xtr/tree/$GITHUB_REF_NAME — on PyPI as https://pypi.org/project/${package}/${GITHUB_REF_NAME}/"
           done
+
+  github-release:
+    name: Release on GitHub
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create this repository's release for the tag
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGES: ${{ needs.build.outputs.packages }}
+        run: |
+          set -euo pipefail
+          notes=$(jq -r --arg version "$GITHUB_REF_NAME" \
+            '"Published to PyPI:\n\n" + (map("- [\(.) \($version)](https://pypi.org/project/\(.)/\($version)/)") | join("\n"))' \
+            <<<"$PACKAGES")
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --latest \
+            --title "$GITHUB_REF_NAME" --notes "$notes" --generate-notes
