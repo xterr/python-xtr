@@ -1,6 +1,6 @@
 [project]
 name = "xtr-logging-contracts"
-version = "0.1.0"
+version = "0.2.0"
 description = "The logging contract: one interface, eight severities, and a logger that discards everything."
 readme = "README.md"
 authors = [
