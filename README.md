@@ -28,8 +28,8 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
-| [xtr-lock](packages/xtr-lock) | Planned — not implemented yet. |
-| [xtr-scheduler](packages/xtr-scheduler) | Planned — not implemented yet. |
+| [xtr-lock](packages/xtr-lock) | Planned — not implemented or published yet. |
+| [xtr-scheduler](packages/xtr-scheduler) | Planned — not implemented or published yet. |
 
 How they depend on each other (runtime dependencies only; extras are dotted):
 
@@ -48,18 +48,56 @@ the application decides whether `xtr-logging` is behind it.
 
 ## Install
 
-The packages are not on PyPI yet. Until they are, install one straight from this repository —
-uv resolves its `xtr-*` dependencies from the same commit:
+Each package is published to PyPI on its own:
 
 ```sh
-uv add "xtr-logging @ git+https://github.com/xterr/python-xtr#subdirectory=packages/xtr-logging"
+uv add xtr-logging
+uv add "xtr-messenger[amqp]"
 ```
 
-Swap both `xtr-logging` occurrences for the package you want. Extras work as usual:
-`"xtr-messenger[amqp] @ git+…"`.
+`xtr-lock` and `xtr-scheduler` are placeholders and are not published.
 
-This relies on uv. pip installs the package itself but looks for its `xtr-*` dependencies on
-PyPI, where they are not yet.
+## Versions
+
+Versioned the way Symfony versions its components, in two groups:
+
+| Group | Packages | Tag |
+|---|---|---|
+| Libraries | every package not named `*-contracts` | `vX.Y.Z` |
+| Contracts | `xtr-logging-contracts`, `xtr-service-contracts` | `contracts-vX.Y.Z` |
+
+Every package in a group shares one version and is released together, even when it did not
+change, so any two libraries at the same version are known to work together. The contracts move
+on their own: an interface that rarely changes should not force every implementation to follow
+each library release.
+
+Packages require their siblings by major version (`xtr-logging-contracts>=1.0,<2`).
+[`scripts/release.py`](scripts/release.py) keeps all of that consistent:
+
+```sh
+uv run scripts/release.py check                  # each group is on one version (CI runs this)
+uv run scripts/release.py bump libraries 1.1.0   # move a group; on a new major, rewrite the ranges
+```
+
+A package classified `Private :: Do Not Upload` moves with its group but is never published or
+split.
+
+## Releasing
+
+1. `uv run scripts/release.py bump libraries 1.1.0`, commit, push.
+2. Tag the commit `v1.1.0` (or `contracts-v1.1.0`) and push the tag.
+
+The [release workflow](.github/workflows/release.yml) checks the tag against the group's version,
+builds every package of the group and publishes them to PyPI through trusted publishing. The
+[split workflow](.github/workflows/split.yml) pushes the same tag to each package's repository.
+
+## Repositories
+
+This repository is where everything is developed. Each published package is also copied, on
+every push to `main`, into a repository of its own — `xterr/python-<package>`, e.g.
+[python-xtr-logging](https://github.com/xterr/python-xtr-logging) — which carries only that
+package's directory and history, and its release tags. Those copies are read-only: pull requests
+there are closed automatically, so send issues and pull requests here.
 
 ## Development
 
@@ -72,7 +110,11 @@ immediately visible to the packages that use it.
 git clone git@github.com:xterr/python-xtr.git
 cd python-xtr
 uv sync --all-packages
+uv run pre-commit install
 ```
+
+The pre-commit hook runs ruff on what you commit and the tests of every package you touched.
+[CI](.github/workflows/ci.yml) runs everything, for every package, on Python 3.11 and 3.14.
 
 Work inside a package directory; each carries its own pytest, ruff, basedpyright and ty settings:
 
@@ -96,28 +138,34 @@ This is the check that catches a package importing a sibling it never listed in 
 
 ### Adding a package
 
-1. Create `packages/xtr-<name>/` with a `pyproject.toml`, `src/xtr_<name>/`, `README.md` and
-   `LICENSE`. The workspace picks up anything matching `packages/xtr-*`.
+1. Create `packages/xtr-<name>/` with a `pyproject.toml` at its group's current version,
+   `src/xtr_<name>/`, `README.md` and `LICENSE`. The workspace picks up anything matching
+   `packages/xtr-*`.
 2. Add `xtr-<name> = { workspace = true }` to `[tool.uv.sources]` in the root `pyproject.toml`.
 3. Run `uv lock`.
+4. Create the empty `xterr/python-xtr-<name>` repository on GitHub, and a pending trusted
+   publisher for it on PyPI, before its first release.
 
-Packages depend on each other by version range (`xtr-logging-contracts>=0.2,<0.3`) and never
-declare their own `[tool.uv.sources]`; the root maps every `xtr-*` name to the workspace. If a
-sibling's version leaves a range, `uv lock` fails, which is the reminder to update the range.
+Packages never declare their own `[tool.uv.sources]`; the root maps every `xtr-*` name to the
+workspace. If a sibling's version leaves a range, `uv lock` fails, which is the reminder to
+update the range.
 
 ## Layout
 
 ```
 python-xtr/
+├── .github/workflows/  # ci, release, split
 ├── packages/
 │   └── xtr-<name>/
+│       ├── .github/    # only for the read-only copy: closes its pull requests
 │       ├── src/xtr_<name>/
 │       ├── tests/
 │       ├── pyproject.toml
 │       ├── README.md
 │       └── LICENSE
-├── pyproject.toml    # workspace root: members and sources, never published
-└── uv.lock           # the only lockfile
+├── scripts/release.py  # versions of each group
+├── pyproject.toml      # workspace root: members and sources, never published
+└── uv.lock             # the only lockfile
 ```
 
 ## License

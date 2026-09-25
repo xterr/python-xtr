@@ -396,6 +396,10 @@ xtr_clock/
 
 ## Development
 
+Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under
+`packages/xtr-clock`; run the commands below from there. The `python-xtr-clock` repository is a
+read-only copy, so send issues and pull requests to the monorepo.
+
 ```sh
 uv sync --all-extras
 uv run ruff check src tests

@@ -84,6 +84,10 @@ for service in container.services:
 
 ## Development
 
+Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under
+`packages/xtr-service-contracts`; run the commands below from there. The `python-xtr-service-contracts` repository is a
+read-only copy, so send issues and pull requests to the monorepo.
+
 ```sh
 uv sync
 uv run ruff check . && uv run ruff format --check .

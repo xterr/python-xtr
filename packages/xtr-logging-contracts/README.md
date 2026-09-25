@@ -141,6 +141,10 @@ them — and `LogRecord` would move with them.
 
 ## Development
 
+Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under
+`packages/xtr-logging-contracts`; run the commands below from there. The `python-xtr-logging-contracts` repository is a
+read-only copy, so send issues and pull requests to the monorepo.
+
 ```sh
 uv sync
 uv run ruff check . && uv run ruff format --check .

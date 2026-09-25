@@ -49,14 +49,7 @@ uv add xtr-logging              # everything but the container integration
 uv add "xtr-logging[wireup]"    # + a logger per channel from a wireup container
 ```
 
-Requires Python 3.11+. `xtr-clock` and `xtr-logging-contracts` are not on PyPI yet; with uv,
-point them at git:
-
-```toml
-[tool.uv.sources]
-xtr-clock = { git = "https://github.com/xterr/python-xtr-clock.git" }
-xtr-logging-contracts = { git = "https://github.com/xterr/python-xtr-logging-contracts.git" }
-```
+Requires Python 3.11+.
 
 ## Quick start
 
@@ -498,6 +491,10 @@ Everything the library raises derives from `LoggingError` and carries typed attr
 | `CaptureConflictError` | A `stdlib` handler is configured while capture is on |
 
 ## Development
+
+Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under
+`packages/xtr-logging`; run the commands below from there. The `python-xtr-logging` repository is a
+read-only copy, so send issues and pull requests to the monorepo.
 
 ```sh
 uv sync --all-extras
