@@ -4,8 +4,9 @@ name: Split
 # repository xterr/python-<package> on each push to main. Release tags are
 # pushed there by the release workflow.
 #
-# Needs a SPLIT_TOKEN secret: a fine-grained token with Contents and
-# Workflows read/write on every xterr/python-xtr-* repository.
+# Pushes as a GitHub App installed on every xterr/python-xtr-* repository with
+# Contents and Workflows read/write: its client ID is the SPLIT_APP_CLIENT_ID
+# variable, its private key the SPLIT_APP_PRIVATE_KEY secret.
 
 on:
   push:
@@ -26,8 +27,14 @@ jobs:
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v10.2.0
+      - id: token
+        uses: actions/create-github-app-token@v3.2.0
+        with:
+          client-id: ${{ vars.SPLIT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SPLIT_APP_PRIVATE_KEY }}
+          owner: xterr
       - env:
-          SPLIT_TOKEN: ${{ secrets.SPLIT_TOKEN }}
+          SPLIT_TOKEN: ${{ steps.token.outputs.token }}
         run: |
           set -euo pipefail
           for package in $(uv run scripts/release.py packages | jq -r '.[]'); do
