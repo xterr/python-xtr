@@ -59,37 +59,31 @@ uv add "xtr-messenger[amqp]"
 
 ## Versions
 
-Versioned the way Symfony versions its components, in two groups:
+Every package shares one version and is released together, even one that did not change — any
+two `xtr-*` packages at the same version are known to work together. Packages require their
+siblings by major version (`xtr-logging-contracts>=1.0,<2`).
 
-| Group | Packages | Tag |
-|---|---|---|
-| Libraries | every package not named `*-contracts` | `vX.Y.Z` |
-| Contracts | `xtr-logging-contracts`, `xtr-service-contracts` | `contracts-vX.Y.Z` |
-
-Every package in a group shares one version and is released together, even when it did not
-change, so any two libraries at the same version are known to work together. The contracts move
-on their own: an interface that rarely changes should not force every implementation to follow
-each library release.
-
-Packages require their siblings by major version (`xtr-logging-contracts>=1.0,<2`).
-[`scripts/release.py`](scripts/release.py) keeps all of that consistent:
+[`scripts/release.py`](scripts/release.py) keeps that consistent:
 
 ```sh
-uv run scripts/release.py check                  # each group is on one version (CI runs this)
-uv run scripts/release.py bump libraries 1.1.0   # move a group; on a new major, rewrite the ranges
+uv run scripts/release.py check        # every package is on one version (CI runs this)
+uv run scripts/release.py bump 1.1.0   # move every package; on a new major, rewrite the ranges
 ```
 
-A package classified `Private :: Do Not Upload` moves with its group but is never published or
+A package classified `Private :: Do Not Upload` moves with the rest but is never published or
 split.
 
 ## Releasing
 
-1. `uv run scripts/release.py bump libraries 1.1.0`, commit, push.
-2. Tag the commit `v1.1.0` (or `contracts-v1.1.0`) and push the tag.
+```sh
+uv run scripts/release.py bump 1.1.0
+git commit -am "bump: 1.1.0" && git push
+git tag 1.1.0 && git push origin 1.1.0
+```
 
-The [release workflow](.github/workflows/release.yml) checks the tag against the group's version,
-builds every package of the group and publishes them to PyPI through trusted publishing. The
-[split workflow](.github/workflows/split.yml) pushes the same tag to each package's repository.
+The tag starts the [release workflow](.github/workflows/release.yml): it checks the tag against
+the packages' version, publishes every package to PyPI through trusted publishing, and tags each
+read-only repository `1.1.0`.
 
 ## Repositories
 
@@ -138,7 +132,7 @@ This is the check that catches a package importing a sibling it never listed in 
 
 ### Adding a package
 
-1. Create `packages/xtr-<name>/` with a `pyproject.toml` at its group's current version,
+1. Create `packages/xtr-<name>/` with a `pyproject.toml` at the current version,
    `src/xtr_<name>/`, `README.md` and `LICENSE`. The workspace picks up anything matching
    `packages/xtr-*`.
 2. Add `xtr-<name> = { workspace = true }` to `[tool.uv.sources]` in the root `pyproject.toml`.
@@ -163,7 +157,7 @@ python-xtr/
 │       ├── pyproject.toml
 │       ├── README.md
 │       └── LICENSE
-├── scripts/release.py  # versions of each group
+├── scripts/release.py  # one version for every package
 ├── pyproject.toml      # workspace root: members and sources, never published
 └── uv.lock             # the only lockfile
 ```
