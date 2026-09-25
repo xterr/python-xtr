@@ -7,6 +7,11 @@ repos:
     - id: ruff-check
     # Run the formatter.
     - id: ruff-format
+- repo: https://github.com/zizmorcore/zizmor-pre-commit
+  rev: v1.30.1
+  hooks:
+    # Audit the GitHub Actions workflows, dependabot.yml and this file for security issues.
+    - id: zizmor
 - repo: local
   hooks:
     # Run the test suite of every package with a staged file. CI runs them all.
