@@ -31,7 +31,6 @@ from .logger_aware import LoggerAware
 from .logger_aware_interface import LoggerAwareInterface
 from .logger_interface import LoggerInterface
 from .null_logger import NullLogger
-from .resettable_interface import ResettableInterface
 
 try:
     __version__ = version("xtr-logging-contracts")
@@ -52,6 +51,5 @@ __all__ = [
     "LoggerInterface",
     "LoggingError",
     "NullLogger",
-    "ResettableInterface",
     "__version__",
 ]
