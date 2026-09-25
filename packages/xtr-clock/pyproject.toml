@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Decouples an application from the system clock: an injectable clock, a timezone-aware instant, and a frozen clock for tests."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
 license-files = ["LICENSE"]
 authors = [
     { name = "Razvan Ceana", email = "razvan@ceana.ro" }
@@ -43,11 +43,8 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/xtr_clock"]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
 
 # ─────────────────────────────────────────────────────────────────
 # basedpyright — typeCheckingMode = "all" sets every report flag to error
