@@ -1,0 +1,36 @@
+name: Split
+
+# Copies every published package, with its history, into its read-only
+# repository xterr/python-<package> on each push to main. Release tags are
+# pushed there by the release workflow.
+#
+# Needs a SPLIT_TOKEN secret: a fine-grained token with Contents and
+# Workflows read/write on every xterr/python-xtr-* repository.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: split
+  cancel-in-progress: false
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v10.2.0
+      - env:
+          SPLIT_TOKEN: ${{ secrets.SPLIT_TOKEN }}
+        run: |
+          set -euo pipefail
+          for package in $(uv run scripts/release.py packages | jq -r '.[]'); do
+            sha=$(git subtree split --prefix="packages/$package" HEAD)
+            git push "https://x-access-token:${SPLIT_TOKEN}@github.com/xterr/python-${package}.git" "$sha:refs/heads/main"
+          done

@@ -1,0 +1,79 @@
+name: Release
+
+# Pushing a tag X.Y.Z publishes every package at X.Y.Z to PyPI, then tags each
+# read-only repository X.Y.Z.
+#
+# Each package is published from its own job and environment, pypi-<package>,
+# which is what its PyPI trusted publisher names: PyPI allows only one pending
+# publisher per repository, workflow and environment, so a shared environment
+# could not create more than one new project.
+
+on:
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.build.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - id: build
+        run: |
+          set -euo pipefail
+          uv run scripts/release.py check "$GITHUB_REF_NAME"
+          packages=$(uv run scripts/release.py packages)
+          for package in $(jq -r '.[]' <<<"$packages"); do
+            uv build --package "$package" --out-dir "dist/$package"
+          done
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: publish ${{ matrix.package }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.build.outputs.packages) }}
+    environment:
+      name: pypi-${{ matrix.package }}
+      url: https://pypi.org/project/${{ matrix.package }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/${{ matrix.package }}/
+
+  tag:
+    name: Tag the read-only repositories
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - env:
+          PACKAGES: ${{ needs.build.outputs.packages }}
+          SPLIT_TOKEN: ${{ secrets.SPLIT_TOKEN }}
+        run: |
+          set -euo pipefail
+          for package in $(jq -r '.[]' <<<"$PACKAGES"); do
+            sha=$(git subtree split --prefix="packages/$package" HEAD)
+            git push "https://x-access-token:${SPLIT_TOKEN}@github.com/xterr/python-${package}.git" "$sha:refs/tags/$GITHUB_REF_NAME"
+          done

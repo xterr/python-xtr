@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, lockfile and versions
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.packages.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv lock --check
+      - run: uv run scripts/release.py check
+      # The tests run below, per package and per Python version.
+      - run: uv run --locked pre-commit run --all-files --show-diff-on-failure
+        env:
+          SKIP: pytest
+      - id: packages
+        run: echo "packages=$(uv run scripts/release.py packages)" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: ${{ matrix.package }} on ${{ matrix.python }}
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.checks.outputs.packages) }}
+        python: ["3.11", "3.14"]
+    defaults:
+      run:
+        working-directory: packages/${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ matrix.python }}
+      # --exact installs only what the package declares, so an undeclared
+      # import of a sibling fails here instead of hiding in the shared venv.
+      - name: Tests
+        if: hashFiles(format('packages/{0}/tests/**', matrix.package)) != ''
+        run: uv run --locked --exact pytest
+      - name: Types
+        if: matrix.python == '3.14'
+        run: |
+          uv run --locked --exact basedpyright
+          uv run --locked --exact ty check
