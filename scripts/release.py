@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Keep every package on one version.
+"""Keep the workspace and every package on one version.
 
 All packages are released together, at one version, tagged ``X.Y.Z``. A package
 classified ``Private :: Do Not Upload`` moves with the rest but is never
@@ -51,11 +51,15 @@ def packages() -> list[Package]:
     return found
 
 
+def workspace_version() -> str:
+    return tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+
+
 def check(expected: str | None) -> None:
-    versions = {package.version for package in packages()}
+    versions = {package.version for package in packages()} | {workspace_version()}
     if len(versions) != 1:
         found = ", ".join(f"{p.name} {p.version}" for p in packages())
-        sys.exit(f"packages are not on one version: {found}")
+        sys.exit(f"not on one version: workspace {workspace_version()}, {found}")
     version = versions.pop()
     if expected is not None and expected != version:
         sys.exit(f"cannot release {expected}: the packages are at {version}")
@@ -94,6 +98,7 @@ def bump(version: str) -> None:
     matched = VERSION.match(version)
     if matched is None:
         sys.exit(f"not a X.Y.Z version: {version}")
+    subprocess.run(["uv", "version", version, "--frozen"], cwd=ROOT, check=True)
     for package in packages():
         subprocess.run(
             ["uv", "version", "--package", package.name, version, "--frozen"],
