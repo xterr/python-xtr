@@ -15,14 +15,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.build.outputs.packages }}
+      repositories: ${{ steps.build.outputs.repositories }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No cache: what gets published is built from the tagged commit alone.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
       - id: build
         run: |
           set -euo pipefail
@@ -32,7 +42,8 @@ jobs:
             uv build --package "$package" --out-dir "dist/$package"
           done
           echo "packages=$packages" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v7
+          echo "repositories=$(jq -r 'map("python-" + .) | join(",")' <<<"$packages")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist
           path: dist/
@@ -50,13 +61,13 @@ jobs:
       name: pypi-${{ matrix.package }}
       url: https://pypi.org/project/${{ matrix.package }}/
     permissions:
-      id-token: write
+      id-token: write # to trade for a PyPI token through trusted publishing
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: dist/${{ matrix.package }}/
 
@@ -64,19 +75,25 @@ jobs:
     name: Tag the read-only repositories
     needs: [build, publish]
     runs-on: ubuntu-latest
+    # The app's private key lives only in this environment, open to release tags.
+    environment: split
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           # Otherwise git sends this workflow's own token to github.com, ahead
           # of the app token in the push URL, and the push is refused.
           persist-credentials: false
+      # Only the read-only repositories, and only what tagging and releasing there needs.
       - id: token
-        uses: actions/create-github-app-token@v3.2.0
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.SPLIT_APP_CLIENT_ID }}
           private-key: ${{ secrets.SPLIT_APP_PRIVATE_KEY }}
           owner: xterr
+          repositories: ${{ needs.build.outputs.repositories }}
+          permission-contents: write
+          permission-workflows: write
       - env:
           PACKAGES: ${{ needs.build.outputs.packages }}
           SPLIT_TOKEN: ${{ steps.token.outputs.token }}
