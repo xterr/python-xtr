@@ -7,7 +7,7 @@ authors = [
     { name = "Razvan Ceana", email = "razvan@ceana.ro" }
 ]
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
 license-files = ["LICENSE"]
 keywords = ["logging", "contracts", "interface", "protocol", "structured-logging"]
 classifiers = [
@@ -36,11 +36,8 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/xtr_logging_contracts"]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
 
 # ─────────────────────────────────────────────────────────────────
 # basedpyright — typeCheckingMode = "all" sets every report flag to error
