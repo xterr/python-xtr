@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
+from xtr_logging_contracts import ResettableInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
-from xtr_logging.resettable_interface import ResettableInterface
 
 from .handler_interface import HandlerInterface
 from .processable_handler_interface import ProcessableHandlerInterface

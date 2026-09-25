@@ -16,8 +16,7 @@ standard library would have printed is printed by it as well::
 from __future__ import annotations
 
 import msgspec
-
-from xtr_logging.level import Level
+from xtr_logging_contracts import Level
 
 __all__ = ["CaptureSpec", "CapturedLoggerSpec"]
 

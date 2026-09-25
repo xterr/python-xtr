@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Final
 
-from xtr_logging.level import Level
+from xtr_logging_contracts import Level
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

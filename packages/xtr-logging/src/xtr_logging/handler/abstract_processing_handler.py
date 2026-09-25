@@ -6,19 +6,19 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
+from xtr_logging_contracts import Level, ResettableInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 from xtr_logging.formatter.line_formatter import LineFormatter
-from xtr_logging.level import Level
-from xtr_logging.resettable_interface import ResettableInterface
 
 from .abstract_handler import AbstractHandler
 from .formattable_handler_interface import FormattableHandlerInterface
 from .processable_handler_interface import ProcessableHandlerInterface
 
 if TYPE_CHECKING:
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.formatter.formatter_interface import FormatterInterface
-    from xtr_logging.level import LevelLike
     from xtr_logging.log_record import LogRecord
     from xtr_logging.processor.processor_interface import ProcessorInterface
 

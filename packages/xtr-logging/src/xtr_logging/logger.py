@@ -7,22 +7,19 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_clock import Clock
+from xtr_logging_contracts import AbstractLogger, Level, ResettableInterface
 
-from .abstract_logger import AbstractLogger
 from .exception.empty_stack_error import EmptyStackError
-from .level import Level
 from .log_record import LogRecord
-from .resettable_interface import ResettableInterface
 
 if TYPE_CHECKING:
     import datetime as dt
     from collections.abc import Callable, Sequence
 
     from xtr_clock import ClockInterface
+    from xtr_logging_contracts import Context, LevelLike
 
     from .handler.handler_interface import HandlerInterface
-    from .level import LevelLike
-    from .log_record import Context
     from .processor.processor_interface import ProcessorInterface
 
 __all__ = ["Logger"]

@@ -4,10 +4,11 @@ import datetime as dt
 import logging
 from typing import TYPE_CHECKING, Final
 
+from xtr_logging_contracts import Level
+
 from xtr_logging.bridge.stdlib.stdlib_capture_handler import StdlibCaptureHandler
 from xtr_logging.bridge.stdlib.stdlib_handler import BRIDGED_MARKER
 from xtr_logging.handler.test_handler import TestHandler
-from xtr_logging.level import Level
 from xtr_logging.logger import Logger
 
 if TYPE_CHECKING:

@@ -14,16 +14,17 @@ import logging
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from xtr_logging.handler.abstract_handler import AbstractHandler
-from xtr_logging.level import Level
 
 from .level_mapping import register_level_names, to_stdlib
 
 if TYPE_CHECKING:
     from types import TracebackType
 
-    from xtr_logging.level import LevelLike
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.log_record import LogRecord
 
 __all__ = ["BRIDGED_MARKER", "CHANNEL_ATTR", "CONTEXT_ATTR", "EXTRA_ATTR", "StdlibHandler"]

@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from tests.support.records import AT, make_record
 from xtr_logging.bridge.stdlib.stdlib_handler import (
@@ -15,7 +16,6 @@ from xtr_logging.bridge.stdlib.stdlib_handler import (
     EXTRA_ATTR,
     StdlibHandler,
 )
-from xtr_logging.level import Level
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

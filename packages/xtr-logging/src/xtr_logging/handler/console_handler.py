@@ -6,9 +6,9 @@ import sys
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from xtr_logging.formatter.console_formatter import ConsoleFormatter
-from xtr_logging.level import Level
 from xtr_logging.verbosity import Verbosity
 
 from .abstract_processing_handler import AbstractProcessingHandler
@@ -17,8 +17,9 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import IO
 
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.formatter.formatter_interface import FormatterInterface
-    from xtr_logging.level import LevelLike
     from xtr_logging.log_record import LogRecord
 
 __all__ = ["ConsoleHandler"]

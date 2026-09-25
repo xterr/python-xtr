@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Final
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from .log_record import Context
+    from xtr_logging_contracts import Context
 
 __all__ = [
     "bind_context",

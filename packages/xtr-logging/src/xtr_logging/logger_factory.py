@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple, Self, final
 
+from xtr_logging_contracts import ResettableInterface
+
 from .bridge.stdlib.stdlib_capture import StdlibCapture
 from .config.handler_builder import HandlerBuilder
 from .config.processor_builder import build_processor
@@ -15,7 +17,6 @@ from .handler.console_handler import ConsoleHandler
 from .handler.processable_handler_interface import ProcessableHandlerInterface
 from .logger import Logger
 from .processor.processor_registry import default_processor_registry
-from .resettable_interface import ResettableInterface
 
 if TYPE_CHECKING:
     from types import TracebackType

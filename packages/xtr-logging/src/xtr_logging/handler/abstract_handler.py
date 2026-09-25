@@ -6,16 +6,15 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
-
-from xtr_logging.level import Level
-from xtr_logging.resettable_interface import ResettableInterface
+from xtr_logging_contracts import Level, ResettableInterface
 
 from .handler_interface import HandlerInterface
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from xtr_logging.level import LevelLike
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.log_record import LogRecord
 
 __all__ = ["AbstractHandler"]

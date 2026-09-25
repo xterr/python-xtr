@@ -5,10 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_logging_contracts import Level, ResettableInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
-from xtr_logging.level import Level
-from xtr_logging.resettable_interface import ResettableInterface
 
 from .fingers_crossed.activation_strategy_interface import ActivationStrategyInterface
 from .fingers_crossed.error_level_activation_strategy import ErrorLevelActivationStrategy
@@ -19,7 +18,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from typing import TypeAlias
 
-    from xtr_logging.level import LevelLike
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.log_record import LogRecord
     from xtr_logging.processor.processor_interface import ProcessorInterface
 

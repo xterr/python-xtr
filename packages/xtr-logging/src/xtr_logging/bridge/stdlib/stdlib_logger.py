@@ -14,17 +14,13 @@ import logging
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
-
-from xtr_logging.abstract_logger import AbstractLogger
-from xtr_logging.level import Level
-from xtr_logging.log_record import EXCEPTION_KEY
+from xtr_logging_contracts import EXCEPTION_KEY, AbstractLogger, Level
 
 from .level_mapping import register_level_names, to_stdlib
 from .stdlib_handler import CONTEXT_ATTR
 
 if TYPE_CHECKING:
-    from xtr_logging.level import LevelLike
-    from xtr_logging.log_record import Context
+    from xtr_logging_contracts import Context, LevelLike
 
 __all__ = ["StdlibLogger"]
 

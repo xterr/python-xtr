@@ -17,8 +17,7 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_clock import DatePoint, local_timezone
-
-from xtr_logging.log_record import EXCEPTION_KEY
+from xtr_logging_contracts import EXCEPTION_KEY
 
 from .level_mapping import from_stdlib, register_level_names
 from .stdlib_handler import BRIDGED_MARKER

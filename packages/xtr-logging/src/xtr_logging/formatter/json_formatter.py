@@ -14,7 +14,9 @@ from .normalizer import Normalizer
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from xtr_logging.log_record import Context, LogRecord
+    from xtr_logging_contracts import Context
+
+    from xtr_logging.log_record import LogRecord
 
     from .normalizer import Normalized
 

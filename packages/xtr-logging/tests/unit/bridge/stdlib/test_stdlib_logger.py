@@ -6,10 +6,10 @@ from uuid import uuid4
 
 import pytest
 from typing_extensions import override
+from xtr_logging_contracts import LoggerInterface
 
 from xtr_logging.bridge.stdlib.stdlib_handler import CONTEXT_ATTR
 from xtr_logging.bridge.stdlib.stdlib_logger import StdlibLogger
-from xtr_logging.logger_interface import LoggerInterface
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

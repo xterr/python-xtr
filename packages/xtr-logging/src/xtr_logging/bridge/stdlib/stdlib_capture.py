@@ -32,7 +32,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, final
 
-from xtr_logging.level import Level
+from xtr_logging_contracts import Level
 
 from .level_mapping import register_level_names, to_stdlib
 from .stdlib_capture_handler import StdlibCaptureHandler
@@ -42,7 +42,8 @@ if TYPE_CHECKING:
     from types import TracebackType
     from typing import Self
 
-    from xtr_logging.level import LevelLike
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.logger import Logger
 
 __all__ = ["StdlibCapture"]

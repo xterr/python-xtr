@@ -11,9 +11,9 @@ from typing import TypeAlias
 
 import msgspec
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
-from xtr_logging.level import Level
 
 __all__ = [
     "ContextVarsProcessorSpec",

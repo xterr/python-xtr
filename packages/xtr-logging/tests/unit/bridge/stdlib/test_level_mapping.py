@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 
+from xtr_logging_contracts import Level
+
 from xtr_logging.bridge.stdlib.level_mapping import from_stdlib, register_level_names, to_stdlib
-from xtr_logging.level import Level
 
 
 def test_to_stdlib_gives_each_level_its_standard_number() -> None:

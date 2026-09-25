@@ -8,15 +8,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
-
-from xtr_logging.level import Level
+from xtr_logging_contracts import Level
 
 from .abstract_processing_handler import AbstractProcessingHandler
 
 if TYPE_CHECKING:
     from typing import Literal, TextIO
 
-    from xtr_logging.level import LevelLike
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.log_record import LogRecord
 
 __all__ = ["StreamHandler"]

@@ -432,6 +432,7 @@ dependencies = [
     { name = "msgspec" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
+    { name = "xtr-logging-contracts" },
 ]
 
 [package.optional-dependencies]
@@ -456,6 +457,7 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "wireup", marker = "extra == 'wireup'", specifier = ">=2.12" },
     { name = "xtr-clock", git = "https://github.com/xterr/python-xtr-clock.git" },
+    { name = "xtr-logging-contracts", git = "https://github.com/xterr/python-xtr-logging-contracts.git" },
 ]
 provides-extras = ["wireup"]
 
@@ -468,4 +470,12 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "wireup", specifier = ">=2.12" },
+]
+
+[[package]]
+name = "xtr-logging-contracts"
+version = "0.1.0"
+source = { git = "https://github.com/xterr/python-xtr-logging-contracts.git#40906d7887cd67db008cc6008f0e91c8ca02a7d9" }
+dependencies = [
+    { name = "typing-extensions" },
 ]

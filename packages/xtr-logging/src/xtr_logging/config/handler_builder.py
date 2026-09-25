@@ -57,11 +57,12 @@ from .wrapper_handler_specs import (
 if TYPE_CHECKING:
     from typing import TextIO
 
+    from xtr_logging_contracts import Level, LevelLike
+
     from xtr_logging.handler.fingers_crossed.activation_strategy_interface import (
         ActivationStrategyInterface,
     )
     from xtr_logging.handler.handler_interface import HandlerInterface
-    from xtr_logging.level import Level, LevelLike
 
     from .logging_config import HandlerSpec, LoggingConfig
     from .services import Services

@@ -17,7 +17,7 @@ from xtr_logging.log_context import (
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from xtr_logging.log_record import Context
+    from xtr_logging_contracts import Context
 
 
 @pytest.fixture(autouse=True)

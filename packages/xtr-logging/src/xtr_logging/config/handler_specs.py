@@ -13,8 +13,7 @@ from typing import Literal
 
 import msgspec
 from typing_extensions import override
-
-from xtr_logging.level import Level
+from xtr_logging_contracts import Level
 
 from .channel_filter import ChannelFilter
 from .formatter_specs import FormatterSpec  # noqa: TC001 — msgspec reads field types at runtime

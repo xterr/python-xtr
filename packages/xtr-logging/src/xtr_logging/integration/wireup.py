@@ -37,9 +37,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import wireup
+from xtr_logging_contracts import LoggerInterface
 
 from xtr_logging.logger_factory import LoggerFactory
-from xtr_logging.logger_interface import LoggerInterface
 
 if TYPE_CHECKING:
     from xtr_logging.config.logging_config import LoggingConfig

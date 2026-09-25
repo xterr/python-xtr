@@ -8,14 +8,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
-from xtr_logging.level import Level
 
 from .stream_handler import StreamHandler
 
 if TYPE_CHECKING:
-    from xtr_logging.level import LevelLike
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.log_record import LogRecord
 
 __all__ = ["RotatingFileHandler"]

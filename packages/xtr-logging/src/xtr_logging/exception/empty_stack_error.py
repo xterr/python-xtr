@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .logging_error import LoggingError
+from xtr_logging_contracts import LoggingError
 
 __all__ = ["EmptyStackError"]
 

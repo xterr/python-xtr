@@ -24,6 +24,7 @@ dependencies = [
     "msgspec>=0.18",
     "typing-extensions>=4.4",
     "xtr-clock",
+    "xtr-logging-contracts>=0.1,<0.2",
 ]
 
 [project.optional-dependencies]
@@ -149,5 +150,7 @@ exclude_lines = [
     "raise NotImplementedError",
 ]
 
+# Neither is on PyPI yet; resolve them from their repositories meanwhile.
 [tool.uv.sources]
 xtr-clock = { git = "https://github.com/xterr/python-xtr-clock.git" }
+xtr-logging-contracts = { git = "https://github.com/xterr/python-xtr-logging-contracts.git" }

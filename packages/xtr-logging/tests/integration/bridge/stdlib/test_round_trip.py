@@ -6,11 +6,11 @@ from uuid import uuid4
 
 import pytest
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from xtr_logging.bridge.stdlib.stdlib_capture import StdlibCapture
 from xtr_logging.bridge.stdlib.stdlib_handler import StdlibHandler
 from xtr_logging.handler.test_handler import TestHandler
-from xtr_logging.level import Level
 from xtr_logging.logger import Logger
 
 pytestmark = pytest.mark.usefixtures("stdlib_logging")

@@ -2,27 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, TypeAlias
+from typing import TYPE_CHECKING, Final
+
+from xtr_logging_contracts import EXCEPTION_KEY
 
 if TYPE_CHECKING:
     import datetime as dt
 
-    from .level import Level
+    from xtr_logging_contracts import Context, Level
 
-__all__ = ["EXCEPTION_KEY", "Context", "LogRecord"]
-
-Context: TypeAlias = Mapping[str, object]
-"""Structured data attached to a record.
-
-Values are ``object`` because a caller may log anything; formatters normalise
-what they cannot serialise rather than refusing it.
-"""
-
-EXCEPTION_KEY: Final = "exception"
-"""The context key reserved for an exception to report."""
+__all__ = ["LogRecord"]
 
 _EMPTY: Final[Context] = MappingProxyType({})
 
@@ -45,7 +36,7 @@ class LogRecord:
         level: How severe it is.
         message: What happened, possibly holding ``{placeholders}``.
         context: What the caller attached. An exception goes under
-            :data:`EXCEPTION_KEY`.
+            :data:`~xtr_logging_contracts.context.EXCEPTION_KEY`.
         extra: What processors attached. Kept apart from ``context`` so a
             processor can never overwrite something the caller said.
     """

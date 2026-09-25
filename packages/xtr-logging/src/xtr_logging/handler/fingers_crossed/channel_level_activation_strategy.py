@@ -5,15 +5,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-
-from xtr_logging.level import Level
+from xtr_logging_contracts import Level
 
 from .activation_strategy_interface import ActivationStrategyInterface
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from xtr_logging.level import LevelLike
+    from xtr_logging_contracts import LevelLike
+
     from xtr_logging.log_record import LogRecord
 
 __all__ = ["ChannelLevelActivationStrategy"]

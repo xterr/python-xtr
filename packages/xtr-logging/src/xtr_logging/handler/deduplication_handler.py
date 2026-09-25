@@ -10,8 +10,7 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_clock import Clock
-
-from xtr_logging.level import Level
+from xtr_logging_contracts import Level
 
 from .buffer_handler import BufferHandler
 
@@ -19,8 +18,8 @@ if TYPE_CHECKING:
     import os
 
     from xtr_clock import ClockInterface
+    from xtr_logging_contracts import LevelLike
 
-    from xtr_logging.level import LevelLike
     from xtr_logging.log_record import LogRecord
 
     from .handler_interface import HandlerInterface

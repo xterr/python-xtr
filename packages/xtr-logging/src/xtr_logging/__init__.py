@@ -9,11 +9,31 @@ somewhere — stopping where a handler does not let it bubble.
 and :class:`LoggerFactory` builds loggers from it. The
 per-type specs live in :mod:`xtr_logging.config`; the standard-library bridge
 in :mod:`xtr_logging.bridge.stdlib`.
+
+The contract itself — :class:`LoggerInterface`, :class:`Level`,
+:class:`NullLogger` and what else a caller needs to log — lives in
+``xtr-logging-contracts``, so a library can depend on it without depending on
+any of this. It is re-exported here, never redefined: ``xtr_logging.X`` and
+``xtr_logging_contracts.X`` are the same object, which is what lets a container
+register a logger under the interface and have a library that never imported
+this package receive it.
 """
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .abstract_logger import AbstractLogger
+from xtr_logging_contracts import (
+    EXCEPTION_KEY,
+    AbstractLogger,
+    Context,
+    Level,
+    LevelLike,
+    LoggerAware,
+    LoggerAwareInterface,
+    LoggerInterface,
+    NullLogger,
+    ResettableInterface,
+)
+
 from .config import LoggingConfig, Services
 from .decorator import as_processor
 from .exception import (
@@ -64,15 +84,10 @@ from .handler import (
     TestHandler,
     WhatFailureGroupHandler,
 )
-from .level import Level, LevelLike
 from .log_context import bind_context, bound_context, clear_context, current_context, unbind_context
-from .log_record import EXCEPTION_KEY, Context, LogRecord
+from .log_record import LogRecord
 from .logger import Logger
-from .logger_aware import LoggerAware
-from .logger_aware_interface import LoggerAwareInterface
 from .logger_factory import LoggerFactory
-from .logger_interface import LoggerInterface
-from .null_logger import NullLogger
 from .processor import (
     ContextVarsProcessor,
     HostnameProcessor,
@@ -86,7 +101,6 @@ from .processor import (
     UidProcessor,
     default_processor_registry,
 )
-from .resettable_interface import ResettableInterface
 from .verbosity import Verbosity
 
 try:

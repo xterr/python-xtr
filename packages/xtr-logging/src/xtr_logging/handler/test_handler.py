@@ -6,16 +6,16 @@ import re
 from typing import TYPE_CHECKING, ClassVar, final
 
 from typing_extensions import override
-
-from xtr_logging.level import Level
+from xtr_logging_contracts import Level
 
 from .abstract_processing_handler import AbstractProcessingHandler
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from xtr_logging.level import LevelLike
-    from xtr_logging.log_record import Context, LogRecord
+    from xtr_logging_contracts import Context, LevelLike
+
+    from xtr_logging.log_record import LogRecord
 
 __all__ = ["TestHandler"]
 

@@ -5,7 +5,7 @@
 **Channels, handlers, processors and formatters for Python — behind one logger interface.**
 
 <img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: 3" src="https://img.shields.io/badge/core%20deps-3-3FB950">
+<img alt="core dependencies: 4" src="https://img.shields.io/badge/core%20deps-4-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -32,7 +32,11 @@ What you get:
   yours can flow out.
 - 🕰️ **An injectable clock** — record times come from [xtr-clock](https://github.com/xterr/python-xtr-clock),
   so a test freezes them.
-- 🪶 **Three core dependencies** — `msgspec`, `typing-extensions` and `xtr-clock`.
+- 🤝 **A contract a library can depend on alone** — the interface lives in
+  [xtr-logging-contracts](https://github.com/xterr/python-xtr-logging-contracts), which has one
+  dependency, so a library that only logs never installs any of this.
+- 🪶 **Four core dependencies** — `msgspec`, `typing-extensions`, `xtr-clock` and
+  `xtr-logging-contracts`.
 
 ```python
 logger.error("payment {order} failed", {"order": order.id, "exception": error})
@@ -45,11 +49,13 @@ uv add xtr-logging              # everything but the container integration
 uv add "xtr-logging[wireup]"    # + a logger per channel from a wireup container
 ```
 
-Requires Python 3.11+. `xtr-clock` is not on PyPI yet; with uv, point it at git:
+Requires Python 3.11+. `xtr-clock` and `xtr-logging-contracts` are not on PyPI yet; with uv,
+point them at git:
 
 ```toml
 [tool.uv.sources]
 xtr-clock = { git = "https://github.com/xterr/python-xtr-clock.git" }
+xtr-logging-contracts = { git = "https://github.com/xterr/python-xtr-logging-contracts.git" }
 ```
 
 ## Quick start
@@ -79,6 +85,16 @@ class Checkout:
 ```
 
 ## The logger interface
+
+The interface, `Level`, `Context`, `NullLogger`, `AbstractLogger` and `LoggerAware` are defined in
+[xtr-logging-contracts](https://github.com/xterr/python-xtr-logging-contracts) and **re-exported**
+here, never redefined — `xtr_logging.LoggerInterface is xtr_logging_contracts.LoggerInterface`.
+That identity is what lets a container register a logger under the interface and have a library
+that never imported this package receive it.
+
+So a library that only logs depends on `xtr-logging-contracts` at runtime and keeps `xtr-logging`
+as a dev dependency for its tests; an application depends on `xtr-logging` and wires it. Either
+way `from xtr_logging import LoggerInterface` keeps working.
 
 ```python
 class LoggerInterface(Protocol):
