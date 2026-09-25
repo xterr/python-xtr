@@ -31,8 +31,8 @@ from xtr_logging_contracts import (
     LoggerAwareInterface,
     LoggerInterface,
     NullLogger,
-    ResettableInterface,
 )
+from xtr_service_contracts import ResettableInterface
 
 from .config import LoggingConfig, Services
 from .decorator import as_processor

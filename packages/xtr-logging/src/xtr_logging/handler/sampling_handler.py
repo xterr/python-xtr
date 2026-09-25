@@ -6,7 +6,7 @@ import random
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-from xtr_logging_contracts import ResettableInterface
+from xtr_service_contracts import ResettableInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 from xtr_logging.exception.invalid_option_error import InvalidOptionError

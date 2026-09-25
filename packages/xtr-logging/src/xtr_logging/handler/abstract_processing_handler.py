@@ -6,7 +6,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
-from xtr_logging_contracts import Level, ResettableInterface
+from xtr_logging_contracts import Level
+from xtr_service_contracts import ResettableInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 from xtr_logging.formatter.line_formatter import LineFormatter

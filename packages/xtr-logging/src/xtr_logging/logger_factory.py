@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple, Self, final
 
-from xtr_logging_contracts import ResettableInterface
+from xtr_service_contracts import ResettableInterface
 
 from .bridge.stdlib.stdlib_capture import StdlibCapture
 from .config.handler_builder import HandlerBuilder

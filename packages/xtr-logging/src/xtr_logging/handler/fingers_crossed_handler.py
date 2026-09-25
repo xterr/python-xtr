@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-from xtr_logging_contracts import Level, ResettableInterface
+from xtr_logging_contracts import Level
+from xtr_service_contracts import ResettableInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 

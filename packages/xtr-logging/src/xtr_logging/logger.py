@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_clock import Clock
-from xtr_logging_contracts import AbstractLogger, Level, ResettableInterface
+from xtr_logging_contracts import AbstractLogger, Level
+from xtr_service_contracts import ResettableInterface
 
 from .exception.empty_stack_error import EmptyStackError
 from .log_record import LogRecord
