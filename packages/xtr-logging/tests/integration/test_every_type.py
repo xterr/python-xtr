@@ -200,9 +200,10 @@ def test_an_unusable_syslog_address_is_refused() -> None:
         _ = LoggerFactory(config, registry=ProcessorRegistry())
 
 
-def test_an_unknown_verbosity_is_refused() -> None:
+@pytest.mark.parametrize("name", ["loud", "silent"])
+def test_an_unknown_or_unmappable_verbosity_is_refused(name: str) -> None:
     config = LoggingConfig.from_mapping(
-        {"handlers": {"c": {"type": "console", "verbosity_levels": {"loud": "debug"}}}},
+        {"handlers": {"c": {"type": "console", "verbosity_levels": {name: "debug"}}}},
     )
 
     with pytest.raises(InvalidOptionError):

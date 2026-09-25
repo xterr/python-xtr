@@ -235,11 +235,17 @@ def _verbosity_levels(
         return None
     mapped: dict[Verbosity, LevelLike] = {}
     for name, level in levels.items():
-        verbosity = Verbosity.__members__.get(name.upper())
+        verbosity = _MAPPABLE.get(name.upper())
         if verbosity is None:
             raise InvalidOptionError("verbosity_levels", name, f"expected one of {_VERBOSITIES}")
         mapped[verbosity] = level
     return mapped
 
 
-_VERBOSITIES: Final = ", ".join(name.lower() for name in Verbosity.__members__)
+# Silent prints nothing, whatever it maps to, so it takes no level.
+_MAPPABLE: Final = {
+    name: verbosity
+    for name, verbosity in Verbosity.__members__.items()
+    if verbosity is not Verbosity.SILENT
+}
+_VERBOSITIES: Final = ", ".join(name.lower() for name in _MAPPABLE)

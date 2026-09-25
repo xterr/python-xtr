@@ -21,6 +21,7 @@ class Verbosity(IntEnum):
     in between.
     """
 
+    SILENT = 8
     QUIET = 16
     NORMAL = 32
     VERBOSE = 64
@@ -28,12 +29,14 @@ class Verbosity(IntEnum):
     DEBUG = 256
 
     @classmethod
-    def from_count(cls, verbose: int, *, quiet: bool = False) -> Verbosity:
+    def from_count(cls, verbose: int, *, quiet: bool = False, silent: bool = False) -> Verbosity:
         """Read the verbosity a count of ``-v`` flags asks for.
 
-        ``-q`` silences a command however often ``-v`` was also given, so
-        ``quiet`` wins over any count.
+        ``--silent`` wins over ``-q``, which silences a command however often
+        ``-v`` was also given.
         """
+        if silent:
+            return cls.SILENT
         if quiet:
             return cls.QUIET
         if verbose >= _DEBUG_AT:

@@ -6,8 +6,8 @@ from xtr_logging.verbosity import Verbosity
 
 
 def test_the_values_leave_room_between_them() -> None:
-    assert (Verbosity.QUIET, Verbosity.NORMAL, Verbosity.VERBOSE) == (16, 32, 64)
-    assert (Verbosity.VERY_VERBOSE, Verbosity.DEBUG) == (128, 256)
+    assert (Verbosity.SILENT, Verbosity.QUIET, Verbosity.NORMAL) == (8, 16, 32)
+    assert (Verbosity.VERBOSE, Verbosity.VERY_VERBOSE, Verbosity.DEBUG) == (64, 128, 256)
 
 
 def test_no_verbose_flag_is_normal() -> None:
@@ -29,3 +29,7 @@ def test_more_verbose_flags_raise_the_verbosity(count: int, expected: Verbosity)
 
 def test_quiet_wins_over_any_verbose_count() -> None:
     assert Verbosity.from_count(3, quiet=True) is Verbosity.QUIET
+
+
+def test_silent_wins_over_quiet() -> None:
+    assert Verbosity.from_count(3, quiet=True, silent=True) is Verbosity.SILENT

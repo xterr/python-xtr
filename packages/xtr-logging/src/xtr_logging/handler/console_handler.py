@@ -15,7 +15,7 @@ from .abstract_processing_handler import AbstractProcessingHandler
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from typing import TextIO
+    from typing import IO
 
     from xtr_logging.formatter.formatter_interface import FormatterInterface
     from xtr_logging.level import LevelLike
@@ -24,7 +24,8 @@ if TYPE_CHECKING:
 __all__ = ["ConsoleHandler"]
 
 # The verbosity a command runs at decides how low a level it prints: a quiet
-# command shows only errors, a fully verbose one shows everything.
+# command shows only errors, a fully verbose one shows everything. A silent
+# one shows nothing, which no level can say; the handler refuses every record.
 _DEFAULT_VERBOSITY_LEVELS: Final[Mapping[Verbosity, Level]] = {
     Verbosity.QUIET: Level.ERROR,
     Verbosity.NORMAL: Level.WARNING,
@@ -39,18 +40,20 @@ class ConsoleHandler(AbstractProcessingHandler):
     """Writes to a console, at a level set by how verbose the command is.
 
     A console command chooses its verbosity from its ``-v`` flags; this
-    handler turns that into a log level, so ``-vv`` surfaces info and a quiet
-    run shows only errors. The level is recomputed whenever the verbosity is
-    set, which a command does once it has parsed its input.
+    handler turns that into a log level, so ``-vv`` surfaces info, a quiet
+    run shows only errors and a silent one nothing at all. The level is
+    recomputed whenever the verbosity is set, which a command does once it has
+    parsed its input.
 
     The stream defaults to standard error, resolved at write time so a test
     that swaps ``sys.stderr`` is written to, and colours are on only when that
-    stream is a real terminal.
+    stream is a real terminal. :meth:`set_stream` moves both, as a console
+    application does to follow the output of the command it runs.
     """
 
     def __init__(
         self,
-        stream: TextIO | None = None,
+        stream: IO[str] | None = None,
         verbosity: Verbosity = Verbosity.NORMAL,
         verbosity_levels: Mapping[Verbosity, LevelLike] | None = None,
         bubble: bool = True,
@@ -63,6 +66,7 @@ class ConsoleHandler(AbstractProcessingHandler):
             verbosity: The verbosity the command is running at.
             verbosity_levels: Overrides for the verbosity-to-level map; the
                 keys given replace the defaults, the rest stand.
+                :attr:`Verbosity.SILENT` prints nothing, whatever it maps to.
             bubble: Let a handled record reach later handlers.
         """
         self._levels: dict[Verbosity, Level] = dict(_DEFAULT_VERBOSITY_LEVELS)
@@ -70,8 +74,10 @@ class ConsoleHandler(AbstractProcessingHandler):
             for key, value in verbosity_levels.items():
                 self._levels[key] = Level.parse(value)
         self._verbosity: Verbosity = verbosity
-        super().__init__(self._levels[verbosity], bubble)
-        self._stream: TextIO | None = stream
+        super().__init__(self._level_for(verbosity), bubble)
+        self._stream: IO[str] | None = stream
+        self._colors: bool | None = None
+        self._built_formatter: FormatterInterface | None = None
 
     @property
     def verbosity(self) -> Verbosity:
@@ -81,7 +87,26 @@ class ConsoleHandler(AbstractProcessingHandler):
     def set_verbosity(self, verbosity: Verbosity) -> None:
         """Print at the level ``verbosity`` maps to from now on."""
         self._verbosity = verbosity
-        self.set_level(self._levels[verbosity])
+        self.set_level(self._level_for(verbosity))
+
+    def set_stream(self, stream: IO[str] | None, *, colors: bool | None = None) -> None:
+        """Write to ``stream`` from now on.
+
+        Args:
+            stream: Where to write; standard error, resolved at write time,
+                when ``None``.
+            colors: Colour the level names, or not; ``None`` colours them only
+                on a real terminal. A formatter set by hand is kept as it is.
+        """
+        self._stream = stream
+        self._colors = colors
+        if self._formatter is self._built_formatter:
+            self._formatter = None
+
+    @override
+    def is_handling(self, record: LogRecord, /) -> bool:
+        """Whether ``record`` is at the level, and the command is not silent."""
+        return self._verbosity is not Verbosity.SILENT and super().is_handling(record)
 
     @override
     def write(self, record: LogRecord, formatted: str) -> None:
@@ -92,8 +117,14 @@ class ConsoleHandler(AbstractProcessingHandler):
 
     @override
     def default_formatter(self) -> FormatterInterface:
-        """A short console line, coloured when writing to a real terminal."""
-        return ConsoleFormatter(colors=self._resolve_stream().isatty())
+        """A short console line, coloured as :meth:`set_stream` said, or on a real terminal."""
+        colors = self._colors if self._colors is not None else self._resolve_stream().isatty()
+        self._built_formatter = ConsoleFormatter(colors=colors)
+        return self._built_formatter
 
-    def _resolve_stream(self) -> TextIO:
+    def _level_for(self, verbosity: Verbosity) -> Level:
+        """Return the level ``verbosity`` maps to; the highest for one that prints nothing."""
+        return self._levels.get(verbosity, Level.EMERGENCY)
+
+    def _resolve_stream(self) -> IO[str]:
         return self._stream if self._stream is not None else sys.stderr
