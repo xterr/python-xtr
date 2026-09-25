@@ -28,8 +28,8 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
-| [xtr-lock](packages/xtr-lock) | Planned — not implemented or published yet. |
-| [xtr-scheduler](packages/xtr-scheduler) | Planned — not implemented or published yet. |
+| [xtr-lock](packages/xtr-lock) | Locks around shared resources, after Symfony's Lock component. Not implemented yet. |
+| [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger, after Symfony's Scheduler component. Not implemented yet. |
 
 How they depend on each other (runtime dependencies only; extras are dotted):
 
@@ -55,7 +55,7 @@ uv add xtr-logging
 uv add "xtr-messenger[amqp]"
 ```
 
-`xtr-lock` and `xtr-scheduler` are placeholders and are not published.
+`xtr-lock` and `xtr-scheduler` are published only to hold their names; there is nothing in them yet.
 
 ## Versions
 

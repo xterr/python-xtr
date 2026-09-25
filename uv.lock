@@ -1669,6 +1669,22 @@ name = "xtr-lock"
 version = "1.0.0"
 source = { editable = "packages/xtr-lock" }
 
+[package.dev-dependencies]
+dev = [
+    { name = "basedpyright" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+]
+
 [[package]]
 name = "xtr-logging"
 version = "1.0.0"
@@ -1832,6 +1848,22 @@ dev = [
 name = "xtr-scheduler"
 version = "1.0.0"
 source = { editable = "packages/xtr-scheduler" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "basedpyright" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+]
 
 [[package]]
 name = "xtr-service-contracts"
