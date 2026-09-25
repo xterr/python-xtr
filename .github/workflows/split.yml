@@ -26,6 +26,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # Otherwise git sends this workflow's own token to github.com, ahead
+          # of the app token in the push URL, and the push is refused.
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v10.2.0
       - id: token
         uses: actions/create-github-app-token@v3.2.0

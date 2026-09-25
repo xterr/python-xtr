@@ -47,6 +47,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: ${{ matrix.python }}
+          # A package without tests has nothing to run, and so nothing to cache, on 3.11.
+          ignore-nothing-to-cache: true
       # --exact installs only what the package declares, so an undeclared
       # import of a sibling fails here instead of hiding in the shared venv.
       - name: Tests
