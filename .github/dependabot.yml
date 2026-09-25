@@ -12,3 +12,12 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  # uv.lock: security updates only. A limit of 0 turns off routine version
+  # updates, but security updates still follow this entry's settings.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: bump
