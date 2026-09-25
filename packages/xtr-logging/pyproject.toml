@@ -147,9 +147,3 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
 ]
-
-# None of these are on PyPI yet; resolve them from their repositories meanwhile.
-[tool.uv.sources]
-xtr-clock = { git = "https://github.com/xterr/python-xtr-clock.git" }
-xtr-logging-contracts = { git = "https://github.com/xterr/python-xtr-logging-contracts.git" }
-xtr-service-contracts = { git = "https://github.com/xterr/python-xtr-service-contracts.git" }

@@ -9,6 +9,20 @@ dependencies = []
 [tool.uv.workspace]
 members = ["packages/xtr-*"]
 
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+xtr-clock                = { workspace = true }
+xtr-console              = { workspace = true }
+xtr-dependency-injection = { workspace = true }
+xtr-lock                 = { workspace = true }
+xtr-logging              = { workspace = true }
+xtr-logging-contracts    = { workspace = true }
+xtr-messenger            = { workspace = true }
+xtr-scheduler            = { workspace = true }
+xtr-service-contracts    = { workspace = true }
+
 [build-system]
 requires = ["uv_build>=0.9.18,<0.13.0"]
 build-backend = "uv_build"
