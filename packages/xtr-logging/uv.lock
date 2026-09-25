@@ -426,7 +426,7 @@ source = { git = "https://github.com/xterr/python-xtr-clock.git#4e612a4300e11ded
 
 [[package]]
 name = "xtr-logging"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "msgspec" },
