@@ -19,6 +19,7 @@ from .resettable_interface import ResettableInterface
 
 if TYPE_CHECKING:
     from types import TracebackType
+    from typing import IO
 
     from xtr_clock import ClockInterface
 
@@ -151,6 +152,16 @@ class LoggerFactory:
         for built in self._builder.built.values():
             if isinstance(built, ConsoleHandler):
                 built.set_verbosity(verbosity)
+
+    def set_console_stream(self, stream: IO[str] | None, *, colors: bool | None = None) -> None:
+        """Point every console handler at ``stream`` — a command's error output, typically.
+
+        ``None`` is standard error, resolved at write time. ``colors`` forces
+        colours on or off; ``None`` colours only a real terminal.
+        """
+        for built in self._builder.built.values():
+            if isinstance(built, ConsoleHandler):
+                built.set_stream(stream, colors=colors)
 
     def reset(self) -> None:
         """End a unit of work: reset every handler and processor that holds state."""

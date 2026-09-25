@@ -156,7 +156,7 @@ deep, with a warning, rather than recursing until the stack overflows.
 | `StreamHandler` | Writes to a stream or a file, opened on first write, parent directories created |
 | `RotatingFileHandler` | One file per day (or any `date_format`), keeping the newest `max_files` |
 | `SyslogHandler` | Syslog over UDP or a socket such as `/dev/log`, with the right severity |
-| `ConsoleHandler` | Standard error, its level following `-v` verbosity, coloured on a terminal |
+| `ConsoleHandler` | Standard error, or any stream set later, its level following `-v` verbosity, coloured on a terminal |
 | `NullHandler` | Swallows records at its level |
 | `TestHandler` | Keeps records in memory for assertions |
 | `FingersCrossedHandler` | Buffers everything; writes it all once one record is bad enough |
@@ -331,8 +331,14 @@ queued; use the factory as a context manager, or close it on shutdown. `set_verb
 every console handler at once, from command-line flags:
 
 ```python
-factory.set_verbosity(Verbosity.from_count(args.verbose, quiet=args.quiet))
+factory.set_verbosity(Verbosity.from_count(args.verbose, quiet=args.quiet, silent=args.silent))
 ```
+
+The map: `--silent` prints nothing, `-q`
+errors and up, no flag warnings and up, `-v` notices, `-vv` info, `-vvv` everything.
+`set_console_stream(stream, colors=...)` points every console handler at another stream — a
+command's error output — with colours forced on or off. [xtr-console](https://github.com/xterr/python-xtr-console)
+does both for every command it runs when its container provides the factory.
 
 ## The standard library
 

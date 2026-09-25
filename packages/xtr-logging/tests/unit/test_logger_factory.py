@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 from typing import TYPE_CHECKING
 
@@ -274,6 +275,16 @@ def test_set_verbosity_reaches_console_handlers() -> None:
     console = factory.handler("console")
     assert isinstance(console, ConsoleHandler)
     assert console.level is Level.DEBUG
+
+
+def test_set_console_stream_reaches_console_handlers() -> None:
+    factory = _factory(LoggingConfig(handlers={"console": ConsoleHandlerSpec()}))
+    stream = io.StringIO()
+
+    factory.set_console_stream(stream, colors=False)
+    factory.logger().error("boom")
+
+    assert "boom" in stream.getvalue()
 
 
 def test_reset_ends_a_unit_of_work() -> None:
