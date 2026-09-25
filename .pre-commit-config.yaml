@@ -7,3 +7,16 @@ repos:
     - id: ruff-check
     # Run the formatter.
     - id: ruff-format
+- repo: local
+  hooks:
+    # Run the test suite of every package with a staged file. CI runs them all.
+    - id: pytest
+      name: pytest (changed packages)
+      language: system
+      files: ^packages/
+      require_serial: true
+      entry: >-
+        bash -c 'for p in $(printf "%s\n" "$@" | cut -d/ -f2 | sort -u); do
+        [ -d "packages/$p/tests" ] || continue;
+        uv run --frozen --package "$p" pytest -q --rootdir "packages/$p" "packages/$p" || exit 1;
+        done' --
