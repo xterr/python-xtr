@@ -3,9 +3,9 @@ from __future__ import annotations
 import io
 
 import pytest
+from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
-from xtr_logging import Level
 from xtr_logging.formatter.console_formatter import ConsoleFormatter
 from xtr_logging.handler.console_handler import ConsoleHandler
 from xtr_logging.verbosity import Verbosity

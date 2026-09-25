@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from xtr_logging_contracts import Level
+
 from tests.support.records import make_record
-from xtr_logging import Level
 from xtr_logging.formatter.json_batch_mode import JsonBatchMode
 from xtr_logging.formatter.json_formatter import JsonFormatter
 

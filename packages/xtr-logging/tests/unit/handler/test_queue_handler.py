@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
-from xtr_logging import AbstractHandler, Level, LogRecord, TestHandler
+from xtr_logging import AbstractHandler, LogRecord, TestHandler
 from xtr_logging.handler.queue_handler import QueueHandler
 
 if TYPE_CHECKING:

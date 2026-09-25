@@ -6,10 +6,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 from xtr_clock import MockClock
+from xtr_logging_contracts import Level
 
 from tests.support.records import AT
 from tests.support.stdlib import Collector
-from xtr_logging import Level, LogRecord, TestHandler
+from xtr_logging import LogRecord, TestHandler
 from xtr_logging.config import (
     BufferHandlerSpec,
     CapturedLoggerSpec,

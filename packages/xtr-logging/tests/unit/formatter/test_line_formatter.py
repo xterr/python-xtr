@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import re
 
+from xtr_logging_contracts import Level
+
 from tests.support.records import make_record
-from xtr_logging import Level, LineFormatter
+from xtr_logging import LineFormatter
 
 
 def _raise(error: Exception) -> None:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from xtr_logging import Level, Logger, TestHandler
+from xtr_logging_contracts import Level
+
+from xtr_logging import Logger, TestHandler
 from xtr_logging.processor.introspection_processor import IntrospectionProcessor
 
 

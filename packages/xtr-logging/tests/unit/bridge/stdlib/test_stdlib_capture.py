@@ -7,9 +7,10 @@ import logging.config
 from uuid import uuid4
 
 import pytest
+from xtr_logging_contracts import Level
 
 from tests.support.stdlib import Collector
-from xtr_logging import Level, Logger, TestHandler
+from xtr_logging import Logger, TestHandler
 from xtr_logging.bridge.stdlib import StdlibCapture
 
 pytestmark = pytest.mark.usefixtures("stdlib_logging")

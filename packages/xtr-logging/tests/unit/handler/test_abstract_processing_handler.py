@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import final
 
 import pytest
+from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
 from xtr_logging import (
     EmptyStackError,
     FormattableHandlerInterface,
-    Level,
     LineFormatter,
     LogRecord,
     ProcessableHandlerInterface,

@@ -4,9 +4,10 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
-from xtr_logging import AbstractHandler, EmptyStackError, Level, LogRecord
+from xtr_logging import AbstractHandler, EmptyStackError, LogRecord
 from xtr_logging.handler.buffer_handler import BufferHandler
 
 if TYPE_CHECKING:

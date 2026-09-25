@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_clock import MockClock
+from xtr_logging_contracts import Level
 
 from tests.support.records import AT, make_record
-from xtr_logging import AbstractHandler, Level, LogRecord
+from xtr_logging import AbstractHandler, LogRecord
 from xtr_logging.handler.deduplication_handler import DeduplicationHandler
 
 if TYPE_CHECKING:

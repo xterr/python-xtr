@@ -5,9 +5,10 @@ from typing import final
 
 import pytest
 from typing_extensions import override
+from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
-from xtr_logging import InvalidOptionError, Level, LogRecord, TestHandler
+from xtr_logging import InvalidOptionError, LogRecord, TestHandler
 from xtr_logging.handler.sampling_handler import SamplingHandler
 
 

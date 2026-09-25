@@ -3,9 +3,10 @@ from __future__ import annotations
 import socket
 
 import pytest
+from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
-from xtr_logging import InvalidOptionError, Level
+from xtr_logging import InvalidOptionError
 from xtr_logging.handler.syslog_handler import SyslogHandler
 
 

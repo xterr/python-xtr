@@ -4,8 +4,9 @@ from typing import Annotated, final
 
 import wireup
 from wireup import Inject
+from xtr_logging_contracts import LoggerInterface
 
-from xtr_logging import Logger, LoggerInterface, TestHandler
+from xtr_logging import Logger, TestHandler
 from xtr_logging.config import LoggingConfig, ServiceHandlerSpec, Services
 from xtr_logging.integration import wireup as logging_integration
 from xtr_logging.logger_factory import LoggerFactory

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from xtr_logging_contracts import Level
+
 from tests.support.records import make_record
-from xtr_logging import Level
 from xtr_logging.handler.fingers_crossed.error_level_activation_strategy import (
     ErrorLevelActivationStrategy,
 )

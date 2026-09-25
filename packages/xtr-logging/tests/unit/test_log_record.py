@@ -3,9 +3,9 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
-from xtr_logging import Level
 
 
 def test_context_is_copied_so_the_caller_cannot_rewrite_it() -> None:

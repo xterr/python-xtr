@@ -4,8 +4,9 @@ import io
 import stat
 from typing import TYPE_CHECKING
 
+from xtr_logging_contracts import Level
+
 from tests.support.records import make_record
-from xtr_logging import Level
 from xtr_logging.handler.stream_handler import StreamHandler
 
 if TYPE_CHECKING:

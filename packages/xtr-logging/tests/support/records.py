@@ -5,10 +5,12 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Final
 
-from xtr_logging import Level, LogRecord
+from xtr_logging_contracts import Level
+
+from xtr_logging import LogRecord
 
 if TYPE_CHECKING:
-    from xtr_logging import Context
+    from xtr_logging_contracts import Context
 
 AT: Final = dt.datetime(2026, 9, 24, 12, 30, 45, 123456, tzinfo=dt.UTC)
 """The time every record made here carries, unless told otherwise."""

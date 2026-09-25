@@ -6,13 +6,12 @@ from typing import TYPE_CHECKING, final
 import pytest
 from typing_extensions import override
 from xtr_clock import Clock, MockClock
+from xtr_logging_contracts import InvalidLevelError, Level
 
 from tests.support.records import AT
 from xtr_logging import (
     AbstractHandler,
     EmptyStackError,
-    InvalidLevelError,
-    Level,
     Logger,
     LogRecord,
     TestHandler,

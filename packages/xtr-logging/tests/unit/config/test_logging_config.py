@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
+from xtr_logging_contracts import InvalidLevelError, Level
 
-from xtr_logging import InvalidLevelError, Level
 from xtr_logging.config import (
     BufferHandlerSpec,
     CapturedLoggerSpec,

@@ -5,7 +5,7 @@
 **Channels, handlers, processors and formatters for Python — behind one logger interface.**
 
 <img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: 4" src="https://img.shields.io/badge/core%20deps-4-3FB950">
+<img alt="core dependencies: 5" src="https://img.shields.io/badge/core%20deps-5-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -35,8 +35,8 @@ What you get:
 - 🤝 **A contract a library can depend on alone** — the interface lives in
   [xtr-logging-contracts](https://github.com/xterr/python-xtr-logging-contracts), which has one
   dependency, so a library that only logs never installs any of this.
-- 🪶 **Four core dependencies** — `msgspec`, `typing-extensions`, `xtr-clock` and
-  `xtr-logging-contracts`.
+- 🪶 **Five core dependencies** — `msgspec`, `typing-extensions`, `xtr-clock`,
+  `xtr-logging-contracts` and `xtr-service-contracts`.
 
 ```python
 logger.error("payment {order} failed", {"order": order.id, "exception": error})
@@ -61,7 +61,8 @@ xtr-logging-contracts = { git = "https://github.com/xterr/python-xtr-logging-con
 ## Quick start
 
 ```python
-from xtr_logging import Level, Logger, PlaceholderProcessor, StreamHandler
+from xtr_logging import Logger, PlaceholderProcessor, StreamHandler
+from xtr_logging_contracts import Level
 
 logger = Logger(
     "app",
@@ -76,7 +77,7 @@ logger.info("user {user} logged in", {"user": "ana"})
 Code that only *uses* a logger asks for the interface:
 
 ```python
-from xtr_logging import LoggerInterface, NullLogger
+from xtr_logging_contracts import LoggerInterface, NullLogger
 
 
 class Checkout:
@@ -86,15 +87,14 @@ class Checkout:
 
 ## The logger interface
 
-The interface, `Level`, `Context`, `NullLogger`, `AbstractLogger` and `LoggerAware` are defined in
-[xtr-logging-contracts](https://github.com/xterr/python-xtr-logging-contracts) and **re-exported**
-here, never redefined — `xtr_logging.LoggerInterface is xtr_logging_contracts.LoggerInterface`.
-That identity is what lets a container register a logger under the interface and have a library
-that never imported this package receive it.
+The interface, `Level`, `Context`, `NullLogger`, `AbstractLogger` and `LoggerAware` belong to
+[xtr-logging-contracts](https://github.com/xterr/python-xtr-logging-contracts) and are imported
+from there, not from here. This package exports only what it owns — loggers, handlers,
+processors, formatters and configuration — so there is exactly one place each name comes from and
+no chance of two packages disagreeing about what `LoggerInterface` is.
 
 So a library that only logs depends on `xtr-logging-contracts` at runtime and keeps `xtr-logging`
-as a dev dependency for its tests; an application depends on `xtr-logging` and wires it. Either
-way `from xtr_logging import LoggerInterface` keeps working.
+as a dev dependency for its tests; an application depends on both and wires them together.
 
 ```python
 class LoggerInterface(Protocol):
@@ -193,7 +193,8 @@ reaches the action level, and then the whole buffer is — so a failed request l
 story, and a healthy one leaves nothing:
 
 ```python
-from xtr_logging import FingersCrossedHandler, Level, Logger, StreamHandler
+from xtr_logging import FingersCrossedHandler, Logger, StreamHandler
+from xtr_logging_contracts import Level
 
 logger = Logger("app", [FingersCrossedHandler(StreamHandler("var/log/app.log"), Level.ERROR)])
 ```
@@ -418,7 +419,7 @@ from typing import Annotated
 
 from wireup import Inject, injectable
 
-from xtr_logging import LoggerInterface
+from xtr_logging_contracts import LoggerInterface
 
 
 @injectable
@@ -462,7 +463,8 @@ native record.
 `TestHandler` keeps what it handles:
 
 ```python
-from xtr_logging import Level, Logger, TestHandler
+from xtr_logging import Logger, TestHandler
+from xtr_logging_contracts import Level
 
 handler = TestHandler()
 checkout = Checkout(Logger("app", [handler]))

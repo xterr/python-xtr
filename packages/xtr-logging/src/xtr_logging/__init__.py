@@ -21,19 +21,6 @@ this package receive it.
 
 from importlib.metadata import PackageNotFoundError, version
 
-from xtr_logging_contracts import (
-    EXCEPTION_KEY,
-    AbstractLogger,
-    Context,
-    Level,
-    LevelLike,
-    LoggerAware,
-    LoggerAwareInterface,
-    LoggerInterface,
-    NullLogger,
-)
-from xtr_service_contracts import ResettableInterface
-
 from .config import LoggingConfig, Services
 from .decorator import as_processor
 from .exception import (
@@ -41,9 +28,7 @@ from .exception import (
     CircularHandlerReferenceError,
     EmptyStackError,
     InvalidConfigurationError,
-    InvalidLevelError,
     InvalidOptionError,
-    LoggingError,
     MixedChannelFilterError,
     NotProcessableHandlerError,
     UnknownChannelError,
@@ -94,7 +79,6 @@ from .processor import (
     IntrospectionProcessor,
     PlaceholderProcessor,
     ProcessIdProcessor,
-    ProcessorDescriptor,
     ProcessorInterface,
     ProcessorRegistry,
     TagProcessor,
@@ -111,9 +95,7 @@ except PackageNotFoundError:  # pragma: no cover
     __version__ = "0+unknown"
 
 __all__ = [
-    "EXCEPTION_KEY",
     "AbstractHandler",
-    "AbstractLogger",
     "AbstractProcessingHandler",
     "ActivationStrategyInterface",
     "BufferHandler",
@@ -122,7 +104,6 @@ __all__ = [
     "CircularHandlerReferenceError",
     "ConsoleFormatter",
     "ConsoleHandler",
-    "Context",
     "ContextVarsProcessor",
     "DeduplicationHandler",
     "EmptyStackError",
@@ -137,35 +118,25 @@ __all__ = [
     "HostnameProcessor",
     "IntrospectionProcessor",
     "InvalidConfigurationError",
-    "InvalidLevelError",
     "InvalidOptionError",
     "JsonBatchMode",
     "JsonFormatter",
-    "Level",
-    "LevelLike",
     "LineFormatter",
     "LogRecord",
     "Logger",
-    "LoggerAware",
-    "LoggerAwareInterface",
     "LoggerFactory",
-    "LoggerInterface",
     "LoggingConfig",
-    "LoggingError",
     "MixedChannelFilterError",
     "Normalized",
     "Normalizer",
     "NotProcessableHandlerError",
     "NullHandler",
-    "NullLogger",
     "PlaceholderProcessor",
     "ProcessIdProcessor",
     "ProcessableHandlerInterface",
-    "ProcessorDescriptor",
     "ProcessorInterface",
     "ProcessorRegistry",
     "QueueHandler",
-    "ResettableInterface",
     "RotatingFileHandler",
     "SamplingHandler",
     "Services",

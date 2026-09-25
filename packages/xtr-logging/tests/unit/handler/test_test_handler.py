@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import re
 
+from xtr_logging_contracts import Level
+
 from tests.support.records import make_record
-from xtr_logging import Level, LogRecord, TestHandler
+from xtr_logging import LogRecord, TestHandler
 
 
 def _handler_with(*records: LogRecord) -> TestHandler:

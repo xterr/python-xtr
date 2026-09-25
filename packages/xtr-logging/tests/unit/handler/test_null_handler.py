@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from xtr_logging_contracts import Level
+
 from tests.support.records import make_record
-from xtr_logging import Level, Logger, NullHandler, TestHandler
+from xtr_logging import Logger, NullHandler, TestHandler
 
 
 def test_it_stops_records_at_its_level() -> None:

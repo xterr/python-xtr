@@ -10,8 +10,6 @@ rather than to this library, and are re-exported here so one ``except`` still
 reaches both halves.
 """
 
-from xtr_logging_contracts import InvalidLevelError, LoggingError
-
 from .capture_conflict_error import CaptureConflictError
 from .circular_handler_reference_error import CircularHandlerReferenceError
 from .empty_stack_error import EmptyStackError
@@ -28,9 +26,7 @@ __all__ = [
     "CircularHandlerReferenceError",
     "EmptyStackError",
     "InvalidConfigurationError",
-    "InvalidLevelError",
     "InvalidOptionError",
-    "LoggingError",
     "MixedChannelFilterError",
     "NotProcessableHandlerError",
     "UnknownChannelError",
