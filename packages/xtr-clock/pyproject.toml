@@ -1,0 +1,175 @@
+[project]
+name = "xtr-clock"
+version = "0.1.0"
+description = "Decouples an application from the system clock: an injectable clock, a timezone-aware instant, and a frozen clock for tests."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+license-files = ["LICENSE"]
+authors = [
+    { name = "Razvan Ceana", email = "razvan@ceana.ro" }
+]
+keywords = ["clock", "time", "datetime", "timezone", "testing", "freeze-time", "monotonic"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+tzdata = [
+    "tzdata>=2024.1",
+]
+
+# No `pytest11` entry point on purpose. The `clock` fixture is opted into with
+# `pytest_plugins = ["xtr_clock.pytest_plugin"]`, so a suite that merely
+# installs this library gets no fixture it did not ask for — and nothing
+# imports pytest unless something meant to.
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.21",
+    "ruff>=0.8",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "anyio>=4.0",
+    "ty>=0.0.83",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xtr_clock"]
+
+# ─────────────────────────────────────────────────────────────────
+# basedpyright — typeCheckingMode = "all" sets every report flag to error
+# ─────────────────────────────────────────────────────────────────
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.11"
+pythonPlatform = "All"
+include = ["src", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
+
+reportUnusedCallResult = "warning"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnusedVariable = "error"
+reportMissingParameterType = "error"
+reportPrivateUsage = "error"
+
+# `@override` landed in typing in 3.12, and this library ships no dependencies,
+# so on 3.11 there is nothing to import it from.
+reportImplicitOverride = "none"
+# An error message long enough to be useful has to wrap, and a 100-column
+# limit puts the break inside the string.
+reportImplicitStringConcatenation = "none"
+
+# The mixin defines no __init__ on purpose, so it composes with any class,
+# including a dataclass. Its clock is therefore set on first use rather than
+# on construction, and reading it before then is what selects the default.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_clock/clock_aware_mixin.py"
+reportUninitializedInstanceVariable = "none"
+
+# DatePoint and the clocks describe each other: a clock answers with a
+# DatePoint, and a DatePoint resolves a modifier against the current clock.
+# The imports are deferred, so no cycle exists at runtime — only in the
+# static graph.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_clock"
+reportImportCycles = "none"
+
+# ─────────────────────────────────────────────────────────────────
+# ruff — select = ["ALL"], minimal justified ignores
+# ─────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Formatter conflicts (ruff documents these)
+    "COM812",
+    "ISC001",
+    # Mutually-exclusive docstring conventions; keep the modern one
+    "D203",
+    "D213",
+    # Project-specific noise
+    "CPY001",
+    "FBT001",
+    "FBT002",
+    "TD002",
+    "TD003",
+    "FIX002",
+    # Exceptions compose their own messages from typed fields; the string at a
+    # raise site is a `reason` data field. See xtr_clock/exception/.
+    "TRY003",
+    "EM101",
+    "EM102",
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# DatePoint is a datetime, so it inherits datetime's argument names and
+# counts; A002 and PLR0913 are the standard library's choices, not ours.
+"src/xtr_clock/date_point.py" = ["A002", "PLR0913", "PLR0917"]
+"tests/**/*.py" = [
+    "S101",    # assert is the point of pytest
+    "ARG",     # fixtures look unused
+    "PLR2004", # magic numbers in test data
+    "SLF001",  # tests reach into privates
+    "D",       # test names are the docs
+    "DTZ001",  # a naive datetime is the input under test
+    "DTZ005",
+    "DTZ007",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+# ─────────────────────────────────────────────────────────────────
+# ty — a second opinion on the source
+# ─────────────────────────────────────────────────────────────────
+# Run alongside basedpyright rather than instead of it: the two disagree
+# often enough to be worth both.
+[tool.ty.src]
+include = ["src", "tests"]
+
+# ─────────────────────────────────────────────────────────────────
+# pytest
+# ─────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-config", "--strict-markers"]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    # A Protocol body states a contract; there is nothing there to run.
+    "^\\s*\\.\\.\\.$",
+]
