@@ -1,7 +1,7 @@
 name: Release
 
 # Pushing a tag X.Y.Z publishes every package at X.Y.Z to PyPI, then tags each
-# read-only repository X.Y.Z.
+# read-only repository X.Y.Z and makes it that repository's latest GitHub release.
 #
 # Each package is published from its own job and environment, pypi-<package>,
 # which is what its PyPI trusted publisher names: PyPI allows only one pending
@@ -80,9 +80,14 @@ jobs:
       - env:
           PACKAGES: ${{ needs.build.outputs.packages }}
           SPLIT_TOKEN: ${{ steps.token.outputs.token }}
+          GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
           set -euo pipefail
           for package in $(jq -r '.[]' <<<"$PACKAGES"); do
+            repo="xterr/python-${package}"
             sha=$(git subtree split --prefix="packages/$package" HEAD)
-            git push "https://x-access-token:${SPLIT_TOKEN}@github.com/xterr/python-${package}.git" "$sha:refs/tags/$GITHUB_REF_NAME"
+            git push "https://x-access-token:${SPLIT_TOKEN}@github.com/${repo}.git" "$sha:refs/tags/$GITHUB_REF_NAME"
+            gh release create "$GITHUB_REF_NAME" --repo "$repo" --verify-tag --latest \
+              --title "$GITHUB_REF_NAME" \
+              --notes "Released from https://github.com/xterr/python-xtr/tree/$GITHUB_REF_NAME — on PyPI as https://pypi.org/project/${package}/${GITHUB_REF_NAME}/"
           done
