@@ -1,0 +1,98 @@
+[project]
+name = "xtr-service-contracts"
+version = "0.1.1"
+description = "Contracts for the lifecycle of a service: what a container drives, not what a service does."
+readme = "README.md"
+authors = [
+    { name = "Razvan Ceana", email = "razvan@ceana.ro" }
+]
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["contracts", "interface", "protocol", "service", "dependency-injection", "reset"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+# None, and there should never be any. Every other contract package in this
+# ecosystem is free to depend on this one, which only works while it is a leaf.
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.21",
+    "ruff>=0.8",
+    "ty>=0.0.83",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+# ─────────────────────────────────────────────────────────────────
+# basedpyright — typeCheckingMode = "all" sets every report flag to error
+# ─────────────────────────────────────────────────────────────────
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.11"
+pythonPlatform = "All"
+include = ["src"]
+exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
+
+reportUnusedCallResult = "warning"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnusedVariable = "error"
+reportMissingParameterType = "error"
+reportPrivateUsage = "error"
+
+# `@override` landed in typing in 3.12, and this package ships no dependencies,
+# so on 3.11 there is nothing to import it from.
+reportImplicitOverride = "none"
+
+# ─────────────────────────────────────────────────────────────────
+# ruff — select = ["ALL"], minimal justified ignores
+# ─────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Formatter conflicts (ruff documents these)
+    "COM812",
+    "ISC001",
+    # Mutually-exclusive docstring conventions; keep the modern one
+    "D203",
+    "D213",
+    # Project-specific noise
+    "CPY001",
+    "FBT001",
+    "FBT002",
+    "TD002",
+    "TD003",
+    "FIX002",
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+# ─────────────────────────────────────────────────────────────────
+# ty — a second opinion on the source
+# ─────────────────────────────────────────────────────────────────
+[tool.ty.src]
+include = ["src"]
