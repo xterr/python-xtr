@@ -1,0 +1,110 @@
+[project]
+name = "bookshop"
+version = "1.1.0"
+description = "A complete example application built on every xtr package: kernel, bundles, console, web, messenger."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "xtr-clock[di]",
+    "xtr-console[di]",
+    "xtr-dependency-injection",
+    "xtr-dotenv[di,console]",
+    "xtr-logging[di]",
+    "xtr-logging-contracts",
+    "xtr-messenger[di,console,pydantic,amqp]",
+    "xtr-service-contracts",
+]
+
+[project.scripts]
+bookshop = "bookshop.__main__:main"
+bookshop-web = "bookshop.web.__main__:main"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.21",
+    "ruff>=0.8",
+    "ty>=0.0.83",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# Two top-level packages live under src/: the application, and a small library
+# it ships alongside to show what a reusable package with its own bundle looks like.
+module-name = ["bookshop", "fulltext"]
+
+# This example is its own uv project, NOT a member of the repository's workspace:
+# every xtr package is taken from the working tree, editable, so a change in
+# packages/ is visible here at once.
+[tool.uv.sources]
+xtr-clock                = { path = "../../packages/xtr-clock", editable = true }
+xtr-console              = { path = "../../packages/xtr-console", editable = true }
+xtr-dependency-injection = { path = "../../packages/xtr-dependency-injection", editable = true }
+xtr-dotenv               = { path = "../../packages/xtr-dotenv", editable = true }
+xtr-logging              = { path = "../../packages/xtr-logging", editable = true }
+xtr-logging-contracts    = { path = "../../packages/xtr-logging-contracts", editable = true }
+xtr-messenger            = { path = "../../packages/xtr-messenger", editable = true }
+xtr-service-contracts    = { path = "../../packages/xtr-service-contracts", editable = true }
+
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.11"
+pythonPlatform = "All"
+include = ["src"]
+exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp", "var"]
+reportUnusedCallResult = "warning"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnusedVariable = "error"
+reportMissingParameterType = "error"
+reportPrivateUsage = "error"
+# An error message long enough to be useful has to wrap.
+reportImplicitStringConcatenation = "none"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",
+    "ISC001",
+    "D203",
+    "D213",
+    "CPY001",
+    "FBT001",
+    "FBT002",
+    "TD002",
+    "TD003",
+    "FIX002",
+    # The logger interface takes a context mapping as its second argument;
+    # PLE1205 assumes every `logger.info(...)` is the standard library's.
+    "PLE1205",
+    # Errors compose their own messages from typed fields.
+    "TRY003",
+    "EM101",
+    "EM102",
+    # The container, the console and the messenger read constructor, factory, hook, command
+    # and handler annotations at runtime: an import used only in an annotation is still
+    # needed at runtime here, so none may move under TYPE_CHECKING.
+    "TC001",
+    "TC002",
+    "TC003",
+    # The logger interface has no `.exception()`: an exception is reported under
+    # context["exception"] (EXCEPTION_KEY), whatever the level.
+    "TRY400",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ty.src]
+include = ["src"]

@@ -1,0 +1,5 @@
+# What the example writes while it runs.
+/var/
+# Written by `bookshop dotenv:dump`; regenerate it rather than commit it.
+/.env.local.json
+/.venv/
