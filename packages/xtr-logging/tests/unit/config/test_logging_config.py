@@ -193,3 +193,38 @@ def test_capture_and_a_stdlib_handler_are_refused_together() -> None:
         _ = LoggingConfig(handlers={"out": StdlibHandlerSpec()}, capture=CaptureSpec())
 
     assert raised.value.handler == "out"
+
+
+# ─── with_channels ───────────────────────────────────────────────
+
+
+def test_with_channels_declares_new_channels_after_the_listed_ones() -> None:
+    config = LoggingConfig(channels=("security",))
+
+    assert config.with_channels("mail", "billing").channels == ("security", "mail", "billing")
+
+
+def test_with_channels_skips_a_channel_already_declared() -> None:
+    config = LoggingConfig(
+        channels=("security",),
+        handlers={"audit": StreamHandlerSpec(channels=("audit",))},
+    )
+
+    assert config.with_channels("security", "app", "audit", "mail", "mail").channels == (
+        "security",
+        "mail",
+    )
+
+
+def test_with_channels_returns_the_same_config_when_nothing_is_added() -> None:
+    config = LoggingConfig(channels=("security",))
+
+    assert config.with_channels("security") is config
+
+
+def test_with_channels_leaves_the_original_untouched() -> None:
+    config = LoggingConfig()
+
+    _ = config.with_channels("mail")
+
+    assert config.channels == ()

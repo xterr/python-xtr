@@ -152,6 +152,21 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
         except msgspec.ValidationError as error:
             raise InvalidConfigurationError(str(error)) from error
 
+    def with_channels(self, *channels: str) -> LoggingConfig:
+        """Return a copy that declares ``channels`` as well.
+
+        A channel already declared — listed, the default one, or named by a handler — is
+        not added twice, and a copy with nothing to add is this very config. This is how a
+        bundle gives itself a channel from ``prepend_extension``::
+
+            builder.prepend_extension_config(LoggingConfig, lambda c: c.with_channels("mail"))
+        """
+        known = self.all_channels
+        added = tuple(channel for channel in dict.fromkeys(channels) if channel not in known)
+        if not added:
+            return self
+        return msgspec.structs.replace(self, channels=(*self.channels, *added))
+
     @property
     def all_channels(self) -> tuple[str, ...]:
         """Every declared channel: the default, the listed, then those named by handlers."""

@@ -311,7 +311,8 @@ The rules:
 
 - **Channels.** `app` (`default_channel`) always exists. `channels` adds more, and a channel
   named in any handler's `channels` is declared too. Asking for any other channel raises
-  `UnknownChannelError`.
+  `UnknownChannelError`. `config.with_channels("mail")` returns a copy declaring more — what a
+  bundle calls from `prepend_extension` to give itself a channel.
 - **Channel filters.** `channels: "security"` or `["a", "b"]` includes; `"!event"` or
   `["!a", "!b"]` excludes. Mixing the two raises `MixedChannelFilterError`. A filter applies only
   to a handler on a channel's stack, not to one nested in another handler.
