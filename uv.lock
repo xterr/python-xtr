@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 members = [
     "xtr",
     "xtr-cache",
+    "xtr-cache-contracts",
     "xtr-clock",
     "xtr-console",
     "xtr-dependency-injection",
@@ -1612,6 +1613,41 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+]
+
+[[package]]
+name = "xtr-cache-contracts"
+version = "1.1.0"
+source = { editable = "packages/xtr-cache-contracts" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
 ]
 
 [[package]]

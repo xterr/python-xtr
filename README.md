@@ -21,6 +21,7 @@ packages is one commit, and released separately so an application installs only 
 
 | Package | What it is |
 |---|---|
+| [xtr-cache-contracts](packages/xtr-cache-contracts) | The caching interfaces alone: fetch-or-compute, item pools, tags and namespaces. |
 | [xtr-clock](packages/xtr-clock) | An injectable clock, a timezone-aware `DatePoint`, and a frozen clock for tests. |
 | [xtr-console](packages/xtr-console) | Async-native console applications: commands as functions or classes, wired by a container. |
 | [xtr-dependency-injection](packages/xtr-dependency-injection) | A bundle and kernel layer for Python, compiled to a wireup container. |
@@ -42,6 +43,7 @@ graph LR
     messenger[xtr-messenger] --> logcon
     lock[xtr-lock] --> clock
     lock --> logcon
+    cachecon[xtr-cache-contracts] --> clock
     messenger -. console extra .-> console[xtr-console]
 ```
 
