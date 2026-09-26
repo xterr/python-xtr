@@ -105,20 +105,25 @@ class LoggingBundle(Bundle[LoggingConfig]):
         registry = self._registry
         declared_classes = self._declared_classes
 
-        async def services_factory(container: ContainerInterface) -> Services:
+        # The factories inject the config rather than closing over ``config``:
+        # the container hands them a copy with every environment placeholder
+        # resolved, which the value loaded here is not.
+        async def services_factory(
+            container: ContainerInterface, resolved: LoggingConfig
+        ) -> Services:
             for cls in declared_classes:
                 registry.bind_class(cls, await container.get(cls))
-            return await _resolve_services(config, container)
+            return await _resolve_services(resolved, container)
 
         _ = services.set(services_factory)
 
         if has_clock:
 
             async def logger_factory_with_clock(
-                services_from_config: Services, clock: ClockInterface
+                resolved: LoggingConfig, services_from_config: Services, clock: ClockInterface
             ) -> AsyncIterator[LoggerFactory]:
                 factory = LoggerFactory(
-                    config, services=services_from_config, registry=registry, clock=clock
+                    resolved, services=services_from_config, registry=registry, clock=clock
                 )
                 try:
                     yield factory
@@ -129,9 +134,9 @@ class LoggingBundle(Bundle[LoggingConfig]):
         else:
 
             async def logger_factory_no_clock(
-                services_from_config: Services,
+                resolved: LoggingConfig, services_from_config: Services
             ) -> AsyncIterator[LoggerFactory]:
-                factory = LoggerFactory(config, services=services_from_config, registry=registry)
+                factory = LoggerFactory(resolved, services=services_from_config, registry=registry)
                 try:
                     yield factory
                 finally:
