@@ -1,18 +1,24 @@
 from __future__ import annotations
 
 import math
-from typing import final
+from typing import TYPE_CHECKING, TypeVar, final
 
 import pytest
+from typing_extensions import override
 from xtr_clock.testing import mock_time
 
 from tests.support.in_memory_pool import InMemoryItem, InMemoryPool
 from xtr_cache_contracts import CacheInterface, InvalidArgumentError, ItemInterface, Metadata
 from xtr_cache_contracts import cache_mixin as cache_mixin_module
 
+if TYPE_CHECKING:
+    from xtr_cache_contracts import Callback
+
 pytestmark = pytest.mark.anyio
 
 NOON = "2024-04-09 12:00:00"
+
+_T = TypeVar("_T")
 
 
 @final
@@ -183,3 +189,48 @@ async def test_deleting_removes_the_value() -> None:
     assert await pool.delete("k")
 
     assert not await pool.has_item("k")
+
+
+@final
+class _HookedPool(InMemoryPool):
+    """Overrides the three steps of ``get``, recording what each was given."""
+
+    def __init__(self, now: float) -> None:
+        super().__init__()
+        self.now = now
+        self.computed: list[tuple[str, float]] = []
+        self.elected: list[tuple[str, float]] = []
+
+    @override
+    async def _compute(
+        self,
+        item: ItemInterface,
+        callback: Callback[_T],
+        beta: float,
+        metadata: Metadata | None,
+    ) -> _T:
+        self.computed.append((item.key, beta))
+        return await super()._compute(item, callback, beta, metadata)
+
+    @override
+    def _now(self) -> float:
+        return self.now
+
+    @override
+    def _on_elected(self, item: ItemInterface, remaining: float) -> None:
+        self.elected.append((item.key, remaining))
+
+
+async def test_a_pool_adjusts_how_values_are_computed_timed_and_elected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cache_mixin_module, "_draw", lambda: 0.1)
+    with mock_time(NOON) as clock:
+        now = clock.now().timestamp()
+        pool = _HookedPool(now=now)
+        pool.seed("k", "stale", {"expiry": now + 0.5, "ctime": 1000})
+
+        assert await pool.get("k", Computation("fresh"), beta=2.0) == "fresh"
+
+    assert pool.computed == [("k", 2.0)]
+    assert pool.elected == [("k", 0.5)]

@@ -43,9 +43,12 @@ class CacheMixin(CacheInterface, ABC):
     recomputed once it has expired. The time is read from the clock in force
     (:func:`xtr_clock.now`), so freezing it in a test freezes this too.
 
-    What this does not do is make concurrent misses on one key compute once:
-    that needs a lock or a shared in-flight computation, and is the
-    implementation's to add by overriding :meth:`get`.
+    :meth:`get` is a template an implementation adjusts through three steps
+    rather than rewrites: :meth:`_compute` — how a missing value is computed
+    and saved, where concurrent misses can be made to share one computation
+    or wait on a lock; :meth:`_now` — which clock is read; and
+    :meth:`_on_elected` — what to do when a hit is elected for early
+    recomputation, such as logging it.
     """
 
     @abstractmethod
@@ -89,11 +92,32 @@ class CacheMixin(CacheInterface, ABC):
         if (
             item.is_hit()
             and not math.isinf(beta)
-            and not _elect_early_recomputation(item, found, beta)
+            and not self._elect_early_recomputation(item, found, beta)
         ):
             # The key's value was stored by the same callback type, which is the caller's promise.
             return cast("_T", item.get())
 
+        return await self._compute(item, callback, beta, metadata)
+
+    @override
+    async def delete(self, key: str, /) -> bool:
+        """Remove the value under ``key``; ``False`` when the backend failed."""
+        return await self.delete_item(key)
+
+    async def _compute(
+        self,
+        item: ItemInterface,
+        callback: Callback[_T],
+        beta: float,
+        metadata: Metadata | None,
+    ) -> _T:
+        """Compute the value for ``item`` with ``callback``, save it, and return it.
+
+        A value that cannot be saved is still returned, and reported through
+        ``metadata``. ``beta`` is infinite when the caller forces the value to
+        be computed again.
+        """
+        del beta
         value = await callback(item)
         _ = item.set(value)
         if not await self.save(item) and metadata is not None:
@@ -101,33 +125,43 @@ class CacheMixin(CacheInterface, ABC):
 
         return value
 
-    @override
-    async def delete(self, key: str, /) -> bool:
-        """Remove the value under ``key``; ``False`` when the backend failed."""
-        return await self.delete_item(key)
+    def _now(self) -> float:
+        """Return the current time as a Unix timestamp, from the clock in force."""
+        return now().timestamp()
 
+    def _on_elected(self, item: ItemInterface, remaining: float) -> None:
+        """Hear that ``item`` was elected for early recomputation, ``remaining`` seconds early."""
+        del item, remaining
 
-def _elect_early_recomputation(item: ItemInterface, metadata: Metadata, beta: float) -> bool:
-    """Decide whether a hit should be recomputed now, ahead of its expiry.
+    def _elect_early_recomputation(
+        self,
+        item: ItemInterface,
+        metadata: Metadata,
+        beta: float,
+    ) -> bool:
+        """Decide whether a hit should be recomputed now, ahead of its expiry.
 
-    The value is recomputed when its expiry falls within a random span ahead
-    of now — the time it took to compute, scaled by ``beta`` and by an
-    exponentially distributed factor. Values that are slow to compute are
-    refreshed earlier, and callers spread over time do not all pick the same
-    moment. An elected item has its expiry reset, so the pool's default
-    lifetime applies to the recomputed value unless the callback sets one.
-    """
-    expiry = metadata.get("expiry")
-    ctime = metadata.get("ctime")
-    if not expiry or not ctime:
-        return False
+        The value is recomputed when its expiry falls within a random span
+        ahead of now — the time it took to compute, scaled by ``beta`` and by
+        an exponentially distributed factor. Values that are slow to compute
+        are refreshed earlier, and callers spread over time do not all pick
+        the same moment. An elected item has its expiry reset, so the pool's
+        default lifetime applies to the recomputed value unless the callback
+        sets one.
+        """
+        expiry = metadata.get("expiry")
+        ctime = metadata.get("ctime")
+        if not expiry or not ctime:
+            return False
 
-    if expiry > now().timestamp() - ctime / 1000 * beta * math.log(_draw()):
-        return False
+        current = self._now()
+        if expiry > current - ctime / 1000 * beta * math.log(_draw()):
+            return False
 
-    _ = item.expires_at(None)
+        _ = item.expires_at(None)
+        self._on_elected(item, expiry - current)
 
-    return True
+        return True
 
 
 def _draw() -> float:
