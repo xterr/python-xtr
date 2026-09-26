@@ -29,7 +29,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
-| [xtr-lock](packages/xtr-lock) | Locks around shared resources. Not implemented yet. |
+| [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
 | [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger. Not implemented yet. |
 
 How they depend on each other (runtime dependencies only; extras are dotted):
@@ -40,6 +40,8 @@ graph LR
     logging --> logcon[xtr-logging-contracts]
     logging --> svccon[xtr-service-contracts]
     messenger[xtr-messenger] --> logcon
+    lock[xtr-lock] --> clock
+    lock --> logcon
     messenger -. console extra .-> console[xtr-console]
 ```
 
@@ -56,7 +58,7 @@ uv add xtr-logging
 uv add "xtr-messenger[amqp]"
 ```
 
-`xtr-lock` and `xtr-scheduler` are published only to hold their names; there is nothing in them yet.
+`xtr-scheduler` is published only to hold its name; there is nothing in it yet.
 
 ## Versions
 

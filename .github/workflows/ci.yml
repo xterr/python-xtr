@@ -41,6 +41,18 @@ jobs:
       matrix:
         package: ${{ fromJSON(needs.checks.outputs.packages) }}
         python: ["3.11", "3.14"]
+    # xtr-lock's Redis store is tested against a real server. An empty image
+    # starts no container, so every other package runs without one.
+    services:
+      redis:
+        image: ${{ matrix.package == 'xtr-lock' && 'redis:7-alpine@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065' || '' }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
     defaults:
       run:
         working-directory: packages/${{ matrix.package }}
@@ -58,6 +70,9 @@ jobs:
       - name: Tests
         if: hashFiles(format('packages/{0}/tests/**', matrix.package)) != ''
         run: uv run --locked --exact pytest
+        env:
+          # Tests needing Redis skip themselves when this is empty.
+          REDIS_DSN: ${{ matrix.package == 'xtr-lock' && 'redis://localhost:6379/15' || '' }}
       - name: Types
         if: matrix.python == '3.14'
         run: |
