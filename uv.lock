@@ -11,6 +11,7 @@ members = [
     "xtr-console",
     "xtr-dependency-injection",
     "xtr-dotenv",
+    "xtr-event-dispatcher-contracts",
     "xtr-lock",
     "xtr-logging",
     "xtr-logging-contracts",
@@ -1831,6 +1832,33 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+]
+
+[[package]]
+name = "xtr-event-dispatcher-contracts"
+version = "1.1.0"
+source = { editable = "packages/xtr-event-dispatcher-contracts" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
 ]
 
 [[package]]
