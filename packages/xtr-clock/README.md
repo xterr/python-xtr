@@ -351,7 +351,7 @@ BUNDLES = {ClockBundle: {"all": True}}
 
 ```python
 # app/config/clock.py
-from xtr_dependency_injection import configure, when
+from xtr_dependency_injection import configure
 
 from xtr_clock.bundle import ClockConfig
 
@@ -359,12 +359,6 @@ from xtr_clock.bundle import ClockConfig
 @configure
 def clock() -> ClockConfig:
     return ClockConfig(timezone="UTC")
-
-
-@configure
-@when("test")
-def clock_test() -> ClockConfig:
-    return ClockConfig(mock=True, frozen_at="2026-01-01 00:00:00")
 ```
 
 ```python
@@ -379,9 +373,18 @@ class TokenIssuer:
 
 | Field | Meaning |
 | --- | --- |
-| `timezone` | The zone `Clock.now()` reports in. `None` follows the wrapped clock — the machine's own zone in production, and UTC for a frozen mock |
-| `mock` | Wrap a `MockClock` instead of a `SystemClock`. Time only moves when a test asks it to |
-| `frozen_at` | Where the mock stands still, read by the modifier grammar. `None` freezes at the current instant. Requires `mock=True` |
+| `timezone` | The zone `Clock.now()` reports in. `None` follows the machine's own zone |
+
+A test freezes time by replacing the `Clock` service — the one both `ClockInterface` and
+`Clock.get()` answer with once the kernel boots:
+
+```python
+from xtr_dependency_injection.testing import boot_for_test
+
+frozen = Clock(MockClock("2026-01-01 00:00:00"), "UTC")
+async with await boot_for_test(kernel, overrides={Clock: frozen}) as booted:
+    ...
+```
 
 The bundle takes no other library: any application that already runs on
 `xtr-dependency-injection` gets the clock this way. The container-less API (`SystemClock`,

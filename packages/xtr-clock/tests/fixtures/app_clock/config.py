@@ -1,4 +1,4 @@
-"""The application's clock configuration: a mock frozen at a known instant."""
+"""The application's clock configuration: reporting in UTC."""
 
 from __future__ import annotations
 
@@ -9,5 +9,5 @@ from xtr_clock.bundle import ClockConfig
 
 @configure
 def clock() -> ClockConfig:
-    """Freeze the clock at a known instant for the whole integration test."""
-    return ClockConfig(mock=True, frozen_at="2026-01-01 00:00:00")
+    """Report every instant in UTC."""
+    return ClockConfig(timezone="UTC")

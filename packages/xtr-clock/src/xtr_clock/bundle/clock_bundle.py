@@ -1,10 +1,8 @@
 """The xtr-clock bundle: registers a :class:`~xtr_clock.clock.Clock` and pins it as global.
 
 A container is asked for a :class:`~xtr_clock.clock_interface.ClockInterface`
-and gets a :class:`~xtr_clock.clock.Clock` — over a
-:class:`~xtr_clock.system_clock.SystemClock` in production, or a
-:class:`~xtr_clock.mock_clock.MockClock` when
-:attr:`~xtr_clock.bundle.clock_config.ClockConfig.mock` is on. On boot the
+and gets a :class:`~xtr_clock.clock.Clock` over a
+:class:`~xtr_clock.system_clock.SystemClock`. On boot the
 bundle also installs the container-built clock as
 :meth:`~xtr_clock.clock.Clock.get`, so a helper reached through
 :func:`~xtr_clock.now.now` sees the same instant as an injected class; on
@@ -21,7 +19,6 @@ from xtr_dependency_injection import Bundle, ContainerBuilder, ServiceConfigurat
 
 from xtr_clock.clock import Clock
 from xtr_clock.clock_interface import ClockInterface
-from xtr_clock.mock_clock import MockClock
 from xtr_clock.system_clock import SystemClock
 
 from .clock_config import ClockConfig
@@ -32,16 +29,6 @@ __all__ = ["ClockBundle"]
 def _system_clock(config: ClockConfig) -> Clock:
     """Wrap a :class:`SystemClock` in a :class:`Clock` pinned to ``config.timezone``."""
     return Clock(SystemClock(), config.timezone)
-
-
-def _mock_clock(config: ClockConfig) -> MockClock:
-    """Freeze a :class:`MockClock` at ``config.frozen_at``."""
-    return MockClock(config.frozen_at)
-
-
-def _clock_over_mock(inner: MockClock, config: ClockConfig) -> Clock:
-    """Wrap a :class:`MockClock` in a :class:`Clock` pinned to ``config.timezone``."""
-    return Clock(inner, config.timezone)
 
 
 @final
@@ -61,12 +48,8 @@ class ClockBundle(Bundle[ClockConfig]):
         builder: ContainerBuilder,
     ) -> None:
         """Register a :class:`Clock` factory and alias :class:`ClockInterface` onto it."""
-        del builder
-        if config.mock:
-            _ = services.set(_mock_clock)
-            _ = services.set(_clock_over_mock)
-        else:
-            _ = services.set(_system_clock)
+        del config, builder
+        _ = services.set(_system_clock)
         services.alias(ClockInterface, Clock)
 
     @override
