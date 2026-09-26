@@ -17,3 +17,9 @@ class TenantProcessor(ProcessorInterface):
     def __call__(self, record: LogRecord, /) -> LogRecord:
         """Return ``record`` with ``tenant=acme`` merged into extras."""
         return record.with_extra({"tenant": "acme"})
+
+
+@as_processor(channel="security", priority=5)
+def mark_sensitive(record: LogRecord, /) -> LogRecord:
+    """A function processor, only on the ``security`` channel."""
+    return record.with_extra({"sensitive": True})

@@ -22,12 +22,12 @@ __all__ = [
 ]
 
 PROCESSORS_ATTRIBUTE = "__xtr_logging_processors__"
-"""Where :func:`~xtr_logging.decorator.as_processor` records per-class declarations."""
+"""Where :func:`~xtr_logging.decorator.as_processor` records declarations on a class or function."""
 
 
 @dataclass(frozen=True, slots=True)
 class ProcessorDeclaration:
-    """One declaration on a class: what channel or handler, and priority."""
+    """One declaration on a class or a function: what channel or handler, and priority."""
 
     channel: str | None = None
     handler: str | None = None
@@ -48,12 +48,10 @@ def processors_declared_on(obj: object) -> Iterable[ProcessorDeclaration]:
 
     A reader for
     :meth:`~xtr_dependency_injection.builder.ContainerBuilder.register_attribute_for_autoconfiguration`:
-    the logging bundle uses it so classes decorated with ``@as_processor``
-    become services and are attached to every kernel logger built from the
-    same configuration.
+    the logging bundle uses it so a class decorated with ``@as_processor``
+    becomes a service, and a decorated function is attached as it is, to
+    every logger the kernel builds.
     """
-    if not isinstance(obj, type):
-        return ()
     declarations: object = getattr(obj, PROCESSORS_ATTRIBUTE, ())
     if not isinstance(declarations, tuple):
         return ()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, TypeVar, cast
 
 from xtr_logging.processor.processor_registry import (
@@ -59,24 +60,26 @@ def as_processor(
 
     def declare(target: P) -> P:
         if isinstance(target, type):
-            processor_cls = cast("type[ProcessorInterface]", target)
             target_registry.register_class(
-                processor_cls,
+                cast("type[ProcessorInterface]", target),
                 channel=declaration.channel,
                 handler=declaration.handler,
                 priority=declaration.priority,
             )
-            existing: object = getattr(processor_cls, PROCESSORS_ATTRIBUTE, ())
-            previous = (
-                cast("tuple[ProcessorDeclaration, ...]", existing)
-                if isinstance(existing, tuple)
-                else ()
-            )
-            setattr(processor_cls, PROCESSORS_ATTRIBUTE, (*previous, declaration))
         else:
             target_registry.register(
                 ProcessorDescriptor(target, declaration.channel, declaration.handler, priority)
             )
+        # Recorded on the class or the function itself too, so a kernel's scan finds it
+        # and attaches it to that kernel's loggers — not only the process-wide registry.
+        existing: object = getattr(target, PROCESSORS_ATTRIBUTE, ())
+        previous = (
+            cast("tuple[ProcessorDeclaration, ...]", existing)
+            if isinstance(existing, tuple)
+            else ()
+        )
+        with contextlib.suppress(AttributeError, TypeError):
+            setattr(target, PROCESSORS_ATTRIBUTE, (*previous, declaration))
         return target
 
     return declare

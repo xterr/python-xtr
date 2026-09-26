@@ -48,6 +48,7 @@ from xtr_logging.handler.handler_interface import HandlerInterface
 from xtr_logging.logger_factory import LoggerFactory
 from xtr_logging.processor.processor_interface import ProcessorInterface
 from xtr_logging.processor.processor_registry import (
+    ProcessorDescriptor,
     ProcessorRegistry,
     processors_declared_on,
 )
@@ -71,12 +72,21 @@ class LoggingBundle(Bundle[LoggingConfig]):
 
     @override
     def build(self, builder: ContainerBuilder) -> None:
-        """Register attribute autoconfiguration for ``@as_processor`` classes."""
+        """Register attribute autoconfiguration for ``@as_processor`` classes and functions.
+
+        A class becomes a service — its constructor injected — whose instance is attached;
+        a function is the processor itself, attached as it is.
+        """
 
         def register_processor(
             obj: object, meta: ProcessorDeclaration, services: ServiceConfigurator
         ) -> None:
             if not isinstance(obj, type):
+                self._registry.register(
+                    ProcessorDescriptor(
+                        cast("ProcessorInterface", obj), meta.channel, meta.handler, meta.priority
+                    )
+                )
                 return
             processor_cls = cast("type[ProcessorInterface]", obj)
             _ = services.set(processor_cls)

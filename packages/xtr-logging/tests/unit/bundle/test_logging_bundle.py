@@ -69,6 +69,25 @@ async def test_declared_processor_class_is_autoconfigured_and_attached() -> None
     assert records[0].extra.get("tenant") == "acme"
 
 
+async def test_declared_processor_function_is_attached_to_its_channel_only() -> None:
+    kernel = Kernel("tests.fixtures.app_logging", env="test")
+    booted = await kernel.boot()
+    try:
+        container: ContainerInterface = booted.container
+        default_logger = await container.get(LoggerInterface)
+        security_logger = await container.get(LoggerInterface, "security")
+        default_logger.warning("function processor, app")
+        security_logger.warning("function processor, security")
+    finally:
+        await booted.shutdown()
+
+    extras = {
+        record.channel: record.extra for record in HANDLER.records if "function" in record.message
+    }
+    assert extras["security"].get("sensitive") is True
+    assert "sensitive" not in extras["app"]
+
+
 async def test_logger_factory_is_registered_and_reset_by_services_resetter() -> None:
     kernel = Kernel("tests.fixtures.app_logging", env="test")
     booted = await kernel.boot()

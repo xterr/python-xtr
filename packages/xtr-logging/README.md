@@ -470,10 +470,11 @@ services the application registers under `HandlerInterface`, `ProcessorInterface
 the build with `UnknownServiceError` naming the id.
 
 A class decorated `@as_processor` — with the kernel scanning the module — becomes a service
-and the bundle attaches its instance to every logger it builds; the same class stays instantly
-usable outside a kernel too. `@required_bundle("xtr_clock.bundle:ClockBundle",
-ignore_on_invalid=True)` pulls in the clock bundle when installed, so records read the same
-instant as an injected clock.
+(its constructor injected) and the bundle attaches its instance to every logger it builds; a
+decorated function is the processor itself and is attached as it is. `channel=`, `handler=`
+and `priority=` apply to both, and both stay instantly usable outside a kernel too.
+`@required_bundle("xtr_clock.bundle:ClockBundle", ignore_on_invalid=True)` pulls in the clock
+bundle when installed, so records read the same instant as an injected clock.
 
 ## Time
 
