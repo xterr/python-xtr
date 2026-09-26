@@ -25,6 +25,7 @@ from xtr_dependency_injection import (
     ServiceConfigurator,
     as_bundle,
     bundle_active,
+    named_factory,
     required_bundle,
 )
 from xtr_logging_contracts import LoggerInterface
@@ -183,9 +184,7 @@ def _channel_logger_factory(channel: str) -> Callable[[LoggerFactory], LoggerInt
     def channel_logger(factory: LoggerFactory) -> LoggerInterface:
         return factory.logger(channel)
 
-    channel_logger.__name__ = f"channel_logger_{channel}"
-    channel_logger.__qualname__ = channel_logger.__name__
-    return channel_logger
+    return named_factory(channel_logger, f"channel_logger_{channel}")
 
 
 async def _resolve_services(config: LoggingConfig, container: ContainerInterface) -> Services:
