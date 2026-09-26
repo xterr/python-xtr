@@ -44,6 +44,7 @@ graph LR
     logging --> logcon[xtr-logging-contracts]
     logging --> svccon[xtr-service-contracts]
     messenger[xtr-messenger] --> logcon
+    messenger --> eventcon
     lock[xtr-lock] --> clock
     lock --> logcon
     cachecon[xtr-cache-contracts] --> clock

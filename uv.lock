@@ -2200,6 +2200,7 @@ source = { editable = "packages/xtr-messenger" }
 dependencies = [
     { name = "msgspec" },
     { name = "typing-extensions" },
+    { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts" },
 ]
 
@@ -2237,6 +2238,7 @@ dev = [
     { name = "ty" },
     { name = "xtr-console" },
     { name = "xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher" },
     { name = "xtr-logging" },
 ]
 
@@ -2254,6 +2256,7 @@ requires-dist = [
     { name = "typing-extensions", marker = "extra == 'taskiq'", specifier = ">=4.4" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
 ]
 provides-extras = ["pydantic", "di", "console", "taskiq", "amqp"]
@@ -2270,6 +2273,7 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
 ]
 
