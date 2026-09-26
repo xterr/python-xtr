@@ -6,7 +6,7 @@ import secrets
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
 
@@ -22,7 +22,7 @@ _MAX_LENGTH: Final = 32
 
 
 @final
-class UidProcessor(ProcessorInterface, ResettableInterface):
+class UidProcessor(ProcessorInterface, ResetInterface):
     """Adds ``extra["uid"]`` — one id tying together the records of a request.
 
     Every record made between one :meth:`reset` and the next carries the same

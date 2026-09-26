@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 __all__ = ["GroupHandler"]
 
 
-class GroupHandler(HandlerInterface, ProcessableHandlerInterface, ResettableInterface):
+class GroupHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterface):
     """Forwards every record to each of a group of handlers.
 
     One place to attach a file, a console and a syslog to a channel, treated
@@ -87,10 +87,10 @@ class GroupHandler(HandlerInterface, ProcessableHandlerInterface, ResettableInte
     def reset(self) -> None:
         """Reset this handler's processors and every member that holds state."""
         for processor in self._processors:
-            if isinstance(processor, ResettableInterface):
+            if isinstance(processor, ResetInterface):
                 processor.reset()
         for handler in self._handlers:
-            if isinstance(handler, ResettableInterface):
+            if isinstance(handler, ResetInterface):
                 handler.reset()
 
     @override

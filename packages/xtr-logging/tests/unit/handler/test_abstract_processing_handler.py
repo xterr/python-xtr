@@ -73,7 +73,7 @@ def test_handle_batch_writes_each_record() -> None:
     assert [r.message for r in handler.records] == ["a", "b"]
 
 
-def test_reset_reaches_resettable_processors() -> None:
+def test_reset_reaches_processors_implementing_reset_interface() -> None:
     processor = UidProcessor()
     handler = TestHandler()
     handler.push_processor(processor)

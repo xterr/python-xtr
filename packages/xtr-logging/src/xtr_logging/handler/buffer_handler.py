@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from typing_extensions import override
 from xtr_logging_contracts import Level
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 
@@ -132,7 +132,7 @@ class BufferHandler(AbstractHandler, ProcessableHandlerInterface):
         self.flush()
         super().reset()
         for processor in self._processors:
-            if isinstance(processor, ResettableInterface):
+            if isinstance(processor, ResetInterface):
                 processor.reset()
-        if isinstance(self._handler, ResettableInterface):
+        if isinstance(self._handler, ResetInterface):
             self._handler.reset()

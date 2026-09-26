@@ -36,11 +36,11 @@ uv add xtr-service-contracts
 
 Requires Python 3.11+.
 
-## `ResettableInterface`
+## `ResetInterface`
 
 ```python
 @runtime_checkable
-class ResettableInterface(Protocol):
+class ResetInterface(Protocol):
     def reset(self) -> None: ...
 ```
 
@@ -50,7 +50,7 @@ belong to one unit of work rather than to the service holding them. `reset()` en
 the next starts clean while configuration survives:
 
 ```python
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 
 class Buffer:
@@ -62,24 +62,96 @@ class Buffer:
         self.items.clear()
 
 
-assert isinstance(Buffer(10), ResettableInterface)
+assert isinstance(Buffer(10), ResetInterface)
 ```
 
 The protocol is structural and `@runtime_checkable`, so nothing has to inherit from it — a class
 that already has a `reset()` satisfies it as it stands. A container is the usual caller: it knows
 what it built, so it can reset whatever asks for it between units of work, and neither side has
-to know anything else about the other.
+to know anything else about the other. It is named after Symfony's
+`Symfony\Contracts\Service\ResetInterface`.
 
 ```python
 for service in container.services:
-    if isinstance(service, ResettableInterface):
+    if isinstance(service, ResetInterface):
         service.reset()
 ```
+
+## `ContainerInterface`
+
+```python
+@runtime_checkable
+class ContainerInterface(Protocol):
+    async def get(self, service: type[T], /, qualifier: Hashable | None = None) -> T: ...
+    def has(self, service: type[object], /, qualifier: Hashable | None = None) -> bool: ...
+    def get_parameter(self, name: str, /) -> object: ...
+    def has_parameter(self, name: str, /) -> bool: ...
+```
+
+What a dependency-injection container answers to, named after Symfony's
+`Symfony\Component\DependencyInjection\ContainerInterface` (itself PSR-11's
+`Psr\Container\ContainerInterface` plus parameter access).
+
+A service is identified by its **type** — Symfony uses the class name as the service id — plus an
+optional `qualifier` that chooses between several services registered for that type. The qualifier
+is this package's documented extension over Symfony's id-only `get($id)`: it stands in for
+Symfony's named autowiring alias (`Type $name`) and `#[Target]`. `get` builds asynchronously and
+raises a `LookupError` when `has()` is false; a registered service that cannot be built raises its
+own error. `get_parameter` takes a dotted name and raises a `LookupError` when `has_parameter()`
+is false.
+
+## `ServiceProviderInterface`
+
+```python
+@runtime_checkable
+class ServiceProviderInterface(Protocol[T_co]):
+    async def get(self, name: Hashable, /) -> T_co: ...
+    def has(self, name: Hashable, /) -> bool: ...
+    def provided_services(self) -> Mapping[Hashable, type[object]]: ...
+```
+
+A source of services keyed by **name**, after Symfony's
+`Symfony\Contracts\Service\ServiceProviderInterface`. It knows every name it can answer to and the
+type each yields, without building any of them; a service is built lazily, on first request.
+
+## `ServiceCollectionInterface`
+
+```python
+@runtime_checkable
+class ServiceCollectionInterface(ServiceProviderInterface[T_co], Protocol[T_co]):
+    def __len__(self) -> int: ...
+    def __aiter__(self) -> AsyncIterator[tuple[Hashable, T_co]]: ...
+```
+
+A provider that is also countable and iterable, after Symfony's
+`Symfony\Contracts\Service\ServiceCollectionInterface` (whose canonical implementation is its
+`ServiceLocator`). Iterating yields `(name, service)` pairs, each built as it is reached, in
+`provided_services()` order:
+
+```python
+count = len(collection)
+async for name, service in collection:
+    ...
+```
+
+All three are `@runtime_checkable`, which checks method presence only — an implementation inherits
+the protocol explicitly so a type checker verifies its signatures against the contract.
+
+## Why providers are not containers
+
+Symfony's `ServiceProviderInterface` extends PSR-11's `ContainerInterface`, so a provider there
+*is* a container — both keyed by a string id. Here they are kept apart. A **container** is keyed by
+**type** (plus an optional qualifier) and carries **parameters**: it is what an application
+resolves services from. A **provider** is keyed by **name** and carries nothing else: a small,
+fixed, named collection, the shape a `ServiceLocator` or a tagged-iterator locator takes. Splitting
+them keeps each contract about one thing, and lets `ContainerInterface` speak in types rather than
+being pinned to PSR-11's `get(string $id)`.
 
 ## Who uses it
 
 | Package | Uses it for |
 | --- | --- |
+| [xtr-dependency-injection](https://github.com/xterr/python-xtr-dependency-injection) | `ContainerInterface`, `ServiceProviderInterface` and `ServiceCollectionInterface` as its container, locator and tagged-collection contracts, and `ResetInterface` for `kernel.reset` |
 | [xtr-logging](https://github.com/xterr/python-xtr-logging) | Buffered and fingers-crossed handlers, generated ids, and `LoggerFactory.reset()` between requests or messages |
 
 ## Development

@@ -330,6 +330,64 @@ zone — a frozen test should not change its answer because of where the laptop 
 > `MockClock.sleep_async` advances instantly and yields control once, so the tasks waiting on the
 > clock get their turn — which is usually the behaviour the test is there to observe.
 
+## Kernel / bundle
+
+An application using [xtr-dependency-injection](../xtr-dependency-injection) lists
+`ClockBundle` in its `app/bundles.py` and configures it with `@configure`; nothing else changes.
+The bundle registers a `Clock` under `ClockInterface` and installs it as the clock in force for
+the lifetime of the kernel, so an injected class and a helper reached through
+`xtr_clock.now()` read the same instant.
+
+```sh
+uv add "xtr-clock[di]"
+```
+
+```python
+# app/bundles.py
+from xtr_clock.bundle import ClockBundle
+
+BUNDLES = {ClockBundle: {"all": True}}
+```
+
+```python
+# app/config/clock.py
+from xtr_dependency_injection import configure, when
+
+from xtr_clock.bundle import ClockConfig
+
+
+@configure
+def clock() -> ClockConfig:
+    return ClockConfig(timezone="UTC")
+
+
+@configure
+@when("test")
+def clock_test() -> ClockConfig:
+    return ClockConfig(mock=True, frozen_at="2026-01-01 00:00:00")
+```
+
+```python
+# anywhere in the app
+from xtr_clock import ClockInterface
+
+
+class TokenIssuer:
+    def __init__(self, clock: ClockInterface) -> None:
+        self._clock = clock
+```
+
+| Field | Meaning |
+| --- | --- |
+| `timezone` | The zone `Clock.now()` reports in. `None` follows the wrapped clock — the machine's own zone in production, and UTC for a frozen mock |
+| `mock` | Wrap a `MockClock` instead of a `SystemClock`. Time only moves when a test asks it to |
+| `frozen_at` | Where the mock stands still, read by the modifier grammar. `None` freezes at the current instant. Requires `mock=True` |
+
+The bundle takes no other library: any application that already runs on
+`xtr-dependency-injection` gets the clock this way. The container-less API (`SystemClock`,
+`MockClock`, `Clock`, `now()`) works exactly as before, so tests written without a kernel keep
+running.
+
 ## Errors
 
 Everything this library raises derives from `ClockError`, and carries what went wrong as typed

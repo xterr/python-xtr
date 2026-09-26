@@ -1,6 +1,6 @@
 [project]
 name = "xtr-clock"
-version = "1.0.1"
+version = "1.1.0"
 description = "Decouples an application from the system clock: an injectable clock, a timezone-aware instant, and a frozen clock for tests."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,6 +26,9 @@ dependencies = []
 tzdata = [
     "tzdata>=2024.1",
 ]
+di = [
+    "xtr-dependency-injection>=1.0,<2",
+]
 
 # No `pytest11` entry point on purpose. The `clock` fixture is opted into with
 # `pytest_plugins = ["xtr_clock.pytest_plugin"]`, so a suite that merely
@@ -40,6 +43,7 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
+    "xtr-dependency-injection>=1.0,<2",
 ]
 
 [build-system]

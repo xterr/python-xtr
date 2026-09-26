@@ -6,7 +6,7 @@ import random
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
@@ -110,10 +110,10 @@ class SamplingHandler(AbstractHandler, ProcessableHandlerInterface):
     def reset(self) -> None:
         """Reset this handler's processors and the wrapped handler."""
         for processor in self._processors:
-            if isinstance(processor, ResettableInterface):
+            if isinstance(processor, ResetInterface):
                 processor.reset()
         handler = self._resolve_handler()
-        if isinstance(handler, ResettableInterface):
+        if isinstance(handler, ResetInterface):
             handler.reset()
 
     @override

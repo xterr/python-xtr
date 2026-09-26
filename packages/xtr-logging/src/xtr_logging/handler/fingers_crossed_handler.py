@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_logging_contracts import Level
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 
@@ -33,7 +33,7 @@ __all__ = ["FingersCrossedHandler"]
 
 
 @final
-class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, ResettableInterface):
+class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterface):
     """Buffers every record, and forwards the lot the moment one is bad enough.
 
     A healthy request leaves nothing in the log; a failed one leaves its whole
@@ -163,10 +163,10 @@ class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, Reset
         """Flush the passthru floor, reset processors, and reset the wrapped handler."""
         self._flush_buffer()
         for processor in self._processors:
-            if isinstance(processor, ResettableInterface):
+            if isinstance(processor, ResetInterface):
                 processor.reset()
         handler = self._resolve_handler()
-        if isinstance(handler, ResettableInterface):
+        if isinstance(handler, ResetInterface):
             handler.reset()
 
     def clear(self) -> None:

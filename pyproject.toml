@@ -1,6 +1,6 @@
 [project]
 name = "xtr"
-version = "1.0.1"
+version = "1.1.0"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
@@ -12,6 +12,7 @@ members = ["packages/xtr-*"]
 package = false
 
 [tool.uv.sources]
+xtr-cache                = { workspace = true }
 xtr-clock                = { workspace = true }
 xtr-console              = { workspace = true }
 xtr-dependency-injection = { workspace = true }

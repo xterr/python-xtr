@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 [manifest]
 members = [
     "xtr",
+    "xtr-cache",
     "xtr-clock",
     "xtr-console",
     "xtr-dependency-injection",
@@ -1528,7 +1529,7 @@ wheels = [
 
 [[package]]
 name = "xtr"
-version = "1.0.1"
+version = "1.1.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
@@ -1542,11 +1543,41 @@ dev = [
 dev = [{ name = "pre-commit", specifier = ">=4.6.2" }]
 
 [[package]]
+name = "xtr-cache"
+version = "1.1.0"
+source = { editable = "packages/xtr-cache" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-dependency-injection" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+]
+
+[[package]]
 name = "xtr-clock"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-clock" }
 
 [package.optional-dependencies]
+di = [
+    { name = "xtr-dependency-injection" },
+]
 tzdata = [
     { name = "tzdata" },
 ]
@@ -1559,11 +1590,15 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-dependency-injection" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "tzdata", marker = "extra == 'tzdata'", specifier = ">=2024.1" }]
-provides-extras = ["tzdata"]
+requires-dist = [
+    { name = "tzdata", marker = "extra == 'tzdata'", specifier = ">=2024.1" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
+]
+provides-extras = ["tzdata", "di"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1573,11 +1608,12 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
 ]
 
 [[package]]
 name = "xtr-console"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-console" }
 dependencies = [
     { name = "cyclopts" },
@@ -1586,11 +1622,11 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+di = [
+    { name = "xtr-dependency-injection" },
+]
 trio = [
     { name = "cyclopts", extra = ["trio"] },
-]
-wireup = [
-    { name = "wireup" },
 ]
 
 [package.dev-dependencies]
@@ -1601,7 +1637,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
-    { name = "wireup" },
+    { name = "xtr-dependency-injection" },
     { name = "xtr-logging" },
     { name = "xtr-logging-contracts" },
 ]
@@ -1612,9 +1648,9 @@ requires-dist = [
     { name = "cyclopts", extras = ["trio"], marker = "extra == 'trio'", specifier = ">=5.0,<6" },
     { name = "rich", specifier = ">=13.6" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "wireup", marker = "extra == 'wireup'", specifier = ">=2.12" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
 ]
-provides-extras = ["wireup", "trio"]
+provides-extras = ["di", "trio"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1624,18 +1660,19 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
-    { name = "wireup", specifier = ">=2.12" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
 ]
 
 [[package]]
 name = "xtr-dependency-injection"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-dependency-injection" }
 dependencies = [
     { name = "typing-extensions" },
     { name = "wireup" },
+    { name = "xtr-service-contracts" },
 ]
 
 [package.dev-dependencies]
@@ -1652,6 +1689,7 @@ dev = [
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "wireup", specifier = ">=2.12,<3" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 
 [package.metadata.requires-dev]
@@ -1666,7 +1704,7 @@ dev = [
 
 [[package]]
 name = "xtr-lock"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-lock" }
 
 [package.dev-dependencies]
@@ -1687,7 +1725,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-logging" }
 dependencies = [
     { name = "msgspec" },
@@ -1698,8 +1736,8 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-wireup = [
-    { name = "wireup" },
+di = [
+    { name = "xtr-dependency-injection" },
 ]
 
 [package.dev-dependencies]
@@ -1710,19 +1748,19 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
-    { name = "wireup" },
+    { name = "xtr-dependency-injection" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "msgspec", specifier = ">=0.18" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "wireup", marker = "extra == 'wireup'", specifier = ">=2.12" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
-provides-extras = ["wireup"]
+provides-extras = ["di"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1732,12 +1770,12 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
-    { name = "wireup", specifier = ">=2.12" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
 ]
 
 [[package]]
 name = "xtr-logging-contracts"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-logging-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -1766,7 +1804,7 @@ dev = [
 
 [[package]]
 name = "xtr-messenger"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-messenger" }
 dependencies = [
     { name = "msgspec" },
@@ -1784,6 +1822,9 @@ amqp = [
 console = [
     { name = "xtr-console" },
 ]
+di = [
+    { name = "xtr-dependency-injection" },
+]
 pydantic = [
     { name = "pydantic" },
 ]
@@ -1791,9 +1832,6 @@ taskiq = [
     { name = "anyio" },
     { name = "taskiq" },
     { name = "typing-extensions" },
-]
-wireup = [
-    { name = "wireup" },
 ]
 
 [package.dev-dependencies]
@@ -1806,8 +1844,8 @@ dev = [
     { name = "taskiq" },
     { name = "taskiq-aio-pika" },
     { name = "ty" },
-    { name = "wireup" },
     { name = "xtr-console" },
+    { name = "xtr-dependency-injection" },
     { name = "xtr-logging" },
 ]
 
@@ -1823,11 +1861,11 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "typing-extensions", marker = "extra == 'amqp'", specifier = ">=4.4" },
     { name = "typing-extensions", marker = "extra == 'taskiq'", specifier = ">=4.4" },
-    { name = "wireup", marker = "extra == 'wireup'", specifier = ">=2.12" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
 ]
-provides-extras = ["pydantic", "wireup", "console", "taskiq", "amqp"]
+provides-extras = ["pydantic", "di", "console", "taskiq", "amqp"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1839,14 +1877,14 @@ dev = [
     { name = "taskiq", specifier = ">=0.12.4" },
     { name = "taskiq-aio-pika", specifier = ">=0.6.0" },
     { name = "ty", specifier = ">=0.0.83" },
-    { name = "wireup", specifier = ">=2.12" },
     { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
 ]
 
 [[package]]
 name = "xtr-scheduler"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-scheduler" }
 
 [package.dev-dependencies]
@@ -1867,12 +1905,14 @@ dev = [
 
 [[package]]
 name = "xtr-service-contracts"
-version = "1.0.1"
+version = "1.1.0"
 source = { editable = "packages/xtr-service-contracts" }
 
 [package.dev-dependencies]
 dev = [
+    { name = "anyio" },
     { name = "basedpyright" },
+    { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
 ]
@@ -1881,7 +1921,9 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
 ]

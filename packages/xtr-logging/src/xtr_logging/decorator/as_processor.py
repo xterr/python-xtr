@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, TypeVar, cast
 
 from xtr_logging.processor.processor_registry import (
+    PROCESSORS_ATTRIBUTE,
+    ProcessorDeclaration,
     ProcessorDescriptor,
     default_processor_registry,
 )
@@ -29,9 +31,10 @@ def as_processor(
 ) -> Callable[[P], P]:
     """Declare the decorated function or class as a processor.
 
-    A function is the processor. A class is built once, with no arguments,
-    as it is declared; its instance is the processor. Either way the
-    decorated object is returned unchanged::
+    A function is the processor. A class is stored as-is: the container
+    instantiates it in a kernel, or the registry does so lazily the first
+    time :attr:`~xtr_logging.processor.processor_registry.ProcessorRegistry.descriptors`
+    is read. Either way the decorated object is returned unchanged::
 
         @as_processor(channel="billing")
         def add_tenant(record: LogRecord) -> LogRecord:
@@ -52,10 +55,28 @@ def as_processor(
         InvalidOptionError: If both ``channel`` and ``handler`` are given.
     """
     target_registry = registry if registry is not None else default_processor_registry()
+    declaration = ProcessorDeclaration(channel=channel, handler=handler, priority=priority)
 
     def declare(target: P) -> P:
-        processor: ProcessorInterface = target() if isinstance(target, type) else target
-        target_registry.register(ProcessorDescriptor(processor, channel, handler, priority))
+        if isinstance(target, type):
+            processor_cls = cast("type[ProcessorInterface]", target)
+            target_registry.register_class(
+                processor_cls,
+                channel=declaration.channel,
+                handler=declaration.handler,
+                priority=declaration.priority,
+            )
+            existing: object = getattr(processor_cls, PROCESSORS_ATTRIBUTE, ())
+            previous = (
+                cast("tuple[ProcessorDeclaration, ...]", existing)
+                if isinstance(existing, tuple)
+                else ()
+            )
+            setattr(processor_cls, PROCESSORS_ATTRIBUTE, (*previous, declaration))
+        else:
+            target_registry.register(
+                ProcessorDescriptor(target, declaration.channel, declaration.handler, priority)
+            )
         return target
 
     return declare

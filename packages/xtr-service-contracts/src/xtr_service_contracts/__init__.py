@@ -11,7 +11,10 @@ that only stays true while nothing here can drag anything in.
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .resettable_interface import ResettableInterface
+from .container_interface import ContainerInterface
+from .reset_interface import ResetInterface
+from .service_collection_interface import ServiceCollectionInterface
+from .service_provider_interface import ServiceProviderInterface
 
 try:
     __version__ = version("xtr-service-contracts")
@@ -21,6 +24,9 @@ except PackageNotFoundError:  # pragma: no cover
     __version__ = "0+unknown"
 
 __all__ = [
-    "ResettableInterface",
+    "ContainerInterface",
+    "ResetInterface",
+    "ServiceCollectionInterface",
+    "ServiceProviderInterface",
     "__version__",
 ]

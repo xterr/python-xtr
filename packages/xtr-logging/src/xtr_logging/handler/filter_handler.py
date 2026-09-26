@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_logging_contracts import Level
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 from xtr_logging.exception.empty_stack_error import EmptyStackError
 
@@ -31,7 +31,7 @@ __all__ = ["FilterHandler"]
 
 
 @final
-class FilterHandler(HandlerInterface, ProcessableHandlerInterface, ResettableInterface):
+class FilterHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterface):
     """Forwards only records whose level is in an accepted set.
 
     A handler's minimum level lets everything above it through; this instead
@@ -142,10 +142,10 @@ class FilterHandler(HandlerInterface, ProcessableHandlerInterface, ResettableInt
     def reset(self) -> None:
         """Reset this handler's processors and the wrapped handler."""
         for processor in self._processors:
-            if isinstance(processor, ResettableInterface):
+            if isinstance(processor, ResetInterface):
                 processor.reset()
         handler = self._resolve_handler()
-        if isinstance(handler, ResettableInterface):
+        if isinstance(handler, ResetInterface):
             handler.reset()
 
     @override

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple, Self, final
 
-from xtr_service_contracts import ResettableInterface
+from typing_extensions import override
+from xtr_service_contracts import ResetInterface
 
 from .bridge.stdlib.stdlib_capture import StdlibCapture
 from .config.handler_builder import HandlerBuilder
@@ -41,7 +42,7 @@ class _Placed(NamedTuple):
 
 
 @final
-class LoggerFactory:
+class LoggerFactory(ResetInterface):
     """Builds one logger per channel, sharing handlers between them.
 
     Every handler in the configuration is built once, as the factory is
@@ -164,13 +165,14 @@ class LoggerFactory:
             if isinstance(built, ConsoleHandler):
                 built.set_stream(stream, colors=colors)
 
+    @override
     def reset(self) -> None:
         """End a unit of work: reset every handler and processor that holds state."""
         for built in self._owned_handlers():
-            if isinstance(built, ResettableInterface):
+            if isinstance(built, ResetInterface):
                 built.reset()
         for entry in self._placed:
-            if entry.handler is None and isinstance(entry.processor, ResettableInterface):
+            if entry.handler is None and isinstance(entry.processor, ResetInterface):
                 entry.processor.reset()
 
     @property

@@ -46,7 +46,7 @@ logger.error("payment {order} failed", {"order": order.id, "exception": error})
 
 ```sh
 uv add xtr-logging              # everything but the container integration
-uv add "xtr-logging[wireup]"    # + a logger per channel from a wireup container
+uv add "xtr-logging[di]"        # + a logger per channel from an xtr-dependency-injection kernel
 ```
 
 Requires Python 3.11+.
@@ -402,37 +402,77 @@ The other way round, `StdlibHandler` hands records to a stdlib logger, keeping t
 channel and context. `StdlibLogger` puts the interface in front of a plain `logging.Logger` for
 code that keeps `logging` as its backend.
 
-## Wiring with a container
+## Kernel / bundle
 
-With the `wireup` extra, a service asks for the default channel by the interface, and for any
-other by qualifying it with the channel's name:
+An application using [xtr-dependency-injection](../xtr-dependency-injection) lists
+`LoggingBundle` in its `app/bundles.py` and configures it with `@configure`. A service asks
+for the default channel by the interface, and for any other by qualifying it with the
+channel's name:
+
+```sh
+uv add "xtr-logging[di]"
+```
 
 ```python
+# app/bundles.py
+from xtr_logging.bundle import LoggingBundle
+
+BUNDLES = {LoggingBundle: {"all": True}}
+```
+
+```python
+# app/config/logging.py
+from xtr_dependency_injection import as_service, configure
+
+from xtr_logging import TestHandler
+from xtr_logging.bundle import LoggingConfig
+from xtr_logging.config import ServiceHandlerSpec
+from xtr_logging.handler.handler_interface import HandlerInterface
+
+
+@configure
+def logging() -> LoggingConfig:
+    return LoggingConfig(
+        channels=("security",),
+        handlers={"main": ServiceHandlerSpec(id="main")},
+    )
+
+
+@as_service(qualifier="main")
+def main_handler() -> HandlerInterface:
+    return TestHandler()
+```
+
+```python
+# anywhere in the app
 from typing import Annotated
 
-from wireup import Inject, injectable
-
+from xtr_dependency_injection import Target, as_service
 from xtr_logging_contracts import LoggerInterface
 
 
-@injectable
+@as_service
 class Checkout:
     def __init__(
         self,
         logger: LoggerInterface,
-        audit: Annotated[LoggerInterface, Inject(qualifier="security")],
+        audit: Annotated[LoggerInterface, Target("security")],
     ) -> None: ...
 ```
 
-```python
-from xtr_logging.integration import wireup as logging_integration
+The bundle registers the `LoggerFactory`, a `LoggerInterface` for the default channel, and a
+`LoggerInterface` qualified by each channel's name. `LoggerFactory` inherits `ResetInterface`,
+so the kernel's `ServicesResetter` resets it between messages. A `ServiceHandlerSpec`,
+`ServiceProcessorSpec`, a string `formatter` and a fingers-crossed `activation_strategy` name
+services the application registers under `HandlerInterface`, `ProcessorInterface`,
+`FormatterInterface` or `ActivationStrategyInterface` with `qualifier=id`; a missing id fails
+the build with `UnknownServiceError` naming the id.
 
-container = wireup.create_async_container(
-    injectables=[app.services, *logging_integration.injectables(CONFIG)],
-)
-```
-
-The container also provides the `LoggerFactory`, to close or reset it.
+A class decorated `@as_processor` — with the kernel scanning the module — becomes a service
+and the bundle attaches its instance to every logger it builds; the same class stays instantly
+usable outside a kernel too. `@required_bundle("xtr_clock.bundle:ClockBundle",
+ignore_on_invalid=True)` pulls in the clock bundle when installed, so records read the same
+instant as an injected clock.
 
 ## Time
 

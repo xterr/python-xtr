@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from typing_extensions import override
 from xtr_logging_contracts import Level
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 from .handler_interface import HandlerInterface
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 __all__ = ["AbstractHandler"]
 
 
-class AbstractHandler(HandlerInterface, ResettableInterface, ABC):
+class AbstractHandler(HandlerInterface, ResetInterface, ABC):
     """A handler with a minimum level and a bubble flag.
 
     Handles records at ``level`` or above. With ``bubble`` on — the default —

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Final, final
 from typing_extensions import override
 from xtr_clock import Clock
 from xtr_logging_contracts import AbstractLogger, Level
-from xtr_service_contracts import ResettableInterface
+from xtr_service_contracts import ResetInterface
 
 from .exception.empty_stack_error import EmptyStackError
 from .log_record import LogRecord
@@ -40,7 +40,7 @@ _depth: ContextVar[int] = ContextVar("xtr_logging_depth", default=0)
 
 
 @final
-class Logger(AbstractLogger, ResettableInterface):
+class Logger(AbstractLogger, ResetInterface):
     """A named channel that turns calls into records and offers them to handlers.
 
     Handlers are consulted in stack order — the one pushed last first — and a
@@ -218,10 +218,10 @@ class Logger(AbstractLogger, ResettableInterface):
         carry into the next.
         """
         for handler in self._handlers:
-            if isinstance(handler, ResettableInterface):
+            if isinstance(handler, ResetInterface):
                 handler.reset()
         for processor in self._processors:
-            if isinstance(processor, ResettableInterface):
+            if isinstance(processor, ResetInterface):
                 processor.reset()
 
     def _dispatch(self, record: LogRecord) -> bool:
