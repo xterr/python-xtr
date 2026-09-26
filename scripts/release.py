@@ -7,8 +7,11 @@ All packages are released together, at one version, tagged ``X.Y.Z``. A package
 classified ``Private :: Do Not Upload`` moves with the rest but is never
 published or split.
 
-    uv run scripts/release.py check [X.Y.Z]   # every package is on one version (and it is X.Y.Z)
-    uv run scripts/release.py bump X.Y.Z      # move every package, rewrite sibling ranges, relock
+    uv run scripts/release.py check [X.Y.Z]   # every package and the README on one version (X.Y.Z)
+    uv run scripts/release.py bump X.Y.Z      # move every package and the README, rewrite ranges, relock
+
+The README's package template and release commands name the current version and
+major range, so a package created from it starts on the shared version.
     uv run scripts/release.py packages        # publishable packages, as JSON
 """
 
@@ -26,6 +29,12 @@ ROOT = Path(__file__).resolve().parent.parent
 PRIVATE = "Private :: Do Not Upload"
 VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 REQUIREMENT_NAME = re.compile(r"^[A-Za-z0-9._-]+")
+README = ROOT / "README.md"
+README_VERSION = re.compile(
+    r'(version = "|release\.py bump |"bump: |git tag |push origin |read-only repository `)'
+    r"\d+\.\d+\.\d+"
+)
+README_RANGE = re.compile(r"(xtr-[a-z-]+>=)\d+\.0,<\d+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +64,13 @@ def workspace_version() -> str:
     return tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
 
 
+def synced_readme(text: str, version: str) -> str:
+    """Return the README with its template and release commands on ``version``."""
+    major = int(version.split(".")[0])
+    text = README_VERSION.sub(lambda m: f"{m.group(1)}{version}", text)
+    return README_RANGE.sub(lambda m: f"{m.group(1)}{major}.0,<{major + 1}", text)
+
+
 def check(expected: str | None) -> None:
     versions = {package.version for package in packages()} | {workspace_version()}
     if len(versions) != 1:
@@ -63,6 +79,11 @@ def check(expected: str | None) -> None:
     version = versions.pop()
     if expected is not None and expected != version:
         sys.exit(f"cannot release {expected}: the packages are at {version}")
+    text = README.read_text()
+    if synced_readme(text, version) != text:
+        sys.exit(
+            f"README.md is not on {version}: run `uv run scripts/release.py bump {version}`"
+        )
     print(version)
 
 
@@ -106,6 +127,7 @@ def bump(version: str) -> None:
             check=True,
         )
     rewrite_ranges(int(matched.group(1)))
+    README.write_text(synced_readme(README.read_text(), version))
     subprocess.run(["uv", "lock"], cwd=ROOT, check=True)
 
 
