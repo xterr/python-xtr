@@ -9,7 +9,7 @@ __all__ = ["ResetInterface"]
 
 @runtime_checkable
 class ResetInterface(Protocol):
-    r"""Returns to a clean state between units of work.
+    """Returns to a clean state between units of work.
 
     A long-running process — a worker consuming messages, a server answering
     requests — builds its services once and uses them many times. Buffers,
@@ -20,8 +20,6 @@ class ResetInterface(Protocol):
     A container is the usual caller. It knows what it built, so it can reset
     whatever asks for it between units of work, and neither side has to know
     anything else about the other.
-
-    Named after Symfony's ``Symfony\Contracts\Service\ResetInterface``.
     """
 
     def reset(self) -> None: ...  # noqa: D102 — documented by the class docstring

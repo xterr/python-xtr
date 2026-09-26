@@ -68,8 +68,7 @@ assert isinstance(Buffer(10), ResetInterface)
 The protocol is structural and `@runtime_checkable`, so nothing has to inherit from it — a class
 that already has a `reset()` satisfies it as it stands. A container is the usual caller: it knows
 what it built, so it can reset whatever asks for it between units of work, and neither side has
-to know anything else about the other. It is named after Symfony's
-`Symfony\Contracts\Service\ResetInterface`.
+to know anything else about the other.
 
 ```python
 for service in container.services:
@@ -88,17 +87,12 @@ class ContainerInterface(Protocol):
     def has_parameter(self, name: str, /) -> bool: ...
 ```
 
-What a dependency-injection container answers to, named after Symfony's
-`Symfony\Component\DependencyInjection\ContainerInterface` (itself PSR-11's
-`Psr\Container\ContainerInterface` plus parameter access).
+What a dependency-injection container answers to.
 
-A service is identified by its **type** — Symfony uses the class name as the service id — plus an
-optional `qualifier` that chooses between several services registered for that type. The qualifier
-is this package's documented extension over Symfony's id-only `get($id)`: it stands in for
-Symfony's named autowiring alias (`Type $name`) and `#[Target]`. `get` builds asynchronously and
-raises a `LookupError` when `has()` is false; a registered service that cannot be built raises its
-own error. `get_parameter` takes a dotted name and raises a `LookupError` when `has_parameter()`
-is false.
+A service is identified by its **type** plus an optional `qualifier` that chooses between several
+services registered for that same type. `get` builds asynchronously and raises a `LookupError`
+when `has()` is false; a registered service that cannot be built raises its own error.
+`get_parameter` takes a dotted name and raises a `LookupError` when `has_parameter()` is false.
 
 ## `ServiceProviderInterface`
 
@@ -110,9 +104,8 @@ class ServiceProviderInterface(Protocol[T_co]):
     def provided_services(self) -> Mapping[Hashable, type[object]]: ...
 ```
 
-A source of services keyed by **name**, after Symfony's
-`Symfony\Contracts\Service\ServiceProviderInterface`. It knows every name it can answer to and the
-type each yields, without building any of them; a service is built lazily, on first request.
+A source of services keyed by **name**. It knows every name it can answer to and the type each
+yields, without building any of them; a service is built lazily, on first request.
 
 ## `ServiceCollectionInterface`
 
@@ -123,10 +116,8 @@ class ServiceCollectionInterface(ServiceProviderInterface[T_co], Protocol[T_co])
     def __aiter__(self) -> AsyncIterator[tuple[Hashable, T_co]]: ...
 ```
 
-A provider that is also countable and iterable, after Symfony's
-`Symfony\Contracts\Service\ServiceCollectionInterface` (whose canonical implementation is its
-`ServiceLocator`). Iterating yields `(name, service)` pairs, each built as it is reached, in
-`provided_services()` order:
+A provider that is also countable and iterable. Iterating yields `(name, service)` pairs, each
+built as it is reached, in `provided_services()` order:
 
 ```python
 count = len(collection)
@@ -139,13 +130,11 @@ the protocol explicitly so a type checker verifies its signatures against the co
 
 ## Why providers are not containers
 
-Symfony's `ServiceProviderInterface` extends PSR-11's `ContainerInterface`, so a provider there
-*is* a container — both keyed by a string id. Here they are kept apart. A **container** is keyed by
-**type** (plus an optional qualifier) and carries **parameters**: it is what an application
-resolves services from. A **provider** is keyed by **name** and carries nothing else: a small,
-fixed, named collection, the shape a `ServiceLocator` or a tagged-iterator locator takes. Splitting
-them keeps each contract about one thing, and lets `ContainerInterface` speak in types rather than
-being pinned to PSR-11's `get(string $id)`.
+A **container** is keyed by **type** (plus an optional qualifier) and carries **parameters**: it
+is what an application resolves services from. A **provider** is keyed by **name** and carries
+nothing else: a small, fixed, named collection, the shape a `ServiceLocator` or a tagged-iterator
+locator takes. Splitting them keeps each contract about one thing, and lets `ContainerInterface`
+speak in types rather than being pinned to string ids.
 
 ## Who uses it
 
