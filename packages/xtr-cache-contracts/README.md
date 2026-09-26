@@ -129,7 +129,8 @@ await pool.commit()  # ... stored
 ```
 
 An item is returned for every key, found or not, so `None` is a value like any other. Changing
-an item reaches the backend only once it is saved back into the pool that handed it out.
+an item reaches the backend only once it is saved. A pool refuses, with `False`, an item of a kind
+it does not store.
 
 The rules:
 

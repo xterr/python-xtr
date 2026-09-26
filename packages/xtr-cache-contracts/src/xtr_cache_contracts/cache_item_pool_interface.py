@@ -33,7 +33,9 @@ class CacheItemPoolInterface(Protocol):
     - A backend failure never raises: the call returns ``False``, or reads as
       a miss, and the implementation logs it. Code that caches keeps working
       when the cache does not.
-    - An item is saved only into the pool that handed it out.
+    - A pool saves items of the kind it hands out, and refuses any other by
+      returning ``False``. Pools of one implementation may take each other's
+      items, which is how one pool fills another.
     """
 
     async def get_item(self, key: str, /) -> ItemInterface:
@@ -102,8 +104,8 @@ class CacheItemPoolInterface(Protocol):
         """Store ``item`` now.
 
         Returns:
-            ``False`` when the backend failed, or when ``item`` came from
-            another pool; ``True`` otherwise.
+            ``False`` when the backend failed, or when ``item`` is of a kind
+            the pool does not store; ``True`` otherwise.
         """
         ...
 
@@ -116,7 +118,8 @@ class CacheItemPoolInterface(Protocol):
         :meth:`commit`.
 
         Returns:
-            ``False`` when ``item`` came from another pool; ``True`` otherwise.
+            ``False`` when ``item`` is of a kind the pool does not store;
+            ``True`` otherwise.
         """
         ...
 
