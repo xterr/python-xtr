@@ -21,6 +21,7 @@ packages is one commit, and released separately so an application installs only 
 
 | Package | What it is |
 |---|---|
+| [xtr-cache](packages/xtr-cache) | Cache pools in memory, in files, in Redis, chained or tag-aware, with stampede protection. |
 | [xtr-cache-contracts](packages/xtr-cache-contracts) | The caching interfaces alone: fetch-or-compute, item pools, tags and namespaces. |
 | [xtr-clock](packages/xtr-clock) | An injectable clock, a timezone-aware `DatePoint`, and a frozen clock for tests. |
 | [xtr-console](packages/xtr-console) | Async-native console applications: commands as functions or classes, wired by a container. |
@@ -46,6 +47,9 @@ graph LR
     lock[xtr-lock] --> clock
     lock --> logcon
     cachecon[xtr-cache-contracts] --> clock
+    cache[xtr-cache] --> cachecon
+    cache --> lock
+    cache -. console extra .-> console
     events[xtr-event-dispatcher] --> eventcon[xtr-event-dispatcher-contracts]
     events --> logcon
     messenger -. console extra .-> console[xtr-console]
