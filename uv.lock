@@ -11,6 +11,7 @@ members = [
     "xtr-console",
     "xtr-dependency-injection",
     "xtr-dotenv",
+    "xtr-event-dispatcher",
     "xtr-event-dispatcher-contracts",
     "xtr-lock",
     "xtr-logging",
@@ -1832,6 +1833,58 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+]
+
+[[package]]
+name = "xtr-event-dispatcher"
+version = "1.1.0"
+source = { editable = "packages/xtr-event-dispatcher" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-logging-contracts" },
+]
+
+[package.optional-dependencies]
+di = [
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-logging" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "packages/xtr-service-contracts" },
+]
+provides-extras = ["di"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-logging", editable = "packages/xtr-logging" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 
 [[package]]
