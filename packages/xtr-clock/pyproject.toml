@@ -1,6 +1,6 @@
 [project]
 name = "xtr-clock"
-version = "1.1.0"
+version = "1.2.0"
 description = "Decouples an application from the system clock: an injectable clock, a timezone-aware instant, and a frozen clock for tests."
 readme = "README.md"
 requires-python = ">=3.11"
