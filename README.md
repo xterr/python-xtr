@@ -34,7 +34,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
 | [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
-| [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger. Not implemented yet. |
+| [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger: cron and intervals, catch-up after downtime, locks and saved state. |
 
 How they depend on each other (runtime dependencies only; extras are dotted):
 
@@ -54,6 +54,12 @@ graph LR
     events[xtr-event-dispatcher] --> eventcon[xtr-event-dispatcher-contracts]
     events --> logcon
     messenger -. console extra .-> console[xtr-console]
+    scheduler[xtr-scheduler] --> messenger
+    scheduler --> clock
+    scheduler --> lock
+    scheduler --> cachecon
+    scheduler --> events
+    scheduler -. console extra .-> console
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its
@@ -68,8 +74,6 @@ Each package is published to PyPI on its own:
 uv add xtr-logging
 uv add "xtr-messenger[amqp]"
 ```
-
-`xtr-scheduler` is published only to hold its name; there is nothing in it yet.
 
 ## Versions
 
