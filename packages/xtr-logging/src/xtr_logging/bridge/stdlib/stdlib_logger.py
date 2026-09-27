@@ -24,10 +24,11 @@ if TYPE_CHECKING:
 
 __all__ = ["StdlibLogger"]
 
-# A severity call travels caller -> AbstractLogger.info -> StdlibLogger.log ->
-# logging.Logger.log before logging looks for who logged. Three frames stand
-# between that search and the caller, so telling logging to skip them makes its
-# %(funcName)s and %(lineno)d name the caller rather than this adapter.
+# Every call travels caller -> a public method (log, or a severity such as info)
+# -> StdlibLogger._log -> logging.Logger.log before logging looks for who
+# logged. Each public method calls _log itself, so three frames always stand
+# between that search and the caller, and telling logging to skip them makes
+# its %(funcName)s and %(lineno)d name the caller rather than this adapter.
 _STACKLEVEL: Final = 3
 
 
@@ -55,6 +56,41 @@ class StdlibLogger(AbstractLogger):
         Raises:
             InvalidLevelError: If ``level`` names no level.
         """
+        self._log(level, message, context)
+
+    @override
+    def emergency(self, message: str, /, context: Context | None = None) -> None:
+        self._log(Level.EMERGENCY, message, context)
+
+    @override
+    def alert(self, message: str, /, context: Context | None = None) -> None:
+        self._log(Level.ALERT, message, context)
+
+    @override
+    def critical(self, message: str, /, context: Context | None = None) -> None:
+        self._log(Level.CRITICAL, message, context)
+
+    @override
+    def error(self, message: str, /, context: Context | None = None) -> None:
+        self._log(Level.ERROR, message, context)
+
+    @override
+    def warning(self, message: str, /, context: Context | None = None) -> None:
+        self._log(Level.WARNING, message, context)
+
+    @override
+    def notice(self, message: str, /, context: Context | None = None) -> None:
+        self._log(Level.NOTICE, message, context)
+
+    @override
+    def info(self, message: str, /, context: Context | None = None) -> None:
+        self._log(Level.INFO, message, context)
+
+    @override
+    def debug(self, message: str, /, context: Context | None = None) -> None:
+        self._log(Level.DEBUG, message, context)
+
+    def _log(self, level: LevelLike, message: str, context: Context | None) -> None:
         values: Context = context if context is not None else {}
         reported = values.get(EXCEPTION_KEY)
         exception = reported if isinstance(reported, BaseException) else None

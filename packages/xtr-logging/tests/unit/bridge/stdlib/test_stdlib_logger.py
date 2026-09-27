@@ -96,6 +96,14 @@ def test_it_reports_the_caller_not_the_adapter(stdlib_logger: logging.Logger) ->
     assert record.filename == "test_stdlib_logger.py"
 
 
+def test_a_direct_log_call_reports_its_caller_too(stdlib_logger: logging.Logger) -> None:
+    collector = _collector_on(stdlib_logger)
+
+    StdlibLogger(stdlib_logger).log("info", "who")
+
+    assert collector.records[0].funcName == "test_a_direct_log_call_reports_its_caller_too"
+
+
 def test_it_satisfies_the_logger_interface(stdlib_logger: logging.Logger) -> None:
     assert isinstance(StdlibLogger(stdlib_logger), LoggerInterface)
 
