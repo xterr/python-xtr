@@ -39,7 +39,9 @@ class DeduplicationHandler(BufferHandler):
     Records are buffered like :class:`BufferHandler`, and on flush each one at
     or above ``deduplication_level`` is checked against a small file of what
     was recently sent — matched by level and first line of message, within
-    ``time`` seconds — and dropped if it is a repeat.
+    ``time`` seconds. The batch goes out whole, with the records below that
+    level that explain it, when any of them is new or none reaches the level;
+    it is dropped whole when every one of them is a repeat.
 
     The store defaults to a per-handler file in the temp directory; give it an
     explicit path shared across processes so a burst spread over many workers

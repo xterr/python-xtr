@@ -174,7 +174,7 @@ deep, with a warning, rather than recursing until the stack overflows.
 | `WhatFailureGroupHandler` | A group where a failing member never stops the others |
 | `FallbackGroupHandler` | Tries members in order until one succeeds |
 | `FilterHandler` | Passes a level range, or a list of levels, to the handler it wraps |
-| `DeduplicationHandler` | Drops an error already written in the last `time` seconds |
+| `DeduplicationHandler` | Drops a buffered batch whose errors were all written in the last `time` seconds |
 | `SamplingHandler` | Passes one record in `factor` |
 | `QueueHandler` | Writes on a background thread, so logging never waits on I/O |
 | `StdlibHandler` | Hands records to a standard-library logger |
