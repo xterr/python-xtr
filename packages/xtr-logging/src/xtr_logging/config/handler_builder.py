@@ -188,6 +188,8 @@ class HandlerBuilder:
                     spec.deduplication_level,
                     spec.time,
                     spec.bubble,
+                    buffer_limit=spec.buffer_limit,
+                    flush_on_overflow=spec.flush_on_overflow,
                 )
             case SamplingHandlerSpec():
                 return SamplingHandler(self.build(spec.handler), spec.factor)

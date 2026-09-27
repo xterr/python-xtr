@@ -109,6 +109,8 @@ class DeduplicationHandlerSpec(
     store: str | None = None
     deduplication_level: Level | str = Level.ERROR
     time: int = 60
+    buffer_limit: int = 0
+    flush_on_overflow: bool = False
 
     @override
     def __post_init__(self) -> None:

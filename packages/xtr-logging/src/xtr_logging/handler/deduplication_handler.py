@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
+import stat
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, final
@@ -15,8 +17,6 @@ from xtr_logging_contracts import Level
 from .buffer_handler import BufferHandler
 
 if TYPE_CHECKING:
-    import os
-
     from xtr_clock import ClockInterface
     from xtr_logging_contracts import LevelLike
 
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 __all__ = ["DeduplicationHandler"]
 
 _ONE_DAY_SECONDS = 86400
+_PRIVATE_MODE = 0o700
 _STORE_FIELDS = 3
 
 
@@ -43,10 +44,17 @@ class DeduplicationHandler(BufferHandler):
     level that explain it, when any of them is new or none reaches the level;
     it is dropped whole when every one of them is a repeat.
 
-    The store defaults to a per-handler file in the temp directory; give it an
-    explicit path shared across processes so a burst spread over many workers
-    is still deduplicated. The clock is injected so a test can decide what
-    "recently" means.
+    The store defaults to a file named after the wrapped handler — its class,
+    level and target — in a directory of the temporary one made for this user
+    alone: another user can neither read what was sent nor plant a file there.
+    One owned by someone else is not used, and nothing is deduplicated. Give
+    ``store`` an explicit path shared across processes so a burst spread over
+    many workers is still deduplicated. The clock is injected so a test can
+    decide what "recently" means.
+
+    Records are held until a flush, all of them unless ``buffer_limit`` caps
+    how many, the oldest dropped past it — or everything forwarded, with
+    ``flush_on_overflow``.
     """
 
     def __init__(  # noqa: PLR0913 — every option is independent; all have defaults
@@ -58,6 +66,8 @@ class DeduplicationHandler(BufferHandler):
         bubble: bool = True,
         *,
         clock: ClockInterface | None = None,
+        buffer_limit: int = 0,
+        flush_on_overflow: bool = False,
     ) -> None:
         """Deduplicate what ``handler`` sends.
 
@@ -72,11 +82,18 @@ class DeduplicationHandler(BufferHandler):
             bubble: Whether buffered records still reach later handlers.
             clock: Where "now" is read from, for expiry; the clock in force
                 by default.
+            buffer_limit: The most records held until a flush; ``0`` holds
+                them all.
+            flush_on_overflow: Forward the held records when ``buffer_limit``
+                is reached, rather than dropping the oldest.
 
         Raises:
             InvalidLevelError: If ``deduplication_level`` names no level.
         """
-        super().__init__(handler, 0, Level.DEBUG, bubble, flush_on_overflow=False)
+        super().__init__(
+            handler, buffer_limit, Level.DEBUG, bubble, flush_on_overflow=flush_on_overflow
+        )
+        self._private: bool = store is None
         self._store_path: Path = Path(store) if store is not None else _default_store(handler)
         self._deduplication_level: Level = Level.parse(deduplication_level)
         self._time: int = time
@@ -127,16 +144,28 @@ class DeduplicationHandler(BufferHandler):
         )
 
     def _read_store(self) -> list[str] | None:
-        if not self._store_path.exists():
+        if not self._store_path.exists() or not self._trusted():
             return None
         return [line for line in self._store_path.read_text(encoding="utf-8").splitlines() if line]
 
     def _append_store(self, line: str) -> None:
+        if not self._trusted():
+            return
         with self._store_path.open("a", encoding="utf-8") as store:
             _ = store.write(line + "\n")
 
+    def _trusted(self) -> bool:
+        """Tell whether the store may be read and written: an explicit one always is.
+
+        The default one's directory is made for this user alone, and is
+        refused when it belongs to someone else.
+        """
+        if not self._private:
+            return True
+        return _private_directory(self._store_path.parent)
+
     def _collect_logs(self) -> None:
-        if not self._store_path.exists():
+        if not self._store_path.exists() or not self._trusted():
             return
         validity = int(self._clock.now().timestamp()) - self._time
         kept: list[str] = []
@@ -151,9 +180,36 @@ class DeduplicationHandler(BufferHandler):
 
 
 def _default_store(handler: HandlerInterface) -> Path:
-    seed = f"{type(handler).__module__}.{type(handler).__qualname__}"
+    """Return the store of what ``handler`` sent: one per class, level and target it has."""
+    kind = type(handler)
+    seed = "|".join(
+        (
+            f"{kind.__module__}.{kind.__qualname__}",
+            str(getattr(handler, "level", "")),
+            str(getattr(handler, "url", "")),
+        )
+    )
     digest = hashlib.sha256(seed.encode()).hexdigest()[:20]
-    return Path(tempfile.gettempdir()) / f"xtr-logging-dedup-{digest}.log"
+    owner = getattr(os, "getuid", lambda: "user")()
+    return Path(tempfile.gettempdir()) / f"xtr-logging-{owner}" / f"dedup-{digest}.log"
+
+
+def _private_directory(directory: Path) -> bool:
+    """Make ``directory`` for this user alone if missing; tell whether it is theirs alone."""
+    try:
+        directory.mkdir(mode=_PRIVATE_MODE, exist_ok=True)
+        status = directory.lstat()
+    except OSError:
+        return False
+    owner = os.getuid() if hasattr(os, "getuid") else status.st_uid
+    if not stat.S_ISDIR(status.st_mode) or status.st_uid != owner:
+        return False
+    if stat.S_IMODE(status.st_mode) != _PRIVATE_MODE:
+        try:
+            directory.chmod(_PRIVATE_MODE)
+        except OSError:
+            return False
+    return True
 
 
 def _first_line(message: str) -> str:
