@@ -59,6 +59,7 @@ graph LR
     scheduler --> lock
     scheduler --> cachecon
     scheduler --> events
+    scheduler --> svccon
     scheduler -. console extra .-> console
 ```
 
@@ -73,6 +74,7 @@ Each package is published to PyPI on its own:
 ```sh
 uv add xtr-logging
 uv add "xtr-messenger[amqp]"
+uv add "xtr-scheduler[cron]"
 ```
 
 ## Versions
@@ -459,6 +461,7 @@ python-xtr/
 │       └── LICENSE
 ├── scripts/release.py  # one version for every package
 ├── pyproject.toml      # workspace root: members and sources, never published
+├── examples/bookshop/  # an application on every package — its own uv project
 └── uv.lock             # the only lockfile
 ```
 
