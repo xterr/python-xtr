@@ -126,6 +126,10 @@ class CacheItemPoolInterface(Protocol):
     async def commit(self) -> bool:
         """Store every item queued by :meth:`save_deferred`.
 
+        The queue is emptied whatever happens: an item the backend failed to
+        store is dropped, not kept for a later commit. A cache may lose a
+        write; the next read computes the value again.
+
         Returns:
             ``False`` when the backend failed for any of them; ``True``
             otherwise.
