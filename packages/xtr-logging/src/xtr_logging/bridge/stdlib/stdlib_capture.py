@@ -104,6 +104,8 @@ class StdlibCapture:
     through, for anything put straight into a ``handlers`` list.
 
     Captures nest: the most recent one owns the output until it is released.
+    They may be released in any order: one released while a later one is
+    still installed leaves what it found to that one, which puts it back.
 
     :meth:`release` puts back every handler, level and flag it changed.
     """
@@ -178,17 +180,38 @@ class StdlibCapture:
         """
         if not self.installed:
             return
+        position = _captures.index(self)
         _captures.remove(self)
         if not _captures:
             _intercept(active=False)
         _REMOVE_HANDLER(logging.getLogger(), self._handler)
-        logging.lastResort = self._last_resort
-        for taken, saved in self._saved.items():
-            taken.handlers = list(saved.handlers)
-            taken.setLevel(saved.level)
-            taken.propagate = saved.propagate
-            taken.disabled = saved.disabled
+        if position < len(_captures):
+            self._hand_over(_captures[position])
+        else:
+            logging.lastResort = self._last_resort
+            for taken, saved in self._saved.items():
+                taken.handlers = list(saved.handlers)
+                taken.setLevel(saved.level)
+                taken.propagate = saved.propagate
+                taken.disabled = saved.disabled
         self._saved.clear()
+
+    def _hand_over(self, successor: StdlibCapture) -> None:
+        """Leave what this capture found to ``successor``, installed after it, to put back.
+
+        ``successor`` saw the loggers as this capture had left them — this
+        capture's handler attached, its levels and flags set — so what it
+        would put back is replaced by what this capture found.
+        """
+        if successor._last_resort is self._handler:
+            successor._last_resort = self._last_resort
+        for taken, saved in self._saved.items():
+            later = successor._saved.get(taken)
+            added = [] if later is None else later.handlers
+            kept = [h for h in added if h is not self._handler and h not in saved.handlers]
+            successor._saved[taken] = _Saved(
+                [*saved.handlers, *kept], saved.level, saved.propagate, saved.disabled
+            )
 
     def __enter__(self) -> Self:
         """Install for the ``with`` block."""

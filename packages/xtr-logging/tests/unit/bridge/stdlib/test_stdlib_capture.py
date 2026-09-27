@@ -172,6 +172,44 @@ def test_the_most_recent_of_nested_captures_owns_the_output() -> None:
     assert (len(outer.records), len(inner.records)) == (0, 1)
 
 
+def test_captures_released_out_of_order_give_everything_back() -> None:
+    name = _name()
+    own = Collector()
+    library = logging.getLogger(name)
+    library.addHandler(own)
+    library.setLevel(logging.ERROR)
+    root_handlers = list(logging.getLogger().handlers)
+    last_resort = logging.lastResort
+    first = StdlibCapture(Logger("first"), levels={name: "debug"})
+    second = StdlibCapture(Logger("second"))
+
+    first.install()
+    second.install()
+    first.release()
+    second.release()
+
+    assert logging.lastResort is last_resort
+    assert logging.getLogger().handlers == root_handlers
+    assert library.handlers == [own]
+    assert library.level == logging.ERROR
+
+
+def test_the_capture_still_installed_keeps_the_output_when_an_earlier_one_is_released() -> None:
+    channel = TestHandler()
+    first = StdlibCapture(Logger("first"))
+    second = StdlibCapture(Logger("second", [channel]))
+
+    first.install()
+    second.install()
+    first.release()
+    try:
+        logging.getLogger(_name()).warning("x")
+    finally:
+        second.release()
+
+    assert len(channel.records) == 1
+
+
 def test_release_gives_every_logger_back_as_it_was() -> None:
     name = _name()
     own = Collector()
