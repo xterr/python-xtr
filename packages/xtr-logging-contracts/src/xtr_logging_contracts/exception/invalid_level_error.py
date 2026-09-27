@@ -16,9 +16,9 @@ class InvalidLevelError(LoggingError, ValueError):
     report the field that held it.
     """
 
-    value: int | str
+    value: object
 
-    def __init__(self, value: int | str) -> None:
+    def __init__(self, value: object) -> None:
         """Record the value that could not be read as a level."""
         self.value = value
         super().__init__(

@@ -55,6 +55,10 @@ class Level(IntEnum):
                 raise InvalidLevelError(value)
             case str():
                 return cls.from_name(value)
+            # The annotation is not enforced at runtime: a value read from a
+            # configuration file may be anything — a float, None.
+            case _:  # pyright: ignore[reportUnnecessaryComparison]
+                raise InvalidLevelError(value)  # pyright: ignore[reportUnreachable]
 
     @classmethod
     def from_name(cls, name: str) -> Level:

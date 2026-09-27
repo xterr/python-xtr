@@ -61,3 +61,9 @@ def test_comparisons_are_strict() -> None:
     assert Level.ERROR.is_higher_than(Level.WARNING)
     assert not Level.ERROR.is_higher_than(Level.ERROR)
     assert Level.INFO.is_lower_than(Level.NOTICE)
+
+
+@pytest.mark.parametrize("value", [4.5, None, object()])
+def test_a_value_of_no_accepted_type_is_refused(value: object) -> None:
+    with pytest.raises(InvalidLevelError):
+        _ = Level.parse(value)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
