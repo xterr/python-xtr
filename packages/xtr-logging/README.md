@@ -241,7 +241,7 @@ runs first.
 | Formatter | Renders |
 | --- | --- |
 | `LineFormatter` | `[%datetime%] %channel%.%level_name%: %message% %context% %extra%` |
-| `JsonFormatter` | One JSON object per record, or a batch as an array or as lines |
+| `JsonFormatter` | One JSON object per record; a batch as lines, or as one array with `batch_mode="json"` |
 | `ConsoleFormatter` | A short line with the level coloured |
 
 `LineFormatter` also knows `%level%` and `%context.KEY%` / `%extra.KEY%` for one entry. It keeps

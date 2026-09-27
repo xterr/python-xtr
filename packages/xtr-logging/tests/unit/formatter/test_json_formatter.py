@@ -59,16 +59,26 @@ def test_a_batch_is_one_json_array_without_inner_newlines() -> None:
     batch = formatter.format_batch(records)
 
     assert batch.startswith('[{"message":"a"')
-    assert batch.endswith("}]")
-    assert "\n" not in batch
+    assert batch.endswith("}]\n")
+    assert batch.count("\n") == 1
 
 
 def test_a_newline_batch_puts_one_object_on_each_line() -> None:
     formatter = JsonFormatter(JsonBatchMode.NEWLINES)
     records = [make_record(message="a"), make_record(message="b")]
 
-    lines = formatter.format_batch(records).split("\n")
+    lines = formatter.format_batch(records).splitlines(keepends=True)
 
     assert len(lines) == 2
+    assert all(line.endswith("}\n") for line in lines)
     assert lines[0].startswith('{"message":"a"')
     assert lines[1].startswith('{"message":"b"')
+
+
+def test_a_batch_by_default_reads_as_its_records_formatted_one_by_one() -> None:
+    formatter = JsonFormatter()
+    records = [make_record(message="a"), make_record(message="b")]
+
+    batch = formatter.format_batch(records)
+
+    assert batch == "".join(formatter.format(record) for record in records)

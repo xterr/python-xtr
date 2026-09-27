@@ -98,6 +98,19 @@ class RotatingFileHandler(StreamHandler):
             if rotating:
                 self._collect()
 
+    @override
+    def _batches(self, records: list[LogRecord]) -> list[list[LogRecord]]:
+        """Split ``records`` where the date changes, so each part lands in its own file."""
+        batches: list[list[LogRecord]] = []
+        previous: str | None = None
+        for record in records:
+            date = record.datetime.strftime(self._date_format)
+            if not batches or date != previous:
+                batches.append([])
+            batches[-1].append(record)
+            previous = date
+        return batches
+
     def _timed_path(self, date: str) -> str:
         name = self._filename_format.replace(_FILENAME_TOKEN, self._original.stem).replace(
             _DATE_TOKEN, date

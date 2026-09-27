@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
+from xtr_logging.formatter.json_batch_mode import JsonBatchMode
+from xtr_logging.formatter.json_formatter import JsonFormatter
 from xtr_logging.handler.stream_handler import StreamHandler
 
 if TYPE_CHECKING:
@@ -97,3 +99,24 @@ def test_text_its_encoding_cannot_hold_is_escaped_rather_than_failing(tmp_path: 
     handler.close()
 
     assert "caf\\xe9" in (tmp_path / "app.log").read_text(encoding="ascii")
+
+
+def test_a_batch_is_written_as_the_formatter_renders_a_batch() -> None:
+    stream = io.StringIO()
+    handler = StreamHandler(stream)
+    handler.formatter = JsonFormatter(JsonBatchMode.JSON)
+
+    handler.handle_batch([make_record(message="a"), make_record(message="b")])
+
+    assert stream.getvalue().startswith('[{"message":"a"')
+    assert stream.getvalue().count("\n") == 1
+
+
+def test_a_batch_leaves_out_records_below_the_level() -> None:
+    stream = io.StringIO()
+    handler = StreamHandler(stream, Level.WARNING)
+
+    handler.handle_batch([make_record(Level.INFO, "quiet"), make_record(Level.ERROR, "loud")])
+
+    assert "quiet" not in stream.getvalue()
+    assert "loud" in stream.getvalue()

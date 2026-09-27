@@ -13,6 +13,7 @@ from xtr_logging_contracts import Level
 from .abstract_processing_handler import AbstractProcessingHandler
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from typing import Literal, TextIO
 
     from xtr_logging_contracts import LevelLike
@@ -93,6 +94,22 @@ class StreamHandler(AbstractProcessingHandler):
             stream = self._resolve_stream()
             _ = stream.write(formatted)
             stream.flush()
+
+    @override
+    def handle_batch(self, records: Sequence[LogRecord], /) -> None:
+        """Format the records it handles as one batch, and write it at once.
+
+        The formatter decides what a batch looks like — one JSON array, say,
+        with ``batch_mode="json"``; by default the same text as record by
+        record.
+        """
+        handled = [self._process(record) for record in records if self.is_handling(record)]
+        for group in self._batches(handled):
+            self.write(group[-1], self.formatter.format_batch(group))
+
+    def _batches(self, records: list[LogRecord]) -> list[list[LogRecord]]:
+        """Split ``records`` into what may be written as one; here, all of them."""
+        return [records] if records else []
 
     @override
     def close(self) -> None:

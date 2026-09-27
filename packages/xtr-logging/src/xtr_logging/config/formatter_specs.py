@@ -36,7 +36,7 @@ class LineFormatterSpec(_FormatterSpecBase, frozen=True, kw_only=True, tag="line
 class JsonFormatterSpec(_FormatterSpecBase, frozen=True, kw_only=True, tag="json"):
     """A :class:`~xtr_logging.formatter.json_formatter.JsonFormatter`."""
 
-    batch_mode: Literal["json", "newlines"] = "json"
+    batch_mode: Literal["json", "newlines"] = "newlines"
     append_newline: bool = True
     ignore_empty_context_and_extra: bool = False
 

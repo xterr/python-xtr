@@ -7,6 +7,8 @@ import pytest
 
 from tests.support.records import make_record
 from xtr_logging import InvalidOptionError
+from xtr_logging.formatter.json_batch_mode import JsonBatchMode
+from xtr_logging.formatter.json_formatter import JsonFormatter
 from xtr_logging.handler.rotating_file_handler import RotatingFileHandler
 
 if TYPE_CHECKING:
@@ -123,3 +125,19 @@ def test_old_files_are_swept_by_the_date_in_their_name_whatever_its_format(
 
     remaining = sorted(p.name for p in tmp_path.glob("app-*.log"))
     assert remaining == ["app-01-02-2026.log", "app-02-02-2026.log"]
+
+
+def test_a_batch_spanning_two_dates_is_split_between_their_files(tmp_path: Path) -> None:
+    handler = RotatingFileHandler(tmp_path / "app.log")
+    handler.formatter = JsonFormatter(JsonBatchMode.JSON)
+
+    handler.handle_batch(
+        [make_record(message="one", at=_DAY_ONE), make_record(message="two", at=_DAY_TWO)]
+    )
+    handler.close()
+
+    first = (tmp_path / "app-2026-09-24.log").read_text(encoding="utf-8")
+    second = (tmp_path / "app-2026-09-25.log").read_text(encoding="utf-8")
+    assert first.startswith('[{"message":"one"')
+    assert "two" not in first
+    assert second.startswith('[{"message":"two"')

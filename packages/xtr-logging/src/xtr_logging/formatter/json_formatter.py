@@ -42,7 +42,7 @@ class JsonFormatter(FormatterInterface):
 
     def __init__(
         self,
-        batch_mode: JsonBatchMode = JsonBatchMode.JSON,
+        batch_mode: JsonBatchMode = JsonBatchMode.NEWLINES,
         *,
         append_newline: bool = True,
         ignore_empty_context_and_extra: bool = False,
@@ -52,8 +52,9 @@ class JsonFormatter(FormatterInterface):
         """Configure the JSON.
 
         Args:
-            batch_mode: Whether :meth:`format_batch` yields one array or one
-                object per line.
+            batch_mode: Whether :meth:`format_batch` yields one object per
+                line — exactly what formatting each record would — or one
+                array.
             append_newline: End each formatted record with a newline, so a file
                 handler writes one object per line.
             ignore_empty_context_and_extra: Leave ``context`` or ``extra`` out
@@ -77,12 +78,15 @@ class JsonFormatter(FormatterInterface):
 
     @override
     def format_batch(self, records: Sequence[LogRecord], /) -> str:
-        """Render ``records`` as one JSON array, or one object per line."""
+        """Render ``records`` as one object per line, or as one JSON array.
+
+        Either ends with a newline when ``append_newline`` is on, so batch after
+        batch written to one file stays one per line.
+        """
         if self._batch_mode is JsonBatchMode.NEWLINES:
-            return "\n".join(
-                msgspec.json.encode(self._to_dict(record)).decode() for record in records
-            )
-        return msgspec.json.encode([self._to_dict(record) for record in records]).decode()
+            return "".join(self.format(record) for record in records)
+        encoded = msgspec.json.encode([self._to_dict(record) for record in records]).decode()
+        return f"{encoded}\n" if self._append_newline else encoded
 
     def _to_dict(self, record: LogRecord) -> dict[str, Normalized]:
         data: dict[str, Normalized] = {"message": record.message}
