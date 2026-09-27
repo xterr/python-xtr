@@ -106,8 +106,8 @@ class FilterHandler(ProcessorStack, LazyHandler, HandlerInterface, ResetInterfac
 
     @override
     def handle_batch(self, records: Sequence[LogRecord], /) -> None:
-        """Forward the accepted records of ``records`` as one batch."""
-        accepted = tuple(record for record in records if self.is_handling(record))
+        """Forward the accepted records of ``records`` as one batch, after its own processors."""
+        accepted = tuple(self._process(record) for record in records if self.is_handling(record))
         if accepted:
             self._resolve_handler(accepted[-1]).handle_batch(accepted)
 

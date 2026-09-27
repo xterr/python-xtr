@@ -167,3 +167,13 @@ def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler
     handler.close()
 
     assert factory.calls == 0
+
+
+def test_a_batch_passes_through_its_own_processors_too() -> None:
+    member = TestHandler()
+    handler = FilterHandler(member)
+    handler.push_processor(_stamp)
+
+    handler.handle_batch([make_record()])
+
+    assert member.records[0].extra == {"stamped": True}
