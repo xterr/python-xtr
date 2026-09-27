@@ -57,10 +57,10 @@ Requires Python 3.11+.
 | **A library that logs** | `xtr-logging-contracts` at runtime, `xtr-logging` as a dev dependency — its tests build real loggers and assert on a `TestHandler`. |
 | **An application** | `xtr-logging`, which implements this contract and wires channels, handlers and processors from configuration. |
 
-`xtr-logging` **re-exports** every symbol here rather than redefining it, so
-`xtr_logging.LoggerInterface is xtr_logging_contracts.LoggerInterface`. That identity is what lets
-a container register a logger under the interface and a library, which never imported
-`xtr-logging`, receive it.
+`xtr-logging` **builds on** these types rather than redefining them: its loggers implement this
+`LoggerInterface` and its levels are this `Level`. Import them from `xtr_logging_contracts` —
+`xtr-logging` does not re-export them. That one set of types is what lets a container register a
+logger under the interface and a library, which never imported `xtr-logging`, receive it.
 
 ## The interface
 
