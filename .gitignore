@@ -13,3 +13,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# What an application writes while it runs: kernel.share_dir is var/share.
+var/
