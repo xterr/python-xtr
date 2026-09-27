@@ -8,10 +8,9 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 from xtr_service_contracts import ResetInterface
 
-from xtr_logging.exception.empty_stack_error import EmptyStackError
-
+from ._lazy_handler import LazyHandler
+from ._processor_stack import ProcessorStack
 from .handler_interface import HandlerInterface
-from .processable_handler_interface import ProcessableHandlerInterface
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -20,7 +19,6 @@ if TYPE_CHECKING:
     from xtr_logging_contracts import LevelLike
 
     from xtr_logging.log_record import LogRecord
-    from xtr_logging.processor.processor_interface import ProcessorInterface
 
     _HandlerFactory: TypeAlias = Callable[
         ["LogRecord | None", "FilterHandler"],
@@ -31,7 +29,7 @@ __all__ = ["FilterHandler"]
 
 
 @final
-class FilterHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterface):
+class FilterHandler(ProcessorStack, LazyHandler, HandlerInterface, ResetInterface):
     """Forwards only records whose level is in an accepted set.
 
     A handler's minimum level lets everything above it through; this instead
@@ -63,10 +61,9 @@ class FilterHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterfac
         Raises:
             InvalidLevelError: If any level names no level.
         """
-        self._handler: HandlerInterface | _HandlerFactory = handler
+        self._wrap(handler)
         self._bubble: bool = bubble
         self._accepted_levels: frozenset[Level] = frozenset()
-        self._processors: tuple[ProcessorInterface, ...] = ()
         self.set_accepted_levels(min_level_or_list, max_level)
 
     @property
@@ -93,29 +90,6 @@ class FilterHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterfac
         else:
             self._accepted_levels = frozenset(Level.parse(item) for item in min_level_or_list)
 
-    @property
-    def processors(self) -> tuple[ProcessorInterface, ...]:
-        """This handler's own processors, in the order they run."""
-        return self._processors
-
-    @override
-    def push_processor(self, processor: ProcessorInterface, /) -> None:
-        """Add ``processor`` in front of those already attached."""
-        self._processors = (processor, *self._processors)
-
-    @override
-    def pop_processor(self) -> ProcessorInterface:
-        """Remove and return the processor that runs first.
-
-        Raises:
-            EmptyStackError: If there is none.
-        """
-        if not self._processors:
-            raise EmptyStackError(type(self).__name__, "processor")
-        first, *rest = self._processors
-        self._processors = tuple(rest)
-        return first
-
     @override
     def is_handling(self, record: LogRecord, /) -> bool:
         """Whether ``record``'s level is one this handler accepts."""
@@ -126,8 +100,7 @@ class FilterHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterfac
         """Forward ``record`` if its level is accepted, after this handler's processors."""
         if not self.is_handling(record):
             return False
-        for processor in self._processors:
-            record = processor(record)
+        record = self._process(record)
         _ = self._resolve_handler(record).handle(record)
         return not self._bubble
 
@@ -141,22 +114,10 @@ class FilterHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterfac
     @override
     def reset(self) -> None:
         """Reset this handler's processors and the wrapped handler."""
-        for processor in self._processors:
-            if isinstance(processor, ResetInterface):
-                processor.reset()
-        handler = self._resolve_handler()
-        if isinstance(handler, ResetInterface):
-            handler.reset()
+        self._reset_processors()
+        self._reset_handler()
 
     @override
     def close(self) -> None:
         """Close the wrapped handler."""
-        self._resolve_handler().close()
-
-    def _resolve_handler(self, record: LogRecord | None = None) -> HandlerInterface:
-        handler = self._handler
-        if isinstance(handler, HandlerInterface):
-            return handler
-        resolved = handler(record, self)
-        self._handler = resolved
-        return resolved
+        self._close_handler()

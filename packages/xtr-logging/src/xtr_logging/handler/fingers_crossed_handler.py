@@ -8,12 +8,11 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 from xtr_service_contracts import ResetInterface
 
-from xtr_logging.exception.empty_stack_error import EmptyStackError
-
+from ._lazy_handler import LazyHandler
+from ._processor_stack import ProcessorStack
 from .fingers_crossed.activation_strategy_interface import ActivationStrategyInterface
 from .fingers_crossed.error_level_activation_strategy import ErrorLevelActivationStrategy
 from .handler_interface import HandlerInterface
-from .processable_handler_interface import ProcessableHandlerInterface
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -22,7 +21,6 @@ if TYPE_CHECKING:
     from xtr_logging_contracts import LevelLike
 
     from xtr_logging.log_record import LogRecord
-    from xtr_logging.processor.processor_interface import ProcessorInterface
 
     _HandlerFactory: TypeAlias = Callable[
         ["LogRecord | None", "FingersCrossedHandler"],
@@ -33,7 +31,7 @@ __all__ = ["FingersCrossedHandler"]
 
 
 @final
-class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, ResetInterface):
+class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, ResetInterface):
     """Buffers every record, and forwards the lot the moment one is bad enough.
 
     A healthy request leaves nothing in the log; a failed one leaves its whole
@@ -83,7 +81,7 @@ class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, Reset
             activation_strategy = ErrorLevelActivationStrategy(Level.WARNING)
         elif not isinstance(activation_strategy, ActivationStrategyInterface):
             activation_strategy = ErrorLevelActivationStrategy(activation_strategy)
-        self._handler: HandlerInterface | _HandlerFactory = handler
+        self._wrap(handler)
         self._activation_strategy: ActivationStrategyInterface = activation_strategy
         self._buffer_size: int = buffer_size
         self._bubble: bool = bubble
@@ -93,30 +91,6 @@ class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, Reset
         )
         self._buffer: list[LogRecord] = []
         self._buffering: bool = True
-        self._processors: tuple[ProcessorInterface, ...] = ()
-
-    @property
-    def processors(self) -> tuple[ProcessorInterface, ...]:
-        """This handler's own processors, in the order they run."""
-        return self._processors
-
-    @override
-    def push_processor(self, processor: ProcessorInterface, /) -> None:
-        """Add ``processor`` in front of those already attached."""
-        self._processors = (processor, *self._processors)
-
-    @override
-    def pop_processor(self) -> ProcessorInterface:
-        """Remove and return the processor that runs first.
-
-        Raises:
-            EmptyStackError: If there is none.
-        """
-        if not self._processors:
-            raise EmptyStackError(type(self).__name__, "processor")
-        first, *rest = self._processors
-        self._processors = tuple(rest)
-        return first
 
     @override
     def is_handling(self, record: LogRecord, /) -> bool:
@@ -126,8 +100,7 @@ class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, Reset
     @override
     def handle(self, record: LogRecord, /) -> bool:
         """Buffer ``record``, or pass it through once the buffer has been released."""
-        for processor in self._processors:
-            record = processor(record)
+        record = self._process(record)
         if self._buffering:
             self._buffer.append(record)
             if self._buffer_size > 0 and len(self._buffer) > self._buffer_size:
@@ -156,18 +129,14 @@ class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, Reset
     def close(self) -> None:
         """Flush the passthru floor, then close the wrapped handler."""
         self._flush_buffer()
-        self._resolve_handler().close()
+        self._close_handler()
 
     @override
     def reset(self) -> None:
         """Flush the passthru floor, reset processors, and reset the wrapped handler."""
         self._flush_buffer()
-        for processor in self._processors:
-            if isinstance(processor, ResetInterface):
-                processor.reset()
-        handler = self._resolve_handler()
-        if isinstance(handler, ResetInterface):
-            handler.reset()
+        self._reset_processors()
+        self._reset_handler()
 
     def clear(self) -> None:
         """Drop the buffer without forwarding it, and start buffering afresh."""
@@ -183,11 +152,3 @@ class FingersCrossedHandler(HandlerInterface, ProcessableHandlerInterface, Reset
                 self._resolve_handler(kept[-1]).handle_batch(tuple(kept))
         self._buffer = []
         self._buffering = True
-
-    def _resolve_handler(self, record: LogRecord | None = None) -> HandlerInterface:
-        handler = self._handler
-        if isinstance(handler, HandlerInterface):
-            return handler
-        resolved = handler(record, self)
-        self._handler = resolved
-        return resolved

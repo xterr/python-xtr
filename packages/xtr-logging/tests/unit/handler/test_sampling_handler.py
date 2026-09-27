@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from typing import final
+from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
@@ -10,6 +10,9 @@ from xtr_logging_contracts import Level
 from tests.support.records import make_record
 from xtr_logging import InvalidOptionError, LogRecord, TestHandler
 from xtr_logging.handler.sampling_handler import SamplingHandler
+
+if TYPE_CHECKING:
+    from xtr_logging.handler.handler_interface import HandlerInterface
 
 
 @final
@@ -93,3 +96,19 @@ def test_a_sampled_record_still_bubbles() -> None:
     handler = SamplingHandler(TestHandler(), 1, rng=FixedRandom(1))
 
     assert not handler.handle(make_record())
+
+
+def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler() -> None:
+    calls: list[LogRecord | None] = []
+
+    def factory(record: LogRecord | None, owner: SamplingHandler, /) -> HandlerInterface:
+        del owner
+        calls.append(record)
+        return TestHandler()
+
+    handler = SamplingHandler(factory, 1)
+
+    handler.reset()
+    handler.close()
+
+    assert calls == []

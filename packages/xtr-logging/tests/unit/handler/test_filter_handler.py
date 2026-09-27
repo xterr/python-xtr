@@ -157,3 +157,13 @@ def test_a_handler_factory_is_resolved_lazily() -> None:
 def test_popping_with_no_processors_is_refused() -> None:
     with pytest.raises(EmptyStackError, match="FilterHandler"):
         _ = FilterHandler(TestHandler()).pop_processor()
+
+
+def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler() -> None:
+    factory = CountingFactory(TestHandler())
+    handler = FilterHandler(factory)
+
+    handler.reset()
+    handler.close()
+
+    assert factory.calls == 0

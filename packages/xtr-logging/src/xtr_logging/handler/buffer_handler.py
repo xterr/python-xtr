@@ -8,23 +8,20 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 from xtr_service_contracts import ResetInterface
 
-from xtr_logging.exception.empty_stack_error import EmptyStackError
-
+from ._processor_stack import ProcessorStack
 from .abstract_handler import AbstractHandler
-from .processable_handler_interface import ProcessableHandlerInterface
 
 if TYPE_CHECKING:
     from xtr_logging_contracts import LevelLike
 
     from xtr_logging.log_record import LogRecord
-    from xtr_logging.processor.processor_interface import ProcessorInterface
 
     from .handler_interface import HandlerInterface
 
 __all__ = ["BufferHandler"]
 
 
-class BufferHandler(AbstractHandler, ProcessableHandlerInterface):
+class BufferHandler(AbstractHandler, ProcessorStack):
     """Keeps records in memory and forwards them together when flushed.
 
     A mail handler that sent one message per record would send a flood; wrap
@@ -65,30 +62,6 @@ class BufferHandler(AbstractHandler, ProcessableHandlerInterface):
         self._buffer_limit: int = buffer_limit
         self._flush_on_overflow: bool = flush_on_overflow
         self._buffer: list[LogRecord] = []
-        self._processors: tuple[ProcessorInterface, ...] = ()
-
-    @property
-    def processors(self) -> tuple[ProcessorInterface, ...]:
-        """This handler's own processors, in the order they run."""
-        return self._processors
-
-    @override
-    def push_processor(self, processor: ProcessorInterface, /) -> None:
-        """Add ``processor`` in front of those already attached."""
-        self._processors = (processor, *self._processors)
-
-    @override
-    def pop_processor(self) -> ProcessorInterface:
-        """Remove and return the processor that runs first.
-
-        Raises:
-            EmptyStackError: If there is none.
-        """
-        if not self._processors:
-            raise EmptyStackError(type(self).__name__, "processor")
-        first, *rest = self._processors
-        self._processors = tuple(rest)
-        return first
 
     @override
     def handle(self, record: LogRecord, /) -> bool:
@@ -104,9 +77,7 @@ class BufferHandler(AbstractHandler, ProcessableHandlerInterface):
                 self.flush()
             else:
                 _ = self._buffer.pop(0)
-        for processor in self._processors:
-            record = processor(record)
-        self._buffer.append(record)
+        self._buffer.append(self._process(record))
         return not self._bubble
 
     def flush(self) -> None:
@@ -131,8 +102,6 @@ class BufferHandler(AbstractHandler, ProcessableHandlerInterface):
         """Flush the buffer and reset this handler's processors and the wrapped one."""
         self.flush()
         super().reset()
-        for processor in self._processors:
-            if isinstance(processor, ResetInterface):
-                processor.reset()
+        self._reset_processors()
         if isinstance(self._handler, ResetInterface):
             self._handler.reset()

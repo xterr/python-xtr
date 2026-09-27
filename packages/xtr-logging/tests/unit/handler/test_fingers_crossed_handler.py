@@ -6,7 +6,7 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
-from xtr_logging import AbstractHandler, HandlerInterface, LogRecord
+from xtr_logging import AbstractHandler, HandlerInterface, LogRecord, TestHandler
 from xtr_logging.handler.fingers_crossed_handler import FingersCrossedHandler
 
 if TYPE_CHECKING:
@@ -220,3 +220,14 @@ def test_a_handler_factory_is_resolved_lazily() -> None:
 
     assert factory.calls == 1
     assert [record.message for record in spy.handled] == ["info", "warning", "after"]
+
+
+def test_closing_or_resetting_a_quiet_handler_never_builds_the_wrapped_one() -> None:
+    factory = CountingFactory(TestHandler())
+    handler = FingersCrossedHandler(factory, Level.ERROR)
+    _ = handler.handle(make_record(Level.INFO))
+
+    handler.reset()
+    handler.close()
+
+    assert factory.calls == 0
