@@ -44,6 +44,7 @@ class StreamHandler(AbstractProcessingHandler):
         file_permission: int | None = None,
         mode: Literal["a", "w", "x"] = "a",
         encoding: str = "utf-8",
+        errors: str = "backslashreplace",
     ) -> None:
         """Write to ``stream`` — an open stream, or a path opened on first use.
 
@@ -55,6 +56,9 @@ class StreamHandler(AbstractProcessingHandler):
                 to; left at the system default when omitted.
             mode: How to open a path — append, truncate, or create-exclusive.
             encoding: How to encode text written to a path.
+            errors: What to do with text ``encoding`` cannot represent, as
+                :func:`open` takes it; escaped by default, so a log call
+                never fails over one character.
 
         Raises:
             InvalidLevelError: If ``level`` names no level.
@@ -69,6 +73,7 @@ class StreamHandler(AbstractProcessingHandler):
         self._file_permission: int | None = file_permission
         self._mode: Literal["a", "w", "x"] = mode
         self._encoding: str = encoding
+        self._errors: str = errors
         self._lock: threading.Lock = threading.Lock()
 
     @property
@@ -93,9 +98,13 @@ class StreamHandler(AbstractProcessingHandler):
     def close(self) -> None:
         """Close a file this handler opened; leave a stream it was handed alone."""
         with self._lock:
-            if isinstance(self._target, str) and self._stream is not None:
-                self._stream.close()
-                self._stream = None
+            self._close_file()
+
+    def _close_file(self) -> None:
+        """Close a file this handler opened; the caller holds the lock."""
+        if isinstance(self._target, str) and self._stream is not None:
+            self._stream.close()
+            self._stream = None
 
     def _resolve_stream(self) -> TextIO:
         if self._stream is not None:
@@ -113,7 +122,7 @@ class StreamHandler(AbstractProcessingHandler):
         path = Path(path_str)
         existed = path.exists()
         path.parent.mkdir(parents=True, exist_ok=True)
-        stream = path.open(self._mode, encoding=self._encoding)
+        stream = path.open(self._mode, encoding=self._encoding, errors=self._errors)
         if self._file_permission is not None and not existed:
             path.chmod(self._file_permission)
         return stream

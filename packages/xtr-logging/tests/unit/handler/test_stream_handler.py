@@ -88,3 +88,12 @@ def test_truncate_mode_starts_the_file_fresh(tmp_path: Path) -> None:
     text = target.read_text(encoding="utf-8")
     assert "stale" not in text
     assert "fresh" in text
+
+
+def test_text_its_encoding_cannot_hold_is_escaped_rather_than_failing(tmp_path: Path) -> None:
+    handler = StreamHandler(tmp_path / "app.log", encoding="ascii")
+
+    _ = handler.handle(make_record(message="café"))
+    handler.close()
+
+    assert "caf\\xe9" in (tmp_path / "app.log").read_text(encoding="ascii")
