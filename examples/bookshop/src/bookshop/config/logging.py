@@ -46,7 +46,7 @@ from xtr_logging.config import (
 
 __all__ = ["logging_config", "logging_config_prod"]
 
-_CHANNELS = ("catalog", "orders", "security", "http")
+_CHANNELS = ("catalog", "orders", "security", "http", "scheduler")
 _LOG = "%shop.log_dir%"
 
 

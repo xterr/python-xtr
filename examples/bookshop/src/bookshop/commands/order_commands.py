@@ -18,7 +18,14 @@ from xtr_messenger import (
 
 from bookshop.messaging.messages import ReindexCatalog
 from bookshop.messaging.stamps import DispatchTimeStamp, MaintenanceStamp
-from bookshop.ordering import OrderBook, OrderNumber, OrderService, ShoppingCart, UnitOfWork
+from bookshop.ordering import (
+    OrderBook,
+    OrderNumber,
+    OrderService,
+    SalesTally,
+    ShoppingCart,
+    UnitOfWork,
+)
 from bookshop.ordering.errors import OrderError
 
 __all__ = ["OrdersListCommand", "place_order", "reindex_catalog"]
@@ -39,6 +46,7 @@ async def place_order(  # noqa: PLR0913 — the command line plus what the conta
     number: Injected[OrderNumber],
     orders: Injected[OrderService],
     workers: Injected[WorkerFactory],
+    tally: Injected[SalesTally],
 ) -> int:
     """Place an order, then run a worker over what it queued.
 
@@ -58,6 +66,7 @@ async def place_order(  # noqa: PLR0913 — the command line plus what the conta
         number: A fresh order number.
         orders: The order service.
         workers: Builds workers over the configured transports.
+        tally: What the ``OrderPlaced`` subscriber counted.
     """
     customer = email or io.ask("Customer e-mail?", "reader@bookshop.example")
     cart.add(isbn, quantity)
@@ -71,6 +80,7 @@ async def place_order(  # noqa: PLR0913 — the command line plus what the conta
     if drain:
         for name in io.progress(_QUEUED, description="Draining"):
             await workers.worker([name]).run()
+    io.text(f"Copies of {escape(isbn)} sold in this process: {tally.sold[isbn]}.")
     io.success(f"Order {number.value} placed ({len(work.changes)} line).")
     return ExitCode.SUCCESS
 
@@ -130,6 +140,12 @@ class OrdersListCommand:
         return ExitCode.SUCCESS
 
 
+def _handled(stamp: HandledStamp) -> str:
+    """Name the handler, and what it returned when it returned something."""
+    returned = "" if stamp.result is None else f", which returned {stamp.result!r}"
+    return f"handled by {stamp.handler_name}{returned}"
+
+
 def _describe(io: ConsoleStyle, envelope: Envelope) -> None:
     """Print what the chain recorded on ``envelope``, stamp by stamp."""
     refused = envelope.last(MaintenanceStamp)
@@ -142,7 +158,7 @@ def _describe(io: ConsoleStyle, envelope: Envelope) -> None:
             f"message: {type(envelope.message).__name__}",
             *(f"sent via {s.sender_alias}" for s in envelope.all(SentStamp)),
             *(f"transport id {s.message_id}" for s in envelope.all(TransportMessageIdStamp)),
-            *(f"handled by {s.handler_name}" for s in envelope.all(HandledStamp)),
+            *(_handled(stamp) for stamp in envelope.all(HandledStamp)),
             f"dispatch took {timing.milliseconds:.2f} ms" if timing else "not timed",
         ]
     )

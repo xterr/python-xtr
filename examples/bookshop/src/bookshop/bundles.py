@@ -16,10 +16,14 @@ Not listed, and active anyway:
 
 from __future__ import annotations
 
+from xtr_cache.bundle import CacheBundle
 from xtr_console.bundle import ConsoleBundle
 from xtr_dotenv.bundle import DotenvBundle
+from xtr_event_dispatcher.bundle import EventDispatcherBundle
+from xtr_lock.bundle import LockBundle
 from xtr_logging.bundle import LoggingBundle
 from xtr_messenger.bundle import MessengerBundle
+from xtr_scheduler.bundle import SchedulerBundle
 
 from bookshop.dev_tools import DevToolsBundle
 from fulltext.bundle import FulltextBundle
@@ -32,6 +36,11 @@ BUNDLES = {
     MessengerBundle: {"all": True},
     DotenvBundle: {"all": True},
     FulltextBundle: {"all": True},
+    EventDispatcherBundle: {"all": True},
+    LockBundle: {"all": True},
+    CacheBundle: {"all": True},
+    # Brings MessengerBundle with it; with the cache bundle active it adds a "scheduler" pool.
+    SchedulerBundle: {"all": True},
     # Development helpers: never active in prod. Its resources are only scanned when active.
     DevToolsBundle: {"dev": True, "test": True},
 }

@@ -3,7 +3,8 @@
 The same as ``bookshop messenger:consume``, without the console: boot, build a worker over
 the named transports, run it until it returns or SIGTERM stops it, shut down. In dev the
 transports are in-memory, so a fresh process has nothing to drain and returns at once; in
-prod (``APP_ENV=prod``) it consumes RabbitMQ until stopped.
+prod (``APP_ENV=prod``) it consumes RabbitMQ until stopped. ``scheduler_default`` — the
+schedule, registered by the scheduler bundle — runs until stopped in every environment.
 """
 
 from __future__ import annotations

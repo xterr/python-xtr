@@ -34,6 +34,7 @@ from bookshop.ordering import Order, OrderBook
 from fulltext import SearchEngineInterface
 
 from .messages import AuditEvent, PlaceOrder, ReindexCatalog, SendReceipt, StockAlert
+from .stamps import OriginStamp
 
 __all__ = [
     "PlaceOrderHandler",
@@ -67,8 +68,13 @@ class PlaceOrderHandler:
         self._bus = bus
         self._logger = logger
 
-    async def __call__(self, message: PlaceOrder, envelope: Envelope) -> None:
-        """Record ``message``, then ask for a receipt, an audit entry and maybe a stock alert."""
+    async def __call__(self, message: PlaceOrder, envelope: Envelope) -> str:
+        """Record ``message``, then ask for a receipt, an audit entry and maybe a stock alert.
+
+        Returns:
+            The order number — what a handler returns is recorded on its ``HandledStamp``,
+            which ``orders:place`` prints.
+        """
         self._orders.record(
             Order(
                 message.order_id,
@@ -84,10 +90,14 @@ class PlaceOrderHandler:
             "order {number} recorded via {transport}",
             {"number": message.number, "transport": received.transport_name if received else "-"},
         )
-        _ = await self._bus.dispatch(SendReceipt(message.order_id, message.email, message.total))
+        _ = await self._bus.dispatch(
+            SendReceipt(message.order_id, message.email, message.total),
+            OriginStamp(message.number),
+        )
         _ = await self._bus.dispatch(AuditEvent("order", f"{message.number} for {message.email}"))
         if message.quantity > _FAST_SELLER:
             _ = await self._bus.dispatch(StockAlert(message.isbn, message.quantity))
+        return message.number
 
 
 @as_message_handler(SendReceipt)
@@ -108,7 +118,8 @@ async def send_receipt(
         raise ValueError(f"cannot mail {message.email}")
     order = orders.get(message.order_id)
     attempt = envelope.last(RedeliveryStamp)
-    number = order.number if order else str(message.order_id)
+    origin = envelope.last(OriginStamp)  # declared with @as_stamp: it survives the transport
+    number = origin.order_number if origin else (order.number if order else str(message.order_id))
     retry = f" (retry {attempt.retry_count})" if attempt else ""
     _ = notifier.notify(message.email, f"receipt for {number}: {message.total} {currency}{retry}")
 

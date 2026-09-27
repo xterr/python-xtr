@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Annotated, final
 from uuid import uuid4
 
 from xtr_dependency_injection import Target, as_service
+from xtr_event_dispatcher_contracts import EventDispatcherInterface
+from xtr_lock import LockFactory
 from xtr_logging_contracts import LoggerInterface
 from xtr_messenger import MessageBusInterface
 
@@ -15,6 +17,7 @@ from bookshop.payments import FraudCheckInterface
 from bookshop.pricing import PriceCalculator
 
 from .errors import OrderRefusedError, UnknownBookError
+from .order_placed import OrderPlaced
 
 if TYPE_CHECKING:
     from xtr_messenger import Envelope
@@ -34,16 +37,21 @@ class OrderService:
     A singleton cannot depend on a scoped or transient service — the container refuses it —
     so the cart, the unit of work and the order number are *arguments*, injected into the
     command or controller that calls :meth:`place`.
+
+    Each line is placed holding a lock on its book, from the ``stock`` lock resource — two
+    orders of one title never interleave — and announced as an :class:`OrderPlaced` event.
     """
 
-    __slots__ = ("_bus", "_calculator", "_catalog", "_fraud", "_logger")
+    __slots__ = ("_bus", "_calculator", "_catalog", "_events", "_fraud", "_locks", "_logger")
 
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917 — one parameter per collaborator the container provides.
         self,
         catalog: BookCatalogInterface,
         calculator: PriceCalculator,
         fraud: FraudCheckInterface,
         bus: MessageBusInterface,
+        events: EventDispatcherInterface,
+        locks: Annotated[LockFactory, Target("stock")],
         logger: Annotated[LoggerInterface, Target("orders")],
     ) -> None:
         """Collaborate with the catalog, the pricing rules, the fraud check and the bus."""
@@ -51,6 +59,8 @@ class OrderService:
         self._calculator = calculator
         self._fraud = fraud
         self._bus = bus
+        self._events = events
+        self._locks = locks
         self._logger = logger
 
     async def place(
@@ -72,6 +82,10 @@ class OrderService:
                 self._logger.warning("order refused", {"email": email, "total": str(total)})
                 raise OrderRefusedError(email, total)
             message = PlaceOrder(uuid4(), number.value, book.isbn, line.quantity, email, total)
-            envelopes.append(await self._bus.dispatch(message))
+            async with self._locks.create_lock(f"stock:{book.isbn}"):
+                envelopes.append(await self._bus.dispatch(message))
             work.record(f"{number.value}: {line.quantity} x {book.title}")
+            _ = await self._events.dispatch(
+                OrderPlaced(number.value, book.isbn, line.quantity, total)
+            )
         return envelopes

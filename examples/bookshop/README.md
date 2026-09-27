@@ -1,7 +1,8 @@
 # bookshop — a complete application on the xtr packages
 
 One kernel, three entry points (a console, a small HTTP server, a message worker), every
-bundle, and every decorator the packages ship. It is written to be read: each module says
+bundle, and every decorator the packages ship — a schedule, a cache, locks and events
+included. It is written to be read: each module says
 what it demonstrates and why, and every behaviour below was observed by running it.
 
 It is its own uv project, **not** a member of the repository's workspace: every `xtr-*`
@@ -13,6 +14,7 @@ uv sync
 uv run bookshop list                  # the console
 uv run bookshop-web                   # http://127.0.0.1:8080 — Ctrl-C to stop
 uv run python -m bookshop.worker jobs # a worker (in dev the queues are in-memory: returns at once)
+uv run bookshop messenger:consume scheduler_default -vv   # the schedule — Ctrl-C to stop
 ```
 
 The environment comes from the `.env` cascade (`APP_ENV=dev` by default). A real variable
@@ -29,12 +31,15 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop di:show [-v] [--report scan]` | removals, decorations, collection order, parameters, the compiler log |
 | `bookshop env:show` | every env processor's result, and the typed settings |
 | `bookshop catalog:list [--genre software] [-l 2] [--output csv\|json\|markdown]` | options, `Literal`, `Enum`, a validator, a `ServiceLocator` |
-| `bookshop catalog:price ISBN [QTY]` | the ordered `Sequence[PricingRule]` |
+| `bookshop catalog:price ISBN [QTY]` | the ordered `Sequence[PricingRule]`; the quote cached five minutes in the `quotes` pool — run it twice |
 | `bookshop catalog:add ISBN TITLE PRICE [--author A] [-y]` | a class command, questions |
-| `bookshop orders:place ISBN [QTY] [--email E] [--no-drain] -vv` | scoped and transient services, the bus, fan-out, a worker, logs following `-vv` |
+| `bookshop orders:place ISBN [QTY] [--email E] [--no-drain] -vv` | scoped and transient services, the bus, fan-out, a worker, logs following `-vv`; a lock per book, an `OrderPlaced` event and the tally its subscriber keeps, a handler's result, a declared stamp read back after the serialized `jobs` transport (`-vvv`) |
 | `bookshop orders:reindex [REASON] [--via outbox]` | a pydantic message, `TransportNamesStamp` |
 | `bookshop search:query WORDS [-s]` · `search:stats` | commands a library's bundle contributes, loaded late |
 | `bookshop cache:clear` · `logs:recent` | `ServicesResetter`; a configured handler reached by name |
+| `bookshop cache:pool:list` · `cache:pool:clear quotes` · `cache:pool:prune` | the cache bundle's commands: `app`, `quotes`, and the `scheduler` pool the scheduler bundle adds |
+| `bookshop debug:scheduler [--sort] [--all] [--date D]` | the schedule and its tasks with their next runs — from the saved checkpoint once it has run |
+| `bookshop messenger:consume scheduler_default --time-limit 7 -vv` | the schedule, run: a heartbeat every two seconds in dev, each run's result; start it again and it resumes; start two and only one sends |
 | `bookshop demo:errors` | every guided error of every package, caught and printed |
 | `bookshop demo:style --end raise` (hidden) | every `ConsoleStyle` method and every way a run ends |
 | `bookshop dotenv:dump` · `debug:dotenv [NAME]` | the dotenv bundle's commands |
@@ -61,6 +66,7 @@ examples/bookshop/
         ├── kernel.py     the Kernel recipe, the scan exclusions, load_environment()
         ├── bundles.py    the root bundles, per environment
         ├── config/       one @configure module per bundle, plus @parameters
+        ├── scheduling/   the schedule, its tasks, and who hears about each run
         ├── __main__.py   console entry · web/ HTTP entry · worker.py worker entry
         └── …             one package per concern, below
 ```
@@ -128,6 +134,21 @@ examples/bookshop/
 | logging | service ids for a handler, formatter, processor and activation strategy | `observability/logging_services.py` |
 | logging | `@as_processor(channel=, handler=, priority=)` on classes and on a function | `observability/processors.py` |
 | logging | `bound_context`, context vars; `Logger` / `LoggerFactory` without a kernel | `web/server.py`, `dev_tools/commands.py` |
+| messenger | `@as_stamp` — a stamp of its own restored after a serializing transport | `messaging/stamps.py`, `messaging/handlers.py` |
+| messenger | a handler's return value, on its `HandledStamp` | `messaging/handlers.py`, `commands/order_commands.py` |
+| messenger | worker events — started, stopped, a message failed — heard by listeners | `scheduling/listeners.py` |
+| messenger | `RedispatchMessage` — a scheduled message sent on through routing | `scheduling/shop_schedule.py` |
+| messenger | a receiver registered as a service (`scheduler_<name>`, by the scheduler bundle), consumable with no transport configured | `config/messenger.py` names none |
+| scheduler | `@as_schedule` — the README's starter schedule: `stateful` on the `scheduler` pool, a lock, `process_only_last_missed_run`, a schedule-local `before` listener | `scheduling/shop_schedule.py` |
+| scheduler | `RecurringMessage.cron` hashed (`#hourly`), `.every(...).with_jitter`, a message of its own with a result | `scheduling/shop_schedule.py`, `scheduling/messages.py`, `scheduling/handlers.py` |
+| scheduler | `@as_periodic_task` / `@as_cron_task` on a function, a class (`method=`), methods, with `arguments=`, `jitter=`, `env=`, `transports=` | `scheduling/tasks.py` |
+| scheduler | `PostRunEvent`, `FailureEvent` heard application-wide | `scheduling/listeners.py` |
+| scheduler | `SchedulerConfig` | `config/scheduler.py` |
+| event-dispatcher | a domain event (`Event`), `EventDispatcherInterface` injected, `@as_event_listener(priority=)`, an `EventSubscriberInterface` | `ordering/order_placed.py`, `ordering/order_service.py`, `ordering/order_listeners.py` |
+| lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `ordering/order_service.py`, `config/lock.py` |
+| lock | the default `LockFactory`, a lock kept between runs | `scheduling/shop_schedule.py` |
+| cache | `CacheConfig` with a pool of its own, `@when("test")` in memory | `config/cache.py` |
+| cache | a qualified `CacheInterface`, fetch-or-compute with a callback | `commands/catalog_commands.py` |
 | clock | `ClockInterface` injected, `Clock`, `MockClock`, `MonotonicClock`, `mock_time`, `DatePoint`, `ClockAwareMixin` | `ordering/order_number.py`, `fulltext/bundle/timed_search_engine.py`, `dev_tools/commands.py` |
 | dotenv | `Dotenv().boot_env()` at the entry point; `parse / load / overload / populate / load_env` | `kernel.py`, `dev_tools/commands.py` |
 | dotenv | `DotenvSettings` — typed settings from the same cascade | `settings.py` |

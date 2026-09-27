@@ -1,18 +1,24 @@
 [project]
 name = "bookshop"
 version = "1.1.0"
-description = "A complete example application built on every xtr package: kernel, bundles, console, web, messenger."
+description = "A complete example application built on every xtr package: kernel, bundles, console, web, messenger, scheduler."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 dependencies = [
+    "xtr-cache[di,console]",
+    "xtr-cache-contracts",
     "xtr-clock[di]",
     "xtr-console[di]",
     "xtr-dependency-injection",
     "xtr-dotenv[di,console]",
+    "xtr-event-dispatcher[di]",
+    "xtr-event-dispatcher-contracts",
+    "xtr-lock[di]",
     "xtr-logging[di]",
     "xtr-logging-contracts",
     "xtr-messenger[di,console,pydantic,amqp]",
+    "xtr-scheduler[cron,di,console]",
     "xtr-service-contracts",
 ]
 
@@ -40,13 +46,19 @@ module-name = ["bookshop", "fulltext"]
 # every xtr package is taken from the working tree, editable, so a change in
 # packages/ is visible here at once.
 [tool.uv.sources]
+xtr-cache                = { path = "../../packages/xtr-cache", editable = true }
+xtr-cache-contracts      = { path = "../../packages/xtr-cache-contracts", editable = true }
 xtr-clock                = { path = "../../packages/xtr-clock", editable = true }
 xtr-console              = { path = "../../packages/xtr-console", editable = true }
 xtr-dependency-injection = { path = "../../packages/xtr-dependency-injection", editable = true }
 xtr-dotenv               = { path = "../../packages/xtr-dotenv", editable = true }
+xtr-event-dispatcher     = { path = "../../packages/xtr-event-dispatcher", editable = true }
+xtr-event-dispatcher-contracts = { path = "../../packages/xtr-event-dispatcher-contracts", editable = true }
+xtr-lock                 = { path = "../../packages/xtr-lock", editable = true }
 xtr-logging              = { path = "../../packages/xtr-logging", editable = true }
 xtr-logging-contracts    = { path = "../../packages/xtr-logging-contracts", editable = true }
 xtr-messenger            = { path = "../../packages/xtr-messenger", editable = true }
+xtr-scheduler            = { path = "../../packages/xtr-scheduler", editable = true }
 xtr-service-contracts    = { path = "../../packages/xtr-service-contracts", editable = true }
 
 [tool.basedpyright]
