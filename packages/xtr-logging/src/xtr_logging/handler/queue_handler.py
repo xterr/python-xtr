@@ -8,6 +8,7 @@ import traceback
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
+from xtr_service_contracts import ResetInterface
 
 from .handler_interface import HandlerInterface
 
@@ -33,7 +34,7 @@ _WORKER_CHECK_INTERVAL: Final = 0.1
 
 
 @final
-class QueueHandler(HandlerInterface):
+class QueueHandler(HandlerInterface, ResetInterface):
     """Enqueues records and lets a worker thread do the writing.
 
     Latency-sensitive or async code should not wait on a socket or a disk to
@@ -107,6 +108,17 @@ class QueueHandler(HandlerInterface):
             while self._queue.unfinished_tasks:
                 self._ensure_worker()
                 _ = done.wait(_WORKER_CHECK_INTERVAL)
+
+    @override
+    def reset(self) -> None:
+        """Handle every record queued so far, then reset the wrapped handler.
+
+        What the wrapped handler buffered for one unit of work — a
+        fingers-crossed request log — must not reach the next.
+        """
+        self.flush()
+        if isinstance(self._handler, ResetInterface):
+            self._handler.reset()
 
     @override
     def close(self) -> None:
