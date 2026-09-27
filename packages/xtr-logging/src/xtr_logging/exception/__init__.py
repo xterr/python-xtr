@@ -5,9 +5,8 @@ anything logging can go wrong with, and a narrower one handles a single
 cause. Each carries the data a caller needs as typed attributes rather than
 forcing a message to be parsed.
 
-:class:`LoggingError` and :class:`InvalidLevelError` belong to the contract
-rather than to this library, and are re-exported here so one ``except`` still
-reaches both halves.
+:class:`LoggingError` and :class:`InvalidLevelError` belong to the contract,
+and are imported from ``xtr_logging_contracts``.
 """
 
 from .capture_conflict_error import CaptureConflictError

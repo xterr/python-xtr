@@ -172,7 +172,7 @@ deep, with a warning, rather than recursing until the stack overflows.
 | `BufferHandler` | Buffers records and writes them as a batch on `close()` |
 | `GroupHandler` | Sends every record to every member |
 | `WhatFailureGroupHandler` | A group where a failing member never stops the others |
-| `FallbackGroupHandler` | Tries members in order until one succeeds |
+| `FallbackGroupHandler` | Tries members in order until one does not raise — a member below its level counts as done |
 | `FilterHandler` | Passes a level range, or a list of levels, to the handler it wraps |
 | `DeduplicationHandler` | Drops a buffered batch whose errors were all written in the last `time` seconds |
 | `SamplingHandler` | Passes one record in `factor` |

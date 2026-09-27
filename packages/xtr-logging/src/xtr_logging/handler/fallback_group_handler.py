@@ -25,6 +25,10 @@ class FallbackGroupHandler(GroupHandler):
     last failure is re-raised rather than swallowed — if every
     backup is broken the caller should hear about it, through the logger's own
     exception handler, rather than lose the record in silence.
+
+    Only a failure moves on to the next member: one that returns without
+    handling — the record below its level — ends the search as a success.
+    Filter by level on the group, not on its members.
     """
 
     @override

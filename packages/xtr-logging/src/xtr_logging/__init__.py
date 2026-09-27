@@ -13,10 +13,9 @@ in :mod:`xtr_logging.bridge.stdlib`.
 The contract itself — :class:`LoggerInterface`, :class:`Level`,
 :class:`NullLogger` and what else a caller needs to log — lives in
 ``xtr-logging-contracts``, so a library can depend on it without depending on
-any of this. It is re-exported here, never redefined: ``xtr_logging.X`` and
-``xtr_logging_contracts.X`` are the same object, which is what lets a container
-register a logger under the interface and have a library that never imported
-this package receive it.
+any of this. It is imported from there, and neither redefined nor re-exported
+here: one place per name is what lets a container register a logger under the
+interface and have a library that never imported this package receive it.
 """
 
 from importlib.metadata import PackageNotFoundError, version
