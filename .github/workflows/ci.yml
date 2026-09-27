@@ -10,7 +10,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A push to main is never cancelled: its split may be under way.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   checks:
@@ -78,3 +79,58 @@ jobs:
         run: |
           uv run --locked --exact basedpyright
           uv run --locked --exact ty check
+
+  # Copies every published package, with its history, into its read-only
+  # repository xterr/python-<package> once every check above passed on a push
+  # to main, so a commit that fails CI never reaches them. Release tags are
+  # pushed there by the release workflow.
+  #
+  # Pushes as a GitHub App installed on every xterr/python-xtr-* repository with
+  # Contents and Workflows read/write: its client ID is the SPLIT_APP_CLIENT_ID
+  # variable, its private key the SPLIT_APP_PRIVATE_KEY secret of the split environment.
+  split:
+    name: Split into the read-only repositories
+    needs: [checks, package]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: split
+      cancel-in-progress: false
+    # The app's private key lives only in this environment, open to main.
+    environment: split
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          # Otherwise git sends this workflow's own token to github.com, ahead
+          # of the app token in the push URL, and the push is refused.
+          persist-credentials: false
+      # No cache in a job holding a token that writes to other repositories.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - id: packages
+        run: |
+          set -euo pipefail
+          packages=$(uv run scripts/release.py packages)
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          echo "repositories=$(jq -r 'map("python-" + .) | join(",")' <<<"$packages")" >> "$GITHUB_OUTPUT"
+      # Only the read-only repositories, and only what pushing to them needs.
+      - id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.SPLIT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SPLIT_APP_PRIVATE_KEY }}
+          owner: xterr
+          repositories: ${{ steps.packages.outputs.repositories }}
+          permission-contents: write
+          permission-workflows: write
+      - env:
+          PACKAGES: ${{ steps.packages.outputs.packages }}
+          SPLIT_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          set -euo pipefail
+          for package in $(jq -r '.[]' <<<"$PACKAGES"); do
+            sha=$(git subtree split --prefix="packages/$package" HEAD)
+            git push "https://x-access-token:${SPLIT_TOKEN}@github.com/xterr/python-${package}.git" "$sha:refs/heads/main"
+          done
