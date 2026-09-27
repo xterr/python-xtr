@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Final
 import msgspec
 from typing_extensions import override
 
+from ._text import class_name, safe_str
 from .formatter_interface import FormatterInterface
 from .normalizer import Normalizer
 
@@ -139,27 +140,27 @@ class _LineNormalizer(Normalizer):
     @override
     def _normalize_exception(self, error: BaseException, depth: int) -> Normalized:
         text = f"[object] ({_describe(error)})"
-        previous = error.__cause__ or (None if error.__suppress_context__ else error.__context__)
-        while previous is not None:
+        # A chain may loop — an error raised from one that has it as context —
+        # so every error is told once, and the chain is cut at the depth limit.
+        seen = {id(error)}
+        previous = _previous(error)
+        while previous is not None and id(previous) not in seen and len(seen) < self.max_depth:
+            seen.add(id(previous))
             text += f"\n[previous exception] [object] ({_describe(previous)})"
-            previous = previous.__cause__ or (
-                None if previous.__suppress_context__ else previous.__context__
-            )
+            previous = _previous(previous)
         if self.include_stacktraces and error.__traceback__ is not None:
             text += "\n[stacktrace]\n" + "".join(traceback.format_tb(error.__traceback__))
         return text
 
 
 def _describe(error: BaseException) -> str:
-    kind = type(error)
-    name = (
-        kind.__qualname__
-        if kind.__module__ == "builtins"
-        else f"{kind.__module__}.{kind.__qualname__}"
-    )
     frames = traceback.extract_tb(error.__traceback__)
     origin = f" at {frames[-1].filename}:{frames[-1].lineno}" if frames else ""
-    return f"{name}: {error}{origin}"
+    return f"{class_name(error)}: {safe_str(error)}{origin}"
+
+
+def _previous(error: BaseException) -> BaseException | None:
+    return error.__cause__ or (None if error.__suppress_context__ else error.__context__)
 
 
 def _as_dict(value: Normalized) -> dict[str, Normalized]:

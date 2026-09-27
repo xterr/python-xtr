@@ -138,3 +138,12 @@ def test_a_token_inside_a_keyed_value_is_printed_as_written() -> None:
     line = formatter.format(make_record(message="hi", context={"note": "%message%"}))
 
     assert line == "%message% hi"
+
+
+def test_an_exception_chain_that_loops_is_told_once_per_error() -> None:
+    first, second = ValueError("first"), RuntimeError("second")
+    first.__cause__, second.__cause__ = second, first
+
+    line = LineFormatter("%context%").format(make_record(context={"exception": first}))
+
+    assert line.count("[previous exception]") == 1

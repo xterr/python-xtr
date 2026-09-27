@@ -10,6 +10,8 @@ from collections.abc import Mapping
 from enum import Enum
 from typing import Final, TypeAlias
 
+from ._text import class_name, describe, safe_str
+
 __all__ = ["Normalized", "Normalizer"]
 
 Normalized: TypeAlias = "bool | int | float | str | list[Normalized] | dict[str, Normalized] | None"
@@ -89,9 +91,9 @@ class Normalizer:
                 fields: dict[object, object] = {
                     field.name: getattr(value, field.name) for field in dataclasses.fields(value)
                 }
-                return {_class_name(value): self._normalize_mapping(fields, depth)}
+                return {class_name(value): self._normalize_mapping(fields, depth)}
             case _:
-                return _describe(value)
+                return describe(value)
 
     def _normalize_mapping(self, value: Mapping[object, object], depth: int) -> Normalized:
         normalized: dict[str, Normalized] = {}
@@ -99,7 +101,7 @@ class Normalizer:
             if count >= self.max_items:
                 normalized["..."] = _over_limit(self.max_items, len(value))
                 break
-            normalized[str(key)] = self._normalize(item, depth + 1)
+            normalized[safe_str(key)] = self._normalize(item, depth + 1)
         return normalized
 
     def _normalize_items(
@@ -116,8 +118,8 @@ class Normalizer:
     def _normalize_exception(self, error: BaseException, depth: int) -> Normalized:
         """Describe ``error`` as its class, message, origin and cause."""
         described: dict[str, Normalized] = {
-            "class": _class_name(error),
-            "message": str(error),
+            "class": class_name(error),
+            "message": safe_str(error),
         }
         frames = traceback.extract_tb(error.__traceback__)
         if frames:
@@ -142,21 +144,6 @@ def _previous(error: BaseException) -> BaseException | None:
     if error.__cause__ is not None:
         return error.__cause__
     return None if error.__suppress_context__ else error.__context__
-
-
-def _class_name(value: object) -> str:
-    kind = type(value)
-    if kind.__module__ == "builtins":
-        return kind.__qualname__
-    return f"{kind.__module__}.{kind.__qualname__}"
-
-
-def _describe(value: object) -> str:
-    """Use ``str()`` when the class defines one; otherwise name the class."""
-    kind = type(value)
-    if kind.__str__ is not object.__str__ or kind.__repr__ is not object.__repr__:
-        return str(value)
-    return f"[object {_class_name(value)}]"
 
 
 def _over_limit(limit: int, total: int) -> str:

@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import PurePosixPath
 
 import pytest
+from typing_extensions import override
 
 from xtr_logging import Normalizer
 
@@ -123,3 +124,18 @@ def test_an_exception_carries_its_trace_when_asked() -> None:
 
     assert isinstance(normalized, dict)
     assert isinstance(normalized["trace"], list)
+
+
+class _Hostile:
+    """A value whose ``__str__`` fails, as a detached model's might."""
+
+    @override
+    def __str__(self) -> str:
+        msg = "session is closed"
+        raise RuntimeError(msg)
+
+
+def test_a_value_whose_str_raises_is_described_rather_than_failing() -> None:
+    assert Normalizer().normalize({"v": _Hostile()}) == {
+        "v": f"[unprintable {_Hostile.__module__}._Hostile]"
+    }

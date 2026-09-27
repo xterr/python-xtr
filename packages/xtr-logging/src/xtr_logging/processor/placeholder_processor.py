@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Final, final
 import msgspec
 from typing_extensions import override
 
+from xtr_logging.formatter._text import class_name, describe, safe_str
 from xtr_logging.formatter.normalizer import Normalizer
 
 from .processor_interface import ProcessorInterface
@@ -91,25 +92,11 @@ class PlaceholderProcessor(ProcessorInterface):
             case dt.datetime():
                 return self._normalizer.format_datetime(value)
             case BaseException():
-                return f"{_class_name(value)}: {value}"
+                return f"{class_name(value)}: {safe_str(value)}"
             case Mapping() | list() | tuple():
                 plain = self._normalizer.normalize(value)  # pyright: ignore[reportUnknownArgumentType] — a logged collection holds whatever the caller put in
                 return "array" + msgspec.json.encode(plain).decode()
             case int() | float():
                 return str(value)
             case _:
-                return _describe(value)
-
-
-def _class_name(value: object) -> str:
-    kind = type(value)
-    if kind.__module__ == "builtins":
-        return kind.__qualname__
-    return f"{kind.__module__}.{kind.__qualname__}"
-
-
-def _describe(value: object) -> str:
-    kind = type(value)
-    if kind.__str__ is not object.__str__ or kind.__repr__ is not object.__repr__:
-        return str(value)
-    return f"[object {_class_name(value)}]"
+                return describe(value)
