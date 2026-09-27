@@ -21,8 +21,12 @@ if TYPE_CHECKING:
 
 __all__ = ["LineFormatter"]
 
-_KEYED_TOKEN: Final = re.compile(r"%(context|extra)\.([^%]+)%")
-_LEFTOVER_KEYED_TOKEN: Final = re.compile(r"%(?:context|extra)\.[^%]+%")
+_PLACEHOLDER_PATTERN: Final = (
+    r"(?P<space> ?)%(?:(?P<bag>context|extra)\.(?P<key>[^%]+)"
+    r"|(?P<name>datetime|channel|level_name|level|message|context|extra))%"
+)
+_TOKEN: Final = re.compile(_PLACEHOLDER_PATTERN)
+"""Every token of a format, with the space before it — dropped with an empty bag's token."""
 _LINE_BREAK: Final = re.compile(r"\r\n|\r|\n")
 _TRAILING_SPACE: Final = re.compile(r"[ \t]+(?=\n|$)")
 
@@ -76,19 +80,17 @@ class LineFormatter(FormatterInterface):
         """Render ``record`` as one line — or more, if line breaks are allowed."""
         context = _as_dict(self._normalizer.normalize(record.context))
         extra = _as_dict(self._normalizer.normalize(record.extra))
+        bags = {"context": context, "extra": extra}
 
-        def keyed(match: re.Match[str]) -> str:
-            source = context if match.group(1) == "context" else extra
-            key = match.group(2)
-            if key not in source:
-                return match.group(0)
-            return self._stringify(source.pop(key))
+        # A keyed entry leaves its bag before the bag is printed; one named
+        # twice, or not there at all, prints nothing.
+        keyed: list[str] = []
+        for match in _TOKEN.finditer(self._format):
+            bag = match.group("bag")
+            if bag is not None:
+                source, key = bags[bag], match.group("key")
+                keyed.append(self._stringify(source.pop(key)) if key in source else "")
 
-        output = _KEYED_TOKEN.sub(keyed, self._format)
-        if self._ignore_empty:
-            for token, bag in (("%context%", context), ("%extra%", extra)):
-                if not bag:
-                    output = output.replace(f" {token}", "").replace(token, "")
         values: dict[str, str] = {
             "datetime": self._normalizer.format_datetime(record.datetime),
             "channel": record.channel,
@@ -98,9 +100,18 @@ class LineFormatter(FormatterInterface):
             "context": self._stringify_bag(context),
             "extra": self._stringify_bag(extra),
         }
-        for token, value in values.items():
-            output = output.replace(f"%{token}%", value)
-        output = _LEFTOVER_KEYED_TOKEN.sub("", output)
+        entries = iter(keyed)
+
+        def substitute(match: re.Match[str]) -> str:
+            name = match.group("name")
+            if name is None:
+                return match.group("space") + next(entries)
+            if self._ignore_empty and name in bags and not bags[name]:
+                return ""
+            return match.group("space") + values[name]
+
+        # One pass over the format: what a value brings in is never read as a token.
+        output = _TOKEN.sub(substitute, self._format)
         if self._ignore_empty:
             output = _TRAILING_SPACE.sub("", output)
         return output

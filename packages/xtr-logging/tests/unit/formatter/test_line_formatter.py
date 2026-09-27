@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+import pytest
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
@@ -117,3 +118,23 @@ def test_an_ignored_empty_bag_leaves_no_gap_between_its_neighbours() -> None:
     formatter = LineFormatter("%message% %context% %extra%", ignore_empty_context_and_extra=True)
 
     assert formatter.format(make_record(message="hi", extra={"a": 1})) == 'hi {"a":1}'
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["battery at 50%context% now", "see %context.user% docs", "%extra% %level% %channel%"],
+)
+def test_tokens_inside_the_message_are_printed_as_written(message: str) -> None:
+    formatter = LineFormatter("%message%|%context%|%extra%")
+
+    line = formatter.format(make_record(message=message, context={"user": "ana"}))
+
+    assert line == f'{message}|{{"user":"ana"}}|[]'
+
+
+def test_a_token_inside_a_keyed_value_is_printed_as_written() -> None:
+    formatter = LineFormatter("%context.note% %message%")
+
+    line = formatter.format(make_record(message="hi", context={"note": "%message%"}))
+
+    assert line == "%message% hi"
