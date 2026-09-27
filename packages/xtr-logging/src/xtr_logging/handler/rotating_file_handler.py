@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, final
 
@@ -78,16 +80,23 @@ class RotatingFileHandler(StreamHandler):
 
     @override
     def write(self, record: LogRecord, formatted: str) -> None:
-        """Write to the file for the record's date, rotating first if it changed."""
+        """Write to the file for the record's date, rotating first if it changed.
+
+        Deciding to rotate, rotating and writing happen under one lock: a
+        thread seeing the new date half set would reopen the old file.
+        """
         date = record.datetime.strftime(self._date_format)
-        rotating = date != self._current_date
-        if rotating:
-            self.close()
-            self._current_date = date
-            self._target = self._timed_path(date)
-        super().write(record, formatted)
-        if rotating:
-            self._collect()
+        with self._lock:
+            rotating = date != self._current_date
+            if rotating:
+                self._close_file()
+                self._current_date = date
+                self._target = self._timed_path(date)
+            stream = self._resolve_stream()
+            _ = stream.write(formatted)
+            stream.flush()
+            if rotating:
+                self._collect()
 
     def _timed_path(self, date: str) -> str:
         name = self._filename_format.replace(_FILENAME_TOKEN, self._original.stem).replace(
@@ -102,11 +111,29 @@ class RotatingFileHandler(StreamHandler):
         return f"{name}{self._original.suffix}"
 
     def _collect(self) -> None:
+        """Delete all but the newest ``max_files`` files, newest by the date in their name.
+
+        By the date, not the name: only an ISO-like ``date_format`` sorts by
+        name in date order. A name whose date cannot be read counts as oldest.
+        """
         if self._max_files <= 0:
             return
-        matches = sorted(self._original.parent.glob(self._glob()))
+        matches = sorted(self._original.parent.glob(self._glob()), key=self._dated)
         for stale in matches[: -self._max_files]:
             stale.unlink(missing_ok=True)
+
+    def _dated(self, path: Path) -> tuple[str, str]:
+        """Return the date ``path``'s name carries, sortable — empty when none — then the name."""
+        stem = path.name.removesuffix(self._original.suffix)
+        pattern = re.escape(self._filename_format).replace(
+            re.escape(_FILENAME_TOKEN), re.escape(self._original.stem)
+        )
+        found = re.fullmatch(pattern.replace(re.escape(_DATE_TOKEN), "(?P<date>.+)"), stem)
+        if found is not None:
+            with contextlib.suppress(ValueError):
+                date = datetime.strptime(found["date"], self._date_format)  # noqa: DTZ007 — a date to order by, not an instant
+                return date.isoformat(), path.name
+        return "", path.name
 
 
 def _validate_formats(date_format: str, filename_format: str) -> None:

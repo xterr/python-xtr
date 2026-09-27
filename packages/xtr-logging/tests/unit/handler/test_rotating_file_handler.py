@@ -105,3 +105,21 @@ def test_a_filename_format_without_the_date_token_is_refused(tmp_path: Path) -> 
 def test_a_static_date_format_is_refused(tmp_path: Path) -> None:
     with pytest.raises(InvalidOptionError, match="date_format"):
         _ = RotatingFileHandler(tmp_path / "app.log", date_format="static")
+
+
+def test_old_files_are_swept_by_the_date_in_their_name_whatever_its_format(
+    tmp_path: Path,
+) -> None:
+    handler = RotatingFileHandler(tmp_path / "app.log", max_files=2, date_format="%d-%m-%Y")
+    days = (
+        dt.datetime(2026, 1, 31, tzinfo=dt.UTC),
+        dt.datetime(2026, 2, 1, tzinfo=dt.UTC),
+        dt.datetime(2026, 2, 2, tzinfo=dt.UTC),
+    )
+
+    for day in days:
+        _ = handler.handle(make_record(message="x", at=day))
+    handler.close()
+
+    remaining = sorted(p.name for p in tmp_path.glob("app-*.log"))
+    assert remaining == ["app-01-02-2026.log", "app-02-02-2026.log"]
