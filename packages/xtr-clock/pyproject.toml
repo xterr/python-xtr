@@ -35,6 +35,11 @@ di = [
 # installs this library gets no fixture it did not ask for — and nothing
 # imports pytest unless something meant to.
 
+# Advertises the bundle so debug:bundles can name it when installed but not listed.
+# Advertising activates nothing: an application lists the bundles it wants.
+[project.entry-points."xtr_dependency_injection.bundles"]
+clock = "xtr_clock.bundle:ClockBundle"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",
