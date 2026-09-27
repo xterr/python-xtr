@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, assert_never
 
 from xtr_logging.exception.unknown_service_error import UnknownServiceError
 from xtr_logging.formatter.console_formatter import ConsoleFormatter
@@ -56,3 +56,6 @@ def build_formatter(spec: FormatterSpec | str, services: Services) -> FormatterI
                 include_stacktraces=spec.include_stacktraces,
                 colors=spec.colors,
             )
+        case _:
+            # A spec added to the union without a case fails here, not on a first record.
+            assert_never(spec)

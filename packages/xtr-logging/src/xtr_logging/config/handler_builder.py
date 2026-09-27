@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, assert_never, final
 
 from xtr_logging.bridge.stdlib.stdlib_handler import StdlibHandler
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
@@ -199,6 +199,9 @@ class HandlerBuilder:
                 return WhatFailureGroupHandler([self.build(m) for m in spec.members], spec.bubble)
             case FallbackGroupHandlerSpec():
                 return FallbackGroupHandler([self.build(m) for m in spec.members], spec.bubble)
+            case _:
+                # A spec added to the union without a case fails here, not on a first record.
+                assert_never(spec)
 
     def _activation_strategy(self, spec: FingersCrossedHandlerSpec) -> ActivationStrategyInterface:
         if spec.activation_strategy is not None:

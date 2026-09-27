@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, assert_never
 
 from xtr_logging.exception.unknown_service_error import UnknownServiceError
 from xtr_logging.processor.context_vars_processor import ContextVarsProcessor
@@ -67,3 +67,6 @@ def build_processor(spec: ProcessorSpec, services: Services) -> ProcessorInterfa
             if found is None:
                 raise UnknownServiceError("processor", spec.id, tuple(services.processors))
             return found
+        case _:
+            # A spec added to the union without a case fails here, not on a first record.
+            assert_never(spec)
