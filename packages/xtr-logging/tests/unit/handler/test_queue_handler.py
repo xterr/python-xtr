@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+import threading
+from typing import final
 
+import pytest
 from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
 from xtr_logging import AbstractHandler, LogRecord, TestHandler
 from xtr_logging.handler.queue_handler import QueueHandler
-
-if TYPE_CHECKING:
-    import pytest
 
 
 @final
@@ -139,3 +138,56 @@ def test_handle_lets_the_record_bubble() -> None:
     handler.close()
 
     assert result is False
+
+
+class Fatal(BaseException):
+    """What a handler raises that is not an ``Exception``."""
+
+
+@final
+class FatalOnce(AbstractHandler):
+    """Raises ``Fatal`` on the first record, then remembers the rest."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.handled: list[str] = []
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        if not self.handled and record.message == "fatal":
+            self.handled.append("")
+            raise Fatal
+        self.handled.append(record.message)
+        return False
+
+
+def _closes_in_time(handler: QueueHandler) -> bool:
+    closing = threading.Thread(target=handler.close, daemon=True)
+    closing.start()
+    closing.join(timeout=2)
+    return not closing.is_alive()
+
+
+def test_an_error_callback_that_fails_does_not_stop_the_worker() -> None:
+    boom = Boom()
+
+    def failing(error: Exception, record: LogRecord) -> None:
+        raise ValueError(record.message) from error
+
+    handler = QueueHandler(boom, on_error=failing)
+    for message in ("one", "two", "three"):
+        _ = handler.handle(make_record(message=message))
+
+    assert _closes_in_time(handler)
+    assert boom.attempts == 3
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_records_left_by_a_worker_that_died_are_still_handled_on_close() -> None:
+    fatal = FatalOnce()
+    handler = QueueHandler(fatal)
+    for message in ("fatal", "two", "three"):
+        _ = handler.handle(make_record(message=message))
+
+    assert _closes_in_time(handler)
+    assert fatal.handled[1:] == ["two", "three"]

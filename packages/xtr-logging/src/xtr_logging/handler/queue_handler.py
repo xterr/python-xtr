@@ -28,6 +28,9 @@ class _Stop:
 
 _STOP: Final = _Stop()
 
+_WORKER_CHECK_INTERVAL: Final = 0.1
+"""Seconds a flush waits between checks that the worker it waits on is still alive."""
+
 
 @final
 class QueueHandler(HandlerInterface):
@@ -93,8 +96,17 @@ class QueueHandler(HandlerInterface):
             _ = self.handle(record)
 
     def flush(self) -> None:
-        """Block until every record queued so far has been handled."""
-        self._queue.join()
+        """Block until every record queued so far has been handled.
+
+        A worker that died — a handler raising what is not an ``Exception``
+        — is started again while waiting, or the records it left would never
+        be handled and this would wait forever.
+        """
+        done = self._queue.all_tasks_done
+        with done:
+            while self._queue.unfinished_tasks:
+                self._ensure_worker()
+                _ = done.wait(_WORKER_CHECK_INTERVAL)
 
     @override
     def close(self) -> None:
@@ -124,6 +136,17 @@ class QueueHandler(HandlerInterface):
         self._queue.put(_STOP)
         worker.join()
 
+    def _report(self, error: Exception, record: LogRecord) -> None:
+        """Hand ``error`` to ``on_error``; print it, and ``on_error``'s own failure, otherwise."""
+        if self._on_error is None:
+            traceback.print_exception(error)
+            return
+        try:
+            self._on_error(error, record)
+        except Exception as failure:  # noqa: BLE001 — a failing error callback must not kill the worker
+            traceback.print_exception(error)
+            traceback.print_exception(failure)
+
     def _work(self) -> None:
         while True:
             item = self._queue.get()
@@ -133,9 +156,6 @@ class QueueHandler(HandlerInterface):
                 try:
                     _ = self._handler.handle(item)
                 except Exception as error:  # noqa: BLE001 — one broken record must not kill the worker
-                    if self._on_error is not None:
-                        self._on_error(error, item)
-                    else:
-                        traceback.print_exception(error)
+                    self._report(error, item)
             finally:
                 self._queue.task_done()
