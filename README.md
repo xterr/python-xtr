@@ -101,8 +101,9 @@ git commit -am "bump: 1.3.0" && git push
 git tag 1.3.0 && git push origin 1.3.0
 ```
 
-The tag starts the [release workflow](.github/workflows/release.yml): it checks the tag against
-the packages' version, publishes every package to PyPI through trusted publishing, and tags each
+The tag starts the [release workflow](.github/workflows/release.yml): it waits for CI to pass on
+the tagged commit's push to `main` — nothing is released otherwise — checks the tag against the
+packages' version, publishes every package to PyPI through trusted publishing, and tags each
 read-only repository `1.3.0`.
 
 ## Repositories

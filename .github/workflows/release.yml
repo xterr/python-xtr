@@ -1,7 +1,8 @@
 name: Release
 
 # Pushing a tag X.Y.Z publishes every package at X.Y.Z to PyPI, then creates the
-# X.Y.Z GitHub release here and in each read-only repository.
+# X.Y.Z GitHub release here and in each read-only repository — once CI has
+# passed on a push of the tagged commit to main, which it waits for.
 #
 # Each package is published from its own job and environment, pypi-<package>,
 # which is what its PyPI trusted publisher names: PyPI allows only one pending
@@ -20,7 +21,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci:
+    name: Wait for CI on the tagged commit
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read # to find the CI runs of the tagged commit
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # A tag pushed with its commit starts before CI on main has finished:
+          # wait for it, up to half an hour. A commit CI never ran on main waits too.
+          for _ in $(seq 90); do
+            state=$(gh run list --repo "$REPOSITORY" --workflow ci.yml --commit "$SHA" \
+              --event push --json status,conclusion --jq '
+                if any(.[]; .conclusion == "success") then "success"
+                elif length == 0 or any(.[]; .status != "completed") then "pending"
+                else "failure" end')
+            case "$state" in
+              success) exit 0 ;;
+              failure) echo "::error::CI failed on $SHA; nothing is released."; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "::error::no CI run passed on a push of $SHA to main; nothing is released."
+          exit 1
+
   build:
+    needs: ci
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.build.outputs.packages }}
