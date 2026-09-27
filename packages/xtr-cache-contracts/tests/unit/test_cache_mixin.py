@@ -234,3 +234,15 @@ async def test_a_pool_adjusts_how_values_are_computed_timed_and_elected(
 
     assert pool.computed == [("k", 2.0)]
     assert pool.elected == [("k", 0.5)]
+
+
+async def test_a_reused_metadata_mapping_forgets_an_earlier_save_failure() -> None:
+    pool = InMemoryPool()
+    pool.fail_saves = True
+    metadata: Metadata = {}
+    _ = await pool.get("a", Computation(), metadata=metadata)
+    pool.fail_saves = False
+
+    _ = await pool.get("b", Computation(), metadata=metadata)
+
+    assert "save_failed" not in metadata

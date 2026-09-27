@@ -87,6 +87,8 @@ class CacheMixin(CacheInterface, ABC):
         item = await self.get_item(key)
         found = item.metadata
         if metadata is not None:
+            # A reused mapping must not carry an earlier call's failure into this one.
+            _ = metadata.pop("save_failed", None)
             metadata.update(found)
 
         if (
