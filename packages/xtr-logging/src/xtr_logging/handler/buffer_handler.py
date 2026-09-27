@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
@@ -62,6 +63,10 @@ class BufferHandler(AbstractHandler, ProcessorStack):
         self._buffer_limit: int = buffer_limit
         self._flush_on_overflow: bool = flush_on_overflow
         self._buffer: list[LogRecord] = []
+        # The buffer is swapped out under this lock before it is forwarded, so
+        # a record buffered meanwhile — from another thread, or from the very
+        # handler being flushed to — waits for the next flush, never lost.
+        self._buffer_lock: threading.Lock = threading.Lock()
 
     @override
     def handle(self, record: LogRecord, /) -> bool:
@@ -72,24 +77,39 @@ class BufferHandler(AbstractHandler, ProcessorStack):
         """
         if record.level < self._level:
             return False
-        if self._buffer_limit > 0 and len(self._buffer) == self._buffer_limit:
-            if self._flush_on_overflow:
-                self.flush()
-            else:
-                _ = self._buffer.pop(0)
-        self._buffer.append(self._process(record))
+        processed = self._process(record)
+        overflow: list[LogRecord] = []
+        with self._buffer_lock:
+            if self._buffer_limit > 0 and len(self._buffer) == self._buffer_limit:
+                if self._flush_on_overflow:
+                    overflow = self._take()
+                else:
+                    _ = self._buffer.pop(0)
+            self._buffer.append(processed)
+        if overflow:
+            self._forward(overflow)
         return not self._bubble
 
     def flush(self) -> None:
         """Hand the whole buffer to the wrapped handler, then empty it."""
-        if not self._buffer:
-            return
-        self._handler.handle_batch(tuple(self._buffer))
-        self.clear()
+        with self._buffer_lock:
+            pending = self._take()
+        if pending:
+            self._forward(pending)
 
     def clear(self) -> None:
         """Empty the buffer without forwarding anything."""
-        self._buffer = []
+        with self._buffer_lock:
+            _ = self._take()
+
+    def _take(self) -> list[LogRecord]:
+        """Empty the buffer, returning what it held; the caller holds the lock."""
+        pending, self._buffer = self._buffer, []
+        return pending
+
+    def _forward(self, records: list[LogRecord]) -> None:
+        """Hand ``records``, taken from the buffer, to the wrapped handler."""
+        self._handler.handle_batch(tuple(records))
 
     @override
     def close(self) -> None:

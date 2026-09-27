@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
@@ -90,6 +91,9 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
             Level.parse(passthru_level) if passthru_level is not None else None
         )
         self._buffer: list[LogRecord] = []
+        # Swapped out under this lock before it is forwarded, so a record
+        # buffered meanwhile waits for the next release rather than being lost.
+        self._buffer_lock: threading.Lock = threading.Lock()
         self._buffering: bool = True
 
     @override
@@ -102,9 +106,10 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
         """Buffer ``record``, or pass it through once the buffer has been released."""
         record = self._process(record)
         if self._buffering:
-            self._buffer.append(record)
-            if self._buffer_size > 0 and len(self._buffer) > self._buffer_size:
-                _ = self._buffer.pop(0)
+            with self._buffer_lock:
+                self._buffer.append(record)
+                if self._buffer_size > 0 and len(self._buffer) > self._buffer_size:
+                    _ = self._buffer.pop(0)
             if self._activation_strategy.is_handler_activated(record):
                 self.activate()
         else:
@@ -119,11 +124,12 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
 
     def activate(self) -> None:
         """Release the buffer now, whatever the strategy would have said."""
-        if self._stop_buffering:
-            self._buffering = False
-        last = self._buffer[-1] if self._buffer else None
-        self._resolve_handler(last).handle_batch(tuple(self._buffer))
-        self._buffer = []
+        with self._buffer_lock:
+            if self._stop_buffering:
+                self._buffering = False
+            pending, self._buffer = self._buffer, []
+        last = pending[-1] if pending else None
+        self._resolve_handler(last).handle_batch(tuple(pending))
 
     @override
     def close(self) -> None:
@@ -140,15 +146,15 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
 
     def clear(self) -> None:
         """Drop the buffer without forwarding it, and start buffering afresh."""
-        self._buffer = []
+        with self._buffer_lock:
+            self._buffer = []
         self.reset()
 
     def _flush_buffer(self) -> None:
+        with self._buffer_lock:
+            pending, self._buffer = self._buffer, []
+            self._buffering = True
         if self._passthru_level is not None:
-            kept = [
-                record for record in self._buffer if self._passthru_level.includes(record.level)
-            ]
+            kept = [record for record in pending if self._passthru_level.includes(record.level)]
             if kept:
                 self._resolve_handler(kept[-1]).handle_batch(tuple(kept))
-        self._buffer = []
-        self._buffering = True

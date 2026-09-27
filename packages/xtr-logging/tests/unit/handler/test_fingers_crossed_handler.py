@@ -231,3 +231,35 @@ def test_closing_or_resetting_a_quiet_handler_never_builds_the_wrapped_one() -> 
     handler.close()
 
     assert factory.calls == 0
+
+
+@final
+class LogsBackOnce(AbstractHandler):
+    """Hands a record back to ``into`` while it takes its first batch."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.into: FingersCrossedHandler | None = None
+        self.batches: list[list[str]] = []
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        self.batches.append([record.message])
+        return False
+
+    @override
+    def handle_batch(self, records: Sequence[LogRecord], /) -> None:
+        self.batches.append([record.message for record in records])
+        if self.into is not None and len(self.batches) == 1:
+            _ = self.into.handle(make_record(Level.INFO, message="during"))
+
+
+def test_a_record_buffered_while_the_buffer_is_released_is_kept() -> None:
+    inner = LogsBackOnce()
+    handler = FingersCrossedHandler(inner, Level.ERROR, stop_buffering=False)
+    inner.into = handler
+    _ = handler.handle(make_record(Level.ERROR, message="failed"))
+
+    handler.activate()
+
+    assert inner.batches == [["failed"], ["during"]]

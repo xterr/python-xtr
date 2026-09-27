@@ -84,13 +84,11 @@ class DeduplicationHandler(BufferHandler):
         self._gc: bool = False
 
     @override
-    def flush(self) -> None:
-        """Forward buffered records, dropping ones already sent within ``time``."""
-        if not self._buffer:
-            return
+    def _forward(self, records: list[LogRecord]) -> None:
+        """Forward ``records``, unless every one at the deduplication level is a repeat."""
         store = self._read_store()
         passthru: bool | None = None
-        for record in self._buffer:
+        for record in records:
             if record.level >= self._deduplication_level:
                 passthru = (
                     passthru is True or store is None or not self._is_duplicate(store, record)
@@ -102,8 +100,7 @@ class DeduplicationHandler(BufferHandler):
                         store = []
                     store.append(line)
         if passthru is True or passthru is None:
-            self._handler.handle_batch(tuple(self._buffer))
-        self.clear()
+            self._handler.handle_batch(tuple(records))
         if self._gc:
             self._collect_logs()
 

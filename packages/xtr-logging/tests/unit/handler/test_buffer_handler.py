@@ -158,3 +158,36 @@ def test_its_processors_run_before_buffering() -> None:
 def test_popping_with_no_processors_is_refused() -> None:
     with pytest.raises(EmptyStackError, match="BufferHandler"):
         _ = BufferHandler(Spy()).pop_processor()
+
+
+@final
+class LogsWhileHandling(AbstractHandler):
+    """Hands a record back to ``into`` the first time it gets a batch, as a flush is under way."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.into: BufferHandler | None = None
+        self.batches: list[list[str]] = []
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        self.batches.append([record.message])
+        return False
+
+    @override
+    def handle_batch(self, records: Sequence[LogRecord], /) -> None:
+        self.batches.append([record.message for record in records])
+        if self.into is not None and len(self.batches) == 1:
+            _ = self.into.handle(make_record(message="during"))
+
+
+def test_a_record_buffered_while_a_flush_forwards_is_kept_for_the_next() -> None:
+    inner = LogsWhileHandling()
+    buffer = BufferHandler(inner)
+    inner.into = buffer
+    _ = buffer.handle(make_record(message="before"))
+
+    buffer.flush()
+    buffer.flush()
+
+    assert inner.batches == [["before"], ["during"]]
