@@ -76,6 +76,21 @@ Read `packages/xtr-dependency-injection/README.md` for the full API. In short:
   allowed to.
 - The library keeps working without a container: the bundle is an integration on top, not a
   requirement.
+- Advertise the bundle in `pyproject.toml` under
+  `[project.entry-points."xtr_dependency_injection.bundles"]`, named after the bundle. It is
+  only reported by `debug:bundles`, never activated.
+- The package README carries a **Use in an application** section, placed before
+  *Kernel / bundle*, with the bullets of the root README's skeleton: Install, Activate, Brings
+  along, Configure, Environment, Ignore, Remove, Check. Keep it true when the bundle, its
+  config defaults, its peers or its extras change.
+
+## Adding a package to an application
+
+- Follow the package README's **Use in an application** section, step by step; do not invent
+  steps it does not list.
+- Confirm with `debug:bundles`: the bundle is `active`, and nothing you meant to activate is
+  under **Installed, not active**.
+- Removing a package is the same section read backwards.
 
 ## Code conventions
 

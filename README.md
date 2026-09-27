@@ -220,6 +220,11 @@ di = [
     "xtr-dependency-injection>=1.0,<2",
 ]
 
+# Advertises the bundle so debug:bundles can name it when installed but not listed.
+# Advertising activates nothing: an application lists the bundles it wants.
+[project.entry-points."xtr_dependency_injection.bundles"]
+<name> = "xtr_<name>.bundle:<Name>Bundle"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",
@@ -365,6 +370,10 @@ from .<name>_config import <Name>Config
 __all__ = ["<Name>Bundle", "<Name>Config"]
 ```
 
+A package with a bundle also advertises it — the `[project.entry-points]` block in the
+`pyproject.toml` above — and its README carries a *Use in an application* section (see the
+skeleton below). Drop both for a package without a bundle.
+
 #### Tests
 
 Unit tests mirror `src/xtr_<name>/` one-for-one under `tests/unit/`. Every bundle has a
@@ -423,6 +432,25 @@ uv add xtr-<name>
 ```
 
 ## Quick start
+
+## Use in an application
+
+Everything adding this package to an application on
+[xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
+removing it undoes.
+
+- **Install** — `uv add "xtr-<name>[di]"`; the other extras and what each is for.
+- **Activate** — `<Name>Bundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+  from `xtr_<name>.bundle` — or "nothing to do" when another bundle requires it.
+- **Brings along** — the bundles its `@required_bundle` pulls in, and when.
+- **Configure** — what the zero-config path gives; then the `<app>/config/<name>.py`
+  `@configure` function that changes it, linking to *Kernel / bundle*.
+- **Environment** — variables the application must set, or "nothing".
+- **Ignore** — `.gitignore` lines for files it writes into the project, or "nothing".
+- **Remove** — every step above, undone, ending with `uv remove xtr-<name>`.
+- **Check** — the command that shows it working, usually `debug:bundles`.
+
+Add **Entry point**, **Load** or **Run** only when the package needs one.
 
 ## Kernel / bundle
 

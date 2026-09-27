@@ -330,6 +330,25 @@ zone — a frozen test should not change its answer because of where the laptop 
 > `MockClock.sleep_async` advances instantly and yields control once, so the tasks waiting on the
 > clock get their turn — which is usually the behaviour the test is there to observe.
 
+## Use in an application
+
+Everything adding this package to an application on
+[xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what removing it undoes.
+
+- **Install** — `uv add "xtr-clock[di]"`; add `tzdata` on Windows or a slim container.
+- **Activate** — usually nothing to do: the logging bundle requires this one. Otherwise
+  `ClockBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
+  `xtr_clock.bundle`.
+- **Brings along** — nothing.
+- **Configure** — optional: with no configuration the clock reports in the machine's zone.
+  `<app>/config/clock.py`, a `@configure` function returning `ClockConfig(timezone=...)`, fixes
+  one — see [Kernel / bundle](#kernel--bundle).
+- **Environment** — nothing.
+- **Ignore** — nothing.
+- **Remove** — drop the `BUNDLES` entry, if any, delete `<app>/config/clock.py`, then
+  `uv remove xtr-clock` — unless xtr-logging is installed, which depends on it.
+- **Check** — `debug:bundles` shows `clock` as `listed` or `required`, and `active`.
+
 ## Kernel / bundle
 
 An application using [xtr-dependency-injection](../xtr-dependency-injection) lists

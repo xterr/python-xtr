@@ -403,6 +403,27 @@ The other way round, `StdlibHandler` hands records to a stdlib logger, keeping t
 channel and context. `StdlibLogger` puts the interface in front of a plain `logging.Logger` for
 code that keeps `logging` as its backend.
 
+## Use in an application
+
+Everything adding this package to an application on
+[xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what removing it undoes.
+
+- **Install** — `uv add "xtr-logging[di]"`.
+- **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+  from `xtr_logging.bundle`.
+- **Brings along** — the clock bundle.
+- **Configure** — needed to see anything: with no configuration there are no handlers, so
+  records go nowhere. Channels and handlers go in `<app>/config/logging.py`, a `@configure`
+  function returning `LoggingConfig` — see [Kernel / bundle](#kernel--bundle) and
+  [Configuration](#configuration).
+- **Environment** — nothing.
+- **Ignore** — whatever directory the file handlers write to, such as `var/log/`.
+- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/logging.py`, then
+  `uv remove xtr-logging`. Libraries logging through xtr-logging-contracts keep working,
+  silently.
+- **Check** — `debug:bundles` shows `logging` as `listed` and `active`, and `clock` as
+  `required`.
+
 ## Kernel / bundle
 
 An application using [xtr-dependency-injection](../xtr-dependency-injection) lists
