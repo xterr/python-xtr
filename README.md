@@ -107,8 +107,8 @@ read-only repository `1.3.0`.
 
 ## Repositories
 
-This repository is where everything is developed. Each published package is also copied, on
-every push to `main`, into a repository of its own — `xterr/python-<package>`, e.g.
+This repository is where everything is developed. Each published package is also copied, once
+CI passes on a push to `main`, into a repository of its own — `xterr/python-<package>`, e.g.
 [python-xtr-logging](https://github.com/xterr/python-xtr-logging) — which carries only that
 package's directory and history, and its release tags. Those copies are read-only: pull requests
 there are closed automatically, so send issues and pull requests here.
@@ -467,8 +467,10 @@ MIT — see [LICENSE](LICENSE).
    [`pyproject.toml`](pyproject.toml).
 2. Add a row to the [Packages table](#packages) at the top of this README.
 3. Run `uv lock` from the repository root.
-4. Create the empty `xterr/python-xtr-<name>` repository on GitHub (the split workflow
-   populates it on every push to `main`).
+4. Create the empty `xterr/python-xtr-<name>` repository on GitHub (CI's split job
+   populates it once CI passes on a push to `main`), and add it to the split GitHub App's installation
+   before pushing. The app's token is requested for every read-only repository at once, so
+   one repository it cannot reach fails the split for all of them.
 5. Register a pending trusted publisher for `xtr-<name>` on PyPI before its first release.
 
 If a sibling's version leaves a range, `uv lock` fails; that is the reminder to update the
@@ -478,7 +480,7 @@ range.
 
 ```
 python-xtr/
-├── .github/workflows/  # ci, release, split
+├── .github/workflows/  # ci (with the split into the read-only copies), release
 ├── packages/
 │   └── xtr-<name>/
 │       ├── .github/    # only for the read-only copy: closes its pull requests
@@ -487,9 +489,9 @@ python-xtr/
 │       ├── pyproject.toml
 │       ├── README.md
 │       └── LICENSE
+├── examples/bookshop/  # an application on every package — its own uv project
 ├── scripts/release.py  # one version for every package
 ├── pyproject.toml      # workspace root: members and sources, never published
-├── examples/bookshop/  # an application on every package — its own uv project
 └── uv.lock             # the only lockfile
 ```
 
