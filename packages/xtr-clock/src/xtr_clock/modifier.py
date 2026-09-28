@@ -47,11 +47,11 @@ wall — an hour later than asked for, which is the hour that went missing.
 
 from __future__ import annotations
 
-import calendar
 import re
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Final
 
+from .calendar_shift import shift_calendar
 from .exception import InvalidModifierError, InvalidTimezoneError
 from .timezone import resolve_timezone
 
@@ -245,10 +245,8 @@ def _shift(moment: datetime, months: int, days: int, duration: timedelta) -> dat
     """Move ``moment`` by a calendar offset and then by an elapsed one."""
     zone = moment.tzinfo
 
-    if months:
-        moment = _shift_months(moment, months)
-    if days:
-        moment = _shift_days(moment, days)
+    if months or days:
+        moment = shift_calendar(moment, months=months, days=days)
     if duration:
         moment = (
             moment + duration
@@ -257,19 +255,6 @@ def _shift(moment: datetime, months: int, days: int, duration: timedelta) -> dat
         )
 
     return moment
-
-
-def _shift_months(moment: datetime, months: int) -> datetime:
-    """Move ``moment`` by whole months, clamping to the end of a shorter one."""
-    position = moment.month - 1 + months
-    year = moment.year + position // _MONTHS_PER_YEAR
-    month = position % _MONTHS_PER_YEAR + 1
-
-    return moment.replace(
-        year=year,
-        month=month,
-        day=min(moment.day, calendar.monthrange(year, month)[1]),
-    )
 
 
 def _shift_days(moment: datetime, days: int) -> datetime:

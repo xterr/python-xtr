@@ -229,6 +229,16 @@ month never skips one. Clamping makes month arithmetic non-associative at month 
 `'+1 month'` steps from January 31 reach March 28, one `'+2 months'` step reaches March 31 —
 which is a property of calendars rather than a defect here.
 
+Both rules are one function, for code that steps through a calendar itself — a scheduler's
+"every month":
+
+```python
+from xtr_clock import shift_calendar
+
+shift_calendar(moment, months=1)  # a month later on the wall clock, clamped, really on the wall
+shift_calendar(moment, days=7)
+```
+
 ## Reaching code you cannot hand a clock
 
 Injection is the honest answer and covers most code. It does not cover a module-level helper, a

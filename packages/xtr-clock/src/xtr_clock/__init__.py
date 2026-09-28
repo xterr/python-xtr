@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
+from .calendar_shift import shift_calendar
 from .clock import Clock
 from .clock_aware_mixin import ClockAwareMixin
 from .clock_interface import ClockInterface, SupportsNow
@@ -60,4 +61,5 @@ __all__ = [
     "local_timezone",
     "now",
     "resolve_timezone",
+    "shift_calendar",
 ]
