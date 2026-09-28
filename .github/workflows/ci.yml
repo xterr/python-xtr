@@ -74,7 +74,8 @@ jobs:
       # import of a sibling fails here instead of hiding in the shared venv.
       - name: Tests
         if: hashFiles(format('packages/{0}/tests/**', matrix.package)) != ''
-        run: uv run --locked --exact pytest
+        # Coverage below the package's fail_under fails the job.
+        run: uv run --locked --exact pytest --cov --cov-report=term-missing:skip-covered
         env:
           # Tests needing Redis skip themselves when this is empty.
           REDIS_DSN: ${{ matrix.package == 'xtr-lock' && 'redis://localhost:6379/15' || '' }}

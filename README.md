@@ -231,6 +231,7 @@ dev = [
     "basedpyright>=1.21",
     "ruff>=0.8",
     "pytest>=8",
+    "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
     "xtr-dependency-injection>=1.0,<2",
@@ -288,6 +289,14 @@ minversion = "8.0"
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-config", "--strict-markers"]
 filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+# CI runs the tests with --cov; a change taking coverage below this fails there.
+fail_under = 95
 ```
 
 Packages never declare their own `[tool.uv.sources]`; the root maps every `xtr-*` name to
