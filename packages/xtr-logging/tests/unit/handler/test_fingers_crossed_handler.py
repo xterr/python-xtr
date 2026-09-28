@@ -1,16 +1,29 @@
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, final
 
+import anyio
+import anyio.lowlevel
+import pytest
 from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
 from xtr_logging import AbstractHandler, HandlerInterface, LogRecord, TestHandler
 from xtr_logging.handler.fingers_crossed_handler import FingersCrossedHandler
+from xtr_logging.log_unit import begin_unit, end_unit
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
+
+
+@pytest.fixture(autouse=True)
+def _clean_units() -> Iterator[None]:
+    """End any unit a synchronous test leaves open in this thread's context."""
+    yield
+    with contextlib.suppress(BaseException):
+        end_unit()
 
 
 @final
@@ -263,3 +276,67 @@ def test_a_record_buffered_while_the_buffer_is_released_is_kept() -> None:
     handler.activate()
 
     assert inner.batches == [["failed"], ["during"]]
+
+
+def test_inside_a_unit_only_the_activating_units_records_are_forwarded() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(spy, activation_strategy=Level.ERROR)
+    begin_unit()
+
+    _ = handler.handle(make_record(Level.DEBUG, "a-debug"))
+    _ = handler.handle(make_record(Level.ERROR, "a-error"))
+    end_unit()
+
+    assert [record.message for record in spy.handled] == ["a-debug", "a-error"]
+
+
+def test_end_unit_flushes_the_units_passthru_floor() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(
+        spy, activation_strategy=Level.ERROR, passthru_level=Level.WARNING
+    )
+    begin_unit()
+
+    _ = handler.handle(make_record(Level.INFO, "info"))
+    _ = handler.handle(make_record(Level.WARNING, "warning"))
+    end_unit()
+
+    assert [record.message for record in spy.handled] == ["warning"]
+
+
+def test_a_quiet_unit_never_builds_the_lazy_wrapped_handler() -> None:
+    factory = CountingFactory(TestHandler())
+    handler = FingersCrossedHandler(factory, Level.ERROR)
+    begin_unit()
+
+    _ = handler.handle(make_record(Level.INFO, "info"))
+    end_unit()
+
+    assert factory.calls == 0
+
+
+@pytest.mark.anyio
+async def test_two_concurrent_units_do_not_mix_their_buffers() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(spy, activation_strategy=Level.ERROR)
+    quiet_buffered = anyio.Event()
+
+    async def loud() -> None:
+        begin_unit()
+        _ = handler.handle(make_record(Level.DEBUG, "loud-debug"))
+        await quiet_buffered.wait()
+        _ = handler.handle(make_record(Level.ERROR, "loud-error"))
+        end_unit()
+
+    async def quiet() -> None:
+        begin_unit()
+        _ = handler.handle(make_record(Level.DEBUG, "quiet-debug"))
+        quiet_buffered.set()
+        await anyio.lowlevel.checkpoint()
+        end_unit()
+
+    async with anyio.create_task_group() as task_group:
+        _ = task_group.start_soon(loud)
+        _ = task_group.start_soon(quiet)
+
+    assert [record.message for record in spy.handled] == ["loud-debug", "loud-error"]

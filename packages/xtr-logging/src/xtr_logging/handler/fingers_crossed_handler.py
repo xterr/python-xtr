@@ -9,6 +9,8 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 from xtr_service_contracts import ResetInterface
 
+from xtr_logging.log_unit import unit_state
+
 from ._lazy_handler import LazyHandler
 from ._processor_stack import ProcessorStack
 from .fingers_crossed.activation_strategy_interface import ActivationStrategyInterface
@@ -29,6 +31,17 @@ if TYPE_CHECKING:
     ]
 
 __all__ = ["FingersCrossedHandler"]
+
+
+@final
+class _FingersCrossedState:
+    """One unit's buffer and buffering flag, mutated in place so a copied context sees it."""
+
+    __slots__ = ("buffer", "buffering")
+
+    def __init__(self) -> None:
+        self.buffer: list[LogRecord] = []
+        self.buffering: bool = True
 
 
 @final
@@ -90,11 +103,10 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
         self._passthru_level: Level | None = (
             Level.parse(passthru_level) if passthru_level is not None else None
         )
-        self._buffer: list[LogRecord] = []
+        self._instance_state: _FingersCrossedState = _FingersCrossedState()
         # Swapped out under this lock before it is forwarded, so a record
         # buffered meanwhile waits for the next release rather than being lost.
         self._buffer_lock: threading.Lock = threading.Lock()
-        self._buffering: bool = True
 
     @override
     def is_handling(self, record: LogRecord, /) -> bool:
@@ -105,11 +117,12 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
     def handle(self, record: LogRecord, /) -> bool:
         """Buffer ``record``, or pass it through once the buffer has been released."""
         record = self._process(record)
-        if self._buffering:
+        state = self._state()
+        if state.buffering:
             with self._buffer_lock:
-                self._buffer.append(record)
-                if self._buffer_size > 0 and len(self._buffer) > self._buffer_size:
-                    _ = self._buffer.pop(0)
+                state.buffer.append(record)
+                if self._buffer_size > 0 and len(state.buffer) > self._buffer_size:
+                    _ = state.buffer.pop(0)
             if self._activation_strategy.is_handler_activated(record):
                 self.activate()
         else:
@@ -124,36 +137,42 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
 
     def activate(self) -> None:
         """Release the buffer now, whatever the strategy would have said."""
+        state = self._state()
         with self._buffer_lock:
             if self._stop_buffering:
-                self._buffering = False
-            pending, self._buffer = self._buffer, []
+                state.buffering = False
+            pending, state.buffer = state.buffer, []
         last = pending[-1] if pending else None
         self._resolve_handler(last).handle_batch(tuple(pending))
 
     @override
     def close(self) -> None:
         """Flush the passthru floor, then close the wrapped handler."""
-        self._flush_buffer()
+        self._flush_state(self._state())
         self._close_handler()
 
     @override
     def reset(self) -> None:
         """Flush the passthru floor, reset processors, and reset the wrapped handler."""
-        self._flush_buffer()
+        self._flush_state(self._state())
         self._reset_processors()
         self._reset_handler()
 
     def clear(self) -> None:
         """Drop the buffer without forwarding it, and start buffering afresh."""
+        state = self._state()
         with self._buffer_lock:
-            self._buffer = []
+            state.buffer = []
         self.reset()
 
-    def _flush_buffer(self) -> None:
+    def _state(self) -> _FingersCrossedState:
+        unit = unit_state(self, _FingersCrossedState, on_end=self._flush_state)
+        return unit if unit is not None else self._instance_state
+
+    def _flush_state(self, state: _FingersCrossedState) -> None:
         with self._buffer_lock:
-            pending, self._buffer = self._buffer, []
-            self._buffering = True
+            pending, state.buffer = state.buffer, []
+            state.buffering = True
         if self._passthru_level is not None:
             kept = [record for record in pending if self._passthru_level.includes(record.level)]
             if kept:

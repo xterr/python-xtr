@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_logging_contracts import Level
 from xtr_service_contracts import ResetInterface
+
+from xtr_logging.log_unit import unit_state
 
 from ._processor_stack import ProcessorStack
 from .abstract_handler import AbstractHandler
@@ -20,6 +22,16 @@ if TYPE_CHECKING:
     from .handler_interface import HandlerInterface
 
 __all__ = ["BufferHandler"]
+
+
+@final
+class _BufferState:
+    """One unit's buffer, mutated in place so a copied context sees its records."""
+
+    __slots__ = ("buffer",)
+
+    def __init__(self) -> None:
+        self.buffer: list[LogRecord] = []
 
 
 class BufferHandler(AbstractHandler, ProcessorStack):
@@ -62,7 +74,7 @@ class BufferHandler(AbstractHandler, ProcessorStack):
         self._handler: HandlerInterface = handler
         self._buffer_limit: int = buffer_limit
         self._flush_on_overflow: bool = flush_on_overflow
-        self._buffer: list[LogRecord] = []
+        self._instance_state: _BufferState = _BufferState()
         # The buffer is swapped out under this lock before it is forwarded, so
         # a record buffered meanwhile — from another thread, or from the very
         # handler being flushed to — waits for the next flush, never lost.
@@ -78,33 +90,41 @@ class BufferHandler(AbstractHandler, ProcessorStack):
         if record.level < self._level:
             return False
         processed = self._process(record)
+        state = self._state()
         overflow: list[LogRecord] = []
         with self._buffer_lock:
-            if self._buffer_limit > 0 and len(self._buffer) == self._buffer_limit:
+            if self._buffer_limit > 0 and len(state.buffer) == self._buffer_limit:
                 if self._flush_on_overflow:
-                    overflow = self._take()
+                    overflow = self._take(state)
                 else:
-                    _ = self._buffer.pop(0)
-            self._buffer.append(processed)
+                    _ = state.buffer.pop(0)
+            state.buffer.append(processed)
         if overflow:
             self._forward(overflow)
         return not self._bubble
 
     def flush(self) -> None:
         """Hand the whole buffer to the wrapped handler, then empty it."""
-        with self._buffer_lock:
-            pending = self._take()
-        if pending:
-            self._forward(pending)
+        self._flush_state(self._state())
 
     def clear(self) -> None:
         """Empty the buffer without forwarding anything."""
         with self._buffer_lock:
-            _ = self._take()
+            _ = self._take(self._state())
 
-    def _take(self) -> list[LogRecord]:
+    def _state(self) -> _BufferState:
+        unit = unit_state(self, _BufferState, on_end=self._flush_state)
+        return unit if unit is not None else self._instance_state
+
+    def _flush_state(self, state: _BufferState) -> None:
+        with self._buffer_lock:
+            pending = self._take(state)
+        if pending:
+            self._forward(pending)
+
+    def _take(self, state: _BufferState) -> list[LogRecord]:
         """Empty the buffer, returning what it held; the caller holds the lock."""
-        pending, self._buffer = self._buffer, []
+        pending, state.buffer = state.buffer, []
         return pending
 
     def _forward(self, records: list[LogRecord]) -> None:

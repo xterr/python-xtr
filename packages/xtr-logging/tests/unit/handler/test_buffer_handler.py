@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, final
 
+import anyio
+import anyio.lowlevel
 import pytest
 from typing_extensions import override
 from xtr_logging_contracts import Level
@@ -10,9 +13,18 @@ from xtr_logging_contracts import Level
 from tests.support.records import make_record
 from xtr_logging import AbstractHandler, EmptyStackError, LogRecord
 from xtr_logging.handler.buffer_handler import BufferHandler
+from xtr_logging.log_unit import begin_unit, end_unit
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
+
+
+@pytest.fixture(autouse=True)
+def _clean_units() -> Iterator[None]:
+    """End any unit a synchronous test leaves open in this thread's context."""
+    yield
+    with contextlib.suppress(BaseException):
+        end_unit()
 
 
 @final
@@ -209,3 +221,58 @@ def test_threads_buffering_and_flushing_at_once_lose_no_record() -> None:
     handler.flush()
 
     assert sorted(record.message for record in spy.handled) == sorted(messages)
+
+
+def test_end_unit_flushes_the_units_buffer() -> None:
+    spy = Spy()
+    handler = BufferHandler(spy)
+    begin_unit()
+
+    _ = handler.handle(make_record(message="a"))
+    _ = handler.handle(make_record(message="b"))
+    end_unit()
+
+    assert [record.message for record in spy.handled] == ["a", "b"]
+    assert len(spy.batches) == 1
+
+
+def test_a_units_buffer_stays_empty_for_the_instance() -> None:
+    spy = Spy()
+    handler = BufferHandler(spy)
+    begin_unit()
+    _ = handler.handle(make_record(message="in-unit"))
+    end_unit()
+    spy.handled.clear()
+
+    handler.flush()
+
+    assert spy.handled == []
+
+
+@pytest.mark.anyio
+async def test_two_concurrent_units_flush_only_their_own_records() -> None:
+    spy = Spy()
+    handler = BufferHandler(spy)
+    first_buffered = anyio.Event()
+
+    async def first() -> None:
+        begin_unit()
+        _ = handler.handle(make_record(message="first"))
+        first_buffered.set()
+        await anyio.lowlevel.checkpoint()
+        handler.flush()
+        end_unit()
+
+    async def second() -> None:
+        await first_buffered.wait()
+        begin_unit()
+        _ = handler.handle(make_record(message="second"))
+        handler.flush()
+        end_unit()
+
+    async with anyio.create_task_group() as task_group:
+        _ = task_group.start_soon(first)
+        _ = task_group.start_soon(second)
+
+    assert sorted(record.message for record in spy.handled) == ["first", "second"]
+    assert all(len(batch) == 1 for batch in spy.batches)

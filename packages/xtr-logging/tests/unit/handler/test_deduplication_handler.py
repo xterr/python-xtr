@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import os
 import stat
@@ -14,10 +15,19 @@ from xtr_logging_contracts import Level
 from tests.support.records import AT, make_record
 from xtr_logging import AbstractHandler, LogRecord
 from xtr_logging.handler.deduplication_handler import DeduplicationHandler
+from xtr_logging.log_unit import begin_unit, end_unit
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
     from pathlib import Path
+
+
+@pytest.fixture(autouse=True)
+def _clean_units() -> Iterator[None]:
+    """End any unit a synchronous test leaves open in this thread's context."""
+    yield
+    with contextlib.suppress(BaseException):
+        end_unit()
 
 
 @final
@@ -183,3 +193,14 @@ def test_a_buffer_limit_keeps_only_the_newest_records(tmp_path: Path) -> None:
     handler.flush()
 
     assert [record.message for record in spy.handled] == ["two", "three"]
+
+
+def test_end_unit_flushes_the_units_buffer(tmp_path: Path) -> None:
+    spy = Spy()
+    handler = DeduplicationHandler(spy, store=tmp_path / "dedup.log", clock=MockClock(AT))
+    begin_unit()
+
+    _ = handler.handle(make_record(Level.ERROR, "boom"))
+    end_unit()
+
+    assert [record.message for record in spy.handled] == ["boom"]
