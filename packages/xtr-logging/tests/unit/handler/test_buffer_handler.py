@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, final
 
 import pytest
@@ -191,3 +192,20 @@ def test_a_record_buffered_while_a_flush_forwards_is_kept_for_the_next() -> None
     buffer.flush()
 
     assert inner.batches == [["before"], ["during"]]
+
+
+def test_threads_buffering_and_flushing_at_once_lose_no_record() -> None:
+    spy = Spy()
+    handler = BufferHandler(spy)
+    messages = [f"{worker}-{index}" for worker in range(8) for index in range(250)]
+
+    def log(message: str) -> None:
+        _ = handler.handle(make_record(message=message))
+        if message.endswith("0"):
+            handler.flush()
+
+    with ThreadPoolExecutor(8) as pool:
+        _ = list(pool.map(log, messages))
+    handler.flush()
+
+    assert sorted(record.message for record in spy.handled) == sorted(messages)

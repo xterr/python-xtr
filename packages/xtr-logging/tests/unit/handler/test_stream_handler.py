@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import stat
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 from xtr_logging_contracts import Level
@@ -9,6 +10,7 @@ from xtr_logging_contracts import Level
 from tests.support.records import make_record
 from xtr_logging.formatter.json_batch_mode import JsonBatchMode
 from xtr_logging.formatter.json_formatter import JsonFormatter
+from xtr_logging.formatter.line_formatter import LineFormatter
 from xtr_logging.handler.stream_handler import StreamHandler
 
 if TYPE_CHECKING:
@@ -120,3 +122,19 @@ def test_a_batch_leaves_out_records_below_the_level() -> None:
 
     assert "quiet" not in stream.getvalue()
     assert "loud" in stream.getvalue()
+
+
+def test_threads_logging_at_once_never_splice_one_line_into_another(tmp_path: Path) -> None:
+    handler = StreamHandler(tmp_path / "app.log")
+    handler.formatter = LineFormatter("%message%\n")
+    lines = [f"{worker}-{index}-" + "x" * 200 for worker in range(8) for index in range(200)]
+
+    def log(line: str) -> bool:
+        return handler.handle(make_record(message=line))
+
+    with ThreadPoolExecutor(8) as pool:
+        _ = list(pool.map(log, lines))
+    handler.close()
+
+    written = (tmp_path / "app.log").read_text(encoding="utf-8").splitlines()
+    assert sorted(written) == sorted(lines)

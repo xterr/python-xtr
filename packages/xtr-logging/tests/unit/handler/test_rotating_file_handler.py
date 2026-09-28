@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 import pytest
@@ -141,3 +142,24 @@ def test_a_batch_spanning_two_dates_is_split_between_their_files(tmp_path: Path)
     assert first.startswith('[{"message":"one"')
     assert "two" not in first
     assert second.startswith('[{"message":"two"')
+
+
+def test_threads_writing_across_a_date_change_put_each_record_in_its_dates_file(
+    tmp_path: Path,
+) -> None:
+    handler = RotatingFileHandler(tmp_path / "app.log")
+    records = [
+        make_record(message=f"{day}-{index}", at=at)
+        for index in range(300)
+        for day, at in (("one", _DAY_ONE), ("two", _DAY_TWO))
+    ]
+
+    with ThreadPoolExecutor(8) as pool:
+        _ = list(pool.map(handler.handle, records))
+    handler.close()
+
+    first = (tmp_path / "app-2026-09-24.log").read_text(encoding="utf-8").splitlines()
+    second = (tmp_path / "app-2026-09-25.log").read_text(encoding="utf-8").splitlines()
+    assert len(first) == len(second) == 300
+    assert all(": one-" in line for line in first)
+    assert all(": two-" in line for line in second)
