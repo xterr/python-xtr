@@ -13,6 +13,7 @@ members = [
     "xtr-dotenv",
     "xtr-event-dispatcher",
     "xtr-event-dispatcher-contracts",
+    "xtr-http-kernel",
     "xtr-lock",
     "xtr-logging",
     "xtr-logging-contracts",
@@ -2215,6 +2216,66 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+]
+
+[[package]]
+name = "xtr-http-kernel"
+version = "1.3.0"
+source = { editable = "packages/xtr-http-kernel" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "typing-extensions" },
+    { name = "xtr-dependency-injection", extra = ["fastapi"] },
+    { name = "xtr-event-dispatcher" },
+    { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-logging-contracts" },
+]
+
+[package.optional-dependencies]
+console = [
+    { name = "xtr-console" },
+]
+logging = [
+    { name = "xtr-logging" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-console" },
+    { name = "xtr-logging" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.121" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
+    { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-logging", marker = "extra == 'logging'", editable = "packages/xtr-logging" },
+    { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+]
+provides-extras = ["logging", "console"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-logging", editable = "packages/xtr-logging" },
 ]
 
 [[package]]

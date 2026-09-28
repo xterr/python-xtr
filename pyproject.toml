@@ -20,6 +20,7 @@ xtr-dependency-injection = { workspace = true }
 xtr-dotenv               = { workspace = true }
 xtr-event-dispatcher     = { workspace = true }
 xtr-event-dispatcher-contracts = { workspace = true }
+xtr-http-kernel          = { workspace = true }
 xtr-lock                 = { workspace = true }
 xtr-logging              = { workspace = true }
 xtr-logging-contracts    = { workspace = true }
