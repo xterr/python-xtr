@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+from logging.handlers import SysLogHandler
 
 import pytest
 from xtr_logging_contracts import Level
@@ -74,3 +75,10 @@ def test_a_numeric_facility_is_used_as_given() -> None:
         sock.close()
 
     assert datagram.startswith("<133>")  # 16*8 + 5
+
+
+@pytest.mark.parametrize("level", list(Level))
+def test_every_level_maps_to_its_own_rfc5424_severity(level: Level) -> None:
+    word = SyslogHandler.priority_map[level.name]
+
+    assert SysLogHandler.priority_names[word] == level.rfc5424

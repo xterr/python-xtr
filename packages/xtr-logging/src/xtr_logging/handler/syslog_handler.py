@@ -27,18 +27,20 @@ __all__ = ["SyslogHandler"]
 
 _SYSLOG_FORMAT: Final = "%channel%.%level_name%: %message% %context% %extra%"
 
-# Each level's name maps to the syslog severity word the stdlib handler turns
-# into an RFC 5424 number, covering the three levels its default map omits
-# (notice, alert, emergency) as well as the five it already knows.
+
+def _severity_words() -> dict[int, str]:
+    """Return a severity word the stdlib transport reads, for each RFC 5424 number."""
+    words: dict[int, str] = {}
+    for word, severity in _StdlibSysLogHandler.priority_names.items():
+        _ = words.setdefault(severity, word)
+    return words
+
+
+# Each level's name maps to a word the stdlib transport turns back into the
+# level's own RFC 5424 severity, for all eight levels — its default map knows
+# five of them.
 _PRIORITY_MAP: Final[Mapping[str, str]] = {
-    Level.DEBUG.name: "debug",
-    Level.INFO.name: "info",
-    Level.NOTICE.name: "notice",
-    Level.WARNING.name: "warning",
-    Level.ERROR.name: "error",
-    Level.CRITICAL.name: "critical",
-    Level.ALERT.name: "alert",
-    Level.EMERGENCY.name: "emerg",
+    level.name: _severity_words()[level.rfc5424] for level in Level
 }
 
 
