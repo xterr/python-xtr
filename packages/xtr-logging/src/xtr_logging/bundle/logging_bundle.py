@@ -47,15 +47,13 @@ from xtr_logging.handler.fingers_crossed.activation_strategy_interface import (
 )
 from xtr_logging.handler.handler_interface import HandlerInterface
 from xtr_logging.logger_factory import LoggerFactory
+from xtr_logging.processor.processor_descriptor import ProcessorDescriptor
 from xtr_logging.processor.processor_interface import ProcessorInterface
-from xtr_logging.processor.processor_registry import (
-    ProcessorDescriptor,
-    ProcessorRegistry,
-    processors_declared_on,
-)
+from xtr_logging.processor.processor_registry import ProcessorRegistry
+from xtr_logging.processor.processors_declared_on import processors_declared_on
 
 if TYPE_CHECKING:
-    from xtr_logging.processor.processor_registry import ProcessorDeclaration
+    from xtr_logging.processor.processor_declaration import ProcessorDeclaration
 
 __all__ = ["LoggingBundle"]
 

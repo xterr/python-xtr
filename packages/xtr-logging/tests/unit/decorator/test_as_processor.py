@@ -3,11 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from xtr_logging.decorator import as_processor
-from xtr_logging.processor.processor_registry import (
-    ProcessorDeclaration,
-    ProcessorRegistry,
-    processors_declared_on,
-)
+from xtr_logging.processor.processor_declaration import ProcessorDeclaration
+from xtr_logging.processor.processor_registry import ProcessorRegistry
+from xtr_logging.processor.processors_declared_on import processors_declared_on
 
 if TYPE_CHECKING:
     from xtr_logging import LogRecord

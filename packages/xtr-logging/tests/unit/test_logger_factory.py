@@ -30,7 +30,8 @@ from xtr_logging.exception.unknown_handler_error import UnknownHandlerError
 from xtr_logging.exception.unknown_service_error import UnknownServiceError
 from xtr_logging.handler.console_handler import ConsoleHandler
 from xtr_logging.logger_factory import LoggerFactory
-from xtr_logging.processor.processor_registry import ProcessorDescriptor, ProcessorRegistry
+from xtr_logging.processor.processor_descriptor import ProcessorDescriptor
+from xtr_logging.processor.processor_registry import ProcessorRegistry
 from xtr_logging.verbosity import Verbosity
 
 if TYPE_CHECKING:

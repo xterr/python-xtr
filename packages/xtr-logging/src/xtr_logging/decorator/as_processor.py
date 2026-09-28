@@ -5,12 +5,10 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING, TypeVar, cast
 
-from xtr_logging.processor.processor_registry import (
-    PROCESSORS_ATTRIBUTE,
-    ProcessorDeclaration,
-    ProcessorDescriptor,
-    default_processor_registry,
-)
+from xtr_logging.processor.processor_declaration import ProcessorDeclaration
+from xtr_logging.processor.processor_descriptor import ProcessorDescriptor
+from xtr_logging.processor.processor_registry import default_processor_registry
+from xtr_logging.processor.processors_declared_on import PROCESSORS_ATTRIBUTE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
