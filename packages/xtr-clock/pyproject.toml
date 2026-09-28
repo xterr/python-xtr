@@ -27,6 +27,7 @@ tzdata = [
     "tzdata>=2024.1",
 ]
 di = [
+    "typing-extensions>=4.4",
     "xtr-dependency-injection>=1.0,<2",
 ]
 
