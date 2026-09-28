@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+import copy
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
@@ -67,8 +68,14 @@ class LogRecord:
         return found if isinstance(found, BaseException) else None
 
     def with_extra(self, values: Context) -> LogRecord:
-        """Return a copy with ``values`` merged into ``extra``, winning on conflict."""
-        return replace(self, extra={**self.extra, **values})
+        """Return a copy with ``values`` merged into ``extra``, winning on conflict.
+
+        The context is already a private frozen copy, so the new record shares
+        it rather than copying it again on every processor.
+        """
+        record = copy.copy(self)
+        object.__setattr__(record, "extra", _frozen({**self.extra, **values}))
+        return record
 
 
 def _frozen(values: Context) -> Context:

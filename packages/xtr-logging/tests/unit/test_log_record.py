@@ -54,3 +54,12 @@ def test_exception_is_none_when_the_key_holds_something_else() -> None:
 
 def test_level_name_is_upper_case() -> None:
     assert make_record(Level.NOTICE).level_name == "NOTICE"
+
+
+def test_with_extra_shares_the_frozen_context_rather_than_copying_it() -> None:
+    record = make_record(context={"user": "ada"})
+
+    enriched = record.with_extra({"tag": 1})
+
+    assert enriched.context is record.context
+    assert dict(enriched.extra) == {"tag": 1}
