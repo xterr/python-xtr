@@ -6,14 +6,18 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 dependencies = [
+    # The web entry point. Only an application takes a server; no library here does.
+    "fastapi>=0.121.3",
+    "uvicorn>=0.30",
     "xtr-cache[di,console]",
     "xtr-cache-contracts",
     "xtr-clock[di]",
     "xtr-console[di]",
-    "xtr-dependency-injection",
+    "xtr-dependency-injection[fastapi]",
     "xtr-dotenv[di,console]",
     "xtr-event-dispatcher[di]",
     "xtr-event-dispatcher-contracts",
+    "xtr-http-kernel[logging,console]",
     "xtr-lock[di]",
     "xtr-logging[di]",
     "xtr-logging-contracts",
@@ -54,6 +58,7 @@ xtr-dependency-injection = { path = "../../packages/xtr-dependency-injection", e
 xtr-dotenv               = { path = "../../packages/xtr-dotenv", editable = true }
 xtr-event-dispatcher     = { path = "../../packages/xtr-event-dispatcher", editable = true }
 xtr-event-dispatcher-contracts = { path = "../../packages/xtr-event-dispatcher-contracts", editable = true }
+xtr-http-kernel          = { path = "../../packages/xtr-http-kernel", editable = true }
 xtr-lock                 = { path = "../../packages/xtr-lock", editable = true }
 xtr-logging              = { path = "../../packages/xtr-logging", editable = true }
 xtr-logging-contracts    = { path = "../../packages/xtr-logging-contracts", editable = true }

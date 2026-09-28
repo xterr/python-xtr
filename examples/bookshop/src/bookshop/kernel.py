@@ -40,7 +40,14 @@ PROD_ENVS: Final = ("prod",)
 # - bookshop.dev_tools: the resource of DevToolsBundle, scanned only in the environments
 #   that bundle is active in;
 # - bookshop.diagnostics.broken_*: deliberately broken, built on their own by demo:errors.
-EXCLUDE: Final = (*DEFAULT_EXCLUDES, "bookshop.dev_tools", "bookshop.diagnostics.broken_*")
+# - bookshop.web.app: it builds the web application as it is imported, and that application
+#   is served from this very kernel — scanning it would import it while the kernel builds.
+EXCLUDE: Final = (
+    *DEFAULT_EXCLUDES,
+    "bookshop.dev_tools",
+    "bookshop.diagnostics.broken_*",
+    "bookshop.web.app",
+)
 
 kernel: Final = Kernel(
     "bookshop",

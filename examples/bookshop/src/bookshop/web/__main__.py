@@ -1,35 +1,34 @@
 """The web entry point: ``uv run bookshop-web`` or ``python -m bookshop.web``.
 
-Stop it with Ctrl-C or SIGTERM: the server stops accepting, then the lifespan shuts the
-kernel down — ``@on_shutdown`` hooks, bundles in reverse, the container's cleanup.
+The environment is loaded before anything reads it, then the server runs the application on
+``WEB_HOST`` / ``WEB_PORT``. Stop it with Ctrl-C or SIGTERM: the server stops accepting, the
+application's lifespan ends, and the kernel goes down with it — ``@on_shutdown`` hooks, bundles
+in reverse, the container's cleanup.
 """
 
 from __future__ import annotations
 
-import asyncio
-import signal
+import os
+from typing import Final
 
-from bookshop.kernel import kernel, load_environment
+import uvicorn
 
-from .server import HttpServer
+from bookshop.kernel import load_environment
 
+from .app import app
 
-async def serve() -> None:
-    """Build, boot through the lifespan, serve until a signal, shut down."""
-    compiled = kernel.build()  # the container exists before the server does
-    async with compiled.lifespan(None):  # boot on enter, shutdown on exit
-        server = await compiled.container.get(HttpServer)
-        stop = asyncio.Event()
-        loop = asyncio.get_running_loop()
-        for signum in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(signum, stop.set)
-        await server.serve(stop)
+_HOST: Final = "127.0.0.1"
+_PORT: Final = 8080
 
 
 def main() -> None:
-    """Load the environment, then serve."""
+    """Load the environment, then serve the application where the variables say."""
     load_environment()
-    asyncio.run(serve())
+    uvicorn.run(
+        app,
+        host=os.environ.get("WEB_HOST", _HOST),
+        port=int(os.environ.get("WEB_PORT", str(_PORT))),
+    )
 
 
 if __name__ == "__main__":

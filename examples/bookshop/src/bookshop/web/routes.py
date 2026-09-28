@@ -1,149 +1,142 @@
-"""The routes: plain functions, their services injected per request.
+"""The routes: one router of plain functions, their services injected per request.
 
-A route takes the :class:`~bookshop.web.http.Request` as its first parameter — passed by the
-server — and asks the container for the rest, exactly as a command or a handler does:
-``Injected[T]``, ``Annotated[T, Autowire(param=... | env=...)]``. Bound with
-``per_call_scope=True``, each call enters a scope of its own: a scoped service is built for
-the request and released — its generator's cleanup run — when the request ends.
+An endpoint is written the way the framework documents it — path and query parameters in the
+signature, a model for the body — and asks the container for the rest with the markers a
+command or a handler already uses: ``Injected[T]``, ``Annotated[T, Autowire(param=... |
+env=...)]``. Each marker stands for one framework dependency, so the injected services stay out
+of the documented parameters while the framework fills the rest of the signature as it always
+does.
+
+Every request runs in a scope of its own, opened by ``setup`` in :mod:`bookshop.web.app`: the
+cart and the unit of work are built for the request and released once the response has gone
+out — which is when the unit of work commits.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Annotated, Final, final
+from typing import Annotated, ClassVar
 
+from fastapi import APIRouter
+from pydantic import BaseModel, ConfigDict, Field
 from xtr_dependency_injection import Autowire, Injected, KernelInterface
 from xtr_messenger import WorkerFactory
 
-from bookshop.catalog import BookCatalogInterface, Genre
+from bookshop.catalog import Book, BookCatalogInterface, Genre
 from bookshop.ordering import OrderBook, OrderNumber, OrderService, ShoppingCart, UnitOfWork
+from bookshop.ordering.errors import UnknownBookError
 from bookshop.pricing import PriceCalculator
 from fulltext import SearchEngineInterface
 
-from .http import HttpError, Request, Response
-
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-
-__all__ = ["ROUTES", "Route"]
+__all__ = ["OrderRequest", "router"]
 
 _QUEUED = ("jobs", "audit", "outbox")
 
-
-@final
-@dataclass(frozen=True, slots=True)
-class Route:
-    """One route: a method, a path pattern with ``{name}`` segments, and what answers it."""
-
-    method: str
-    pattern: str
-    endpoint: Callable[..., Awaitable[Response]]
-
-    def match(self, method: str, path: str) -> dict[str, str] | None:
-        """The captured segments when ``path`` fits the pattern (whatever the method)."""
-        del method
-        wanted = self.pattern.strip("/").split("/")
-        given = path.strip("/").split("/")
-        if len(wanted) != len(given):
-            return None
-        captured: dict[str, str] = {}
-        for expected, actual in zip(wanted, given, strict=True):
-            if expected.startswith("{") and expected.endswith("}"):
-                captured[expected[1:-1]] = actual
-            elif expected != actual:
-                return None
-        return captured
+router = APIRouter()
 
 
+class OrderRequest(BaseModel):
+    """The body ``POST /orders`` takes, validated before the endpoint runs.
+
+    Attributes:
+        isbn: The book to order.
+        quantity: How many copies.
+        email: Who is ordering.
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, extra="forbid")
+
+    isbn: str
+    quantity: Annotated[int, Field(ge=1)] = 1
+    email: str
+
+
+@router.get("/health")
 async def health(
-    request: Request,
     kernel: Injected[KernelInterface],
     shop: Annotated[str, Autowire(param="shop.name")],
     tier: Annotated[str, Autowire(env="SHOP_TIER")],
-) -> Response:
+) -> dict[str, object]:
     """``GET /health`` — the kernel, a parameter holding ``env()``, a variable."""
-    del request
-    return Response.json(
-        {"shop": shop, "tier": tier, "environment": kernel.environment, "debug": kernel.debug}
-    )
+    return {"shop": shop, "tier": tier, "environment": kernel.environment, "debug": kernel.debug}
 
 
+@router.get("/books")
 async def list_books(
-    request: Request,
     catalog: Injected[BookCatalogInterface],
     page_size: Annotated[int, Autowire(param="shop.page_size")],
-) -> Response:
+    genre: Genre | None = None,
+) -> list[dict[str, object]]:
     """``GET /books?genre=software`` — the decorated catalog."""
-    genre = request.query.get("genre")
-    books = [b for b in catalog.all() if genre is None or b.genre is Genre(genre)]
-    return Response.json([_book(b) for b in books[:page_size]])
+    books = [book for book in catalog.all() if genre is None or book.genre is genre]
+    return [_book(book) for book in books[:page_size]]
 
 
+@router.get("/books/{isbn}")
 async def show_book(
-    request: Request,
+    isbn: str,
     catalog: Injected[BookCatalogInterface],
     calculator: Injected[PriceCalculator],
-) -> Response:
-    """``GET /books/{isbn}?quantity=2`` — one book, priced through every rule."""
-    book = catalog.find(request.path_params["isbn"])
+    quantity: int = 1,
+) -> dict[str, object]:
+    """``GET /books/{isbn}?quantity=2`` — one book, priced through every rule.
+
+    Raises:
+        UnknownBookError: If the catalog holds no such ISBN; answered as 404.
+    """
+    book = catalog.find(isbn)
     if book is None:
-        raise HttpError(HTTPStatus.NOT_FOUND, f"no book {request.path_params['isbn']}")
-    quantity = int(request.query.get("quantity", "1"))
+        raise UnknownBookError(isbn)
     lines = calculator.price(book, quantity)
-    return Response.json({**_book(book), "pricing": [[line.rule, line.amount] for line in lines]})
+    return {**_book(book), "pricing": [[line.rule, line.amount] for line in lines]}
 
 
-async def search(request: Request, engine: Injected[SearchEngineInterface]) -> Response:
+@router.get("/search")
+async def search(engine: Injected[SearchEngineInterface], q: str = "") -> list[dict[str, object]]:
     """``GET /search?q=...`` — the library's engine, decorated by its own bundle."""
-    query = request.query.get("q", "")
-    return Response.json([{"isbn": hit.key, "score": hit.score} for hit in engine.search(query)])
+    return [{"isbn": hit.key, "score": hit.score} for hit in engine.search(q)]
 
 
-async def list_orders(request: Request, orders: Injected[OrderBook]) -> Response:
+@router.get("/orders")
+async def list_orders(orders: Injected[OrderBook]) -> list[dict[str, object]]:
     """``GET /orders`` — the singleton order book: it outlives every request."""
-    del request
-    return Response.json(
-        [
-            {"number": o.number, "isbn": o.isbn, "quantity": o.quantity, "total": o.total}
-            for o in orders.all()
-        ]
-    )
+    return [
+        {"number": o.number, "isbn": o.isbn, "quantity": o.quantity, "total": o.total}
+        for o in orders.all()
+    ]
 
 
-async def place_order(  # noqa: PLR0913, PLR0917 — the request plus one service per concern.
-    request: Request,
+@router.post("/orders", status_code=HTTPStatus.CREATED)
+async def place_order(  # noqa: PLR0913, PLR0917 — the body plus one service per concern.
+    order: OrderRequest,
     cart: Injected[ShoppingCart],
     work: Injected[UnitOfWork],
     number: Injected[OrderNumber],
     orders: Injected[OrderService],
     workers: Injected[WorkerFactory],
-) -> Response:
+) -> dict[str, object]:
     """``POST /orders {"isbn", "quantity", "email"}`` — scoped cart and unit of work.
 
     The cart and the unit of work are this request's; the unit of work commits when the
-    request's scope closes, after this returns. The worker then drains what was queued.
+    request's scope closes, after the response has gone out. The worker drains what was
+    queued before that.
+
+    Raises:
+        UnknownBookError: If the ISBN names no book; answered as 404.
+        OrderRefusedError: If the fraud check refuses the order; answered as 422.
     """
-    payload = request.json()
-    cart.add(str(payload.get("isbn", "")), int(str(payload.get("quantity", 1))))
-    envelopes = await orders.place(cart, str(payload.get("email", "")), number, work)
+    cart.add(order.isbn, order.quantity)
+    envelopes = await orders.place(cart, order.email, number, work)
     for name in _QUEUED:
         await workers.worker([name]).run()
-    return Response.json(
-        {"number": number.value, "unit_of_work": work.id, "dispatched": len(envelopes)},
-        HTTPStatus.CREATED,
-    )
+    return {"number": number.value, "unit_of_work": work.id, "dispatched": len(envelopes)}
 
 
-def _book(book: object) -> dict[str, object]:
-    return {name: getattr(book, name) for name in ("isbn", "title", "author", "price", "genre")}
-
-
-ROUTES: Final = (
-    Route("GET", "/health", health),
-    Route("GET", "/books", list_books),
-    Route("GET", "/books/{isbn}", show_book),
-    Route("GET", "/search", search),
-    Route("GET", "/orders", list_orders),
-    Route("POST", "/orders", place_order),
-)
+def _book(book: Book) -> dict[str, object]:
+    return {
+        "isbn": book.isbn,
+        "title": book.title,
+        "author": book.author,
+        "price": book.price,
+        "genre": book.genre,
+    }

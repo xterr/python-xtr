@@ -20,6 +20,7 @@ from xtr_cache.bundle import CacheBundle
 from xtr_console.bundle import ConsoleBundle
 from xtr_dotenv.bundle import DotenvBundle
 from xtr_event_dispatcher.bundle import EventDispatcherBundle
+from xtr_http_kernel.bundle import HttpKernelBundle
 from xtr_lock.bundle import LockBundle
 from xtr_logging.bundle import LoggingBundle
 from xtr_messenger.bundle import MessengerBundle
@@ -37,6 +38,8 @@ BUNDLES = {
     DotenvBundle: {"all": True},
     FulltextBundle: {"all": True},
     EventDispatcherBundle: {"all": True},
+    # Brings EventDispatcherBundle with it; the web entry point's request lifecycle.
+    HttpKernelBundle: {"all": True},
     LockBundle: {"all": True},
     CacheBundle: {"all": True},
     # Brings MessengerBundle with it; with the cache bundle active it adds a "scheduler" pool.

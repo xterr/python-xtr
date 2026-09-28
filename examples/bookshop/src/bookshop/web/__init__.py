@@ -1,17 +1,19 @@
-"""A small HTTP front on the same kernel — standard library only, no web framework.
+"""The HTTP front on the same kernel: an application written as its framework documents it.
 
-It shows what a framework integration needs from the kernel, and nothing more:
+- ``routes.py`` — one router; path, query and body parameters in the signature, the services
+  behind the same markers a command or a handler uses;
+- ``app.py`` — the application, its exception handlers, and the single ``setup(app, kernel)``
+  call that serves it from the kernel;
+- ``__main__.py`` — the entry point behind ``uv run bookshop-web``.
 
-- ``kernel.build()`` compiles the container before the server exists;
-- ``compiled.lifespan(app)`` boots on enter and shuts down on exit — the hook a web
-  framework's lifespan takes;
-- each route is bound once, at startup, with ``bind_callable(container, route,
-  per_call_scope=True)``: a route asking for something the container cannot provide fails at
-  startup, and every request gets a scope of its own, so scoped services (the cart, the unit
-  of work) live exactly one request;
-- ``ServicesResetter.reset()`` after every request, as a worker does after every message.
+``setup`` gives every application life a kernel of its own — built, booted and shut down with
+the lifespan — and every request the scope its scoped services live in, so the cart and the
+unit of work last exactly one request and are released once the response has gone out. Nothing
+here resets services per request: that is a worker's answer to a message, not a request's.
 
-A real framework replaces ``server.py``; the routes and the kernel stay as they are.
+The lifecycle around the endpoints comes from the ``http_kernel`` bundle listed in
+:mod:`bookshop.bundles`: every response carries an ``X-Request-Id``, and an uncaught exception
+is written to the ``request`` channel with the request that caused it.
 """
 
 from __future__ import annotations

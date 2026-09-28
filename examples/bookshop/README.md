@@ -1,6 +1,6 @@
 # bookshop — a complete application on the xtr packages
 
-One kernel, three entry points (a console, a small HTTP server, a message worker), every
+One kernel, three entry points (a console, a web application, a message worker), every
 bundle, and every decorator the packages ship — a schedule, a cache, locks and events
 included. It is written to be read: each module says
 what it demonstrates and why, and every behaviour below was observed by running it.
@@ -28,6 +28,7 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop debug:bundles` | which bundles are active and why — listed, required, skipped |
 | `bookshop debug:config [bundle]` | each config's resolution steps; placeholders shown as `env(NAME)` |
 | `bookshop debug:container [--tag TAG]` | every definition, in emission order |
+| `bookshop debug:router` · `router:match PATH [--method M]` | the web application's routes, and which one a path reaches — the application is only read, nothing is served |
 | `bookshop di:show [-v] [--report scan]` | removals, decorations, collection order, parameters, the compiler log |
 | `bookshop env:show` | every env processor's result, and the typed settings |
 | `bookshop catalog:list [--genre software] [-l 2] [--output csv\|json\|markdown]` | options, `Literal`, `Enum`, a validator, a `ServiceLocator` |
@@ -45,12 +46,29 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop dotenv:dump` · `debug:dotenv [NAME]` | the dotenv bundle's commands |
 | `bookshop bundle:check` · `demo:frozen-clock` · `demo:wireup` · `demo:dotenv` · `demo:without-container` | dev and test only — the `dev_tools` bundle |
 
+## The web application
+
+`uv run bookshop-web` serves `bookshop.web.app:app` on `WEB_HOST` / `WEB_PORT` — the routes of
+`web/routes.py`, written the way the framework documents them, with the container behind the
+same markers a command uses. `uv run fastapi dev src/bookshop/web/app.py` serves the very same
+application with reloading and `/docs`, once the framework's `standard` extra is installed.
+
 ```sh
-curl localhost:8080/health
+curl -i localhost:8080/health          # every response carries an X-Request-Id
+curl 'localhost:8080/books?genre=history'
 curl 'localhost:8080/books/978-0135957059?quantity=5'
 curl 'localhost:8080/search?q=pride'
-curl -X POST localhost:8080/orders -d '{"isbn":"978-0141439518","quantity":2,"email":"ada@example.com"}'
+curl localhost:8080/orders
+curl -i -X POST localhost:8080/orders -H 'content-type: application/json' \
+  -d '{"isbn":"978-0141439518","quantity":2,"email":"ada@example.com"}'   # 201
+curl -i localhost:8080/books/nope       # 404 {"error": "no book with ISBN nope"}
 ```
+
+An unknown ISBN and a refused order are raised as the domain errors they are; `web/app.py`
+gives each a status — 404 and 422 — with one exception handler apiece. Without the server:
+`bookshop debug:router` lists every route in the order routing tries them, and
+`bookshop router:match /books/978-0135957059` names the one a path reaches and what it reads
+out of it — neither needs `--app`, because `config/http_kernel.py` names the application.
 
 ## Layout
 
@@ -67,7 +85,7 @@ examples/bookshop/
         ├── bundles.py    the root bundles, per environment
         ├── config/       one @configure module per bundle, plus @parameters
         ├── scheduling/   the schedule, its tasks, and who hears about each run
-        ├── __main__.py   console entry · web/ HTTP entry · worker.py worker entry
+        ├── __main__.py   console entry · web/ the web application · worker.py worker entry
         └── …             one package per concern, below
 ```
 
@@ -78,7 +96,7 @@ examples/bookshop/
 | Feature | File |
 |---|---|
 | `Kernel(package, name=, allowed_envs=, exclude=)`; env and debug from `APP_ENV` / `APP_DEBUG` | `bookshop/kernel.py` |
-| `kernel.run(console)` · `kernel.build()` + `compiled.lifespan()` · `kernel.boot()` | `__main__.py` · `web/__main__.py` · `worker.py` |
+| `kernel.run(console)` · `setup(app, kernel)` — build, lifespan and request scopes in one call · `kernel.boot()` | `__main__.py` · `web/app.py` · `worker.py` |
 | `Kernel(environ=)`, `kernel.with_env()`, `engine_container()` | `dev_tools/commands.py`, `commands/demo_errors.py` |
 | `BUNDLES` with `{"all": True}` and `{"dev": True, "test": True}` | `bookshop/bundles.py` |
 | A bundle with every hook: `build`, `prepend_extension`, `load_extension`, `process`, `boot`, `shutdown` | `fulltext/bundle/fulltext_bundle.py` |
@@ -114,7 +132,8 @@ examples/bookshop/
 | `@parameters`; `%param%`, `%%`, `"%env(int:X)%"`; `env()` in every spelling | `config/parameters.py` |
 | `Injected[T]`, `Autowire(param=)`, `Autowire(env=)`, `Target(q)`, `AutowireDecorated` | throughout; `env/env_showcase.py` for `env=` |
 | `EnvVarProcessorInterface` · `EnvVarLoaderInterface` | `env/rot13_processor.py` · `env/secrets_directory_loader.py` |
-| `ContainerInterface`, `ContainerBagInterface`, `KernelInterface`, `ServicesResetter`, `bind_callable` | `commands/showcase_commands.py`, `web/server.py`, `lifecycle.py` |
+| `ContainerInterface`, `ContainerBagInterface`, `KernelInterface`, `ServicesResetter`, `bind_callable` | `commands/showcase_commands.py`, `lifecycle.py` |
+| The markers as the web framework's own dependencies, in a route signature | `web/routes.py` |
 
 ### The other packages
 
@@ -133,7 +152,7 @@ examples/bookshop/
 | logging | every handler, processor and formatter spec; capture (dev) and a stdlib handler (prod) | `config/logging.py` |
 | logging | service ids for a handler, formatter, processor and activation strategy | `observability/logging_services.py` |
 | logging | `@as_processor(channel=, handler=, priority=)` on classes and on a function | `observability/processors.py` |
-| logging | `bound_context`, context vars; `Logger` / `LoggerFactory` without a kernel | `web/server.py`, `dev_tools/commands.py` |
+| logging | `bound_context`, context vars; `Logger` / `LoggerFactory` without a kernel | `dev_tools/commands.py` |
 | messenger | `@as_stamp` — a stamp of its own restored after a serializing transport | `messaging/stamps.py`, `messaging/handlers.py` |
 | messenger | a handler's return value, on its `HandledStamp` | `messaging/handlers.py`, `commands/order_commands.py` |
 | messenger | worker events — started, stopped, a message failed — heard by listeners | `scheduling/listeners.py` |
@@ -144,6 +163,9 @@ examples/bookshop/
 | scheduler | `@as_periodic_task` / `@as_cron_task` on a function, a class (`method=`), methods, with `arguments=`, `jitter=`, `env=`, `transports=` | `scheduling/tasks.py` |
 | scheduler | `PostRunEvent`, `FailureEvent` heard application-wide | `scheduling/listeners.py` |
 | scheduler | `SchedulerConfig` | `config/scheduler.py` |
+| http-kernel | `setup(app, kernel)` — one kernel per application life, one scope per request | `web/app.py` |
+| http-kernel | `HttpKernelConfig(app=)`, read by `debug:router` and `router:match` | `config/http_kernel.py` |
+| http-kernel | the request lifecycle listed as a bundle: `X-Request-Id`, an uncaught exception on the `request` channel | `bundles.py` |
 | event-dispatcher | a domain event (`Event`), `EventDispatcherInterface` injected, `@as_event_listener(priority=)`, an `EventSubscriberInterface` | `ordering/order_placed.py`, `ordering/order_service.py`, `ordering/order_listeners.py` |
 | lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `ordering/order_service.py`, `config/lock.py` |
 | lock | the default `LockFactory`, a lock kept between runs | `scheduling/shop_schedule.py` |
@@ -181,16 +203,15 @@ The application reads `SHOP_*`, `SEARCH_*`, `DATABASE_URL`, `APP_TIMEZONE`, `WEB
 - **`env()` is a placeholder while the kernel builds, never a value.** It cannot decide what
   the container contains (`if env(...)` raises); give a number a `default=` so config
   validation sees something plausible.
-- **A command's or handler's container parameters carry a marker** — `Injected[T]`,
+- **A command's, handler's or route's container parameters carry a marker** — `Injected[T]`,
   `Target(q)` for a qualified service, `Autowire(param=)`, `Autowire(env=)`. A bare `T` is a
-  command-line argument, or refused in a handler. `Target` beside `Autowire(param=/env=)` is
-  refused: a parameter is one of the three.
+  command-line argument, an HTTP parameter in a route, or refused in a handler. `Target`
+  beside `Autowire(param=/env=)` is refused: a parameter is one of the three.
 - **A sync hook cannot receive a service built asynchronously** — any logger, the console
   `Application`. Make the hook `async`.
-- **Scoped and transient services exist only inside a scope** — a command run, a request
-  (`bind_callable(..., per_call_scope=True)`), a handler call. `container.get()` refuses them,
-  and a singleton cannot depend on them, so they are passed as arguments
-  (`OrderService.place`).
+- **Scoped and transient services exist only inside a scope** — a command run, a request (one
+  is opened around every one of them), a handler call. `container.get()` refuses them, and a
+  singleton cannot depend on them, so they are passed as arguments (`OrderService.place`).
 - **Gate a class with `@when`, not its alias**: `@as_alias` is unconditional.
 - **`exclude=` replaces `DEFAULT_EXCLUDES`**; extend it (`kernel.py`).
 - **The dotenv bundle loads nothing**: `load_environment()` runs before the kernel is built.
