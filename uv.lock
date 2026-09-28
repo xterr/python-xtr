@@ -2224,11 +2224,13 @@ version = "1.3.0"
 source = { editable = "packages/xtr-http-kernel" }
 dependencies = [
     { name = "fastapi" },
+    { name = "starlette" },
     { name = "typing-extensions" },
     { name = "xtr-dependency-injection", extra = ["fastapi"] },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts" },
+    { name = "xtr-service-contracts" },
 ]
 
 [package.optional-dependencies]
@@ -2255,6 +2257,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.121.3" },
+    { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "packages/xtr-dependency-injection" },
@@ -2262,6 +2265,7 @@ requires-dist = [
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging", marker = "extra == 'logging'", editable = "packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 provides-extras = ["logging", "console"]
 
