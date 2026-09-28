@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 import threading
 import traceback
+from contextvars import copy_context
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
@@ -14,6 +15,7 @@ from .handler_interface import HandlerInterface
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from contextvars import Context
 
     from xtr_logging.log_record import LogRecord
 
@@ -70,7 +72,7 @@ class QueueHandler(HandlerInterface, ResetInterface):
         """
         self._handler: HandlerInterface = handler
         self._on_error: Callable[[Exception, LogRecord], None] | None = on_error
-        self._queue: queue.Queue[LogRecord | _Stop] = queue.Queue(maxsize=max_size)
+        self._queue: queue.Queue[tuple[LogRecord, Context] | _Stop] = queue.Queue(maxsize=max_size)
         self._lock: threading.Lock = threading.Lock()
         self._worker: threading.Thread | None = None
 
@@ -83,11 +85,16 @@ class QueueHandler(HandlerInterface, ResetInterface):
     def handle(self, record: LogRecord, /) -> bool:
         """Enqueue ``record`` for the worker and return without waiting.
 
+        The caller's context is captured alongside the record, so the worker
+        writes it in the same unit of work it was logged from — a
+        fingers-crossed handler behind the queue keeps a request's buffer for
+        that request, not for whichever record the worker happens to drain next.
+
         Always returns ``False``: the record is only queued, so it must still
         reach the handlers after this one.
         """
         self._ensure_worker()
-        self._queue.put(record)
+        self._queue.put((record, copy_context()))
         return False
 
     @override
@@ -165,9 +172,10 @@ class QueueHandler(HandlerInterface, ResetInterface):
             try:
                 if isinstance(item, _Stop):
                     return
+                record, context = item
                 try:
-                    _ = self._handler.handle(item)
+                    _ = context.run(self._handler.handle, record)
                 except Exception as error:  # noqa: BLE001 — one broken record must not kill the worker
-                    self._report(error, item)
+                    self._report(error, record)
             finally:
                 self._queue.task_done()

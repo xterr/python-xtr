@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import threading
-from typing import final
+from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
@@ -9,7 +10,20 @@ from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
 from xtr_logging import AbstractHandler, LogRecord, TestHandler
+from xtr_logging.handler.fingers_crossed_handler import FingersCrossedHandler
 from xtr_logging.handler.queue_handler import QueueHandler
+from xtr_logging.log_unit import begin_unit, end_unit
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
+
+
+@pytest.fixture(autouse=True)
+def _clean_units() -> Iterator[None]:
+    """End any unit a synchronous test leaves open in this thread's context."""
+    yield
+    with contextlib.suppress(BaseException):
+        end_unit()
 
 
 @final
@@ -202,3 +216,53 @@ def test_a_reset_handles_what_is_queued_then_resets_the_wrapped_handler() -> Non
 
     assert [record.message for record in inner.records] == []
     handler.close()
+
+
+@final
+class BatchSpy(AbstractHandler):
+    """Remembers each batch it is handed, and each single record too."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.batches: list[list[str]] = []
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        self.batches.append([record.message])
+        return False
+
+    @override
+    def handle_batch(self, records: Sequence[LogRecord], /) -> None:
+        self.batches.append([record.message for record in records])
+
+
+def test_queued_records_are_handled_in_the_unit_they_were_logged_from() -> None:
+    spy = BatchSpy()
+    handler = QueueHandler(FingersCrossedHandler(spy, activation_strategy=Level.ERROR))
+
+    begin_unit()
+    _ = handler.handle(make_record(Level.DEBUG, "a-debug"))
+    _ = handler.handle(make_record(Level.ERROR, "a-error"))
+    end_unit()
+
+    begin_unit()
+    _ = handler.handle(make_record(Level.DEBUG, "b-debug"))
+    _ = handler.handle(make_record(Level.ERROR, "b-error"))
+    end_unit()
+
+    handler.flush()
+    handler.close()
+
+    assert spy.batches == [["a-debug", "a-error"], ["b-debug", "b-error"]]
+
+
+def test_outside_a_unit_queued_records_share_the_wrapped_handlers_buffer() -> None:
+    spy = BatchSpy()
+    handler = QueueHandler(FingersCrossedHandler(spy, activation_strategy=Level.ERROR))
+
+    _ = handler.handle(make_record(Level.DEBUG, "debug"))
+    _ = handler.handle(make_record(Level.ERROR, "error"))
+    handler.flush()
+    handler.close()
+
+    assert spy.batches == [["debug", "error"]]
