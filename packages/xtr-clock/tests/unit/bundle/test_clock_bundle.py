@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+import anyio
 import pytest
 from xtr_dependency_injection import Kernel
 from xtr_dependency_injection.testing import assert_zero_config, boot_for_test
@@ -62,3 +63,13 @@ async def test_container_interface_and_clock_interface_agree() -> None:
         clock_from_class = await container.get(Clock)
 
     assert clock_from_interface is clock_from_class
+
+
+async def test_shutdown_awaited_in_another_task_than_boot_restores_the_clock() -> None:
+    before = Clock.get()
+    booted = await Kernel(APP).boot()
+
+    async with anyio.create_task_group() as group:
+        _ = group.start_soon(booted.shutdown)
+
+    assert Clock.get() is before

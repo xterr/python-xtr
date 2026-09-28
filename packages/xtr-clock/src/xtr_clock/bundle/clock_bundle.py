@@ -11,8 +11,7 @@ shutdown it puts the previous clock back.
 
 from __future__ import annotations
 
-from contextlib import ExitStack
-from typing import final
+from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, ContainerBuilder, ServiceConfigurator, as_bundle
@@ -22,6 +21,9 @@ from xtr_clock.clock_interface import ClockInterface
 from xtr_clock.system_clock import SystemClock
 
 from .clock_config import ClockConfig
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = ["ClockBundle"]
 
@@ -37,8 +39,8 @@ class ClockBundle(Bundle[ClockConfig]):
     """Provides a :class:`Clock` and keeps :meth:`Clock.get` in sync with it."""
 
     def __init__(self) -> None:
-        """Prepare a scope for the boot-time :meth:`Clock.using` installation."""
-        self._scope: ExitStack | None = None
+        """Prepare for the boot-time :meth:`Clock.install` installation."""
+        self._restore: Callable[[], None] | None = None
 
     @override
     def load_extension(
@@ -60,14 +62,13 @@ class ClockBundle(Bundle[ClockConfig]):
             message = "ClockBundle.boot ran without a container"
             raise RuntimeError(message)
         clock = await container.get(ClockInterface)
-        scope = ExitStack()
-        _ = scope.enter_context(Clock.using(clock))
-        self._scope = scope
+        # Not a ``with`` block: shutdown may be awaited in another task than boot was.
+        self._restore = Clock.install(clock)
 
     @override
     async def shutdown(self) -> None:
         """Restore the clock that was in force when :meth:`boot` ran."""
-        scope = self._scope
-        if scope is not None:
-            self._scope = None
-            scope.close()
+        restore = self._restore
+        if restore is not None:
+            self._restore = None
+            restore()

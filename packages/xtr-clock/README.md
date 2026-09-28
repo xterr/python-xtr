@@ -260,6 +260,9 @@ fresh context — still sees the clock the application chose.
 `Clock.using(clock)` installs one for a block and puts the old one back on the way out,
 including when the block raises. Prefer `using` everywhere else: `set` has no end, and a test
 that forgets to undo it hands the next one a clock it never asked for.
+`restore = Clock.install(clock)` installs one until `restore()` is called — for a lifetime that
+is not a block, like a kernel's from boot to shutdown, whose end may run in another task or
+thread than its start.
 
 ### A class that cannot take a constructor argument
 

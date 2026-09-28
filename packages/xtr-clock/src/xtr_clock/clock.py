@@ -25,7 +25,7 @@ from .system_clock import SystemClock
 from .timezone import resolve_timezone
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
     from datetime import tzinfo
 
 __all__ = ["Clock"]
@@ -50,7 +50,7 @@ class Clock:
     in.
     """
 
-    _current: ClassVar[ContextVar[ClockInterface | None]] = ContextVar(
+    _current: ClassVar[ContextVar[ClockInterface | _Installed | None]] = ContextVar(
         "xtr_clock_current",
         default=None,
     )
@@ -89,7 +89,13 @@ class Clock:
         installed; otherwise a :class:`~xtr_clock.system_clock.SystemClock`,
         built once and kept.
         """
-        if (scoped := Clock._current.get()) is not None:
+        scoped = Clock._current.get()
+        # An installation restored since — from another context, maybe — gives way.
+        while isinstance(scoped, _Installed):
+            if scoped.active:
+                return scoped.clock
+            scoped = scoped.previous
+        if scoped is not None:
             return scoped
 
         if Clock._fallback is None:
@@ -109,6 +115,38 @@ class Clock:
         """
         Clock._fallback = _adapt(clock)
         _ = Clock._current.set(Clock._fallback)
+
+    @classmethod
+    def install(cls, clock: SupportsNow) -> Callable[[], None]:
+        """Install ``clock`` until the returned function is called, which puts the previous back.
+
+        :meth:`using` for a lifetime that is not a ``with`` block — a
+        kernel's, from boot to shutdown. Its end may run in another task or
+        thread than its start, which a ``with`` block's may not.
+
+        Args:
+            clock: The clock to install. An object that only answers
+                :meth:`~SupportsNow.now` is wrapped.
+
+        Returns:
+            What puts back the clock that was in force; calling it again does
+            nothing.
+        """
+        resolved = _adapt(clock)
+        # Marked inactive rather than reset, so the restore reaches the context
+        # that installed it from wherever it is called.
+        installed = _Installed(resolved, Clock._current.get())
+        previous = Clock._fallback
+        _ = Clock._current.set(installed)
+        Clock._fallback = resolved
+
+        def restore() -> None:
+            if not installed.active:
+                return
+            installed.active = False
+            Clock._fallback = previous
+
+        return restore
 
     @classmethod
     @contextmanager
@@ -196,3 +234,15 @@ class Clock:
 def _adapt(clock: SupportsNow) -> ClockInterface:
     """Return ``clock`` as a full contract, wrapping it only if it is not one."""
     return clock if isinstance(clock, ClockInterface) else Clock(clock)
+
+
+@final
+class _Installed:
+    """A clock :meth:`Clock.install` put in force, and what was in force before it."""
+
+    __slots__ = ("active", "clock", "previous")
+
+    def __init__(self, clock: ClockInterface, previous: ClockInterface | _Installed | None) -> None:
+        self.clock = clock
+        self.previous = previous
+        self.active = True

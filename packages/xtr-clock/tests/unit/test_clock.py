@@ -254,3 +254,36 @@ def test_an_instance_satisfies_the_full_contract() -> None:
 def test_it_reads_as_what_it_wraps() -> None:
     assert repr(Clock(None)) == "Clock(None)"
     assert repr(Clock(None, "UTC")) == "Clock(None, UTC)"
+
+
+def test_install_puts_a_clock_in_force_until_it_is_restored() -> None:
+    before = Clock.get()
+    clock = MockClock()
+
+    restore = Clock.install(clock)
+    installed = Clock.get()
+    restore()
+    restore()
+
+    assert installed is clock
+    assert Clock.get() is before
+
+
+def test_install_may_be_restored_from_another_thread() -> None:
+    before = Clock.get()
+    restore = Clock.install(MockClock())
+    errors: list[BaseException] = []
+
+    def restore_elsewhere() -> None:
+        try:
+            restore()
+        except BaseException as error:  # noqa: BLE001 — the test reports what the thread raised
+            errors.append(error)
+
+    thread = threading.Thread(target=restore_elsewhere)
+    thread.start()
+    thread.join()
+    restore()
+
+    assert errors == []
+    assert Clock.get() is before
