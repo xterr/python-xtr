@@ -29,6 +29,7 @@ _MEMBER = ServiceHandlerSpec(id="member", nested=True)
 
 
 def _builder(**handlers: object) -> HandlerBuilder:
+    # The wrong type is the case under test.
     config = LoggingConfig(handlers={"member": _MEMBER, **handlers})  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
     return HandlerBuilder(config, Services(handlers={"member": TestHandler()}))
 

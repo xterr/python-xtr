@@ -58,6 +58,7 @@ class Level(IntEnum):
             # The annotation is not enforced at runtime: a value read from a
             # configuration file may be anything — a float, None.
             case _:  # pyright: ignore[reportUnnecessaryComparison]
+                # Reached by values read from configuration.
                 raise InvalidLevelError(value)  # pyright: ignore[reportUnreachable]
 
     @classmethod

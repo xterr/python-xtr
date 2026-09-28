@@ -209,6 +209,7 @@ def test_with_timezone_refuses_a_zone_this_system_does_not_know() -> None:
 
 
 def round_trip(point: datetime, protocol: int = pickle.HIGHEST_PROTOCOL) -> datetime:
+    # Round-trips a value this test just pickled.
     return cast("datetime", pickle.loads(pickle.dumps(point, protocol)))  # noqa: S301
 
 

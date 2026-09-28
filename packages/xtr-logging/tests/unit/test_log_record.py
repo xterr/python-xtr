@@ -21,6 +21,7 @@ def test_context_cannot_be_mutated_through_the_record() -> None:
     record = make_record(context={"user": 1})
 
     with pytest.raises(TypeError):
+        # Changing a frozen record is the case under test.
         record.context["user"] = 2  # pyright: ignore[reportIndexIssue]  # ty: ignore[invalid-assignment]
 
 
@@ -28,6 +29,7 @@ def test_a_record_is_frozen() -> None:
     record = make_record()
 
     with pytest.raises(dataclasses.FrozenInstanceError):
+        # Changing a frozen record is the case under test.
         record.message = "changed"  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[invalid-assignment]
 
 

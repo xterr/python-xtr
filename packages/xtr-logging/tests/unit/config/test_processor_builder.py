@@ -14,4 +14,5 @@ def test_a_spec_builds_its_processor() -> None:
 
 def test_something_that_is_no_spec_is_refused_rather_than_built_as_nothing() -> None:
     with pytest.raises(AssertionError):
+        # The wrong type is the case under test.
         _ = build_processor(object(), Services())  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]

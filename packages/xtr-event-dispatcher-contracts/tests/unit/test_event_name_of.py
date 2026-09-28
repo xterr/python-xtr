@@ -24,4 +24,5 @@ def test_a_nested_class_keeps_its_enclosing_class_in_the_name() -> None:
 
 def test_an_event_instance_is_refused_naming_the_mistake() -> None:
     with pytest.raises(TypeError, match="a string or a class"):
+        # The wrong type is the case under test.
         _ = event_name_of(object())  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]

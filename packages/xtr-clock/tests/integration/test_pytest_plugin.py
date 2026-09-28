@@ -18,7 +18,7 @@ OPT_IN = 'pytest_plugins = ["xtr_clock.pytest_plugin"]\n'
 
 
 def run_pytest(directory: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # noqa: S603
+    return subprocess.run(  # noqa: S603 — runs this interpreter on a test file of its own
         [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-q", str(directory)],
         capture_output=True,
         text=True,

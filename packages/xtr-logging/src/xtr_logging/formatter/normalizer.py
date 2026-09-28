@@ -84,8 +84,10 @@ class Normalizer:
             case bytes() | bytearray():
                 return bytes(value).decode("utf-8", "backslashreplace")
             case Mapping():
+                # A logged mapping holds whatever the caller put in.
                 return self._normalize_mapping(value, depth)  # pyright: ignore[reportUnknownArgumentType]
             case list() | tuple() | set() | frozenset():
+                # A logged collection holds whatever the caller put in.
                 return self._normalize_items(value, depth)  # pyright: ignore[reportUnknownArgumentType]
             case _ if dataclasses.is_dataclass(value) and not isinstance(value, type):
                 fields: dict[object, object] = {

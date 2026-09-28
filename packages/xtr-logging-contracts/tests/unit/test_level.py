@@ -66,4 +66,5 @@ def test_comparisons_are_strict() -> None:
 @pytest.mark.parametrize("value", [4.5, None, object()])
 def test_a_value_of_no_accepted_type_is_refused(value: object) -> None:
     with pytest.raises(InvalidLevelError):
+        # The wrong type is the case under test.
         _ = Level.parse(value)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
