@@ -134,10 +134,14 @@ class ProcessorRegistry:
         return (*instance_descriptors, *class_descriptors)
 
     def register(self, descriptor: ProcessorDescriptor) -> None:
-        """Declare ``descriptor`` — a ready-built processor instance."""
-        self._instance_entries.append(
-            (descriptor.processor, descriptor.channel, descriptor.handler, descriptor.priority)
-        )
+        """Declare ``descriptor`` — a ready-built processor instance.
+
+        Declaring the same processor the same way again adds nothing, so a
+        module decorating it twice does not run it twice.
+        """
+        entry = (descriptor.processor, descriptor.channel, descriptor.handler, descriptor.priority)
+        if not any(_same(entry, known) for known in self._instance_entries):
+            self._instance_entries.append(entry)
 
     def register_class(
         self,
@@ -148,9 +152,14 @@ class ProcessorRegistry:
         handler: str | None = None,
         priority: int = 0,
     ) -> None:
-        """Declare a processor class; it is instantiated lazily on first read."""
+        """Declare a processor class; it is instantiated lazily on first read.
+
+        Declaring the same class the same way again adds nothing.
+        """
         _ = ProcessorDeclaration(channel=channel, handler=handler, priority=priority)
-        self._class_entries.append((cls, channel, handler, priority))
+        entry = (cls, channel, handler, priority)
+        if not any(_same(entry, known) for known in self._class_entries):
+            self._class_entries.append(entry)
 
     def bind_class(self, cls: type[ProcessorInterface], instance: ProcessorInterface, /) -> None:
         """Provide ``instance`` for ``cls``, instead of instantiating it here."""
@@ -172,6 +181,11 @@ class ProcessorRegistry:
             instance = cls()
             self._instances[cls] = instance
         return instance
+
+
+def _same(entry: tuple[object, ...], known: tuple[object, ...]) -> bool:
+    """Tell whether two declarations name the same processor, by identity, the same way."""
+    return entry[0] is known[0] and entry[1:] == known[1:]
 
 
 _DEFAULT = ProcessorRegistry()

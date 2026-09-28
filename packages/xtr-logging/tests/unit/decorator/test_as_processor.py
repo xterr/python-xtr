@@ -67,3 +67,28 @@ def test_a_function_declared_twice_carries_both_declarations() -> None:
         ProcessorDeclaration(channel="billing"),
         ProcessorDeclaration(handler="file"),
     )
+
+
+def test_a_function_declared_twice_the_same_way_is_declared_once() -> None:
+    def add_region(record: LogRecord, /) -> LogRecord:
+        return record
+
+    registry = ProcessorRegistry()
+    for _ in range(2):
+        _ = as_processor(channel="billing", registry=registry)(add_region)
+
+    assert len(registry.descriptors) == 1
+    assert tuple(processors_declared_on(add_region)) == (ProcessorDeclaration(channel="billing"),)
+
+
+def test_a_class_declared_twice_the_same_way_is_declared_once() -> None:
+    @final
+    class AddHost:
+        def __call__(self, record: LogRecord, /) -> LogRecord:
+            return record
+
+    registry = ProcessorRegistry()
+    for _ in range(2):
+        _ = as_processor(handler="main", registry=registry)(AddHost)
+
+    assert len(registry.descriptors) == 1

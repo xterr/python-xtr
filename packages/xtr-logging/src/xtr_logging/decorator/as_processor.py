@@ -79,7 +79,8 @@ def as_processor(
             else ()
         )
         with contextlib.suppress(AttributeError, TypeError):
-            setattr(target, PROCESSORS_ATTRIBUTE, (*previous, declaration))
+            if declaration not in previous:
+                setattr(target, PROCESSORS_ATTRIBUTE, (*previous, declaration))
         return target
 
     return declare
