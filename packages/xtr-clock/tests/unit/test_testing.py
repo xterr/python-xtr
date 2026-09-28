@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import threading
 import time
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
+import anyio
 import pytest
 
 from xtr_clock import Clock, DatePoint, InvalidModifierError, MockClock, SystemClock, now
@@ -110,3 +112,28 @@ async def test_it_freezes_time_inside_a_coroutine() -> None:
         await clock.sleep_async(3600)
 
         assert (now() - first).total_seconds() == 3600
+
+
+def test_a_thread_started_inside_the_block_reads_the_frozen_clock() -> None:
+    seen: list[datetime] = []
+
+    with mock_time("2024-04-09 12:00:00") as clock:
+        thread = threading.Thread(target=lambda: seen.append(now()))
+        thread.start()
+        thread.join()
+
+    assert seen == [clock.now()]
+
+
+@pytest.mark.anyio
+async def test_a_task_started_inside_the_block_reads_the_frozen_clock() -> None:
+    seen: list[datetime] = []
+
+    async def read() -> None:
+        seen.append(now())
+
+    with mock_time("2024-04-09 12:00:00") as clock:
+        async with anyio.create_task_group() as group:
+            _ = group.start_soon(read)
+
+    assert seen == [clock.now()]
