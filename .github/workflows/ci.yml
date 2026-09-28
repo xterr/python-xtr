@@ -25,6 +25,10 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - run: uv lock --check
+      # The repository's own code: scripts/ and its tests.
+      - run: uv run --locked basedpyright
+      - run: uv run --locked ty check
+      - run: uv run --locked pytest
       - run: uv run scripts/release.py check
       # The tests run below, per package and per Python version.
       - run: uv run --locked pre-commit run --all-files --show-diff-on-failure

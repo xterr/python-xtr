@@ -29,5 +29,54 @@ xtr-service-contracts    = { workspace = true }
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.21",
     "pre-commit>=4.6.2",
+    "pytest>=8",
+    "ruff>=0.8",
+    "ty>=0.0.83",
 ]
+
+# The repository's own code — scripts/ and the tests of it — is held to the
+# packages' standard; each package's configuration covers the package.
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.11"
+pythonPlatform = "All"
+include = ["scripts", "tests"]
+exclude = ["**/__pycache__", "**/.venv", ".tmp"]
+reportUnusedCallResult = "warning"
+# A manifest read with tomllib is untyped data; the script reads it as it is.
+reportAny = "none"
+reportExplicitAny = "none"
+# Long patterns are split over lines the way ruff formats them.
+reportImplicitStringConcatenation = "none"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", "ISC001", "D203", "D213", "CPY001", "FBT001", "FBT002", "TD002", "TD003", "FIX002",
+    # A command-line script reports on standard output and exits with a message.
+    "T201",
+    # It runs uv, which it finds on the PATH like the person who runs it.
+    "S603", "S607",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "ARG", "PLR2004", "SLF001", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ty.src]
+include = ["scripts", "tests"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-config", "--strict-markers"]
+filterwarnings = ["error"]
