@@ -43,7 +43,8 @@ class NotACollection:
 
     def provided_services(self) -> None: ...
 
-    def __len__(self) -> int: ...
+    def __len__(self) -> int:
+        return 0
 
 
 def test_a_dict_backed_fake_is_a_service_collection_interface() -> None:

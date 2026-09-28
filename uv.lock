@@ -2435,6 +2435,7 @@ dev = [
     { name = "anyio" },
     { name = "basedpyright" },
     { name = "pytest" },
+    { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
 ]
@@ -2446,6 +2447,7 @@ dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
 ]
