@@ -259,7 +259,14 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["COM812", "ISC001", "D203", "D213", "CPY001", "FBT001", "FBT002", "TD002", "TD003", "FIX002"]
+ignore = [
+    "COM812", "ISC001", "D203", "D213", "CPY001", "FBT001", "FBT002", "TD002", "TD003", "FIX002",
+    # Errors compose their message from typed fields; the string at a raise site is a reason.
+    "TRY003", "EM101", "EM102",
+    # Add when the package logs through the logging contract, whose context mapping
+    # the standard library's format-argument checks misread:
+    # "PLE1205", "PLE1206",
+]
 fixable = ["ALL"]
 unfixable = []
 
