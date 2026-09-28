@@ -49,6 +49,13 @@ services once and uses them many times. Buffers, caches, accumulated state and g
 belong to one unit of work rather than to the service holding them. `reset()` ends that unit, so
 the next starts clean while configuration survives:
 
+`reset()` fits a unit of work that runs alone — one message, one command — where the service sits
+idle between units and clearing its state is the whole story. When units overlap, as when one set
+of services answers concurrent requests, there is no single "between" to reset into: each unit's
+state belongs to its own execution context and is ended by whatever opened the unit, not by a
+container calling `reset()`. A service that must serve overlapping units keeps its per-unit state
+in context, and `reset()` stays for the standalone case.
+
 ```python
 from xtr_service_contracts import ResetInterface
 
@@ -65,16 +72,21 @@ class Buffer:
 assert isinstance(Buffer(10), ResetInterface)
 ```
 
-The protocol is structural and `@runtime_checkable`, so nothing has to inherit from it — a class
-that already has a `reset()` satisfies it as it stands. A container is the usual caller: it knows
-what it built, so it can reset whatever asks for it between units of work, and neither side has
-to know anything else about the other.
+The protocol is structural and `@runtime_checkable`, so a class that already has a `reset()`
+satisfies `isinstance` as it stands. Being `@runtime_checkable` costs precision, though: the check
+confirms a `reset` attribute is present, not that it is callable, so an object whose `reset` is a
+plain value passes and then fails when called. Guard the call rather than trust the check alone:
 
 ```python
 for service in container.services:
-    if isinstance(service, ResetInterface):
+    if callable(getattr(service, "reset", None)):
         service.reset()
 ```
+
+A container is the usual caller: it knows what it built, so it can reset whatever asks for it
+between units of work, and neither side has to know anything else about the other. Its
+autoconfiguration keys on inheritance, so a service that means to be reset inherits this interface;
+a structural `reset()` alone matches `isinstance` but the container never sees it.
 
 ## `ContainerInterface`
 
