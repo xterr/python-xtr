@@ -46,6 +46,7 @@ class SamplingHandler(AbstractHandler, ProcessorStack, LazyHandler):
         self,
         handler: HandlerInterface | _HandlerFactory,
         factor: int,
+        bubble: bool = True,
         *,
         rng: random.Random | None = None,
     ) -> None:
@@ -55,12 +56,13 @@ class SamplingHandler(AbstractHandler, ProcessorStack, LazyHandler):
             handler: The handler sampled records are forwarded to, or a factory.
             factor: The sampling divisor; ``1`` keeps everything, ``10`` keeps
                 about a tenth.
+            bubble: Let a sampled record reach later handlers.
             rng: The random source; a fresh :class:`random.Random` by default.
 
         Raises:
             InvalidOptionError: If ``factor`` is less than ``1``.
         """
-        super().__init__()
+        super().__init__(bubble=bubble)
         if factor < 1:
             raise InvalidOptionError("factor", str(factor), "must be 1 or greater to sample")
         self._wrap(handler)

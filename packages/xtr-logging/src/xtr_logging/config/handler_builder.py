@@ -192,7 +192,7 @@ class HandlerBuilder:
                     flush_on_overflow=spec.flush_on_overflow,
                 )
             case SamplingHandlerSpec():
-                return SamplingHandler(self.build(spec.handler), spec.factor)
+                return SamplingHandler(self.build(spec.handler), spec.factor, spec.bubble)
             case QueueHandlerSpec():
                 return QueueHandler(self.build(spec.handler), max_size=spec.max_size)
             case GroupHandlerSpec():
