@@ -2068,7 +2068,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.121" },
+    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.121.3" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "wireup", specifier = ">=2.12,<3" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
@@ -2079,7 +2079,7 @@ provides-extras = ["fastapi"]
 dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
-    { name = "fastapi", specifier = ">=0.121" },
+    { name = "fastapi", specifier = ">=0.121.3" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
@@ -2254,7 +2254,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.121" },
+    { name = "fastapi", specifier = ">=0.121.3" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "packages/xtr-dependency-injection" },
