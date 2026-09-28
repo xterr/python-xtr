@@ -7,8 +7,13 @@ guarantees the standard library leaves to the caller.
 
 **It is always timezone-aware.** A naive reading is taken as local time, the
 same way the standard library reads one when it converts. There is therefore
-no such thing as a ``DatePoint`` whose offset is unknown, which is what makes
-comparing two of them always meaningful.
+no such thing as a ``DatePoint`` whose offset is unknown.
+
+Comparison is the standard library's, and it has one trap: two readings in
+the *same* zone compare by wall clock, ``fold`` ignored. The two 03:00 of an
+hour repeated as the clocks go back compare equal though they are an hour
+apart. Compare instants that may fall in such an hour in UTC —
+``a.astimezone(UTC) < b.astimezone(UTC)`` — or by :meth:`timestamp`.
 
 **It stays a ``DatePoint``.** ``replace``, ``astimezone``, adding a
 :class:`~datetime.timedelta`, ``fromisoformat``, ``strptime`` — each answers

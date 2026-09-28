@@ -245,3 +245,12 @@ def test_two_instants_in_different_zones_compare_by_the_moment_they_name() -> No
     paris = DatePoint(2024, 4, 9, 17, tzinfo=PARIS)
 
     assert utc == paris
+
+
+def test_two_readings_of_a_repeated_hour_compare_equal_until_read_in_utc() -> None:
+    first = DatePoint(2025, 10, 26, 2, 30, tzinfo=AMSTERDAM, fold=0)
+    second = DatePoint(2025, 10, 26, 2, 30, tzinfo=AMSTERDAM, fold=1)
+
+    assert first == second
+    assert first.astimezone(UTC) < second.astimezone(UTC)
+    assert second.timestamp() - first.timestamp() == 3600
