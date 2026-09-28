@@ -506,10 +506,10 @@ python-xtr/
 │       ├── pyproject.toml
 │       ├── README.md
 │       └── LICENSE
-├── examples/bookshop/  # an application on every package — its own uv project
+├── examples/bookshop/  # an application on every package — its own uv project, on the shared version
 ├── scripts/release.py  # one version for every package
 ├── pyproject.toml      # workspace root: members and sources, never published
-└── uv.lock             # the only lockfile
+└── uv.lock             # the packages' lockfile; the example has its own
 ```
 
 ## License

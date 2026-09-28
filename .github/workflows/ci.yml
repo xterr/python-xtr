@@ -85,6 +85,23 @@ jobs:
           uv run --locked --exact basedpyright
           uv run --locked --exact ty check
 
+  # The example application composes every package's bundle; that it still
+  # builds, boots and reports its bundles is the end-to-end check.
+  example:
+    name: Example application
+    needs: checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/bookshop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv lock --check
+      - run: uv run --locked bookshop debug:bundles
+
   # Copies every published package, with its history, into its read-only
   # repository xterr/python-<package> once every check above passed on a push
   # to main, so a commit that fails CI never reaches them. Release tags are
@@ -95,7 +112,7 @@ jobs:
   # variable, its private key the SPLIT_APP_PRIVATE_KEY secret of the split environment.
   split:
     name: Split into the read-only repositories
-    needs: [checks, package]
+    needs: [checks, package, example]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:

@@ -106,3 +106,12 @@ def test_check_refuses_a_readme_on_another_version(workspace: Path) -> None:
 
     with pytest.raises(SystemExit, match=r"README\.md is not on 1\.3\.0"):
         release.check(None)
+
+
+def test_check_names_an_example_left_behind(workspace: Path) -> None:
+    example = workspace / "examples" / "shop"
+    example.mkdir(parents=True)
+    _ = (example / "pyproject.toml").write_text(_manifest("shop", "1.1.0", []))
+
+    with pytest.raises(SystemExit, match=r"examples/shop 1\.1\.0"):
+        release.check(None)

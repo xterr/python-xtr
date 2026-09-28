@@ -63,6 +63,16 @@ def packages() -> list[Package]:
     return found
 
 
+def examples() -> list[Path]:
+    """Return the example applications' directories; they move with the packages."""
+    return sorted(pyproject.parent for pyproject in ROOT.glob("examples/*/pyproject.toml"))
+
+
+def example_version(directory: Path) -> str:
+    """Return the version an example application is at."""
+    return tomllib.loads((directory / "pyproject.toml").read_text())["project"]["version"]
+
+
 def workspace_version() -> str:
     """Return the version of the workspace itself."""
     return tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
@@ -78,8 +88,12 @@ def synced_readme(text: str, version: str) -> str:
 def check(expected: str | None) -> None:
     """Print the one version everything is on, or exit naming what is not on it."""
     versions = {package.version for package in packages()} | {workspace_version()}
+    versions |= {example_version(example) for example in examples()}
     if len(versions) != 1:
-        found = ", ".join(f"{p.name} {p.version}" for p in packages())
+        found = ", ".join(
+            [f"{p.name} {p.version}" for p in packages()]
+            + [f"{e.relative_to(ROOT)} {example_version(e)}" for e in examples()]
+        )
         sys.exit(f"not on one version: workspace {workspace_version()}, {found}")
     version = versions.pop()
     if expected is not None and expected != version:
@@ -139,6 +153,10 @@ def bump(version: str) -> None:
     rewrite_ranges(int(matched.group(1)))
     _ = README.write_text(synced_readme(README.read_text(), version))
     _ = subprocess.run(["uv", "lock"], cwd=ROOT, check=True)
+    for example in examples():
+        # An example is a project of its own, with its own lockfile.
+        _ = subprocess.run(["uv", "version", version, "--frozen"], cwd=example, check=True)
+        _ = subprocess.run(["uv", "lock"], cwd=example, check=True)
 
 
 def main(argv: list[str]) -> None:
