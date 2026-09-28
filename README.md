@@ -29,6 +29,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-dotenv](packages/xtr-dotenv) | Layered `.env` files loaded into the environment, and the same layers behind a typed settings model. |
 | [xtr-event-dispatcher](packages/xtr-event-dispatcher) | Events dispatched to listeners and subscribers by priority, any of them able to stop the rest. |
 | [xtr-event-dispatcher-contracts](packages/xtr-event-dispatcher-contracts) | The event dispatching interfaces alone, for libraries that emit events without choosing who hears them. |
+| [xtr-http-kernel](packages/xtr-http-kernel) | A request lifecycle for FastAPI applications: requests turned into responses through events, wired by a container. |
 | [xtr-logging](packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. |
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
@@ -61,6 +62,12 @@ graph LR
     scheduler --> events
     scheduler --> svccon
     scheduler -. console extra .-> console
+    httpkernel[xtr-http-kernel] --> di[xtr-dependency-injection]
+    httpkernel --> events
+    httpkernel --> eventcon
+    httpkernel --> logcon
+    httpkernel -. logging extra .-> logging
+    httpkernel -. console extra .-> console
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

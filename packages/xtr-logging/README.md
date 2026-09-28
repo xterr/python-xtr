@@ -404,6 +404,51 @@ The other way round, `StdlibHandler` hands records to a stdlib logger, keeping t
 channel and context. `StdlibLogger` puts the interface in front of a plain `logging.Logger` for
 code that keeps `logging` as its backend.
 
+## Units of work
+
+A long-running process handles many requests, messages or commands one after another, and a
+server handles several at once. Some logging state belongs to the one being handled, not to the
+process and not to a handler shared between them: the id tying a request's records together,
+the buffer a fingers-crossed handler fills, the batch a deduplication handler compares. That
+span is a **unit of work**.
+
+`begin_unit()` opens one; `end_unit()` closes it, running every end callback in the order they
+were registered and clearing the state. They are called at the edges of a unit — by whatever
+owns it, a request lifecycle or a message worker — never from a handler, a processor or an
+endpoint. `begin_unit()` ends any unit still open first, so a caller that forgot `end_unit()`
+cannot leak one unit's state into the next.
+
+```python
+from xtr_logging import begin_unit, end_unit
+
+begin_unit()
+try:
+    handle(request)  # the id, the fingers-crossed buffer, all live for exactly this
+finally:
+    end_unit()
+```
+
+Between the edges, a handler or processor keeps its own state with `unit_state(owner, factory,
+on_end=None)`: the first call in a unit builds the state with `factory()` and returns it, every
+later call returns the same object, and `on_end`, when given, is registered once and called with
+that state as the unit ends. Distinct owners keep distinct state within one unit. Outside a
+unit `unit_state` returns `None` — that is the fallback: a handler asked for its per-unit buffer
+before any unit opened simply has none, and behaves as if unbuffered.
+
+A unit lives in a [`ContextVar`](https://docs.python.org/3/library/contextvars.html), copied
+into each thread and each asyncio or anyio task, so two requests handled at once keep their own
+with no lock and no leakage. The unit *object* is shared by every context copied from the one
+that opened it, so **state is mutated in place**: a synchronous endpoint, which anyio runs in a
+copied context of its own, enriches the same unit, whereas a `ContextVar.set()` there would be
+lost to the caller. Owners mutate their share of the unit; they never reach for the context
+variable itself.
+
+`QueueHandler` writes on a background thread, and carries each record's logged context across
+with it, so a record buffered under one unit is formatted and written as though still inside it,
+whichever thread does the writing. `reset()` on a `LoggerFactory`, a `FingersCrossedHandler` or
+a `DeduplicationHandler` ends the current unit's accumulation, so one unit does not bleed into
+the next; the kernel calls it between messages through `ServicesResetter`.
+
 ## Use in an application
 
 Everything adding this package to an application on
