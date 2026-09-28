@@ -384,7 +384,8 @@ takes the standard library's output over:
 - a record with nowhere else to go, from a logger reconfigured not to propagate, is captured
   instead of printed raw by `logging.lastResort`.
 
-The factory installs the capture as it is built and gives everything back — handlers, levels,
+The factory installs the capture as it is built — so a factory made with a `capture` section
+must be closed, or used as a context manager, even in a test — and gives everything back — handlers, levels,
 flags, `Logger.addHandler` itself — on `close()`. A `stdlib` handler, which sends records into
 `logging`, cannot be combined with a capture: its records would come straight back and be lost,
 so the configuration refuses it with `CaptureConflictError`.
