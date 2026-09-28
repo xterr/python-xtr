@@ -52,6 +52,9 @@ packages/xtr-<name>/
 ```
 
 - One public class per file; the file is named after the class in snake_case.
+  The one exception: the variants of a tagged configuration union — the specs a `type` field
+  picks between, such as `xtr_logging.config.handler_specs` — may share a module named after
+  what they configure.
 - Interfaces are `Protocol` subclasses decorated `@runtime_checkable`, suffixed `Interface`.
 - Every exception derives from the package's single base error.
 - `py.typed` ships in every package.
