@@ -79,7 +79,7 @@ class PlaceholderProcessor(ProcessorInterface):
         remaining = {key: value for key, value in context.items() if key not in used}
         return replace(record, message=message, context=remaining)
 
-    def _render(self, value: object) -> str:  # noqa: PLR0911 — one branch per kind of value
+    def _render(self, value: object) -> str:  # noqa: C901, PLR0911 — one branch per kind of value
         match value:
             case None:
                 return "null"
@@ -91,9 +91,13 @@ class PlaceholderProcessor(ProcessorInterface):
                 return value
             case dt.datetime():
                 return self._normalizer.format_datetime(value)
+            case dt.date() | dt.time():
+                return value.isoformat()
+            case bytes() | bytearray():
+                return bytes(value).decode("utf-8", "backslashreplace")
             case BaseException():
                 return f"{class_name(value)}: {safe_str(value)}"
-            case Mapping() | list() | tuple():
+            case Mapping() | list() | tuple() | set() | frozenset():
                 plain = self._normalizer.normalize(value)  # pyright: ignore[reportUnknownArgumentType] — a logged collection holds whatever the caller put in
                 return "array" + msgspec.json.encode(plain).decode()
             case int() | float():

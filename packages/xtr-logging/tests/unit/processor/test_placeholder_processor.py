@@ -143,3 +143,21 @@ def test_used_context_fields_are_kept_by_default() -> None:
     record = make_record(message="user {id}", context={"id": 7})
 
     assert dict(processor(record).context) == {"id": 7}
+
+
+def test_bytes_render_decoded_as_in_the_context() -> None:
+    record = make_record(message="got {payload}", context={"payload": b"ok\xff"})
+
+    assert PlaceholderProcessor()(record).message == "got ok\\xff"
+
+
+def test_a_set_renders_as_an_array_as_in_the_context() -> None:
+    record = make_record(message="ids {ids}", context={"ids": {1}})
+
+    assert PlaceholderProcessor()(record).message == "ids array[1]"
+
+
+def test_a_date_renders_as_iso_8601_as_in_the_context() -> None:
+    record = make_record(message="on {day}", context={"day": dt.date(2026, 9, 28)})
+
+    assert PlaceholderProcessor()(record).message == "on 2026-09-28"
