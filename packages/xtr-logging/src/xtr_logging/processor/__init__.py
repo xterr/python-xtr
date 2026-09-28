@@ -1,5 +1,7 @@
 """Processor contract, the processors shipped with the library, and their registry."""
 
+from __future__ import annotations
+
 from .context_vars_processor import ContextVarsProcessor
 from .hostname_processor import HostnameProcessor
 from .introspection_processor import IntrospectionProcessor

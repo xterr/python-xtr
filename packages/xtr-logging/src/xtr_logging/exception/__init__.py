@@ -9,6 +9,8 @@ forcing a message to be parsed.
 and are imported from ``xtr_logging_contracts``.
 """
 
+from __future__ import annotations
+
 from .capture_conflict_error import CaptureConflictError
 from .circular_handler_reference_error import CircularHandlerReferenceError
 from .empty_stack_error import EmptyStackError

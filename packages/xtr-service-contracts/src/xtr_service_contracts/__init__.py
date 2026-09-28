@@ -9,6 +9,8 @@ every other contract package in this ecosystem is free to depend on this one, an
 that only stays true while nothing here can drag anything in.
 """
 
+from __future__ import annotations
+
 from importlib.metadata import PackageNotFoundError, version
 
 from .container_interface import ContainerInterface

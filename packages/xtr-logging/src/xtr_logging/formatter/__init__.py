@@ -1,5 +1,7 @@
 """Formatter contract and the formatters shipped with the library."""
 
+from __future__ import annotations
+
 from .console_formatter import ConsoleFormatter
 from .formatter_interface import FormatterInterface
 from .json_batch_mode import JsonBatchMode

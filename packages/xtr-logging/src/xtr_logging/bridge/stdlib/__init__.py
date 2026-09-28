@@ -17,6 +17,8 @@ And for code that wants this library's interface over a standard backend,
 directions recognise each other's records, so wiring both never loops.
 """
 
+from __future__ import annotations
+
 from .level_mapping import from_stdlib, register_level_names, to_stdlib
 from .stdlib_capture import StdlibCapture
 from .stdlib_capture_handler import StdlibCaptureHandler

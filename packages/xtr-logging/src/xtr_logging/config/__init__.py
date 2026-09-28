@@ -4,6 +4,8 @@ A :class:`LoggingConfig` names channels, handlers and processors, and a
 :class:`~xtr_logging.logger_factory.LoggerFactory` builds loggers from it.
 """
 
+from __future__ import annotations
+
 from .capture_spec import CapturedLoggerSpec, CaptureSpec
 from .channel_filter import ChannelFilter
 from .formatter_specs import (

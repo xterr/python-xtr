@@ -20,6 +20,8 @@ and a test answers with :func:`~xtr_clock.testing.mock_time`.
 Nothing here depends on anything outside the standard library.
 """
 
+from __future__ import annotations
+
 from importlib.metadata import PackageNotFoundError, version
 
 from .clock import Clock

@@ -1,5 +1,7 @@
 """Handler contracts and the handlers shipped with the library."""
 
+from __future__ import annotations
+
 from .abstract_handler import AbstractHandler
 from .abstract_processing_handler import AbstractProcessingHandler
 from .buffer_handler import BufferHandler

@@ -6,3 +6,5 @@ does — it speaks to the standard library's :mod:`logging`, or to whatever
 else an application already logs through — so it lives here, reached only
 when that other side is actually in play.
 """
+
+from __future__ import annotations

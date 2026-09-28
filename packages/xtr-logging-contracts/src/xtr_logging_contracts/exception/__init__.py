@@ -8,6 +8,8 @@ derives from — including every one ``xtr-logging`` adds — and
 whichever package raised it.
 """
 
+from __future__ import annotations
+
 from .invalid_level_error import InvalidLevelError
 from .logging_error import LoggingError
 

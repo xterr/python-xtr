@@ -18,6 +18,8 @@ here: one place per name is what lets a container register a logger under the
 interface and have a library that never imported this package receive it.
 """
 
+from __future__ import annotations
+
 from importlib.metadata import PackageNotFoundError, version
 
 from .config import LoggingConfig, Services

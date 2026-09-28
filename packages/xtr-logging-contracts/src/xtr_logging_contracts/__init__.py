@@ -21,6 +21,8 @@ are never two different objects.
             self._logger = logger or NullLogger()
 """
 
+from __future__ import annotations
+
 from importlib.metadata import PackageNotFoundError, version
 
 from .abstract_logger import AbstractLogger
