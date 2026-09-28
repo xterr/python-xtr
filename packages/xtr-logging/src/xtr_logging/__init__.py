@@ -72,6 +72,7 @@ from .handler import (
 )
 from .log_context import bind_context, bound_context, clear_context, current_context, unbind_context
 from .log_record import LogRecord
+from .log_unit import begin_unit, end_unit, unit_state
 from .logger import Logger
 from .logger_factory import LoggerFactory
 from .processor import (
@@ -153,10 +154,13 @@ __all__ = [
     "WhatFailureGroupHandler",
     "__version__",
     "as_processor",
+    "begin_unit",
     "bind_context",
     "bound_context",
     "clear_context",
     "current_context",
     "default_processor_registry",
+    "end_unit",
     "unbind_context",
+    "unit_state",
 ]
