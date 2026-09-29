@@ -11,6 +11,10 @@
 Every handler of a message runs, in declaration order, each leaving a ``HandledStamp``. The
 messenger bundle binds them all at boot, so one asking for something the container cannot
 provide fails the boot, not the first message.
+
+Every message is a unit of work: its handlers share one database session — through the
+scoped repositories they ask for — and ``orm_transaction``, listed in ``config/messenger.py``,
+commits what they wrote once they all succeeded, or rolls it back. No handler commits.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from typing import Annotated, final
 from xtr_dependency_injection import Autowire, Injected, Target
 from xtr_logging_contracts import LoggerInterface
 from xtr_messenger import (
+    DispatchAfterCurrentBusStamp,
     Envelope,
     MessageBusInterface,
     ReceivedStamp,
@@ -30,7 +35,13 @@ from xtr_messenger import (
 from bookshop.catalog import BookCatalogInterface
 from bookshop.notifications import NotifierInterface
 from bookshop.observability.security_audit_trail import SecurityAuditTrail
-from bookshop.ordering import Order, OrderBook
+from bookshop.ordering import (
+    Order,
+    OrderRepository,
+    OutOfStockError,
+    Receipt,
+    ReceiptRepository,
+)
 from fulltext import SearchEngineInterface
 
 from .messages import AuditEvent, PlaceOrder, ReindexCatalog, SendReceipt, StockAlert
@@ -46,6 +57,7 @@ __all__ = [
 ]
 
 _FAST_SELLER = 3
+_PER_ORDER = 12
 
 
 @final
@@ -54,61 +66,82 @@ class PlaceOrderHandler:
     """Records the order and dispatches what follows from it.
 
     Built once, by the container, with its constructor's dependencies — the bus included:
-    a handler may dispatch further messages.
+    a handler may dispatch further messages. The repository is the message's, on
+    ``__call__``: a singleton cannot hold a scoped service.
     """
 
     def __init__(
         self,
-        orders: OrderBook,
         bus: MessageBusInterface,
         logger: Annotated[LoggerInterface, Target("orders")],
     ) -> None:
-        """Record into ``orders``; dispatch through ``bus``."""
-        self._orders = orders
+        """Dispatch through ``bus``; log to the ``orders`` channel."""
         self._bus = bus
         self._logger = logger
 
-    async def __call__(self, message: PlaceOrder, envelope: Envelope) -> str:
+    async def __call__(
+        self, message: PlaceOrder, envelope: Envelope, orders: Injected[OrderRepository]
+    ) -> str:
         """Record ``message``, then ask for a receipt, an audit entry and maybe a stock alert.
 
         Returns:
             The order number — what a handler returns is recorded on its ``HandledStamp``,
             which ``orders:place`` prints.
+
+        Raises:
+            OutOfStockError: For more than twelve copies — after the order row was added, so
+                ``orm_transaction`` rolls the row back: ``orders:place 978-0141439518 13``
+                shows it.
         """
-        self._orders.record(
+        _ = await orders.add(
             Order(
-                message.order_id,
-                message.number,
-                message.isbn,
-                message.quantity,
-                message.email,
-                message.total,
+                id=message.order_id,
+                number=message.number,
+                isbn=message.isbn,
+                quantity=message.quantity,
+                email=message.email,
+                total=message.total,
             )
         )
+        if message.quantity > _PER_ORDER:
+            raise OutOfStockError(message.isbn, message.quantity, _PER_ORDER)
         received = envelope.last(ReceivedStamp)
         self._logger.notice(
             "order {number} recorded via {transport}",
             {"number": message.number, "transport": received.transport_name if received else "-"},
         )
+        # Held back until PlaceOrder was handled and orm_transaction committed the order: a
+        # worker never reads a receipt's order before it exists, and an order rolled back
+        # sends nothing.
+        later = DispatchAfterCurrentBusStamp()
         _ = await self._bus.dispatch(
             SendReceipt(message.order_id, message.email, message.total),
             OriginStamp(message.number),
+            later,
         )
-        _ = await self._bus.dispatch(AuditEvent("order", f"{message.number} for {message.email}"))
+        _ = await self._bus.dispatch(
+            AuditEvent("order", f"{message.number} for {message.email}"), later
+        )
         if message.quantity > _FAST_SELLER:
-            _ = await self._bus.dispatch(StockAlert(message.isbn, message.quantity))
+            _ = await self._bus.dispatch(StockAlert(message.isbn, message.quantity), later)
         return message.number
 
 
 @as_message_handler(SendReceipt)
-async def send_receipt(
+async def send_receipt(  # noqa: PLR0913, PLR0917 — the message, its envelope, and what the container provides.
     message: SendReceipt,
     envelope: Envelope,
     notifier: Injected[NotifierInterface],
-    orders: Injected[OrderBook],
+    orders: Injected[OrderRepository],
+    receipts: Injected[ReceiptRepository],
     currency: Annotated[str, Autowire(param="shop.currency")],
 ) -> None:
-    """Mail the receipt — a function handler; which notifier depends on the environment.
+    """Mail the receipt and record it — a function handler, run by a worker.
+
+    The order was committed by the unit of work that handled ``PlaceOrder`` before this
+    message was sent; this message is a unit of its own, so the receipt row is committed — or
+    rolled back — with it. A redelivered message whose receipt was recorded already records
+    none again.
 
     Raises:
         ValueError: For an address under the reserved ``.invalid`` domain — which is how
@@ -116,11 +149,17 @@ async def send_receipt(
     """
     if message.email.endswith(".invalid"):
         raise ValueError(f"cannot mail {message.email}")
-    order = orders.get(message.order_id)
+    order = await orders.get_one_or_none(id=message.order_id)
     attempt = envelope.last(RedeliveryStamp)
     origin = envelope.last(OriginStamp)  # declared with @as_stamp: it survives the transport
+    received = envelope.last(ReceivedStamp)
     number = origin.order_number if origin else (order.number if order else str(message.order_id))
     retry = f" (retry {attempt.retry_count})" if attempt else ""
+    transport = received.transport_name if received else "-"
+    if not await receipts.exists(order_id=message.order_id, transport=transport):
+        _ = await receipts.add(
+            Receipt(order_id=message.order_id, email=message.email, transport=transport)
+        )
     _ = notifier.notify(message.email, f"receipt for {number}: {message.total} {currency}{retry}")
 
 

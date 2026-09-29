@@ -9,6 +9,7 @@ from xtr_dependency_injection import Injected
 from xtr_messenger import (
     Envelope,
     HandledStamp,
+    HandlersFailedError,
     MessageBusInterface,
     SentStamp,
     TransportMessageIdStamp,
@@ -19,9 +20,10 @@ from xtr_messenger import (
 from bookshop.messaging.messages import ReindexCatalog
 from bookshop.messaging.stamps import DispatchTimeStamp, MaintenanceStamp
 from bookshop.ordering import (
-    OrderBook,
     OrderNumber,
+    OrderRepository,
     OrderService,
+    ReceiptRepository,
     SalesTally,
     ShoppingCart,
     UnitOfWork,
@@ -55,6 +57,12 @@ async def place_order(  # noqa: PLR0913 — the command line plus what the conta
     ``sync://`` and is handled during the dispatch; what its handler dispatches in turn is
     queued on ``in-memory://`` and ``outbox://`` until the worker drains it.
 
+    Each message is a database transaction of its own: the order row is committed once
+    ``PlaceOrder`` is handled — and only then are its follow-ups sent, held back by a
+    ``DispatchAfterCurrentBusStamp`` — each receipt once the worker handled its
+    ``SendReceipt``. Over twelve copies, the handler refuses after writing the order row: the
+    row is rolled back and nothing is sent — ``orders:list`` shows it never landed.
+
     Args:
         io: Where the command writes.
         isbn: The book.
@@ -74,6 +82,10 @@ async def place_order(  # noqa: PLR0913 — the command line plus what the conta
         envelopes = await orders.place(cart, customer, number, work)
     except OrderError as error:
         io.error(escape(str(error)))
+        return ExitCode.FAILURE
+    except HandlersFailedError as error:
+        failures = "; ".join(f"{name}: {failure}" for name, failure in error.errors.items())
+        io.error(f"Order {number.value} rolled back — {escape(failures)}")
         return ExitCode.FAILURE
     for envelope in envelopes:
         _describe(io, envelope)
@@ -117,26 +129,36 @@ async def reindex_catalog(
 @final
 @as_command("orders:list")
 class OrdersListCommand:
-    """List the orders this process placed — a class command with a singleton dependency."""
+    """List the orders in the database — a class command, its repositories per run.
 
-    def __init__(self, orders: OrderBook) -> None:
-        """Read ``orders``."""
-        self._orders = orders
+    The command is a singleton; the repositories — and the session under them — are this
+    run's, on ``__call__``, released when the run ends.
+    """
 
-    async def __call__(self, io: ConsoleStyle) -> int:
-        """List the orders.
+    async def __call__(
+        self,
+        io: ConsoleStyle,
+        orders: Injected[OrderRepository],
+        receipts: Injected[ReceiptRepository],
+    ) -> int:
+        """List the orders, newest first, with how many receipts each has.
 
         Args:
             io: Where the command writes.
+            orders: This run's order repository.
+            receipts: This run's receipt repository.
         """
-        placed = self._orders.all()
+        placed = await orders.list(order_by=[("created_at", True)])
         if not placed:
-            io.note("No orders in this process yet — try orders:place.")
+            io.note("No orders yet — run orm:migrations:migrate once, then orders:place.")
             return ExitCode.SUCCESS
-        io.table(
-            ["Number", "ISBN", "Qty", "Total"],
-            [[o.number, o.isbn, str(o.quantity), str(o.total)] for o in placed],
-        )
+        rows: list[list[str]] = []
+        for order in placed:
+            sent = await receipts.count(order_id=order.id)
+            rows.append(
+                [order.number, order.isbn, str(order.quantity), str(order.total), str(sent)]
+            )
+        io.table(["Number", "ISBN", "Qty", "Total", "Receipts"], rows)
         return ExitCode.SUCCESS
 
 

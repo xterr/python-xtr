@@ -23,7 +23,13 @@ from xtr_dependency_injection import Autowire, Injected, KernelInterface
 from xtr_messenger import WorkerFactory
 
 from bookshop.catalog import Book, BookCatalogInterface, Genre
-from bookshop.ordering import OrderBook, OrderNumber, OrderService, ShoppingCart, UnitOfWork
+from bookshop.ordering import (
+    OrderNumber,
+    OrderRepository,
+    OrderService,
+    ShoppingCart,
+    UnitOfWork,
+)
 from bookshop.ordering.errors import UnknownBookError
 from bookshop.pricing import PriceCalculator
 from fulltext import SearchEngineInterface
@@ -98,11 +104,11 @@ async def search(engine: Injected[SearchEngineInterface], q: str = "") -> list[d
 
 
 @router.get("/orders")
-async def list_orders(orders: Injected[OrderBook]) -> list[dict[str, object]]:
-    """``GET /orders`` — the singleton order book: it outlives every request."""
+async def list_orders(orders: Injected[OrderRepository]) -> list[dict[str, object]]:
+    """``GET /orders`` — read from the database, through this request's repository."""
     return [
         {"number": o.number, "isbn": o.isbn, "quantity": o.quantity, "total": o.total}
-        for o in orders.all()
+        for o in await orders.list(order_by=[("created_at", True)])
     ]
 
 

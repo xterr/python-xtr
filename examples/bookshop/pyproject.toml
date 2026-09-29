@@ -87,6 +87,8 @@ reportImplicitStringConcatenation = "none"
 target-version = "py311"
 line-length = 100
 src = ["src"]
+# Revisions are written by orm:migrations:diff and never edited by hand.
+extend-exclude = ["migrations"]
 
 [tool.ruff.lint]
 select = ["ALL"]

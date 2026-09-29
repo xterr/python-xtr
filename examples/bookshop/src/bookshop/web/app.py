@@ -17,9 +17,10 @@ from http import HTTPStatus
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from xtr_http_kernel import setup
+from xtr_messenger import HandlersFailedError
 
 from bookshop.kernel import kernel
-from bookshop.ordering.errors import OrderRefusedError, UnknownBookError
+from bookshop.ordering.errors import OrderError, OrderRefusedError, UnknownBookError
 
 from .routes import router
 
@@ -41,6 +42,22 @@ async def order_refused(request: Request, exc: OrderRefusedError) -> JSONRespons
     """Answer 422: the order was well-formed and the fraud check refused it."""
     del request
     return JSONResponse({"error": str(exc)}, status_code=HTTPStatus.UNPROCESSABLE_ENTITY)
+
+
+@app.exception_handler(HandlersFailedError)
+async def order_rolled_back(request: Request, exc: HandlersFailedError) -> JSONResponse:
+    """Answer 409: a handler refused the order, and what the message wrote was rolled back.
+
+    Only a refusal — an ``OrderError`` from every failed handler — is the client's to hear
+    about; anything else is a fault, raised on to become a 500.
+    """
+    del request
+    if not all(isinstance(error, OrderError) for error in exc.errors.values()):
+        raise exc
+    refused = {name: str(error) for name, error in exc.errors.items()}
+    return JSONResponse(
+        {"error": "rolled back", "handlers": refused}, status_code=HTTPStatus.CONFLICT
+    )
 
 
 setup(app, kernel)
