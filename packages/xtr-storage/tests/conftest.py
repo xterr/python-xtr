@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+pytest_plugins = ("tests.support.moto_server",)
+
 
 @pytest.fixture
 def anyio_backend() -> str:
