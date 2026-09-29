@@ -1,8 +1,8 @@
 # bookshop — a complete application on the xtr packages
 
 One kernel, three entry points (a console, a web application, a message worker), every
-bundle, and every decorator the packages ship — a schedule, a cache, locks and events
-included. It is written to be read: each module says
+bundle, and every decorator the packages ship — a schedule, a cache, locks, events and a
+database included. It is written to be read: each module says
 what it demonstrates and why, and every behaviour below was observed by running it.
 
 It is its own uv project, **not** a member of the repository's workspace: every `xtr-*`
@@ -11,6 +11,7 @@ package comes from `../../packages`, editable, so a change there is visible here
 ```sh
 cd examples/bookshop
 uv sync
+uv run bookshop orm:migrations:migrate -n   # once: the orders and receipts tables
 uv run bookshop list                  # the console
 uv run bookshop-web                   # http://127.0.0.1:8080 — Ctrl-C to stop
 uv run python -m bookshop.worker jobs # a worker (in dev the queues are in-memory: returns at once)
@@ -34,7 +35,9 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop catalog:list [--genre software] [-l 2] [--output csv\|json\|markdown]` | options, `Literal`, `Enum`, a validator, a `ServiceLocator` |
 | `bookshop catalog:price ISBN [QTY]` | the ordered `Sequence[PricingRule]`; the quote cached five minutes in the `quotes` pool — run it twice |
 | `bookshop catalog:add ISBN TITLE PRICE [--author A] [-y]` | a class command, questions |
-| `bookshop orders:place ISBN [QTY] [--email E] [--no-drain] -vv` | scoped and transient services, the bus, fan-out, a worker, logs following `-vv`; a lock per book, an `OrderPlaced` event and the tally its subscriber keeps, a handler's result, a declared stamp read back after the serialized `jobs` transport (`-vvv`) |
+| `bookshop orders:place ISBN [QTY] [--email E] [--no-drain] -vv` | scoped and transient services, the bus, fan-out, a worker, logs following `-vv`; a lock per book, an `OrderPlaced` event and the tally its subscriber keeps, a handler's result, a declared stamp read back after the serialized `jobs` transport (`-vvv`); one database transaction per message, its follow-ups sent once it committed |
+| `bookshop orders:place 978-0141439518 13` | a handler refusing after it wrote the order row: `orm_transaction` rolls the row back, the receipt it asked for is never sent, the command reports `rolled back` and exits 1 |
+| `bookshop orders:list` | the orders in the database, newest first, with their receipts — two per order, one written by each transport `SendReceipt` fans out to |
 | `bookshop orders:reindex [REASON] [--via outbox]` | a pydantic message, `TransportNamesStamp` |
 | `bookshop search:query WORDS [-s]` · `search:stats` | commands a library's bundle contributes, loaded late |
 | `bookshop cache:clear` · `logs:recent` | `ServicesResetter`; a configured handler reached by name |
@@ -44,6 +47,8 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop demo:errors` | every guided error of every package, caught and printed |
 | `bookshop demo:style --end raise` (hidden) | every `ConsoleStyle` method and every way a run ends |
 | `bookshop dotenv:dump` · `debug:dotenv [NAME]` | the dotenv bundle's commands |
+| `bookshop orm:migrations:status` · `migrate -n` · `up-to-date` · `diff "MESSAGE"` | where the database stands; bring it to the latest revision; exit 1 while one is not applied; write a revision from what the models changed |
+| `bookshop orm:run-sql "select count(*) from orders"` | a statement run on the connection, its rows as a table |
 | `bookshop bundle:check` · `demo:frozen-clock` · `demo:wireup` · `demo:dotenv` · `demo:without-container` | dev and test only — the `dev_tools` bundle |
 
 ## The web application
@@ -64,8 +69,14 @@ curl -i -X POST localhost:8080/orders -H 'content-type: application/json' \
 curl -i localhost:8080/books/nope       # 404 {"error": "no book with ISBN nope"}
 ```
 
-An unknown ISBN and a refused order are raised as the domain errors they are; `web/app.py`
-gives each a status — 404 and 422 — with one exception handler apiece. Without the server:
+`GET /orders` reads the database through the request's repository; `POST /orders` with 13
+copies answers 409 `{"error": "rolled back", ...}`, and the order is not in the next
+`GET /orders`.
+
+An unknown ISBN, an order the fraud check refused and one a handler refused are raised as the
+errors they are; `web/app.py` gives each a status — 404, 422 and 409 — with one exception
+handler apiece. A handler failing for any other reason is a fault, not a refusal: it is raised
+on, and answered 500. Without the server:
 `bookshop debug:router` lists every route in the order routing tries them, and
 `bookshop router:match /books/978-0135957059` names the one a path reaches and what it reads
 out of it — neither needs `--app`, because `config/http_kernel.py` names the application.
@@ -77,7 +88,8 @@ examples/bookshop/
 ├── .env .env.dev .env.test .env.prod .env.local .env.dev.local   the cascade
 ├── resources/            files env processors read; dotenv-demo/ holds only a .env.dist
 ├── secrets/              one file per variable, read by SecretsDirectoryLoader
-├── var/                  logs, written at runtime (ignored)
+├── migrations/           the database's revisions, written by orm:migrations:diff
+├── var/                  logs and the dev / test SQLite files, written at runtime (ignored)
 └── src/
     ├── fulltext/         a reusable library shipping its own bundle — the library-author side
     └── bookshop/         the application
@@ -154,6 +166,7 @@ examples/bookshop/
 | logging | `@as_processor(channel=, handler=, priority=)` on classes and on a function | `observability/processors.py` |
 | logging | `bound_context`, context vars; `Logger` / `LoggerFactory` without a kernel | `dev_tools/commands.py` |
 | messenger | `@as_stamp` — a stamp of its own restored after a serializing transport | `messaging/stamps.py`, `messaging/handlers.py` |
+| messenger | `DispatchAfterCurrentBusStamp` — follow-ups held back until the message that asked for them committed | `messaging/handlers.py` |
 | messenger | a handler's return value, on its `HandledStamp` | `messaging/handlers.py`, `commands/order_commands.py` |
 | messenger | worker events — started, stopped, a message failed — heard by listeners | `scheduling/listeners.py` |
 | messenger | `RedispatchMessage` — a scheduled message sent on through routing | `scheduling/shop_schedule.py` |
@@ -175,6 +188,13 @@ examples/bookshop/
 | dotenv | `Dotenv().boot_env()` at the entry point; `parse / load / overload / populate / load_env` | `kernel.py`, `dev_tools/commands.py` |
 | dotenv | `DotenvSettings` — typed settings from the same cascade | `settings.py` |
 | service-contracts | `ResetInterface` (nominal) and an explicit `kernel.reset` tag | `catalog/catalog_decorators.py`, `fulltext/query_log.py` |
+| orm | `OrmConfig` with one connection: the URL from `env("resolve:...")`, engine and session options, migrations under the project | `config/orm.py` |
+| orm | engine and session options in the URL's query — `pool_pre_ping`, `expire_on_commit`, `pool_size` — taking precedence over the config | `.env`, `.env.prod` |
+| orm | advanced-alchemy models, and repositories as scoped services on the unit of work's session | `ordering/order.py`, `ordering/receipt.py`, `ordering/order_repository.py`, `ordering/receipt_repository.py` |
+| orm | `orm_close_connection`, `orm_transaction`, `orm_open_transaction_logger` with named arguments, in the order they need | `config/messenger.py` |
+| orm | handlers sharing a message's session, a refusal rolling back what they wrote, the transport a receipt came through | `messaging/handlers.py` |
+| orm | a command and a route reading through repositories; a rolled-back message reported | `commands/order_commands.py`, `web/routes.py`, `web/app.py` |
+| orm | a generated revision | `migrations/` |
 
 ## Environment variables
 
@@ -190,6 +210,8 @@ packages themselves read or write:
 
 The application reads `SHOP_*`, `SEARCH_*`, `DATABASE_URL`, `APP_TIMEZONE`, `WEB_HOST`,
 `WEB_PORT`, and in prod `MESSENGER_TRANSPORT_DSN`, `MAILER_DSN`, `SHOP_PAYMENT_API_KEY`.
+`SHOP_DATABASE_URL` is the database — a SQLite file per environment in dev and test,
+PostgreSQL in prod; `DATABASE_URL` only shows the env processors.
 `SHOP_VAULT_TOKEN` is set nowhere on purpose: the secrets-directory loader supplies it.
 
 ## Rules this example follows
@@ -212,6 +234,13 @@ The application reads `SHOP_*`, `SEARCH_*`, `DATABASE_URL`, `APP_TIMEZONE`, `WEB
 - **Scoped and transient services exist only inside a scope** — a command run, a request (one
   is opened around every one of them), a handler call. `container.get()` refuses them, and a
   singleton cannot depend on them, so they are passed as arguments (`OrderService.place`).
+- **A handler never commits.** Under `orm_transaction` the message's handlers commit together
+  once all of them succeeded; a handler's own `commit()` would end that transaction early.
+  Everything the application writes goes through a message, so `orders:list` and
+  `GET /orders` only read.
+- **A follow-up waits for the commit.** What a handler dispatches to a transport is sent at
+  once unless stamped `DispatchAfterCurrentBusStamp`; stamped, a worker never sees a receipt
+  for an order not committed yet, and an order rolled back sends nothing.
 - **Gate a class with `@when`, not its alias**: `@as_alias` is unconditional.
 - **`exclude=` replaces `DEFAULT_EXCLUDES`**; extend it (`kernel.py`).
 - **The dotenv bundle loads nothing**: `load_environment()` runs before the kernel is built.

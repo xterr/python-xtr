@@ -28,6 +28,9 @@ This directory is the reference application for the xtr packages. The repository
   annotations, message fields, config fields — is imported for real, never under
   `TYPE_CHECKING`.
 - In bundle configs, write a literal `%` as `%%`.
+- Change the models, then write the revision with `uv run bookshop orm:migrations:diff
+  "MESSAGE"` and apply it with `orm:migrations:migrate -n`. Never hand-write or edit a file in
+  `migrations/`; delete one only if it was never applied anywhere.
 - Keep `demo:*` commands and `diagnostics/` in step with what they demonstrate: they are the
   executable proof of the README.
 
@@ -37,6 +40,8 @@ This directory is the reference application for the xtr packages. The repository
 uv run ruff check src && uv run ruff format --check src && uv run basedpyright && uv run ty check
 uv run bookshop list && uv run bookshop di:show && uv run bookshop demo:errors
 APP_ENV=prod uv run bookshop di:show && APP_ENV=test uv run bookshop list
+uv run bookshop orm:migrations:migrate -n && uv run bookshop orm:migrations:up-to-date
+uv run bookshop orders:place 978-0141439518 2 && uv run bookshop orders:list
 ```
 
 There are no tests in this example on purpose: the commands above exercise it.
