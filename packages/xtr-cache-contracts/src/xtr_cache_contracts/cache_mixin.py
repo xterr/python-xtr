@@ -153,7 +153,7 @@ class CacheMixin(CacheInterface, ABC):
         """
         expiry = metadata.get("expiry")
         ctime = metadata.get("ctime")
-        if not expiry or not ctime:
+        if expiry is None or ctime is None:
             return False
 
         current = self._now()
