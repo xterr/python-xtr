@@ -210,14 +210,14 @@ application of your own, ignore the `.local` files and keep secrets out of the r
 | http-kernel | `setup(app, kernel)` — one kernel per application life, one scope per request | `web/app.py` |
 | http-kernel | `HttpKernelConfig(app=)`, read by `debug:router` and `router:match` | `config/http_kernel.py` |
 | http-kernel | the request lifecycle listed as a bundle: `X-Request-Id`, an uncaught exception on the `request` channel | `bundles.py` |
-| event-dispatcher | a domain event (`Event`), `EventDispatcherInterface` injected, `@as_event_listener(priority=)`, an `EventSubscriberInterface` | `ordering/order_placed.py`, `ordering/order_service.py`, `ordering/order_listeners.py` |
-| lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `ordering/order_service.py`, `config/lock.py` |
-| lock | the default `LockFactory`, a lock kept between runs | `scheduling/shop_schedule.py` |
-| cache | `CacheConfig` with a pool of its own, `@when("test")` in memory | `config/cache.py` |
 | http-kernel | `RateLimited` on a router, as a decorator, in a route's `dependencies`; `TooManyRequestsError` reshaped by an exception handler | `web/routes.py`, `web/app.py` |
 | rate-limiter | every policy — `sliding_window`, `fixed_window` (and on a calendar, `anchor_at`), `token_bucket`, `compound` with a shared key; in-memory, cache-pool and (prod) Redis storage | `config/rate_limiter.py`, `.env.prod` |
 | rate-limiter | a limiter injected by name (`Target`), `consume()` and `ensure_accepted()` in a route, `reserve(max_time=)` and `wait()` in a handler | `web/routes.py`, `messaging/handlers.py` |
 | rate-limiter | `RateLimitExceededEvent` heard by a listener; `RateLimiterBuilder`; `reset()`; every limit checked under `mock_time` | `observability/rate_limit_audit.py`, `dev_tools/rate_limit_demo.py` |
+| event-dispatcher | a domain event (`Event`), `EventDispatcherInterface` injected, `@as_event_listener(priority=)`, an `EventSubscriberInterface` | `ordering/order_placed.py`, `ordering/order_service.py`, `ordering/order_listeners.py` |
+| lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `ordering/order_service.py`, `config/lock.py` |
+| lock | the default `LockFactory`, a lock kept between runs | `scheduling/shop_schedule.py` |
+| cache | `CacheConfig` with a pool of its own, `@when("test")` in memory | `config/cache.py` |
 | cache | a qualified `CacheInterface`, fetch-or-compute with a callback | `commands/catalog_commands.py` |
 | clock | `ClockInterface` injected, `Clock`, `MockClock`, `MonotonicClock`, `mock_time`, `DatePoint`, `ClockAwareMixin` | `ordering/order_number.py`, `fulltext/bundle/timed_search_engine.py`, `dev_tools/commands.py` |
 | dotenv | `Dotenv().boot_env()` at the entry point; `parse / load / overload / populate / load_env` | `kernel.py`, `dev_tools/commands.py` |
