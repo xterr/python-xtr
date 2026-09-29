@@ -4,7 +4,7 @@ version = "1.4.0"
 description = "The caching contract: compute-once reads, item pools, tags and namespaces, with no backend attached."
 readme = "README.md"
 authors = [
-    { name = "Razvan Ceana", email = "razvan@ceana.ro" }
+    { name = "Xterr", email = "me@xterr.dev" }
 ]
 requires-python = ">=3.11"
 license = "MIT"

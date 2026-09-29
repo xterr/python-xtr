@@ -4,7 +4,7 @@ version = "1.4.0"
 description = "The logging contract: one interface, eight severities, and a logger that discards everything."
 readme = "README.md"
 authors = [
-    { name = "Razvan Ceana", email = "razvan@ceana.ro" }
+    { name = "Xterr", email = "me@xterr.dev" }
 ]
 requires-python = ">=3.11"
 license = "MIT"

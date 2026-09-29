@@ -209,7 +209,7 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-    { name = "Razvan Ceana", email = "razvan@ceana.ro" }
+    { name = "Xterr", email = "me@xterr.dev" }
 ]
 keywords = ["<name>"]
 classifiers = [
