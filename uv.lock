@@ -2270,7 +2270,7 @@ wheels = [
 
 [[package]]
 name = "xtr"
-version = "1.5.0"
+version = "2.0.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
@@ -2295,7 +2295,7 @@ dev = [
 
 [[package]]
 name = "xtr-cache"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-cache" }
 dependencies = [
     { name = "typing-extensions" },
@@ -2373,7 +2373,7 @@ dev = [
 
 [[package]]
 name = "xtr-cache-contracts"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-cache-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -2408,7 +2408,7 @@ dev = [
 
 [[package]]
 name = "xtr-clock"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-clock" }
 
 [package.optional-dependencies]
@@ -2452,7 +2452,7 @@ dev = [
 
 [[package]]
 name = "xtr-console"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-console" }
 dependencies = [
     { name = "cyclopts" },
@@ -2512,7 +2512,7 @@ dev = [
 
 [[package]]
 name = "xtr-dependency-injection"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-dependency-injection" }
 dependencies = [
     { name = "typing-extensions" },
@@ -2560,7 +2560,7 @@ dev = [
 
 [[package]]
 name = "xtr-dotenv"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-dotenv" }
 dependencies = [
     { name = "pydantic-settings" },
@@ -2612,7 +2612,7 @@ dev = [
 
 [[package]]
 name = "xtr-event-dispatcher"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-event-dispatcher" }
 dependencies = [
     { name = "typing-extensions" },
@@ -2664,7 +2664,7 @@ dev = [
 
 [[package]]
 name = "xtr-event-dispatcher-contracts"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-event-dispatcher-contracts" }
 
 [package.dev-dependencies]
@@ -2691,7 +2691,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-kernel"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-http-kernel" }
 dependencies = [
     { name = "fastapi" },
@@ -2765,7 +2765,7 @@ dev = [
 
 [[package]]
 name = "xtr-lock"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-lock" }
 dependencies = [
     { name = "typing-extensions" },
@@ -2829,7 +2829,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-logging" }
 dependencies = [
     { name = "msgspec" },
@@ -2879,7 +2879,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging-contracts"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-logging-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -2908,7 +2908,7 @@ dev = [
 
 [[package]]
 name = "xtr-messenger"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-messenger" }
 dependencies = [
     { name = "msgspec" },
@@ -3000,7 +3000,7 @@ dev = [
 
 [[package]]
 name = "xtr-orm"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-orm" }
 dependencies = [
     { name = "advanced-alchemy" },
@@ -3082,7 +3082,7 @@ dev = [
 
 [[package]]
 name = "xtr-rate-limiter"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-rate-limiter" }
 dependencies = [
     { name = "typing-extensions" },
@@ -3154,7 +3154,7 @@ dev = [
 
 [[package]]
 name = "xtr-scheduler"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-scheduler" }
 dependencies = [
     { name = "typing-extensions" },
@@ -3234,7 +3234,7 @@ dev = [
 
 [[package]]
 name = "xtr-service-contracts"
-version = "1.5.0"
+version = "2.0.0"
 source = { editable = "packages/xtr-service-contracts" }
 
 [package.dev-dependencies]
