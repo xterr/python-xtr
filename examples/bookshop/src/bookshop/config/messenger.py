@@ -45,6 +45,15 @@ def messenger() -> MessageBusConfig:
             "logging",
             "audit_trail",
             MaintenanceGuard(enabled=env("SHOP_MAINTENANCE", bool, default=False)),
+            # The orm bundle's, registered by name because both bundles are active. Every
+            # message is a unit of work: its handlers share one session per connection.
+            # A worker gives its connections back after each message it consumed...
+            "orm_close_connection",
+            # ...each message's handlers commit together, or not at all...
+            "orm_transaction",
+            # ...and a handler leaving a transaction it began open is logged. Inside the
+            # transaction, to see it before the commit closes it; arguments by name.
+            {"orm_open_transaction_logger": {"connection_names": ["default"]}},
         ],
         default_middleware=True,
         require_sender=False,
@@ -91,7 +100,7 @@ def messenger_prod() -> MessageBusConfig:
             SendReceipt: ["jobs", "audit"],
             "*": "audit",  # catch-all: everything else, AuditEvent included
         },
-        middleware=["logging", "audit_trail"],
+        middleware=["logging", "audit_trail", "orm_close_connection", "orm_transaction"],
         require_sender=True,
         handle_unrouted=False,
     )

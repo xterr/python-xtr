@@ -24,6 +24,7 @@ from xtr_http_kernel.bundle import HttpKernelBundle
 from xtr_lock.bundle import LockBundle
 from xtr_logging.bundle import LoggingBundle
 from xtr_messenger.bundle import MessengerBundle
+from xtr_orm.bundle import OrmBundle
 from xtr_scheduler.bundle import SchedulerBundle
 
 from bookshop.dev_tools import DevToolsBundle
@@ -35,6 +36,9 @@ BUNDLES = {
     LoggingBundle: {"all": True},
     ConsoleBundle: {"all": True},
     MessengerBundle: {"all": True},
+    # The database: engines, sessions per unit of work, migrations, and — with the messenger
+    # bundle active — the orm_* middleware the bus lists in config/messenger.py.
+    OrmBundle: {"all": True},
     DotenvBundle: {"all": True},
     FulltextBundle: {"all": True},
     EventDispatcherBundle: {"all": True},

@@ -1,7 +1,7 @@
 [project]
 name = "bookshop"
 version = "1.4.0"
-description = "A complete example application built on every xtr package: kernel, bundles, console, web, messenger, scheduler."
+description = "A complete example application built on every xtr package: kernel, bundles, console, web, messenger, scheduler, database."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -22,6 +22,8 @@ dependencies = [
     "xtr-logging[di]",
     "xtr-logging-contracts",
     "xtr-messenger[di,console,pydantic,amqp]",
+    # SQLite in dev and test, PostgreSQL in prod; the message bus middleware too.
+    "xtr-orm[di,console,messenger,sqlite,postgres]",
     "xtr-scheduler[cron,di,console]",
     "xtr-service-contracts",
 ]
@@ -63,6 +65,7 @@ xtr-lock                 = { path = "../../packages/xtr-lock", editable = true }
 xtr-logging              = { path = "../../packages/xtr-logging", editable = true }
 xtr-logging-contracts    = { path = "../../packages/xtr-logging-contracts", editable = true }
 xtr-messenger            = { path = "../../packages/xtr-messenger", editable = true }
+xtr-orm                  = { path = "../../packages/xtr-orm", editable = true }
 xtr-scheduler            = { path = "../../packages/xtr-scheduler", editable = true }
 xtr-service-contracts    = { path = "../../packages/xtr-service-contracts", editable = true }
 
