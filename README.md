@@ -37,6 +37,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
 | [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
 | [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger: cron and intervals, catch-up after downtime, locks and saved state. |
+| [xtr-rate-limiter](packages/xtr-rate-limiter) | Limits on how often anything may happen, by fixed window, sliding window or token bucket, in memory, in a cache or atomically in Redis. |
 
 How they depend on each other (runtime dependencies only; extras are dotted):
 
@@ -74,6 +75,12 @@ graph LR
     orm -. di extra .-> svccon
     orm -. console extra .-> console
     orm -. messenger extra .-> messenger
+    ratelimiter[xtr-rate-limiter] --> clock
+    ratelimiter --> eventcon
+    ratelimiter -. cache extra .-> cachecon
+    ratelimiter -. lock extra .-> lock
+    ratelimiter -. di extra .-> di
+    httpkernel -. rate-limiter extra .-> ratelimiter
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

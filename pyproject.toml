@@ -26,6 +26,7 @@ xtr-logging              = { workspace = true }
 xtr-logging-contracts    = { workspace = true }
 xtr-messenger            = { workspace = true }
 xtr-orm                  = { workspace = true }
+xtr-rate-limiter         = { workspace = true }
 xtr-scheduler            = { workspace = true }
 xtr-service-contracts    = { workspace = true }
 

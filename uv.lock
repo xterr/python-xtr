@@ -19,6 +19,7 @@ members = [
     "xtr-logging-contracts",
     "xtr-messenger",
     "xtr-orm",
+    "xtr-rate-limiter",
     "xtr-scheduler",
     "xtr-service-contracts",
 ]
@@ -2710,6 +2711,10 @@ console = [
 logging = [
     { name = "xtr-logging" },
 ]
+rate-limiter = [
+    { name = "xtr-clock" },
+    { name = "xtr-rate-limiter", extra = ["di"] },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -2720,8 +2725,10 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-clock" },
     { name = "xtr-console" },
     { name = "xtr-logging" },
+    { name = "xtr-rate-limiter", extra = ["di"] },
 ]
 
 [package.metadata]
@@ -2729,15 +2736,17 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.121.3" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", marker = "extra == 'rate-limiter'", editable = "packages/xtr-clock" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging", marker = "extra == 'logging'", editable = "packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-rate-limiter", extras = ["di"], marker = "extra == 'rate-limiter'", editable = "packages/xtr-rate-limiter" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
-provides-extras = ["logging", "console"]
+provides-extras = ["logging", "console", "rate-limiter"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2748,8 +2757,10 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
+    { name = "xtr-rate-limiter", extras = ["di"], editable = "packages/xtr-rate-limiter" },
 ]
 
 [[package]]
@@ -3066,6 +3077,78 @@ dev = [
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+
+[[package]]
+name = "xtr-rate-limiter"
+version = "1.5.0"
+source = { editable = "packages/xtr-rate-limiter" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-event-dispatcher-contracts" },
+]
+
+[package.optional-dependencies]
+cache = [
+    { name = "xtr-cache-contracts" },
+]
+di = [
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-service-contracts" },
+]
+lock = [
+    { name = "xtr-lock" },
+]
+redis = [
+    { name = "redis" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "fakeredis", extra = ["lua"] },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "redis" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-cache" },
+    { name = "xtr-cache-contracts" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-lock" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "packages/xtr-cache-contracts" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-lock", marker = "extra == 'lock'", editable = "packages/xtr-lock" },
+    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "packages/xtr-service-contracts" },
+]
+provides-extras = ["cache", "lock", "redis", "di"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "fakeredis", extras = ["lua"], specifier = ">=2.38.0" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "redis", specifier = ">=5.0" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-cache", editable = "packages/xtr-cache" },
+    { name = "xtr-cache-contracts", editable = "packages/xtr-cache-contracts" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-lock", editable = "packages/xtr-lock" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 
