@@ -128,6 +128,10 @@ examples/bookshop/
         └── …             one package per concern, below
 ```
 
+The `.env.local`, `.env.dev.local` and `.env.prod` files and `secrets/SHOP_VAULT_TOKEN` are
+committed on purpose, so the example runs as cloned: their values are placeholders. In an
+application of your own, ignore the `.local` files and keep secrets out of the repository.
+
 ## Where each feature lives
 
 ### Kernel and bundles
