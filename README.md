@@ -33,6 +33,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-logging](packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. |
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
+| [xtr-orm](packages/xtr-orm) | Engines, sessions and versioned schema migrations for async applications, configured once per connection. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
 | [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
 | [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger: cron and intervals, catch-up after downtime, locks and saved state. |
@@ -68,6 +69,11 @@ graph LR
     httpkernel --> logcon
     httpkernel -. logging extra .-> logging
     httpkernel -. console extra .-> console
+    orm[xtr-orm] --> logcon
+    orm -. di extra .-> di
+    orm -. di extra .-> svccon
+    orm -. console extra .-> console
+    orm -. messenger extra .-> messenger
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its
