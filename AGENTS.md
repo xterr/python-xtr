@@ -9,6 +9,10 @@ Rules for agents working in this repository.
   classifiers), issue and PR text. This file is the only place that names either.
 - Describe every package on its own terms. If a concept originated in another framework, drop
   the citation and explain what it does here.
+- Never use the word **spec** in a name: no `Spec` class suffix, no `*_spec` / `*_specs` module,
+  function, variable or fixture. A configuration object is a `...Config` (e.g.
+  `LocalAdapterConfig`), and a module grouping several is named `*_configs.py`. Docstrings and
+  comments say "configuration", not "spec".
 
 ## Structural standard
 
@@ -52,9 +56,8 @@ packages/xtr-<name>/
 ```
 
 - One public class per file; the file is named after the class in snake_case.
-  The one exception: the variants of a tagged configuration union — the specs a `type` field
-  picks between, such as `xtr_logging.config.handler_specs` — may share a module named after
-  what they configure.
+  The one exception: the variants of a tagged configuration union — the configurations a `type`
+  field picks between — may share a `*_configs.py` module named after what they configure.
 - Interfaces are `Protocol` subclasses decorated `@runtime_checkable`, suffixed `Interface`.
 - Every exception derives from the package's single base error.
 - `py.typed` ships in every package.
