@@ -50,6 +50,7 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop orm:migrations:status` · `migrate -n` · `up-to-date` · `diff "MESSAGE"` | where the database stands; bring it to the latest revision; exit 1 while one is not applied; write a revision from what the models changed |
 | `bookshop orm:run-sql "select count(*) from orders"` | a statement run on the connection, its rows as a table |
 | `bookshop bundle:check` · `demo:frozen-clock` · `demo:wireup` · `demo:dotenv` · `demo:without-container` | dev and test only — the `dev_tools` bundle |
+| `bookshop demo:rate-limit` | dev and test only — every limiter of `config/rate_limiter.py` under a frozen clock, then every limited route served in process; each row a claim checked, exit 1 if one fails |
 
 ## The web application
 
@@ -72,6 +73,32 @@ curl -i localhost:8080/books/nope       # 404 {"error": "no book with ISBN nope"
 `GET /orders` reads the database through the request's repository; `POST /orders` with 13
 copies answers 409 `{"error": "rolled back", ...}`, and the order is not in the next
 `GET /orders`.
+
+Every route is rate limited, each the way it suits (`web/routes.py`, limiters in
+`config/rate_limiter.py`):
+
+```sh
+curl -i localhost:8080/books            # X-RateLimit-Limit: 120 — the router's limit, per client
+for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w '%{http_code} ' 'localhost:8080/search?q=a'; done
+                                        # 200 200 200 200 200 429 — a decorator, five a minute
+curl -i 'localhost:8080/search?q=a'     # 429 {"error": "too many requests", "limiter": "search", ...}
+                                        #     with Retry-After
+```
+
+- the router carries `api` — every route, 120 a minute per client, reported in
+  `X-RateLimit-*`; `/books/1` and `/books/2` share one count, the route's template being the key;
+- `GET /search` is decorated with `search` — five a minute, counted in this process only;
+- `POST /orders` lists `ordering` in its `dependencies` — a burst of three per client, and at
+  most a thousand a calendar month for the whole shop — and consumes `orders_per_email` by hand,
+  injected by name, since the address is in the body: a third order from one address in an
+  hour is 429 `{"error": "too many orders from this address"}`, raised by `ensure_accepted()`;
+- a refusal is answered in the shop's own shape by two exception handlers in `web/app.py`, and
+  written to the `security` channel by `observability/rate_limit_audit.py`, which hears the
+  `RateLimitExceededEvent` every refusing route dispatches.
+
+Limits are not only for routes: `send_receipt` (`messaging/handlers.py`) reserves a slot of the
+mail provider's ten a minute (`outbound_mail`) and waits for it — or, past half a minute, raises
+so the worker retries the message later.
 
 An unknown ISBN, an order the fraud check refused and one a handler refused are raised as the
 errors they are; `web/app.py` gives each a status — 404, 422 and 409 — with one exception
@@ -183,6 +210,10 @@ examples/bookshop/
 | lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `ordering/order_service.py`, `config/lock.py` |
 | lock | the default `LockFactory`, a lock kept between runs | `scheduling/shop_schedule.py` |
 | cache | `CacheConfig` with a pool of its own, `@when("test")` in memory | `config/cache.py` |
+| http-kernel | `RateLimited` on a router, as a decorator, in a route's `dependencies`; `TooManyRequestsError` reshaped by an exception handler | `web/routes.py`, `web/app.py` |
+| rate-limiter | every policy — `sliding_window`, `fixed_window` (and on a calendar, `anchor_at`), `token_bucket`, `compound` with a shared key; in-memory, cache-pool and (prod) Redis storage | `config/rate_limiter.py`, `.env.prod` |
+| rate-limiter | a limiter injected by name (`Target`), `consume()` and `ensure_accepted()` in a route, `reserve(max_time=)` and `wait()` in a handler | `web/routes.py`, `messaging/handlers.py` |
+| rate-limiter | `RateLimitExceededEvent` heard by a listener; `RateLimiterBuilder`; `reset()`; every limit checked under `mock_time` | `observability/rate_limit_audit.py`, `dev_tools/rate_limit_demo.py` |
 | cache | a qualified `CacheInterface`, fetch-or-compute with a callback | `commands/catalog_commands.py` |
 | clock | `ClockInterface` injected, `Clock`, `MockClock`, `MonotonicClock`, `mock_time`, `DatePoint`, `ClockAwareMixin` | `ordering/order_number.py`, `fulltext/bundle/timed_search_engine.py`, `dev_tools/commands.py` |
 | dotenv | `Dotenv().boot_env()` at the entry point; `parse / load / overload / populate / load_env` | `kernel.py`, `dev_tools/commands.py` |
@@ -209,7 +240,8 @@ packages themselves read or write:
 | `XTR_DOTENV_VARS`, `XTR_DOTENV_PATH` | written by the dotenv loader |
 
 The application reads `SHOP_*`, `SEARCH_*`, `DATABASE_URL`, `APP_TIMEZONE`, `WEB_HOST`,
-`WEB_PORT`, and in prod `MESSENGER_TRANSPORT_DSN`, `MAILER_DSN`, `SHOP_PAYMENT_API_KEY`.
+`WEB_PORT`, and in prod `MESSENGER_TRANSPORT_DSN`, `MAILER_DSN`, `SHOP_PAYMENT_API_KEY`,
+`SHOP_RATE_LIMIT_STORAGE` (a Redis DSN for the `orders` limiter; `cache` when unset).
 `SHOP_DATABASE_URL` is the database — a SQLite file per environment in dev and test,
 PostgreSQL in prod; `DATABASE_URL` only shows the env processors.
 `SHOP_VAULT_TOKEN` is set nowhere on purpose: the secrets-directory loader supplies it.

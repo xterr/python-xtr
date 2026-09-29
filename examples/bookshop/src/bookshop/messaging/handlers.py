@@ -31,6 +31,7 @@ from xtr_messenger import (
     RedeliveryStamp,
     as_message_handler,
 )
+from xtr_rate_limiter import RateLimiterFactoryInterface
 
 from bookshop.catalog import BookCatalogInterface
 from bookshop.notifications import NotifierInterface
@@ -58,6 +59,7 @@ __all__ = [
 
 _FAST_SELLER = 3
 _PER_ORDER = 12
+_MAIL_WAIT = 30.0
 
 
 @final
@@ -135,6 +137,7 @@ async def send_receipt(  # noqa: PLR0913, PLR0917 — the message, its envelope,
     orders: Injected[OrderRepository],
     receipts: Injected[ReceiptRepository],
     currency: Annotated[str, Autowire(param="shop.currency")],
+    mail_rate: Annotated[RateLimiterFactoryInterface, Target("outbound_mail")],
 ) -> None:
     """Mail the receipt and record it — a function handler, run by a worker.
 
@@ -143,9 +146,14 @@ async def send_receipt(  # noqa: PLR0913, PLR0917 — the message, its envelope,
     rolled back — with it. A redelivered message whose receipt was recorded already records
     none again.
 
+    The mail provider takes ten a minute (``outbound_mail``): the receipt reserves its slot and
+    waits for it, up to half a minute — a limit outside any web route.
+
     Raises:
         ValueError: For an address under the reserved ``.invalid`` domain — which is how
             ``demo:errors`` shows a worker rejecting a message and carrying on.
+        MaxWaitDurationExceededError: If the provider would make the receipt wait longer;
+            the worker retries the message later, and nothing was reserved.
     """
     if message.email.endswith(".invalid"):
         raise ValueError(f"cannot mail {message.email}")
@@ -160,6 +168,8 @@ async def send_receipt(  # noqa: PLR0913, PLR0917 — the message, its envelope,
         _ = await receipts.add(
             Receipt(order_id=message.order_id, email=message.email, transport=transport)
         )
+    reservation = await mail_rate.create("provider").reserve(max_time=_MAIL_WAIT)
+    await reservation.wait()
     _ = notifier.notify(message.email, f"receipt for {number}: {message.total} {currency}{retry}")
 
 

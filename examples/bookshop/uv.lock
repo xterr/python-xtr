@@ -238,6 +238,15 @@ wheels = [
 ]
 
 [[package]]
+name = "async-timeout"
+version = "5.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/ae/136395dfbfe00dfc94da3f3e136d0b13f394cba8f4841120e34226265780/async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3", size = 9274, upload-time = "2024-11-06T16:41:39.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/ba/e2081de779ca30d473f21f5b30e0e737c438205440784c7dfc81efc2b029/async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c", size = 6233, upload-time = "2024-11-06T16:41:37.9Z" },
+]
+
+[[package]]
 name = "asyncpg"
 version = "0.31.0"
 source = { registry = "https://pypi.org/simple" }
@@ -321,12 +330,13 @@ dependencies = [
     { name = "xtr-dotenv", extra = ["console", "di"] },
     { name = "xtr-event-dispatcher", extra = ["di"] },
     { name = "xtr-event-dispatcher-contracts" },
-    { name = "xtr-http-kernel", extra = ["console", "logging"] },
+    { name = "xtr-http-kernel", extra = ["console", "logging", "rate-limiter"] },
     { name = "xtr-lock", extra = ["di"] },
     { name = "xtr-logging", extra = ["di"] },
     { name = "xtr-logging-contracts" },
     { name = "xtr-messenger", extra = ["amqp", "console", "di", "pydantic"] },
     { name = "xtr-orm", extra = ["console", "di", "messenger", "postgres", "sqlite"] },
+    { name = "xtr-rate-limiter", extra = ["cache", "di", "lock", "redis"] },
     { name = "xtr-scheduler", extra = ["console", "cron", "di"] },
     { name = "xtr-service-contracts" },
 ]
@@ -334,6 +344,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "basedpyright" },
+    { name = "httpx" },
     { name = "ruff" },
     { name = "ty" },
 ]
@@ -350,12 +361,13 @@ requires-dist = [
     { name = "xtr-dotenv", extras = ["di", "console"], editable = "../../packages/xtr-dotenv" },
     { name = "xtr-event-dispatcher", extras = ["di"], editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
-    { name = "xtr-http-kernel", extras = ["logging", "console"], editable = "../../packages/xtr-http-kernel" },
+    { name = "xtr-http-kernel", extras = ["logging", "console", "rate-limiter"], editable = "../../packages/xtr-http-kernel" },
     { name = "xtr-lock", extras = ["di"], editable = "../../packages/xtr-lock" },
     { name = "xtr-logging", extras = ["di"], editable = "../../packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
     { name = "xtr-messenger", extras = ["di", "console", "pydantic", "amqp"], editable = "../../packages/xtr-messenger" },
     { name = "xtr-orm", extras = ["di", "console", "messenger", "sqlite", "postgres"], editable = "../../packages/xtr-orm" },
+    { name = "xtr-rate-limiter", extras = ["di", "cache", "lock", "redis"], editable = "../../packages/xtr-rate-limiter" },
     { name = "xtr-scheduler", extras = ["cron", "di", "console"], editable = "../../packages/xtr-scheduler" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
@@ -363,8 +375,18 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "basedpyright", specifier = ">=1.21" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+]
+
+[[package]]
+name = "certifi"
+version = "2026.7.22"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a3/c2/24167ea9858356b47a87a50d39908bfdb72ceeefe0041586e704e5376b3a/certifi-2026.7.22.tar.gz", hash = "sha256:741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55", size = 138112, upload-time = "2026-07-22T03:35:12.644Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl", hash = "sha256:62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775", size = 136983, upload-time = "2026-07-22T03:35:11.276Z" },
 ]
 
 [[package]]
@@ -617,6 +639,34 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/01/ee/02a2c011bdab74c6fb3c75474d40b3052059d95df7e73351460c8588d963/h11-0.16.0.tar.gz", hash = "sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1", size = 101250, upload-time = "2025-04-24T03:35:25.427Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86", size = 37515, upload-time = "2025-04-24T03:35:24.344Z" },
+]
+
+[[package]]
+name = "httpcore"
+version = "1.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "h11" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/94/82699a10bca87a5556c9c59b5963f2d039dbd239f25bc2a63907a05a14cb/httpcore-1.0.9.tar.gz", hash = "sha256:6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8", size = 85484, upload-time = "2025-04-24T22:06:22.219Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/f5/f66802a942d491edb555dd61e3a9961140fd64c90bce1eafd741609d334d/httpcore-1.0.9-py3-none-any.whl", hash = "sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55", size = 78784, upload-time = "2025-04-24T22:06:20.566Z" },
+]
+
+[[package]]
+name = "httpx"
+version = "0.28.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "certifi" },
+    { name = "httpcore" },
+    { name = "idna" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc", size = 141406, upload-time = "2024-12-06T15:37:23.222Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad", size = 73517, upload-time = "2024-12-06T15:37:21.509Z" },
 ]
 
 [[package]]
@@ -1274,6 +1324,18 @@ wheels = [
 ]
 
 [[package]]
+name = "redis"
+version = "8.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "async-timeout", marker = "python_full_version < '3.11.3'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a8/99/604f0b666d4c616d891cf77ebb9db6bb21601344c051aebf1b72b9ff915f/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25", size = 5254356, upload-time = "2026-07-30T08:51:00.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/66/9d/c5731f6e3608663d4d3656fd8d3aecee8b509c3082818f5a13eae925baea/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb", size = 560618, upload-time = "2026-07-30T08:50:58.497Z" },
+]
+
+[[package]]
 name = "rich"
 version = "15.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1847,21 +1909,27 @@ console = [
 logging = [
     { name = "xtr-logging" },
 ]
+rate-limiter = [
+    { name = "xtr-clock" },
+    { name = "xtr-rate-limiter", extra = ["di"] },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.121.3" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", marker = "extra == 'rate-limiter'", editable = "../../packages/xtr-clock" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
     { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging", marker = "extra == 'logging'", editable = "../../packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
+    { name = "xtr-rate-limiter", extras = ["di"], marker = "extra == 'rate-limiter'", editable = "../../packages/xtr-rate-limiter" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["logging", "console"]
+provides-extras = ["logging", "console", "rate-limiter"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1872,8 +1940,10 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
     { name = "xtr-logging", editable = "../../packages/xtr-logging" },
+    { name = "xtr-rate-limiter", extras = ["di"], editable = "../../packages/xtr-rate-limiter" },
 ]
 
 [[package]]
@@ -2107,6 +2177,61 @@ dev = [
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "../../packages/xtr-logging" },
     { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
+    { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
+]
+
+[[package]]
+name = "xtr-rate-limiter"
+version = "1.5.0"
+source = { editable = "../../packages/xtr-rate-limiter" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-event-dispatcher-contracts" },
+]
+
+[package.optional-dependencies]
+cache = [
+    { name = "xtr-cache-contracts" },
+]
+di = [
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-service-contracts" },
+]
+lock = [
+    { name = "xtr-lock" },
+]
+redis = [
+    { name = "redis" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "../../packages/xtr-cache-contracts" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-lock", marker = "extra == 'lock'", editable = "../../packages/xtr-lock" },
+    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
+]
+provides-extras = ["cache", "lock", "redis", "di"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "fakeredis", extras = ["lua"], specifier = ">=2.38.0" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "redis", specifier = ">=5.0" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-cache", editable = "../../packages/xtr-cache" },
+    { name = "xtr-cache-contracts", editable = "../../packages/xtr-cache-contracts" },
+    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-lock", editable = "../../packages/xtr-lock" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
 

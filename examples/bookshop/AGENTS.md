@@ -42,6 +42,7 @@ uv run bookshop list && uv run bookshop di:show && uv run bookshop demo:errors
 APP_ENV=prod uv run bookshop di:show && APP_ENV=test uv run bookshop list
 uv run bookshop orm:migrations:migrate -n && uv run bookshop orm:migrations:up-to-date
 uv run bookshop orders:place 978-0141439518 2 && uv run bookshop orders:list
+uv run bookshop demo:rate-limit && APP_ENV=test uv run bookshop demo:rate-limit
 ```
 
 There are no tests in this example on purpose: the commands above exercise it.

@@ -10,6 +10,14 @@ does.
 Every request runs in a scope of its own, opened by ``setup`` in :mod:`bookshop.web.app`: the
 cart and the unit of work are built for the request and released once the response has gone
 out — which is when the unit of work commits.
+
+Rate limits, each a limiter of ``config/rate_limiter.py`` — every way to declare one:
+
+- the router — every route, per client (``api``), with ``X-RateLimit-*`` headers;
+- a decorator below the route — ``GET /search`` (``search``);
+- the route's ``dependencies`` — ``POST /orders`` (``ordering``, a compound limit);
+- a limiter injected by name and consumed by hand — ``POST /orders``, per email address
+  (``orders_per_email``), since the address is in the body, which no dependency reads.
 """
 
 from __future__ import annotations
@@ -19,8 +27,10 @@ from typing import Annotated, ClassVar
 
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
-from xtr_dependency_injection import Autowire, Injected, KernelInterface
+from xtr_dependency_injection import Autowire, Injected, KernelInterface, Target
+from xtr_http_kernel.rate_limiter import RateLimited
 from xtr_messenger import WorkerFactory
+from xtr_rate_limiter import RateLimiterFactoryInterface
 
 from bookshop.catalog import Book, BookCatalogInterface, Genre
 from bookshop.ordering import (
@@ -38,7 +48,8 @@ __all__ = ["OrderRequest", "router"]
 
 _QUEUED = ("jobs", "audit", "outbox")
 
-router = APIRouter()
+# Limited before its routes are added: each route copies the router's dependencies.
+router = RateLimited("api", expose_headers=True)(APIRouter())
 
 
 class OrderRequest(BaseModel):
@@ -98,8 +109,12 @@ async def show_book(
 
 
 @router.get("/search")
+@RateLimited("search", expose_headers=True)  # below the route: the route reads what it wraps
 async def search(engine: Injected[SearchEngineInterface], q: str = "") -> list[dict[str, object]]:
-    """``GET /search?q=...`` — the library's engine, decorated by its own bundle."""
+    """``GET /search?q=...`` — the library's engine, decorated by its own bundle.
+
+    Five a minute per client: the sixth is answered 429, with ``Retry-After``.
+    """
     return [{"isbn": hit.key, "score": hit.score} for hit in engine.search(q)]
 
 
@@ -112,9 +127,10 @@ async def list_orders(orders: Injected[OrderRepository]) -> list[dict[str, objec
     ]
 
 
-@router.post("/orders", status_code=HTTPStatus.CREATED)
+@router.post("/orders", status_code=HTTPStatus.CREATED, dependencies=[RateLimited("ordering")])
 async def place_order(  # noqa: PLR0913, PLR0917 — the body plus one service per concern.
     order: OrderRequest,
+    per_email: Annotated[RateLimiterFactoryInterface, Target("orders_per_email")],
     cart: Injected[ShoppingCart],
     work: Injected[UnitOfWork],
     number: Injected[OrderNumber],
@@ -128,9 +144,12 @@ async def place_order(  # noqa: PLR0913, PLR0917 — the body plus one service p
     queued before that.
 
     Raises:
+        RateLimitExceededError: If the address placed two orders this hour already;
+            answered as 429.
         UnknownBookError: If the ISBN names no book; answered as 404.
         OrderRefusedError: If the fraud check refuses the order; answered as 422.
     """
+    _ = (await per_email.create(order.email.lower()).consume()).ensure_accepted()
     cart.add(order.isbn, order.quantity)
     envelopes = await orders.place(cart, order.email, number, work)
     for name in _QUEUED:

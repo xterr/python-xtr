@@ -25,6 +25,7 @@ from xtr_lock.bundle import LockBundle
 from xtr_logging.bundle import LoggingBundle
 from xtr_messenger.bundle import MessengerBundle
 from xtr_orm.bundle import OrmBundle
+from xtr_rate_limiter.bundle import RateLimiterBundle
 from xtr_scheduler.bundle import SchedulerBundle
 
 from bookshop.dev_tools import DevToolsBundle
@@ -48,6 +49,9 @@ BUNDLES = {
     CacheBundle: {"all": True},
     # Brings MessengerBundle with it; with the cache bundle active it adds a "scheduler" pool.
     SchedulerBundle: {"all": True},
+    # Limits on routes, on outgoing mail, on anything; with the cache and lock bundles active
+    # its limiters keep their state in a "rate_limiter" pool it adds, under the default lock.
+    RateLimiterBundle: {"all": True},
     # Development helpers: never active in prod. Its resources are only scanned when active.
     DevToolsBundle: {"dev": True, "test": True},
 }
