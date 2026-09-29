@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -115,3 +116,21 @@ def test_check_names_an_example_left_behind(workspace: Path) -> None:
 
     with pytest.raises(SystemExit, match=r"examples/shop 1\.1\.0"):
         release.check(None)
+
+
+def test_check_names_a_range_left_on_another_major(workspace: Path) -> None:
+    manifest = workspace / "packages" / "xtr-ab" / "pyproject.toml"
+    _ = manifest.write_text(_manifest("xtr-ab", "1.3.0", ["xtr-a>=0.0,<1"]))
+
+    with pytest.raises(SystemExit, match=r"xtr-ab requires xtr-a>=0\.0,<1"):
+        release.check(None)
+
+
+def test_every_line_the_readme_sync_rewrites_is_still_in_the_readme() -> None:
+    text = (_SCRIPT.parents[1] / "README.md").read_text()
+    prefixes = release.README_VERSION.pattern.split("(", 1)[1].split(")", 1)[0].split("|")
+
+    missing = [prefix for prefix in prefixes if not re.search(rf"{prefix}\d+\.\d+\.\d+", text)]
+
+    assert missing == []
+    assert release.README_RANGE.search(text) is not None

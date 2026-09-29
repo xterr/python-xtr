@@ -96,6 +96,9 @@ def check(expected: str | None) -> None:
         )
         sys.exit(f"not on one version: workspace {workspace_version()}, {found}")
     version = versions.pop()
+    stale = stale_ranges(int(version.split(".", maxsplit=1)[0]))
+    if stale:
+        sys.exit(f"ranges not on {version}'s major: {', '.join(stale)}")
     if expected is not None and expected != version:
         sys.exit(f"cannot release {expected}: the packages are at {version}")
     text = README.read_text()
@@ -114,6 +117,24 @@ def requirements(pyproject: Path) -> list[str]:
     for group in data.get("dependency-groups", {}).values():
         found.extend(entry for entry in group if isinstance(entry, str))
     return found
+
+
+def stale_ranges(major: int) -> list[str]:
+    """Return every requirement on a sibling not ranged ``>={major}.0,<{major + 1}``."""
+    siblings = {package.name for package in packages()}
+    wanted = f">={major}.0,<{major + 1}"
+    stale: list[str] = []
+    for package in packages():
+        for requirement in requirements(package.pyproject):
+            name = REQUIREMENT_NAME.match(requirement)
+            if name is None or name.group() not in siblings:
+                continue
+            rest = requirement[name.end() :].split(";", 1)[0].strip()
+            if rest.startswith("["):
+                rest = rest[rest.find("]") + 1 :]
+            if rest != wanted:
+                stale.append(f"{package.name} requires {name.group()}{rest}")
+    return stale
 
 
 def rewrite_ranges(major: int) -> None:
