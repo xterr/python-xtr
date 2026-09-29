@@ -28,7 +28,12 @@ from urllib.parse import quote
 
 from typing_extensions import override
 
-from xtr_storage.adapter import _object_store
+from xtr_storage.adapter._object_store import (
+    directory_exists,
+    directory_marker,
+    is_directory_marker,
+    select_allowed,
+)
 from xtr_storage.adapter.fsspec_adapter import FsspecAdapter
 from xtr_storage.config import Config
 from xtr_storage.exception import (
@@ -160,7 +165,7 @@ class GcsAdapter(FsspecAdapter):
         settings are grouped under the one argument the backend collects them in.
         """
         merged: dict[str, object] = {**self._default_write_options, **config.to_dict()}
-        forwarded = _object_store.select_allowed(merged, _WRITE_OPTION_KEYS)
+        forwarded = select_allowed(merged, _WRITE_OPTION_KEYS)
         options: dict[str, object] = {
             key: forwarded[key] for key in _DIRECT_WRITE_OPTIONS if key in forwarded
         }
@@ -172,7 +177,7 @@ class GcsAdapter(FsspecAdapter):
     @override
     def _is_hidden_entry(self, path: str) -> bool:
         """Hide the zero-byte object that stands in for a directory in a listing."""
-        return _object_store.is_directory_marker(path)
+        return is_directory_marker(path)
 
     @override
     async def write(self, path: str, contents: bytes, config: Config) -> None:
@@ -197,7 +202,7 @@ class GcsAdapter(FsspecAdapter):
         self._reject_explicit_visibility(config)
         if not self._key_prefixer.prefix_path(path):
             return
-        marker = _object_store.directory_marker(self._prefixer.prefix_path(path))
+        marker = directory_marker(self._prefixer.prefix_path(path))
         try:
             await self._get_bridge().pipe_file(marker, b"")
         except OSError as error:
@@ -208,7 +213,7 @@ class GcsAdapter(FsspecAdapter):
         """Return whether a marker or any key stands under ``path``."""
         location = self._prefixer.prefix_path(path)
         try:
-            return await _object_store.directory_exists(self._get_bridge(), location)
+            return await directory_exists(self._get_bridge(), location)
         except OSError as error:
             raise UnableToCheckDirectoryExistenceError(path) from error
 
