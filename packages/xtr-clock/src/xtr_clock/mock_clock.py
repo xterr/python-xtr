@@ -45,7 +45,8 @@ class MockClock:
 
         Args:
             now: Where to stand still. A datetime freezes exactly there and
-                keeps its zone. A string is read by the grammar on
+                keeps its zone; a naive one is read in ``timezone``, or UTC.
+                A string is read by the grammar on
                 :mod:`xtr_clock.modifier` against the clock currently in
                 force, so ``'+1 day'`` composes with a clock already frozen.
                 ``None`` freezes at the current instant.
@@ -58,6 +59,9 @@ class MockClock:
             InvalidTimezoneError: When ``timezone`` names no known zone.
         """
         zone = resolve_timezone(timezone) if timezone is not None else None
+        if isinstance(now, datetime) and now.tzinfo is None:
+            # Read where the clock reports, never where the machine running it is.
+            now = now.replace(tzinfo=zone or UTC)
 
         instant = (
             DatePoint.from_datetime(now)

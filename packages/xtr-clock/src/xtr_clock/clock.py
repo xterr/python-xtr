@@ -154,7 +154,10 @@ class Clock:
         """Install ``clock`` for the duration of a ``with`` block.
 
         The previous clock comes back on the way out, including when the
-        block raises.
+        block raises. For the context it runs in, scopes nest exactly. The
+        process-wide fallback a thread started later reads is put back as
+        this block found it: blocks in concurrent tasks that end out of the
+        order they began leave it on the last one's view.
 
         Args:
             clock: The clock to install. An object that only answers

@@ -45,6 +45,24 @@ def test_it_freezes_at_a_datetime_and_keeps_that_datetimes_zone() -> None:
     assert clock.timezone is PARIS
 
 
+def test_a_naive_datetime_is_read_in_the_zone_given_wherever_the_machine_is(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TZ", "America/New_York")
+
+    clock = MockClock(datetime(2024, 1, 1, 12), "UTC")
+
+    assert clock.now().isoformat() == "2024-01-01T12:00:00+00:00"
+
+
+def test_a_naive_datetime_without_a_zone_is_read_in_utc(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TZ", "America/New_York")
+
+    clock = MockClock(datetime(2024, 1, 1, 12))
+
+    assert clock.now().isoformat() == "2024-01-01T12:00:00+00:00"
+
+
 def test_a_bare_timezone_string_reads_the_current_instant_in_that_zone() -> None:
     assert MockClock("Europe/Paris").timezone == PARIS
 

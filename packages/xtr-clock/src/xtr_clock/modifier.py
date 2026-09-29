@@ -257,13 +257,6 @@ def _shift(moment: datetime, months: int, days: int, duration: timedelta) -> dat
     return moment
 
 
-def _shift_days(moment: datetime, days: int) -> datetime:
-    """Move ``moment`` by whole days, keeping the wall clock it shows."""
-    shifted = moment.date() + timedelta(days=days)
-
-    return moment.replace(year=shifted.year, month=shifted.month, day=shifted.day)
-
-
 def _normalise(moment: datetime) -> datetime:
     """Return the same instant, shown on a wall clock that really existed.
 
@@ -291,6 +284,6 @@ _KEYWORDS: Final[Mapping[str, Callable[[datetime], datetime]]] = {
     "today": _midnight,
     "midnight": _midnight,
     "noon": _noon,
-    "tomorrow": lambda moment: _midnight(_shift_days(moment, 1)),
-    "yesterday": lambda moment: _midnight(_shift_days(moment, -1)),
+    "tomorrow": lambda moment: _midnight(shift_calendar(moment, days=1)),
+    "yesterday": lambda moment: _midnight(shift_calendar(moment, days=-1)),
 }

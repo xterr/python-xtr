@@ -88,7 +88,7 @@ class MonotonicClock:
         clone = copy(self)
         # Reaching into the copy rather than rebuilding: the constructor would
         # take a fresh anchor, and the two clocks would then disagree.
-        clone._timezone = resolve_timezone(timezone)  # noqa: SLF001
+        clone._timezone = resolve_timezone(timezone)  # noqa: SLF001 — a copy of this very class
 
         return clone
 

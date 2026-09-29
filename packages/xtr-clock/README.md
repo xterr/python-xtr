@@ -264,7 +264,9 @@ with mock_time("2024-04-09 12:00:00"):
 The clock in force lives in a `ContextVar`, so a scope that installs one does not leak into a
 concurrent task that did not, and two tests running side by side cannot see each other's.
 Installing also updates a process-wide fallback, so a thread started later — which begins with a
-fresh context — still sees the clock the application chose.
+fresh context — still sees the clock the application chose. That fallback is one value, and the
+last writer wins: `using` blocks in concurrent tasks that end out of the order they began can
+leave it on a clock one of them installed, which only a thread started afterwards reads.
 
 `Clock.set(clock)` installs one for good, which is what an application does at startup.
 `Clock.using(clock)` installs one for a block and puts the old one back on the way out,
