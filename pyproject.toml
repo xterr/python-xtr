@@ -29,6 +29,7 @@ xtr-orm                  = { workspace = true }
 xtr-rate-limiter         = { workspace = true }
 xtr-scheduler            = { workspace = true }
 xtr-service-contracts    = { workspace = true }
+xtr-storage              = { workspace = true }
 
 [dependency-groups]
 dev = [
