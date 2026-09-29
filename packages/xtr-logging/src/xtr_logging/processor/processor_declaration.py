@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from xtr_logging.exception.invalid_option_error import InvalidOptionError
+from ._target import refuse_both_targets
 
 __all__ = ["ProcessorDeclaration"]
 
@@ -19,9 +19,4 @@ class ProcessorDeclaration:
 
     def __post_init__(self) -> None:
         """Refuse targeting both a channel and a handler."""
-        if self.channel is not None and self.handler is not None:
-            raise InvalidOptionError(
-                "channel",
-                self.channel,
-                f"a processor targets a channel or a handler, not both (handler={self.handler})",
-            )
+        refuse_both_targets(self.channel, self.handler)

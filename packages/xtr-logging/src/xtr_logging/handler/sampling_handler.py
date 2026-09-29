@@ -71,15 +71,21 @@ class SamplingHandler(AbstractHandler, ProcessorStack, LazyHandler):
 
     @override
     def is_handling(self, record: LogRecord, /) -> bool:
-        """Whether the wrapped handler would handle ``record`` at all."""
-        return self._resolve_handler(record).is_handling(record)
+        """Whether the wrapped handler would handle ``record`` at all.
+
+        ``True`` while it is still to be built: sampling decides first, so a
+        dropped record never costs building it.
+        """
+        return self._wrapped is None or self._wrapped.is_handling(record)
 
     @override
     def handle(self, record: LogRecord, /) -> bool:
         """Forward ``record`` with probability ``1 / factor``; drop it otherwise."""
         if self.is_handling(record) and self._rng.randint(1, self._factor) == 1:
             record = self._process(record)
-            _ = self._resolve_handler(record).handle(record)
+            handler = self._resolve_handler(record)
+            if handler.is_handling(record):
+                _ = handler.handle(record)
         return not self._bubble
 
     @override

@@ -13,7 +13,7 @@ import msgspec
 from typing_extensions import override
 from xtr_logging_contracts import Level
 
-from xtr_logging.exception.invalid_option_error import InvalidOptionError
+from xtr_logging.processor._target import refuse_both_targets
 
 __all__ = [
     "ContextVarsProcessorSpec",
@@ -40,12 +40,7 @@ class _ProcessorSpecBase(
     priority: int = 0
 
     def __post_init__(self) -> None:
-        if self.channel is not None and self.handler is not None:
-            raise InvalidOptionError(
-                "channel",
-                self.channel,
-                f"a processor targets a channel or a handler, not both (handler={self.handler})",
-            )
+        refuse_both_targets(self.channel, self.handler)
 
 
 class PlaceholderProcessorSpec(_ProcessorSpecBase, frozen=True, kw_only=True, tag="placeholder"):

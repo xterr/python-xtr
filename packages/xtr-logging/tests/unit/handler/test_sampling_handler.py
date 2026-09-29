@@ -112,3 +112,19 @@ def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler
     handler.close()
 
     assert calls == []
+
+
+def test_a_record_the_sampling_drops_never_builds_the_wrapped_handler() -> None:
+    calls: list[LogRecord | None] = []
+
+    def factory(record: LogRecord | None, owner: SamplingHandler, /) -> HandlerInterface:
+        del owner
+        calls.append(record)
+        return TestHandler()
+
+    handler = SamplingHandler(factory, 3, rng=FixedRandom(2))
+
+    assert handler.is_handling(make_record())
+    _ = handler.handle(make_record())
+
+    assert calls == []

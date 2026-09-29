@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Final
 import msgspec
 from typing_extensions import override
 
-from ._text import class_name, safe_str
+from ._text import class_name, previous_error, safe_str
 from .formatter_interface import FormatterInterface
 from .normalizer import Normalizer
 
@@ -95,7 +95,7 @@ class LineFormatter(FormatterInterface):
         values: dict[str, str] = {
             "datetime": self._normalizer.format_datetime(record.datetime),
             "channel": record.channel,
-            "level_name": record.level_name,
+            "level_name": self._level_name(record),
             "level": str(record.level.value),
             "message": self._stringify(record.message),
             "context": self._stringify_bag(context),
@@ -106,7 +106,8 @@ class LineFormatter(FormatterInterface):
         def substitute(match: re.Match[str]) -> str:
             name = match.group("name")
             if name is None:
-                return match.group("space") + next(entries)
+                entry = next(entries)
+                return match.group("space") + entry if entry else ""
             if self._ignore_empty and name in bags and not bags[name]:
                 return ""
             return match.group("space") + values[name]
@@ -121,6 +122,10 @@ class LineFormatter(FormatterInterface):
     def format_batch(self, records: Sequence[LogRecord], /) -> str:
         """Render each record and join them."""
         return "".join(self.format(record) for record in records)
+
+    def _level_name(self, record: LogRecord) -> str:
+        """Return what ``%level_name%`` prints for ``record``."""
+        return record.level_name
 
     def _stringify_bag(self, values: dict[str, Normalized]) -> str:
         if not values:
@@ -143,11 +148,11 @@ class _LineNormalizer(Normalizer):
         # A chain may loop — an error raised from one that has it as context —
         # so every error is told once, and the chain is cut at the depth limit.
         seen = {id(error)}
-        previous = _previous(error)
+        previous = previous_error(error)
         while previous is not None and id(previous) not in seen and len(seen) < self.max_depth:
             seen.add(id(previous))
             text += f"\n[previous exception] [object] ({_describe(previous)})"
-            previous = _previous(previous)
+            previous = previous_error(previous)
         if self.include_stacktraces and error.__traceback__ is not None:
             text += "\n[stacktrace]\n" + "".join(traceback.format_tb(error.__traceback__))
         return text
@@ -157,10 +162,6 @@ def _describe(error: BaseException) -> str:
     frames = traceback.extract_tb(error.__traceback__)
     origin = f" at {frames[-1].filename}:{frames[-1].lineno}" if frames else ""
     return f"{class_name(error)}: {safe_str(error)}{origin}"
-
-
-def _previous(error: BaseException) -> BaseException | None:
-    return error.__cause__ or (None if error.__suppress_context__ else error.__context__)
 
 
 def _as_dict(value: Normalized) -> dict[str, Normalized]:

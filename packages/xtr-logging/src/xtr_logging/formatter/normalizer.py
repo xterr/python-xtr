@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from enum import Enum
 from typing import Final, TypeAlias
 
-from ._text import class_name, describe, safe_str
+from ._text import class_name, describe, previous_error, safe_str
 
 __all__ = ["Normalized", "Normalizer"]
 
@@ -128,7 +128,7 @@ class Normalizer:
             described["file"] = f"{frames[-1].filename}:{frames[-1].lineno}"
         if self.include_stacktraces and frames:
             described["trace"] = [f"{frame.filename}:{frame.lineno}" for frame in frames]
-        previous = _previous(error)
+        previous = previous_error(error)
         if previous is not None:
             described["previous"] = self._normalize(previous, depth + 1)
         return described
@@ -140,12 +140,6 @@ def _float(value: float) -> Normalized:
     if math.isinf(value):
         return "INF" if value > 0 else "-INF"
     return value
-
-
-def _previous(error: BaseException) -> BaseException | None:
-    if error.__cause__ is not None:
-        return error.__cause__
-    return None if error.__suppress_context__ else error.__context__
 
 
 def _over_limit(limit: int, total: int) -> str:

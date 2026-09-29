@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__all__ = ["class_name", "describe", "safe_str"]
+__all__ = ["class_name", "describe", "previous_error", "safe_str"]
 
 
 def class_name(value: object) -> str:
@@ -31,3 +31,8 @@ def describe(value: object) -> str:
     if kind.__str__ is not object.__str__ or kind.__repr__ is not object.__repr__:
         return safe_str(value)
     return f"[object {class_name(value)}]"
+
+
+def previous_error(error: BaseException) -> BaseException | None:
+    """Return the error ``error`` was raised from, or during; ``None`` when it hides it."""
+    return error.__cause__ or (None if error.__suppress_context__ else error.__context__)

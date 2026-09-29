@@ -5,6 +5,7 @@ import datetime as dt
 import os
 import stat
 import tempfile
+import threading
 from typing import TYPE_CHECKING, final
 
 import pytest
@@ -66,6 +67,27 @@ def test_it_suppresses_a_duplicate_within_the_window(tmp_path: Path) -> None:
     handler.flush()
     _ = handler.handle(make_record(Level.ERROR, "boom"))
     handler.flush()
+
+    assert [record.message for record in spy.handled] == ["boom"]
+
+
+def test_workers_sharing_a_store_send_a_burst_once(tmp_path: Path) -> None:
+    spy = Spy()
+    store = tmp_path / "dedup.log"
+    # One handler per worker, as in separate processes: only the store is shared.
+    handlers = [DeduplicationHandler(spy, store=store, clock=MockClock(AT)) for _ in range(8)]
+    ready = threading.Barrier(len(handlers))
+
+    def send(handler: DeduplicationHandler) -> None:
+        _ = handler.handle(make_record(Level.ERROR, "boom"))
+        _ = ready.wait()
+        handler.flush()
+
+    workers = [threading.Thread(target=send, args=(handler,)) for handler in handlers]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
 
     assert [record.message for record in spy.handled] == ["boom"]
 

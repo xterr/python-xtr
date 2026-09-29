@@ -18,7 +18,6 @@ __all__ = ["ConsoleFormatter"]
 
 _DEFAULT_FORMAT: Final = "%datetime% %level_name% [%channel%] %message% %context% %extra%\n"
 _DEFAULT_DATE_FORMAT: Final = "%H:%M:%S"
-_LEVEL_TOKEN: Final = "%level_name%"  # noqa: S105 — a format token, not a secret
 _RESET: Final = "\033[0m"
 
 # ANSI colours graded by severity, so an error stands out in a scrolling
@@ -83,12 +82,8 @@ class ConsoleFormatter(LineFormatter):
         self._colors: bool = colors
 
     @override
-    def format(self, record: LogRecord, /) -> str:
-        """Render ``record`` as a line, colouring the level name if colours are on."""
-        line = super().format(record)
-        if not self._colors or _LEVEL_TOKEN not in self._format:
-            return line
-        color = _LEVEL_COLORS[record.level]
-        # The template puts the level name before the message, so the first
-        # occurrence is the token, never a word that happens to sit in the text.
-        return line.replace(record.level_name, f"{color}{record.level_name}{_RESET}", 1)
+    def _level_name(self, record: LogRecord) -> str:
+        """Return the level name, in its colour when colours are on."""
+        if not self._colors:
+            return record.level_name
+        return f"{_LEVEL_COLORS[record.level]}{record.level_name}{_RESET}"

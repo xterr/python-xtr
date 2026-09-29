@@ -46,6 +46,14 @@ def test_only_the_level_token_is_wrapped_not_a_matching_word() -> None:
     assert rendered.endswith("[app] ERROR happened\n")
 
 
+def test_the_level_token_is_wrapped_even_when_the_message_comes_first() -> None:
+    formatter = ConsoleFormatter("%message% %level_name%", colors=True)
+
+    rendered = formatter.format(make_record(Level.ERROR, "ERROR happened"))
+
+    assert rendered == "ERROR happened \033[31mERROR\033[0m"
+
+
 def test_a_template_without_the_level_token_is_left_uncoloured() -> None:
     rendered = ConsoleFormatter("%message%\n", colors=True).format(make_record(Level.ERROR, "boom"))
 

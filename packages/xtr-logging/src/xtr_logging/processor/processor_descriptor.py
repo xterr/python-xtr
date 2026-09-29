@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from xtr_logging.exception.invalid_option_error import InvalidOptionError
+from ._target import refuse_both_targets
 
 if TYPE_CHECKING:
     from .processor_interface import ProcessorInterface
@@ -36,9 +36,4 @@ class ProcessorDescriptor:
         Raises:
             InvalidOptionError: If both are given.
         """
-        if self.channel is not None and self.handler is not None:
-            raise InvalidOptionError(
-                "channel",
-                self.channel,
-                f"a processor targets a channel or a handler, not both (handler={self.handler})",
-            )
+        refuse_both_targets(self.channel, self.handler)

@@ -190,6 +190,18 @@ def test_clear_discards_the_buffer_even_with_a_passthru_floor() -> None:
     assert spy.handled == []
 
 
+def test_clear_after_activation_starts_buffering_again() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(spy)
+    _ = handler.handle(make_record(Level.ERROR, "error"))
+    handler.clear()
+    spy.handled.clear()
+
+    _ = handler.handle(make_record(Level.INFO, "info"))
+
+    assert spy.handled == []
+
+
 def test_is_handling_is_always_true() -> None:
     handler = FingersCrossedHandler(Spy())
 

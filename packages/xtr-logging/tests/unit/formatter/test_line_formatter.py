@@ -53,6 +53,12 @@ def test_a_keyed_token_prints_one_entry_and_removes_it_from_the_bag() -> None:
     assert rendered == 'x1 ana {"id":1} []'
 
 
+def test_a_keyed_token_for_a_missing_entry_takes_its_space_with_it() -> None:
+    formatter = LineFormatter("%message% %context.user% %channel%")
+
+    assert formatter.format(make_record(message="hi")) == "hi app"
+
+
 def test_a_keyed_token_for_a_missing_entry_is_dropped() -> None:
     assert LineFormatter("[%context.missing%]").format(make_record()) == "[]"
 

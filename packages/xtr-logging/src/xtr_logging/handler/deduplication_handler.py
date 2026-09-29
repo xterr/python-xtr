@@ -6,7 +6,10 @@ import hashlib
 import os
 import re
 import stat
+import sys
 import tempfile
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, final
 
@@ -17,6 +20,8 @@ from xtr_logging_contracts import Level
 from .buffer_handler import BufferHandler
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from xtr_clock import ClockInterface
     from xtr_logging_contracts import LevelLike
 
@@ -49,7 +54,8 @@ class DeduplicationHandler(BufferHandler):
     alone: another user can neither read what was sent nor plant a file there.
     One owned by someone else is not used, and nothing is deduplicated. Give
     ``store`` an explicit path shared across processes so a burst spread over
-    many workers is still deduplicated. The clock is injected so a test can
+    many workers is still deduplicated: the store is locked while it is read
+    and written, where the system has file locks. The clock is injected so a test can
     decide what "recently" means.
 
     Records are held until a flush, all of them unless ``buffer_limit`` caps
@@ -68,6 +74,7 @@ class DeduplicationHandler(BufferHandler):
         clock: ClockInterface | None = None,
         buffer_limit: int = 0,
         flush_on_overflow: bool = False,
+        name: str = "",
     ) -> None:
         """Deduplicate what ``handler`` sends.
 
@@ -86,6 +93,9 @@ class DeduplicationHandler(BufferHandler):
                 them all.
             flush_on_overflow: Forward the held records when ``buffer_limit``
                 is reached, rather than dropping the oldest.
+            name: Tells the default store apart from that of another handler
+                wrapping one alike — same class, level and target; a
+                configuration gives each handler its name.
 
         Raises:
             InvalidLevelError: If ``deduplication_level`` names no level.
@@ -94,32 +104,52 @@ class DeduplicationHandler(BufferHandler):
             handler, buffer_limit, Level.DEBUG, bubble, flush_on_overflow=flush_on_overflow
         )
         self._private: bool = store is None
-        self._store_path: Path = Path(store) if store is not None else _default_store(handler)
+        self._store_path: Path = Path(store) if store is not None else _default_store(handler, name)
         self._deduplication_level: Level = Level.parse(deduplication_level)
         self._time: int = time
         self._clock: ClockInterface = clock if clock is not None else Clock()
         self._gc: bool = False
+        self._store_lock: threading.Lock = threading.Lock()
 
     @override
     def _forward(self, records: list[LogRecord]) -> None:
         """Forward ``records``, unless every one at the deduplication level is a repeat."""
-        store = self._read_store()
-        passthru: bool | None = None
-        for record in records:
-            if record.level >= self._deduplication_level:
-                passthru = (
-                    passthru is True or store is None or not self._is_duplicate(store, record)
-                )
-                if passthru:
-                    line = self._build_entry(record)
-                    self._append_store(line)
-                    if store is None:
-                        store = []
-                    store.append(line)
+        # Deciding and recording are one step, or two workers would both find a record new.
+        with self._exclusive():
+            store = self._read_store()
+            passthru: bool | None = None
+            for record in records:
+                if record.level >= self._deduplication_level:
+                    passthru = (
+                        passthru is True or store is None or not self._is_duplicate(store, record)
+                    )
+                    if passthru:
+                        line = self._build_entry(record)
+                        self._append_store(line)
+                        if store is None:
+                            store = []
+                        store.append(line)
         if passthru is True or passthru is None:
             self._handler.handle_batch(tuple(records))
         if self._gc:
-            self._collect_logs()
+            with self._exclusive():
+                self._collect_logs()
+
+    @contextmanager
+    def _exclusive(self) -> Generator[None]:
+        """Hold the store alone: against this handler's other threads, and other processes.
+
+        Other processes are held off with an advisory lock on the store file,
+        where the system has one; elsewhere a store shared between processes
+        may occasionally let a repeat through.
+        """
+        with self._store_lock:
+            if not self._trusted():
+                yield
+                return
+            with self._store_path.open("a", encoding="utf-8") as held:
+                _lock_exclusively(held.fileno())
+                yield
 
     def _is_duplicate(self, store: list[str], record: LogRecord) -> bool:
         newer_than = int(record.datetime.timestamp()) - self._time
@@ -179,14 +209,29 @@ class DeduplicationHandler(BufferHandler):
         self._gc = False
 
 
-def _default_store(handler: HandlerInterface) -> Path:
-    """Return the store of what ``handler`` sent: one per class, level and target it has."""
+if sys.platform == "win32":
+
+    def _lock_exclusively(fileno: int) -> None:
+        """Take nothing: the system has no advisory file lock to take."""
+        del fileno
+
+else:
+    import fcntl
+
+    def _lock_exclusively(fileno: int) -> None:
+        """Hold the file open on ``fileno`` alone, until it is closed."""
+        fcntl.flock(fileno, fcntl.LOCK_EX)
+
+
+def _default_store(handler: HandlerInterface, name: str) -> Path:
+    """Return the store of what ``handler`` sent: one per name, class, level and target."""
     kind = type(handler)
     seed = "|".join(
         (
             f"{kind.__module__}.{kind.__qualname__}",
             str(getattr(handler, "level", "")),
             str(getattr(handler, "url", "")),
+            name,
         )
     )
     digest = hashlib.sha256(seed.encode()).hexdigest()[:20]

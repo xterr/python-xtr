@@ -104,7 +104,7 @@ class HandlerBuilder:
         found = self._built.get(name)
         if found is None:
             spec = self._config.handlers[name]
-            found = self._create(spec)
+            found = self._create(name, spec)
             formatter = (
                 spec.formatter
                 if isinstance(spec, FormattedHandlerSpec | ConsoleHandlerSpec)
@@ -115,7 +115,7 @@ class HandlerBuilder:
             self._built[name] = found
         return found
 
-    def _create(self, spec: HandlerSpec) -> HandlerInterface:  # noqa: C901, PLR0911, PLR0912 — one case per handler type
+    def _create(self, name: str, spec: HandlerSpec) -> HandlerInterface:  # noqa: C901, PLR0911, PLR0912 — one case per handler type
         match spec:
             case StreamHandlerSpec():
                 return StreamHandler(
@@ -190,6 +190,7 @@ class HandlerBuilder:
                     spec.bubble,
                     buffer_limit=spec.buffer_limit,
                     flush_on_overflow=spec.flush_on_overflow,
+                    name=name,
                 )
             case SamplingHandlerSpec():
                 return SamplingHandler(self.build(spec.handler), spec.factor, spec.bubble)
