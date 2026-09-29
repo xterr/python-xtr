@@ -1908,6 +1908,7 @@ provides-extras = ["redis", "di", "logging"]
 dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
+    { name = "fakeredis", extras = ["lua"], specifier = ">=2.38.0" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "redis", specifier = ">=5.0" },
