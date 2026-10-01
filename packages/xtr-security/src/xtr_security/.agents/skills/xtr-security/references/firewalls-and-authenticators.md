@@ -130,6 +130,25 @@ identifier and a bad password take the same time.
 everything as bad credentials, `ACCOUNT_STATUS` reveals disabled, locked and expired accounts,
 `ALL` reveals the failure. Leave it at `NONE` in production.
 
+## Listening to a firewall's events
+
+Each firewall dispatches `CheckPassportEvent`, `AuthenticationTokenCreatedEvent`,
+`AuthenticationSuccessEvent`, `LoginSuccessEvent` and `LoginFailureEvent` on a dispatcher of its
+own. A listener of them on the main dispatcher hears every firewall; to hear one alone, name its
+dispatcher:
+
+```python
+from xtr_event_dispatcher import as_event_listener
+from xtr_security.bundle import firewall_dispatcher_name
+
+
+@as_event_listener(dispatcher=firewall_dispatcher_name("api"))
+def count_api_login(event: LoginSuccessEvent) -> None: ...
+```
+
+In debug mode `debug:event-dispatcher --dispatcher security.event_dispatcher.api` lists that
+firewall's listeners.
+
 ## Challenges
 
 The exception listener answers for you: an `AuthenticationError` becomes the firewall's

@@ -286,10 +286,34 @@ BUNDLES = {SecurityBundle: {"all": True}}
 `SecurityBundle` registers the token storage (scoped), the trust resolver, the role hierarchy,
 the voters and the decision manager, the authorization checker and the `Security` facade (both
 scoped), the password hasher factory and the user hasher, the user providers, and — per
-firewall — its own scoped event dispatcher with the login listeners, its authenticators, its
-access map, its entry point and its OpenAPI scheme, gathered into a `FirewallMap`. The exception
+firewall — its own event dispatcher with the login listeners, its authenticators, its access
+map, its entry point and its OpenAPI scheme, gathered into a `FirewallMap`. The exception
 listener turns a security error into a response on the http-kernel lifecycle. Its zero-config
 path builds and boots with no configuration and touches no I/O until a request arrives.
+
+Each firewall dispatches its security events — `CheckPassportEvent`,
+`AuthenticationTokenCreatedEvent`, `AuthenticationSuccessEvent`, `LoginSuccessEvent`,
+`LoginFailureEvent` — on a dispatcher of its own, named by `firewall_dispatcher_name(firewall)`.
+A listener of those events on the main dispatcher hears every firewall
+(`RegisterGlobalSecurityEventListenersPass` copies it onto each); one naming a firewall's
+dispatcher hears that firewall alone:
+
+```python
+from xtr_event_dispatcher import as_event_listener
+from xtr_security.bundle import firewall_dispatcher_name
+
+
+@as_event_listener()  # every firewall
+def audit_login(event: LoginSuccessEvent) -> None: ...
+
+
+@as_event_listener(dispatcher=firewall_dispatcher_name("api"))  # the api firewall alone
+def count_api_login(event: LoginSuccessEvent) -> None: ...
+```
+
+In debug mode `MakeFirewallsEventDispatcherTraceablePass` traces every firewall's dispatcher,
+as the event dispatcher bundle traces its own; `debug:event-dispatcher --dispatcher
+security.event_dispatcher.api` lists one firewall's listeners.
 
 With a console bundle active it also registers `debug:firewall [name]`, which lists the
 configured firewalls or describes one, and `security:hash-password`, which hashes a password
