@@ -2844,6 +2844,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+console = [
+    { name = "xtr-console" },
+]
 di = [
     { name = "xtr-dependency-injection" },
     { name = "xtr-service-contracts" },
@@ -2857,6 +2860,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-console" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-logging" },
     { name = "xtr-service-contracts" },
@@ -2865,12 +2869,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
     { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "packages/xtr-service-contracts" },
 ]
-provides-extras = ["di"]
+provides-extras = ["di", "console"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2880,6 +2885,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
