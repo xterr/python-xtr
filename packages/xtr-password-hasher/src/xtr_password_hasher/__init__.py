@@ -21,6 +21,11 @@ from .hasher.pbkdf2_password_hasher import Pbkdf2PasswordHasher
 from .hasher.plaintext_password_hasher import PlaintextPasswordHasher
 from .hasher.user_password_hasher import UserPasswordHasher
 from .hasher.user_password_hasher_interface import UserPasswordHasherInterface
+from .legacy_password_authenticated_user_interface import LegacyPasswordAuthenticatedUserInterface
+from .legacy_password_hasher_interface import (
+    LegacyPasswordHasherInterface,
+    is_legacy_password_hasher,
+)
 from .password_authenticated_user_interface import PasswordAuthenticatedUserInterface
 from .password_hasher_interface import MAX_PASSWORD_LENGTH, PasswordHasherInterface
 
@@ -28,6 +33,8 @@ __all__ = [
     "MAX_PASSWORD_LENGTH",
     "InvalidArgumentError",
     "InvalidPasswordError",
+    "LegacyPasswordAuthenticatedUserInterface",
+    "LegacyPasswordHasherInterface",
     "MigratingPasswordHasher",
     "NativePasswordHasher",
     "PasswordAuthenticatedUserInterface",
@@ -42,4 +49,5 @@ __all__ = [
     "UserPasswordHasher",
     "UserPasswordHasherInterface",
     "create_auto_password_hasher",
+    "is_legacy_password_hasher",
 ]

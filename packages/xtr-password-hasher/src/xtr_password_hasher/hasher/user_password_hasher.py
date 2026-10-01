@@ -6,6 +6,11 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 
+from xtr_password_hasher.legacy_password_authenticated_user_interface import (
+    LegacyPasswordAuthenticatedUserInterface,
+)
+
+from .migrating_password_hasher import hash_with_salt, verify_with_salt
 from .password_hasher_factory_interface import (
     PasswordHasherFactoryInterface,  # noqa: TC001 — container hydrates this constructor at runtime
 )
@@ -25,7 +30,9 @@ class UserPasswordHasher(UserPasswordHasherInterface):
 
     Every call resolves the user's hasher through the factory, so one
     application can hash different users differently while callers only ever
-    hand over the user and the plaintext.
+    hand over the user and the plaintext. A
+    :class:`~xtr_password_hasher.LegacyPasswordAuthenticatedUserInterface`
+    user's salt goes to the hasher with the password.
     """
 
     __slots__ = ("_factory",)
@@ -35,26 +42,32 @@ class UserPasswordHasher(UserPasswordHasherInterface):
         self._factory = factory
 
     @override
-    def hash_password(self, user: PasswordAuthenticatedUserInterface, plain: str) -> str:
-        """Hash ``plain`` with the hasher chosen for ``user``.
+    def hash_password(self, user: PasswordAuthenticatedUserInterface, plain_password: str) -> str:
+        """Hash ``plain_password`` with the hasher chosen for ``user``.
 
         Raises:
-            InvalidPasswordError: When ``plain`` is too long.
+            InvalidPasswordError: When ``plain_password`` is too long.
             UnknownPasswordHasherError: When no hasher is configured for the user.
         """
-        return self._factory.get_password_hasher(user).hash(plain)
+        hasher = self._factory.get_password_hasher(user)
+        return hash_with_salt(hasher, plain_password, _salt_of(user))
 
     @override
-    def is_password_valid(self, user: PasswordAuthenticatedUserInterface, plain: str) -> bool:
-        """Return whether ``plain`` matches ``user``'s stored password.
+    def is_password_valid(
+        self,
+        user: PasswordAuthenticatedUserInterface,
+        plain_password: str,
+    ) -> bool:
+        """Return whether ``plain_password`` matches ``user``'s stored password.
 
         Raises:
             UnknownPasswordHasherError: When no hasher is configured for the user.
         """
-        hashed = user.get_password()
-        if hashed is None:
+        hashed_password = user.get_password()
+        if hashed_password is None:
             return False
-        return self._factory.get_password_hasher(user).verify(hashed, plain)
+        hasher = self._factory.get_password_hasher(user)
+        return verify_with_salt(hasher, hashed_password, plain_password, _salt_of(user))
 
     @override
     def needs_rehash(self, user: PasswordAuthenticatedUserInterface) -> bool:
@@ -63,7 +76,13 @@ class UserPasswordHasher(UserPasswordHasherInterface):
         Raises:
             UnknownPasswordHasherError: When no hasher is configured for the user.
         """
-        hashed = user.get_password()
-        if hashed is None:
+        hashed_password = user.get_password()
+        if hashed_password is None:
             return False
-        return self._factory.get_password_hasher(user).needs_rehash(hashed)
+        return self._factory.get_password_hasher(user).needs_rehash(hashed_password)
+
+
+def _salt_of(user: PasswordAuthenticatedUserInterface) -> str | None:
+    if isinstance(user, LegacyPasswordAuthenticatedUserInterface):
+        return user.get_salt()
+    return None

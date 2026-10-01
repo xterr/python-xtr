@@ -5,90 +5,116 @@ import pytest
 from xtr_password_hasher import (
     InvalidArgumentError,
     InvalidPasswordError,
-    PasswordHasherInterface,
     Pbkdf2PasswordHasher,
+    is_legacy_password_hasher,
 )
 
-
-def test_it_implements_the_password_hasher_interface() -> None:
-    assert PasswordHasherInterface in Pbkdf2PasswordHasher.__mro__
-
-
-def _fast() -> Pbkdf2PasswordHasher:
-    return Pbkdf2PasswordHasher(iterations=1000)
+# The derived key of "password" under an empty salt, SHA-256, one iteration, 40 bytes — the
+# vector other implementations of this scheme are checked against.
+_HEX_VECTOR = "c1232f10f62715fda06ae7c0a2037ca19b33cf103b727ba56d870c11f290a2ab106974c75607c8a3"
+_BASE64_VECTOR = "wSMvEPYnFf2gaufAogN8oZszzxA7cnulbYcMEfKQoqsQaXTHVgfIow=="
 
 
-def test_it_round_trips_a_password() -> None:
-    hasher = _fast()
+def test_it_is_a_legacy_hasher() -> None:
+    assert is_legacy_password_hasher(Pbkdf2PasswordHasher())
 
-    hashed = hasher.hash("secret")
 
-    assert hashed.startswith("$pbkdf2-sha512$1000$")
-    assert hasher.verify(hashed, "secret")
+def test_it_hashes_to_the_hex_vector() -> None:
+    hasher = Pbkdf2PasswordHasher("sha256", encode_hash_as_base64=False, iterations=1, length=40)
+
+    assert hasher.hash("password", "") == _HEX_VECTOR
+
+
+def test_it_hashes_to_the_base64_vector() -> None:
+    hasher = Pbkdf2PasswordHasher("sha256", encode_hash_as_base64=True, iterations=1, length=40)
+
+    assert hasher.hash("password", "") == _BASE64_VECTOR
+
+
+def test_it_verifies_the_vectors() -> None:
+    assert Pbkdf2PasswordHasher(
+        "sha256", encode_hash_as_base64=False, iterations=1, length=40
+    ).verify(_HEX_VECTOR, "password", "")
+    assert Pbkdf2PasswordHasher(
+        "sha256", encode_hash_as_base64=True, iterations=1, length=40
+    ).verify(_BASE64_VECTOR, "password")
+
+
+def test_its_defaults_are_sha512_base64_1000_iterations_40_bytes() -> None:
+    default = Pbkdf2PasswordHasher().hash("secret", "salt")
+
+    assert default == Pbkdf2PasswordHasher(
+        "sha512", encode_hash_as_base64=True, iterations=1000, length=40
+    ).hash("secret", "salt")
+    assert len(default) == 56
+
+
+def test_it_round_trips_a_password_under_a_salt() -> None:
+    hasher = Pbkdf2PasswordHasher()
+
+    hashed = hasher.hash("secret", "pepper")
+
+    assert hasher.verify(hashed, "secret", "pepper")
+
+
+def test_the_salt_changes_the_hash() -> None:
+    hasher = Pbkdf2PasswordHasher()
+
+    assert hasher.hash("secret", "one") != hasher.hash("secret", "two")
+    assert not hasher.verify(hasher.hash("secret", "one"), "secret", "two")
+
+
+def test_no_salt_is_an_empty_salt() -> None:
+    hasher = Pbkdf2PasswordHasher()
+
+    assert hasher.hash("secret") == hasher.hash("secret", "")
 
 
 def test_it_rejects_a_wrong_password() -> None:
-    hasher = _fast()
+    hasher = Pbkdf2PasswordHasher()
 
-    assert not hasher.verify(hasher.hash("secret"), "nope")
-
-
-def test_it_handles_an_empty_password() -> None:
-    hasher = _fast()
-
-    assert hasher.verify(hasher.hash(""), "")
+    assert not hasher.verify(hasher.hash("secret", "salt"), "nope", "salt")
 
 
-def test_two_hashes_of_one_password_differ_by_salt() -> None:
-    hasher = _fast()
+def test_it_rejects_a_hash_of_the_wrong_length() -> None:
+    hasher = Pbkdf2PasswordHasher()
 
-    assert hasher.hash("secret") != hasher.hash("secret")
+    assert not hasher.verify(hasher.hash("secret")[:-1], "secret")
+
+
+def test_it_rejects_a_dollar_delimited_hash_of_the_right_length() -> None:
+    hasher = Pbkdf2PasswordHasher()
+
+    assert not hasher.verify("$" * 56, "secret")
 
 
 def test_it_refuses_an_over_long_password() -> None:
     with pytest.raises(InvalidPasswordError):
-        _ = _fast().hash("a" * 4097)
+        _ = Pbkdf2PasswordHasher().hash("a" * 4097)
 
 
 def test_verify_returns_false_for_an_over_long_password() -> None:
-    hasher = _fast()
+    hasher = Pbkdf2PasswordHasher()
 
     assert not hasher.verify(hasher.hash("secret"), "a" * 4097)
 
 
-def test_needs_rehash_when_iterations_change() -> None:
-    hashed = _fast().hash("secret")
-
-    assert Pbkdf2PasswordHasher(iterations=2000).needs_rehash(hashed)
-
-
-def test_no_rehash_when_parameters_match() -> None:
-    hasher = _fast()
+def test_it_never_needs_rehash() -> None:
+    hasher = Pbkdf2PasswordHasher()
 
     assert not hasher.needs_rehash(hasher.hash("secret"))
 
 
-def test_needs_rehash_on_a_foreign_hash() -> None:
-    assert _fast().needs_rehash("$argon2id$v=19$m=8$something")
-
-
-def test_verify_rejects_a_malformed_hash() -> None:
-    hasher = _fast()
-
-    assert not hasher.verify("not-a-pbkdf2-hash", "secret")
-    assert not hasher.verify("$pbkdf2-sha512$notanumber$c2FsdA==$aGFzaA==", "secret")
-
-
-def test_it_refuses_too_few_iterations() -> None:
+def test_it_refuses_no_iterations() -> None:
     with pytest.raises(InvalidArgumentError):
-        _ = Pbkdf2PasswordHasher(iterations=999)
+        _ = Pbkdf2PasswordHasher(iterations=0)
 
 
 def test_it_refuses_an_unknown_algorithm() -> None:
     with pytest.raises(InvalidArgumentError):
-        _ = Pbkdf2PasswordHasher(hash_algorithm="not-a-digest")
+        _ = Pbkdf2PasswordHasher("not-a-digest")
 
 
-def test_it_refuses_a_non_positive_key_length() -> None:
+def test_it_refuses_a_non_positive_length() -> None:
     with pytest.raises(InvalidArgumentError):
-        _ = Pbkdf2PasswordHasher(key_length=0)
+        _ = Pbkdf2PasswordHasher(length=0)

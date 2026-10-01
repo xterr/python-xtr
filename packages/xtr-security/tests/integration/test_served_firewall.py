@@ -191,15 +191,15 @@ class _SpyDummyHasher:
         self._inner = PlaintextPasswordHasher()
         self.verify_calls = 0
 
-    def hash(self, plain: str) -> str:
-        return self._inner.hash(plain)
+    def hash(self, plain_password: str) -> str:
+        return self._inner.hash(plain_password)
 
-    def verify(self, hashed: str, plain: str) -> bool:
+    def verify(self, hashed_password: str, plain_password: str) -> bool:
         self.verify_calls += 1
-        return self._inner.verify(hashed, plain)
+        return self._inner.verify(hashed_password, plain_password)
 
-    def needs_rehash(self, hashed: str) -> bool:
-        return self._inner.needs_rehash(hashed)
+    def needs_rehash(self, hashed_password: str) -> bool:
+        return self._inner.needs_rehash(hashed_password)
 
 
 async def test_an_unknown_user_with_a_password_burns_a_dummy_through_the_dispatcher() -> None:

@@ -14,7 +14,12 @@ from .password_hasher_factory_interface import PasswordHasherFactoryInterface
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from xtr_password_hasher.password_authenticated_user_interface import (
+        PasswordAuthenticatedUserInterface,
+    )
     from xtr_password_hasher.password_hasher_interface import PasswordHasherInterface
+
+    _User = str | type | PasswordAuthenticatedUserInterface | PasswordHasherAwareInterface
 
 __all__ = ["PasswordHasherFactory"]
 
@@ -50,7 +55,7 @@ class PasswordHasherFactory(PasswordHasherFactoryInterface):
         self._hashers = dict(password_hashers)
 
     @override
-    def get_password_hasher(self, user: str | type | object) -> PasswordHasherInterface:
+    def get_password_hasher(self, user: _User) -> PasswordHasherInterface:
         """Return the hasher for ``user``.
 
         Raises:
@@ -61,7 +66,7 @@ class PasswordHasherFactory(PasswordHasherFactoryInterface):
             raise UnknownPasswordHasherError(_describe(user))
         return self._hashers[key]
 
-    def _resolve_key(self, user: str | type | object) -> type | str | None:
+    def _resolve_key(self, user: _User) -> type | str | None:
         if isinstance(user, str):
             return user if user in self._hashers else None
         if isinstance(user, type):
@@ -82,7 +87,7 @@ class PasswordHasherFactory(PasswordHasherFactoryInterface):
         return None
 
 
-def _describe(user: str | type | object) -> str:
+def _describe(user: _User) -> str:
     if isinstance(user, str):
         return user
     cls = user if isinstance(user, type) else type(user)

@@ -18,11 +18,12 @@ def test_it_is_a_migrating_hasher_over_argon2id() -> None:
     assert hasher.hash("secret").startswith("$argon2id$")
 
 
-def test_it_verifies_a_pbkdf2_hash() -> None:
+def test_it_verifies_a_salted_pbkdf2_hash() -> None:
     hasher = create_auto_password_hasher()
-    legacy = Pbkdf2PasswordHasher(iterations=1000).hash("secret")
+    legacy = Pbkdf2PasswordHasher().hash("secret", "salt")
 
-    assert hasher.verify(legacy, "secret")
+    assert isinstance(hasher, MigratingPasswordHasher)
+    assert hasher.verify(legacy, "secret", "salt")
 
 
 def test_it_verifies_a_bcrypt_hash_when_available() -> None:

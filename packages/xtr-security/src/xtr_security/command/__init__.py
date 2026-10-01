@@ -1,9 +1,9 @@
 """The console commands the security bundle registers when a console is active.
 
 ``debug:firewall`` reads the firewalls an application configured; the password
-hasher's ``security:hash-password`` is registered here too, so it reaches the
-factory the bundle wired — the command ships with xtr-password-hasher, which has
-no bundle of its own.
+hasher's ``security:hash-password`` is registered here too, with the factory the
+bundle wired and the configured user classes — the command ships with
+xtr-password-hasher, which has no bundle of its own.
 """
 
 from __future__ import annotations

@@ -108,40 +108,41 @@ class NativePasswordHasher(PasswordHasherInterface):
             )
 
     @override
-    def hash(self, plain: str) -> str:
-        """Hash ``plain`` with the active algorithm.
+    def hash(self, plain_password: str) -> str:
+        """Hash ``plain_password`` with the active algorithm.
 
         Raises:
-            InvalidPasswordError: When ``plain`` is too long.
+            InvalidPasswordError: When ``plain_password`` is too long.
         """
-        ensure_within_length(plain)
-        return self._backend.hash(plain)
+        ensure_within_length(plain_password)
+        return self._backend.hash(plain_password)
 
     @override
-    def verify(self, hashed: str, plain: str) -> bool:
-        """Return whether ``plain`` made ``hashed``, using whichever backend owns it."""
-        if not is_within_length(plain):
+    def verify(self, hashed_password: str, plain_password: str) -> bool:
+        """Return whether ``plain_password`` made ``hashed_password``, by the backend owning it."""
+        if not is_within_length(plain_password):
             return False
-        backend = self._backend_for(hashed)
+        backend = self._backend_for(hashed_password)
         if backend is None:
             return False
-        return backend.verify(hashed, plain)
+        return backend.verify(hashed_password, plain_password)
 
     @override
-    def needs_rehash(self, hashed: str) -> bool:
-        """Return whether ``hashed`` should be replaced by a fresh hash.
+    def needs_rehash(self, hashed_password: str) -> bool:
+        """Return whether ``hashed_password`` should be replaced by a fresh hash.
 
-        True when ``hashed`` belongs to the other algorithm, is unrecognised,
-        or was made with weaker parameters than the active backend now uses.
+        True when ``hashed_password`` belongs to the other algorithm, is
+        unrecognised, or was made with weaker parameters than the active
+        backend now uses.
         """
-        if not self._backend.identify(hashed):
+        if not self._backend.identify(hashed_password):
             return True
-        return self._backend.check_needs_rehash(hashed)
+        return self._backend.check_needs_rehash(hashed_password)
 
-    def _backend_for(self, hashed: str) -> _Backend | None:
-        if self._argon2.identify(hashed):
+    def _backend_for(self, hashed_password: str) -> _Backend | None:
+        if self._argon2.identify(hashed_password):
             return self._argon2
-        if self._bcrypt is not None and self._bcrypt.identify(hashed):
+        if self._bcrypt is not None and self._bcrypt.identify(hashed_password):
             return self._bcrypt
         return None
 

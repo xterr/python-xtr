@@ -46,13 +46,15 @@ class _UserHasher:
         self._hasher = PlaintextPasswordHasher()
         self._needs_rehash = needs_rehash
 
-    def hash_password(self, user: PasswordAuthenticatedUserInterface, plain: str) -> str:
+    def hash_password(self, user: PasswordAuthenticatedUserInterface, plain_password: str) -> str:
         del user
-        return self._hasher.hash(plain)
+        return self._hasher.hash(plain_password)
 
-    def is_password_valid(self, user: PasswordAuthenticatedUserInterface, plain: str) -> bool:
+    def is_password_valid(
+        self, user: PasswordAuthenticatedUserInterface, plain_password: str
+    ) -> bool:
         stored = user.get_password()
-        return stored is not None and self._hasher.verify(stored, plain)
+        return stored is not None and self._hasher.verify(stored, plain_password)
 
     def needs_rehash(self, user: PasswordAuthenticatedUserInterface) -> bool:
         del user
@@ -126,16 +128,16 @@ class _SpyHasher:
         self.hash_calls = 0
         self.verify_calls = 0
 
-    def hash(self, plain: str) -> str:
+    def hash(self, plain_password: str) -> str:
         self.hash_calls += 1
-        return self._inner.hash(plain)
+        return self._inner.hash(plain_password)
 
-    def verify(self, hashed: str, plain: str) -> bool:
+    def verify(self, hashed_password: str, plain_password: str) -> bool:
         self.verify_calls += 1
-        return self._inner.verify(hashed, plain)
+        return self._inner.verify(hashed_password, plain_password)
 
-    def needs_rehash(self, hashed: str) -> bool:
-        return self._inner.needs_rehash(hashed)
+    def needs_rehash(self, hashed_password: str) -> bool:
+        return self._inner.needs_rehash(hashed_password)
 
 
 @final

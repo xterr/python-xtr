@@ -41,14 +41,27 @@ def test_native_refuses_a_non_positive_argon2_cost() -> None:
         _ = NativeHasherConfig(time_cost=0)
 
 
-def test_pbkdf2_refuses_too_few_iterations() -> None:
-    with pytest.raises(InvalidArgumentError):
-        _ = Pbkdf2HasherConfig(iterations=999)
+def test_pbkdf2_defaults_match_the_legacy_scheme() -> None:
+    config = Pbkdf2HasherConfig()
+
+    assert (config.hash_algorithm, config.encode_as_base64) == ("sha512", True)
+    assert (config.iterations, config.key_length) == (1000, 40)
 
 
-def test_pbkdf2_refuses_an_unknown_digest() -> None:
+def test_pbkdf2_refuses_no_iterations() -> None:
     with pytest.raises(InvalidArgumentError):
-        _ = Pbkdf2HasherConfig(hash_algorithm="not-a-digest")
+        _ = Pbkdf2HasherConfig(iterations=0)
+
+
+def test_pbkdf2_refuses_a_non_positive_key_length() -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = Pbkdf2HasherConfig(key_length=0)
+
+
+@pytest.mark.parametrize("digest", ["not-a-digest", "shake_128"])
+def test_pbkdf2_refuses_a_digest_pbkdf2_cannot_run(digest: str) -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = Pbkdf2HasherConfig(hash_algorithm=digest)
 
 
 def test_service_refuses_a_non_class() -> None:

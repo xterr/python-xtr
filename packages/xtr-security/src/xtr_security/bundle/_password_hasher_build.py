@@ -57,13 +57,14 @@ def build_hasher(config: HasherConfig) -> PasswordHasherInterface:
             return _migrating(base, config.migrate_from)
         case Pbkdf2HasherConfig():
             base = Pbkdf2PasswordHasher(
-                hash_algorithm=config.hash_algorithm,
+                config.hash_algorithm,
+                encode_hash_as_base64=config.encode_as_base64,
                 iterations=config.iterations,
-                key_length=config.key_length,
+                length=config.key_length,
             )
             return _migrating(base, config.migrate_from)
         case PlaintextHasherConfig():
-            return PlaintextPasswordHasher()
+            return PlaintextPasswordHasher(ignore_password_case=config.ignore_case)
         case ServiceHasherConfig():
             raise InvalidArgumentError(
                 "A service hasher config is resolved from the container by the bundle, "

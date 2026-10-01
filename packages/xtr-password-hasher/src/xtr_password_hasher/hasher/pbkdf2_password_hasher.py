@@ -1,147 +1,127 @@
-"""PBKDF2 hashing on top of the standard library."""
+"""PBKDF2 hashing with an external salt, for reading hashes of older schemes."""
 
 from __future__ import annotations
 
 import base64
 import hashlib
 import hmac
-import secrets
-from typing import Final, final
+import math
+from typing import final
 
 from typing_extensions import override
 
 from xtr_password_hasher.exception import InvalidArgumentError
-from xtr_password_hasher.password_hasher_interface import PasswordHasherInterface
+from xtr_password_hasher.legacy_password_hasher_interface import LegacyPasswordHasherInterface
 
 from ._password_length import ensure_within_length, is_within_length
 
 __all__ = ["Pbkdf2PasswordHasher"]
 
-_PREFIX: Final = "pbkdf2"
-_SALT_BYTES: Final = 16
-_MIN_ITERATIONS: Final = 1000
-_ENCODED_PARTS: Final = 5
-
 
 @final
-class Pbkdf2PasswordHasher(PasswordHasherInterface):
-    """Derives a key with PBKDF2-HMAC and stores it in a self-describing string.
+class Pbkdf2PasswordHasher(LegacyPasswordHasherInterface):
+    """Derives a key with PBKDF2-HMAC and stores only the encoded key.
 
-    The hash reads ``$pbkdf2-<alg>$<iterations>$<salt>$<key>``, the salt and
-    the derived key base64-encoded. Everything needed to verify — the digest,
-    the work factor, the salt — travels in the string, so a hash made with one
-    setting still verifies after the hasher is reconfigured, and
-    :meth:`needs_rehash` sees the difference.
+    The hash is the derived key alone — base64, or hex — so the salt lives
+    beside it and the algorithm, the work factor and the key length live in
+    this hasher's configuration. That is the shape of hashes many older
+    applications stored; this hasher exists to verify them, and its defaults
+    are the ones those hashes were typically made with. A ``None`` salt hashes
+    with an empty one.
 
-    PBKDF2 is offered for interoperability and for platforms without argon2 or
-    bcrypt; argon2id (:class:`NativePasswordHasher`) is the stronger default.
+    Since the hash carries no parameters, :meth:`needs_rehash` cannot tell a
+    weak hash from a strong one and always answers ``False``; put this hasher
+    behind a self-salting one in a
+    :class:`~xtr_password_hasher.MigratingPasswordHasher` to upgrade what it
+    verifies.
     """
 
-    __slots__ = ("_hash_algorithm", "_iterations", "_key_length")
+    __slots__ = (
+        "_algorithm",
+        "_encode_hash_as_base64",
+        "_encoded_length",
+        "_iterations",
+        "_length",
+    )
 
     def __init__(
         self,
-        hash_algorithm: str = "sha512",
-        iterations: int = 210_000,
-        key_length: int = 64,
+        algorithm: str = "sha512",
+        encode_hash_as_base64: bool = True,
+        iterations: int = 1000,
+        length: int = 40,
     ) -> None:
-        """Configure the digest, the work factor and the derived-key length.
+        """Configure the digest, the encoding, the work factor and the derived-key length.
+
+        Args:
+            algorithm: The digest PBKDF2 runs HMAC over.
+            encode_hash_as_base64: Encode the derived key as base64; as hex
+                when ``False``.
+            iterations: How many times the digest is applied.
+            length: The derived key's length, in bytes.
 
         Raises:
-            InvalidArgumentError: When the algorithm is not one the platform
-                provides, the iteration count is below a safe floor, or the
-                key length is not positive.
+            InvalidArgumentError: When PBKDF2 cannot run ``algorithm`` on this
+                platform, or the iteration count or key length is not positive.
         """
-        if hash_algorithm not in hashlib.algorithms_available:
+        if iterations < 1:
+            raise InvalidArgumentError(f"PBKDF2 needs at least one iteration, not {iterations}.")
+        if length < 1:
+            raise InvalidArgumentError(f"The derived key length must be positive, not {length}.")
+        try:
+            _ = hashlib.pbkdf2_hmac(algorithm, b"", b"", 1, 1)
+        except ValueError:
             raise InvalidArgumentError(
-                f'The hash algorithm "{hash_algorithm}" is not available on this platform.',
-            )
-        if iterations < _MIN_ITERATIONS:
-            raise InvalidArgumentError(
-                f"PBKDF2 needs at least {_MIN_ITERATIONS} iterations, not {iterations}.",
-            )
-        if key_length < 1:
-            raise InvalidArgumentError(
-                f"The derived key length must be positive, not {key_length}.",
-            )
-        self._hash_algorithm = hash_algorithm
+                f'The hash algorithm "{algorithm}" is not available on this platform.',
+            ) from None
+        self._algorithm = algorithm
+        self._encode_hash_as_base64 = encode_hash_as_base64
         self._iterations = iterations
-        self._key_length = key_length
+        self._length = length
+        self._encoded_length = 4 * math.ceil(length / 3) if encode_hash_as_base64 else 2 * length
 
     @override
-    def hash(self, plain: str) -> str:
-        """Derive a key from ``plain`` under a fresh salt and encode it.
+    def hash(self, plain_password: str, salt: str | None = None) -> str:
+        """Derive a key from ``plain_password`` under ``salt`` and encode it.
 
         Raises:
-            InvalidPasswordError: When ``plain`` is too long.
+            InvalidPasswordError: When ``plain_password`` is too long.
         """
-        ensure_within_length(plain)
-        salt = secrets.token_bytes(_SALT_BYTES)
-        derived = self._derive(plain, salt)
-        return self._encode(self._hash_algorithm, self._iterations, salt, derived)
-
-    @override
-    def verify(self, hashed: str, plain: str) -> bool:
-        """Return whether ``plain`` derives to the key stored in ``hashed``."""
-        if not is_within_length(plain):
-            return False
-        parsed = self._parse(hashed)
-        if parsed is None:
-            return False
-        algorithm, iterations, salt, expected = parsed
-        try:
-            derived = hashlib.pbkdf2_hmac(
-                algorithm, plain.encode(), salt, iterations, len(expected)
-            )
-        except (ValueError, TypeError):
-            return False
-        return hmac.compare_digest(derived, expected)
-
-    @override
-    def needs_rehash(self, hashed: str) -> bool:
-        """Return whether ``hashed`` uses weaker parameters than configured."""
-        parsed = self._parse(hashed)
-        if parsed is None:
-            return True
-        algorithm, iterations, _salt, expected = parsed
-        return (
-            algorithm != self._hash_algorithm
-            or iterations != self._iterations
-            or len(expected) != self._key_length
-        )
-
-    def _derive(self, plain: str, salt: bytes) -> bytes:
-        return hashlib.pbkdf2_hmac(
-            self._hash_algorithm,
-            plain.encode(),
-            salt,
+        ensure_within_length(plain_password)
+        derived = hashlib.pbkdf2_hmac(
+            self._algorithm,
+            plain_password.encode(),
+            (salt or "").encode(),
             self._iterations,
-            self._key_length,
+            self._length,
+        )
+        if self._encode_hash_as_base64:
+            return base64.b64encode(derived).decode("ascii")
+        return derived.hex()
+
+    @override
+    def verify(
+        self,
+        hashed_password: str,
+        plain_password: str,
+        salt: str | None = None,
+    ) -> bool:
+        """Return whether ``plain_password`` under ``salt`` derives to ``hashed_password``.
+
+        A hash of the wrong length, or one in a ``$``-delimited format, is
+        rejected before any key is derived.
+        """
+        if len(hashed_password) != self._encoded_length or "$" in hashed_password:
+            return False
+        if not is_within_length(plain_password):
+            return False
+        return hmac.compare_digest(
+            hashed_password.encode(),
+            self.hash(plain_password, salt).encode(),
         )
 
-    @staticmethod
-    def _encode(algorithm: str, iterations: int, salt: bytes, derived: bytes) -> str:
-        salt_b64 = base64.b64encode(salt).decode("ascii")
-        key_b64 = base64.b64encode(derived).decode("ascii")
-        return f"${_PREFIX}-{algorithm}${iterations}${salt_b64}${key_b64}"
-
-    @staticmethod
-    def _parse(hashed: str) -> tuple[str, int, bytes, bytes] | None:
-        parts = hashed.split("$")
-        if len(parts) != _ENCODED_PARTS or parts[0] != "":
-            return None
-        scheme, iterations_text, salt_b64, key_b64 = parts[1], parts[2], parts[3], parts[4]
-        if not scheme.startswith(f"{_PREFIX}-"):
-            return None
-        algorithm = scheme[len(_PREFIX) + 1 :]
-        if not algorithm:
-            return None
-        try:
-            iterations = int(iterations_text)
-            salt = base64.b64decode(salt_b64, validate=True)
-            expected = base64.b64decode(key_b64, validate=True)
-        except (ValueError, TypeError):
-            return None
-        if iterations < 1 or not salt or not expected:
-            return None
-        return algorithm, iterations, salt, expected
+    @override
+    def needs_rehash(self, hashed_password: str) -> bool:
+        """Return ``False``: the hash carries no parameters to compare."""
+        del hashed_password
+        return False

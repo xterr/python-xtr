@@ -191,7 +191,7 @@ Inject `UserPasswordHasherInterface`; it reads the stored hash off the user itse
 
 ```python
 # in an async service, hashing is CPU-bound: never run it on the event loop
-user.password = await anyio.to_thread.run_sync(hasher.hash_password, user, plain)
+user.password = await anyio.to_thread.run_sync(hasher.hash_password, user, plain_password)
 ok = await anyio.to_thread.run_sync(hasher.is_password_valid, user, attempt)
 stale = hasher.needs_rehash(user)  # re-store right after a successful check
 ```

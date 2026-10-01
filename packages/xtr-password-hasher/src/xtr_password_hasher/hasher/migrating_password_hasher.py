@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 
+from xtr_password_hasher.legacy_password_hasher_interface import is_legacy_password_hasher
 from xtr_password_hasher.password_hasher_interface import PasswordHasherInterface
+
+if TYPE_CHECKING:
+    from typing import TypeGuard
+
+    from xtr_password_hasher.legacy_password_hasher_interface import (
+        LegacyPasswordHasherInterface,
+    )
 
 __all__ = ["MigratingPasswordHasher"]
 
@@ -20,8 +28,16 @@ class MigratingPasswordHasher(PasswordHasherInterface):
     recognise is offered to each of ``extras`` in turn. A hash ``best`` already
     owns never reaches the extras, so the common path pays for one verify.
 
+    A salt given to :meth:`hash` or :meth:`verify` is passed on to each hasher
+    that takes one — a
+    :class:`~xtr_password_hasher.LegacyPasswordHasherInterface`, or another
+    migrating hasher — and left out for the self-salting ones, so a legacy
+    salted hash verifies behind an argon2id front.
+
     Paired with :meth:`needs_rehash` — which delegates to ``best`` — a login
     verified against a legacy hash is the moment to rehash and upgrade it.
+    Never put a :class:`~xtr_password_hasher.PlaintextPasswordHasher` among the
+    extras: a leaked hash would then be a working password.
     """
 
     __slots__ = ("_best", "_extras")
@@ -36,30 +52,60 @@ class MigratingPasswordHasher(PasswordHasherInterface):
         self._extras = extras
 
     @override
-    def hash(self, plain: str) -> str:
-        """Hash ``plain`` with the preferred hasher.
+    def hash(self, plain_password: str, salt: str | None = None) -> str:
+        """Hash ``plain_password`` with the preferred hasher.
 
         Raises:
-            InvalidPasswordError: When ``plain`` is too long.
+            InvalidPasswordError: When ``plain_password`` is too long.
         """
-        return self._best.hash(plain)
+        return hash_with_salt(self._best, plain_password, salt)
 
     @override
-    def verify(self, hashed: str, plain: str) -> bool:
-        """Return whether ``plain`` made ``hashed``, trying the best then the extras.
+    def verify(
+        self,
+        hashed_password: str,
+        plain_password: str,
+        salt: str | None = None,
+    ) -> bool:
+        """Return whether ``plain_password`` made ``hashed_password``, best hasher first.
 
-        When ``best`` recognises ``hashed`` — it does not need rehashing to the
-        best format — only ``best`` verifies it. Otherwise each extra is tried,
-        then ``best`` once more as a last resort.
+        When ``best`` recognises ``hashed_password`` — it does not need
+        rehashing to the best format — only ``best`` verifies it. Otherwise each
+        extra is tried, then ``best`` once more as a last resort.
         """
-        if not self._best.needs_rehash(hashed):
-            return self._best.verify(hashed, plain)
+        if not self._best.needs_rehash(hashed_password):
+            return verify_with_salt(self._best, hashed_password, plain_password, salt)
         for extra in self._extras:
-            if extra.verify(hashed, plain):
+            if verify_with_salt(extra, hashed_password, plain_password, salt):
                 return True
-        return self._best.verify(hashed, plain)
+        return verify_with_salt(self._best, hashed_password, plain_password, salt)
 
     @override
-    def needs_rehash(self, hashed: str) -> bool:
-        """Return whether ``hashed`` should be replaced, as the best hasher sees it."""
-        return self._best.needs_rehash(hashed)
+    def needs_rehash(self, hashed_password: str) -> bool:
+        """Return whether ``hashed_password`` should be replaced, as the best hasher sees it."""
+        return self._best.needs_rehash(hashed_password)
+
+
+def _takes_salt(
+    hasher: PasswordHasherInterface,
+) -> TypeGuard[LegacyPasswordHasherInterface | MigratingPasswordHasher]:
+    return is_legacy_password_hasher(hasher) or isinstance(hasher, MigratingPasswordHasher)
+
+
+def hash_with_salt(hasher: PasswordHasherInterface, plain_password: str, salt: str | None) -> str:
+    """Hash with ``hasher``, handing it ``salt`` only when it takes one."""
+    if _takes_salt(hasher):
+        return hasher.hash(plain_password, salt)
+    return hasher.hash(plain_password)
+
+
+def verify_with_salt(
+    hasher: PasswordHasherInterface,
+    hashed_password: str,
+    plain_password: str,
+    salt: str | None,
+) -> bool:
+    """Verify with ``hasher``, handing it ``salt`` only when it takes one."""
+    if _takes_salt(hasher):
+        return hasher.verify(hashed_password, plain_password, salt)
+    return hasher.verify(hashed_password, plain_password)

@@ -1,13 +1,16 @@
 """Users and the providers and checkers around them.
 
-The password-carrying user contract is re-exported here too, alongside the
+The password-carrying user contracts are re-exported here too, alongside the
 password-upgrading one this package owns, so an application imports every user
 contract from one place.
 """
 
 from __future__ import annotations
 
-from xtr_password_hasher import PasswordAuthenticatedUserInterface
+from xtr_password_hasher import (
+    LegacyPasswordAuthenticatedUserInterface,
+    PasswordAuthenticatedUserInterface,
+)
 
 from .attributes_based_user_provider_interface import AttributesBasedUserProviderInterface
 from .chain_user_checker import ChainUserChecker
@@ -30,6 +33,7 @@ __all__ = [
     "InMemoryUser",
     "InMemoryUserChecker",
     "InMemoryUserProvider",
+    "LegacyPasswordAuthenticatedUserInterface",
     "OidcUser",
     "PasswordAuthenticatedUserInterface",
     "PasswordUpgraderInterface",

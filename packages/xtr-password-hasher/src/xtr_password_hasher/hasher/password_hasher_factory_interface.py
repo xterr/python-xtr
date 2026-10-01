@@ -5,7 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from xtr_password_hasher.password_authenticated_user_interface import (
+        PasswordAuthenticatedUserInterface,
+    )
     from xtr_password_hasher.password_hasher_interface import PasswordHasherInterface
+
+    from .password_hasher_aware_interface import PasswordHasherAwareInterface
 
 __all__ = ["PasswordHasherFactoryInterface"]
 
@@ -19,11 +24,15 @@ class PasswordHasherFactoryInterface(Protocol):
     user, not fixed once.
     """
 
-    def get_password_hasher(self, user: str | type | object) -> PasswordHasherInterface:
+    def get_password_hasher(
+        self,
+        user: str | type | PasswordAuthenticatedUserInterface | PasswordHasherAwareInterface,
+    ) -> PasswordHasherInterface:
         """Return the hasher for ``user``.
 
         Args:
-            user: A user instance, a user class, or a name string.
+            user: A user, a user class, a ``"module:Class"`` string, or the
+                name of a configured hasher.
 
         Raises:
             UnknownPasswordHasherError: When nothing is configured for it.

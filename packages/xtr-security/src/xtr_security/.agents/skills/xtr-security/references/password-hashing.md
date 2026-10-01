@@ -14,8 +14,8 @@ hasher configuration.
 | `AutoHasherConfig()` | the secure default: argon2id, with bcrypt (when installed) and PBKDF2 verifying behind it |
 | `NativeHasherConfig(algorithm="argon2id", time_cost=3, memory_cost=65536, parallelism=4)` | argon2id with those costs |
 | `NativeHasherConfig(algorithm="bcrypt", cost=12)` | bcrypt at that cost — 4 to 31 |
-| `Pbkdf2HasherConfig(hash_algorithm="sha512", iterations=210_000, key_length=64)` | PBKDF2-HMAC |
-| `PlaintextHasherConfig()` | the password as it is — **tests only** |
+| `Pbkdf2HasherConfig(hash_algorithm="sha512", encode_as_base64=True, iterations=1000, key_length=40)` | PBKDF2-HMAC salted from outside — to verify legacy hashes, never asks for a rehash |
+| `PlaintextHasherConfig(ignore_case=False)` | the password as it is — **tests only** |
 | `ServiceHasherConfig(service=MyHasher, qualifier=None)` | a hasher the container provides |
 
 `NativeHasherConfig` and `Pbkdf2HasherConfig` take `migrate_from=(…)`: hashers whose hashes this
@@ -39,12 +39,14 @@ A user may also choose its hasher by name, by implementing
 ## Use it
 
 `UserPasswordHasherInterface` reads the stored hash off the user, through
-`PasswordAuthenticatedUserInterface` — a `get_password()` returning the stored string.
+`PasswordAuthenticatedUserInterface` — a `get_password()` returning the stored string. A user
+whose salt is stored beside its hash implements `LegacyPasswordAuthenticatedUserInterface`, adding
+`get_salt()`, and the salt reaches the hashers that take one.
 
 | Call | Does |
 | --- | --- |
-| `hash_password(user, plain)` | returns the string to store on the user |
-| `is_password_valid(user, attempt)` | verifies `attempt` against the user's stored hash |
+| `hash_password(user, plain_password)` | returns the string to store on the user |
+| `is_password_valid(user, plain_password)` | verifies the password against the user's stored hash |
 | `needs_rehash(user)` | tells whether the stored hash is behind the current settings |
 
 ```python
@@ -65,8 +67,10 @@ class ChangePassword:
 **Always through a worker thread in async code.** One argon2id hash costs tens of milliseconds of
 CPU by design; called on the event loop it stalls every other request for that long.
 
-The single-hasher interface, under the factory, is `hash(plain) -> str`,
-`verify(hashed, plain) -> bool`, `needs_rehash(hashed) -> bool`. Reach for it only outside a user:
+The single-hasher interface, under the factory, is `hash(plain_password) -> str`,
+`verify(hashed_password, plain_password) -> bool`, `needs_rehash(hashed_password) -> bool`; a
+`LegacyPasswordHasherInterface` adds a `salt` to `hash` and `verify`. Reach for it only outside a
+user:
 `NativePasswordHasher()`, `Pbkdf2PasswordHasher()`, `MigratingPasswordHasher(best, *extras)`, or
 `create_auto_password_hasher()` for what `AutoHasherConfig()` builds.
 
@@ -108,10 +112,11 @@ All three derive from `PasswordHasherError`.
 With a console bundle active and the `console` extra installed:
 
 ```sh
-security:hash-password [PASSWORD] [USER-CLASS]
+security:hash-password [PASSWORD] [USER-CLASS] [--empty-salt]
 ```
 
-It asks for the password hidden when it is left out, and prints the hasher, the algorithm and the
-hash — the string to paste into an `InMemoryUserProviderConfig` or a fixture. With no
-`USER-CLASS` it uses the secure default; naming one as `module:Class` asks the configured factory
-for that class's hasher.
+It asks for the password hidden when it is left out (`-` reads it from standard input), and prints
+the hasher and the hash — the string to paste into an `InMemoryUserProviderConfig` or a fixture.
+With no `USER-CLASS` it hashes for the first class in `password_hashers`, asking which when there
+are several and the run is interactive; `USER-CLASS` is a `module:Class` or a configured name. A
+hasher salted from outside gets a generated salt, printed with the hash, unless `--empty-salt`.

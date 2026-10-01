@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import final
 
 from xtr_password_hasher import (
+    MigratingPasswordHasher,
     NativePasswordHasher,
     PasswordHasherFactory,
+    Pbkdf2PasswordHasher,
     UserPasswordHasher,
     UserPasswordHasherInterface,
 )
@@ -21,6 +23,19 @@ class _User:
 
     def get_password(self) -> str | None:
         return self._password
+
+
+@final
+class _LegacyUser:
+    def __init__(self, password: str | None, salt: str | None) -> None:
+        self._password = password
+        self._salt = salt
+
+    def get_password(self) -> str | None:
+        return self._password
+
+    def get_salt(self) -> str | None:
+        return self._salt
 
 
 def _hasher() -> UserPasswordHasher:
@@ -77,3 +92,23 @@ def test_needs_rehash_reflects_the_stored_hash() -> None:
 
     assert strong.needs_rehash(_User(hashed))
     assert not weak.needs_rehash(_User(hashed))
+
+
+def test_a_legacy_user_is_hashed_under_its_salt() -> None:
+    hasher = UserPasswordHasher(PasswordHasherFactory({_LegacyUser: Pbkdf2PasswordHasher()}))
+
+    hashed = hasher.hash_password(_LegacyUser(None, "salt"), "secret")
+
+    assert hashed == Pbkdf2PasswordHasher().hash("secret", "salt")
+    assert hasher.is_password_valid(_LegacyUser(hashed, "salt"), "secret")
+    assert not hasher.is_password_valid(_LegacyUser(hashed, "other"), "secret")
+
+
+def test_a_legacy_users_salt_reaches_a_migrating_hasher_extra() -> None:
+    best = NativePasswordHasher("argon2id", time_cost=1, memory_cost=8, parallelism=1)
+    migrating = MigratingPasswordHasher(best, Pbkdf2PasswordHasher())
+    hasher = UserPasswordHasher(PasswordHasherFactory({_LegacyUser: migrating}))
+    legacy = Pbkdf2PasswordHasher().hash("secret", "salt")
+
+    assert hasher.is_password_valid(_LegacyUser(legacy, "salt"), "secret")
+    assert hasher.needs_rehash(_LegacyUser(legacy, "salt"))

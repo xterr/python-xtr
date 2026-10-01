@@ -21,17 +21,21 @@ class UserPasswordHasherInterface(Protocol):
     never touch a hasher directly.
     """
 
-    def hash_password(self, user: PasswordAuthenticatedUserInterface, plain: str) -> str:
-        """Hash ``plain`` with the hasher chosen for ``user``.
+    def hash_password(self, user: PasswordAuthenticatedUserInterface, plain_password: str) -> str:
+        """Hash ``plain_password`` with the hasher chosen for ``user``.
 
         Raises:
-            InvalidPasswordError: When ``plain`` is too long.
+            InvalidPasswordError: When ``plain_password`` is too long.
             UnknownPasswordHasherError: When no hasher is configured for the user.
         """
         ...
 
-    def is_password_valid(self, user: PasswordAuthenticatedUserInterface, plain: str) -> bool:
-        """Return whether ``plain`` matches ``user``'s stored password.
+    def is_password_valid(
+        self,
+        user: PasswordAuthenticatedUserInterface,
+        plain_password: str,
+    ) -> bool:
+        """Return whether ``plain_password`` matches ``user``'s stored password.
 
         ``False`` when the user carries no password, so there is nothing to
         match against.

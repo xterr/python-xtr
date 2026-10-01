@@ -21,7 +21,7 @@ the next time its owner signs in — without the calling code knowing which era 
 This package puts all of that behind one small interface:
 
 - 🔐 **argon2id by default** — memory-hard, so a stolen hash is expensive to attack; bcrypt and
-  PBKDF2 are there for interoperability.
+  PBKDF2 are there to read hashes other stacks made.
 - 🔁 **Verify then upgrade** — a hash made by an older algorithm still verifies, and
   `needs_rehash` tells you the moment to replace it (right after a successful check, the one time
   the plaintext is in hand).
@@ -42,7 +42,7 @@ hasher.verify(stored, "correct horse battery staple")  # True
 ## Install
 
 ```sh
-uv add xtr-password-hasher                 # argon2id and PBKDF2
+uv add xtr-password-hasher                 # argon2id, PBKDF2 and plaintext
 uv add "xtr-password-hasher[bcrypt]"       # + bcrypt, for hashes from other stacks
 uv add "xtr-password-hasher[console]"      # + the security:hash-password command
 ```
@@ -96,18 +96,42 @@ bytes.
 | Hasher | What it is |
 |---|---|
 | `NativePasswordHasher` | argon2id (default) or bcrypt, on pwdlib; verifies hashes of either when the backend is installed |
-| `Pbkdf2PasswordHasher` | PBKDF2-HMAC from the standard library, in a self-describing `$pbkdf2-…$` string |
-| `PlaintextPasswordHasher` | stores the password as it is — **tests only** |
+| `Pbkdf2PasswordHasher` | PBKDF2-HMAC from the standard library, salted from outside — for legacy hashes |
+| `PlaintextPasswordHasher` | stores the password as it is, `{salt}` appended — **tests only** |
 | `MigratingPasswordHasher` | hashes with a preferred hasher, verifies older ones behind it |
 
-Every hasher answers the same three methods — `hash(plain) -> str`, `verify(hashed, plain) ->
-bool`, `needs_rehash(hashed) -> bool` — so they compose. `MigratingPasswordHasher(best, *extras)`
-hashes new passwords with `best`, verifies a hash `best` recognises with `best` alone, and offers
-a hash it does not to each extra in turn.
+Every hasher answers the same three methods — `hash(plain_password) -> str`,
+`verify(hashed_password, plain_password) -> bool`, `needs_rehash(hashed_password) -> bool` — so
+they compose. `MigratingPasswordHasher(best, *extras)` hashes new passwords with `best`, verifies a
+hash `best` recognises with `best` alone, and offers a hash it does not to each extra in turn.
+Never put a `PlaintextPasswordHasher` among the extras: a leaked hash would then be a working
+password.
 
-`Pbkdf2PasswordHasher` writes `$pbkdf2-<algorithm>$<iterations>$<salt>$<key>`, the salt and derived
-key base64-encoded, so everything needed to verify and to spot outdated parameters travels in the
-string.
+### Hashers salted from outside
+
+argon2id and bcrypt mint a salt and keep it inside the hash. Older schemes stored the salt in a
+column of its own and only the digest in the hash; a hasher for those implements
+`LegacyPasswordHasherInterface`, whose `hash` and `verify` take a `salt` (`None` for none):
+
+```python
+from xtr_password_hasher import Pbkdf2PasswordHasher
+
+hasher = Pbkdf2PasswordHasher()  # sha512, base64, 1000 iterations, 40 bytes
+hasher.verify(stored_digest, attempt, stored_salt)
+```
+
+`Pbkdf2PasswordHasher(algorithm="sha512", encode_hash_as_base64=True, iterations=1000,
+length=40)` writes the derived key alone, base64 or hex; its defaults are the ones such hashes were
+typically made with. The hash carries no parameters, so `needs_rehash` is always `False` — keep it
+behind a self-salting hasher in a `MigratingPasswordHasher`, which passes the salt on to the
+hashers that take one. `PlaintextPasswordHasher(ignore_password_case=False)` merges a salt as
+`password{salt}` and refuses a salt holding `{` or `}`.
+
+A user whose salt is stored beside its password implements
+`LegacyPasswordAuthenticatedUserInterface` — `get_salt()` next to `get_password()` — and
+`UserPasswordHasher` hands that salt to the hasher. Both interfaces share their method names with
+the self-salting ones, so `isinstance` cannot tell them apart: ask
+`is_legacy_password_hasher(hasher)`, which checks the declared interface.
 
 ## Migrating legacy hashes
 
@@ -165,8 +189,7 @@ chains, a hasher the container provides) into a live hasher is the security bund
 the `password_hashers` of the security configuration, builds each hasher, and hands the factory the
 instances. `create_auto_password_hasher()` builds the one an application gets when it asks for no
 particular hasher — argon2id, with bcrypt (when installed) and PBKDF2 verifying behind it — and is
-what the command uses with no container and what the bundle's `auto` configuration builds, so the
-two never drift. A user chooses its hasher by class (walking its bases), or by a name it returns
+what the bundle's `auto` configuration builds. A user chooses its hasher by class (walking its bases), or by a name it returns
 from `PasswordHasherAwareInterface.get_password_hasher_name()`.
 
 ## Console command
@@ -175,10 +198,20 @@ With the `console` extra, once the `xtr-security` bundle registers it:
 
 | Command | Does |
 |---|---|
-| `security:hash-password [PASSWORD] [USER-CLASS]` | Hashes `PASSWORD` (asked for, hidden, when omitted) and prints the hasher, the algorithm and the hash |
+| `security:hash-password [PASSWORD] [USER-CLASS] [--empty-salt]` | Hashes `PASSWORD` with the hasher configured for `USER-CLASS` and prints the hasher, the hash and any generated salt |
 
-With no `USER-CLASS` the secure default hasher is used; naming one as `module:Class` asks the
-configured factory for that class's hasher.
+The command takes the factory and the configured user classes from its constructor —
+`UserPasswordHashCommand(factory, user_classes)`; the security bundle supplies both. With no
+`USER-CLASS` it hashes for the first configured user class, asking which when several are
+configured and the run is interactive; `USER-CLASS` is a `module:Class` or the name of a
+configured hasher.
+
+The password is asked for, hidden, when left out, and must not be blank. A password given as an
+argument lands in the shell history and the process list, so an interactive run warns about it;
+`-` reads it from standard input instead (`echo "$PASSWORD" | … security:hash-password -n -- -`).
+A hasher salted from outside gets a generated salt — 30 random bytes, base64 — printed with the
+hash for you to store beside it, after a confirmation when the run is interactive; `--empty-salt`
+hashes without one.
 
 ## Errors
 
@@ -195,7 +228,9 @@ Every error derives from `PasswordHasherError` and carries what went wrong as ty
 ```
 xtr_password_hasher/
 ├── password_hasher_interface.py            hash / verify / needs_rehash, and MAX_PASSWORD_LENGTH
+├── legacy_password_hasher_interface.py     the same, salted from outside; is_legacy_password_hasher
 ├── password_authenticated_user_interface.py
+├── legacy_password_authenticated_user_interface.py
 ├── hasher/                                 the hashers, the factory, the user hasher,
 │                                           and create_auto_password_hasher
 ├── command/                                security:hash-password (UserPasswordHashCommand)

@@ -53,7 +53,7 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop debug:firewall [name]` | the firewalls the security bundle built, or one described |
 | `bookshop debug:bundles` | now lists `security` (required by jwt) and `jwt` (listed) active |
 | `bookshop jwt:check-config` | signs a probe token with the configured key and reads it back |
-| `bookshop security:hash-password [PASSWORD] [USER-CLASS]` | hashes a password with the configured factory — the hashes `config/security.py` stores |
+| `bookshop security:hash-password [PASSWORD] [USER-CLASS] [--empty-salt]` | hashes a password with the configured factory — the hashes `config/security.py` stores |
 | `bookshop jwt:generate-keypair` · `jwt:generate-token IDENTIFIER` | mint a signing key, or a token for a user |
 | `bookshop bundle:check` · `demo:frozen-clock` · `demo:wireup` · `demo:dotenv` · `demo:without-container` | dev and test only — the `dev_tools` bundle |
 | `bookshop demo:rate-limit` | dev and test only — every limiter of `config/rate_limiter.py` under a frozen clock, then every limited route served in process; each row a claim checked, exit 1 if one fails |

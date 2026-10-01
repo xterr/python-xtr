@@ -94,6 +94,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
             SecurityConfig().access_decision_manager.build()
         )
         self._trace_votes = False
+        self._user_classes: tuple[str, ...] = ()
 
     @override
     def build(self, builder: ContainerBuilder) -> None:
@@ -151,7 +152,16 @@ class SecurityBundle(Bundle[SecurityConfig]):
         )
 
         if bundle_active(builder, "console"):
-            services.load("xtr_security.command")
+            self._user_classes = tuple(
+                key if isinstance(key, str) else f"{key.__module__}:{key.__qualname__}"
+                for key in config.password_hashers
+            )
+            # A scan finds what a module defines, not what it imports: the hasher
+            # command is scanned where it is defined.
+            services.load(
+                "xtr_security.command",
+                "xtr_password_hasher.command.user_password_hash_command",
+            )
 
     @override
     def process(self, builder: ContainerBuilder) -> None:
@@ -164,6 +174,9 @@ class SecurityBundle(Bundle[SecurityConfig]):
         under a qualifier of its own, so the manager gathers them from a
         ``Mapping`` and orders them as collected; the bundle wraps each in a
         :class:`~xtr_security_core.TraceableVoter` when tracing is on.
+
+        With a console, ``security:hash-password`` is handed the configured
+        user classes, the first of which it hashes for by default.
         """
         voter_keys = tuple(builder.find_tagged_service_ids(VOTER_TAG))
         qualifiers = tuple(f"security_voter_{index}" for index in range(len(voter_keys)))
@@ -177,6 +190,14 @@ class SecurityBundle(Bundle[SecurityConfig]):
         _ = builder.get_definition(AccessDecisionManager).set_argument(
             "voter_qualifiers", qualifiers
         )
+        if bundle_active(builder, "console"):
+            from xtr_security.command import (  # noqa: PLC0415 -- the console extra
+                UserPasswordHashCommand,
+            )
+
+            _ = builder.get_definition(UserPasswordHashCommand).set_argument(
+                "user_classes", self._user_classes
+            )
 
     @override
     async def boot(self) -> None:

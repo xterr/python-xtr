@@ -31,13 +31,15 @@ pytestmark = pytest.mark.anyio
 
 @final
 class _UserHasher:
-    def hash_password(self, user: PasswordAuthenticatedUserInterface, plain: str) -> str:
+    def hash_password(self, user: PasswordAuthenticatedUserInterface, plain_password: str) -> str:
         del user
-        return PlaintextPasswordHasher().hash(plain)
+        return PlaintextPasswordHasher().hash(plain_password)
 
-    def is_password_valid(self, user: PasswordAuthenticatedUserInterface, plain: str) -> bool:
+    def is_password_valid(
+        self, user: PasswordAuthenticatedUserInterface, plain_password: str
+    ) -> bool:
         stored = user.get_password()
-        return stored is not None and PlaintextPasswordHasher().verify(stored, plain)
+        return stored is not None and PlaintextPasswordHasher().verify(stored, plain_password)
 
     def needs_rehash(self, user: PasswordAuthenticatedUserInterface) -> bool:
         del user

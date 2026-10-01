@@ -30,7 +30,6 @@ __all__ = [
 
 _BCRYPT_MIN_COST = 4
 _BCRYPT_MAX_COST = 31
-_MIN_ITERATIONS = 1000
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -87,28 +86,35 @@ class NativeHasherConfig:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Pbkdf2HasherConfig:
-    """A PBKDF2 hasher, optionally migrating older hashes.
+    """A PBKDF2 hasher, for verifying hashes stored with a salt of their own.
+
+    The defaults match the hashes such schemes typically stored. The hash
+    carries no parameters, so this hasher never asks for a rehash; reach it
+    through another config's ``migrate_from`` to upgrade what it verifies.
 
     Raises:
-        InvalidArgumentError: On a digest the platform does not provide, an
-            iteration count below a safe floor, or a non-positive key length.
+        InvalidArgumentError: On a digest the platform does not provide, or a
+            non-positive iteration count or key length.
     """
 
     type: Literal["pbkdf2"] = "pbkdf2"
     hash_algorithm: str = "sha512"
-    iterations: int = 210_000
-    key_length: int = 64
+    encode_as_base64: bool = True
+    iterations: int = 1000
+    key_length: int = 40
     migrate_from: tuple[HasherConfig, ...] = ()
 
     def __post_init__(self) -> None:
-        """Check the digest and the work factor as the config is written."""
-        if self.hash_algorithm not in hashlib.algorithms_available:
+        """Check the digest, the work factor and the key length as the config is written."""
+        try:
+            _ = hashlib.pbkdf2_hmac(self.hash_algorithm, b"", b"", 1, 1)
+        except ValueError:
             raise InvalidArgumentError(
                 f'The hash algorithm "{self.hash_algorithm}" is not available on this platform.',
-            )
-        if self.iterations < _MIN_ITERATIONS:
+            ) from None
+        if self.iterations < 1:
             raise InvalidArgumentError(
-                f"PBKDF2 needs at least {_MIN_ITERATIONS} iterations, not {self.iterations}.",
+                f"PBKDF2 needs at least one iteration, not {self.iterations}.",
             )
         if self.key_length < 1:
             raise InvalidArgumentError(
@@ -118,9 +124,13 @@ class Pbkdf2HasherConfig:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PlaintextHasherConfig:
-    """A hasher that stores the password in the clear — for tests only."""
+    """A hasher that stores the password in the clear — for tests only.
+
+    ``ignore_case`` compares passwords case-insensitively.
+    """
 
     type: Literal["plaintext"] = "plaintext"
+    ignore_case: bool = False
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

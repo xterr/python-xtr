@@ -2,6 +2,21 @@
 
 Rules for agents working in this repository.
 
+## Tools — hard rule
+
+Read, search and change files only through the **jetbrains_pycharm** MCP:
+
+| Task | Use | Never |
+|---|---|---|
+| Read a file | `read_file` | `cat`, `head`, `sed -n`, the native Read |
+| Find files | `search_file`, `list_directory_tree` | `find`, `ls` |
+| Search code | `search_text`, `search_regex`, `search_symbol` | `grep`, `rg` |
+| Change or create files | `apply_patch`, `create_new_file`, `rename_refactoring` | `sed`, native Edit/Write, Python or shell patch scripts |
+| Check a file | `lint_files`, `get_file_problems` | — |
+
+The shell is for running commands only: `uv`, the gate, `git`. If the MCP does not respond,
+say so before falling back to anything else.
+
 ## Naming and vocabulary — hard rule
 
 - Never write **Symfony** or **PHP** anywhere: code, identifiers, comments, docstrings, tests,
@@ -117,6 +132,13 @@ These apply to every package that ships a bundle. Read
   allowed to.
 - The library keeps working without a container: the bundle is an integration on top, not a
   requirement. A component a bundle package wires must work on its own too.
+  This is about coupling, not about defaults: library code never depends on the container to
+  exist, and every class can be built by hand from its constructor. It does not mean every
+  class must be buildable with no arguments. A class, service or command that needs a
+  dependency takes it as a required parameter, and whoever builds it — the container or the
+  caller — supplies it. Never invent a sentinel default, a fallback implementation or a
+  "no container" code path just so a class builds bare; without its dependency it fails
+  loudly at construction (for a command, xtr-console reports the missing parameter).
 - Advertise the bundle in `pyproject.toml` under
   `[project.entry-points."xtr_dependency_injection.bundles"]`, named after the bundle. It is
   only reported by `debug:bundles`, never activated.
