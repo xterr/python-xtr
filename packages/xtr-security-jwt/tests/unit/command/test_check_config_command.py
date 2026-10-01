@@ -68,3 +68,23 @@ async def test_it_reports_a_failure() -> None:
 
     assert code == 1
     assert "not usable" in output.getvalue()
+
+
+async def test_it_ends_a_failure_ending_in_a_period_with_one_period() -> None:
+    style, output = _style()
+
+    class Broken(JwtEncoderInterface):
+        @override
+        def encode(self, data: Mapping[str, object]) -> str:
+            del data
+            raise JwtEncodeFailureError(JwtEncodeFailureError.INVALID_CONFIG, "no key.")
+
+        @override
+        def decode(self, token: str) -> Mapping[str, object]:
+            del token
+            return {}
+
+    _ = await CheckConfigCommand()(style, Broken())
+
+    assert "no key." in output.getvalue()
+    assert "no key.." not in output.getvalue()

@@ -36,7 +36,7 @@ class CheckConfigCommand:
             token = encoder.encode({"sub": "jwt:check-config"})
             claims = encoder.decode(token)
         except JwtFailureError as error:
-            io.error(f"The JWT configuration is not usable: {escape(str(error))}.")
+            io.error(f"The JWT configuration is not usable: {escape(str(error).rstrip('.'))}.")
             return ExitCode.FAILURE
         if claims.get("sub") != "jwt:check-config":
             io.error("The probe token did not round-trip its subject claim.")

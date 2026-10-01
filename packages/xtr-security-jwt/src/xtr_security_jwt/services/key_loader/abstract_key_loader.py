@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 
 __all__ = ["AbstractKeyLoader"]
 
+# A value ending in one of these names a key file, never a key or a shared secret.
+_KEY_FILE_SUFFIXES = frozenset({".pem", ".key"})
+
 
 class AbstractKeyLoader(  # pyright: ignore[reportImplicitAbstractClass]  -- RawKeyLoader implements load_key
     KeyLoaderInterface,
@@ -85,10 +88,18 @@ class AbstractKeyLoader(  # pyright: ignore[reportImplicitAbstractClass]  -- Raw
 
     @staticmethod
     def _read(value: str | None) -> str | None:
-        """Return ``value`` itself, or the contents of the file it names."""
+        """Return ``value`` itself, or the contents of the file it names.
+
+        Raises:
+            InvalidArgumentError: When ``value`` names a key file that does not
+                exist. A missing ``.pem`` path would otherwise be handed on as key
+                text and fail far away, as an unreadable-key error.
+        """
         if value is None:
             return None
         path = Path(value)
         if path.is_file():
             return path.read_text(encoding="utf-8")
+        if "-----BEGIN" not in value and path.suffix.lower() in _KEY_FILE_SUFFIXES:
+            raise InvalidArgumentError(f"The key file {value!r} does not exist.")
         return value

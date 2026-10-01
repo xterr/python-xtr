@@ -39,6 +39,13 @@ def test_a_signing_key_given_as_a_path_is_read_from_the_file(tmp_path: Path) -> 
     assert loader.get_signing_key() == "from-disk"
 
 
+def test_a_key_file_that_does_not_exist_is_refused(tmp_path: Path) -> None:
+    loader = _Loader(str(tmp_path / "missing.pem"), None)
+
+    with pytest.raises(InvalidArgumentError, match=r"missing\.pem' does not exist"):
+        _ = loader.get_signing_key()
+
+
 def test_a_missing_key_reports_none() -> None:
     loader = _Loader(None, None)
 
