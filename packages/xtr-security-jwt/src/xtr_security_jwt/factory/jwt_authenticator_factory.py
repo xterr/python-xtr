@@ -146,9 +146,9 @@ def _authenticator_factory(
 ) -> Callable[..., Awaitable[JwtAuthenticator]]:
     """Return a factory building the authenticator from injected services.
 
-    The token manager, the firewall's own event dispatcher (qualified by the
-    firewall name, as the security bundle registers it), the extractor and the
-    firewall's user provider are each injected by their type or key, so the
+    The token manager, the main event dispatcher — the JWT events are the
+    application's to hear, whichever firewall raised them — the extractor and
+    the firewall's user provider are each injected by their type or key, so the
     factory is never handed the whole container.
     """
 
@@ -167,7 +167,7 @@ def _authenticator_factory(
 
     jwt_authenticator.__annotations__ = {
         "manager": JwtTokenManagerInterface,
-        "dispatcher": Annotated[EventDispatcherInterface, Target(firewall_name)],
+        "dispatcher": EventDispatcherInterface,
         "extractor": _qualified(extractor_key),
         "provider": _qualified(user_provider)
         if user_provider is not None

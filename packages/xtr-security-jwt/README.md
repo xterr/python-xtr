@@ -271,8 +271,8 @@ BUNDLES = {JwtBundle: {"all": True}}
 `JwtBundle` registers the signing chain — the key loader, the JWS provider, the encoder and the
 token manager — under their interfaces, and prepends onto the security configuration an
 authenticator factory keyed `jwt` and a user-provider factory keyed `jwt`. A firewall's
-`JwtAuthenticatorConfig` then builds a `JwtAuthenticator` over the token manager, the firewall's
-own event dispatcher, the configured token extractors and the firewall's user provider. It
+`JwtAuthenticatorConfig` then builds a `JwtAuthenticator` over the token manager, the main event
+dispatcher, the configured token extractors and the firewall's user provider. It
 requires the [security](../xtr-security), [clock](../xtr-clock) and
 [event dispatcher](../xtr-event-dispatcher) bundles, and the [console](../xtr-console) bundle
 when it is installed. It touches no cryptography until a service is asked for — but, needing a
