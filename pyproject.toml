@@ -26,8 +26,13 @@ xtr-logging              = { workspace = true }
 xtr-logging-contracts    = { workspace = true }
 xtr-messenger            = { workspace = true }
 xtr-orm                  = { workspace = true }
+xtr-password-hasher      = { workspace = true }
 xtr-rate-limiter         = { workspace = true }
 xtr-scheduler            = { workspace = true }
+xtr-security             = { workspace = true }
+xtr-security-core        = { workspace = true }
+xtr-security-http        = { workspace = true }
+xtr-security-jwt         = { workspace = true }
 xtr-service-contracts    = { workspace = true }
 
 [dependency-groups]
