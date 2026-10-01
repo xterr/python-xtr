@@ -64,6 +64,9 @@ packages/xtr-<name>/
 │   │   └── <specific>_error.py  # one error per file, derives from the base
 │   ├── decorator/               # decorators and Annotated markers
 │   ├── command/                 # console commands
+│   ├── .agents/skills/xtr-<name>/  # agent skill, shipped in the wheel (see Agent skills)
+│   │   ├── SKILL.md
+│   │   └── references/          # optional, for what does not fit SKILL.md
 │   └── bundle/                  # only in a package that ships a bundle; flat
 │       ├── __init__.py
 │       ├── <name>_bundle.py
@@ -122,6 +125,28 @@ These apply to every package that ships a bundle. Read
   *Kernel / bundle*, with the bullets of the root README's skeleton: Install, Activate, Brings
   along, Configure, Environment, Ignore, Remove, Check. Keep it true when the bundle, its
   config defaults, its peers or its extras change.
+
+## Agent skills
+
+A package an application depends on directly ships an agent skill that teaches a coding agent
+to use it: `src/xtr_<name>/.agents/skills/xtr-<name>/SKILL.md`. It lives inside the import
+package so it ships in the wheel, at the version it describes; `uvx library-skills` links it
+into an application.
+
+- Who ships one follows the bundle rules: a standalone library ships its own; a component
+  family's skill lives in its bundle package (`xtr-security` covers `xtr-security-core`,
+  `xtr-security-http` and `xtr-password-hasher`); an add-on ships its own and points to the
+  family's. Contracts packages ship none. A skill is optional, never required by CI.
+- Frontmatter has two single-line keys: `name` — equal to the directory name, `xtr-<name>` or
+  `xtr-<name>-<topic>` — and `description`, at most 1024 characters, saying what the package
+  is for and, after "Use when", the situations that should load it.
+- Body: Quick reference, task sections with working examples, Testing, Use in an application
+  (the README section as steps), Errors, Do not. Keep `SKILL.md` short; move depth to
+  `references/*.md` and link it.
+- Every name and example must exist in the source and run. Keep the skill true when the API,
+  the bundle, its config or its README's *Use in an application* section changes.
+- The naming rules above apply to skills as they do to code.
+- `tests/test_skills.py` at the root checks every skill that exists.
 
 ## Adding a package to an application
 

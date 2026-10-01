@@ -228,6 +228,8 @@ packages/xtr-<name>/
 │   │   ├── __init__.py
 │   │   ├── <name>_error.py        # package base error
 │   │   └── <specific>_error.py
+│   ├── .agents/skills/xtr-<name>/
+│   │   └── SKILL.md               # agent skill, shipped in the wheel
 │   └── bundle/
 │       ├── __init__.py
 │       ├── <name>_bundle.py
@@ -527,6 +529,15 @@ Add **Entry point**, **Load** or **Run** only when the package needs one.
 
 MIT — see [LICENSE](LICENSE).
 ````
+
+#### Agent skill
+
+A package an application lists directly ships a skill at
+`src/xtr_<name>/.agents/skills/xtr-<name>/SKILL.md`, so a coding agent in that application can
+learn the package from the version it installed (`uvx library-skills` links it in). The rules
+for what it holds are in [AGENTS.md](AGENTS.md#agent-skills);
+[xtr-clock's](packages/xtr-clock/src/xtr_clock/.agents/skills/xtr-clock/SKILL.md) is a short
+example.
 
 #### Registering the package
 
