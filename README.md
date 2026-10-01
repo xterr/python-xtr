@@ -34,6 +34,11 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
 | [xtr-orm](packages/xtr-orm) | Engines, sessions and versioned schema migrations for async applications, configured once per connection. |
+| [xtr-password-hasher](packages/xtr-password-hasher) | Password hashing behind one interface: argon2id by default, legacy hashes verified and upgraded. |
+| [xtr-security-core](packages/xtr-security-core) | The security core: users, tokens, roles, voters and the authorization decision. |
+| [xtr-security-http](packages/xtr-security-http) | The HTTP edge of security: firewalls, authenticators, bearer access tokens and the request surface. |
+| [xtr-security-jwt](packages/xtr-security-jwt) | Self-issued JSON Web Tokens: key sets, an encoder and a token manager for a user. |
+| [xtr-security](packages/xtr-security) | The security bundle: the family facade and the container wiring that configures it. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
 | [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
 | [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger: cron and intervals, catch-up after downtime, locks and saved state. |
@@ -81,6 +86,31 @@ graph LR
     ratelimiter -. lock extra .-> lock
     ratelimiter -. di extra .-> di
     httpkernel -. rate-limiter extra .-> ratelimiter
+    passwordhasher[xtr-password-hasher]
+    passwordhasher -. console extra .-> console
+    securitycore[xtr-security-core] --> passwordhasher
+    securitycore --> eventcon
+    securitycore --> svccon
+    securityhttp[xtr-security-http] --> securitycore
+    securityhttp --> httpkernel
+    securityhttp --> eventcon
+    securityhttp --> logcon
+    securityhttp --> passwordhasher
+    security[xtr-security] --> securitycore
+    security --> securityhttp
+    security --> passwordhasher
+    security --> di
+    security --> events
+    security --> httpkernel
+    security -. console extra .-> console
+    securityjwt[xtr-security-jwt] --> security
+    securityjwt --> securitycore
+    securityjwt --> securityhttp
+    securityjwt --> di
+    securityjwt --> clock
+    securityjwt --> events
+    securityjwt --> eventcon
+    securityjwt -. console extra .-> console
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

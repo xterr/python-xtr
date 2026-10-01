@@ -9,17 +9,40 @@ Rules for agents working in this repository.
   classifiers), issue and PR text. This file is the only place that names either.
 - Describe every package on its own terms. If a concept originated in another framework, drop
   the citation and explain what it does here.
+- Never use the word **spec** in a name: no `Spec` class suffix, no `*_spec` / `*_specs` module,
+  function, variable or fixture. A configuration object is a `...Config` (e.g.
+  `LocalAdapterConfig`), and a module grouping several is named `*_configs.py`. Docstrings and
+  comments say "configuration", not "spec".
 
 ## Structural standard
 
 - Every library — current and future — mirrors the same component structure Symfony uses,
   translated to Python and expressed in snake_case:
   - A component is a package named `xtr-<name>` (distribution) / `xtr_<name>` (import).
-  - Each library ships one **bundle** that integrates it with `xtr-dependency-injection`.
+  - A library ships at most one **bundle** that integrates it with `xtr-dependency-injection`.
+    Not every package needs one:
+    - A standalone library ships its own bundle, inside the package (`xtr_<name>/bundle/`).
+    - A component family ships its integration as a separate **bundle package**: `xtr-security`
+      is the bundle for the security family — `xtr-security-core`, `xtr-security-http` and
+      `xtr-password-hasher`. The family's components ship no bundle; only the bundle package
+      configures and wires them.
+    - An add-on built on a family ships its own bundle and depends on the family's bundle, never
+      the other way round: `xtr-security-jwt`'s `JwtBundle` requires the security bundle and
+      registers its authenticator into it through the bundle's extension points. The family's
+      bundle does not know the add-on exists.
+    - A contracts package never ships a bundle.
   - When another library must depend on the interface without pulling the implementation, the
     interfaces live in a companion package `xtr-<name>-contracts`.
   - Class and concept names stay equivalent to those of the corresponding component (e.g.
     `ContainerInterface`, `Bundle`, `ServiceLocator`), just PEP 8-cased.
+  - Folders mirror the corresponding component's folders, snake_cased (`AccessToken/` →
+    `access_token/`), with these translations:
+    - `Attribute/` → `decorator/`: what the component declares with an attribute is a decorator
+      (or an `Annotated` marker) here — `IsGranted`, `CurrentUser`, `as_command`.
+    - `DependencyInjection/` → `bundle/`: the bundle, its configuration and its compiler passes
+      live there, flat; everything else — factories a bundle uses, firewalls, commands — lives in
+      the library's own folders. `Command/` → `command/` at the package root.
+    - `Resources/config/` has no counterpart: services are registered in code by the bundle.
 - Keep the resemblance in shape, not in prose: docs, docstrings and errors read as if the
   library grew here.
 
@@ -39,10 +62,13 @@ packages/xtr-<name>/
 │   │   ├── __init__.py
 │   │   ├── <name>_error.py      # package base error
 │   │   └── <specific>_error.py  # one error per file, derives from the base
-│   └── bundle/
+│   ├── decorator/               # decorators and Annotated markers
+│   ├── command/                 # console commands
+│   └── bundle/                  # only in a package that ships a bundle; flat
 │       ├── __init__.py
 │       ├── <name>_bundle.py
-│       └── <name>_config.py
+│       ├── <name>_config.py     # (+ `*_configs.py` for tagged unions)
+│       └── <what>_pass.py       # compiler passes, when the bundle needs any
 └── tests/
     ├── conftest.py
     ├── unit/                    # mirrors src/xtr_<name>/ exactly
@@ -52,16 +78,16 @@ packages/xtr-<name>/
 ```
 
 - One public class per file; the file is named after the class in snake_case.
-  The one exception: the variants of a tagged configuration union — the specs a `type` field
-  picks between, such as `xtr_logging.config.handler_specs` — may share a module named after
-  what they configure.
+  The one exception: the variants of a tagged configuration union — the configurations a `type`
+  field picks between — may share a `*_configs.py` module named after what they configure.
 - Interfaces are `Protocol` subclasses decorated `@runtime_checkable`, suffixed `Interface`.
 - Every exception derives from the package's single base error.
 - `py.typed` ships in every package.
 
 ## Bundle rules
 
-Read `packages/xtr-dependency-injection/README.md` for the full API. In short:
+These apply to every package that ships a bundle. Read
+`packages/xtr-dependency-injection/README.md` for the full API. In short:
 
 - Declare the bundle with `@as_bundle("<name>", config=<Config>)` on a `Bundle[<Config>]`
   subclass.
@@ -74,15 +100,25 @@ Read `packages/xtr-dependency-injection/README.md` for the full API. In short:
 - The bundle's zero-config path must build and boot with no application configuration and do
   no I/O until a service is requested. Every bundle test suite calls
   `assert_zero_config(<Bundle>)`.
+  The one exception is an add-on bundle no other bundle requires (so it only ever arrives by
+  being listed) and that cannot do anything without settings the application must choose —
+  `xtr-security-jwt`'s `JwtBundle` needs a signing key and an issuer. Such a bundle fails the
+  build with an error naming the missing settings and the `@configure` function to write; its
+  tests assert that failure instead of calling `assert_zero_config`.
+- Never inject the whole container. A service, command, listener or factory declares the
+  services it needs as typed parameters (`Injected[...]`, `Target(...)`, `Sequence[T]`,
+  `Mapping[..., T]`, `ServiceLocator[T]` for a name-keyed lookup); a service whose dependency may
+  be absent is registered only when that dependency is, not given the container to probe it.
 - Libraries never import `wireup` and never call the wireup integration. Only
   `xtr-dependency-injection` — through `xtr_dependency_injection.integration.wireup` — is
   allowed to.
 - The library keeps working without a container: the bundle is an integration on top, not a
-  requirement.
+  requirement. A component a bundle package wires must work on its own too.
 - Advertise the bundle in `pyproject.toml` under
   `[project.entry-points."xtr_dependency_injection.bundles"]`, named after the bundle. It is
   only reported by `debug:bundles`, never activated.
-- The package README carries a **Use in an application** section, placed before
+- The README of the package that ships the bundle carries a **Use in an application** section
+  (a component wired by a bundle package points to that package's section instead), placed before
   *Kernel / bundle*, with the bullets of the root README's skeleton: Install, Activate, Brings
   along, Configure, Environment, Ignore, Remove, Check. Keep it true when the bundle, its
   config defaults, its peers or its extras change.
@@ -112,7 +148,8 @@ Read `packages/xtr-dependency-injection/README.md` for the full API. In short:
 - `pytest` with `anyio` for async; no `pytest-asyncio` strict mode.
 - Test functions named `test_<behaviour>` — one behaviour per test.
 - Prefer fakes over mocks; a fake carries its own contract test.
-- Every bundle has a zero-config test using `assert_zero_config`.
+- Every bundle has a zero-config test using `assert_zero_config`; a package without a bundle
+  has none.
 - Unit tests mirror `src/xtr_<name>/` one-for-one under `tests/unit/`.
 
 ## Commands
