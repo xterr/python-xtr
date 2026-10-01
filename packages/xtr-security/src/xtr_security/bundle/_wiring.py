@@ -3,8 +3,8 @@
 Split out of the bundle so each concern reads on its own: the voters and their
 optional tracing, the password hashers, the user providers, and — the large one —
 the per-firewall wiring that gathers an authenticator manager, an access map, an
-entry point and a scoped dispatcher into a :class:`FirewallContext`, and every
-context into a :class:`FirewallMap`.
+entry point and the firewall's own dispatcher into a :class:`FirewallContext`, and
+every context into a :class:`FirewallMap`.
 
 Every factory declares the services it needs as typed parameters — a bare type
 for an unqualified service, ``Annotated[T, Target(name)]`` for a qualified one,
@@ -23,8 +23,7 @@ from typing import TYPE_CHECKING, Annotated, cast, final
 # These types annotate factory parameters and returns the container reads at
 # runtime, so they must be importable when it does — never under TYPE_CHECKING.
 from xtr_dependency_injection import ServiceKey, ServiceLocator, Target, named_factory
-from xtr_event_dispatcher import EventDispatcherInterface as ConcreteEventDispatcher
-from xtr_event_dispatcher import ScopedEventDispatcher
+from xtr_event_dispatcher.bundle import DISPATCHER_TAG, SUBSCRIBER_TAG, event_dispatcher_factory
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_password_hasher import (
     PasswordHasherFactory,
@@ -67,6 +66,7 @@ from xtr_security_http.event_listener import (
 
 from xtr_security.bundle._password_hasher_build import build_hasher
 from xtr_security.bundle.authenticator_configs import AccessTokenConfig
+from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 from xtr_security.bundle.password_hasher_configs import ServiceHasherConfig
 from xtr_security.bundle.security_config import SecurityConfig
 from xtr_security.exception import InvalidConfigurationError
@@ -295,9 +295,10 @@ def build_firewall_map(
     """Register a :class:`FirewallContext` per firewall and a :class:`FirewallMap`.
 
     For each firewall this registers its authenticators through their factories,
-    a scoped dispatcher carrying the http listeners, and a context factory that
-    gathers an authenticator manager, an access map, an entry point and the
-    firewall's OpenAPI scheme. A final factory asks a locator for every context,
+    its own dispatcher with the listeners only it runs, and a context factory
+    that gathers an authenticator manager, an access map, an entry point and the
+    firewall's OpenAPI scheme. The listeners every secured firewall shares join
+    the main dispatcher, once. A final factory asks a locator for every context,
     by firewall name, and pairs each with its matcher and its configuration into
     the map.
     """
@@ -307,6 +308,8 @@ def build_firewall_map(
         matchers[name] = firewall.to_matcher()
         configs[name] = firewall
         _build_firewall_context(services, config, name, firewall)
+    if any(firewall.security for firewall in config.firewalls.values()):
+        _register_shared_listeners(services)
 
     _ = services.set(_firewall_map_factory(matchers, configs), lifetime="scoped")
     services.alias(FirewallMapInterface, FirewallMap)
@@ -370,46 +373,87 @@ def _register_dispatcher(
     firewall: FirewallConfig,
     provider_qualifier: str | None,
 ) -> None:
-    """Register the firewall's own scoped dispatcher with the http listeners on it.
+    """Register the firewall's own dispatcher, and the listeners only it runs.
 
-    The global dispatcher, the password hasher and — when the firewall names them
-    — its user provider and user checker are injected; the listeners are wired
-    onto a :class:`ScopedEventDispatcher` over the global one.
+    The event dispatcher bundle hands the dispatcher every listener naming it:
+    the user provider and user checker listeners of this firewall, registered
+    here. The listeners every firewall shares are on the main dispatcher, and
+    reach this one through
+    :class:`~xtr_security.bundle.RegisterGlobalSecurityEventListenersPass`.
     """
-    user_checker = firewall.user_checker
+    dispatcher = firewall_dispatcher_name(name)
+    _ = services.set(event_dispatcher_factory(dispatcher), qualifier=dispatcher).add_tag(
+        DISPATCHER_TAG
+    )
+    if provider_qualifier is not None:
+        _ = services.set(
+            named_factory(
+                _user_provider_listener(provider_qualifier), f"user_provider_listener_{name}"
+            ),
+            qualifier=dispatcher,
+        ).add_tag(SUBSCRIBER_TAG, dispatcher=dispatcher)
+    _ = services.set(
+        named_factory(
+            _user_checker_listener(firewall.user_checker), f"user_checker_listener_{name}"
+        ),
+        qualifier=dispatcher,
+    ).add_tag(SUBSCRIBER_TAG, dispatcher=dispatcher)
 
-    async def firewall_dispatcher(
-        global_dispatcher: ConcreteEventDispatcher,
-        hasher: UserPasswordHasherInterface,
-        dummy_hasher: PasswordHasherInterface,
-        provider: UserProviderInterface | None = None,
-        checker: object | None = None,
-    ) -> EventDispatcherInterface:
+
+def _user_provider_listener(provider_qualifier: str) -> Callable[..., UserProviderListener]:
+    """Return the factory of the listener loading users from the firewall's provider."""
+
+    def user_provider_listener(provider: UserProviderInterface) -> UserProviderListener:
+        return UserProviderListener(provider)
+
+    user_provider_listener.__annotations__ = {
+        "provider": Annotated[UserProviderInterface, Target(provider_qualifier)],
+        "return": UserProviderListener,
+    }
+    return user_provider_listener
+
+
+def _user_checker_listener(user_checker: type | None) -> Callable[..., UserCheckerListener]:
+    """Return the factory of the listener checking the account with the firewall's checker.
+
+    Without one configured, the in-memory checker the security core ships.
+    """
+
+    def user_checker_listener(checker: object | None = None) -> UserCheckerListener:
         from xtr_security_core import InMemoryUserChecker  # noqa: PLC0415 -- default checker
 
-        scoped = ScopedEventDispatcher(global_dispatcher)
-        if provider is not None:
-            scoped.add_subscriber(UserProviderListener(provider))
-        resolved_checker = checker if checker is not None else InMemoryUserChecker()
-        scoped.add_subscriber(UserCheckerListener(cast("UserCheckerInterface", resolved_checker)))
-        scoped.add_subscriber(CheckCredentialsListener(hasher, dummy_hasher))
-        scoped.add_subscriber(PasswordMigratingListener(hasher))
-        return scoped
+        resolved = checker if checker is not None else InMemoryUserChecker()
+        return UserCheckerListener(cast("UserCheckerInterface", resolved))
 
-    annotations: dict[str, object] = {
-        "global_dispatcher": ConcreteEventDispatcher,
-        "hasher": UserPasswordHasherInterface,
-        "dummy_hasher": Annotated[PasswordHasherInterface, Target(DUMMY_PASSWORD_HASHER_QUALIFIER)],
-        "return": EventDispatcherInterface,
-    }
-    if provider_qualifier is not None:
-        annotations["provider"] = Annotated[UserProviderInterface, Target(provider_qualifier)]
+    annotations: dict[str, object] = {"return": UserCheckerListener}
     if user_checker is not None:
         annotations["checker"] = user_checker
-    firewall_dispatcher.__annotations__ = annotations
-    firewall_dispatcher.__name__ = f"firewall_dispatcher_{name}"
-    firewall_dispatcher.__qualname__ = firewall_dispatcher.__name__
-    _ = services.set(firewall_dispatcher, qualifier=name, lifetime="scoped")
+    user_checker_listener.__annotations__ = annotations
+    return user_checker_listener
+
+
+def _register_shared_listeners(services: ServiceConfigurator) -> None:
+    """Register, on the main dispatcher, the listeners every secured firewall runs.
+
+    They reach each firewall's dispatcher through
+    :class:`~xtr_security.bundle.RegisterGlobalSecurityEventListenersPass`, as an
+    application's own security listeners do.
+    """
+    _ = services.set(_check_credentials_listener).add_tag(SUBSCRIBER_TAG)
+    _ = services.set(_password_migrating_listener).add_tag(SUBSCRIBER_TAG)
+
+
+def _check_credentials_listener(
+    hasher: UserPasswordHasherInterface,
+    dummy_hasher: Annotated[PasswordHasherInterface, Target(DUMMY_PASSWORD_HASHER_QUALIFIER)],
+) -> CheckCredentialsListener:
+    """Build the credentials check, with the dummy hasher an unknown user's check burns."""
+    return CheckCredentialsListener(hasher, dummy_hasher)
+
+
+def _password_migrating_listener(hasher: UserPasswordHasherInterface) -> PasswordMigratingListener:
+    """Build the listener rehashing a password flagged as outdated."""
+    return PasswordMigratingListener(hasher)
 
 
 def _register_authenticators(
@@ -534,7 +578,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
 
     annotations: dict[str, object] = {
         "storage": TokenStorageInterface,
-        "dispatcher": Annotated[EventDispatcherInterface, Target(name)],
+        "dispatcher": Annotated[EventDispatcherInterface, Target(firewall_dispatcher_name(name))],
         "decision_manager": AccessDecisionManagerInterface,
         "authenticators": ServiceLocator[AuthenticatorInterface],
         "return": FirewallContext,

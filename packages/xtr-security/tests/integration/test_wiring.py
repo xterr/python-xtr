@@ -115,16 +115,24 @@ async def test_tracing_dispatches_a_vote_event(container: ContainerInterface) ->
 async def test_the_credentials_check_is_wired_with_a_dummy_hasher(
     container: ContainerInterface,
 ) -> None:
-    from xtr_event_dispatcher import EventDispatcher
+    from xtr_event_dispatcher import EventDispatcher, LazyListener
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_security_http.event.check_passport_event import CheckPassportEvent
     from xtr_security_http.event_listener.check_credentials_listener import (
         CheckCredentialsListener,
     )
 
+    from xtr_security.bundle import firewall_dispatcher_name
+
     async with unit_of_work(container) as unit:
-        dispatcher = cast("EventDispatcher", await unit.get(EventDispatcherInterface, "api"))
-        listeners = dispatcher.get_listeners(CheckPassportEvent)
+        dispatcher = cast(
+            "EventDispatcher",
+            await unit.get(EventDispatcherInterface, firewall_dispatcher_name("api")),
+        )
+        listeners = [
+            await listener.resolve() if isinstance(listener, LazyListener) else listener
+            for listener in dispatcher.get_listeners(CheckPassportEvent)
+        ]
 
     checks = [
         owner

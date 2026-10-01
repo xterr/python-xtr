@@ -143,11 +143,12 @@ async def test_events_fire_in_order_on_a_global_listener(client: httpx.AsyncClie
 async def test_the_firewall_dispatcher_orders_its_listeners_and_merges_the_global() -> None:
     from xtr_dependency_injection import Kernel, unit_of_work
     from xtr_dependency_injection.testing import boot_for_test
-    from xtr_event_dispatcher import EventDispatcher
+    from xtr_event_dispatcher import EventDispatcher, LazyListener
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_security_http.event.check_passport_event import CheckPassportEvent
 
     from tests.fixtures.security_app.bundles import BUNDLES
+    from xtr_security.bundle import firewall_dispatcher_name
 
     kernel = Kernel(
         "tests.fixtures.security_app",
@@ -156,9 +157,15 @@ async def test_the_firewall_dispatcher_orders_its_listeners_and_merges_the_globa
         concurrent_scoped_access=True,
     )
     async with await boot_for_test(kernel) as booted, unit_of_work(booted.container) as unit:
-        dispatcher = cast("EventDispatcher", await unit.get(EventDispatcherInterface, "api"))
+        dispatcher = cast(
+            "EventDispatcher",
+            await unit.get(EventDispatcherInterface, firewall_dispatcher_name("api")),
+        )
         names = [
-            _listener_name(listener) for listener in dispatcher.get_listeners(CheckPassportEvent)
+            _listener_name(
+                await listener.resolve() if isinstance(listener, LazyListener) else listener
+            )
+            for listener in dispatcher.get_listeners(CheckPassportEvent)
         ]
 
     assert names.index("UserProviderListener.check_passport") < names.index(
@@ -218,6 +225,7 @@ async def test_an_unknown_user_with_a_password_burns_a_dummy_through_the_dispatc
     from xtr_security_http.event.check_passport_event import CheckPassportEvent
 
     from tests.fixtures.security_app.bundles import BUNDLES
+    from xtr_security.bundle import firewall_dispatcher_name
     from xtr_security.bundle._wiring import DUMMY_PASSWORD_HASHER_QUALIFIER
 
     def unknown_loader(identifier: str) -> UserInterface:
@@ -237,7 +245,7 @@ async def test_an_unknown_user_with_a_password_burns_a_dummy_through_the_dispatc
         await boot_for_test(kernel, overrides=overrides) as booted,
         unit_of_work(booted.container) as unit,
     ):
-        dispatcher = await unit.get(EventDispatcherInterface, "api")
+        dispatcher = await unit.get(EventDispatcherInterface, firewall_dispatcher_name("api"))
         passport = Passport(
             UserBadge("ghost", user_loader=unknown_loader),
             [PasswordCredentials("secret")],

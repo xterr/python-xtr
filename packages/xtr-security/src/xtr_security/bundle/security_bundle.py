@@ -18,11 +18,13 @@ from typing import TYPE_CHECKING, cast, final
 from typing_extensions import override
 from xtr_dependency_injection import (
     Bundle,
+    PassStage,
     as_bundle,
     bundle_active,
     required_bundle,
 )
-from xtr_event_dispatcher.bundle import EventDispatcherBundle
+from xtr_dependency_injection.kernel.kernel import BUNDLE_PASS_PRIORITY
+from xtr_event_dispatcher.bundle import LISTENER_TAG, EventDispatcherBundle
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_kernel import ExceptionEvent
 from xtr_http_kernel.bundle import HttpKernelBundle
@@ -59,6 +61,10 @@ from ._wiring import (
     register_user_providers,
     register_voters,
 )
+from .make_firewalls_event_dispatcher_traceable_pass import (
+    MakeFirewallsEventDispatcherTraceablePass,
+)
+from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -67,11 +73,11 @@ if TYPE_CHECKING:
 
 __all__ = ["SecurityBundle"]
 
-_LISTENER_TAG = "event_dispatcher.listener"
-"""The tag the event dispatcher bundle reads listeners from."""
-
 _MIDDLEWARE_TAG = "http_kernel.middleware"
 """The tag the http-kernel bundle orders middleware factories by."""
+
+_TRACEABLE_PASS_PRIORITY = 10
+"""Ahead of the bundles' own passes, once autoconfiguration has run; decorations resolve later."""
 
 _SCHEME_MIDDLEWARE_PRIORITY = -4096
 """The scheme-activating middleware sits innermost; it wraps only the schema read."""
@@ -98,8 +104,23 @@ class SecurityBundle(Bundle[SecurityConfig]):
 
     @override
     def build(self, builder: ContainerBuilder) -> None:
-        """Autoconfigure every application voter with the voter tag."""
+        """Autoconfigure every application voter, and register the firewall dispatchers' passes.
+
+        The firewalls' dispatchers are traced before the decorations resolve,
+        and take the main dispatcher's security listeners once the event
+        dispatcher bundle's ``RegisterListenersPass`` has worked both out.
+        """
         _ = builder.register_for_autoconfiguration(VoterInterface).add_tag(VOTER_TAG)
+        builder.add_compiler_pass(
+            MakeFirewallsEventDispatcherTraceablePass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=_TRACEABLE_PASS_PRIORITY,
+        )
+        builder.add_compiler_pass(
+            RegisterGlobalSecurityEventListenersPass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=BUNDLE_PASS_PRIORITY - 1,
+        )
 
     @override
     def load_extension(
@@ -141,7 +162,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
         build_firewall_map(services, config)
 
         _ = services.set(ExceptionListener).add_tag(
-            _LISTENER_TAG,
+            LISTENER_TAG,
             event=ExceptionEvent,
             method="on_exception",
         )

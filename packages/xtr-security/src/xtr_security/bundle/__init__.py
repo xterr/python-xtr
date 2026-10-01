@@ -30,6 +30,10 @@ from xtr_security.user_provider.add_user_provider_factory import add_user_provid
 from .access_control_configs import AccessControlConfig
 from .access_decision_manager_config import AccessDecisionManagerConfig
 from .authenticator_configs import AccessTokenConfig
+from .firewall_dispatcher_name import firewall_dispatcher_name
+from .make_firewalls_event_dispatcher_traceable_pass import (
+    MakeFirewallsEventDispatcherTraceablePass,
+)
 from .password_hasher_configs import (
     AutoHasherConfig,
     HasherConfig,
@@ -38,6 +42,7 @@ from .password_hasher_configs import (
     PlaintextHasherConfig,
     ServiceHasherConfig,
 )
+from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
 from .security_bundle import SecurityBundle
 from .security_config import SecurityConfig
 from .token_handler_configs import (
@@ -67,11 +72,13 @@ __all__ = [
     "InMemoryUserProviderConfig",
     "InMemoryUserProviderFactory",
     "InvalidConfigurationError",
+    "MakeFirewallsEventDispatcherTraceablePass",
     "NativeHasherConfig",
     "OidcTokenHandlerConfig",
     "OidcTokenHandlerFactory",
     "Pbkdf2HasherConfig",
     "PlaintextHasherConfig",
+    "RegisterGlobalSecurityEventListenersPass",
     "SecurityBundle",
     "SecurityConfig",
     "ServiceHasherConfig",
@@ -86,4 +93,5 @@ __all__ = [
     "add_authenticator_factory",
     "add_token_handler_factory",
     "add_user_provider_factory",
+    "firewall_dispatcher_name",
 ]
