@@ -25,15 +25,28 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import Annotated, ClassVar
 
-from fastapi import APIRouter
+import anyio
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
 from xtr_dependency_injection import Autowire, Injected, KernelInterface, Target
 from xtr_http_kernel.rate_limiter import RateLimited
 from xtr_messenger import WorkerFactory
+from xtr_password_hasher import UserPasswordHasherInterface
 from xtr_rate_limiter import RateLimiterFactoryInterface
+from xtr_security import Security
+from xtr_security_core import InMemoryUser, InMemoryUserProvider
+from xtr_security_core.exception import (
+    AuthenticationCredentialsNotFoundError,
+    UserNotFoundError,
+)
+from xtr_security_core.user.user_interface import UserInterface
+from xtr_security_http import CurrentUser, Firewall, IsGranted
+from xtr_security_jwt import JwtTokenManagerInterface
 
 from bookshop.catalog import Book, BookCatalogInterface, Genre
 from bookshop.ordering import (
+    ORDER_VIEW,
+    Order,
     OrderNumber,
     OrderRepository,
     OrderService,
@@ -48,8 +61,15 @@ __all__ = ["OrderRequest", "router"]
 
 _QUEUED = ("jobs", "audit", "outbox")
 
-# Limited before its routes are added: each route copies the router's dependencies.
-router = RateLimited("api", expose_headers=True)(APIRouter())
+# A hash of a throwaway password, verified against when no such user exists, so a bad
+# identifier and a bad password cost the same (the FastAPI-tutorial timing guard). A PHC hash
+# string is one indivisible token, so it cannot be wrapped under the line length.
+_DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$csBCmuUDDdOHBAwK4xX+lA$0YF1rPunzp1YVD+n8Nv5+KjL0faOrgKXKbXhOVSOXxE"  # noqa: E501
+
+# Limited before its routes are added, then guarded by the matched firewall: each route copies
+# the router's dependencies, so every route authenticates once and is checked against the
+# access-control map of config/security.py.
+router = Firewall()(RateLimited("api", expose_headers=True)(APIRouter()))
 
 
 class OrderRequest(BaseModel):
@@ -155,6 +175,104 @@ async def place_order(  # noqa: PLR0913, PLR0917 — the body plus one service p
     for name in _QUEUED:
         await workers.worker([name]).run()
     return {"number": number.value, "unit_of_work": work.id, "dispatched": len(envelopes)}
+
+
+class TokenRequest(BaseModel):
+    """The body ``POST /token`` takes, an identifier and the password to verify.
+
+    Attributes:
+        identifier: Who is signing in — one of the inline users of ``config/security.py``.
+        password: Their plaintext password, checked against the stored argon2id hash.
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, extra="forbid")
+
+    identifier: str
+    password: str
+
+
+@router.post("/token", dependencies=[RateLimited("orders_per_email")])
+async def issue_token(
+    body: TokenRequest,
+    users: Annotated[InMemoryUserProvider, Target("users")],
+    hasher: Injected[UserPasswordHasherInterface],
+    tokens: Injected[JwtTokenManagerInterface],
+) -> dict[str, str]:
+    """``POST /token {"identifier", "password"}`` — a signed token after the password checks.
+
+    The application authenticates the user itself, the FastAPI-tutorial way: load the user,
+    verify the password off the event loop, and — for an unknown identifier — burn a dummy
+    hash so a bad identifier and a bad password take the same time. The token manager signs
+    the user's identity and roles; it reads nothing from client input. Throttled per
+    identifier with the ``orders_per_email`` limiter, so a password cannot be guessed at speed.
+
+    Raises:
+        AuthenticationCredentialsNotFoundError: If the identifier or password is wrong;
+            answered as 401.
+    """
+    user: InMemoryUser | None = None
+    try:
+        loaded = await users.load_user_by_identifier(body.identifier)
+    except UserNotFoundError:
+        loaded = None
+    if isinstance(loaded, InMemoryUser):
+        user = loaded
+    probe = user if user is not None else InMemoryUser("__unknown__", password=_DUMMY_HASH)
+    valid = await anyio.to_thread.run_sync(hasher.is_password_valid, probe, body.password)
+    if user is None or not valid:
+        raise AuthenticationCredentialsNotFoundError("Bad credentials.")
+    return {"access_token": await tokens.create(user), "token_type": "bearer"}
+
+
+@router.get("/me")
+async def me(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, object]:
+    """``GET /me`` — the authenticated user behind the request, from the firewall's token."""
+    return {"identifier": user.get_user_identifier(), "roles": list(user.get_roles())}
+
+
+async def _load_order(number: str, orders: Injected[OrderRepository]) -> Order:
+    """Load the order ``number`` names, for the endpoint and the ``ORDER_VIEW`` check to share.
+
+    Raises:
+        UnknownBookError: Reused to answer 404 when no order carries ``number``.
+    """
+    order = await orders.get_one_or_none(number=number)
+    if order is None:
+        raise UnknownBookError(number)
+    return order
+
+
+@router.get("/orders/{number}")
+async def show_order(
+    order: Annotated[Order, Depends(_load_order)],
+    security: Injected[Security],
+) -> dict[str, object]:
+    """``GET /orders/{number}`` — one order, only to the customer who placed it.
+
+    The ``ORDER_VIEW`` attribute is checked over the loaded order with the ``Security`` facade's
+    ``deny_access_unless_granted`` — the plan's in-body form — so the ``OrderViewVoter`` votes on
+    the real :class:`Order`: the owner, or an admin through the role hierarchy, is granted;
+    anyone else raises ``AccessDeniedError``, which the firewall answers 403.
+    """
+    await security.deny_access_unless_granted(ORDER_VIEW, order)
+    return {
+        "number": order.number,
+        "isbn": order.isbn,
+        "quantity": order.quantity,
+        "email": order.email,
+        "total": order.total,
+    }
+
+
+@router.get("/admin/stats")
+@IsGranted("ROLE_ADMIN")
+async def admin_stats(orders: Injected[OrderRepository]) -> dict[str, object]:
+    """``GET /admin/stats`` — the order count, for an admin only.
+
+    ``@IsGranted("ROLE_ADMIN")`` below the route (the access map also guards ``^/admin``)
+    answers 403 for a signed-in non-admin, 401 for an anonymous caller.
+    """
+    return {"orders": await orders.count()}
 
 
 def _book(book: Book) -> dict[str, object]:

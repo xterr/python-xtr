@@ -13,17 +13,20 @@ from .order_number import OrderNumber
 from .order_placed import OrderPlaced
 from .order_repository import OrderRepository
 from .order_service import OrderService
+from .order_voter import ORDER_VIEW, OrderViewVoter
 from .receipt import Receipt
 from .receipt_repository import ReceiptRepository
 from .request_scoped import RequestScoped, ShoppingCart
 from .unit_of_work import UnitOfWork
 
 __all__ = [
+    "ORDER_VIEW",
     "Order",
     "OrderNumber",
     "OrderPlaced",
     "OrderRepository",
     "OrderService",
+    "OrderViewVoter",
     "OutOfStockError",
     "Receipt",
     "ReceiptRepository",

@@ -3,3 +3,6 @@
 # Written by `bookshop dotenv:dump`; regenerate it rather than commit it.
 /.env.local.json
 /.venv/
+# JWT signing keys written by `jwt:generate-keypair` — a private key never enters the repository.
+/secrets/*.pem
+/secrets/*.jwks.json

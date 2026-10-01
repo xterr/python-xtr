@@ -12,6 +12,7 @@ package comes from `../../packages`, editable, so a change there is visible here
 cd examples/bookshop
 uv sync
 uv run bookshop orm:migrations:migrate -n   # once: the orders and receipts tables
+uv run bookshop jwt:generate-keypair --kid jwt-private-key --output-dir secrets   # once: the JWT signing key
 uv run bookshop list                  # the console
 uv run bookshop-web                   # http://127.0.0.1:8080 — Ctrl-C to stop
 uv run python -m bookshop.worker jobs # a worker (in dev the queues are in-memory: returns at once)
@@ -49,8 +50,14 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop dotenv:dump` · `debug:dotenv [NAME]` | the dotenv bundle's commands |
 | `bookshop orm:migrations:status` · `migrate -n` · `up-to-date` · `diff "MESSAGE"` | where the database stands; bring it to the latest revision; exit 1 while one is not applied; write a revision from what the models changed |
 | `bookshop orm:run-sql "select count(*) from orders"` | a statement run on the connection, its rows as a table |
+| `bookshop debug:firewall [name]` | the firewalls the security bundle built, or one described |
+| `bookshop debug:bundles` | now lists `security` (required by jwt) and `jwt` (listed) active |
+| `bookshop jwt:check-config` | signs a probe token with the configured key and reads it back |
+| `bookshop security:hash-password [PASSWORD] [USER-CLASS]` | hashes a password with the configured factory — the hashes `config/security.py` stores |
+| `bookshop jwt:generate-keypair` · `jwt:generate-token IDENTIFIER` | mint a signing key, or a token for a user |
 | `bookshop bundle:check` · `demo:frozen-clock` · `demo:wireup` · `demo:dotenv` · `demo:without-container` | dev and test only — the `dev_tools` bundle |
 | `bookshop demo:rate-limit` | dev and test only — every limiter of `config/rate_limiter.py` under a frozen clock, then every limited route served in process; each row a claim checked, exit 1 if one fails |
+| `bookshop demo:security` | dev and test only — the firewall, the roles and the `ORDER_VIEW` voter served in process: 401 without a token, 200 with one, 403 on a role or an owner denial; each row a claim checked, exit 1 if one fails |
 
 ## The web application
 
@@ -108,13 +115,58 @@ on, and answered 500. Without the server:
 `bookshop router:match /books/978-0135957059` names the one a path reaches and what it reads
 out of it — neither needs `--app`, because `config/http_kernel.py` names the application.
 
+### Security — a firewall, roles and a voter
+
+One `api` firewall (`config/security.py`) covers every route and accepts a self-issued JSON Web
+Token; the JWT bundle (`config/jwt.py`) signs with the key minted once into `secrets/` (see the start). The
+catalog, search, the order list and placing an order stay open — the shop has always served them
+so — while a single order, `/me` and the admin slice require a caller, and `/admin` an admin:
+
+```sh
+curl -i localhost:8080/me                       # 401 — WWW-Authenticate: Bearer
+TOKEN=$(curl -s -X POST localhost:8080/token \
+  -H 'content-type: application/json' \
+  -d '{"identifier":"ada@example.com","password":"s3cret"}' | jq -r .access_token)
+curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/me          # {"identifier":"ada@example.com","roles":["ROLE_USER"]}
+curl -i -H "Authorization: Bearer $TOKEN" localhost:8080/admin/stats # 403 — ada is not an admin
+ADMIN=$(curl -s -X POST localhost:8080/token \
+  -H 'content-type: application/json' \
+  -d '{"identifier":"root@example.com","password":"r00t"}' | jq -r .access_token)
+curl -s -H "Authorization: Bearer $ADMIN" localhost:8080/admin/stats # 200 {"orders": N}
+```
+
+- `web/routes.py` puts `Firewall()` on the router, so every route authenticates once and is
+  checked against the access-control map; `/token` verifies the password with
+  `UserPasswordHasherInterface` (a dummy hash burned for an unknown identifier, so the timing
+  gives nothing away), then signs a token with `JwtTokenManagerInterface`, throttled by the
+  `orders_per_email` limiter;
+- `/me` injects the caller with `CurrentUser()`; `/admin/stats` carries `@IsGranted("ROLE_ADMIN")`,
+  granted to `root@example.com` and, through the role hierarchy (`ROLE_ADMIN` reaches `ROLE_USER`),
+  to nothing less;
+- `GET /orders/{number}` is a customer's own order: `ordering/order_voter.py`'s `OrderViewVoter`
+  grants `ORDER_VIEW` to the user whose identifier is the order's `email`, checked in the body
+  with `Security.deny_access_unless_granted` — another customer is answered 403;
+- the three inline users (`ada@example.com`, `lin@example.com`, `root@example.com`) and their
+  argon2id password hashes are in `config/security.py`; `security:hash-password` prints a hash
+  of the same shape, and `jwt:check-config` proves the signing key signs and verifies.
+
+`demo:security` runs this whole loop in process (`httpx.ASGITransport`, like `demo:rate-limit`)
+and checks every outcome.
+
+> **Known gap.** `IsGranted(attribute, subject=<callable>)` does not work in a served route:
+> the security-http package builds the subject dependency under `from __future__ import
+> annotations`, so FastAPI reads the synthetic parameter's `Depends(...)` as an unresolved
+> forward reference and treats it as a query parameter (a `422`). `IsGranted(attribute)` and
+> `IsGranted(attribute, subject="path_param")` are unaffected; the owner check uses the
+> `Security` facade in the body instead, the form the plan documents.
+
 ## Layout
 
 ```
 examples/bookshop/
 ├── .env .env.dev .env.test .env.prod .env.local .env.dev.local   the cascade
 ├── resources/            files env processors read; dotenv-demo/ holds only a .env.dist
-├── secrets/              one file per variable, read by SecretsDirectoryLoader
+├── secrets/              one file per variable (SecretsDirectoryLoader) + the minted JWT key (ignored)
 ├── migrations/           the database's revisions, written by orm:migrations:diff
 ├── var/                  logs and the dev / test SQLite files, written at runtime (ignored)
 └── src/
@@ -129,8 +181,10 @@ examples/bookshop/
 ```
 
 The `.env.local`, `.env.dev.local` and `.env.prod` files and `secrets/SHOP_VAULT_TOKEN` are
-committed on purpose, so the example runs as cloned: their values are placeholders. In an
-application of your own, ignore the `.local` files and keep secrets out of the repository.
+committed on purpose, so the example runs as cloned: their values are placeholders. The JWT
+signing key is the exception — a private key never enters the repository, so it is minted once
+with `jwt:generate-keypair` into `secrets/`, which `.gitignore` keeps out. In an application of
+your own, ignore the `.local` files too, and keep every secret out of the repository.
 
 ## Where each feature lives
 
@@ -230,6 +284,14 @@ application of your own, ignore the `.local` files and keep secrets out of the r
 | orm | handlers sharing a message's session, a refusal rolling back what they wrote, the transport a receipt came through | `messaging/handlers.py` |
 | orm | a command and a route reading through repositories; a rolled-back message reported | `commands/order_commands.py`, `web/routes.py`, `web/app.py` |
 | orm | a generated revision | `migrations/` |
+| security | `SecurityConfig` — inline users, `password_hashers`, `role_hierarchy`, one firewall, `access_control` | `config/security.py` |
+| security | `Firewall()` on a router; `CurrentUser()`; `@IsGranted("ROLE_ADMIN")`; `Security.deny_access_unless_granted` in a body | `web/routes.py` |
+| security | a `Voter` subclass granting `ORDER_VIEW` to an order's owner, gathered by the `security.voter` tag | `ordering/order_voter.py` |
+| security | `UserPasswordHasherInterface` verifying a password, with a dummy-hash timing guard | `web/routes.py` |
+| security | `debug:firewall`, `security:hash-password` (the `console` extra) | the bundle registers them |
+| jwt | `JwtConfig` — the signing key from `env("resolve:...")`, `token_ttl`, `user_id_claim` | `config/jwt.py` |
+| jwt | `JwtAuthenticatorConfig()` in a firewall; `JwtTokenManagerInterface.create(user)` in `/token` | `config/security.py`, `web/routes.py` |
+| jwt | `jwt:generate-keypair`, `jwt:generate-token`, `jwt:check-config` (the `console` extra) | the bundle registers them |
 
 ## Environment variables
 
@@ -249,6 +311,9 @@ The application reads `SHOP_*`, `SEARCH_*`, `DATABASE_URL`, `APP_TIMEZONE`, `WEB
 `SHOP_DATABASE_URL` is the database — a SQLite file per environment in dev and test,
 PostgreSQL in prod; `DATABASE_URL` only shows the env processors.
 `SHOP_VAULT_TOKEN` is set nowhere on purpose: the secrets-directory loader supplies it.
+`JWT_SECRET_KEY_PATH` points `config/jwt.py` at the PEM that signs self-issued tokens — the
+key `jwt:generate-keypair` minted under `secrets/`; `config/jwt.py` reads it with `env("resolve:...")` so
+`%kernel.project_dir%` expands, and the JWT bundle's key loader reads the file.
 
 ## Rules this example follows
 

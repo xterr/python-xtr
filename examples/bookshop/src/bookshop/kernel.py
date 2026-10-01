@@ -54,12 +54,15 @@ kernel: Final = Kernel(
     # env=None      -> the APP_ENV variable, else "dev".
     # debug=None    -> the APP_DEBUG variable, else "not prod".
     # bundles=None  -> bookshop.bundles.BUNDLES.
-    # resources=None -> scan the package itself.
     # environ=None  -> read APP_ENV, APP_DEBUG and every env() from os.environ.
     name="bookshop",
     # The only environments this application accepts: anything else is an
     # InvalidEnvironmentError before a single module is imported.
     allowed_envs=("dev", "test", "prod"),
+    # Scan the application, plus the password hasher's command module: that package ships no
+    # bundle, so its security:hash-password command — a class defined there, decorated with
+    # @as_command — is registered by scanning where it lives, the console's own mechanism.
+    resources=("bookshop", "xtr_password_hasher.command"),
     exclude=EXCLUDE,
 )
 

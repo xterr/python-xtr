@@ -27,6 +27,7 @@ from xtr_messenger.bundle import MessengerBundle
 from xtr_orm.bundle import OrmBundle
 from xtr_rate_limiter.bundle import RateLimiterBundle
 from xtr_scheduler.bundle import SchedulerBundle
+from xtr_security_jwt.bundle import JwtBundle
 
 from bookshop.dev_tools import DevToolsBundle
 from fulltext.bundle import FulltextBundle
@@ -52,6 +53,11 @@ BUNDLES = {
     # Limits on routes, on outgoing mail, on anything; with the cache and lock bundles active
     # its limiters keep their state in a "rate_limiter" pool it adds, under the default lock.
     RateLimiterBundle: {"all": True},
+    # Self-issued JSON Web Tokens: brings SecurityBundle with it (which in turn needs the
+    # event-dispatcher and http-kernel bundles, already active), and registers the jwt
+    # authenticator the api firewall lists. An add-on bundle: it fails the build unless
+    # config/jwt.py names a signing key, so it is not zero-config.
+    JwtBundle: {"all": True},
     # Development helpers: never active in prod. Its resources are only scanned when active.
     DevToolsBundle: {"dev": True, "test": True},
 }
