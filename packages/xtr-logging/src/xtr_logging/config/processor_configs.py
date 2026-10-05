@@ -16,19 +16,19 @@ from xtr_logging_contracts import Level
 from xtr_logging.processor._target import refuse_both_targets
 
 __all__ = [
-    "ContextVarsProcessorSpec",
-    "HostnameProcessorSpec",
-    "IntrospectionProcessorSpec",
-    "PlaceholderProcessorSpec",
-    "ProcessIdProcessorSpec",
-    "ProcessorSpec",
-    "ServiceProcessorSpec",
-    "TagProcessorSpec",
-    "UidProcessorSpec",
+    "ContextVarsProcessorConfig",
+    "HostnameProcessorConfig",
+    "IntrospectionProcessorConfig",
+    "PlaceholderProcessorConfig",
+    "ProcessIdProcessorConfig",
+    "ProcessorConfig",
+    "ServiceProcessorConfig",
+    "TagProcessorConfig",
+    "UidProcessorConfig",
 ]
 
 
-class _ProcessorSpecBase(
+class _ProcessorConfigBase(
     msgspec.Struct,
     frozen=True,
     kw_only=True,
@@ -43,29 +43,31 @@ class _ProcessorSpecBase(
         refuse_both_targets(self.channel, self.handler)
 
 
-class PlaceholderProcessorSpec(_ProcessorSpecBase, frozen=True, kw_only=True, tag="placeholder"):
+class PlaceholderProcessorConfig(
+    _ProcessorConfigBase, frozen=True, kw_only=True, tag="placeholder"
+):
     """A :class:`~xtr_logging.processor.placeholder_processor.PlaceholderProcessor`."""
 
     date_format: str | None = None
     remove_used_context_fields: bool = False
 
 
-class UidProcessorSpec(_ProcessorSpecBase, frozen=True, kw_only=True, tag="uid"):
+class UidProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, tag="uid"):
     """A :class:`~xtr_logging.processor.uid_processor.UidProcessor`."""
 
     length: int = 7
 
 
-class HostnameProcessorSpec(_ProcessorSpecBase, frozen=True, kw_only=True, tag="hostname"):
+class HostnameProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, tag="hostname"):
     """A :class:`~xtr_logging.processor.hostname_processor.HostnameProcessor`."""
 
 
-class ProcessIdProcessorSpec(_ProcessorSpecBase, frozen=True, kw_only=True, tag="process_id"):
+class ProcessIdProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, tag="process_id"):
     """A :class:`~xtr_logging.processor.process_id_processor.ProcessIdProcessor`."""
 
 
-class IntrospectionProcessorSpec(
-    _ProcessorSpecBase, frozen=True, kw_only=True, tag="introspection"
+class IntrospectionProcessorConfig(
+    _ProcessorConfigBase, frozen=True, kw_only=True, tag="introspection"
 ):
     """An :class:`~xtr_logging.processor.introspection_processor.IntrospectionProcessor`."""
 
@@ -80,32 +82,34 @@ class IntrospectionProcessorSpec(
         _ = Level.parse(self.level)
 
 
-class TagProcessorSpec(_ProcessorSpecBase, frozen=True, kw_only=True, tag="tags"):
+class TagProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, tag="tags"):
     """A :class:`~xtr_logging.processor.tag_processor.TagProcessor`."""
 
     tags: tuple[str, ...] = ()
 
 
-class ContextVarsProcessorSpec(_ProcessorSpecBase, frozen=True, kw_only=True, tag="context_vars"):
+class ContextVarsProcessorConfig(
+    _ProcessorConfigBase, frozen=True, kw_only=True, tag="context_vars"
+):
     """A :class:`~xtr_logging.processor.context_vars_processor.ContextVarsProcessor`."""
 
     key: str | None = None
 
 
-class ServiceProcessorSpec(_ProcessorSpecBase, frozen=True, kw_only=True, tag="service"):
+class ServiceProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, tag="service"):
     """A processor supplied to the factory under ``id``."""
 
     id: str
 
 
-ProcessorSpec: TypeAlias = (
-    PlaceholderProcessorSpec
-    | UidProcessorSpec
-    | HostnameProcessorSpec
-    | ProcessIdProcessorSpec
-    | IntrospectionProcessorSpec
-    | TagProcessorSpec
-    | ContextVarsProcessorSpec
-    | ServiceProcessorSpec
+ProcessorConfig: TypeAlias = (
+    PlaceholderProcessorConfig
+    | UidProcessorConfig
+    | HostnameProcessorConfig
+    | ProcessIdProcessorConfig
+    | IntrospectionProcessorConfig
+    | TagProcessorConfig
+    | ContextVarsProcessorConfig
+    | ServiceProcessorConfig
 )
 """Any processor entry, told apart by its ``type``."""

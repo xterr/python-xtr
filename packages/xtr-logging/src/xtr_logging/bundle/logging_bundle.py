@@ -31,15 +31,15 @@ from xtr_dependency_injection import (
 from xtr_logging_contracts import LoggerInterface
 from xtr_service_contracts import ContainerInterface
 
-from xtr_logging.config.handler_specs import (
-    ConsoleHandlerSpec,
-    FormattedHandlerSpec,
-    ServiceHandlerSpec,
+from xtr_logging.config.handler_configs import (
+    ConsoleHandlerConfig,
+    FormattedHandlerConfig,
+    ServiceHandlerConfig,
 )
 from xtr_logging.config.logging_config import LoggingConfig
-from xtr_logging.config.processor_specs import ServiceProcessorSpec
+from xtr_logging.config.processor_configs import ServiceProcessorConfig
 from xtr_logging.config.services import Services
-from xtr_logging.config.wrapper_handler_specs import FingersCrossedHandlerSpec
+from xtr_logging.config.wrapper_handler_configs import FingersCrossedHandlerConfig
 from xtr_logging.exception.unknown_service_error import UnknownServiceError
 from xtr_logging.formatter.formatter_interface import FormatterInterface
 from xtr_logging.handler.fingers_crossed.activation_strategy_interface import (
@@ -222,29 +222,32 @@ def _service_ids_by_kind(
 
 
 def _handler_ids(config: LoggingConfig) -> Iterable[str]:
-    for spec in config.handlers.values():
-        if isinstance(spec, ServiceHandlerSpec):
-            yield spec.id
+    for handler in config.handlers.values():
+        if isinstance(handler, ServiceHandlerConfig):
+            yield handler.id
 
 
 def _formatter_ids(config: LoggingConfig) -> Iterable[str]:
     seen: set[str] = set()
-    for spec in config.handlers.values():
+    for handler in config.handlers.values():
         formatter: object = None
-        if isinstance(spec, (FormattedHandlerSpec, ConsoleHandlerSpec)):
-            formatter = spec.formatter
+        if isinstance(handler, (FormattedHandlerConfig, ConsoleHandlerConfig)):
+            formatter = handler.formatter
         if isinstance(formatter, str) and formatter not in seen:
             seen.add(formatter)
             yield formatter
 
 
 def _processor_ids(config: LoggingConfig) -> Iterable[str]:
-    for spec in config.processors:
-        if isinstance(spec, ServiceProcessorSpec):
-            yield spec.id
+    for processor in config.processors:
+        if isinstance(processor, ServiceProcessorConfig):
+            yield processor.id
 
 
 def _strategy_ids(config: LoggingConfig) -> Iterable[str]:
-    for spec in config.handlers.values():
-        if isinstance(spec, FingersCrossedHandlerSpec) and spec.activation_strategy is not None:
-            yield spec.activation_strategy
+    for handler in config.handlers.values():
+        if (
+            isinstance(handler, FingersCrossedHandlerConfig)
+            and handler.activation_strategy is not None
+        ):
+            yield handler.activation_strategy

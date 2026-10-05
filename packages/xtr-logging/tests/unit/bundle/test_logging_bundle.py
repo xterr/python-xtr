@@ -13,7 +13,7 @@ from tests.fixtures import app_unknown_handler
 from tests.fixtures.app_logging.config import HANDLER
 from xtr_logging import LoggerFactory
 from xtr_logging.bundle import LoggingBundle, LoggingConfig
-from xtr_logging.config import ServiceHandlerSpec
+from xtr_logging.config import ServiceHandlerConfig
 from xtr_logging.exception.unknown_service_error import UnknownServiceError
 
 if TYPE_CHECKING:
@@ -103,4 +103,4 @@ async def test_logger_factory_is_registered_and_reset_by_services_resetter() -> 
 
 def test_logging_config_is_re_exported_from_the_bundle_module() -> None:
     assert LoggingConfig is not None
-    assert ServiceHandlerSpec is not None
+    assert ServiceHandlerConfig is not None

@@ -18,10 +18,10 @@ from __future__ import annotations
 import msgspec
 from xtr_logging_contracts import Level
 
-__all__ = ["CaptureSpec", "CapturedLoggerSpec"]
+__all__ = ["CaptureConfig", "CapturedLoggerConfig"]
 
 
-class CapturedLoggerSpec(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fields=True):
+class CapturedLoggerConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fields=True):
     """How one standard logger, and the loggers below it, are captured.
 
     Attributes:
@@ -42,7 +42,7 @@ class CapturedLoggerSpec(msgspec.Struct, frozen=True, kw_only=True, forbid_unkno
         _ = Level.parse(self.level)
 
 
-class CaptureSpec(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fields=True):
+class CaptureConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fields=True):
     """Send every standard-library record into channels, and only there.
 
     Attributes:
@@ -57,7 +57,7 @@ class CaptureSpec(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fiel
 
     level: Level | str = Level.WARNING
     channel: str | None = None
-    loggers: dict[str, CapturedLoggerSpec | Level | str] = msgspec.field(default_factory=dict)
+    loggers: dict[str, CapturedLoggerConfig | Level | str] = msgspec.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Check every level as it is written.
@@ -67,19 +67,23 @@ class CaptureSpec(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fiel
         """
         _ = Level.parse(self.level)
         for entry in self.loggers.values():
-            if not isinstance(entry, CapturedLoggerSpec):
+            if not isinstance(entry, CapturedLoggerConfig):
                 _ = Level.parse(entry)
 
-    def logger_spec(self, name: str) -> CapturedLoggerSpec:
-        """The entry for ``name``, with a bare level read as a spec of its own."""
+    def logger_config(self, name: str) -> CapturedLoggerConfig:
+        """The entry for ``name``, with a bare level read as a configuration of its own."""
         entry = self.loggers[name]
-        return entry if isinstance(entry, CapturedLoggerSpec) else CapturedLoggerSpec(level=entry)
+        return (
+            entry if isinstance(entry, CapturedLoggerConfig) else CapturedLoggerConfig(level=entry)
+        )
 
     @property
     def channels(self) -> tuple[str, ...]:
         """Every channel the section names."""
         named = [self.channel] if self.channel is not None else []
         named.extend(
-            spec.channel for spec in map(self.logger_spec, self.loggers) if spec.channel is not None
+            entry.channel
+            for entry in map(self.logger_config, self.loggers)
+            if entry.channel is not None
         )
         return tuple(named)

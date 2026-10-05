@@ -43,7 +43,7 @@ class Services:
     over here under an id, and name that id in the configuration::
 
         LoggerFactory(
-            LoggingConfig(handlers={"sentry": ServiceHandlerSpec(id="sentry")}),
+            LoggingConfig(handlers={"sentry": ServiceHandlerConfig(id="sentry")}),
             services=Services(handlers={"sentry": SentryHandler(dsn)}),
         )
 

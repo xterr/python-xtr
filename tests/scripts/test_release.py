@@ -17,12 +17,12 @@ _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "release.py"
 
 
 def _load() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("release", _SCRIPT)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
+    found = importlib.util.spec_from_file_location("release", _SCRIPT)
+    assert found is not None
+    assert found.loader is not None
+    module = importlib.util.module_from_spec(found)
     sys.modules["release"] = module
-    spec.loader.exec_module(module)
+    found.loader.exec_module(module)
     return module
 
 

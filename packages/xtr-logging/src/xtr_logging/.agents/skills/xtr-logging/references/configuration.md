@@ -8,20 +8,20 @@ does.
 ```python
 from xtr_logging import LoggerFactory, LoggingConfig
 from xtr_logging.config import (
-    ConsoleHandlerSpec,
-    FingersCrossedHandlerSpec,
-    PlaceholderProcessorSpec,
-    StreamHandlerSpec,
+    ConsoleHandlerConfig,
+    FingersCrossedHandlerConfig,
+    PlaceholderProcessorConfig,
+    StreamHandlerConfig,
 )
 
 CONFIG = LoggingConfig(
     channels=("security", "billing"),
     handlers={
-        "main": FingersCrossedHandlerSpec(action_level="error", handler="file"),
-        "file": StreamHandlerSpec(path="var/log/prod.log"),
-        "console": ConsoleHandlerSpec(channels=("!event",)),
+        "main": FingersCrossedHandlerConfig(action_level="error", handler="file"),
+        "file": StreamHandlerConfig(path="var/log/prod.log"),
+        "console": ConsoleHandlerConfig(channels=("!event",)),
     },
-    processors=(PlaceholderProcessorSpec(),),
+    processors=(PlaceholderProcessorConfig(),),
 )
 
 factory = LoggerFactory(CONFIG)

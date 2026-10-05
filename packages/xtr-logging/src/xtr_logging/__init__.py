@@ -7,7 +7,7 @@ somewhere — stopping where a handler does not let it bubble.
 
 :class:`LoggingConfig` describes channels, handlers and processors as data,
 and :class:`LoggerFactory` builds loggers from it. The
-per-type specs live in :mod:`xtr_logging.config`; the standard-library bridge
+per-type configurations live in :mod:`xtr_logging.config`; the standard-library bridge
 in :mod:`xtr_logging.bridge.stdlib`.
 
 The contract itself — :class:`LoggerInterface`, :class:`Level`,

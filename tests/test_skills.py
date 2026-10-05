@@ -48,7 +48,6 @@ def test_name_matches_its_directory_and_package(skill: Path) -> None:
     assert "--" not in name
     assert name == skill.parent.name
     assert name == distribution or name.startswith(f"{distribution}-")
-    assert "spec" not in name
 
 
 @pytest.mark.parametrize("skill", _SKILLS, ids=_id)

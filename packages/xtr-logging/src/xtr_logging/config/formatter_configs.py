@@ -7,14 +7,14 @@ from typing import Literal, TypeAlias
 import msgspec
 
 __all__ = [
-    "ConsoleFormatterSpec",
-    "FormatterSpec",
-    "JsonFormatterSpec",
-    "LineFormatterSpec",
+    "ConsoleFormatterConfig",
+    "FormatterConfig",
+    "JsonFormatterConfig",
+    "LineFormatterConfig",
 ]
 
 
-class _FormatterSpecBase(
+class _FormatterConfigBase(
     msgspec.Struct,
     frozen=True,
     kw_only=True,
@@ -25,7 +25,7 @@ class _FormatterSpecBase(
     include_stacktraces: bool = False
 
 
-class LineFormatterSpec(_FormatterSpecBase, frozen=True, kw_only=True, tag="line"):
+class LineFormatterConfig(_FormatterConfigBase, frozen=True, kw_only=True, tag="line"):
     """A :class:`~xtr_logging.formatter.line_formatter.LineFormatter`."""
 
     format: str | None = None
@@ -33,7 +33,7 @@ class LineFormatterSpec(_FormatterSpecBase, frozen=True, kw_only=True, tag="line
     ignore_empty_context_and_extra: bool = False
 
 
-class JsonFormatterSpec(_FormatterSpecBase, frozen=True, kw_only=True, tag="json"):
+class JsonFormatterConfig(_FormatterConfigBase, frozen=True, kw_only=True, tag="json"):
     """A :class:`~xtr_logging.formatter.json_formatter.JsonFormatter`."""
 
     batch_mode: Literal["json", "newlines"] = "newlines"
@@ -41,12 +41,12 @@ class JsonFormatterSpec(_FormatterSpecBase, frozen=True, kw_only=True, tag="json
     ignore_empty_context_and_extra: bool = False
 
 
-class ConsoleFormatterSpec(_FormatterSpecBase, frozen=True, kw_only=True, tag="console"):
+class ConsoleFormatterConfig(_FormatterConfigBase, frozen=True, kw_only=True, tag="console"):
     """A :class:`~xtr_logging.formatter.console_formatter.ConsoleFormatter`."""
 
     format: str | None = None
     colors: bool = False
 
 
-FormatterSpec: TypeAlias = LineFormatterSpec | JsonFormatterSpec | ConsoleFormatterSpec
+FormatterConfig: TypeAlias = LineFormatterConfig | JsonFormatterConfig | ConsoleFormatterConfig
 """Any built-in formatter, told apart by its ``type``."""

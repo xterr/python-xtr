@@ -257,20 +257,20 @@ A `LoggingConfig` describes channels, handlers and processors as data. It builds
 ```python
 from xtr_logging import LoggerFactory, LoggingConfig
 from xtr_logging.config import (
-    ConsoleHandlerSpec,
-    FingersCrossedHandlerSpec,
-    PlaceholderProcessorSpec,
-    StreamHandlerSpec,
+    ConsoleHandlerConfig,
+    FingersCrossedHandlerConfig,
+    PlaceholderProcessorConfig,
+    StreamHandlerConfig,
 )
 
 CONFIG = LoggingConfig(
     channels=("security", "billing"),
     handlers={
-        "main": FingersCrossedHandlerSpec(action_level="error", handler="file"),
-        "file": StreamHandlerSpec(path="var/log/prod.log"),
-        "console": ConsoleHandlerSpec(channels=("!event",)),
+        "main": FingersCrossedHandlerConfig(action_level="error", handler="file"),
+        "file": StreamHandlerConfig(path="var/log/prod.log"),
+        "console": ConsoleHandlerConfig(channels=("!event",)),
     },
-    processors=(PlaceholderProcessorSpec(),),
+    processors=(PlaceholderProcessorConfig(),),
 )
 
 factory = LoggerFactory(CONFIG)
@@ -494,7 +494,7 @@ from xtr_dependency_injection import as_service, configure
 
 from xtr_logging import TestHandler
 from xtr_logging.bundle import LoggingConfig
-from xtr_logging.config import ServiceHandlerSpec
+from xtr_logging.config import ServiceHandlerConfig
 from xtr_logging.handler.handler_interface import HandlerInterface
 
 
@@ -502,7 +502,7 @@ from xtr_logging.handler.handler_interface import HandlerInterface
 def logging() -> LoggingConfig:
     return LoggingConfig(
         channels=("security",),
-        handlers={"main": ServiceHandlerSpec(id="main")},
+        handlers={"main": ServiceHandlerConfig(id="main")},
     )
 
 
@@ -530,8 +530,8 @@ class Checkout:
 
 The bundle registers the `LoggerFactory`, a `LoggerInterface` for the default channel, and a
 `LoggerInterface` qualified by each channel's name. `LoggerFactory` inherits `ResetInterface`,
-so the kernel's `ServicesResetter` resets it between messages. A `ServiceHandlerSpec`,
-`ServiceProcessorSpec`, a string `formatter` and a fingers-crossed `activation_strategy` name
+so the kernel's `ServicesResetter` resets it between messages. A `ServiceHandlerConfig`,
+`ServiceProcessorConfig`, a string `formatter` and a fingers-crossed `activation_strategy` name
 services the application registers under `HandlerInterface`, `ProcessorInterface`,
 `FormatterInterface` or `ActivationStrategyInterface` with `qualifier=id`; a missing id fails
 the build with `UnknownServiceError` naming the id.

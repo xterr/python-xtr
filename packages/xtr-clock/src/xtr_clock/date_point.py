@@ -113,30 +113,30 @@ class DatePoint(datetime):
     @classmethod
     def parse(
         cls,
-        spec: str,
+        modifier: str,
         timezone: str | tzinfo | None = None,
         *,
         reference: datetime | None = None,
     ) -> Self:
-        """Return the instant ``spec`` describes.
+        """Return the instant ``modifier`` describes.
 
-        ``spec`` is read by the grammar documented on
+        ``modifier`` is read by the grammar documented on
         :mod:`xtr_clock.modifier`: an offset like ``'+1 day'``, a keyword
         like ``'tomorrow'``, an ISO-8601 datetime, a timezone name, or any
         of them with a zone trailing.
 
         Args:
-            spec: The modifier to read.
+            modifier: The modifier to read.
             timezone: The zone to read the reference in before applying
-                ``spec``. A zone named inside ``spec`` wins over this one.
-            reference: The instant ``spec`` is relative to. Defaults to
+                ``modifier``. A zone named inside it wins over this one.
+            reference: The instant ``modifier`` is relative to. Defaults to
                 whatever the clock in force says now is.
 
         Returns:
             The instant described.
 
         Raises:
-            InvalidModifierError: When the grammar cannot read ``spec``.
+            InvalidModifierError: When the grammar cannot read ``modifier``.
             InvalidTimezoneError: When ``timezone`` names no known zone.
         """
         if reference is None:
@@ -148,7 +148,7 @@ class DatePoint(datetime):
         if timezone is not None:
             base = base.with_timezone(timezone)
 
-        return cls.from_datetime(apply_modifier(base, spec))
+        return cls.from_datetime(apply_modifier(base, modifier))
 
     @classmethod
     def from_datetime(cls, value: datetime) -> Self:

@@ -5,10 +5,10 @@ from __future__ import annotations
 from xtr_dependency_injection import configure
 
 from xtr_logging.bundle import LoggingConfig
-from xtr_logging.config import ServiceHandlerSpec
+from xtr_logging.config import ServiceHandlerConfig
 
 
 @configure
 def logging_config() -> LoggingConfig:
     """Name a handler ``nope`` on purpose: the bundle must refuse to build."""
-    return LoggingConfig(handlers={"main": ServiceHandlerSpec(id="nope")})
+    return LoggingConfig(handlers={"main": ServiceHandlerConfig(id="nope")})

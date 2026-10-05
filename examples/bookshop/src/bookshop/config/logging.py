@@ -13,35 +13,35 @@ from __future__ import annotations
 from xtr_dependency_injection import configure, env, when
 from xtr_logging.bundle import LoggingConfig
 from xtr_logging.config import (
-    BufferHandlerSpec,
-    CapturedLoggerSpec,
-    CaptureSpec,
-    ConsoleFormatterSpec,
-    ConsoleHandlerSpec,
-    ContextVarsProcessorSpec,
-    DeduplicationHandlerSpec,
-    FallbackGroupHandlerSpec,
-    FilterHandlerSpec,
-    FingersCrossedHandlerSpec,
-    GroupHandlerSpec,
-    HostnameProcessorSpec,
-    IntrospectionProcessorSpec,
-    JsonFormatterSpec,
-    LineFormatterSpec,
-    NullHandlerSpec,
-    PlaceholderProcessorSpec,
-    ProcessIdProcessorSpec,
-    QueueHandlerSpec,
-    RotatingFileHandlerSpec,
-    SamplingHandlerSpec,
-    ServiceHandlerSpec,
-    ServiceProcessorSpec,
-    StdlibHandlerSpec,
-    StreamHandlerSpec,
-    SyslogHandlerSpec,
-    TagProcessorSpec,
-    UidProcessorSpec,
-    WhatFailureGroupHandlerSpec,
+    BufferHandlerConfig,
+    CaptureConfig,
+    CapturedLoggerConfig,
+    ConsoleFormatterConfig,
+    ConsoleHandlerConfig,
+    ContextVarsProcessorConfig,
+    DeduplicationHandlerConfig,
+    FallbackGroupHandlerConfig,
+    FilterHandlerConfig,
+    FingersCrossedHandlerConfig,
+    GroupHandlerConfig,
+    HostnameProcessorConfig,
+    IntrospectionProcessorConfig,
+    JsonFormatterConfig,
+    LineFormatterConfig,
+    NullHandlerConfig,
+    PlaceholderProcessorConfig,
+    ProcessIdProcessorConfig,
+    QueueHandlerConfig,
+    RotatingFileHandlerConfig,
+    SamplingHandlerConfig,
+    ServiceHandlerConfig,
+    ServiceProcessorConfig,
+    StdlibHandlerConfig,
+    StreamHandlerConfig,
+    SyslogHandlerConfig,
+    TagProcessorConfig,
+    UidProcessorConfig,
+    WhatFailureGroupHandlerConfig,
 )
 
 __all__ = ["logging_config", "logging_config_prod"]
@@ -63,7 +63,7 @@ def logging_config() -> LoggingConfig:
         channels=_CHANNELS,
         handlers={
             # ---- on every channel's stack, highest priority first ----------------------
-            "console": ConsoleHandlerSpec(
+            "console": ConsoleHandlerConfig(
                 channels=("!http",),
                 priority=100,
                 stream="stderr",
@@ -75,8 +75,8 @@ def logging_config() -> LoggingConfig:
                     "debug": "debug",
                 },
             ),
-            "memory": ServiceHandlerSpec(id="memory", priority=90),
-            "main": FingersCrossedHandlerSpec(
+            "memory": ServiceHandlerConfig(id="memory", priority=90),
+            "main": FingersCrossedHandlerConfig(
                 handler="app_file",
                 action_level="error",
                 channel_levels={"orders": "warning"},
@@ -84,52 +84,52 @@ def logging_config() -> LoggingConfig:
                 stop_buffering=True,
                 passthru_level="notice",
             ),
-            "access": RotatingFileHandlerSpec(
+            "access": RotatingFileHandlerConfig(
                 channels="http",
                 path=f"{_LOG}/http.log",
                 level="info",
                 max_files=7,
                 date_format="%%Y-%%m-%%d",
                 filename_format="{filename}-{date}",
-                formatter=JsonFormatterSpec(batch_mode="newlines", append_newline=True),
+                formatter=JsonFormatterConfig(batch_mode="newlines", append_newline=True),
                 bubble=False,
             ),
             # Consulted before "access" (higher priority): "access" does not bubble, so a
             # record it handles goes no further down the stack.
-            "access_stdout": StreamHandlerSpec(
+            "access_stdout": StreamHandlerConfig(
                 channels=("http",),
                 priority=10,
                 path="stdout",
                 level="info",
-                formatter=ConsoleFormatterSpec(colors=False),
+                formatter=ConsoleFormatterConfig(colors=False),
             ),
-            "security": FingersCrossedHandlerSpec(
+            "security": FingersCrossedHandlerConfig(
                 channels=("security",),
                 handler="audit_buffer",
                 activation_strategy="security",
             ),
-            "errors": FilterHandlerSpec(
+            "errors": FilterHandlerConfig(
                 handler="errors_dedup", min_level="error", max_level="emergency"
             ),
-            "notices": FilterHandlerSpec(
+            "notices": FilterHandlerConfig(
                 handler="errors_file", accepted_levels=("notice", "alert")
             ),
-            "catalog_debug": SamplingHandlerSpec(
+            "catalog_debug": SamplingHandlerConfig(
                 channels="catalog", handler="catalog_queue", factor=2
             ),
-            "orders_fanout": GroupHandlerSpec(channels=("orders",), members=("blackhole",)),
-            "syslog_guard": WhatFailureGroupHandlerSpec(
+            "orders_fanout": GroupHandlerConfig(channels=("orders",), members=("blackhole",)),
+            "syslog_guard": WhatFailureGroupHandlerConfig(
                 channels=("security",), members=("syslog",)
             ),
-            "fallback": FallbackGroupHandlerSpec(
+            "fallback": FallbackGroupHandlerConfig(
                 channels=("app",), members=("fallback_file", "blackhole")
             ),
             # ---- nested: named by a wrapper, so kept off every stack -------------------
-            "app_file": StreamHandlerSpec(
+            "app_file": StreamHandlerConfig(
                 path=f"{_LOG}/%kernel.environment%.log",
                 level=env("SHOP_LOG_LEVEL", default="debug"),
                 file_permission=0o640,
-                formatter=LineFormatterSpec(
+                formatter=LineFormatterConfig(
                     # Percent signs are escaped: every string in a bundle config is resolved for
                     # %parameter% references, so a literal % is written %%.
                     format=(
@@ -142,44 +142,44 @@ def logging_config() -> LoggingConfig:
                     include_stacktraces=True,
                 ),
             ),
-            "audit_buffer": BufferHandlerSpec(
+            "audit_buffer": BufferHandlerConfig(
                 handler="audit_file", buffer_size=100, flush_on_overflow=True
             ),
-            "audit_file": StreamHandlerSpec(path=f"{_LOG}/audit.jsonl", formatter="audit_json"),
-            "errors_dedup": DeduplicationHandlerSpec(
+            "audit_file": StreamHandlerConfig(path=f"{_LOG}/audit.jsonl", formatter="audit_json"),
+            "errors_dedup": DeduplicationHandlerConfig(
                 handler="errors_file",
                 deduplication_level="error",
                 time=60,
                 store=f"{_LOG}/dedup.store",
             ),
-            "errors_file": StreamHandlerSpec(path=f"{_LOG}/errors.log", nested=True),
-            "catalog_queue": QueueHandlerSpec(handler="catalog_file", max_size=1000),
-            "catalog_file": StreamHandlerSpec(path=f"{_LOG}/catalog.log"),
-            "blackhole": NullHandlerSpec(level="debug"),
-            "syslog": SyslogHandlerSpec(
+            "errors_file": StreamHandlerConfig(path=f"{_LOG}/errors.log", nested=True),
+            "catalog_queue": QueueHandlerConfig(handler="catalog_file", max_size=1000),
+            "catalog_file": StreamHandlerConfig(path=f"{_LOG}/catalog.log"),
+            "blackhole": NullHandlerConfig(level="debug"),
+            "syslog": SyslogHandlerConfig(
                 ident="bookshop", facility="local0", address="localhost:514", level="warning"
             ),
-            "fallback_file": StreamHandlerSpec(path=f"{_LOG}/fallback.log", level="critical"),
+            "fallback_file": StreamHandlerConfig(path=f"{_LOG}/fallback.log", level="critical"),
         },
         processors=(
-            PlaceholderProcessorSpec(date_format="%%Y-%%m-%%d", remove_used_context_fields=False),
-            ContextVarsProcessorSpec(key="ctx"),
-            UidProcessorSpec(length=8),
-            ServiceProcessorSpec(id="request"),
-            IntrospectionProcessorSpec(
+            PlaceholderProcessorConfig(date_format="%%Y-%%m-%%d", remove_used_context_fields=False),
+            ContextVarsProcessorConfig(key="ctx"),
+            UidProcessorConfig(length=8),
+            ServiceProcessorConfig(id="request"),
+            IntrospectionProcessorConfig(
                 channel="orders", level="warning", skip_module_prefixes=("xtr_",), skip_frames=0
             ),
-            HostnameProcessorSpec(handler="app_file"),
-            ProcessIdProcessorSpec(handler="app_file"),
-            TagProcessorSpec(channel="security", tags=("audit", "bookshop")),
+            HostnameProcessorConfig(handler="app_file"),
+            ProcessIdProcessorConfig(handler="app_file"),
+            TagProcessorConfig(channel="security", tags=("audit", "bookshop")),
         ),
         # Take over the standard library's logging: third-party records arrive on channels.
-        capture=CaptureSpec(
+        capture=CaptureConfig(
             level="warning",
             channel="app",
             loggers={
                 "asyncio": "error",
-                "aio_pika": CapturedLoggerSpec(level="info", channel="app"),
+                "aio_pika": CapturedLoggerConfig(level="info", channel="app"),
                 "taskiq": "warning",
             },
         ),
@@ -197,19 +197,19 @@ def logging_config_prod() -> LoggingConfig:
     return LoggingConfig(
         channels=_CHANNELS,
         handlers={
-            "console": ConsoleHandlerSpec(channels=("!http",)),
-            "main": FingersCrossedHandlerSpec(
+            "console": ConsoleHandlerConfig(channels=("!http",)),
+            "main": FingersCrossedHandlerConfig(
                 handler="json", action_level="error", buffer_size=1000, passthru_level="warning"
             ),
-            "json": StreamHandlerSpec(path="stderr", formatter=JsonFormatterSpec()),
-            "security_stdlib": StdlibHandlerSpec(
+            "json": StreamHandlerConfig(path="stderr", formatter=JsonFormatterConfig()),
+            "security_stdlib": StdlibHandlerConfig(
                 channels=("security",), logger="bookshop.security", level="notice"
             ),
-            "memory": ServiceHandlerSpec(id="memory"),
+            "memory": ServiceHandlerConfig(id="memory"),
         },
         processors=(
-            PlaceholderProcessorSpec(),
-            UidProcessorSpec(),
-            ServiceProcessorSpec(id="request"),
+            PlaceholderProcessorConfig(),
+            UidProcessorConfig(),
+            ServiceProcessorConfig(id="request"),
         ),
     )

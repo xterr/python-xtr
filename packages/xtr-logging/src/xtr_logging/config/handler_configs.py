@@ -1,7 +1,7 @@
 """Handlers that write somewhere, as configuration.
 
-Each spec is inert data, told apart by its ``type`` — ``type: stream``.
-Every value is checked as the spec is made, so a typo in a level fails
+Each configuration is inert data, told apart by its ``type`` — ``type: stream``.
+Every value is checked as the configuration is made, so a typo in a level fails
 where it is written — or, for data parsed with
 :meth:`~xtr_logging.config.logging_config.LoggingConfig.from_mapping`, with
 the path to it.
@@ -16,22 +16,22 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from .channel_filter import ChannelFilter
-from .formatter_specs import FormatterSpec  # noqa: TC001 — msgspec reads field types at runtime
+from .formatter_configs import FormatterConfig  # noqa: TC001 — msgspec reads field types at runtime
 
 __all__ = [
-    "BaseHandlerSpec",
-    "ConsoleHandlerSpec",
-    "FormattedHandlerSpec",
-    "NullHandlerSpec",
-    "RotatingFileHandlerSpec",
-    "ServiceHandlerSpec",
-    "StdlibHandlerSpec",
-    "StreamHandlerSpec",
-    "SyslogHandlerSpec",
+    "BaseHandlerConfig",
+    "ConsoleHandlerConfig",
+    "FormattedHandlerConfig",
+    "NullHandlerConfig",
+    "RotatingFileHandlerConfig",
+    "ServiceHandlerConfig",
+    "StdlibHandlerConfig",
+    "StreamHandlerConfig",
+    "SyslogHandlerConfig",
 ]
 
 
-class BaseHandlerSpec(
+class BaseHandlerConfig(
     msgspec.Struct,
     frozen=True,
     kw_only=True,
@@ -76,7 +76,7 @@ class BaseHandlerSpec(
         return ()
 
 
-class _LevelledHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True):
+class _LevelledHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
     level: Level | str = Level.DEBUG
 
     @override
@@ -85,13 +85,13 @@ class _LevelledHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True):
         _ = Level.parse(self.level)
 
 
-class FormattedHandlerSpec(_LevelledHandlerSpec, frozen=True, kw_only=True):
+class FormattedHandlerConfig(_LevelledHandlerConfig, frozen=True, kw_only=True):
     """A handler that writes text, and so takes a level and a formatter."""
 
-    formatter: FormatterSpec | str | None = None
+    formatter: FormatterConfig | str | None = None
 
 
-class StreamHandlerSpec(FormattedHandlerSpec, frozen=True, kw_only=True, tag="stream"):
+class StreamHandlerConfig(FormattedHandlerConfig, frozen=True, kw_only=True, tag="stream"):
     """A :class:`~xtr_logging.handler.stream_handler.StreamHandler`.
 
     ``path`` is a file, or ``"stderr"`` / ``"stdout"`` — standard error by
@@ -102,7 +102,9 @@ class StreamHandlerSpec(FormattedHandlerSpec, frozen=True, kw_only=True, tag="st
     file_permission: int | None = None
 
 
-class RotatingFileHandlerSpec(FormattedHandlerSpec, frozen=True, kw_only=True, tag="rotating_file"):
+class RotatingFileHandlerConfig(
+    FormattedHandlerConfig, frozen=True, kw_only=True, tag="rotating_file"
+):
     """A :class:`~xtr_logging.handler.rotating_file_handler.RotatingFileHandler`."""
 
     path: str
@@ -112,7 +114,7 @@ class RotatingFileHandlerSpec(FormattedHandlerSpec, frozen=True, kw_only=True, t
     file_permission: int | None = None
 
 
-class SyslogHandlerSpec(FormattedHandlerSpec, frozen=True, kw_only=True, tag="syslog"):
+class SyslogHandlerConfig(FormattedHandlerConfig, frozen=True, kw_only=True, tag="syslog"):
     """A :class:`~xtr_logging.handler.syslog_handler.SyslogHandler`.
 
     ``address`` is ``host:port`` for UDP, or a socket path such as ``/dev/log``.
@@ -123,7 +125,7 @@ class SyslogHandlerSpec(FormattedHandlerSpec, frozen=True, kw_only=True, tag="sy
     address: str = "localhost:514"
 
 
-class ConsoleHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True, tag="console"):
+class ConsoleHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True, tag="console"):
     """A :class:`~xtr_logging.handler.console_handler.ConsoleHandler`.
 
     Its level follows the verbosity rather than being set;
@@ -133,7 +135,7 @@ class ConsoleHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True, tag="consol
 
     stream: Literal["stderr", "stdout"] = "stderr"
     verbosity_levels: dict[str, Level | str] | None = None
-    formatter: FormatterSpec | str | None = None
+    formatter: FormatterConfig | str | None = None
 
     @override
     def __post_init__(self) -> None:
@@ -143,11 +145,11 @@ class ConsoleHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True, tag="consol
             _ = Level.parse(level)
 
 
-class NullHandlerSpec(_LevelledHandlerSpec, frozen=True, kw_only=True, tag="null"):
+class NullHandlerConfig(_LevelledHandlerConfig, frozen=True, kw_only=True, tag="null"):
     """A :class:`~xtr_logging.handler.null_handler.NullHandler`."""
 
 
-class StdlibHandlerSpec(_LevelledHandlerSpec, frozen=True, kw_only=True, tag="stdlib"):
+class StdlibHandlerConfig(_LevelledHandlerConfig, frozen=True, kw_only=True, tag="stdlib"):
     """A :class:`~xtr_logging.bridge.stdlib.stdlib_handler.StdlibHandler`.
 
     ``logger`` names the standard-library logger; the root logger by default.
@@ -156,7 +158,7 @@ class StdlibHandlerSpec(_LevelledHandlerSpec, frozen=True, kw_only=True, tag="st
     logger: str = ""
 
 
-class ServiceHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True, tag="service"):
+class ServiceHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True, tag="service"):
     """A handler object supplied to the factory under ``id``."""
 
     id: str

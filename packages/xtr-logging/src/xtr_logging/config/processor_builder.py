@@ -1,4 +1,4 @@
-"""Turning a processor spec into a processor."""
+"""Turning a processor configuration into a processor."""
 
 from __future__ import annotations
 
@@ -13,60 +13,60 @@ from xtr_logging.processor.process_id_processor import ProcessIdProcessor
 from xtr_logging.processor.tag_processor import TagProcessor
 from xtr_logging.processor.uid_processor import UidProcessor
 
-from .processor_specs import (
-    ContextVarsProcessorSpec,
-    HostnameProcessorSpec,
-    IntrospectionProcessorSpec,
-    PlaceholderProcessorSpec,
-    ProcessIdProcessorSpec,
-    ServiceProcessorSpec,
-    TagProcessorSpec,
-    UidProcessorSpec,
+from .processor_configs import (
+    ContextVarsProcessorConfig,
+    HostnameProcessorConfig,
+    IntrospectionProcessorConfig,
+    PlaceholderProcessorConfig,
+    ProcessIdProcessorConfig,
+    ServiceProcessorConfig,
+    TagProcessorConfig,
+    UidProcessorConfig,
 )
 
 if TYPE_CHECKING:
     from xtr_logging.processor.processor_interface import ProcessorInterface
 
-    from .processor_specs import ProcessorSpec
+    from .processor_configs import ProcessorConfig
     from .services import Services
 
 __all__ = ["build_processor"]
 
 
-def build_processor(spec: ProcessorSpec, services: Services) -> ProcessorInterface:  # noqa: PLR0911 — one case per processor type
-    """Build the processor ``spec`` describes, or look up the service it names.
+def build_processor(config: ProcessorConfig, services: Services) -> ProcessorInterface:  # noqa: PLR0911 — one case per processor type
+    """Build the processor ``config`` describes, or look up the service it names.
 
     Raises:
-        UnknownServiceError: If ``spec`` names a processor that was not supplied.
+        UnknownServiceError: If ``config`` names a processor that was not supplied.
         InvalidOptionError: If an option is out of range.
     """
-    match spec:
-        case PlaceholderProcessorSpec():
+    match config:
+        case PlaceholderProcessorConfig():
             return PlaceholderProcessor(
-                spec.date_format,
-                remove_used_context_fields=spec.remove_used_context_fields,
+                config.date_format,
+                remove_used_context_fields=config.remove_used_context_fields,
             )
-        case UidProcessorSpec():
-            return UidProcessor(spec.length)
-        case HostnameProcessorSpec():
+        case UidProcessorConfig():
+            return UidProcessor(config.length)
+        case HostnameProcessorConfig():
             return HostnameProcessor()
-        case ProcessIdProcessorSpec():
+        case ProcessIdProcessorConfig():
             return ProcessIdProcessor()
-        case IntrospectionProcessorSpec():
+        case IntrospectionProcessorConfig():
             return IntrospectionProcessor(
-                spec.level,
-                skip_module_prefixes=spec.skip_module_prefixes,
-                skip_frames=spec.skip_frames,
+                config.level,
+                skip_module_prefixes=config.skip_module_prefixes,
+                skip_frames=config.skip_frames,
             )
-        case TagProcessorSpec():
-            return TagProcessor(spec.tags)
-        case ContextVarsProcessorSpec():
-            return ContextVarsProcessor(spec.key)
-        case ServiceProcessorSpec():
-            found = services.processors.get(spec.id)
+        case TagProcessorConfig():
+            return TagProcessor(config.tags)
+        case ContextVarsProcessorConfig():
+            return ContextVarsProcessor(config.key)
+        case ServiceProcessorConfig():
+            found = services.processors.get(config.id)
             if found is None:
-                raise UnknownServiceError("processor", spec.id, tuple(services.processors))
+                raise UnknownServiceError("processor", config.id, tuple(services.processors))
             return found
         case _:
-            # A spec added to the union without a case fails here, not on a first record.
-            assert_never(spec)
+            # A configuration added to the union without a case fails here, not on a first record.
+            assert_never(config)

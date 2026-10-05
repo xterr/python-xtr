@@ -12,17 +12,17 @@ from tests.support.records import AT
 from tests.support.stdlib import Collector
 from xtr_logging import LogRecord, TestHandler
 from xtr_logging.config import (
-    BufferHandlerSpec,
-    CapturedLoggerSpec,
-    CaptureSpec,
-    ConsoleHandlerSpec,
-    FingersCrossedHandlerSpec,
+    BufferHandlerConfig,
+    CaptureConfig,
+    CapturedLoggerConfig,
+    ConsoleHandlerConfig,
+    FingersCrossedHandlerConfig,
     LoggingConfig,
-    NullHandlerSpec,
-    ServiceHandlerSpec,
-    ServiceProcessorSpec,
+    NullHandlerConfig,
+    ServiceHandlerConfig,
+    ServiceProcessorConfig,
     Services,
-    UidProcessorSpec,
+    UidProcessorConfig,
 )
 from xtr_logging.exception.not_processable_handler_error import NotProcessableHandlerError
 from xtr_logging.exception.unknown_channel_error import UnknownChannelError
@@ -72,7 +72,7 @@ def test_an_undeclared_channel_is_refused() -> None:
 def test_handlers_are_shared_between_channels() -> None:
     main = TestHandler()
     factory = _factory(
-        LoggingConfig(channels=("db",), handlers={"main": ServiceHandlerSpec(id="main")}),
+        LoggingConfig(channels=("db",), handlers={"main": ServiceHandlerConfig(id="main")}),
         main=main,
     )
 
@@ -87,8 +87,8 @@ def test_a_channel_filter_routes_records_to_the_right_handlers() -> None:
     factory = _factory(
         LoggingConfig(
             handlers={
-                "security": ServiceHandlerSpec(id="security", channels="security"),
-                "rest": ServiceHandlerSpec(id="rest", channels="!security"),
+                "security": ServiceHandlerConfig(id="security", channels="security"),
+                "rest": ServiceHandlerConfig(id="rest", channels="!security"),
             },
         ),
         security=security,
@@ -107,8 +107,8 @@ def test_higher_priority_handlers_are_consulted_first() -> None:
     factory = _factory(
         LoggingConfig(
             handlers={
-                "second": ServiceHandlerSpec(id="second"),
-                "first": ServiceHandlerSpec(id="first", priority=10),
+                "second": ServiceHandlerConfig(id="second"),
+                "first": ServiceHandlerConfig(id="first", priority=10),
             },
         ),
         first=first,
@@ -126,8 +126,8 @@ def test_a_nested_handler_only_receives_what_its_wrapper_passes() -> None:
     factory = _factory(
         LoggingConfig(
             handlers={
-                "main": FingersCrossedHandlerSpec(handler="file", action_level="error"),
-                "file": ServiceHandlerSpec(id="file"),
+                "main": FingersCrossedHandlerConfig(handler="file", action_level="error"),
+                "file": ServiceHandlerConfig(id="file"),
             },
         ),
         file=file,
@@ -146,8 +146,8 @@ def test_close_flushes_buffers() -> None:
     factory = _factory(
         LoggingConfig(
             handlers={
-                "buffer": BufferHandlerSpec(handler="file"),
-                "file": ServiceHandlerSpec(id="file"),
+                "buffer": BufferHandlerConfig(handler="file"),
+                "file": ServiceHandlerConfig(id="file"),
             },
         ),
         file=file,
@@ -163,8 +163,8 @@ def test_the_factory_is_a_context_manager_that_closes() -> None:
     file = TestHandler()
     config = LoggingConfig(
         handlers={
-            "buffer": BufferHandlerSpec(handler="file"),
-            "file": ServiceHandlerSpec(id="file"),
+            "buffer": BufferHandlerConfig(handler="file"),
+            "file": ServiceHandlerConfig(id="file"),
         },
     )
 
@@ -179,11 +179,11 @@ def test_processors_run_by_priority_and_respect_their_channel() -> None:
     factory = LoggerFactory(
         LoggingConfig(
             channels=("db",),
-            handlers={"main": ServiceHandlerSpec(id="main")},
+            handlers={"main": ServiceHandlerConfig(id="main")},
             processors=(
-                ServiceProcessorSpec(id="a"),
-                ServiceProcessorSpec(id="b", priority=5),
-                ServiceProcessorSpec(id="db_only", channel="db"),
+                ServiceProcessorConfig(id="a"),
+                ServiceProcessorConfig(id="b", priority=5),
+                ServiceProcessorConfig(id="db_only", channel="db"),
             ),
         ),
         services=Services(
@@ -203,8 +203,8 @@ def test_a_processor_can_target_a_handler() -> None:
     main = TestHandler()
     factory = LoggerFactory(
         LoggingConfig(
-            handlers={"main": ServiceHandlerSpec(id="main")},
-            processors=(UidProcessorSpec(handler="main"),),
+            handlers={"main": ServiceHandlerConfig(id="main")},
+            processors=(UidProcessorConfig(handler="main"),),
         ),
         services=Services(handlers={"main": main}),
         registry=ProcessorRegistry(),
@@ -220,8 +220,8 @@ def test_a_processor_targeting_a_handler_that_runs_none_is_refused() -> None:
     with pytest.raises(NotProcessableHandlerError):
         _ = LoggerFactory(
             LoggingConfig(
-                handlers={"null": NullHandlerSpec()},
-                processors=(UidProcessorSpec(handler="null"),),
+                handlers={"null": NullHandlerConfig()},
+                processors=(UidProcessorConfig(handler="null"),),
             ),
             registry=ProcessorRegistry(),
         )
@@ -233,7 +233,7 @@ def test_declared_processors_are_attached() -> None:
     registry.register(ProcessorDescriptor(_stamp("r")))
 
     factory = LoggerFactory(
-        LoggingConfig(handlers={"main": ServiceHandlerSpec(id="main")}),
+        LoggingConfig(handlers={"main": ServiceHandlerConfig(id="main")}),
         services=Services(handlers={"main": main}),
         registry=registry,
     )
@@ -252,14 +252,14 @@ def test_a_declared_processor_for_an_unknown_handler_is_refused() -> None:
 
 def test_a_missing_service_is_refused_when_the_factory_is_made() -> None:
     with pytest.raises(UnknownServiceError) as raised:
-        _ = LoggerFactory(LoggingConfig(handlers={"x": ServiceHandlerSpec(id="sentry")}))
+        _ = LoggerFactory(LoggingConfig(handlers={"x": ServiceHandlerConfig(id="sentry")}))
 
     assert (raised.value.kind, raised.value.service_id) == ("handler", "sentry")
 
 
 def test_handler_returns_a_configured_handler_by_name() -> None:
     main = TestHandler()
-    factory = _factory(LoggingConfig(handlers={"main": ServiceHandlerSpec(id="main")}), main=main)
+    factory = _factory(LoggingConfig(handlers={"main": ServiceHandlerConfig(id="main")}), main=main)
 
     assert factory.handler("main") is main
 
@@ -270,7 +270,7 @@ def test_handler_refuses_an_unknown_name() -> None:
 
 
 def test_set_verbosity_reaches_console_handlers() -> None:
-    factory = _factory(LoggingConfig(handlers={"console": ConsoleHandlerSpec()}))
+    factory = _factory(LoggingConfig(handlers={"console": ConsoleHandlerConfig()}))
 
     factory.set_verbosity(Verbosity.DEBUG)
 
@@ -280,7 +280,7 @@ def test_set_verbosity_reaches_console_handlers() -> None:
 
 
 def test_set_console_stream_reaches_console_handlers() -> None:
-    factory = _factory(LoggingConfig(handlers={"console": ConsoleHandlerSpec()}))
+    factory = _factory(LoggingConfig(handlers={"console": ConsoleHandlerConfig()}))
     stream = io.StringIO()
 
     factory.set_console_stream(stream, colors=False)
@@ -291,7 +291,7 @@ def test_set_console_stream_reaches_console_handlers() -> None:
 
 def test_reset_ends_a_unit_of_work() -> None:
     main = TestHandler()
-    factory = _factory(LoggingConfig(handlers={"main": ServiceHandlerSpec(id="main")}), main=main)
+    factory = _factory(LoggingConfig(handlers={"main": ServiceHandlerConfig(id="main")}), main=main)
     factory.logger().info("x")
 
     factory.reset()
@@ -303,7 +303,7 @@ def test_loggers_read_time_from_the_clock_given() -> None:
     main = TestHandler()
     clock = MockClock(AT)
     factory = LoggerFactory(
-        LoggingConfig(handlers={"main": ServiceHandlerSpec(id="main")}),
+        LoggingConfig(handlers={"main": ServiceHandlerConfig(id="main")}),
         services=Services(handlers={"main": main}),
         registry=ProcessorRegistry(),
         clock=clock,
@@ -321,9 +321,9 @@ def test_a_capture_section_takes_over_stdlib_until_the_factory_closes() -> None:
     factory = _factory(
         LoggingConfig(
             channels=("http",),
-            handlers={"main": ServiceHandlerSpec(id="main")},
-            capture=CaptureSpec(
-                loggers={"httpx": CapturedLoggerSpec(level="info", channel="http")}
+            handlers={"main": ServiceHandlerConfig(id="main")},
+            capture=CaptureConfig(
+                loggers={"httpx": CapturedLoggerConfig(level="info", channel="http")}
             ),
         ),
         main=main,

@@ -10,22 +10,22 @@ from __future__ import annotations
 from typing_extensions import override
 from xtr_logging_contracts import Level
 
-from .handler_specs import BaseHandlerSpec
+from .handler_configs import BaseHandlerConfig
 
 __all__ = [
-    "BufferHandlerSpec",
-    "DeduplicationHandlerSpec",
-    "FallbackGroupHandlerSpec",
-    "FilterHandlerSpec",
-    "FingersCrossedHandlerSpec",
-    "GroupHandlerSpec",
-    "QueueHandlerSpec",
-    "SamplingHandlerSpec",
-    "WhatFailureGroupHandlerSpec",
+    "BufferHandlerConfig",
+    "DeduplicationHandlerConfig",
+    "FallbackGroupHandlerConfig",
+    "FilterHandlerConfig",
+    "FingersCrossedHandlerConfig",
+    "GroupHandlerConfig",
+    "QueueHandlerConfig",
+    "SamplingHandlerConfig",
+    "WhatFailureGroupHandlerConfig",
 ]
 
 
-class _WrappingHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True):
+class _WrappingHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
     handler: str
 
     @property
@@ -34,7 +34,7 @@ class _WrappingHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True):
         return (self.handler,)
 
 
-class _GroupingHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True):
+class _GroupingHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
     members: tuple[str, ...]
 
     @property
@@ -43,8 +43,8 @@ class _GroupingHandlerSpec(BaseHandlerSpec, frozen=True, kw_only=True):
         return self.members
 
 
-class FingersCrossedHandlerSpec(
-    _WrappingHandlerSpec, frozen=True, kw_only=True, tag="fingers_crossed"
+class FingersCrossedHandlerConfig(
+    _WrappingHandlerConfig, frozen=True, kw_only=True, tag="fingers_crossed"
 ):
     """A :class:`~xtr_logging.handler.fingers_crossed_handler.FingersCrossedHandler`.
 
@@ -70,7 +70,7 @@ class FingersCrossedHandlerSpec(
             _ = Level.parse(self.passthru_level)
 
 
-class BufferHandlerSpec(_WrappingHandlerSpec, frozen=True, kw_only=True, tag="buffer"):
+class BufferHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag="buffer"):
     """A :class:`~xtr_logging.handler.buffer_handler.BufferHandler`."""
 
     level: Level | str = Level.DEBUG
@@ -83,7 +83,7 @@ class BufferHandlerSpec(_WrappingHandlerSpec, frozen=True, kw_only=True, tag="bu
         _ = Level.parse(self.level)
 
 
-class FilterHandlerSpec(_WrappingHandlerSpec, frozen=True, kw_only=True, tag="filter"):
+class FilterHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag="filter"):
     """A :class:`~xtr_logging.handler.filter_handler.FilterHandler`.
 
     Passes ``accepted_levels`` when given, otherwise the range from
@@ -101,8 +101,8 @@ class FilterHandlerSpec(_WrappingHandlerSpec, frozen=True, kw_only=True, tag="fi
             _ = Level.parse(level)
 
 
-class DeduplicationHandlerSpec(
-    _WrappingHandlerSpec, frozen=True, kw_only=True, tag="deduplication"
+class DeduplicationHandlerConfig(
+    _WrappingHandlerConfig, frozen=True, kw_only=True, tag="deduplication"
 ):
     """A :class:`~xtr_logging.handler.deduplication_handler.DeduplicationHandler`."""
 
@@ -118,7 +118,7 @@ class DeduplicationHandlerSpec(
         _ = Level.parse(self.deduplication_level)
 
 
-class SamplingHandlerSpec(_WrappingHandlerSpec, frozen=True, kw_only=True, tag="sampling"):
+class SamplingHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag="sampling"):
     """A :class:`~xtr_logging.handler.sampling_handler.SamplingHandler`.
 
     Passes one record in ``factor``.
@@ -127,7 +127,7 @@ class SamplingHandlerSpec(_WrappingHandlerSpec, frozen=True, kw_only=True, tag="
     factor: int
 
 
-class QueueHandlerSpec(_WrappingHandlerSpec, frozen=True, kw_only=True, tag="queue"):
+class QueueHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag="queue"):
     """A :class:`~xtr_logging.handler.queue_handler.QueueHandler`.
 
     Hands records to a background thread, so logging never waits on I/O.
@@ -136,15 +136,15 @@ class QueueHandlerSpec(_WrappingHandlerSpec, frozen=True, kw_only=True, tag="que
     max_size: int = 0
 
 
-class GroupHandlerSpec(_GroupingHandlerSpec, frozen=True, kw_only=True, tag="group"):
+class GroupHandlerConfig(_GroupingHandlerConfig, frozen=True, kw_only=True, tag="group"):
     """A :class:`~xtr_logging.handler.group_handler.GroupHandler`.
 
     Every member gets every record.
     """
 
 
-class WhatFailureGroupHandlerSpec(
-    _GroupingHandlerSpec, frozen=True, kw_only=True, tag="whatfailuregroup"
+class WhatFailureGroupHandlerConfig(
+    _GroupingHandlerConfig, frozen=True, kw_only=True, tag="whatfailuregroup"
 ):
     """A :class:`~xtr_logging.handler.what_failure_group_handler.WhatFailureGroupHandler`.
 
@@ -152,8 +152,8 @@ class WhatFailureGroupHandlerSpec(
     """
 
 
-class FallbackGroupHandlerSpec(
-    _GroupingHandlerSpec, frozen=True, kw_only=True, tag="fallbackgroup"
+class FallbackGroupHandlerConfig(
+    _GroupingHandlerConfig, frozen=True, kw_only=True, tag="fallbackgroup"
 ):
     """A :class:`~xtr_logging.handler.fallback_group_handler.FallbackGroupHandler`.
 

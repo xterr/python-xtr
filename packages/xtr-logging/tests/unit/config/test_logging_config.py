@@ -4,18 +4,18 @@ import pytest
 from xtr_logging_contracts import InvalidLevelError, Level
 
 from xtr_logging.config import (
-    BufferHandlerSpec,
-    CapturedLoggerSpec,
-    CaptureSpec,
-    ConsoleHandlerSpec,
-    FingersCrossedHandlerSpec,
-    GroupHandlerSpec,
-    JsonFormatterSpec,
+    BufferHandlerConfig,
+    CaptureConfig,
+    CapturedLoggerConfig,
+    ConsoleHandlerConfig,
+    FingersCrossedHandlerConfig,
+    GroupHandlerConfig,
+    JsonFormatterConfig,
     LoggingConfig,
-    NullHandlerSpec,
-    StdlibHandlerSpec,
-    StreamHandlerSpec,
-    UidProcessorSpec,
+    NullHandlerConfig,
+    StdlibHandlerConfig,
+    StreamHandlerConfig,
+    UidProcessorConfig,
 )
 from xtr_logging.exception.capture_conflict_error import CaptureConflictError
 from xtr_logging.exception.circular_handler_reference_error import CircularHandlerReferenceError
@@ -36,7 +36,7 @@ def test_an_empty_config_has_only_the_default_channel() -> None:
 def test_channels_named_by_handlers_are_declared_too() -> None:
     config = LoggingConfig(
         channels=("security",),
-        handlers={"console": ConsoleHandlerSpec(channels=("!event",))},
+        handlers={"console": ConsoleHandlerConfig(channels=("!event",))},
     )
 
     assert config.all_channels == ("app", "security", "event")
@@ -45,9 +45,9 @@ def test_channels_named_by_handlers_are_declared_too() -> None:
 def test_handlers_named_by_a_wrapper_leave_the_channel_stacks() -> None:
     config = LoggingConfig(
         handlers={
-            "main": FingersCrossedHandlerSpec(handler="file"),
-            "file": StreamHandlerSpec(path="app.log"),
-            "hidden": NullHandlerSpec(nested=True),
+            "main": FingersCrossedHandlerConfig(handler="file"),
+            "file": StreamHandlerConfig(path="app.log"),
+            "hidden": NullHandlerConfig(nested=True),
         },
     )
 
@@ -58,9 +58,9 @@ def test_handlers_named_by_a_wrapper_leave_the_channel_stacks() -> None:
 def test_top_level_handlers_are_ordered_by_priority_then_declaration() -> None:
     config = LoggingConfig(
         handlers={
-            "a": NullHandlerSpec(),
-            "b": NullHandlerSpec(priority=10),
-            "c": NullHandlerSpec(),
+            "a": NullHandlerConfig(),
+            "b": NullHandlerConfig(priority=10),
+            "c": NullHandlerConfig(),
         },
     )
 
@@ -69,7 +69,7 @@ def test_top_level_handlers_are_ordered_by_priority_then_declaration() -> None:
 
 def test_a_wrapper_naming_a_missing_handler_is_refused() -> None:
     with pytest.raises(UnknownHandlerError) as raised:
-        _ = LoggingConfig(handlers={"main": BufferHandlerSpec(handler="file")})
+        _ = LoggingConfig(handlers={"main": BufferHandlerConfig(handler="file")})
 
     assert (raised.value.name, raised.value.referenced_by) == ("file", "handler 'main'")
 
@@ -78,8 +78,8 @@ def test_wrappers_nesting_each_other_in_a_loop_are_refused() -> None:
     with pytest.raises(CircularHandlerReferenceError) as raised:
         _ = LoggingConfig(
             handlers={
-                "a": GroupHandlerSpec(members=("b",)),
-                "b": BufferHandlerSpec(handler="a"),
+                "a": GroupHandlerConfig(members=("b",)),
+                "b": BufferHandlerConfig(handler="a"),
             },
         )
 
@@ -88,27 +88,27 @@ def test_wrappers_nesting_each_other_in_a_loop_are_refused() -> None:
 
 def test_a_processor_targeting_a_missing_channel_is_refused() -> None:
     with pytest.raises(UnknownChannelError):
-        _ = LoggingConfig(processors=(UidProcessorSpec(channel="nowhere"),))
+        _ = LoggingConfig(processors=(UidProcessorConfig(channel="nowhere"),))
 
 
 def test_a_processor_targeting_a_missing_handler_is_refused() -> None:
     with pytest.raises(UnknownHandlerError):
-        _ = LoggingConfig(processors=(UidProcessorSpec(handler="nowhere"),))
+        _ = LoggingConfig(processors=(UidProcessorConfig(handler="nowhere"),))
 
 
 def test_a_processor_may_not_target_both_a_channel_and_a_handler() -> None:
     with pytest.raises(InvalidOptionError):
-        _ = UidProcessorSpec(channel="app", handler="main")
+        _ = UidProcessorConfig(channel="app", handler="main")
 
 
-def test_a_spec_refuses_an_unknown_level_where_it_is_written() -> None:
+def test_a_config_refuses_an_unknown_level_where_it_is_written() -> None:
     with pytest.raises(InvalidLevelError):
-        _ = StreamHandlerSpec(level="loud")
+        _ = StreamHandlerConfig(level="loud")
 
 
-def test_a_spec_refuses_a_mixed_channel_list_where_it_is_written() -> None:
+def test_a_config_refuses_a_mixed_channel_list_where_it_is_written() -> None:
     with pytest.raises(MixedChannelFilterError):
-        _ = NullHandlerSpec(channels=("a", "!b"))
+        _ = NullHandlerConfig(channels=("a", "!b"))
 
 
 def test_from_mapping_reads_tagged_handlers_and_formatters() -> None:
@@ -125,19 +125,19 @@ def test_from_mapping_reads_tagged_handlers_and_formatters() -> None:
         },
     )
 
-    assert config.handlers["file"] == StreamHandlerSpec(
+    assert config.handlers["file"] == StreamHandlerConfig(
         path="app.log",
         level="info",
-        formatter=JsonFormatterSpec(),
+        formatter=JsonFormatterConfig(),
     )
 
 
 def test_from_mapping_accepts_a_level_by_value() -> None:
     config = LoggingConfig.from_mapping({"handlers": {"n": {"type": "null", "level": 400}}})
 
-    spec = config.handlers["n"]
-    assert isinstance(spec, NullHandlerSpec)
-    assert Level.parse(spec.level) is Level.ERROR
+    handler = config.handlers["n"]
+    assert isinstance(handler, NullHandlerConfig)
+    assert Level.parse(handler.level) is Level.ERROR
 
 
 @pytest.mark.parametrize(
@@ -170,8 +170,8 @@ def test_a_capture_section_reads_levels_and_channels_per_logger() -> None:
     )
 
     assert config.capture is not None
-    assert config.capture.logger_spec("httpx") == CapturedLoggerSpec(level="info")
-    assert config.capture.logger_spec("sqlalchemy") == CapturedLoggerSpec(
+    assert config.capture.logger_config("httpx") == CapturedLoggerConfig(level="info")
+    assert config.capture.logger_config("sqlalchemy") == CapturedLoggerConfig(
         level="warning", channel="db"
     )
 
@@ -179,7 +179,7 @@ def test_a_capture_section_reads_levels_and_channels_per_logger() -> None:
 def test_a_capture_naming_a_missing_channel_is_refused() -> None:
     with pytest.raises(UnknownChannelError):
         _ = LoggingConfig(
-            capture=CaptureSpec(loggers={"httpx": CapturedLoggerSpec(channel="http")})
+            capture=CaptureConfig(loggers={"httpx": CapturedLoggerConfig(channel="http")})
         )
 
 
@@ -190,7 +190,7 @@ def test_a_capture_refuses_an_unknown_level_with_its_path() -> None:
 
 def test_capture_and_a_stdlib_handler_are_refused_together() -> None:
     with pytest.raises(CaptureConflictError) as raised:
-        _ = LoggingConfig(handlers={"out": StdlibHandlerSpec()}, capture=CaptureSpec())
+        _ = LoggingConfig(handlers={"out": StdlibHandlerConfig()}, capture=CaptureConfig())
 
     assert raised.value.handler == "out"
 
@@ -207,7 +207,7 @@ def test_with_channels_declares_new_channels_after_the_listed_ones() -> None:
 def test_with_channels_skips_a_channel_already_declared() -> None:
     config = LoggingConfig(
         channels=("security",),
-        handlers={"audit": StreamHandlerSpec(channels=("audit",))},
+        handlers={"audit": StreamHandlerConfig(channels=("audit",))},
     )
 
     assert config.with_channels("security", "app", "audit", "mail", "mail").channels == (

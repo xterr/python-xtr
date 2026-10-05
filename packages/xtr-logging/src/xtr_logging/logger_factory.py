@@ -96,8 +96,13 @@ class LoggerFactory(ResetInterface):
         for name in config.handlers:
             _ = self._builder.build(name)
         placed = [
-            _Placed(build_processor(spec, resolved), spec.channel, spec.handler, spec.priority)
-            for spec in config.processors
+            _Placed(
+                build_processor(processor, resolved),
+                processor.channel,
+                processor.handler,
+                processor.priority,
+            )
+            for processor in config.processors
         ]
         placed.extend(
             _Placed(d.processor, d.channel, d.handler, d.priority) for d in declared.descriptors
@@ -204,13 +209,13 @@ class LoggerFactory(ResetInterface):
         self.close()
 
     def _build_capture(self) -> StdlibCapture | None:
-        spec = self._config.capture
-        if spec is None:
+        capture = self._config.capture
+        if capture is None:
             return None
-        loggers = {name: spec.logger_spec(name) for name in spec.loggers}
+        loggers = {name: capture.logger_config(name) for name in capture.loggers}
         return StdlibCapture(
-            self.logger(spec.channel),
-            level=spec.level,
+            self.logger(capture.channel),
+            level=capture.level,
             levels={name: entry.level for name, entry in loggers.items()},
             routes={
                 name: self.logger(entry.channel)
@@ -230,7 +235,9 @@ class LoggerFactory(ResetInterface):
     def _owned_handlers(self) -> list[HandlerInterface]:
         """Handlers no wrapper owns; a wrapper closes and resets what it wraps."""
         referenced = {
-            reference for spec in self._config.handlers.values() for reference in spec.references
+            reference
+            for handler in self._config.handlers.values()
+            for reference in handler.references
         }
         return [
             self._builder.build(name) for name in self._config.handlers if name not in referenced

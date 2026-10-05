@@ -1,17 +1,17 @@
 """Services the logging config refers to by id.
 
-A ``ServiceHandlerSpec(id=...)``, a ``ServiceProcessorSpec(id=...)``, a handler's string
+A ``ServiceHandlerConfig(id=...)``, a ``ServiceProcessorConfig(id=...)``, a handler's string
 ``formatter`` and a fingers-crossed ``activation_strategy`` each name a service the
 application registers under the matching interface, *qualified by that id*:
 
-======================================  =================================  ====================
-Config entry                            Registered as                      Id
-======================================  =================================  ====================
-``ServiceHandlerSpec(id="memory")``     ``(HandlerInterface, "memory")``   factory, qualified
-``formatter="audit_json"``              ``(FormatterInterface, ...)``      factory, qualified
-``activation_strategy="security"``      ``(ActivationStrategyInterface…)`` factory, qualified
-``ServiceProcessorSpec(id="request")``  ``(ProcessorInterface, ...)``      class + ``@as_alias``
-======================================  =================================  ====================
+========================================  =================================  ====================
+Config entry                              Registered as                      Id
+========================================  =================================  ====================
+``ServiceHandlerConfig(id="memory")``     ``(HandlerInterface, "memory")``   factory, qualified
+``formatter="audit_json"``                ``(FormatterInterface, ...)``      factory, qualified
+``activation_strategy="security"``        ``(ActivationStrategyInterface…)`` factory, qualified
+``ServiceProcessorConfig(id="request")``  ``(ProcessorInterface, ...)``      class + ``@as_alias``
+========================================  =================================  ====================
 
 A missing id fails the build — the logging bundle checks every one in its ``process`` hook.
 """
@@ -73,7 +73,7 @@ class RequestIdProcessor(ProcessorInterface):
 
     Registered under its own class by ``@as_service``, and reachable as
     ``(ProcessorInterface, "request")`` through ``@as_alias`` — which is the key a
-    ``ServiceProcessorSpec(id="request")`` is resolved from.
+    ``ServiceProcessorConfig(id="request")`` is resolved from.
     """
 
     @override

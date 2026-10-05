@@ -132,11 +132,11 @@ def apply_modifier(reference: datetime, modifier: str) -> datetime:
     Raises:
         InvalidModifierError: When the grammar cannot read ``modifier``.
     """
-    spec = modifier.strip()
-    if not spec:
+    text = modifier.strip()
+    if not text:
         raise InvalidModifierError(modifier, "it is empty")
 
-    moment, rest = _split_timezone(reference, spec)
+    moment, rest = _split_timezone(reference, text)
     if not rest or rest.lower() == "now":
         return moment
 
@@ -156,17 +156,17 @@ def apply_modifier(reference: datetime, modifier: str) -> datetime:
     )
 
 
-def _split_timezone(reference: datetime, spec: str) -> tuple[datetime, str]:
-    """Split a trailing timezone off ``spec``, moving ``reference`` into it.
+def _split_timezone(reference: datetime, text: str) -> tuple[datetime, str]:
+    """Split a trailing timezone off ``text``, moving ``reference`` into it.
 
     The zone is applied before anything else, so an offset in the rest of
     the modifier is counted in the zone the caller asked for.
     """
-    tokens = spec.split()
+    tokens = text.split()
     try:
         zone = resolve_timezone(tokens[-1])
     except InvalidTimezoneError:
-        return reference, spec
+        return reference, text
 
     return reference.astimezone(zone), " ".join(tokens[:-1])
 

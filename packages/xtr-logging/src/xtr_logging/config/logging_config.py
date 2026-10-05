@@ -7,11 +7,11 @@ each serves, and which processors run where. It builds nothing — hand it to
     CONFIG = LoggingConfig(
         channels=("security", "billing"),
         handlers={
-            "main": FingersCrossedHandlerSpec(action_level="error", handler="file"),
-            "file": StreamHandlerSpec(path="var/log/prod.log"),
-            "console": ConsoleHandlerSpec(channels=("!event",)),
+            "main": FingersCrossedHandlerConfig(action_level="error", handler="file"),
+            "file": StreamHandlerConfig(path="var/log/prod.log"),
+            "console": ConsoleHandlerConfig(channels=("!event",)),
         },
-        processors=(PlaceholderProcessorSpec(),),
+        processors=(PlaceholderProcessorConfig(),),
     )
 
 or, from a parsed file, :meth:`LoggingConfig.from_mapping`. Keeping it inert
@@ -31,56 +31,56 @@ from xtr_logging.exception.invalid_configuration_error import InvalidConfigurati
 from xtr_logging.exception.unknown_channel_error import UnknownChannelError
 from xtr_logging.exception.unknown_handler_error import UnknownHandlerError
 
-from .capture_spec import CaptureSpec  # noqa: TC001 — msgspec reads field types at runtime
-from .handler_specs import (
-    ConsoleHandlerSpec,
-    NullHandlerSpec,
-    RotatingFileHandlerSpec,
-    ServiceHandlerSpec,
-    StdlibHandlerSpec,
-    StreamHandlerSpec,
-    SyslogHandlerSpec,
+from .capture_config import CaptureConfig  # noqa: TC001 — msgspec reads field types at runtime
+from .handler_configs import (
+    ConsoleHandlerConfig,
+    NullHandlerConfig,
+    RotatingFileHandlerConfig,
+    ServiceHandlerConfig,
+    StdlibHandlerConfig,
+    StreamHandlerConfig,
+    SyslogHandlerConfig,
 )
-from .processor_specs import ProcessorSpec  # noqa: TC001 — msgspec reads field types at runtime
-from .wrapper_handler_specs import (
-    BufferHandlerSpec,
-    DeduplicationHandlerSpec,
-    FallbackGroupHandlerSpec,
-    FilterHandlerSpec,
-    FingersCrossedHandlerSpec,
-    GroupHandlerSpec,
-    QueueHandlerSpec,
-    SamplingHandlerSpec,
-    WhatFailureGroupHandlerSpec,
+from .processor_configs import ProcessorConfig  # noqa: TC001 — msgspec reads field types at runtime
+from .wrapper_handler_configs import (
+    BufferHandlerConfig,
+    DeduplicationHandlerConfig,
+    FallbackGroupHandlerConfig,
+    FilterHandlerConfig,
+    FingersCrossedHandlerConfig,
+    GroupHandlerConfig,
+    QueueHandlerConfig,
+    SamplingHandlerConfig,
+    WhatFailureGroupHandlerConfig,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-__all__ = ["HandlerSpec", "LoggingConfig"]
+__all__ = ["HandlerConfig", "LoggingConfig"]
 
-HandlerSpec: TypeAlias = (
-    StreamHandlerSpec
-    | RotatingFileHandlerSpec
-    | SyslogHandlerSpec
-    | ConsoleHandlerSpec
-    | NullHandlerSpec
-    | StdlibHandlerSpec
-    | ServiceHandlerSpec
-    | FingersCrossedHandlerSpec
-    | BufferHandlerSpec
-    | FilterHandlerSpec
-    | DeduplicationHandlerSpec
-    | SamplingHandlerSpec
-    | QueueHandlerSpec
-    | GroupHandlerSpec
-    | WhatFailureGroupHandlerSpec
-    | FallbackGroupHandlerSpec
+HandlerConfig: TypeAlias = (
+    StreamHandlerConfig
+    | RotatingFileHandlerConfig
+    | SyslogHandlerConfig
+    | ConsoleHandlerConfig
+    | NullHandlerConfig
+    | StdlibHandlerConfig
+    | ServiceHandlerConfig
+    | FingersCrossedHandlerConfig
+    | BufferHandlerConfig
+    | FilterHandlerConfig
+    | DeduplicationHandlerConfig
+    | SamplingHandlerConfig
+    | QueueHandlerConfig
+    | GroupHandlerConfig
+    | WhatFailureGroupHandlerConfig
+    | FallbackGroupHandlerConfig
 )
 """Any handler entry, told apart by its ``type``."""
 
 
-def _no_handlers() -> dict[str, HandlerSpec]:
+def _no_handlers() -> dict[str, HandlerConfig]:
     return {}
 
 
@@ -102,11 +102,11 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
             there. Off when omitted.
     """
 
-    handlers: dict[str, HandlerSpec] = msgspec.field(default_factory=_no_handlers)
+    handlers: dict[str, HandlerConfig] = msgspec.field(default_factory=_no_handlers)
     channels: tuple[str, ...] = ()
-    processors: tuple[ProcessorSpec, ...] = ()
+    processors: tuple[ProcessorConfig, ...] = ()
     default_channel: str = "app"
-    capture: CaptureSpec | None = None
+    capture: CaptureConfig | None = None
 
     def __post_init__(self) -> None:
         """Check every cross-reference.
@@ -120,8 +120,8 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
                 sends records back into the standard library.
         """
         known = tuple(self.handlers)
-        for name, spec in self.handlers.items():
-            for reference in spec.references:
+        for name, handler in self.handlers.items():
+            for reference in handler.references:
                 if reference not in self.handlers:
                     raise UnknownHandlerError(reference, f"handler {name!r}", known)
         for name in self.handlers:
@@ -171,8 +171,8 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
     def all_channels(self) -> tuple[str, ...]:
         """Every declared channel: the default, the listed, then those named by handlers."""
         found = dict.fromkeys((self.default_channel, *self.channels))
-        for spec in self.handlers.values():
-            channel_filter = spec.channel_filter
+        for handler in self.handlers.values():
+            channel_filter = handler.channel_filter
             if channel_filter is not None:
                 found.update(dict.fromkeys(sorted(channel_filter.channels)))
         return tuple(found)
@@ -180,8 +180,10 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
     @property
     def nested_handlers(self) -> frozenset[str]:
         """Handlers kept off every channel's stack: those named by another, or marked nested."""
-        referenced = {reference for spec in self.handlers.values() for reference in spec.references}
-        marked = {name for name, spec in self.handlers.items() if spec.nested}
+        referenced = {
+            reference for handler in self.handlers.values() for reference in handler.references
+        }
+        marked = {name for name, handler in self.handlers.items() if handler.nested}
         return frozenset(referenced | marked)
 
     @property
@@ -191,12 +193,12 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
         candidates = [name for name in self.handlers if name not in nested]
         return tuple(sorted(candidates, key=lambda name: -self.handlers[name].priority))
 
-    def _check_capture(self, capture: CaptureSpec) -> None:
+    def _check_capture(self, capture: CaptureConfig) -> None:
         for channel in capture.channels:
             if channel not in self.all_channels:
                 raise UnknownChannelError(channel, self.all_channels)
-        for name, spec in self.handlers.items():
-            if isinstance(spec, StdlibHandlerSpec):
+        for name, handler in self.handlers.items():
+            if isinstance(handler, StdlibHandlerConfig):
                 raise CaptureConflictError(name)
 
     def _check_acyclic(self, name: str, path: tuple[str, ...]) -> None:

@@ -1,4 +1,4 @@
-"""Turning handler specs into handlers, each built once however often it is named."""
+"""Turning handler configurations into handlers, each built once however often it is named."""
 
 from __future__ import annotations
 
@@ -32,26 +32,26 @@ from xtr_logging.handler.what_failure_group_handler import WhatFailureGroupHandl
 from xtr_logging.verbosity import Verbosity
 
 from .formatter_builder import build_formatter
-from .handler_specs import (
-    ConsoleHandlerSpec,
-    FormattedHandlerSpec,
-    NullHandlerSpec,
-    RotatingFileHandlerSpec,
-    ServiceHandlerSpec,
-    StdlibHandlerSpec,
-    StreamHandlerSpec,
-    SyslogHandlerSpec,
+from .handler_configs import (
+    ConsoleHandlerConfig,
+    FormattedHandlerConfig,
+    NullHandlerConfig,
+    RotatingFileHandlerConfig,
+    ServiceHandlerConfig,
+    StdlibHandlerConfig,
+    StreamHandlerConfig,
+    SyslogHandlerConfig,
 )
-from .wrapper_handler_specs import (
-    BufferHandlerSpec,
-    DeduplicationHandlerSpec,
-    FallbackGroupHandlerSpec,
-    FilterHandlerSpec,
-    FingersCrossedHandlerSpec,
-    GroupHandlerSpec,
-    QueueHandlerSpec,
-    SamplingHandlerSpec,
-    WhatFailureGroupHandlerSpec,
+from .wrapper_handler_configs import (
+    BufferHandlerConfig,
+    DeduplicationHandlerConfig,
+    FallbackGroupHandlerConfig,
+    FilterHandlerConfig,
+    FingersCrossedHandlerConfig,
+    GroupHandlerConfig,
+    QueueHandlerConfig,
+    SamplingHandlerConfig,
+    WhatFailureGroupHandlerConfig,
 )
 
 if TYPE_CHECKING:
@@ -64,7 +64,7 @@ if TYPE_CHECKING:
     )
     from xtr_logging.handler.handler_interface import HandlerInterface
 
-    from .logging_config import HandlerSpec, LoggingConfig
+    from .logging_config import HandlerConfig, LoggingConfig
     from .services import Services
 
 __all__ = ["HandlerBuilder"]
@@ -103,11 +103,11 @@ class HandlerBuilder:
         """
         found = self._built.get(name)
         if found is None:
-            spec = self._config.handlers[name]
-            found = self._create(name, spec)
+            handler_config = self._config.handlers[name]
+            found = self._create(name, handler_config)
             formatter = (
-                spec.formatter
-                if isinstance(spec, FormattedHandlerSpec | ConsoleHandlerSpec)
+                handler_config.formatter
+                if isinstance(handler_config, FormattedHandlerConfig | ConsoleHandlerConfig)
                 else None
             )
             if formatter is not None and isinstance(found, FormattableHandlerInterface):
@@ -115,111 +115,118 @@ class HandlerBuilder:
             self._built[name] = found
         return found
 
-    def _create(self, name: str, spec: HandlerSpec) -> HandlerInterface:  # noqa: C901, PLR0911, PLR0912 — one case per handler type
-        match spec:
-            case StreamHandlerSpec():
+    def _create(self, name: str, config: HandlerConfig) -> HandlerInterface:  # noqa: C901, PLR0911, PLR0912 — one case per handler type
+        match config:
+            case StreamHandlerConfig():
                 return StreamHandler(
-                    _stream(spec.path) if spec.path in _STANDARD_STREAMS else spec.path,
-                    spec.level,
-                    spec.bubble,
-                    file_permission=spec.file_permission,
+                    _stream(config.path) if config.path in _STANDARD_STREAMS else config.path,
+                    config.level,
+                    config.bubble,
+                    file_permission=config.file_permission,
                 )
-            case RotatingFileHandlerSpec():
+            case RotatingFileHandlerConfig():
                 return RotatingFileHandler(
-                    spec.path,
-                    spec.max_files,
-                    spec.level,
-                    spec.bubble,
-                    date_format=spec.date_format,
-                    filename_format=spec.filename_format,
-                    file_permission=spec.file_permission,
+                    config.path,
+                    config.max_files,
+                    config.level,
+                    config.bubble,
+                    date_format=config.date_format,
+                    filename_format=config.filename_format,
+                    file_permission=config.file_permission,
                 )
-            case SyslogHandlerSpec():
+            case SyslogHandlerConfig():
                 return SyslogHandler(
-                    spec.ident,
-                    spec.facility,
-                    spec.level,
-                    spec.bubble,
-                    address=_address(spec.address),
+                    config.ident,
+                    config.facility,
+                    config.level,
+                    config.bubble,
+                    address=_address(config.address),
                 )
-            case ConsoleHandlerSpec():
+            case ConsoleHandlerConfig():
                 return ConsoleHandler(
-                    sys.stdout if spec.stream == "stdout" else None,
-                    verbosity_levels=_verbosity_levels(spec.verbosity_levels),
-                    bubble=spec.bubble,
+                    sys.stdout if config.stream == "stdout" else None,
+                    verbosity_levels=_verbosity_levels(config.verbosity_levels),
+                    bubble=config.bubble,
                 )
-            case NullHandlerSpec():
-                return NullHandler(spec.level)
-            case StdlibHandlerSpec():
-                return StdlibHandler(spec.logger, spec.level, spec.bubble)
-            case ServiceHandlerSpec():
-                service = self._services.handlers.get(spec.id)
+            case NullHandlerConfig():
+                return NullHandler(config.level)
+            case StdlibHandlerConfig():
+                return StdlibHandler(config.logger, config.level, config.bubble)
+            case ServiceHandlerConfig():
+                service = self._services.handlers.get(config.id)
                 if service is None:
-                    raise UnknownServiceError("handler", spec.id, tuple(self._services.handlers))
+                    raise UnknownServiceError("handler", config.id, tuple(self._services.handlers))
                 return service
-            case FingersCrossedHandlerSpec():
+            case FingersCrossedHandlerConfig():
                 return FingersCrossedHandler(
-                    self.build(spec.handler),
-                    self._activation_strategy(spec),
-                    spec.buffer_size,
-                    spec.bubble,
-                    spec.stop_buffering,
-                    spec.passthru_level,
+                    self.build(config.handler),
+                    self._activation_strategy(config),
+                    config.buffer_size,
+                    config.bubble,
+                    config.stop_buffering,
+                    config.passthru_level,
                 )
-            case BufferHandlerSpec():
+            case BufferHandlerConfig():
                 return BufferHandler(
-                    self.build(spec.handler),
-                    spec.buffer_size,
-                    spec.level,
-                    spec.bubble,
-                    spec.flush_on_overflow,
+                    self.build(config.handler),
+                    config.buffer_size,
+                    config.level,
+                    config.bubble,
+                    config.flush_on_overflow,
                 )
-            case FilterHandlerSpec():
+            case FilterHandlerConfig():
                 return FilterHandler(
-                    self.build(spec.handler),
-                    spec.accepted_levels if spec.accepted_levels is not None else spec.min_level,
-                    spec.max_level,
-                    spec.bubble,
+                    self.build(config.handler),
+                    config.accepted_levels
+                    if config.accepted_levels is not None
+                    else config.min_level,
+                    config.max_level,
+                    config.bubble,
                 )
-            case DeduplicationHandlerSpec():
+            case DeduplicationHandlerConfig():
                 return DeduplicationHandler(
-                    self.build(spec.handler),
-                    spec.store,
-                    spec.deduplication_level,
-                    spec.time,
-                    spec.bubble,
-                    buffer_limit=spec.buffer_limit,
-                    flush_on_overflow=spec.flush_on_overflow,
+                    self.build(config.handler),
+                    config.store,
+                    config.deduplication_level,
+                    config.time,
+                    config.bubble,
+                    buffer_limit=config.buffer_limit,
+                    flush_on_overflow=config.flush_on_overflow,
                     name=name,
                 )
-            case SamplingHandlerSpec():
-                return SamplingHandler(self.build(spec.handler), spec.factor, spec.bubble)
-            case QueueHandlerSpec():
-                return QueueHandler(self.build(spec.handler), max_size=spec.max_size)
-            case GroupHandlerSpec():
-                return GroupHandler([self.build(m) for m in spec.members], spec.bubble)
-            case WhatFailureGroupHandlerSpec():
-                return WhatFailureGroupHandler([self.build(m) for m in spec.members], spec.bubble)
-            case FallbackGroupHandlerSpec():
-                return FallbackGroupHandler([self.build(m) for m in spec.members], spec.bubble)
+            case SamplingHandlerConfig():
+                return SamplingHandler(self.build(config.handler), config.factor, config.bubble)
+            case QueueHandlerConfig():
+                return QueueHandler(self.build(config.handler), max_size=config.max_size)
+            case GroupHandlerConfig():
+                return GroupHandler([self.build(m) for m in config.members], config.bubble)
+            case WhatFailureGroupHandlerConfig():
+                return WhatFailureGroupHandler(
+                    [self.build(m) for m in config.members], config.bubble
+                )
+            case FallbackGroupHandlerConfig():
+                return FallbackGroupHandler([self.build(m) for m in config.members], config.bubble)
             case _:
-                # A spec added to the union without a case fails here, not on a first record.
-                assert_never(spec)
+                # A configuration added to the union without a case fails here, not on a record.
+                assert_never(config)
 
-    def _activation_strategy(self, spec: FingersCrossedHandlerSpec) -> ActivationStrategyInterface:
-        if spec.activation_strategy is not None:
+    def _activation_strategy(
+        self,
+        config: FingersCrossedHandlerConfig,
+    ) -> ActivationStrategyInterface:
+        if config.activation_strategy is not None:
             strategies = self._services.activation_strategies
-            found = strategies.get(spec.activation_strategy)
+            found = strategies.get(config.activation_strategy)
             if found is None:
                 raise UnknownServiceError(
                     "activation strategy",
-                    spec.activation_strategy,
+                    config.activation_strategy,
                     tuple(strategies),
                 )
             return found
-        if spec.channel_levels:
-            return ChannelLevelActivationStrategy(spec.action_level, spec.channel_levels)
-        return ErrorLevelActivationStrategy(spec.action_level)
+        if config.channel_levels:
+            return ChannelLevelActivationStrategy(config.action_level, config.channel_levels)
+        return ErrorLevelActivationStrategy(config.action_level)
 
 
 def _stream(name: str) -> TextIO:

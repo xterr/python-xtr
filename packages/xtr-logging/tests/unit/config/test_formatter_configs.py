@@ -4,15 +4,15 @@ import msgspec
 import pytest
 
 from xtr_logging.config import (
-    JsonFormatterSpec,
-    LineFormatterSpec,
+    JsonFormatterConfig,
+    LineFormatterConfig,
     LoggingConfig,
-    StreamHandlerSpec,
+    StreamHandlerConfig,
 )
 
 
 def test_a_json_batch_defaults_to_one_object_per_line() -> None:
-    assert JsonFormatterSpec().batch_mode == "newlines"
+    assert JsonFormatterConfig().batch_mode == "newlines"
 
 
 def test_the_type_tag_picks_the_formatter() -> None:
@@ -25,10 +25,10 @@ def test_the_type_tag_picks_the_formatter() -> None:
     )
 
     handler = config.handlers["main"]
-    assert isinstance(handler, StreamHandlerSpec)
-    assert handler.formatter == LineFormatterSpec(format="%message%")
+    assert isinstance(handler, StreamHandlerConfig)
+    assert handler.formatter == LineFormatterConfig(format="%message%")
 
 
 def test_an_unknown_key_is_refused() -> None:
     with pytest.raises(msgspec.ValidationError):
-        _ = msgspec.convert({"type": "json", "colour": True}, JsonFormatterSpec)
+        _ = msgspec.convert({"type": "json", "colour": True}, JsonFormatterConfig)

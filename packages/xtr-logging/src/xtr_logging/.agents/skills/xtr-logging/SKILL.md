@@ -185,7 +185,7 @@ with Clock.using(MockClock("2026-09-24 12:00:00")):
 
    from xtr_logging import TestHandler
    from xtr_logging.bundle import LoggingConfig
-   from xtr_logging.config import ServiceHandlerSpec
+   from xtr_logging.config import ServiceHandlerConfig
    from xtr_logging.handler.handler_interface import HandlerInterface
 
 
@@ -193,7 +193,7 @@ with Clock.using(MockClock("2026-09-24 12:00:00")):
    def logging() -> LoggingConfig:
        return LoggingConfig(
            channels=("security",),
-           handlers={"main": ServiceHandlerSpec(id="main")},
+           handlers={"main": ServiceHandlerConfig(id="main")},
        )
 
 
@@ -230,7 +230,7 @@ with Clock.using(MockClock("2026-09-24 12:00:00")):
    silently.
 
 The bundle registers the `LoggerFactory`, a `LoggerInterface` for the default channel and one
-qualified by each channel's name. A `ServiceHandlerSpec`, a `ServiceProcessorSpec`, a `formatter`
+qualified by each channel's name. A `ServiceHandlerConfig`, a `ServiceProcessorConfig`, a `formatter`
 given as a string and a fingers-crossed `activation_strategy` all name services the application
 registers under `HandlerInterface`, `ProcessorInterface`, `FormatterInterface` or
 `ActivationStrategyInterface` with `qualifier=id`; a missing id fails the build with

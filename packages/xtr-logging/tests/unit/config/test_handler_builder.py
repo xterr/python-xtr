@@ -17,14 +17,14 @@ from xtr_logging import (
     UnknownServiceError,
 )
 from xtr_logging.config import (
-    BufferHandlerSpec,
-    DeduplicationHandlerSpec,
-    FilterHandlerSpec,
+    BufferHandlerConfig,
+    DeduplicationHandlerConfig,
+    FilterHandlerConfig,
     LoggingConfig,
-    NullHandlerSpec,
-    SamplingHandlerSpec,
-    ServiceHandlerSpec,
-    StreamHandlerSpec,
+    NullHandlerConfig,
+    SamplingHandlerConfig,
+    ServiceHandlerConfig,
+    StreamHandlerConfig,
 )
 from xtr_logging.config.handler_builder import HandlerBuilder
 from xtr_logging.config.services import Services
@@ -32,7 +32,7 @@ from xtr_logging.config.services import Services
 if TYPE_CHECKING:
     from pathlib import Path
 
-_MEMBER = ServiceHandlerSpec(id="member", nested=True)
+_MEMBER = ServiceHandlerConfig(id="member", nested=True)
 
 
 def _builder(**handlers: object) -> HandlerBuilder:
@@ -48,10 +48,10 @@ def test_deduplication_handlers_of_alike_sinks_keep_stores_of_their_own(
     sinks = {"a": TestHandler(), "b": TestHandler()}
     config = LoggingConfig(
         handlers={
-            "a": ServiceHandlerSpec(id="a", nested=True),
-            "b": ServiceHandlerSpec(id="b", nested=True),
-            "mail": DeduplicationHandlerSpec(handler="a"),
-            "chat": DeduplicationHandlerSpec(handler="b"),
+            "a": ServiceHandlerConfig(id="a", nested=True),
+            "b": ServiceHandlerConfig(id="b", nested=True),
+            "mail": DeduplicationHandlerConfig(handler="a"),
+            "chat": DeduplicationHandlerConfig(handler="b"),
         }
     )
     builder = HandlerBuilder(config, Services(handlers=sinks))
@@ -64,53 +64,53 @@ def test_deduplication_handlers_of_alike_sinks_keep_stores_of_their_own(
     assert [len(sink.records) for sink in sinks.values()] == [1, 1]
 
 
-def test_a_stream_spec_gives_its_level_and_bubble() -> None:
-    handler = _builder(main=StreamHandlerSpec(level="error", bubble=False)).build("main")
+def test_a_stream_config_gives_its_level_and_bubble() -> None:
+    handler = _builder(main=StreamHandlerConfig(level="error", bubble=False)).build("main")
 
     assert isinstance(handler, StreamHandler)
     assert (handler.level, handler.bubble) == (Level.ERROR, False)
 
 
-def test_a_null_spec_gives_its_level() -> None:
-    handler = _builder(main=NullHandlerSpec(level="warning")).build("main")
+def test_a_null_config_gives_its_level() -> None:
+    handler = _builder(main=NullHandlerConfig(level="warning")).build("main")
 
     assert isinstance(handler, NullHandler)
     assert handler.level is Level.WARNING
 
 
-def test_a_buffer_spec_gives_its_level_and_bubble() -> None:
-    spec = BufferHandlerSpec(handler="member", level="notice", bubble=False)
+def test_a_buffer_config_gives_its_level_and_bubble() -> None:
+    buffer = BufferHandlerConfig(handler="member", level="notice", bubble=False)
 
-    handler = _builder(main=spec).build("main")
+    handler = _builder(main=buffer).build("main")
 
     assert isinstance(handler, BufferHandler)
     assert (handler.level, handler.bubble) == (Level.NOTICE, False)
 
 
-def test_a_filter_spec_gives_its_bubble() -> None:
-    handler = _builder(main=FilterHandlerSpec(handler="member", bubble=False)).build("main")
+def test_a_filter_config_gives_its_bubble() -> None:
+    handler = _builder(main=FilterHandlerConfig(handler="member", bubble=False)).build("main")
 
     assert isinstance(handler, FilterHandler)
     assert handler.handle(make_record()) is True
 
 
-def test_a_sampling_spec_gives_its_bubble() -> None:
-    spec = SamplingHandlerSpec(handler="member", factor=1, bubble=False)
+def test_a_sampling_config_gives_its_bubble() -> None:
+    sampling = SamplingHandlerConfig(handler="member", factor=1, bubble=False)
 
-    handler = _builder(main=spec).build("main")
+    handler = _builder(main=sampling).build("main")
 
     assert isinstance(handler, SamplingHandler)
     assert handler.bubble is False
 
 
 def test_a_handler_named_twice_is_built_once() -> None:
-    builder = _builder(main=StreamHandlerSpec())
+    builder = _builder(main=StreamHandlerConfig())
 
     assert builder.build("main") is builder.build("main")
 
 
 def test_a_service_nobody_supplied_is_refused() -> None:
-    config = LoggingConfig(handlers={"main": ServiceHandlerSpec(id="sentry")})
+    config = LoggingConfig(handlers={"main": ServiceHandlerConfig(id="sentry")})
 
     with pytest.raises(UnknownServiceError):
         _ = HandlerBuilder(config, Services()).build("main")
