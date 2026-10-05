@@ -35,6 +35,7 @@ xtr-security-core        = { workspace = true }
 xtr-security-http        = { workspace = true }
 xtr-security-jwt         = { workspace = true }
 xtr-service-contracts    = { workspace = true }
+xtr-storage              = { workspace = true }
 
 [dependency-groups]
 dev = [

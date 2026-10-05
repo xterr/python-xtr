@@ -44,6 +44,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger: cron and intervals, catch-up after downtime, locks and saved state. |
 | [xtr-rate-limiter](packages/xtr-rate-limiter) | Limits on how often anything may happen, by fixed window, sliding window or token bucket, in memory, in a cache or atomically in Redis. |
 | [xtr-recipes](packages/xtr-recipes) | A command that applies each dependency's use-in-an-application steps from a committed lock, and undoes them when the package is removed. |
+| [xtr-storage](packages/xtr-storage) | Files on local disk, in memory or in object stores, behind one async interface. |
 
 How they depend on each other (runtime dependencies only; extras are dotted):
 
@@ -112,6 +113,7 @@ graph LR
     securityjwt --> events
     securityjwt --> eventcon
     securityjwt -. console extra .-> console
+    storage[xtr-storage] -. di extra .-> di
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

@@ -1,0 +1,21 @@
+# The recipe for xtr-storage: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_storage.bundle:StorageBundle" = { all = true }
+
+# No [files]: configuring is optional. With none there is one "default" storage
+# on local files under var/storage. An application that wants named storages
+# writes config/storage.py itself.
+
+# No [env]: nothing is required. Credentials and directories an application
+# gives as env(...) must be set when it boots, because booting checks every
+# storage.
+
+[gitignore]
+# Where the default storage keeps its files, under the project.
+lines = ["/var/storage/"]
+
+[notes]
+check = ["<script> debug:bundles — storage is listed and active"]
