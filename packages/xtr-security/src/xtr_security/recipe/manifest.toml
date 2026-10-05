@@ -1,0 +1,30 @@
+# The recipe for xtr-security: what *Use in an application* in the README
+# takes, as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+# It brings the event dispatcher and http-kernel bundles with it: the firewalls
+# dispatch through the one and answer on the other's exception event.
+"xtr_security.bundle:SecurityBundle" = { all = true }
+
+# No [files]: the zero-config path gives no firewalls and the affirmative
+# strategy, and touches no I/O until a request arrives. An application naming
+# its firewalls writes config/security.py itself, which is what [notes] asks
+# for.
+
+# No [env]: an application reads its own secrets through env(...) in its
+# configuration. Nothing to ignore.
+
+[gitignore]
+lines = []
+
+[notes]
+steps = [
+  "Build the kernel with concurrent_scoped_access=True, so concurrent requests keep their own token storage.",
+  "Call setup(app, kernel) where the application is built.",
+  "Name the firewalls, their authenticators and their access rules in config/security.py: with no configuration nothing is protected.",
+]
+check = [
+  "<script> debug:bundles — security is listed and active, event_dispatcher and http_kernel required",
+  "<script> debug:firewall — the configured firewalls",
+]

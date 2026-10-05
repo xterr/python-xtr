@@ -1,0 +1,29 @@
+# The recipe for xtr-logging: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_logging.bundle:LoggingBundle" = { all = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# Needed to see anything: with no configuration there are no handlers, so every
+# record goes nowhere.
+"config/logging.py" = "files/config/logging.py.tmpl"
+
+# No [env].
+
+[gitignore]
+# Nothing yet: the configuration written here logs to the console. The
+# directory a file handler writes to — var/log, say — is ignored once one is
+# added.
+lines = []
+
+[notes]
+steps = [
+  "Add the handlers a deployment needs to config/logging.py, and the channels your own code asks for by name; ignore the directory any file handler writes to.",
+]
+check = [
+  "<script> debug:bundles — logging is listed and active, clock required",
+  "<script> debug:config logging — the resolved channels and handlers",
+]

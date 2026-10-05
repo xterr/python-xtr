@@ -67,7 +67,7 @@ from xtr_security_jwt.bundle import JwtConfig
 
 @configure
 def jwt() -> JwtConfig:
-    return JwtConfig(secret_key=env("file:JWT_PRIVATE_KEY_PATH"), user_id_claim="username")
+    return JwtConfig(secret_key=env("file:JWT_SECRET_KEY_PATH"), user_id_claim="username")
 ```
 
 ```python
@@ -239,6 +239,10 @@ Everything adding this package to an application on
 removing it undoes.
 
 - **Install** — `uv add xtr-security-jwt`; add `[console]` for the commands.
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
+  and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/jwt.py`,
+  `JWT_SECRET_KEY_PATH` (commented out) in `.env`, and ignores `/secrets/*.pem`. It prints the
+  keypair and firewall steps, which a recipe cannot make for you.
 - **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
   `xtr_security_jwt.bundle`. Then build the kernel with `concurrent_scoped_access=True` and call
   `setup(app, kernel)` where the application is served, as the security family requires.
@@ -251,7 +255,7 @@ removing it undoes.
   under its `authenticators` — see [Configure](#configure) and [Kernel / bundle](#kernel--bundle).
   Without a `secret_key` the build fails, naming the missing setting.
 - **Environment** — whatever the key material reads: an application usually points the key at a
-  file with `env("file:JWT_PRIVATE_KEY_PATH")`, so `JWT_PRIVATE_KEY_PATH` must be set.
+  file with `env("file:JWT_SECRET_KEY_PATH")`, so `JWT_SECRET_KEY_PATH` must be set.
 - **Ignore** — the private key files the keypair command writes, when `--output-dir` points into
   the project: add `secrets/*.pem` (or wherever they land) to `.gitignore`.
 - **Remove** — drop the `BUNDLES` entry, delete `<app>/config/jwt.py` and the

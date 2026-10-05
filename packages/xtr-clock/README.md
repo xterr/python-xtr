@@ -351,6 +351,9 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what removing it undoes.
 
 - **Install** — `uv add "xtr-clock[di]"`; add `tzdata` on Windows or a slim container.
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
+  `ClockBundle`, or leaves it out when another bundle requires it (the logging bundle does). There
+  is no config file, environment or ignore line to write.
 - **Activate** — usually nothing to do: the logging bundle requires this one. Otherwise
   `ClockBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
   `xtr_clock.bundle`.

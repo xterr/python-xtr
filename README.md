@@ -43,6 +43,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
 | [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger: cron and intervals, catch-up after downtime, locks and saved state. |
 | [xtr-rate-limiter](packages/xtr-rate-limiter) | Limits on how often anything may happen, by fixed window, sliding window or token bucket, in memory, in a cache or atomically in Redis. |
+| [xtr-recipes](packages/xtr-recipes) | A command that applies each dependency's use-in-an-application steps from a committed lock, and undoes them when the package is removed. |
 
 How they depend on each other (runtime dependencies only; extras are dotted):
 
@@ -509,6 +510,9 @@ Everything adding this package to an application on
 removing it undoes.
 
 - **Install** — `uv add "xtr-<name>[di]"`; the other extras and what each is for.
+- **Recipe** — `uv run xtr-recipes recipes:sync` does what *Activate*, *Configure*, *Environment*
+  and *Ignore* list, from the recipe shipped beside the bundle; keep `recipe/` true when those
+  bullets change (see [xtr-recipes](../xtr-recipes)).
 - **Activate** — `<Name>Bundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_<name>.bundle` — or "nothing to do" when another bundle requires it.
 - **Brings along** — the bundles its `@required_bundle` pulls in, and when.

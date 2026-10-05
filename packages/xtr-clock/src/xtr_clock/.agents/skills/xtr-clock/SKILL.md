@@ -113,6 +113,10 @@ def test_helper_code() -> None:
 
 ## Use in an application
 
+`uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
+`ClockBundle`, or leaves it out when another bundle requires it (the logging bundle does). That is
+the steps below a recipe can do; the others it prints for you to make.
+
 1. **Install** — `uv add "xtr-clock[di]"`; add the `tzdata` extra on Windows or slim containers.
 2. **Activate** — usually nothing: the logging bundle requires it. Otherwise add
    `ClockBundle: {"all": True}` to `BUNDLES` in `<app>/bundles.py`

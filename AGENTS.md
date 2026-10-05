@@ -144,9 +144,12 @@ These apply to every package that ships a bundle. Read
   only reported by `debug:bundles`, never activated.
 - The README of the package that ships the bundle carries a **Use in an application** section
   (a component wired by a bundle package points to that package's section instead), placed before
-  *Kernel / bundle*, with the bullets of the root README's skeleton: Install, Activate, Brings
-  along, Configure, Environment, Ignore, Remove, Check. Keep it true when the bundle, its
-  config defaults, its peers or its extras change.
+  *Kernel / bundle*, with the bullets of the root README's skeleton: Install, Recipe, Activate,
+  Brings along, Configure, Environment, Ignore, Remove, Check. The **Recipe** bullet comes right
+  after *Install* and reads "`uv run xtr-recipes recipes:sync` does what *Activate*, *Configure*,
+  *Environment* and *Ignore* list". Keep it true when the bundle, its config defaults, its peers
+  or its extras change — and, because the recipe is that same list made declarative, keep the
+  package's `recipe/` true whenever those bullets change.
 
 ## Agent skills
 
@@ -172,11 +175,15 @@ into an application.
 
 ## Adding a package to an application
 
-- Follow the package README's **Use in an application** section, step by step; do not invent
-  steps it does not list.
+- Start with `uv run xtr-recipes recipes:add <requirement>` (or `uv run xtr-recipes recipes:sync`
+  after a plain `uv add`): it applies what the package's **Use in an application** *Activate*,
+  *Configure*, *Environment* and *Ignore* bullets list, and prints the steps it cannot make.
+- Do the steps the recipe prints under `steps`, and any remaining **Use in an application** bullet
+  the recipe does not cover; do not invent steps the README does not list.
 - Confirm with `debug:bundles`: the bundle is `active`, and nothing you meant to activate is
   under **Installed, not active**.
-- Removing a package is the same section read backwards.
+- Removing a package is the same read backwards — `uv run xtr-recipes recipes:remove <package>`,
+  then undo any printed step.
 
 ## Code conventions
 

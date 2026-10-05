@@ -1,0 +1,19 @@
+# The recipe for xtr-clock: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+# Usually nothing is written: a sync leaves out a bundle another active one
+# requires, and the logging bundle requires this one.
+"xtr_clock.bundle:ClockBundle" = { all = true }
+
+# No [files]: configuring is optional. With none the clock reports in the
+# machine's own zone; an application fixing one writes config/clock.py itself.
+
+# No [env], and nothing to ignore.
+
+[gitignore]
+lines = []
+
+[notes]
+check = ["<script> debug:bundles — clock is listed or required, and active"]

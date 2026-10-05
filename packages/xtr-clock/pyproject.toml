@@ -41,6 +41,10 @@ di = [
 [project.entry-points."xtr_dependency_injection.bundles"]
 clock = "xtr_clock.bundle:ClockBundle"
 
+# Advertises the recipe — what *Use in an application* takes — for recipes:sync.
+[project.entry-points."xtr_recipes"]
+clock = "xtr_clock.recipe"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",

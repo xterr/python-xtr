@@ -30,7 +30,7 @@ issuers' keys a deployment trusts.
 Point the key at a file through the environment rather than embedding it:
 
 ```python
-JwtConfig(secret_key=env("file:JWT_PRIVATE_KEY_PATH"), pass_phrase=env("JWT_PASSPHRASE"))
+JwtConfig(secret_key=env("file:JWT_SECRET_KEY_PATH"), pass_phrase=env("JWT_PASSPHRASE"))
 ```
 
 The placeholder is resolved at boot, not at build, so the file need not exist while compiling.

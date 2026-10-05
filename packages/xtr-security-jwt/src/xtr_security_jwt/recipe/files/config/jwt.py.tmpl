@@ -1,0 +1,28 @@
+"""The self-issued tokens: the key that signs them, and how they are read back.
+
+This bundle is an add-on with no zero-config path, so this module is not
+optional: it must name a signing key, or the build fails with an
+``InvalidConfigurationError`` pointing right here. ``secret_key`` takes the key
+text or the path of a file holding it — the bundle's key loader reads the file
+itself — so what ``JWT_SECRET_KEY_PATH`` carries is a path, and no key material
+is written into the repository.
+
+Everything else keeps its default: ``RS256``, an hour's lifetime, the user
+named by the ``username`` claim, a token read from the authorization header.
+The README's *Configure* table has the fields to change, and a firewall accepts
+these tokens once it lists ``JwtAuthenticatorConfig()`` under its
+``authenticators``.
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure, env
+from xtr_security_jwt.bundle import JwtConfig
+
+__all__ = ["jwt"]
+
+
+@configure
+def jwt() -> JwtConfig:
+    """Sign with the key ``JWT_SECRET_KEY_PATH`` points at, read when it is first used."""
+    return JwtConfig(secret_key=env("JWT_SECRET_KEY_PATH"))

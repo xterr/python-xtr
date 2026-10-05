@@ -255,6 +255,10 @@ removing it undoes.
 
 - **Install** — `uv add xtr-security`; `console` adds `debug:firewall` and
   `security:hash-password`.
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
+  `SecurityBundle`, which brings the event dispatcher and http-kernel bundles with it. There is no
+  config file, environment or ignore line to write; it prints the `concurrent_scoped_access=True`,
+  `setup(app, kernel)` and `config/security.py` steps, which a recipe cannot make for you.
 - **Activate** — `SecurityBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_security.bundle`. Then call `setup(app, kernel)` where the application is built, and
   build the kernel with `concurrent_scoped_access=True` so concurrent requests keep their own

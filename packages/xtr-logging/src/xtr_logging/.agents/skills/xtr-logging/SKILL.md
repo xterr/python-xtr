@@ -171,6 +171,10 @@ with Clock.using(MockClock("2026-09-24 12:00:00")):
 
 ## Use in an application
 
+`uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
+`LoggingBundle` and writes a starting `config/logging.py`. That is the steps below a recipe can do;
+the handlers it prints for you to add.
+
 1. **Install** — `uv add "xtr-logging[di]"`.
 2. **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
    from `xtr_logging.bundle`.

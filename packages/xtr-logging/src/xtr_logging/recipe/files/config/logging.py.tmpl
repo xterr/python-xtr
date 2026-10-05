@@ -1,0 +1,22 @@
+"""The log: the channels that exist, and where the records on them go.
+
+With no handlers a record is built and dropped, so one is named below: a
+console handler on every channel, writing to standard error at the verbosity
+the command was run with. Add the handlers a deployment needs — a file, syslog,
+JSON for a shipper — and list under ``channels`` every channel the application
+asks for by name; anything else raises ``UnknownChannelError``.
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure
+from xtr_logging.bundle import LoggingConfig
+from xtr_logging.config import ConsoleHandlerConfig
+
+__all__ = ["logging"]
+
+
+@configure
+def logging() -> LoggingConfig:
+    """One console handler, on every channel, following the command's verbosity."""
+    return LoggingConfig(handlers={"console": ConsoleHandlerConfig()})

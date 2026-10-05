@@ -1,0 +1,36 @@
+# The recipe for xtr-security-jwt: what *Use in an application* in the README
+# takes, as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+# An add-on: no other bundle requires it, so it only ever arrives by being
+# listed. It brings the security, clock and event dispatcher bundles with it.
+"xtr_security_jwt.bundle:JwtBundle" = { all = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# Not optional: the bundle cannot sign without a key the application chooses,
+# so it fails the build until this module names one.
+"config/jwt.py" = "files/config/jwt.py.tmpl"
+
+[env]
+# The file the written configuration reads the signing key from. No default to
+# offer, so it is written commented out and stays unset until a key is minted.
+JWT_SECRET_KEY_PATH = ""
+
+[gitignore]
+# A private key never enters the repository, wherever the keypair command puts
+# it.
+lines = ["/secrets/*.pem"]
+
+[notes]
+steps = [
+  "Build the kernel with concurrent_scoped_access=True and call setup(app, kernel) where the application is served, as the security family requires.",
+  "Mint a key — <script> jwt:generate-keypair --algorithm RS256 --output-dir secrets — and point JWT_SECRET_KEY_PATH at the private PEM it writes.",
+  "Add JwtAuthenticatorConfig() to a firewall's authenticators in config/security.py: nothing reads a token until a firewall does.",
+]
+check = [
+  "<script> debug:bundles — jwt is listed and active, security required",
+  "<script> debug:firewall <name> — the firewall's jwt authenticator",
+  "<script> jwt:check-config — the configured keys sign and verify",
+]

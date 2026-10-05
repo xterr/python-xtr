@@ -455,6 +455,9 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what removing it undoes.
 
 - **Install** — `uv add "xtr-logging[di]"`.
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Configure* steps below:
+  it lists `LoggingBundle` and writes a starting `<app>/config/logging.py`. There is no environment
+  or ignore line to write; it prints the step to add the handlers a deployment needs.
 - **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_logging.bundle`.
 - **Brings along** — the clock bundle.

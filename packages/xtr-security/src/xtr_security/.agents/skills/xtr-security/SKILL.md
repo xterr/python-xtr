@@ -238,6 +238,11 @@ back — rather than writing a token into storage by hand.
 
 ## Use in an application
 
+`uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
+`SecurityBundle`, which brings the event dispatcher and http-kernel bundles with it. That is the
+steps below a recipe can do; the `concurrent_scoped_access`, `setup(app, kernel)` and
+`config/security.py` steps it prints for you to make.
+
 1. **Install** — `uv add xtr-security`; `[console]` adds `debug:firewall` and
    `security:hash-password`, `"xtr-security-http[oidc]"` adds OIDC token verification.
 2. **Activate** — `SecurityBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported

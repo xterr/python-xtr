@@ -101,7 +101,7 @@ from xtr_security_jwt.bundle import EncoderConfig, JwtConfig
 @configure
 def jwt() -> JwtConfig:
     return JwtConfig(
-        secret_key=env("file:JWT_PRIVATE_KEY_PATH"),
+        secret_key=env("file:JWT_SECRET_KEY_PATH"),
         encoder=EncoderConfig(signature_algorithm="RS256"),
         token_ttl=900,
         user_id_claim="username",
@@ -178,7 +178,7 @@ async def test_a_token_names_its_user(tmp_path) -> None:
         env="test",
         bundles={JwtBundle: {"all": True}},
         concurrent_scoped_access=True,
-        environ={"JWT_PRIVATE_KEY_PATH": str(key)},
+        environ={"JWT_SECRET_KEY_PATH": str(key)},
     )
 
     async with await kernel.build().boot() as booted:
@@ -197,6 +197,11 @@ async def test_a_token_names_its_user(tmp_path) -> None:
 
 ## Use in an application
 
+`uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists `JwtBundle`,
+writes a starting `config/jwt.py`, `JWT_SECRET_KEY_PATH` (commented out) in `.env`, and ignores
+`/secrets/*.pem`. That is the steps below a recipe can do; the keypair and firewall steps it prints
+for you to make.
+
 1. **Install** — `uv add xtr-security-jwt`; add `[console]` for the commands.
 2. **Mint a key** — `jwt:generate-keypair --algorithm RS256 --output-dir secrets/`. The private
    PEM signs, the public JWK set verifies.
@@ -210,8 +215,8 @@ async def test_a_token_names_its_user(tmp_path) -> None:
    setting and the config function to write.
 5. **Brings along** — the security, clock and event dispatcher bundles always; the console
    bundle when xtr-console is installed.
-6. **Environment** — with `secret_key=env("file:JWT_PRIVATE_KEY_PATH")`, set
-   `JWT_PRIVATE_KEY_PATH`. It resolves at boot, not at build.
+6. **Environment** — with `secret_key=env("file:JWT_SECRET_KEY_PATH")`, set
+   `JWT_SECRET_KEY_PATH`. It resolves at boot, not at build.
 7. **Ignore** — `.gitignore` the private keys when they land in the project: `secrets/*.pem`.
 8. **Check** — `debug:bundles` shows `jwt` as `listed` and `active` and `security` as
    `required`; `debug:firewall api` lists the `jwt` authenticator; `jwt:check-config` proves the
