@@ -106,7 +106,7 @@ def test_bcrypt_long_passwords_are_stable() -> None:
 
 
 def test_bcrypt_verifies_a_2y_hash_from_another_stack() -> None:
-    foreign = bcrypt.hashpw(b"secret", bcrypt.gensalt(4, prefix=b"2b")).replace(b"2b", b"2y")
+    foreign = bcrypt.hashpw(b"secret", bcrypt.gensalt(4, prefix=b"2b")).replace(b"$2b$", b"$2y$", 1)
 
     assert _bcrypt().verify(foreign.decode(), "secret")
 
