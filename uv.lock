@@ -25,6 +25,7 @@ members = [
     "xtr-orm",
     "xtr-password-hasher",
     "xtr-rate-limiter",
+    "xtr-recipes",
     "xtr-scheduler",
     "xtr-security",
     "xtr-security-core",
@@ -2503,6 +2504,7 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-recipes" },
 ]
 
 [package.metadata]
@@ -2514,6 +2516,7 @@ dev = [
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-recipes", editable = "packages/xtr-recipes" },
 ]
 
 [[package]]
@@ -3429,6 +3432,41 @@ dev = [
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-lock", editable = "packages/xtr-lock" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+
+[[package]]
+name = "xtr-recipes"
+version = "2.0.0"
+source = { editable = "packages/xtr-recipes" }
+dependencies = [
+    { name = "xtr-console" },
+    { name = "xtr-dependency-injection" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
 ]
 
 [[package]]

@@ -28,6 +28,7 @@ xtr-messenger            = { workspace = true }
 xtr-orm                  = { workspace = true }
 xtr-password-hasher      = { workspace = true }
 xtr-rate-limiter         = { workspace = true }
+xtr-recipes              = { workspace = true }
 xtr-scheduler            = { workspace = true }
 xtr-security             = { workspace = true }
 xtr-security-core        = { workspace = true }
@@ -42,6 +43,8 @@ dev = [
     "pytest>=8",
     "ruff>=0.8",
     "ty>=0.0.83",
+    # tests/test_recipes.py parses every package's manifest with the library's own parser.
+    "xtr-recipes",
 ]
 
 # The repository's own code — scripts/ and the tests of it — is held to the
