@@ -51,6 +51,9 @@ dev = [
     "ty>=0.0.83",
     # demo:rate-limit drives the web application in process, the way a server would.
     "httpx>=0.27",
+    # Applies each installed package's recipe — what its README's "Use in an
+    # application" lists — and records it in xtr.lock. A tool, not a dependency.
+    "xtr-recipes",
 ]
 
 [build-system]
@@ -81,6 +84,7 @@ xtr-logging-contracts    = { path = "../../packages/xtr-logging-contracts", edit
 xtr-messenger            = { path = "../../packages/xtr-messenger", editable = true }
 xtr-orm                  = { path = "../../packages/xtr-orm", editable = true }
 xtr-rate-limiter         = { path = "../../packages/xtr-rate-limiter", editable = true }
+xtr-recipes              = { path = "../../packages/xtr-recipes", editable = true }
 xtr-scheduler            = { path = "../../packages/xtr-scheduler", editable = true }
 xtr-service-contracts    = { path = "../../packages/xtr-service-contracts", editable = true }
 xtr-security             = { path = "../../packages/xtr-security", editable = true }

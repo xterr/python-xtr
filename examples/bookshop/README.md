@@ -246,7 +246,7 @@ your own, ignore the `.local` files too, and keep every secret out of the reposi
 | messenger | `@as_middleware`, repeated; a middleware instance in the config; custom stamps | `messaging/middleware.py`, `messaging/stamps.py` |
 | messenger | every `MessageBusConfig` / `TransportConfig` field; `sync://`, `in-memory://`; AMQP in prod | `config/messenger.py` |
 | messenger | an application transport factory, found by the bundle | `messaging/outbox_transport.py` |
-| logging | every handler, processor and formatter spec; capture (dev) and a stdlib handler (prod) | `config/logging.py` |
+| logging | every handler, processor and formatter configuration; capture (dev) and a stdlib handler (prod) | `config/logging.py` |
 | logging | service ids for a handler, formatter, processor and activation strategy | `observability/logging_services.py` |
 | logging | `@as_processor(channel=, handler=, priority=)` on classes and on a function | `observability/processors.py` |
 | logging | `bound_context`, context vars; `Logger` / `LoggerFactory` without a kernel | `dev_tools/commands.py` |
@@ -306,7 +306,7 @@ packages themselves read or write:
 | `XTR_DOTENV_VARS`, `XTR_DOTENV_PATH` | written by the dotenv loader |
 
 The application reads `SHOP_*`, `SEARCH_*`, `DATABASE_URL`, `APP_TIMEZONE`, `WEB_HOST`,
-`WEB_PORT`, and in prod `MESSENGER_TRANSPORT_DSN`, `MAILER_DSN`, `SHOP_PAYMENT_API_KEY`,
+`WEB_PORT`, and in prod `MESSENGER_DSN`, `MAILER_DSN`, `SHOP_PAYMENT_API_KEY`,
 `SHOP_RATE_LIMIT_STORAGE` (a Redis DSN for the `orders` limiter; `cache` when unset).
 `SHOP_DATABASE_URL` is the database — a SQLite file per environment in dev and test,
 PostgreSQL in prod; `DATABASE_URL` only shows the env processors.

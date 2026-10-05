@@ -71,7 +71,7 @@ def messenger_prod() -> MessageBusConfig:
     An unknown one is refused (``UnknownTransportOptionError``), a bad value too
     (``InvalidTransportOptionError``) — when the transport is built.
     """
-    dsn = env("MESSENGER_TRANSPORT_DSN")
+    dsn = env("MESSENGER_DSN")
     return MessageBusConfig(
         transports={
             "sync": TransportConfig("sync://"),

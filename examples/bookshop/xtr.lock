@@ -1,0 +1,148 @@
+{
+  "xtr-cache": {
+    "bundles": {
+      "xtr_cache.bundle:CacheBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "0cacfc86441afd0bf8c6f10ca9a21ce83b5c76c4f57d2369b31793ec715db09a"
+  },
+  "xtr-clock": {
+    "bundles": {
+      "xtr_clock.bundle:ClockBundle": "required"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "a054afc487bd63af348a3071d2ef1d1b15fa301e0303c56e9751ec49c67004b1"
+  },
+  "xtr-console": {
+    "bundles": {
+      "xtr_console.bundle:ConsoleBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "cf3d0fef5a1ba10bc135a323827f2f32a62b409cfb08d046b3e507be9a2e8a5d"
+  },
+  "xtr-dotenv": {
+    "bundles": {
+      "xtr_dotenv.bundle:DotenvBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "13ce564513f4112bde107bcd0e1f50cd82469960b2e9b400480ee78938898517"
+  },
+  "xtr-event-dispatcher": {
+    "bundles": {
+      "xtr_event_dispatcher.bundle:EventDispatcherBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "e839b562abf9bdc11685df4ba50911d0a05b784f1e93ca33e0e8d0ac7380c19f"
+  },
+  "xtr-http-kernel": {
+    "bundles": {
+      "xtr_http_kernel.bundle:HttpKernelBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "7614aa1b01d7a281350e26ba76a93126d800545f7c61beb2779a81ed9f81b415"
+  },
+  "xtr-lock": {
+    "bundles": {
+      "xtr_lock.bundle:LockBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "8cd0b9a690051a83c659dc7a7b67c8977b41d0e16c8edbcaefe964bd4fcdf7c7"
+  },
+  "xtr-logging": {
+    "bundles": {
+      "xtr_logging.bundle:LoggingBundle": "adopted"
+    },
+    "env": [],
+    "files": {
+      "src/bookshop/config/logging.py": {
+        "adopted": true,
+        "sha256": "410d1d2f9f37f5c56601e91c07b953499f65ab8273feb64aefa6d620d3ce3c10"
+      }
+    },
+    "gitignore": [],
+    "recipe": "d83202d0b2de15d873258a13ed7b2a5aa9c47d67a1d4da163b0375c9df9b7c5a"
+  },
+  "xtr-messenger": {
+    "bundles": {
+      "xtr_messenger.bundle:MessengerBundle": "adopted"
+    },
+    "env": [],
+    "files": {
+      "src/bookshop/config/messenger.py": {
+        "adopted": true,
+        "sha256": "3b634b8ce27c461aa9739a7aec5b29c0cdc328d19787b83f43659c08f79355e9"
+      }
+    },
+    "gitignore": [],
+    "recipe": "64234120dd49df392c3124b8c3dfdcbe716bd94c0733563b4596d5e0c6465593"
+  },
+  "xtr-orm": {
+    "bundles": {
+      "xtr_orm.bundle:OrmBundle": "adopted"
+    },
+    "env": [],
+    "files": {
+      "src/bookshop/config/orm.py": {
+        "adopted": true,
+        "sha256": "466fb17900d606fd6394d0267271be46c0ec76a7c3a8ed7ba4aeb24e7c600ae2"
+      }
+    },
+    "gitignore": [],
+    "recipe": "05876d8f4abf427f5a8c76d8758fe97939884d11fd900c7cd18e0fb41c26cee5"
+  },
+  "xtr-rate-limiter": {
+    "bundles": {
+      "xtr_rate_limiter.bundle:RateLimiterBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "5a2cd54e487cd7a4eacb7e8c1966c5a6d115cec91fbecab4d8bd1eb79d9f6d55"
+  },
+  "xtr-scheduler": {
+    "bundles": {
+      "xtr_scheduler.bundle:SchedulerBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "8a0f6caf11a2c5cf3706d2bc67cf0712cd3933d977a58bf76d2bb8df093fa7a7"
+  },
+  "xtr-security": {
+    "bundles": {
+      "xtr_security.bundle:SecurityBundle": "required"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "caa14749dbbbd028d53507126cdc3759b04cc92945e960834c2fb80cb184210c"
+  },
+  "xtr-security-jwt": {
+    "bundles": {
+      "xtr_security_jwt.bundle:JwtBundle": "adopted"
+    },
+    "env": [],
+    "files": {
+      "src/bookshop/config/jwt.py": {
+        "adopted": true,
+        "sha256": "4f7e09a93b21e871c35f81beb15a9fceae793a914f44ccb9408d5cb164c4c420"
+      }
+    },
+    "gitignore": [],
+    "recipe": "68453304697fb5f90ba3fe6c4702d187c4813aa6773054c6cab1023ea755b655"
+  }
+}

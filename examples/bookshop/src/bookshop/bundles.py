@@ -7,6 +7,27 @@ to see which is which — the ``Source`` column says ``listed`` or ``required``.
 Flags: ``{"all": True}`` is every environment; an environment named explicitly wins over
 ``"all"``, so ``{"all": True, "prod": False}`` is everywhere but prod.
 
+``xtr-recipes recipes:sync`` writes this file whole, so what an entry is for is recorded
+here rather than in a comment beside it.
+
+What each entry brings:
+
+- ``OrmBundle`` — the database: engines, sessions per unit of work, migrations, and — with the
+  messenger bundle active — the ``orm_*`` middleware the bus lists in ``config/messenger.py``.
+- ``HttpKernelBundle`` — brings ``EventDispatcherBundle`` with it; the web entry point's
+  request lifecycle.
+- ``SchedulerBundle`` — brings ``MessengerBundle`` with it; with the cache bundle active it
+  adds a ``"scheduler"`` pool.
+- ``RateLimiterBundle`` — limits on routes, on outgoing mail, on anything; with the cache and
+  lock bundles active its limiters keep their state in a ``"rate_limiter"`` pool it adds,
+  under the default lock.
+- ``JwtBundle`` — self-issued JSON Web Tokens: brings ``SecurityBundle`` with it (which in
+  turn needs the event-dispatcher and http-kernel bundles, already active), and registers the
+  jwt authenticator the api firewall lists. An add-on bundle: it fails the build unless
+  ``config/jwt.py`` names a signing key, so it is not zero-config.
+- ``DevToolsBundle`` — development helpers, never active in prod. Its resources are only
+  scanned when active.
+
 Not listed, and active anyway:
 
 - ``ClockBundle`` — required by ``LoggingBundle`` (softly) and ``FulltextBundle`` (hard).
@@ -38,26 +59,15 @@ BUNDLES = {
     LoggingBundle: {"all": True},
     ConsoleBundle: {"all": True},
     MessengerBundle: {"all": True},
-    # The database: engines, sessions per unit of work, migrations, and — with the messenger
-    # bundle active — the orm_* middleware the bus lists in config/messenger.py.
     OrmBundle: {"all": True},
     DotenvBundle: {"all": True},
     FulltextBundle: {"all": True},
     EventDispatcherBundle: {"all": True},
-    # Brings EventDispatcherBundle with it; the web entry point's request lifecycle.
     HttpKernelBundle: {"all": True},
     LockBundle: {"all": True},
     CacheBundle: {"all": True},
-    # Brings MessengerBundle with it; with the cache bundle active it adds a "scheduler" pool.
     SchedulerBundle: {"all": True},
-    # Limits on routes, on outgoing mail, on anything; with the cache and lock bundles active
-    # its limiters keep their state in a "rate_limiter" pool it adds, under the default lock.
     RateLimiterBundle: {"all": True},
-    # Self-issued JSON Web Tokens: brings SecurityBundle with it (which in turn needs the
-    # event-dispatcher and http-kernel bundles, already active), and registers the jwt
-    # authenticator the api firewall lists. An add-on bundle: it fails the build unless
-    # config/jwt.py names a signing key, so it is not zero-config.
     JwtBundle: {"all": True},
-    # Development helpers: never active in prod. Its resources are only scanned when active.
     DevToolsBundle: {"dev": True, "test": True},
 }
