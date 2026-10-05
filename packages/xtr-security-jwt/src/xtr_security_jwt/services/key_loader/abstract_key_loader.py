@@ -98,7 +98,13 @@ class AbstractKeyLoader(  # pyright: ignore[reportImplicitAbstractClass]  -- Raw
         if value is None:
             return None
         path = Path(value)
-        if path.is_file():
+        try:
+            is_file = path.is_file()
+        except OSError:
+            # Older Pythons raise for a value too long to be a file name (inline
+            # key text) instead of reporting it as not a file.
+            is_file = False
+        if is_file:
             return path.read_text(encoding="utf-8")
         if "-----BEGIN" not in value and path.suffix.lower() in _KEY_FILE_SUFFIXES:
             raise InvalidArgumentError(f"The key file {value!r} does not exist.")
