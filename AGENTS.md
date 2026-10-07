@@ -141,15 +141,21 @@ These apply to every package that ships a bundle. Read
   loudly at construction (for a command, xtr-console reports the missing parameter).
 - Advertise the bundle in `pyproject.toml` under
   `[project.entry-points."xtr_dependency_injection.bundles"]`, named after the bundle. It is
-  only reported by `debug:bundles`, never activated.
+  only reported by `debug:bundles`, never activated. The kernel's own bundle
+  (`xtr-dependency-injection`) is the one exception: it is never advertised under this entry
+  point, because it is the container the entry point is read by — it is always present, so
+  announcing it to `debug:bundles` as a discoverable peer would be redundant and misleading.
 - The README of the package that ships the bundle carries a **Use in an application** section
   (a component wired by a bundle package points to that package's section instead), placed before
   *Kernel / bundle*, with the bullets of the root README's skeleton: Install, Recipe, Activate,
   Brings along, Configure, Environment, Ignore, Remove, Check. The **Recipe** bullet comes right
-  after *Install* and reads "`uv run xtr-recipes recipes:sync` does what *Activate*, *Configure*,
-  *Environment* and *Ignore* list". Keep it true when the bundle, its config defaults, its peers
-  or its extras change — and, because the recipe is that same list made declarative, keep the
-  package's `recipe/` true whenever those bullets change.
+  after *Install* and names exactly the steps that package's `recipe/` performs — the subset of
+  *Activate*, *Configure*, *Environment* and *Ignore* the recipe can make declaratively, and no
+  step it cannot. A recipe that only writes a `bundles.py` entry and a `.gitignore` line says so;
+  it does not claim to do *Configure* when the package has no recipe-written configuration. Keep
+  it true when the bundle, its config defaults, its peers or its extras change — and, because the
+  recipe is that same list made declarative, keep the package's `recipe/` true whenever those
+  bullets change.
 
 ## Agent skills
 
@@ -168,6 +174,11 @@ into an application.
 - Body: Quick reference, task sections with working examples, Testing, Use in an application
   (the README section as steps), Errors, Do not. Keep `SKILL.md` short; move depth to
   `references/*.md` and link it.
+  The two `xtr-dependency-injection` skills (`xtr-dependency-injection` and
+  `xtr-dependency-injection-bundle-authoring`) are exempt from the *Use in an application* body
+  section: the kernel ships no recipe-driven bundle an application activates — it *is* the
+  container every other bundle plugs into — so there are no *Activate*, *Configure*, *Environment*
+  or *Ignore* steps to restate.
 - Every name and example must exist in the source and run. Keep the skill true when the API,
   the bundle, its config or its README's *Use in an application* section changes.
 - The naming rules above apply to skills as they do to code.
