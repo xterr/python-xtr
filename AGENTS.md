@@ -22,6 +22,10 @@ say so before falling back to anything else.
 - Never write **Symfony** or **PHP** anywhere: code, identifiers, comments, docstrings, tests,
   READMEs, other docs, commit messages, `pyproject.toml` metadata (descriptions, keywords,
   classifiers), issue and PR text. This file is the only place that names either.
+  The exceptions are attribution: a package's `LICENSE`, which under its own copyright line
+  carries, word for word, the copyright line of every project its code is translated from,
+  whatever that line names; the root `CREDITS.md`, which names those projects; and the root
+  README's *Credits* section, which points to it.
 - Describe every package on its own terms. If a concept originated in another framework, drop
   the citation and explain what it does here.
 - Never use the word **spec** in a name: no `Spec` class suffix, no `*_spec` / `*_specs` module,

@@ -590,6 +590,13 @@ python-xtr/
 └── uv.lock             # the packages' lockfile; the example has its own
 ```
 
+## Credits
+
+Most packages are translations into Python of PHP libraries — chiefly Symfony's components, along
+with Monolog, Flysystem, Doctrine Migrations and LexikJWTAuthenticationBundle. [CREDITS.md](CREDITS.md)
+lists each project and the packages translated from it.
+
 ## License
 
-MIT — see [LICENSE](LICENSE). Every package ships the same license in its own directory.
+MIT — see [LICENSE](LICENSE). Every package ships its own `LICENSE`, carrying the copyright lines
+of the projects it was translated from.
