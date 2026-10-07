@@ -6,7 +6,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "0cacfc86441afd0bf8c6f10ca9a21ce83b5c76c4f57d2369b31793ec715db09a"
+    "recipe": "cb1ef566cb2c0558e8229a0d6b4a563568be919ea18843acd1000507d1e6788a"
   },
   "xtr-clock": {
     "bundles": {
@@ -15,7 +15,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "a054afc487bd63af348a3071d2ef1d1b15fa301e0303c56e9751ec49c67004b1"
+    "recipe": "c3453eb7e75d36f47a5b67c3e6ae19672fcd8d1987feba27c56a97319677bef1"
   },
   "xtr-console": {
     "bundles": {
@@ -24,7 +24,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "cf3d0fef5a1ba10bc135a323827f2f32a62b409cfb08d046b3e507be9a2e8a5d"
+    "recipe": "71f483ee669527ba55efd0d24274f385bed52427a64bf5980bf17bbead395141"
   },
   "xtr-dotenv": {
     "bundles": {
@@ -33,7 +33,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "13ce564513f4112bde107bcd0e1f50cd82469960b2e9b400480ee78938898517"
+    "recipe": "4f9aafe1bde82298c5cc3280aebeacb04070300a7483bf7a0641e0b803b44df6"
   },
   "xtr-event-dispatcher": {
     "bundles": {
@@ -42,7 +42,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "e839b562abf9bdc11685df4ba50911d0a05b784f1e93ca33e0e8d0ac7380c19f"
+    "recipe": "4067272614bb53e2b034ceb65bd08bbfd2e133c43cb6a090dc3e05f197390f86"
   },
   "xtr-http-kernel": {
     "bundles": {
@@ -51,7 +51,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "7614aa1b01d7a281350e26ba76a93126d800545f7c61beb2779a81ed9f81b415"
+    "recipe": "afe8bfc3441356aa30512c1628a27403ec0506b58000ccf927dd6da369c70963"
   },
   "xtr-lock": {
     "bundles": {
@@ -60,7 +60,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "8cd0b9a690051a83c659dc7a7b67c8977b41d0e16c8edbcaefe964bd4fcdf7c7"
+    "recipe": "e8a7cc902b798bad63e980e96e519145c4d11a4691b585a23d8175b8e5b64657"
   },
   "xtr-logging": {
     "bundles": {
@@ -74,7 +74,7 @@
       }
     },
     "gitignore": [],
-    "recipe": "d83202d0b2de15d873258a13ed7b2a5aa9c47d67a1d4da163b0375c9df9b7c5a"
+    "recipe": "d72c44240c28daf47fe842d42d468f17fa2084e5e407a6843279a8e0c31686df"
   },
   "xtr-messenger": {
     "bundles": {
@@ -88,7 +88,7 @@
       }
     },
     "gitignore": [],
-    "recipe": "64234120dd49df392c3124b8c3dfdcbe716bd94c0733563b4596d5e0c6465593"
+    "recipe": "1693e82984cd569a44ec7c76f79a43be104185028836790ccc1444d532c947e6"
   },
   "xtr-orm": {
     "bundles": {
@@ -102,7 +102,7 @@
       }
     },
     "gitignore": [],
-    "recipe": "05876d8f4abf427f5a8c76d8758fe97939884d11fd900c7cd18e0fb41c26cee5"
+    "recipe": "2f11cbe2cbff051024538dc8da8490ef6be6ffc864e21a65c1db036d4e593615"
   },
   "xtr-rate-limiter": {
     "bundles": {
@@ -111,7 +111,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "5a2cd54e487cd7a4eacb7e8c1966c5a6d115cec91fbecab4d8bd1eb79d9f6d55"
+    "recipe": "8e79570fc3874a982e1e8da006050e6296885d5893315c8582d3381efb908aec"
   },
   "xtr-scheduler": {
     "bundles": {
@@ -120,7 +120,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "8a0f6caf11a2c5cf3706d2bc67cf0712cd3933d977a58bf76d2bb8df093fa7a7"
+    "recipe": "034c734d2cc538162eec9e46803a691b15b2f4052a21d60a03b029fe5c6b0a11"
   },
   "xtr-security": {
     "bundles": {
@@ -129,7 +129,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "caa14749dbbbd028d53507126cdc3759b04cc92945e960834c2fb80cb184210c"
+    "recipe": "9b735d7c4c9850ede10848ce946ae51ca1319830d1329e88e4066f6886cf6d13"
   },
   "xtr-security-jwt": {
     "bundles": {
@@ -143,6 +143,17 @@
       }
     },
     "gitignore": [],
-    "recipe": "68453304697fb5f90ba3fe6c4702d187c4813aa6773054c6cab1023ea755b655"
+    "recipe": "8f73e134f36cd92d91246b4eb6e0ba660441bb4f7a249d1a6463393f75d4745c"
+  },
+  "xtr-storage": {
+    "bundles": {
+      "xtr_storage.bundle:StorageBundle": "listed"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [
+      "/var/storage/"
+    ],
+    "recipe": "f67963901bcd3c8a872f5b4c1455120433611e7ac5998784fc5256f4336079e3"
   }
 }

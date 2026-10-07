@@ -407,6 +407,7 @@ dependencies = [
     { name = "xtr-security-http" },
     { name = "xtr-security-jwt", extra = ["console"] },
     { name = "xtr-service-contracts" },
+    { name = "xtr-storage", extra = ["di"] },
 ]
 
 [package.dev-dependencies]
@@ -444,6 +445,7 @@ requires-dist = [
     { name = "xtr-security-http", editable = "../../packages/xtr-security-http" },
     { name = "xtr-security-jwt", extras = ["console"], editable = "../../packages/xtr-security-jwt" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
+    { name = "xtr-storage", extras = ["di"], editable = "../../packages/xtr-storage" },
 ]
 
 [package.metadata.requires-dev]
@@ -795,6 +797,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/89/76/c615883b7b521ead2944bb3480398cbb07e12b7b4e4d073d3752eb721558/frozenlist-1.8.0-cp314-cp314t-win_amd64.whl", hash = "sha256:06be8f67f39c8b1dc671f5d83aaefd3358ae5cdcf8314552c57e7ed3e6475bdd", size = 49451, upload-time = "2025-10-06T05:37:53.425Z" },
     { url = "https://files.pythonhosted.org/packages/e0/a3/5982da14e113d07b325230f95060e2169f5311b1017ea8af2a29b374c289/frozenlist-1.8.0-cp314-cp314t-win_arm64.whl", hash = "sha256:102e6314ca4da683dca92e3b1355490fed5f313b768500084fbe6371fddfdb79", size = 42507, upload-time = "2025-10-06T05:37:54.513Z" },
     { url = "https://files.pythonhosted.org/packages/9a/9a/e35b4a917281c0b8419d4207f4334c8e8c5dbf4f3f5f9ada73958d937dcc/frozenlist-1.8.0-py3-none-any.whl", hash = "sha256:0c18a16eab41e82c295618a77502e17b195883241c563b00f0aa5106fc4eaa0d", size = 13409, upload-time = "2025-10-06T05:38:16.721Z" },
+]
+
+[[package]]
+name = "fsspec"
+version = "2026.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/77/cd/9be253869fc42e764de7f3dedd6969af7d44ff9c3375214a3442a6f3fc08/fsspec-2026.9.0.tar.gz", hash = "sha256:0f08147951c8cb31d844c3547d631053b127863b60be04cf06e121333ee0e2fe", size = 333545, upload-time = "2026-09-18T17:50:42.825Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl", hash = "sha256:8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f", size = 221738, upload-time = "2026-09-18T17:50:41.341Z" },
 ]
 
 [[package]]
@@ -1965,6 +1976,9 @@ dev = [
 name = "xtr-clock"
 version = "3.0.0"
 source = { editable = "../../packages/xtr-clock" }
+dependencies = [
+    { name = "anyio" },
+]
 
 [package.optional-dependencies]
 di = [
@@ -1974,6 +1988,7 @@ di = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.0" },
     { name = "typing-extensions", marker = "extra == 'di'", specifier = ">=4.4" },
     { name = "tzdata", marker = "extra == 'tzdata'", specifier = ">=2024.1" },
     { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
@@ -1982,11 +1997,11 @@ provides-extras = ["tzdata", "di"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
+    { name = "trio", specifier = ">=0.27" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
 ]
@@ -2080,7 +2095,9 @@ dependencies = [
 
 [package.optional-dependencies]
 console = [
+    { name = "anyio" },
     { name = "xtr-console" },
+    { name = "xtr-dependency-injection" },
 ]
 di = [
     { name = "xtr-dependency-injection" },
@@ -2088,10 +2105,12 @@ di = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", marker = "extra == 'console'", specifier = ">=4.0" },
     { name = "pydantic-settings", specifier = ">=2.4,<3" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
+    { name = "xtr-dependency-injection", marker = "extra == 'console'", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
 ]
 provides-extras = ["di", "console"]
@@ -2673,6 +2692,7 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
+    { name = "xtr-password-hasher", extras = ["bcrypt"], editable = "../../packages/xtr-password-hasher" },
 ]
 
 [[package]]
@@ -2713,6 +2733,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "starlette" },
     { name = "typing-extensions" },
+    { name = "xtr-dependency-injection", extra = ["fastapi"] },
+    { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-http-kernel" },
     { name = "xtr-logging-contracts" },
@@ -2728,6 +2750,8 @@ requires-dist = [
     { name = "joserfc", marker = "extra == 'oidc'", specifier = ">=1.7" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
@@ -2746,8 +2770,6 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
-    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
-    { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
 ]
 
 [[package]]
@@ -2756,6 +2778,7 @@ version = "3.0.0"
 source = { editable = "../../packages/xtr-security-jwt" }
 dependencies = [
     { name = "joserfc" },
+    { name = "starlette" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
@@ -2774,6 +2797,7 @@ console = [
 [package.metadata]
 requires-dist = [
     { name = "joserfc", specifier = ">=1.7" },
+    { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
@@ -2815,6 +2839,47 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+]
+
+[[package]]
+name = "xtr-storage"
+version = "3.0.0"
+source = { editable = "../../packages/xtr-storage" }
+dependencies = [
+    { name = "fsspec" },
+    { name = "typing-extensions" },
+]
+
+[package.optional-dependencies]
+di = [
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fsspec", specifier = ">=2026.6" },
+    { name = "gcsfs", marker = "extra == 'gcs'", specifier = ">=2026.6" },
+    { name = "s3fs", marker = "extra == 's3'", specifier = ">=2026.6" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
+]
+provides-extras = ["s3", "gcs", "di"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "gcsfs", specifier = ">=2026.6" },
+    { name = "moto", extras = ["server"], specifier = ">=5" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "s3fs", specifier = ">=2026.6" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
 
 [[package]]

@@ -49,6 +49,7 @@ from xtr_orm.bundle import OrmBundle
 from xtr_rate_limiter.bundle import RateLimiterBundle
 from xtr_scheduler.bundle import SchedulerBundle
 from xtr_security_jwt.bundle import JwtBundle
+from xtr_storage.bundle import StorageBundle
 
 from bookshop.dev_tools import DevToolsBundle
 from fulltext.bundle import FulltextBundle
@@ -70,4 +71,5 @@ BUNDLES = {
     RateLimiterBundle: {"all": True},
     JwtBundle: {"all": True},
     DevToolsBundle: {"dev": True, "test": True},
+    StorageBundle: {"all": True},
 }

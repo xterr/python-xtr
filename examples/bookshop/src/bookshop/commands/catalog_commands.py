@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Annotated, Literal, final
 
@@ -17,13 +18,21 @@ from xtr_console import (
     escape,
 )
 from xtr_dependency_injection import Autowire, Injected, Target
+from xtr_storage import StorageOperatorInterface
 
 from bookshop.catalog import Book, BookCatalogInterface, Genre
 from bookshop.pricing import PriceCalculator
 from bookshop.reporting import ExportRegistry
 from fulltext import SearchEngineInterface
 
-__all__ = ["AddBookCommand", "list_books", "price_book"]
+__all__ = ["AddBookCommand", "export_books", "list_books", "price_book"]
+
+
+def _rows(books: Sequence[Book]) -> list[dict[str, str]]:
+    """The four columns every exporter and the table share."""
+    return [
+        {"isbn": b.isbn, "title": b.title, "author": b.author, "price": str(b.price)} for b in books
+    ]
 
 
 @as_command("catalog:list", aliases="books")
@@ -50,9 +59,7 @@ async def list_books(  # noqa: PLR0913 — the command line, the style and three
     """
     books = [book for book in catalog.all() if genre is None or book.genre is genre]
     books = books[: limit or page_size]
-    rows = [
-        {"isbn": b.isbn, "title": b.title, "author": b.author, "price": str(b.price)} for b in books
-    ]
+    rows = _rows(books)
     if output != "table":
         # Machine-readable output: printed even under -q.
         io.text(await exporters.export(output, rows), verbosity=Verbosity.QUIET)
@@ -60,6 +67,34 @@ async def list_books(  # noqa: PLR0913 — the command line, the style and three
     io.title("Catalog")
     io.table(["ISBN", "Title", "Author", "Price"], [list(row.values()) for row in rows])
     io.text(f"{len(rows)} of {len(catalog.all())} books", verbosity=Verbosity.VERBOSE)
+    return ExitCode.SUCCESS
+
+
+@as_command("catalog:export")
+async def export_books(
+    io: ConsoleStyle,
+    catalog: Injected[BookCatalogInterface],
+    exporters: Injected[ExportRegistry],
+    reports: Annotated[StorageOperatorInterface, Target("reports")],
+    *,
+    output: Literal["csv", "json", "markdown"] = "csv",
+) -> int:
+    """Render the catalogue and keep the file in the ``reports`` storage.
+
+    ``reports`` is the storage named in ``config/storage.py``: local files rooted at the
+    ``catalog`` prefix, so the export lands in ``var/storage/catalog/`` — in tests, in memory.
+    Injection is qualified by the storage's name, the way a named cache pool is.
+
+    Args:
+        io: Where the command writes.
+        catalog: The catalog, from the container.
+        exporters: Exporters by format, from the container.
+        reports: The ``reports`` storage, qualified.
+        output: Which format to render.
+    """
+    location = f"catalog.{output}"
+    await reports.write(location, (await exporters.export(output, _rows(catalog.all()))).encode())
+    io.success(f"Stored {await reports.file_size(location)} bytes at reports://{location}.")
     return ExitCode.SUCCESS
 
 

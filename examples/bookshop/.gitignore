@@ -9,3 +9,7 @@
 # JWT signing keys written by `jwt:generate-keypair` — a private key never enters the repository.
 /secrets/*.pem
 /secrets/*.jwks.json
+
+# >>> xtr-storage
+/var/storage/
+# <<< xtr-storage

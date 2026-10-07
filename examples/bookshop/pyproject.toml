@@ -28,6 +28,8 @@ dependencies = [
     "xtr-rate-limiter[di,cache,lock,redis]",
     "xtr-scheduler[cron,di,console]",
     "xtr-service-contracts",
+    # Exported catalogue reports land in a named storage, on local files here.
+    "xtr-storage[di]",
     # Security: the family bundle wires core, the http edge and the password hasher; the jwt
     # add-on bundle rides on top. [console] adds debug:firewall, security:hash-password and the
     # jwt:* commands. The three family libraries are listed too, because the application imports
@@ -87,6 +89,7 @@ xtr-rate-limiter         = { path = "../../packages/xtr-rate-limiter", editable 
 xtr-recipes              = { path = "../../packages/xtr-recipes", editable = true }
 xtr-scheduler            = { path = "../../packages/xtr-scheduler", editable = true }
 xtr-service-contracts    = { path = "../../packages/xtr-service-contracts", editable = true }
+xtr-storage              = { path = "../../packages/xtr-storage", editable = true }
 xtr-security             = { path = "../../packages/xtr-security", editable = true }
 xtr-security-core        = { path = "../../packages/xtr-security-core", editable = true }
 xtr-security-http        = { path = "../../packages/xtr-security-http", editable = true }

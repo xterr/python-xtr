@@ -36,6 +36,7 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop catalog:list [--genre software] [-l 2] [--output csv\|json\|markdown]` | options, `Literal`, `Enum`, a validator, a `ServiceLocator` |
 | `bookshop catalog:price ISBN [QTY]` | the ordered `Sequence[PricingRule]`; the quote cached five minutes in the `quotes` pool — run it twice |
 | `bookshop catalog:add ISBN TITLE PRICE [--author A] [-y]` | a class command, questions |
+| `bookshop catalog:export [--output csv\|json\|markdown]` | a named storage injected by `Target("reports")`: the rendering is written under `var/storage/catalog/` and its size read back |
 | `bookshop orders:place ISBN [QTY] [--email E] [--no-drain] -vv` | scoped and transient services, the bus, fan-out, a worker, logs following `-vv`; a lock per book, an `OrderPlaced` event and the tally its subscriber keeps, a handler's result, a declared stamp read back after the serialized `jobs` transport (`-vvv`); one database transaction per message, its follow-ups sent once it committed |
 | `bookshop orders:place 978-0141439518 13` | a handler refusing after it wrote the order row: `orm_transaction` rolls the row back, the receipt it asked for is never sent, the command reports `rolled back` and exits 1 |
 | `bookshop orders:list` | the orders in the database, newest first, with their receipts — two per order, one written by each transport `SendReceipt` fans out to |
@@ -164,7 +165,8 @@ and checks every outcome.
 
 ```
 examples/bookshop/
-├── .env .env.dev .env.test .env.prod .env.local .env.dev.local   the cascade
+├── .env .env.dev .env.test .env.prod          the committed cascade
+├── .env.local.dist .env.dev.local.dist        templates for the two ignored layers
 ├── resources/            files env processors read; dotenv-demo/ holds only a .env.dist
 ├── secrets/              one file per variable (SecretsDirectoryLoader) + the minted JWT key (ignored)
 ├── migrations/           the database's revisions, written by orm:migrations:diff
@@ -180,11 +182,13 @@ examples/bookshop/
         └── …             one package per concern, below
 ```
 
-The `.env.local`, `.env.dev.local` and `.env.prod` files and `secrets/SHOP_VAULT_TOKEN` are
-committed on purpose, so the example runs as cloned: their values are placeholders. The JWT
-signing key is the exception — a private key never enters the repository, so it is minted once
-with `jwt:generate-keypair` into `secrets/`, which `.gitignore` keeps out. In an application of
-your own, ignore the `.local` files too, and keep every secret out of the repository.
+`.env.prod` and `secrets/SHOP_VAULT_TOKEN` are committed on purpose, so the example runs as
+cloned: their values are placeholders. The two `.local` layers are not — `.gitignore` keeps
+them out, because one machine's values are not another's — so each ships as a `.dist` template
+to copy into place (`cp .env.local.dist .env.local`); nothing the example does depends on
+them. The JWT signing key is kept out the same way: a private key never enters the repository,
+so it is minted once with `jwt:generate-keypair` into `secrets/`. In an application of your
+own, keep every secret out of the repository too.
 
 ## Where each feature lives
 
@@ -263,7 +267,7 @@ your own, ignore the `.local` files too, and keep every secret out of the reposi
 | scheduler | `SchedulerConfig` | `config/scheduler.py` |
 | http-kernel | `setup(app, kernel)` — one kernel per application life, one scope per request | `web/app.py` |
 | http-kernel | `HttpKernelConfig(app=)`, read by `debug:router` and `router:match` | `config/http_kernel.py` |
-| http-kernel | the request lifecycle listed as a bundle: `X-Request-Id`, an uncaught exception on the `request` channel | `bundles.py` |
+| http-kernel | the request lifecycle listed as a bundle: a fresh `X-Request-Id` per request, an uncaught exception on the `request` channel | `bundles.py` |
 | http-kernel | `RateLimited` on a router, as a decorator, in a route's `dependencies`; `TooManyRequestsError` reshaped by an exception handler | `web/routes.py`, `web/app.py` |
 | rate-limiter | every policy — `sliding_window`, `fixed_window` (and on a calendar, `anchor_at`), `token_bucket`, `compound` with a shared key; in-memory, cache-pool and (prod) Redis storage | `config/rate_limiter.py`, `.env.prod` |
 | rate-limiter | a limiter injected by name (`Target`), `consume()` and `ensure_accepted()` in a route, `reserve(max_time=)` and `wait()` in a handler | `web/routes.py`, `messaging/handlers.py` |
@@ -273,6 +277,8 @@ your own, ignore the `.local` files too, and keep every secret out of the reposi
 | lock | the default `LockFactory`, a lock kept between runs | `scheduling/shop_schedule.py` |
 | cache | `CacheConfig` with a pool of its own, `@when("test")` in memory | `config/cache.py` |
 | cache | a qualified `CacheInterface`, fetch-or-compute with a callback | `commands/catalog_commands.py` |
+| storage | `StorageConfig` — the `default` storage and a prefixed `reports` one, in memory under `@when("test")` | `config/storage.py` |
+| storage | a qualified `StorageOperatorInterface` (`Target("reports")`) written to and asked for a file's size | `commands/catalog_commands.py` |
 | clock | `ClockInterface` injected, `Clock`, `MockClock`, `MonotonicClock`, `mock_time`, `DatePoint`, `ClockAwareMixin` | `ordering/order_number.py`, `fulltext/bundle/timed_search_engine.py`, `dev_tools/commands.py` |
 | dotenv | `Dotenv().boot_env()` at the entry point; `parse / load / overload / populate / load_env` | `kernel.py`, `dev_tools/commands.py` |
 | dotenv | `DotenvSettings` — typed settings from the same cascade | `settings.py` |
@@ -289,7 +295,7 @@ your own, ignore the `.local` files too, and keep every secret out of the reposi
 | security | a `Voter` subclass granting `ORDER_VIEW` to an order's owner, gathered by the `security.voter` tag | `ordering/order_voter.py` |
 | security | `UserPasswordHasherInterface` verifying a password, with a dummy-hash timing guard | `web/routes.py` |
 | security | `debug:firewall`, `security:hash-password` (the `console` extra) | the bundle registers them |
-| jwt | `JwtConfig` — the signing key from `env("resolve:...")`, `token_ttl`, `user_id_claim` | `config/jwt.py` |
+| jwt | `JwtConfig` — the signing key from `env("resolve:...")`, the `issuer` and `audience` every token is checked against, `token_ttl`, `user_id_claim` | `config/jwt.py` |
 | jwt | `JwtAuthenticatorConfig()` in a firewall; `JwtTokenManagerInterface.create(user)` in `/token` | `config/security.py`, `web/routes.py` |
 | jwt | `jwt:generate-keypair`, `jwt:generate-token`, `jwt:check-config` (the `console` extra) | the bundle registers them |
 
@@ -313,7 +319,8 @@ PostgreSQL in prod; `DATABASE_URL` only shows the env processors.
 `SHOP_VAULT_TOKEN` is set nowhere on purpose: the secrets-directory loader supplies it.
 `JWT_SECRET_KEY_PATH` points `config/jwt.py` at the PEM that signs self-issued tokens — the
 key `jwt:generate-keypair` minted under `secrets/`; `config/jwt.py` reads it with `env("resolve:...")` so
-`%kernel.project_dir%` expands, and the JWT bundle's key loader reads the file.
+`%kernel.project_dir%` expands, and the JWT bundle's key loader reads the file. `JWT_ISSUER` is
+the `iss` those tokens carry and are checked against, read with `env("JWT_ISSUER")`.
 
 ## Rules this example follows
 

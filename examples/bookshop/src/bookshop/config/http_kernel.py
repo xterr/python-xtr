@@ -1,7 +1,8 @@
 """The request lifecycle: which application the router commands read.
 
-Everything else is the bundle's default — an ``X-Request-Id`` on every response, a well-formed
-incoming one kept, an uncaught exception written to the ``request`` channel (declared on the
+Everything else is the bundle's default — every request is given a fresh ``X-Request-Id``,
+echoed on the response, because an inbound one is not trusted unless the deployment says a
+proxy sets it; an uncaught exception is written to the ``request`` channel (declared on the
 logging config by the bundle itself). ``app`` is the one thing only the application knows:
 ``bookshop debug:router`` and ``bookshop router:match PATH`` import it from here, so neither
 needs ``--app``.
