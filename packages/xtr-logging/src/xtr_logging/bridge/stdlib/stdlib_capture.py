@@ -38,7 +38,7 @@ from .level_mapping import register_level_names, to_stdlib
 from .stdlib_capture_handler import StdlibCaptureHandler
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
     from types import TracebackType
     from typing import Self
 
@@ -94,14 +94,12 @@ class StdlibCapture:
       ``level``;
     - each logger named in ``levels`` is set to its own level.
 
-    Every record the capture handler sees is also checked against the chain of
-    loggers it came through. A handler some code attached after installation
     Handlers attached while it is installed — through ``addHandler``, as
     :func:`logging.basicConfig` and :func:`logging.config.dictConfig` attach
     them — are held aside rather than attached. A logger reconfigured not to
-    propagate is made to again by its first record. And as a last line, every
-    record the capture handler sees is checked against the loggers it came
-    through, for anything put straight into a ``handlers`` list.
+    propagate is made to propagate again by its first record. And as a last
+    line, every record the capture handler sees is checked against the loggers
+    it came through, for anything put straight into a ``handlers`` list.
 
     Captures nest: the most recent one owns the output until it is released.
     They may be released in any order: one released while a later one is
@@ -112,13 +110,15 @@ class StdlibCapture:
 
     __slots__ = ("_handler", "_last_resort", "_levels", "_root_level", "_saved")
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — every capture option is independent; all have defaults
         self,
         logger: Logger,
         *,
         level: LevelLike = Level.WARNING,
         levels: Mapping[str, LevelLike] | None = None,
         routes: Mapping[str, Logger] | None = None,
+        channel_from_name: bool = False,
+        drop_keys: Sequence[str] = (),
     ) -> None:
         """Capture into ``logger``, or into the channel ``routes`` gives a logger.
 
@@ -130,11 +130,21 @@ class StdlibCapture:
                 say more or less than the root lets through.
             routes: A channel per standard logger name; a logger's children
                 follow it, and the most specific name wins.
+            channel_from_name: Route a record no route matches to a channel
+                named after the standard logger it came from, rather than to
+                ``logger``.
+            drop_keys: Context keys removed from every captured record before
+                it reaches a channel.
 
         Raises:
             InvalidLevelError: If a level names no level.
         """
-        self._handler: StdlibCaptureHandler = StdlibCaptureHandler(logger, routes=routes)
+        self._handler: StdlibCaptureHandler = StdlibCaptureHandler(
+            logger,
+            routes=routes,
+            channel_from_name=channel_from_name,
+            drop_keys=drop_keys,
+        )
         self._handler.addFilter(self._take_over_origin)
         self._root_level: int = to_stdlib(Level.parse(level))
         self._levels: dict[str, int] = {
@@ -153,9 +163,12 @@ class StdlibCapture:
         if self.installed:
             return
         register_level_names()
-        if not _captures:
-            _intercept(active=True)
+        # Registered before interception is switched on: the intercepting
+        # ``addHandler``/``removeHandler`` read ``_captures[-1]``, so this
+        # capture must already be the last entry when they first run.
         _captures.append(self)
+        if len(_captures) == 1:
+            _intercept(active=True)
         root = logging.getLogger()
         existing = [
             candidate
@@ -252,7 +265,12 @@ class StdlibCapture:
         if saved is None:
             saved = _Saved([], taken.level, taken.propagate, taken.disabled)
             self._saved[taken] = saved
-        foreign = [handler for handler in taken.handlers if handler is not self._handler]
+        # A handler already set aside — put back by hand since — is given back once.
+        foreign = [
+            handler
+            for handler in taken.handlers
+            if handler is not self._handler and handler not in saved.handlers
+        ]
         saved.handlers.extend(foreign)
         # Assigned rather than mutated: the standard library may be iterating
         # the old list for the record being handled right now.

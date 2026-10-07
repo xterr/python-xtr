@@ -68,7 +68,7 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
         self,
         handler: HandlerInterface | _HandlerFactory,
         activation_strategy: ActivationStrategyInterface | LevelLike | None = None,
-        buffer_size: int = 0,
+        buffer_size: int = 10_000,
         bubble: bool = True,
         stop_buffering: bool = True,
         passthru_level: LevelLike | None = None,
@@ -81,7 +81,8 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
                 level for :class:`ErrorLevelActivationStrategy`. Defaults to
                 activating on ``WARNING`` and above.
             buffer_size: The most records to keep before the oldest are
-                dropped; ``0`` keeps everything until activation.
+                dropped; ``0`` keeps everything until activation. Bounded at
+                ``10_000`` by default.
             bubble: Whether records still reach later handlers.
             stop_buffering: Whether to pass records straight through once
                 activated, rather than buffering a fresh batch.
@@ -163,7 +164,7 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
         state = self._state()
         with self._buffer_lock:
             state.buffer = []
-        self.reset()
+            state.buffering = True
 
     def _state(self) -> _FingersCrossedState:
         unit = unit_state(self, _FingersCrossedState, on_end=self._flush_state)

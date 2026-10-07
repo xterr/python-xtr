@@ -65,6 +65,15 @@ class LifecycleHandler(AbstractHandler):
         self.resets += 1
 
 
+@final
+class DroppingHandler(AbstractHandler):
+    """Accepts every record per ``is_handling`` but drops it in ``handle``."""
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        return False
+
+
 def _stamp(key: str) -> Callable[[LogRecord], LogRecord]:
     def processor(record: LogRecord, /) -> LogRecord:
         order = record.extra.get("order", "")
@@ -141,11 +150,25 @@ def test_processors_do_not_run_when_no_handler_would_handle_the_record() -> None
     assert calls == []
 
 
-def test_add_record_reports_whether_any_handler_took_the_record() -> None:
+def test_add_record_reports_whether_any_handler_accepted_the_record() -> None:
     logger = Logger("app", [TestHandler(Level.ERROR)])
 
     assert logger.add_record(Level.INFO, "ignored") is False
     assert logger.add_record(Level.ERROR, "kept") is True
+
+
+def test_add_record_is_false_without_handlers() -> None:
+    assert Logger("app").add_record(Level.ERROR, "nowhere to go") is False
+
+
+def test_add_record_is_true_even_when_the_accepting_handler_lets_the_record_go() -> None:
+    # ``handle`` returning ``False`` means "let it bubble", not "declined":
+    # a queue takes the record and returns ``False``, a sampler drops it and
+    # returns its bubble flag. So add_record reports acceptance per
+    # ``is_handling``, not what ``handle`` did with the record.
+    logger = Logger("app", [DroppingHandler()])
+
+    assert logger.add_record(Level.INFO, "accepted, then dropped") is True
 
 
 def test_add_record_can_backdate_a_record() -> None:

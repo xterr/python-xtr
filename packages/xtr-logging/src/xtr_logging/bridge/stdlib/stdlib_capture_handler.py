@@ -23,7 +23,7 @@ from .level_mapping import from_stdlib, register_level_names
 from .stdlib_handler import BRIDGED_MARKER
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from xtr_logging.logger import Logger
 
@@ -58,6 +58,7 @@ class StdlibCaptureHandler(logging.Handler):
         *,
         routes: Mapping[str, Logger] | None = None,
         channel_from_name: bool = False,
+        drop_keys: Sequence[str] = (),
         level: int = logging.NOTSET,
     ) -> None:
         """Capture into ``logger``.
@@ -70,6 +71,8 @@ class StdlibCaptureHandler(logging.Handler):
             channel_from_name: Route a record no route matches to a channel
                 named after the standard logger it came from, rather than to
                 ``logger`` itself.
+            drop_keys: Context keys removed from every captured record before
+                it reaches a channel.
             level: The standard-library level below which records are dropped
                 before this handler sees them; the loggers it is installed on
                 have their own levels too.
@@ -78,6 +81,7 @@ class StdlibCaptureHandler(logging.Handler):
         register_level_names()
         self._logger: Logger = logger
         self._channel_from_name: bool = channel_from_name
+        self._drop_keys: frozenset[str] = frozenset(drop_keys)
         # Longest name first, so the first match is the most specific.
         self._routes: tuple[tuple[str, Logger], ...] = tuple(
             sorted((routes or {}).items(), key=lambda route: -len(route[0])),
@@ -109,6 +113,8 @@ class StdlibCaptureHandler(logging.Handler):
         context: dict[str, object] = {
             name: value for name, value in attributes.items() if name not in _STANDARD_ATTRIBUTES
         }
+        for key in self._drop_keys:
+            _ = context.pop(key, None)
         exc_info = record.exc_info
         exception = exc_info[1] if exc_info is not None else None
         if isinstance(exception, BaseException):

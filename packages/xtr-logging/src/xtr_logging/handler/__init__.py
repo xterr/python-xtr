@@ -7,6 +7,7 @@ from .abstract_processing_handler import AbstractProcessingHandler
 from .buffer_handler import BufferHandler
 from .console_handler import ConsoleHandler
 from .deduplication_handler import DeduplicationHandler
+from .error_handler_interface import ErrorHandlerInterface
 from .fallback_group_handler import FallbackGroupHandler
 from .filter_handler import FilterHandler
 from .fingers_crossed import (
@@ -36,6 +37,7 @@ __all__ = [
     "ChannelLevelActivationStrategy",
     "ConsoleHandler",
     "DeduplicationHandler",
+    "ErrorHandlerInterface",
     "ErrorLevelActivationStrategy",
     "FallbackGroupHandler",
     "FilterHandler",

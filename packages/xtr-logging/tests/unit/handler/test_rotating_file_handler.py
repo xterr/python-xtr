@@ -110,6 +110,11 @@ def test_a_static_date_format_is_refused(tmp_path: Path) -> None:
         _ = RotatingFileHandler(tmp_path / "app.log", date_format="static")
 
 
+def test_a_date_format_with_a_separator_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(InvalidOptionError, match="date_format"):
+        _ = RotatingFileHandler(tmp_path / "app.log", date_format="%Y/%m/%d")
+
+
 def test_old_files_are_swept_by_the_date_in_their_name_whatever_its_format(
     tmp_path: Path,
 ) -> None:

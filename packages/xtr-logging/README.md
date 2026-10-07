@@ -319,8 +319,9 @@ The rules:
 - **Nesting.** A wrapper names what it wraps (`handler: file`, `members: [a, b]`). A handler
   named that way, or marked `nested`, is left off every channel's stack.
 - **Priority.** Higher is consulted first; ties keep declaration order.
-- **Services.** `type: service` names an object you supply, as do a formatter given by name and
-  an `activation_strategy`:
+- **Services.** `type: service` names an object you supply, as do a formatter given by name, an
+  `activation_strategy`, and a queue handler's `on_error` — a callable taking the exception and
+  the record the worker failed on, given in `Services(error_handlers=...)`:
 
   ```python
   LoggerFactory(CONFIG, services=Services(handlers={"sentry": SentryHandler(dsn)}))
@@ -334,7 +335,14 @@ missing handler raises `UnknownHandlerError`, and wrappers nesting each other in
 Handler types: `stream`, `rotating_file`, `syslog`, `console`, `null`, `stdlib`, `service`,
 `fingers_crossed`, `buffer`, `filter`, `deduplication`, `sampling`, `queue`, `group`,
 `whatfailuregroup`, `fallbackgroup`. Processor types: `placeholder`, `context_vars`, `uid`,
-`introspection`, `hostname`, `process_id`, `tags`, `service`.
+`introspection`, `hostname`, `process_id`, `tags`, `redacting`, `service`. The `redacting`
+processor masks secrets by key — `password`, `token`, `authorization`, `api_key` and the like —
+and by value pattern, matched against the message and every value in context and extra, before
+any handler writes them.
+
+`syslog` sends records in cleartext: a UDP datagram, or a TCP stream with `socktype = "tcp"`,
+crosses the network unencrypted, so keep it on a trusted segment or a local socket such as
+`/dev/log`.
 
 The factory builds every handler once, as it is made, and shares each between channels. Files
 open on first write. `reset()` ends a unit of work. `close()` writes whatever is buffered or
@@ -460,7 +468,9 @@ Everything adding this package to an application on
   or ignore line to write; it prints the step to add the handlers a deployment needs.
 - **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_logging.bundle`.
-- **Brings along** — the clock bundle.
+- **Brings along** — nothing required. The clock bundle is an optional peer: when it is also
+  listed, loggers read the boot-time clock from it; without it they read the ambient clock, so a
+  missing clock bundle costs nothing.
 - **Configure** — needed to see anything: with no configuration there are no handlers, so
   records go nowhere. Channels and handlers go in `<app>/config/logging.py`, a `@configure`
   function returning `LoggingConfig` — see [Kernel / bundle](#kernel--bundle) and
@@ -534,10 +544,12 @@ class Checkout:
 The bundle registers the `LoggerFactory`, a `LoggerInterface` for the default channel, and a
 `LoggerInterface` qualified by each channel's name. `LoggerFactory` inherits `ResetInterface`,
 so the kernel's `ServicesResetter` resets it between messages. A `ServiceHandlerConfig`,
-`ServiceProcessorConfig`, a string `formatter` and a fingers-crossed `activation_strategy` name
-services the application registers under `HandlerInterface`, `ProcessorInterface`,
-`FormatterInterface` or `ActivationStrategyInterface` with `qualifier=id`; a missing id fails
-the build with `UnknownServiceError` naming the id.
+`ServiceProcessorConfig`, a string `formatter`, a fingers-crossed `activation_strategy` and a
+queue handler's `on_error` name services the application registers under `HandlerInterface`,
+`ProcessorInterface`, `FormatterInterface`, `ActivationStrategyInterface` or
+`ErrorHandlerInterface` with `qualifier=id`; a missing id fails the build with
+`UnknownServiceError` naming the id. An `ErrorHandlerInterface` is any callable taking
+`(error, record)`, so a function returned from an `@as_service(qualifier=...)` factory is one.
 
 A class decorated `@as_processor` — with the kernel scanning the module — becomes a service
 (its constructor injected) and the bundle attaches its instance to every logger it builds; a

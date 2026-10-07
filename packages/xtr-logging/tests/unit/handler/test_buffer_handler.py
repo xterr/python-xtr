@@ -276,3 +276,16 @@ async def test_two_concurrent_units_flush_only_their_own_records() -> None:
 
     assert sorted(record.message for record in spy.handled) == ["first", "second"]
     assert all(len(batch) == 1 for batch in spy.batches)
+
+
+def test_the_buffer_is_bounded_by_default() -> None:
+    spy = Spy()
+    handler = BufferHandler(spy)
+    for index in range(10_001):
+        _ = handler.handle(make_record(message=str(index)))
+
+    handler.flush()
+
+    # The default limit drops the oldest once full, so the first record is gone.
+    assert len(spy.handled) == 10_000
+    assert spy.handled[0].message == "1"

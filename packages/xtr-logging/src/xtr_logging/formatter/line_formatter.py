@@ -30,6 +30,10 @@ _TOKEN: Final = re.compile(_PLACEHOLDER_PATTERN)
 """Every token of a format, with the space before it — dropped with an empty bag's token."""
 _LINE_BREAK: Final = re.compile(r"\r\n|\r|\n")
 _TRAILING_SPACE: Final = re.compile(r"[ \t]+(?=\n|$)")
+# C0 controls (bar tab and the line breaks handled above), DEL, and C1
+# controls: an escape sequence like ``\x1b[2J`` could clear a terminal or
+# forge a line, so it is stripped unless the caller opts to keep it.
+_CONTROL: Final = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
 
 class LineFormatter(FormatterInterface):
@@ -42,20 +46,33 @@ class LineFormatter(FormatterInterface):
 
     Line breaks inside values become spaces unless
     ``allow_inline_line_breaks``, so one record stays one line and a log
-    can be read with ``grep``. An exception in context prints as
+    can be read with ``grep``. Other control characters — an escape sequence
+    that could clear a terminal or forge a line — are stripped unless
+    ``allow_control_characters``. An exception in context prints as
     ``[object] (Class: message at file:line)``.
     """
 
     SIMPLE_FORMAT: Final = "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n"
 
-    def __init__(
+    __slots__: tuple[str, ...] = (
+        "_allow_control_characters",
+        "_allow_inline_line_breaks",
+        "_format",
+        "_ignore_empty",
+        "_normalizer",
+    )
+
+    def __init__(  # noqa: PLR0913 — every line option is independent; all have defaults
         self,
         format: str | None = None,  # noqa: A002 — the name every formatter option uses
         date_format: str | None = None,
         *,
         allow_inline_line_breaks: bool = False,
+        allow_control_characters: bool = False,
         ignore_empty_context_and_extra: bool = False,
         include_stacktraces: bool = False,
+        max_depth: int | None = None,
+        max_items: int | None = None,
     ) -> None:
         """Configure the line.
 
@@ -64,16 +81,27 @@ class LineFormatter(FormatterInterface):
             date_format: A :meth:`~datetime.datetime.strftime` format; ISO 8601
                 when omitted.
             allow_inline_line_breaks: Keep line breaks inside values.
+            allow_control_characters: Keep control characters inside values,
+                rather than stripping the ones that could clear a terminal or
+                forge a log line.
             ignore_empty_context_and_extra: Print nothing, rather than ``[]``,
                 for an empty ``%context%`` or ``%extra%``.
             include_stacktraces: Print an exception's traceback after it. Turns
                 on ``allow_inline_line_breaks``, which a traceback needs.
+            max_depth: How deeply a nested value is rendered before it is cut;
+                the normalizer's default when omitted.
+            max_items: How many items of one collection are rendered; the
+                normalizer's default when omitted.
         """
         self._format: str = format if format is not None else self.SIMPLE_FORMAT
         self._normalizer: Normalizer = _LineNormalizer(
-            date_format, include_stacktraces=include_stacktraces
+            date_format,
+            include_stacktraces=include_stacktraces,
+            max_depth=max_depth,
+            max_items=max_items,
         )
         self._allow_inline_line_breaks: bool = allow_inline_line_breaks or include_stacktraces
+        self._allow_control_characters: bool = allow_control_characters
         self._ignore_empty: bool = ignore_empty_context_and_extra
 
     @override
@@ -94,7 +122,7 @@ class LineFormatter(FormatterInterface):
 
         values: dict[str, str] = {
             "datetime": self._normalizer.format_datetime(record.datetime),
-            "channel": record.channel,
+            "channel": self._stringify(record.channel),
             "level_name": self._level_name(record),
             "level": str(record.level.value),
             "message": self._stringify(record.message),
@@ -134,6 +162,8 @@ class LineFormatter(FormatterInterface):
 
     def _stringify(self, value: Normalized) -> str:
         text = value if isinstance(value, str) else msgspec.json.encode(value).decode()
+        if not self._allow_control_characters:
+            text = _CONTROL.sub("", text)
         if self._allow_inline_line_breaks:
             return text
         return _LINE_BREAK.sub(" ", text)

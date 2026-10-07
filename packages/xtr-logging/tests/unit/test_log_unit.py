@@ -8,7 +8,8 @@ import anyio.lowlevel
 import anyio.to_thread
 import pytest
 
-from xtr_logging.log_unit import begin_unit, end_unit, unit_state
+import xtr_logging
+from xtr_logging.log_unit import begin_unit, end_unit, in_unit, unit_state
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -174,3 +175,7 @@ async def test_a_sync_function_in_a_thread_mutates_the_same_unit() -> None:
     assert after is not None
     assert after["n"] == 1
     end_unit()
+
+
+def test_in_unit_is_exported_from_the_package() -> None:
+    assert xtr_logging.in_unit is in_unit

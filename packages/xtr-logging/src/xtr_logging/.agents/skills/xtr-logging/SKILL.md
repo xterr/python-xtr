@@ -235,9 +235,10 @@ the handlers it prints for you to add.
 
 The bundle registers the `LoggerFactory`, a `LoggerInterface` for the default channel and one
 qualified by each channel's name. A `ServiceHandlerConfig`, a `ServiceProcessorConfig`, a `formatter`
-given as a string and a fingers-crossed `activation_strategy` all name services the application
-registers under `HandlerInterface`, `ProcessorInterface`, `FormatterInterface` or
-`ActivationStrategyInterface` with `qualifier=id`; a missing id fails the build with
+given as a string, a fingers-crossed `activation_strategy` and a queue handler's `on_error` all name
+services the application registers under `HandlerInterface`, `ProcessorInterface`,
+`FormatterInterface`, `ActivationStrategyInterface` or `ErrorHandlerInterface` (any callable taking
+`(error, record)`) with `qualifier=id`; a missing id fails the build with
 `UnknownServiceError`. `LoggerFactory` is reset between messages by the kernel's
 `ServicesResetter`.
 

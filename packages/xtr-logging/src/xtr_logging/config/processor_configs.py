@@ -7,13 +7,16 @@ shared between channels, so "this handler, on that channel" has no meaning.
 
 from __future__ import annotations
 
+import re
 from typing import TypeAlias
 
 import msgspec
 from typing_extensions import override
 from xtr_logging_contracts import Level
 
+from xtr_logging.exception.invalid_option_error import InvalidOptionError
 from xtr_logging.processor._target import refuse_both_targets
+from xtr_logging.processor.redacting_processor import DEFAULT_KEY_PATTERN, DEFAULT_MASK
 
 __all__ = [
     "ContextVarsProcessorConfig",
@@ -22,6 +25,7 @@ __all__ = [
     "PlaceholderProcessorConfig",
     "ProcessIdProcessorConfig",
     "ProcessorConfig",
+    "RedactingProcessorConfig",
     "ServiceProcessorConfig",
     "TagProcessorConfig",
     "UidProcessorConfig",
@@ -88,6 +92,27 @@ class TagProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, tag="t
     tags: tuple[str, ...] = ()
 
 
+class RedactingProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, tag="redacting"):
+    """A :class:`~xtr_logging.processor.redacting_processor.RedactingProcessor`."""
+
+    keys: str | None = DEFAULT_KEY_PATTERN
+    values: tuple[str, ...] = ()
+    mask: str = DEFAULT_MASK
+
+    @override
+    def __post_init__(self) -> None:
+        """Check the targets, and that every pattern compiles.
+
+        Raises:
+            InvalidOptionError: If a pattern is not a valid regular expression.
+        """
+        super().__post_init__()
+        if self.keys:
+            _compile("keys", self.keys)
+        for pattern in self.values:
+            _compile("values", pattern)
+
+
 class ContextVarsProcessorConfig(
     _ProcessorConfigBase, frozen=True, kw_only=True, tag="context_vars"
 ):
@@ -109,7 +134,17 @@ ProcessorConfig: TypeAlias = (
     | ProcessIdProcessorConfig
     | IntrospectionProcessorConfig
     | TagProcessorConfig
+    | RedactingProcessorConfig
     | ContextVarsProcessorConfig
     | ServiceProcessorConfig
 )
 """Any processor entry, told apart by its ``type``."""
+
+
+def _compile(option: str, pattern: str) -> None:
+    try:
+        _ = re.compile(pattern)
+    except re.error as error:
+        raise InvalidOptionError(
+            option, pattern, f"is not a regular expression: {error}"
+        ) from error

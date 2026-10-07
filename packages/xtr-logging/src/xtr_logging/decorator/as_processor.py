@@ -66,7 +66,9 @@ def as_processor(
             )
         else:
             target_registry.register(
-                ProcessorDescriptor(target, declaration.channel, declaration.handler, priority)
+                ProcessorDescriptor(
+                    target, declaration.channel, declaration.handler, declaration.priority
+                )
             )
         # Recorded on the class or the function itself too, so a kernel's scan finds it
         # and attaches it to that kernel's loggers — not only the process-wide registry.

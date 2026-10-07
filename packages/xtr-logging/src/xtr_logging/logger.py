@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Final, final
 
@@ -14,7 +15,6 @@ from .exception.empty_stack_error import EmptyStackError
 from .log_record import LogRecord
 
 if TYPE_CHECKING:
-    import datetime as dt
     from collections.abc import Callable, Sequence
 
     from xtr_clock import ClockInterface
@@ -37,6 +37,11 @@ _DROP_AT_DEPTH: Final = 5
 # Shared by every logger: a handler logging through a second logger is as much a
 # loop as one logging through its own.
 _depth: ContextVar[int] = ContextVar("xtr_logging_depth", default=0)
+
+# A fixed instant for the records built only to ask handlers whether they would
+# handle a level: is_handling never reads the time, so there is no reason to
+# read the clock for it.
+_PROBE_TIME: Final = dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
 
 
 @final
@@ -85,6 +90,7 @@ class Logger(AbstractLogger, ResetInterface):
         self._clock: ClockInterface = clock if clock is not None else Clock()
         self._exception_handler = exception_handler
         self._detect_cycles = detect_cycles
+        self._probes: dict[Level, LogRecord] = {}
 
     @property
     def name(self) -> str:
@@ -155,8 +161,18 @@ class Logger(AbstractLogger, ResetInterface):
 
     def is_handling(self, level: LevelLike) -> bool:
         """Whether any handler would handle a record at ``level`` from this channel."""
-        probe = LogRecord(self._clock.now(), self._name, Level.parse(level), "")
+        if not self._handlers:
+            return False
+        probe = self._probe(Level.parse(level))
         return any(handler.is_handling(probe) for handler in self._handlers)
+
+    def _probe(self, level: Level) -> LogRecord:
+        """A cached, clock-free record for asking handlers about ``level``."""
+        cached = self._probes.get(level)
+        if cached is None:
+            cached = LogRecord(_PROBE_TIME, self._name, level, "")
+            self._probes[level] = cached
+        return cached
 
     @override
     def log(self, level: LevelLike, message: str, /, context: Context | None = None) -> None:
@@ -175,7 +191,15 @@ class Logger(AbstractLogger, ResetInterface):
         *,
         datetime: dt.datetime | None = None,
     ) -> bool:
-        """Offer a record to the handlers; return whether any handled it.
+        """Offer a record to the handlers; return whether any accepted it.
+
+        ``True`` means the record was processed and offered to at least one
+        handler that accepted it per ``is_handling``; ``False`` means every
+        handler declined and the record went nowhere.
+        What an accepting handler then did with the record is not reported:
+        ``handle`` returns whether the record may bubble further, so a handler
+        that queued the record and let it bubble and one that sampled it away
+        are indistinguishable — both count as accepted here.
 
         ``datetime`` overrides the clock, for records that happened earlier —
         one relayed from the standard library, say.

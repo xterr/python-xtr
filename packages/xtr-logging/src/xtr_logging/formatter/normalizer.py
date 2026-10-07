@@ -37,8 +37,8 @@ class Normalizer:
         self,
         date_format: str | None = None,
         *,
-        max_depth: int = _DEFAULT_MAX_DEPTH,
-        max_items: int = _DEFAULT_MAX_ITEMS,
+        max_depth: int | None = None,
+        max_items: int | None = None,
         include_stacktraces: bool = False,
     ) -> None:
         """Configure how values are reduced.
@@ -46,13 +46,15 @@ class Normalizer:
         Args:
             date_format: A :meth:`~datetime.datetime.strftime` format for
                 datetimes; ISO 8601 when omitted.
-            max_depth: How deeply nested a value may be before it is cut.
-            max_items: How many items of one collection are kept.
+            max_depth: How deeply nested a value may be before it is cut; a
+                sensible default when omitted.
+            max_items: How many items of one collection are kept; a sensible
+                default when omitted.
             include_stacktraces: Whether an exception carries its traceback.
         """
         self.date_format: str | None = date_format
-        self.max_depth: int = max_depth
-        self.max_items: int = max_items
+        self.max_depth: int = max_depth if max_depth is not None else _DEFAULT_MAX_DEPTH
+        self.max_items: int = max_items if max_items is not None else _DEFAULT_MAX_ITEMS
         self.include_stacktraces: bool = include_stacktraces
 
     def normalize(self, value: object) -> Normalized:

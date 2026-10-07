@@ -2,7 +2,7 @@
 
 The mirror of :class:`~xtr_logging.bridge.stdlib.stdlib_handler.StdlibHandler`:
 that one lets this library's channels feed into :mod:`logging`; this one lets
-code depend on :class:`~xtr_logging.logger_interface.LoggerInterface` while
+code depend on :class:`~xtr_logging_contracts.LoggerInterface` while
 :mod:`logging` stays the backend that actually writes. A call is translated
 into the level, exception and caller information :mod:`logging` expects, so its
 handlers and formatters see exactly what they would from a native call.

@@ -51,7 +51,7 @@ class BufferHandler(AbstractHandler, ProcessorStack):
     def __init__(
         self,
         handler: HandlerInterface,
-        buffer_limit: int = 0,
+        buffer_limit: int = 10_000,
         level: LevelLike = Level.DEBUG,
         bubble: bool = True,
         flush_on_overflow: bool = False,
@@ -60,8 +60,9 @@ class BufferHandler(AbstractHandler, ProcessorStack):
 
         Args:
             handler: Where the buffer is flushed to, as a batch.
-            buffer_limit: The most records to hold; ``0`` means no limit. Past
-                it, the oldest record is dropped unless ``flush_on_overflow``.
+            buffer_limit: The most records to hold; ``0`` means no limit.
+                Bounded at ``10_000`` by default. Past it, the oldest record is
+                dropped unless ``flush_on_overflow``.
             level: Buffer only records at this level or above.
             bubble: Whether a buffered record still reaches later handlers.
             flush_on_overflow: Flush the whole buffer when it fills, rather
@@ -87,7 +88,7 @@ class BufferHandler(AbstractHandler, ProcessorStack):
         Returns ``True`` only when ``bubble`` is off, exactly as any handler
         that has taken a record does — the record is buffered, not yet written.
         """
-        if record.level < self._level:
+        if not self.is_handling(record):
             return False
         processed = self._process(record)
         state = self._state()

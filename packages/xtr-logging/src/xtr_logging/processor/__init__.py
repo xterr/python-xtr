@@ -10,6 +10,7 @@ from .process_id_processor import ProcessIdProcessor
 from .processor_descriptor import ProcessorDescriptor
 from .processor_interface import ProcessorInterface
 from .processor_registry import ProcessorRegistry, default_processor_registry
+from .redacting_processor import RedactingProcessor
 from .tag_processor import TagProcessor
 from .uid_processor import UidProcessor
 
@@ -22,6 +23,7 @@ __all__ = [
     "ProcessorDescriptor",
     "ProcessorInterface",
     "ProcessorRegistry",
+    "RedactingProcessor",
     "TagProcessor",
     "UidProcessor",
     "default_processor_registry",

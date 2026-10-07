@@ -41,5 +41,9 @@ class TagProcessor(ProcessorInterface):
 
     @override
     def __call__(self, record: LogRecord, /) -> LogRecord:
-        """Return ``record`` with the tags in ``extra``."""
-        return record.with_extra({"tags": list(self._tags)})
+        """Return ``record`` with the tags in ``extra``.
+
+        The tags go in as the tuple itself: immutable, so every record may
+        share it without one consumer's edit reaching another's record.
+        """
+        return record.with_extra({"tags": self._tags})

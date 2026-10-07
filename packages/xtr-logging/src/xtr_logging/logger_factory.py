@@ -222,6 +222,8 @@ class LoggerFactory(ResetInterface):
                 for name, entry in loggers.items()
                 if entry.channel is not None
             },
+            channel_from_name=capture.channel_from_name,
+            drop_keys=capture.drop_keys,
         )
 
     def _handlers_for(self, channel: str) -> list[str]:

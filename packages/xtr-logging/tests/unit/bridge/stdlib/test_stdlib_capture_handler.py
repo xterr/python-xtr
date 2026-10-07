@@ -178,3 +178,15 @@ def test_the_most_specific_route_wins() -> None:
     )
 
     assert handler.records[0].channel == "pool"
+
+
+def test_it_drops_the_keys_it_was_told_to_drop() -> None:
+    handler = TestHandler()
+    capture = StdlibCaptureHandler(Logger("app", [handler]), drop_keys=("password",))
+    record = logging.makeLogRecord(
+        {"name": "ext", "levelno": logging.INFO, "msg": "saved", "password": "x", "user_id": 42},
+    )
+
+    capture.emit(record)
+
+    assert dict(handler.records[0].context) == {"user_id": 42}

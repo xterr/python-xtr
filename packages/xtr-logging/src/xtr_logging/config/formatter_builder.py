@@ -40,6 +40,8 @@ def build_formatter(config: FormatterConfig | str, services: Services) -> Format
                 allow_inline_line_breaks=config.allow_inline_line_breaks,
                 ignore_empty_context_and_extra=config.ignore_empty_context_and_extra,
                 include_stacktraces=config.include_stacktraces,
+                max_depth=config.max_depth,
+                max_items=config.max_items,
             )
         case JsonFormatterConfig():
             return JsonFormatter(
@@ -48,6 +50,8 @@ def build_formatter(config: FormatterConfig | str, services: Services) -> Format
                 ignore_empty_context_and_extra=config.ignore_empty_context_and_extra,
                 include_stacktraces=config.include_stacktraces,
                 date_format=config.date_format,
+                max_depth=config.max_depth,
+                max_items=config.max_items,
             )
         case ConsoleFormatterConfig():
             return ConsoleFormatter(
@@ -55,6 +59,10 @@ def build_formatter(config: FormatterConfig | str, services: Services) -> Format
                 config.date_format,
                 include_stacktraces=config.include_stacktraces,
                 colors=config.colors,
+                allow_inline_line_breaks=config.allow_inline_line_breaks,
+                ignore_empty_context_and_extra=config.ignore_empty_context_and_extra,
+                max_depth=config.max_depth,
+                max_items=config.max_items,
             )
         case _:
             # A configuration added to the union without a case fails here, not on a first record.

@@ -22,10 +22,20 @@ from __future__ import annotations
 from .level_mapping import from_stdlib, register_level_names, to_stdlib
 from .stdlib_capture import StdlibCapture
 from .stdlib_capture_handler import StdlibCaptureHandler
-from .stdlib_handler import StdlibHandler
+from .stdlib_handler import (
+    BRIDGED_MARKER,
+    CHANNEL_ATTR,
+    CONTEXT_ATTR,
+    EXTRA_ATTR,
+    StdlibHandler,
+)
 from .stdlib_logger import StdlibLogger
 
 __all__ = [
+    "BRIDGED_MARKER",
+    "CHANNEL_ATTR",
+    "CONTEXT_ATTR",
+    "EXTRA_ATTR",
     "StdlibCapture",
     "StdlibCaptureHandler",
     "StdlibHandler",

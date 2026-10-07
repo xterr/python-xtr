@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 from logging.handlers import SysLogHandler
+from typing import ClassVar, final
 
 import pytest
 from xtr_logging_contracts import Level
@@ -82,3 +83,36 @@ def test_every_level_maps_to_its_own_rfc5424_severity(level: Level) -> None:
     word = SyslogHandler.priority_map[level.name]
 
     assert SysLogHandler.priority_names[word] == level.rfc5424
+
+
+@final
+class _RecordingSocket:
+    """Stands in for a TCP socket, noting the timeout in force when it connects."""
+
+    events: ClassVar[list[tuple[str, float | None]]] = []
+
+    def __init__(self, *_args: object) -> None:
+        self._timeout: float | None = None
+
+    def settimeout(self, timeout: float | None) -> None:
+        self._timeout = timeout
+
+    def connect(self, _address: object) -> None:
+        _RecordingSocket.events.append(("connect", self._timeout))
+
+    def sendall(self, _data: bytes) -> None:
+        _RecordingSocket.events.append(("send", self._timeout))
+
+    def close(self) -> None:
+        pass
+
+
+def test_a_tcp_connect_is_bounded_by_the_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    _RecordingSocket.events.clear()
+    monkeypatch.setattr(socket, "socket", _RecordingSocket)
+    handler = SyslogHandler(address=("127.0.0.1", 514), socktype=socket.SOCK_STREAM, timeout=0.5)
+
+    _ = handler.handle(make_record(Level.ERROR, "msg"))
+    handler.close()
+
+    assert _RecordingSocket.events == [("connect", 0.5), ("send", 0.5)]

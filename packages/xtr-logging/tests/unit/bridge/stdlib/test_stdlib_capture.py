@@ -149,6 +149,19 @@ def test_a_handler_attached_during_the_capture_is_attached_on_release() -> None:
     assert logging.getLogger(name).handlers == [late]
 
 
+def test_a_handler_put_back_by_hand_during_the_capture_is_given_back_once() -> None:
+    name = _name()
+    own = Collector()
+    library = logging.getLogger(name)
+    library.addHandler(own)
+
+    with StdlibCapture(Logger("app")):
+        library.handlers.append(own)
+        library.warning("taken over again")
+
+    assert library.handlers == [own]
+
+
 def test_release_gives_the_standard_library_its_methods_and_last_resort_back() -> None:
     add, remove, last_resort = (
         logging.Logger.addHandler,

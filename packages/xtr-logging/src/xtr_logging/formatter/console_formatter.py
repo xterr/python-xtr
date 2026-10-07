@@ -50,6 +50,8 @@ class ConsoleFormatter(LineFormatter):
     only when it is writing to a real terminal.
     """
 
+    __slots__: tuple[str, ...] = ("_colors",)
+
     def __init__(  # noqa: PLR0913 — mirrors LineFormatter's keywords plus colours
         self,
         format: str | None = None,  # noqa: A002 — LineFormatter's name for it
@@ -59,6 +61,8 @@ class ConsoleFormatter(LineFormatter):
         ignore_empty_context_and_extra: bool = True,
         include_stacktraces: bool = False,
         colors: bool = False,
+        max_depth: int | None = None,
+        max_items: int | None = None,
     ) -> None:
         """Configure the line, defaulting to the short console format.
 
@@ -71,6 +75,10 @@ class ConsoleFormatter(LineFormatter):
                 the line rather than printing ``[]``; on by default here.
             include_stacktraces: Print an exception's traceback after it.
             colors: Wrap the level name in an ANSI colour graded by severity.
+            max_depth: How deeply a nested value is rendered before it is cut;
+                the normalizer's default when omitted.
+            max_items: How many items of one collection are rendered; the
+                normalizer's default when omitted.
         """
         super().__init__(
             format if format is not None else _DEFAULT_FORMAT,
@@ -78,6 +86,8 @@ class ConsoleFormatter(LineFormatter):
             allow_inline_line_breaks=allow_inline_line_breaks,
             ignore_empty_context_and_extra=ignore_empty_context_and_extra,
             include_stacktraces=include_stacktraces,
+            max_depth=max_depth,
+            max_items=max_items,
         )
         self._colors: bool = colors
 

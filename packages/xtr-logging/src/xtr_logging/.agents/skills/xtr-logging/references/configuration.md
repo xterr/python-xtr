@@ -64,7 +64,7 @@ type = "placeholder"
 Handler `type` values: `stream`, `rotating_file`, `syslog`, `console`, `null`, `stdlib`,
 `service`, `fingers_crossed`, `buffer`, `filter`, `deduplication`, `sampling`, `queue`, `group`,
 `whatfailuregroup`, `fallbackgroup`. Processor `type` values: `placeholder`, `context_vars`,
-`uid`, `introspection`, `hostname`, `process_id`, `tags`, `service`.
+`uid`, `introspection`, `hostname`, `process_id`, `tags`, `redacting`, `service`.
 
 The rules:
 
@@ -78,8 +78,10 @@ The rules:
 - **Nesting.** A wrapper names what it wraps (`handler="file"`, `members=["a", "b"]`). A handler
   named that way, or marked `nested`, is kept off every channel's stack.
 - **Priority.** Higher is consulted first; ties keep declaration order.
-- **Services.** `type="service"` names an object you supply, as do a formatter given by name and
-  an `activation_strategy`:
+- **Services.** `type="service"` names an object you supply, as do a formatter given by name, an
+  `activation_strategy`, and a queue handler's `on_error` — a callable taking the exception and
+  the record the worker failed on, given in `Services(error_handlers=...)` (under the bundle, an
+  `ErrorHandlerInterface` service with `qualifier=id`):
 
   ```python
   LoggerFactory(CONFIG, services=Services(handlers={"sentry": sentry_handler}))

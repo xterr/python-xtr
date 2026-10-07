@@ -9,13 +9,13 @@ def test_it_adds_the_tags_it_was_built_with() -> None:
 
     record = processor(make_record())
 
-    assert record.extra["tags"] == ["billing", "eu"]
+    assert record.extra["tags"] == ("billing", "eu")
 
 
 def test_tags_default_to_empty() -> None:
     record = TagProcessor()(make_record())
 
-    assert record.extra["tags"] == []
+    assert record.extra["tags"] == ()
 
 
 def test_add_tags_appends_to_the_existing_ones() -> None:
@@ -23,7 +23,7 @@ def test_add_tags_appends_to_the_existing_ones() -> None:
 
     processor.add_tags("b", "c")
 
-    assert processor(make_record()).extra["tags"] == ["a", "b", "c"]
+    assert processor(make_record()).extra["tags"] == ("a", "b", "c")
 
 
 def test_set_tags_replaces_them() -> None:
@@ -31,4 +31,16 @@ def test_set_tags_replaces_them() -> None:
 
     processor.set_tags(["x", "y"])
 
-    assert processor(make_record()).extra["tags"] == ["x", "y"]
+    assert processor(make_record()).extra["tags"] == ("x", "y")
+
+
+def test_records_do_not_share_a_mutable_tags_object() -> None:
+    processor = TagProcessor(["a"])
+
+    first = processor(make_record())
+    second = processor(make_record())
+
+    # An immutable tuple: no consumer can corrupt one record's tags through
+    # another's, however many records share it.
+    assert isinstance(first.extra["tags"], tuple)
+    assert first.extra["tags"] == second.extra["tags"] == ("a",)

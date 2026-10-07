@@ -10,6 +10,7 @@ from xtr_logging.processor.hostname_processor import HostnameProcessor
 from xtr_logging.processor.introspection_processor import IntrospectionProcessor
 from xtr_logging.processor.placeholder_processor import PlaceholderProcessor
 from xtr_logging.processor.process_id_processor import ProcessIdProcessor
+from xtr_logging.processor.redacting_processor import RedactingProcessor
 from xtr_logging.processor.tag_processor import TagProcessor
 from xtr_logging.processor.uid_processor import UidProcessor
 
@@ -19,6 +20,7 @@ from .processor_configs import (
     IntrospectionProcessorConfig,
     PlaceholderProcessorConfig,
     ProcessIdProcessorConfig,
+    RedactingProcessorConfig,
     ServiceProcessorConfig,
     TagProcessorConfig,
     UidProcessorConfig,
@@ -33,7 +35,7 @@ if TYPE_CHECKING:
 __all__ = ["build_processor"]
 
 
-def build_processor(config: ProcessorConfig, services: Services) -> ProcessorInterface:  # noqa: PLR0911 — one case per processor type
+def build_processor(config: ProcessorConfig, services: Services) -> ProcessorInterface:  # noqa: PLR0911, C901 — one case per processor type
     """Build the processor ``config`` describes, or look up the service it names.
 
     Raises:
@@ -60,6 +62,8 @@ def build_processor(config: ProcessorConfig, services: Services) -> ProcessorInt
             )
         case TagProcessorConfig():
             return TagProcessor(config.tags)
+        case RedactingProcessorConfig():
+            return RedactingProcessor(config.keys, config.values, mask=config.mask)
         case ContextVarsProcessorConfig():
             return ContextVarsProcessor(config.key)
         case ServiceProcessorConfig():

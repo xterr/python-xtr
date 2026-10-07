@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, final
 
 import pytest
+from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
 from xtr_logging import (
+    AbstractHandler,
     BufferHandler,
     FilterHandler,
+    LogRecord,
     NullHandler,
+    QueueHandler,
     SamplingHandler,
     StreamHandler,
     TestHandler,
@@ -22,6 +26,7 @@ from xtr_logging.config import (
     FilterHandlerConfig,
     LoggingConfig,
     NullHandlerConfig,
+    QueueHandlerConfig,
     SamplingHandlerConfig,
     ServiceHandlerConfig,
     StreamHandlerConfig,
@@ -33,6 +38,15 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _MEMBER = ServiceHandlerConfig(id="member", nested=True)
+
+
+@final
+class _Raising(AbstractHandler):
+    """A handler that fails on every record, to exercise a queue's ``on_error``."""
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        raise RuntimeError("boom")
 
 
 def _builder(**handlers: object) -> HandlerBuilder:
@@ -114,3 +128,57 @@ def test_a_service_nobody_supplied_is_refused() -> None:
 
     with pytest.raises(UnknownServiceError):
         _ = HandlerBuilder(config, Services()).build("main")
+
+
+def test_a_stream_config_passes_its_open_mode(tmp_path: Path) -> None:
+    target = tmp_path / "app.log"
+    _ = target.write_text("stale\n", encoding="utf-8")
+    handler = _builder(main=StreamHandlerConfig(path=str(target), mode="w")).build("main")
+
+    assert isinstance(handler, StreamHandler)
+    _ = handler.handle(make_record(message="fresh"))
+    handler.close()
+    # mode="w" reached the handler, so the stale content was truncated.
+    text = target.read_text(encoding="utf-8")
+    assert "stale" not in text
+    assert "fresh" in text
+
+
+def test_a_queue_config_runs_its_resolved_on_error_handler() -> None:
+    seen: list[Exception] = []
+
+    def report(error: Exception, _record: LogRecord) -> None:
+        seen.append(error)
+
+    config = LoggingConfig(
+        handlers={
+            "member": ServiceHandlerConfig(id="member", nested=True),
+            "main": QueueHandlerConfig(handler="member", on_error="report"),
+        },
+    )
+    builder = HandlerBuilder(
+        config,
+        Services(handlers={"member": _Raising()}, error_handlers={"report": report}),
+    )
+    handler = builder.build("main")
+    assert isinstance(handler, QueueHandler)
+
+    _ = handler.handle(make_record(message="x"))
+    handler.flush()
+    handler.close()
+
+    assert len(seen) == 1
+    assert isinstance(seen[0], RuntimeError)
+
+
+def test_a_queue_config_naming_an_unknown_on_error_handler_is_refused() -> None:
+    config = LoggingConfig(
+        handlers={
+            "member": _MEMBER,
+            "main": QueueHandlerConfig(handler="member", on_error="missing"),
+        },
+    )
+    builder = HandlerBuilder(config, Services(handlers={"member": TestHandler()}))
+
+    with pytest.raises(UnknownServiceError):
+        _ = builder.build("main")

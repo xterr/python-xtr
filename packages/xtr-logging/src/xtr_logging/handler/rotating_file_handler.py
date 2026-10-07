@@ -26,6 +26,9 @@ __all__ = ["RotatingFileHandler"]
 _DATE_TOKEN: Final = "{date}"  # noqa: S105 — a template token, not a secret
 _FILENAME_TOKEN: Final = "{filename}"  # noqa: S105 — a template token, not a secret
 _STRFTIME_DIRECTIVE: Final = re.compile(r"%[a-zA-Z]")
+# A fixed instant to render ``date_format`` at construction, so a format that
+# would carry a path separator into the filename is caught before any record.
+_REFERENCE_DATE: Final = datetime(2026, 1, 2, 3, 4, 5)  # noqa: DTZ001 — a rendering probe, not an instant
 
 
 @final
@@ -67,7 +70,8 @@ class RotatingFileHandler(StreamHandler):
 
         Raises:
             InvalidOptionError: If ``filename_format`` lacks ``{date}`` or
-                ``date_format`` holds no strftime directive.
+                ``date_format`` holds no strftime directive, or renders a path
+                separator that would scatter the dated files across directories.
             InvalidLevelError: If ``level`` names no level.
         """
         _validate_formats(date_format, filename_format)
@@ -161,4 +165,11 @@ def _validate_formats(date_format: str, filename_format: str) -> None:
             "date_format",
             date_format,
             "must hold a strftime directive such as %Y so the date varies",
+        )
+    rendered = _REFERENCE_DATE.strftime(date_format)
+    if "/" in rendered or os.sep in rendered or (os.altsep is not None and os.altsep in rendered):
+        raise InvalidOptionError(
+            "date_format",
+            date_format,
+            "must render no path separator, or the dated files would land in other directories",
         )

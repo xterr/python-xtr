@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import socket
 from logging.handlers import SysLogHandler as _StdlibSysLogHandler
@@ -51,10 +52,42 @@ class _RaisingSysLogHandler(_StdlibSysLogHandler):
     The standard library swallows an emit error into ``handleError`` and logs
     it to stderr; this library propagates handler failures instead, so a lost
     datagram is not hidden behind a green log call. It also carries the full
-    eight-level severity map, which the stdlib reads off the handler.
+    eight-level severity map, which the stdlib reads off the handler, and
+    applies the timeout before a TCP connect rather than after it: the stdlib
+    connects while it is being built, where a dead daemon would block forever.
     """
 
     priority_map: ClassVar[dict[str, str]] = dict(_PRIORITY_MAP)
+
+    def __init__(
+        self,
+        address: str | tuple[str, int],
+        facility: int,
+        socktype: socket.SocketKind | None,
+        timeout: float | None,
+    ) -> None:
+        # Set before the base class runs: its __init__ calls createSocket().
+        self._connect_timeout: float | None = timeout
+        super().__init__(address, facility, socktype)
+
+    @override
+    def createSocket(self) -> None:
+        timeout = self._connect_timeout
+        address = self.address
+        if (
+            timeout is not None
+            and self.socktype == socket.SOCK_STREAM
+            and not isinstance(address, str)
+        ):
+            self.unixsocket = False
+            self.socket = socket.create_connection(address, timeout)  # pyright: ignore[reportUninitializedInstanceVariable]  # assigned where the base class's createSocket() assigns it
+            return
+        super().createSocket()
+        if timeout is not None:
+            # A local socket the daemon is not listening on yet is left closed
+            # by the base class, which reconnects it on the next emit.
+            with contextlib.suppress(OSError):
+                self.socket.settimeout(timeout)
 
     @override
     def handleError(self, record: logging.LogRecord) -> None:
@@ -84,6 +117,7 @@ class SyslogHandler(AbstractProcessingHandler):
         *,
         address: str | tuple[str, int] = ("localhost", 514),
         socktype: int | None = None,
+        timeout: float | None = None,
     ) -> None:
         """Send records to the syslog daemon at ``address`` under ``facility``.
 
@@ -95,6 +129,9 @@ class SyslogHandler(AbstractProcessingHandler):
             bubble: Let a handled record reach later handlers.
             address: A ``(host, port)`` pair, or the path of a local socket.
             socktype: A ``socket`` type; the stdlib default (UDP) when omitted.
+            timeout: Seconds a connect or send may block before failing; left
+                at the system default (blocking) when omitted. Syslog carries
+                no encryption: a datagram crosses the network in cleartext.
 
         Raises:
             InvalidOptionError: If ``facility`` names no known facility.
@@ -105,6 +142,7 @@ class SyslogHandler(AbstractProcessingHandler):
         self._facility: int = _resolve_facility(facility)
         self._address: str | tuple[str, int] = address
         self._socktype: int | None = socktype
+        self._timeout: float | None = timeout
         self._transport: _RaisingSysLogHandler | None = None
 
     @override
@@ -136,13 +174,8 @@ class SyslogHandler(AbstractProcessingHandler):
         return LineFormatter(_SYSLOG_FORMAT)
 
     def _open_transport(self) -> _RaisingSysLogHandler:
-        transport = (
-            _RaisingSysLogHandler(self._address, self._facility)
-            if self._socktype is None
-            else _RaisingSysLogHandler(
-                self._address, self._facility, socket.SocketKind(self._socktype)
-            )
-        )
+        socktype = None if self._socktype is None else socket.SocketKind(self._socktype)
+        transport = _RaisingSysLogHandler(self._address, self._facility, socktype, self._timeout)
         transport.ident = f"{self._ident}: "
         self._transport = transport
         return transport

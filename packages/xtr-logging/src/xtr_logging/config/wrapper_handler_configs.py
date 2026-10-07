@@ -26,7 +26,21 @@ __all__ = [
 
 
 class _WrappingHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
+    """A wrapper that names one handler and never bubbles a record itself."""
+
     handler: str
+
+    @property
+    @override
+    def references(self) -> tuple[str, ...]:
+        return (self.handler,)
+
+
+class _BubblingWrappingHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
+    """A wrapper that names one handler and may bubble the record on."""
+
+    handler: str
+    bubble: bool = True
 
     @property
     @override
@@ -36,6 +50,7 @@ class _WrappingHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
 
 class _GroupingHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
     members: tuple[str, ...]
+    bubble: bool = True
 
     @property
     @override
@@ -44,7 +59,7 @@ class _GroupingHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
 
 
 class FingersCrossedHandlerConfig(
-    _WrappingHandlerConfig, frozen=True, kw_only=True, tag="fingers_crossed"
+    _BubblingWrappingHandlerConfig, frozen=True, kw_only=True, tag="fingers_crossed"
 ):
     """A :class:`~xtr_logging.handler.fingers_crossed_handler.FingersCrossedHandler`.
 
@@ -56,7 +71,7 @@ class FingersCrossedHandlerConfig(
     action_level: Level | str = Level.WARNING
     channel_levels: dict[str, Level | str] | None = None
     activation_strategy: str | None = None
-    buffer_size: int = 0
+    buffer_size: int = 10_000
     stop_buffering: bool = True
     passthru_level: Level | str | None = None
 
@@ -70,11 +85,11 @@ class FingersCrossedHandlerConfig(
             _ = Level.parse(self.passthru_level)
 
 
-class BufferHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag="buffer"):
+class BufferHandlerConfig(_BubblingWrappingHandlerConfig, frozen=True, kw_only=True, tag="buffer"):
     """A :class:`~xtr_logging.handler.buffer_handler.BufferHandler`."""
 
     level: Level | str = Level.DEBUG
-    buffer_size: int = 0
+    buffer_size: int = 10_000
     flush_on_overflow: bool = False
 
     @override
@@ -83,7 +98,7 @@ class BufferHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag
         _ = Level.parse(self.level)
 
 
-class FilterHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag="filter"):
+class FilterHandlerConfig(_BubblingWrappingHandlerConfig, frozen=True, kw_only=True, tag="filter"):
     """A :class:`~xtr_logging.handler.filter_handler.FilterHandler`.
 
     Passes ``accepted_levels`` when given, otherwise the range from
@@ -102,7 +117,7 @@ class FilterHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag
 
 
 class DeduplicationHandlerConfig(
-    _WrappingHandlerConfig, frozen=True, kw_only=True, tag="deduplication"
+    _BubblingWrappingHandlerConfig, frozen=True, kw_only=True, tag="deduplication"
 ):
     """A :class:`~xtr_logging.handler.deduplication_handler.DeduplicationHandler`."""
 
@@ -118,7 +133,9 @@ class DeduplicationHandlerConfig(
         _ = Level.parse(self.deduplication_level)
 
 
-class SamplingHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag="sampling"):
+class SamplingHandlerConfig(
+    _BubblingWrappingHandlerConfig, frozen=True, kw_only=True, tag="sampling"
+):
     """A :class:`~xtr_logging.handler.sampling_handler.SamplingHandler`.
 
     Passes one record in ``factor``.
@@ -131,9 +148,12 @@ class QueueHandlerConfig(_WrappingHandlerConfig, frozen=True, kw_only=True, tag=
     """A :class:`~xtr_logging.handler.queue_handler.QueueHandler`.
 
     Hands records to a background thread, so logging never waits on I/O.
+    ``on_error`` names a supplied callable the worker hands a failing record
+    to, instead of printing a traceback to standard error.
     """
 
-    max_size: int = 0
+    max_size: int = 10_000
+    on_error: str | None = None
 
 
 class GroupHandlerConfig(_GroupingHandlerConfig, frozen=True, kw_only=True, tag="group"):

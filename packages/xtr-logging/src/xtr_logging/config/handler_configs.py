@@ -49,13 +49,11 @@ class BaseHandlerConfig(
         nested: Keep the handler off every channel's stack, to be used only
             by the handler that names it. Implied for a handler another
             names.
-        bubble: Whether a handled record goes on to the next handler.
     """
 
     channels: str | tuple[str, ...] | None = None
     priority: int = 0
     nested: bool = False
-    bubble: bool = True
 
     def __post_init__(self) -> None:
         """Check the channel list as it is written.
@@ -76,6 +74,16 @@ class BaseHandlerConfig(
         return ()
 
 
+class _BubblingHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
+    """A handler whose handled record may bubble on to the next handler.
+
+    Attributes:
+        bubble: Whether a handled record goes on to the next handler.
+    """
+
+    bubble: bool = True
+
+
 class _LevelledHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
     level: Level | str = Level.DEBUG
 
@@ -85,7 +93,16 @@ class _LevelledHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True):
         _ = Level.parse(self.level)
 
 
-class FormattedHandlerConfig(_LevelledHandlerConfig, frozen=True, kw_only=True):
+class _BubblingLevelledHandlerConfig(_BubblingHandlerConfig, frozen=True, kw_only=True):
+    level: Level | str = Level.DEBUG
+
+    @override
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _ = Level.parse(self.level)
+
+
+class FormattedHandlerConfig(_BubblingLevelledHandlerConfig, frozen=True, kw_only=True):
     """A handler that writes text, and so takes a level and a formatter."""
 
     formatter: FormatterConfig | str | None = None
@@ -100,6 +117,9 @@ class StreamHandlerConfig(FormattedHandlerConfig, frozen=True, kw_only=True, tag
 
     path: str = "stderr"
     file_permission: int | None = None
+    mode: Literal["a", "w", "x"] = "a"
+    encoding: str = "utf-8"
+    errors: str = "backslashreplace"
 
 
 class RotatingFileHandlerConfig(
@@ -118,14 +138,19 @@ class SyslogHandlerConfig(FormattedHandlerConfig, frozen=True, kw_only=True, tag
     """A :class:`~xtr_logging.handler.syslog_handler.SyslogHandler`.
 
     ``address`` is ``host:port`` for UDP, or a socket path such as ``/dev/log``.
+
+    Syslog is sent in cleartext over UDP by default; ``socktype`` picks TCP,
+    and ``timeout`` caps how long opening or sending may block.
     """
 
     ident: str = "python"
     facility: str = "user"
     address: str = "localhost:514"
+    socktype: Literal["udp", "tcp"] | None = None
+    timeout: float | None = None
 
 
-class ConsoleHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True, tag="console"):
+class ConsoleHandlerConfig(_BubblingHandlerConfig, frozen=True, kw_only=True, tag="console"):
     """A :class:`~xtr_logging.handler.console_handler.ConsoleHandler`.
 
     Its level follows the verbosity rather than being set;
@@ -149,7 +174,7 @@ class NullHandlerConfig(_LevelledHandlerConfig, frozen=True, kw_only=True, tag="
     """A :class:`~xtr_logging.handler.null_handler.NullHandler`."""
 
 
-class StdlibHandlerConfig(_LevelledHandlerConfig, frozen=True, kw_only=True, tag="stdlib"):
+class StdlibHandlerConfig(_BubblingLevelledHandlerConfig, frozen=True, kw_only=True, tag="stdlib"):
     """A :class:`~xtr_logging.bridge.stdlib.stdlib_handler.StdlibHandler`.
 
     ``logger`` names the standard-library logger; the root logger by default.
@@ -158,7 +183,7 @@ class StdlibHandlerConfig(_LevelledHandlerConfig, frozen=True, kw_only=True, tag
     logger: str = ""
 
 
-class ServiceHandlerConfig(BaseHandlerConfig, frozen=True, kw_only=True, tag="service"):
+class ServiceHandlerConfig(_BubblingHandlerConfig, frozen=True, kw_only=True, tag="service"):
     """A handler object supplied to the factory under ``id``."""
 
     id: str

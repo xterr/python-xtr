@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from typing_extensions import override
 from xtr_logging_contracts import Level
@@ -22,14 +22,24 @@ if TYPE_CHECKING:
 
 __all__ = ["StreamHandler"]
 
+_OPEN_FLAGS: dict[str, int] = {
+    "a": os.O_WRONLY | os.O_CREAT | os.O_APPEND,
+    "w": os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+    "x": os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+}
+# ``x`` enforces exclusivity through ``O_EXCL`` at ``os.open``; the fd it
+# returns is wrapped for writing, so plain ``w`` suits the stream wrapper.
+_FDOPEN_MODE: dict[str, str] = {"a": "a", "w": "w", "x": "w"}
+
 
 class StreamHandler(AbstractProcessingHandler):
     """Writes each formatted record to a stream, flushing as it goes.
 
     Given an open stream it writes there and leaves closing to the caller.
     Given a path it opens the file on the first record — creating parent
-    directories, and setting ``file_permission`` on a file it creates — so a
-    handler configured for a path that is never logged to touches nothing.
+    directories, and setting ``file_permission`` on the file whether it
+    created it or found it — so a handler configured for a path that is never
+    logged to touches nothing.
 
     A lock serialises writes, so two threads logging at once cannot splice one
     line inside another. :meth:`close` closes only a file this handler opened;
@@ -53,8 +63,9 @@ class StreamHandler(AbstractProcessingHandler):
             stream: An open text stream, or the path of a file to open.
             level: Handle records at this level or above.
             bubble: Let a handled record reach later handlers.
-            file_permission: The mode to ``chmod`` a file this handler creates
-                to; left at the system default when omitted.
+            file_permission: The mode a file this handler opens is set to,
+                whether it created the file or found one already there; left at
+                the system default when omitted.
             mode: How to open a path — append, truncate, or create-exclusive.
             encoding: How to encode text written to a path.
             errors: What to do with text ``encoding`` cannot represent, as
@@ -137,9 +148,26 @@ class StreamHandler(AbstractProcessingHandler):
 
     def _open_file(self, path_str: str) -> TextIO:
         path = Path(path_str)
-        existed = path.exists()
         path.parent.mkdir(parents=True, exist_ok=True)
-        stream = path.open(self._mode, encoding=self._encoding, errors=self._errors)
-        if self._file_permission is not None and not existed:
-            path.chmod(self._file_permission)
+        permission = self._file_permission
+        if permission is None:
+            return path.open(self._mode, encoding=self._encoding, errors=self._errors)
+        # os.open sets the mode atomically when creating, but the umask masks
+        # it and an existing file keeps its old mode; chmod makes it exact
+        # either way, so the file never sits readable between create and chmod.
+        descriptor = os.open(path, _OPEN_FLAGS[self._mode], permission)
+        try:
+            stream = cast(
+                "TextIO",
+                os.fdopen(
+                    descriptor,
+                    _FDOPEN_MODE[self._mode],
+                    encoding=self._encoding,
+                    errors=self._errors,
+                ),
+            )
+        except BaseException:
+            os.close(descriptor)
+            raise
+        path.chmod(permission)
         return stream

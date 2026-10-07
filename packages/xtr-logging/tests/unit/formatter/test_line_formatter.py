@@ -75,6 +75,26 @@ def test_line_breaks_are_kept_when_allowed() -> None:
     assert formatter.format(make_record(message="one\ntwo")) == "one\ntwo"
 
 
+def test_control_characters_are_stripped_from_values() -> None:
+    rendered = LineFormatter("%message%").format(make_record(message="clear\x1b[2Jscreen"))
+
+    assert rendered == "clear[2Jscreen"
+
+
+def test_control_characters_are_kept_when_allowed() -> None:
+    formatter = LineFormatter("%message%", allow_control_characters=True)
+
+    assert formatter.format(make_record(message="clear\x1b[2J")) == "clear\x1b[2J"
+
+
+def test_a_channel_with_a_line_break_stays_on_one_line() -> None:
+    rendered = LineFormatter("%channel%|%message%").format(
+        make_record(message="hi", channel="ap\np"),
+    )
+
+    assert rendered == "ap p|hi"
+
+
 def test_an_exception_prints_its_class_message_and_origin() -> None:
     record = make_record(context={"exception": _raised(ValueError("bad"))})
 

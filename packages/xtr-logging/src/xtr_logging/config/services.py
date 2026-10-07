@@ -6,13 +6,14 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from xtr_logging.formatter.formatter_interface import FormatterInterface
     from xtr_logging.handler.fingers_crossed.activation_strategy_interface import (
         ActivationStrategyInterface,
     )
     from xtr_logging.handler.handler_interface import HandlerInterface
+    from xtr_logging.log_record import LogRecord
     from xtr_logging.processor.processor_interface import ProcessorInterface
 
 __all__ = ["Services"]
@@ -31,6 +32,10 @@ def _no_processors() -> Mapping[str, ProcessorInterface]:
 
 
 def _no_strategies() -> Mapping[str, ActivationStrategyInterface]:
+    return {}
+
+
+def _no_error_handlers() -> Mapping[str, Callable[[Exception, LogRecord], None]]:
     return {}
 
 
@@ -53,6 +58,7 @@ class Services:
         processors: For ``type: service`` processors.
         activation_strategies: For a fingers-crossed handler's
             ``activation_strategy``.
+        error_handlers: For a queue handler's ``on_error`` given as a string.
     """
 
     handlers: Mapping[str, HandlerInterface] = field(default_factory=_no_handlers)
@@ -60,4 +66,7 @@ class Services:
     processors: Mapping[str, ProcessorInterface] = field(default_factory=_no_processors)
     activation_strategies: Mapping[str, ActivationStrategyInterface] = field(
         default_factory=_no_strategies,
+    )
+    error_handlers: Mapping[str, Callable[[Exception, LogRecord], None]] = field(
+        default_factory=_no_error_handlers,
     )

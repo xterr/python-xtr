@@ -53,11 +53,20 @@ class CaptureConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
         loggers: Standard loggers by name, each with a level — ``"info"`` —
             or with a level and a channel of their own. A name covers the
             loggers below it: ``httpx`` catches ``httpx._client``.
+        channel_from_name: Send a record no logger entry routes to a channel
+            named after the standard logger it came from — ``sqlalchemy.engine``
+            and ``uvicorn.access`` staying apart — rather than to the default
+            channel.
+        drop_keys: Context keys dropped from every captured record — fields a
+            third party attaches through ``extra=`` that are noise or secrets,
+            removed before the record reaches a channel.
     """
 
     level: Level | str = Level.WARNING
     channel: str | None = None
     loggers: dict[str, CapturedLoggerConfig | Level | str] = msgspec.field(default_factory=dict)
+    channel_from_name: bool = False
+    drop_keys: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Check every level as it is written.

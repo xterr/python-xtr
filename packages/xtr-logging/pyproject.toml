@@ -120,6 +120,8 @@ unfixable = []
     "ARG",     # fixtures look unused
     "PLR2004", # magic numbers in test data
     "SLF001",  # tests reach into privates
+    "S105",    # fake secret literals are test data
+    "S106",    # fake secret literals are test data
     "D",       # test names are the docs
 ]
 

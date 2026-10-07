@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 import sys
 from typing import TYPE_CHECKING, Final, assert_never, final
 
@@ -55,6 +56,7 @@ from .wrapper_handler_configs import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import TextIO
 
     from xtr_logging_contracts import Level, LevelLike
@@ -63,6 +65,7 @@ if TYPE_CHECKING:
         ActivationStrategyInterface,
     )
     from xtr_logging.handler.handler_interface import HandlerInterface
+    from xtr_logging.log_record import LogRecord
 
     from .logging_config import HandlerConfig, LoggingConfig
     from .services import Services
@@ -123,6 +126,9 @@ class HandlerBuilder:
                     config.level,
                     config.bubble,
                     file_permission=config.file_permission,
+                    mode=config.mode,
+                    encoding=config.encoding,
+                    errors=config.errors,
                 )
             case RotatingFileHandlerConfig():
                 return RotatingFileHandler(
@@ -141,6 +147,8 @@ class HandlerBuilder:
                     config.level,
                     config.bubble,
                     address=_address(config.address),
+                    socktype=_socktype(config.socktype),
+                    timeout=config.timeout,
                 )
             case ConsoleHandlerConfig():
                 return ConsoleHandler(
@@ -197,7 +205,11 @@ class HandlerBuilder:
             case SamplingHandlerConfig():
                 return SamplingHandler(self.build(config.handler), config.factor, config.bubble)
             case QueueHandlerConfig():
-                return QueueHandler(self.build(config.handler), max_size=config.max_size)
+                return QueueHandler(
+                    self.build(config.handler),
+                    max_size=config.max_size,
+                    on_error=self._error_handler(config.on_error),
+                )
             case GroupHandlerConfig():
                 return GroupHandler([self.build(m) for m in config.members], config.bubble)
             case WhatFailureGroupHandlerConfig():
@@ -228,6 +240,14 @@ class HandlerBuilder:
             return ChannelLevelActivationStrategy(config.action_level, config.channel_levels)
         return ErrorLevelActivationStrategy(config.action_level)
 
+    def _error_handler(self, name: str | None) -> Callable[[Exception, LogRecord], None] | None:
+        if name is None:
+            return None
+        found = self._services.error_handlers.get(name)
+        if found is None:
+            raise UnknownServiceError("error handler", name, tuple(self._services.error_handlers))
+        return found
+
 
 def _stream(name: str) -> TextIO:
     return sys.stdout if name == "stdout" else sys.stderr
@@ -240,6 +260,12 @@ def _address(address: str) -> str | tuple[str, int]:
     if not host or not port.isdigit():
         raise InvalidOptionError("address", address, "expected host:port or a socket path")
     return host, int(port)
+
+
+def _socktype(socktype: str | None) -> socket.SocketKind | None:
+    if socktype is None:
+        return None
+    return socket.SOCK_DGRAM if socktype == "udp" else socket.SOCK_STREAM
 
 
 def _verbosity_levels(

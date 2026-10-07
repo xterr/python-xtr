@@ -190,6 +190,19 @@ def test_clear_discards_the_buffer_even_with_a_passthru_floor() -> None:
     assert spy.handled == []
 
 
+def test_clear_re_arms_buffering_without_resetting_the_wrapped_handler() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(spy, activation_strategy=Level.ERROR)
+    _ = handler.handle(make_record(Level.ERROR, "boom"))
+    spy.handled.clear()
+
+    handler.clear()
+    _ = handler.handle(make_record(Level.INFO, "after"))
+
+    assert spy.resets == 0
+    assert spy.handled == []
+
+
 def test_clear_after_activation_starts_buffering_again() -> None:
     spy = Spy()
     handler = FingersCrossedHandler(spy)
@@ -352,3 +365,16 @@ async def test_two_concurrent_units_do_not_mix_their_buffers() -> None:
         _ = task_group.start_soon(quiet)
 
     assert [record.message for record in spy.handled] == ["loud-debug", "loud-error"]
+
+
+def test_the_buffer_is_bounded_by_default() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(spy)
+    for index in range(10_001):
+        _ = handler.handle(make_record(Level.DEBUG, str(index)))
+
+    handler.activate()
+
+    # The default size drops the oldest once full, so the first record is gone.
+    assert len(spy.handled) == 10_000
+    assert spy.handled[0].message == "1"

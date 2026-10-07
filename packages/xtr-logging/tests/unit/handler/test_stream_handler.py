@@ -66,6 +66,18 @@ def test_a_created_file_gets_the_requested_permission(tmp_path: Path) -> None:
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
 
 
+def test_an_existing_file_also_gets_the_requested_permission(tmp_path: Path) -> None:
+    target = tmp_path / "app.log"
+    _ = target.write_text("stale\n", encoding="utf-8")
+    target.chmod(0o644)
+    handler = StreamHandler(target, file_permission=0o600)
+
+    _ = handler.handle(make_record(message="hi"))
+    handler.close()
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
 def test_close_then_write_reopens_the_file(tmp_path: Path) -> None:
     target = tmp_path / "app.log"
     handler = StreamHandler(target)

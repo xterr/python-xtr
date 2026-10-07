@@ -40,7 +40,7 @@ class JsonFormatter(FormatterInterface):
 
     __slots__ = ("_append_newline", "_batch_mode", "_ignore_empty", "_normalizer")
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — every JSON option is independent; all have defaults
         self,
         batch_mode: JsonBatchMode = JsonBatchMode.NEWLINES,
         *,
@@ -48,6 +48,8 @@ class JsonFormatter(FormatterInterface):
         ignore_empty_context_and_extra: bool = False,
         include_stacktraces: bool = False,
         date_format: str | None = None,
+        max_depth: int | None = None,
+        max_items: int | None = None,
     ) -> None:
         """Configure the JSON.
 
@@ -62,12 +64,19 @@ class JsonFormatter(FormatterInterface):
             include_stacktraces: Give an exception its traceback.
             date_format: A :meth:`~datetime.datetime.strftime` format for the
                 timestamp; ISO 8601 when omitted.
+            max_depth: How deeply a nested value is rendered before it is cut;
+                the normalizer's default when omitted.
+            max_items: How many items of one collection are rendered; the
+                normalizer's default when omitted.
         """
         self._batch_mode: JsonBatchMode = batch_mode
         self._append_newline: bool = append_newline
         self._ignore_empty: bool = ignore_empty_context_and_extra
         self._normalizer: Normalizer = Normalizer(
-            date_format, include_stacktraces=include_stacktraces
+            date_format,
+            include_stacktraces=include_stacktraces,
+            max_depth=max_depth,
+            max_items=max_items,
         )
 
     @override

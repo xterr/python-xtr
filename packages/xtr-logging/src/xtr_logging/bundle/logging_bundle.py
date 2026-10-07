@@ -39,9 +39,13 @@ from xtr_logging.config.handler_configs import (
 from xtr_logging.config.logging_config import LoggingConfig
 from xtr_logging.config.processor_configs import ServiceProcessorConfig
 from xtr_logging.config.services import Services
-from xtr_logging.config.wrapper_handler_configs import FingersCrossedHandlerConfig
+from xtr_logging.config.wrapper_handler_configs import (
+    FingersCrossedHandlerConfig,
+    QueueHandlerConfig,
+)
 from xtr_logging.exception.unknown_service_error import UnknownServiceError
 from xtr_logging.formatter.formatter_interface import FormatterInterface
+from xtr_logging.handler.error_handler_interface import ErrorHandlerInterface
 from xtr_logging.handler.fingers_crossed.activation_strategy_interface import (
     ActivationStrategyInterface,
 )
@@ -191,6 +195,7 @@ async def _resolve_services(config: LoggingConfig, container: ContainerInterface
     formatters: dict[str, FormatterInterface] = {}
     processors: dict[str, ProcessorInterface] = {}
     strategies: dict[str, ActivationStrategyInterface] = {}
+    error_handlers: dict[str, ErrorHandlerInterface] = {}
     for kind, _service_type, ids in _service_ids_by_kind(config):
         for service_id in ids:
             if kind == "handler":
@@ -199,6 +204,8 @@ async def _resolve_services(config: LoggingConfig, container: ContainerInterface
                 formatters[service_id] = await container.get(FormatterInterface, service_id)
             elif kind == "processor":
                 processors[service_id] = await container.get(ProcessorInterface, service_id)
+            elif kind == "error_handler":
+                error_handlers[service_id] = await container.get(ErrorHandlerInterface, service_id)
             else:
                 strategies[service_id] = await container.get(
                     ActivationStrategyInterface, service_id
@@ -208,6 +215,7 @@ async def _resolve_services(config: LoggingConfig, container: ContainerInterface
         formatters=formatters,
         processors=processors,
         activation_strategies=strategies,
+        error_handlers=error_handlers,
     )
 
 
@@ -219,6 +227,7 @@ def _service_ids_by_kind(
     yield ("formatter", FormatterInterface, tuple(_formatter_ids(config)))
     yield ("processor", ProcessorInterface, tuple(_processor_ids(config)))
     yield ("activation_strategy", ActivationStrategyInterface, tuple(_strategy_ids(config)))
+    yield ("error_handler", ErrorHandlerInterface, tuple(_error_handler_ids(config)))
 
 
 def _handler_ids(config: LoggingConfig) -> Iterable[str]:
@@ -245,9 +254,24 @@ def _processor_ids(config: LoggingConfig) -> Iterable[str]:
 
 
 def _strategy_ids(config: LoggingConfig) -> Iterable[str]:
+    seen: set[str] = set()
     for handler in config.handlers.values():
         if (
             isinstance(handler, FingersCrossedHandlerConfig)
             and handler.activation_strategy is not None
+            and handler.activation_strategy not in seen
         ):
+            seen.add(handler.activation_strategy)
             yield handler.activation_strategy
+
+
+def _error_handler_ids(config: LoggingConfig) -> Iterable[str]:
+    seen: set[str] = set()
+    for handler in config.handlers.values():
+        if (
+            isinstance(handler, QueueHandlerConfig)
+            and handler.on_error is not None
+            and handler.on_error not in seen
+        ):
+            seen.add(handler.on_error)
+            yield handler.on_error

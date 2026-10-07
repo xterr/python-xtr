@@ -59,6 +59,19 @@ def test_it_forwards_a_first_time_record(tmp_path: Path) -> None:
     assert [record.message for record in spy.handled] == ["boom"]
 
 
+def test_an_explicit_store_in_a_missing_directory_gets_a_private_one(tmp_path: Path) -> None:
+    spy = Spy()
+    store = tmp_path / "state" / "dedup.log"
+    handler = DeduplicationHandler(spy, store=store, clock=MockClock(AT))
+
+    _ = handler.handle(make_record(Level.ERROR, "boom"))
+    handler.flush()
+
+    assert [record.message for record in spy.handled] == ["boom"]
+    assert store.read_text(encoding="utf-8").endswith(":ERROR:boom\n")
+    assert stat.S_IMODE(store.parent.stat().st_mode) == 0o700
+
+
 def test_it_suppresses_a_duplicate_within_the_window(tmp_path: Path) -> None:
     spy = Spy()
     handler = DeduplicationHandler(spy, store=tmp_path / "dedup.log", clock=MockClock(AT))

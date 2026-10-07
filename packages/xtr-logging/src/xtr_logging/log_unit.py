@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, TypeVar, cast, final
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-__all__ = ["begin_unit", "end_unit", "unit_state"]
+__all__ = ["begin_unit", "end_unit", "in_unit", "unit_state"]
 
 _T = TypeVar("_T")
 
@@ -56,6 +56,11 @@ def begin_unit() -> None:
     """
     end_unit()
     _ = _CURRENT.set(_Unit())
+
+
+def in_unit() -> bool:
+    """Whether a unit of work is open in the current context."""
+    return _CURRENT.get() is not None
 
 
 def end_unit() -> None:

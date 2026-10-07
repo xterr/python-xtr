@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import pytest
 
-from xtr_logging.config import PlaceholderProcessorConfig
+from xtr_logging.config import PlaceholderProcessorConfig, RedactingProcessorConfig
 from xtr_logging.config.processor_builder import build_processor
 from xtr_logging.config.services import Services
 from xtr_logging.processor.placeholder_processor import PlaceholderProcessor
+from xtr_logging.processor.redacting_processor import RedactingProcessor
 
 
 def test_a_config_builds_its_processor() -> None:
     assert isinstance(
         build_processor(PlaceholderProcessorConfig(), Services()), PlaceholderProcessor
     )
+
+
+def test_a_redacting_config_builds_a_redacting_processor() -> None:
+    assert isinstance(build_processor(RedactingProcessorConfig(), Services()), RedactingProcessor)
 
 
 def test_something_that_is_no_config_is_refused_rather_than_built_as_nothing() -> None:

@@ -55,8 +55,9 @@ class DeduplicationHandler(BufferHandler):
     One owned by someone else is not used, and nothing is deduplicated. Give
     ``store`` an explicit path shared across processes so a burst spread over
     many workers is still deduplicated: the store is locked while it is read
-    and written, where the system has file locks. The clock is injected so a test can
-    decide what "recently" means.
+    and written, where the system has file locks. A missing directory for it is
+    made, for this user alone, on first use. The clock is injected so a test
+    can decide what "recently" means.
 
     Records are held until a flush, all of them unless ``buffer_limit`` caps
     how many, the oldest dropped past it — or everything forwarded, with
@@ -110,6 +111,7 @@ class DeduplicationHandler(BufferHandler):
         self._clock: ClockInterface = clock if clock is not None else Clock()
         self._gc: bool = False
         self._store_lock: threading.Lock = threading.Lock()
+        self._store_directory_made: bool = False
 
     @override
     def _forward(self, records: list[LogRecord]) -> None:
@@ -120,9 +122,11 @@ class DeduplicationHandler(BufferHandler):
             passthru: bool | None = None
             for record in records:
                 if record.level >= self._deduplication_level:
-                    passthru = (
-                        passthru is True or store is None or not self._is_duplicate(store, record)
-                    )
+                    # Evaluated for every record, never short-circuited past:
+                    # the scan is what notices entries old enough to garbage
+                    # collect, and a later duplicate must still be recognised.
+                    duplicate = store is not None and self._is_duplicate(store, record)
+                    passthru = passthru is True or store is None or not duplicate
                     if passthru:
                         line = self._build_entry(record)
                         self._append_store(line)
@@ -187,10 +191,14 @@ class DeduplicationHandler(BufferHandler):
     def _trusted(self) -> bool:
         """Tell whether the store may be read and written: an explicit one always is.
 
+        An explicit store's missing directory is made, for this user alone.
         The default one's directory is made for this user alone, and is
         refused when it belongs to someone else.
         """
         if not self._private:
+            if not self._store_directory_made:
+                self._store_path.parent.mkdir(mode=_PRIVATE_MODE, parents=True, exist_ok=True)
+                self._store_directory_made = True
             return True
         return _private_directory(self._store_path.parent)
 

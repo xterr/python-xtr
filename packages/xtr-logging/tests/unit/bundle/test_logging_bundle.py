@@ -9,8 +9,9 @@ from xtr_dependency_injection import Kernel, ServicesResetter
 from xtr_dependency_injection.testing import assert_zero_config
 from xtr_logging_contracts import LoggerInterface
 
-from tests.fixtures import app_unknown_handler
+from tests.fixtures import app_queue_on_error, app_unknown_error_handler, app_unknown_handler
 from tests.fixtures.app_logging.config import HANDLER
+from tests.fixtures.app_queue_on_error.config import REPORTED
 from xtr_logging import LoggerFactory
 from xtr_logging.bundle import LoggingBundle, LoggingConfig
 from xtr_logging.config import ServiceHandlerConfig
@@ -52,6 +53,25 @@ async def test_unknown_handler_id_fails_at_build() -> None:
     with pytest.raises(UnknownServiceError) as excinfo:
         _ = kernel.build()
     assert excinfo.value.service_id == "nope"
+
+
+async def test_a_queue_handlers_on_error_resolves_to_the_named_service() -> None:
+    kernel = Kernel(app_queue_on_error.__name__, env="test")
+    booted = await kernel.boot()
+    try:
+        logger = await booted.container.get(LoggerInterface)
+        logger.error("queued failure")
+    finally:
+        await booted.shutdown()
+
+    assert REPORTED == ["queued failure:queued failure"]
+
+
+async def test_an_unknown_on_error_id_fails_at_build() -> None:
+    kernel = Kernel(app_unknown_error_handler.__name__, env="test")
+    with pytest.raises(UnknownServiceError) as excinfo:
+        _ = kernel.build()
+    assert (excinfo.value.kind, excinfo.value.service_id) == ("error_handler", "nope")
 
 
 async def test_declared_processor_class_is_autoconfigured_and_attached() -> None:

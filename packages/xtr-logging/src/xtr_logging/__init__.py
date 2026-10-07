@@ -53,6 +53,7 @@ from .handler import (
     ChannelLevelActivationStrategy,
     ConsoleHandler,
     DeduplicationHandler,
+    ErrorHandlerInterface,
     ErrorLevelActivationStrategy,
     FallbackGroupHandler,
     FilterHandler,
@@ -72,7 +73,7 @@ from .handler import (
 )
 from .log_context import bind_context, bound_context, clear_context, current_context, unbind_context
 from .log_record import LogRecord
-from .log_unit import begin_unit, end_unit, unit_state
+from .log_unit import begin_unit, end_unit, in_unit, unit_state
 from .logger import Logger
 from .logger_factory import LoggerFactory
 from .processor import (
@@ -83,6 +84,7 @@ from .processor import (
     ProcessIdProcessor,
     ProcessorInterface,
     ProcessorRegistry,
+    RedactingProcessor,
     TagProcessor,
     UidProcessor,
     default_processor_registry,
@@ -109,6 +111,7 @@ __all__ = [
     "ContextVarsProcessor",
     "DeduplicationHandler",
     "EmptyStackError",
+    "ErrorHandlerInterface",
     "ErrorLevelActivationStrategy",
     "FallbackGroupHandler",
     "FilterHandler",
@@ -139,6 +142,7 @@ __all__ = [
     "ProcessorInterface",
     "ProcessorRegistry",
     "QueueHandler",
+    "RedactingProcessor",
     "RotatingFileHandler",
     "SamplingHandler",
     "Services",
@@ -161,6 +165,7 @@ __all__ = [
     "current_context",
     "default_processor_registry",
     "end_unit",
+    "in_unit",
     "unbind_context",
     "unit_state",
 ]

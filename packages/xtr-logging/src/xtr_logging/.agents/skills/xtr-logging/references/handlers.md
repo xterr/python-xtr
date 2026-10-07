@@ -37,7 +37,7 @@ to get formatting and handler-attached processors and write only `write(record, 
 FingersCrossedHandler(
     handler,  # or a factory that builds it lazily
     activation_strategy=Level.ERROR,  # a level, or an ActivationStrategyInterface
-    buffer_size=0,  # 0 keeps everything until activation
+    buffer_size=10_000,  # 0 keeps everything until activation
     bubble=True,
     stop_buffering=True,  # pass straight through once activated
     passthru_level=None,  # keep records at this level even untriggered
