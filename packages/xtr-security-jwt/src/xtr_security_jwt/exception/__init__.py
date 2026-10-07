@@ -15,7 +15,6 @@ from .invalid_token_error import InvalidTokenError
 from .jwt_decode_failure_error import JwtDecodeFailureError
 from .jwt_encode_failure_error import JwtEncodeFailureError
 from .jwt_failure_error import JwtFailureError
-from .missing_claim_error import MissingClaimError
 from .missing_token_error import MissingTokenError
 
 __all__ = [
@@ -25,6 +24,5 @@ __all__ = [
     "JwtDecodeFailureError",
     "JwtEncodeFailureError",
     "JwtFailureError",
-    "MissingClaimError",
     "MissingTokenError",
 ]

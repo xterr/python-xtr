@@ -38,10 +38,3 @@ def test_it_returns_none_when_none_find_a_token() -> None:
 def test_it_refuses_no_extractors() -> None:
     with pytest.raises(InvalidArgumentError):
         _ = ChainTokenExtractor([])
-
-
-def test_it_is_iterable() -> None:
-    header = AuthorizationHeaderTokenExtractor()
-    chain = ChainTokenExtractor([header])
-
-    assert list(chain) == [header]

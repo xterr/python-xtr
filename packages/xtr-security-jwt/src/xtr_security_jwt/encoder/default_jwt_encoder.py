@@ -28,9 +28,13 @@ class DefaultJwtEncoder(HeaderAwareJwtEncoderInterface):
     :class:`~xtr_security_jwt.exception.JwtEncodeFailureError` with the
     ``invalid_config`` reason, and a token the provider returned unsigned becomes
     one with ``unsigned_token``. Reading a token back turns the loaded token's
-    state into the matching decode reason: an unreadable or future-dated token is
-    ``invalid_token``, an expired one is ``expired_token``, one whose signature
-    does not verify is ``unverified_token``.
+    state into the matching decode reason. The signature is judged first: a token
+    whose signature does not verify is ``unverified_token`` and no payload is
+    attached to the failure, so an unsigned or tampered token never leaks its
+    claims and is never reported as merely expired. Only once the signature holds
+    are the times judged — a future-dated or otherwise malformed token is
+    ``invalid_token`` and an expired one is ``expired_token`` — and those failures
+    carry the verified payload.
     """
 
     __slots__ = ("_jws_provider",)
@@ -80,6 +84,11 @@ class DefaultJwtEncoder(HeaderAwareJwtEncoderInterface):
                 JwtDecodeFailureError.INVALID_TOKEN,
                 f"The token could not be read: {error}",
             ) from error
+        if not loaded.is_verified():
+            raise JwtDecodeFailureError(
+                JwtDecodeFailureError.UNVERIFIED_TOKEN,
+                "The token signature could not be verified.",
+            )
         if loaded.is_invalid():
             raise JwtDecodeFailureError(
                 JwtDecodeFailureError.INVALID_TOKEN,
@@ -90,12 +99,6 @@ class DefaultJwtEncoder(HeaderAwareJwtEncoderInterface):
             raise JwtDecodeFailureError(
                 JwtDecodeFailureError.EXPIRED_TOKEN,
                 "The token has expired.",
-                payload=loaded.get_payload(),
-            )
-        if not loaded.is_verified():
-            raise JwtDecodeFailureError(
-                JwtDecodeFailureError.UNVERIFIED_TOKEN,
-                "The token signature could not be verified.",
                 payload=loaded.get_payload(),
             )
         return loaded.get_payload()

@@ -67,7 +67,11 @@ from xtr_security_jwt.bundle import JwtConfig
 
 @configure
 def jwt() -> JwtConfig:
-    return JwtConfig(secret_key=env("file:JWT_SECRET_KEY_PATH"), user_id_claim="username")
+    return JwtConfig(
+        secret_key=env("file:JWT_SECRET_KEY_PATH"),
+        issuer=env("JWT_ISSUER"),
+        user_id_claim="username",
+    )
 ```
 
 ```python
@@ -162,13 +166,21 @@ HTTP/1.1 200 OK
 `JwtConfig` is a frozen dataclass buildable with no arguments, but the JWT bundle is an add-on
 that cannot sign a token without a key: the build fails with an `InvalidConfigurationError`
 naming the missing setting and the `<app>/config/jwt.py` `@configure` function when no
-`secret_key` is configured.
+`secret_key` or no `issuer` is configured — it names both when both are missing.
+
+An `env()` placeholder counts as configured: it stands for a variable read when the service
+needing it is built, so it cannot decide anything while the container compiles. A
+`secret_key=env(…)` too short for its HMAC algorithm, and an `issuer=env(…)` resolving to
+nothing, are therefore refused where the key loader and the token manager are built, not at the
+build.
 
 | Field | Default | What it is |
 |---|---|---|
 | `secret_key` | `None` | The private key or shared secret that signs, as the key text or a file path. Required |
+| `issuer` | `""` | The `iss` every token is stamped with and checked against. Required |
+| `audience` | `()` | Audiences a token is minted for; when set, a presented token must name at least one. Always a tuple — `audience="api"` is refused, write `audience=("api",)` |
 | `public_key` | `None` | The public key that verifies, or `None` to derive it from the private key |
-| `additional_public_keys` | `()` | Files of extra public keys a token may also be verified against |
+| `additional_public_keys` | `()` | Files of extra public keys a token may also be verified against, each named after the key id it holds |
 | `pass_phrase` | `""` | The pass phrase the private key is encrypted with |
 | `token_ttl` | `3600` | How long a minted token lives, in seconds |
 | `allow_no_expiration` | `False` | Whether a token with no expiry is honoured |
@@ -187,10 +199,11 @@ header is on by default, the others opt in:
 | `query_parameter` | off, `bearer` | A token from a named query parameter |
 | `split_cookie` | off | A token split across several named cookies, rejoined |
 
-A firewall authenticator is `JwtAuthenticatorConfig(provider=None, authenticator=None)` — an
-optional user-provider override and an optional registered authenticator service to build
-instead of the default. A stateless user provider is `JwtUserProviderConfig(user_class=JwtUser)`
-— the class the provider rebuilds from a token's claims.
+A firewall authenticator is `JwtAuthenticatorConfig()` — it takes nothing: the keys, the
+algorithm and the extractors all come from the JWT bundle's own configuration, and the user is
+loaded through the firewall's own provider. A stateless user provider is
+`JwtUserProviderConfig(user_class=JwtUser)` — the class the provider rebuilds from a token's
+claims.
 
 ## Services
 
@@ -203,24 +216,36 @@ instead of the default. A stateless user provider is `JwtUserProviderConfig(user
 | `DefaultJwtEncoder` | `JwtEncoderInterface` | Maps the provider's outcome to encode/decode failures |
 | `JwtManager` | `JwtTokenManagerInterface` | Assembles, announces and signs a token, reads one back |
 
+Every verifying key is imported once and filed under the id it is known by — the `kid` a JWK or
+a JWK set carries, or the name of the file it was read from, since `jwt:generate-keypair` writes
+`<kid>.pem` and `<kid>.jwks.json` — so a presented token naming a `kid` is verified in a single
+attempt, and a deployment rotating keys keeps accepting tokens signed by the keys it still
+trusts. An extra key file that cannot be read as a key of the configured algorithm's type is
+refused by name rather than quietly dropped.
+
 The token manager gathers every registered `PayloadEnrichmentInterface` into a chain, so a
 deployment stamps a claim onto every token by registering an enrichment — a `RandomJtiEnrichment`
 for a unique id — never by reaching for the container.
 
 ## Events
 
-Every event carries a name constant on `Events`, so a listener names the constant rather than
-importing the event class:
+Every event is dispatched as itself, so a listener subscribes to the class it reads — the same
+way the rest of the security family does:
 
-| Event | Name | Dispatched |
-|---|---|---|
-| `JwtCreatedEvent` | `Events.JWT_CREATED` | Before a token is signed; a listener may shape the claims and header |
-| `JwtEncodedEvent` | `Events.JWT_ENCODED` | After a token is signed |
-| `JwtDecodedEvent` | `Events.JWT_DECODED` | After a token verifies; a listener may reject it |
-| `JwtAuthenticatedEvent` | `Events.JWT_AUTHENTICATED` | After a token authenticated a request |
-| `JwtExpiredEvent` | `Events.JWT_EXPIRED` | When an expired token is refused |
-| `JwtInvalidEvent` | `Events.JWT_INVALID` | When a bad token is refused |
-| `JwtNotFoundEvent` | `Events.JWT_NOT_FOUND` | When a request carried no token |
+| Event | Dispatched |
+|---|---|
+| `JwtCreatedEvent` | Before a token is signed; a listener may shape the claims and header |
+| `JwtEncodedEvent` | After a token is signed |
+| `JwtDecodedEvent` | After a token verifies; a listener may reject it |
+| `JwtAuthenticatedEvent` | After a token authenticated a request |
+| `JwtExpiredEvent` | When an expired token is refused |
+| `JwtInvalidEvent` | When a bad token is refused |
+| `JwtNotFoundEvent` | When a request carried no token |
+
+Those seven are everything this package dispatches. The three refusals derive from
+`AuthenticationFailureEvent`, which is never dispatched on its own, so a listener that handles
+any refusal subscribes to that base — or to the `JwtFailureEventInterface` it implements —
+rather than to all three.
 
 ## Commands
 
@@ -232,6 +257,15 @@ With the console extra and a console bundle active:
 | `jwt:generate-token IDENTIFIER [--provider NAME]` | Loads the user by identifier through a configured user provider and prints a token signed for it; `--provider` picks between several |
 | `jwt:check-config` | Signs a probe token and reads it back, proving the configured keys sign and verify |
 
+`jwt:generate-keypair` and `jwt:generate-token` print a private key and a usable access token to
+standard output: run them only where the terminal, its scrollback and any shell history are
+trusted, and prefer `--output-dir` for the key pair.
+
+Writing with `--output-dir` leaves the private PEM `0o600`, the public JWK set `0o644`, and every
+directory the command had to create `0o700`; a directory that already exists keeps the mode it
+has. A key file already in place is not replaced unless `--force` is given, and a key is never
+written through a symbolic link.
+
 ## Use in an application
 
 Everything adding this package to an application on
@@ -241,8 +275,9 @@ removing it undoes.
 - **Install** — `uv add xtr-security-jwt`; add `[console]` for the commands.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
   and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/jwt.py`,
-  `JWT_SECRET_KEY_PATH` (commented out) in `.env`, and ignores `/secrets/*.pem`. It prints the
-  keypair and firewall steps, which a recipe cannot make for you.
+  `JWT_SECRET_KEY_PATH` and `JWT_ISSUER` (both commented out) in `.env`, and adds `/secrets/*.pem`
+  and `/secrets/*.jwks.json` to `.gitignore`. It prints the keypair and firewall steps, which a
+  recipe cannot make for you.
 - **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
   `xtr_security_jwt.bundle`. Then build the kernel with `concurrent_scoped_access=True` and call
   `setup(app, kernel)` where the application is served, as the security family requires.
@@ -250,14 +285,17 @@ removing it undoes.
   [clock](../xtr-clock) and the [event dispatcher](../xtr-event-dispatcher) always, because this
   bundle requires them; the [console](../xtr-console) bundle when xtr-console is installed, for
   the commands.
-- **Configure** — the bundle needs a signing key: a `<app>/config/jwt.py` `@configure` function
-  returning a `JwtConfig(secret_key=…)`, and a firewall that lists `JwtAuthenticatorConfig()`
-  under its `authenticators` — see [Configure](#configure) and [Kernel / bundle](#kernel--bundle).
-  Without a `secret_key` the build fails, naming the missing setting.
+- **Configure** — the bundle needs a signing key and an issuer: a `<app>/config/jwt.py`
+  `@configure` function returning a `JwtConfig(secret_key=…, issuer=…)`, and a firewall that lists
+  `JwtAuthenticatorConfig()` under its `authenticators` — see [Configure](#configure) and
+  [Kernel / bundle](#kernel--bundle). Without a `secret_key` or an `issuer` the build fails,
+  naming the missing setting.
 - **Environment** — whatever the key material reads: an application usually points the key at a
-  file with `env("file:JWT_SECRET_KEY_PATH")`, so `JWT_SECRET_KEY_PATH` must be set.
-- **Ignore** — the private key files the keypair command writes, when `--output-dir` points into
-  the project: add `secrets/*.pem` (or wherever they land) to `.gitignore`.
+  file with `env("file:JWT_SECRET_KEY_PATH")`, so `JWT_SECRET_KEY_PATH` must be set; and
+  `JWT_ISSUER`, the name every token is stamped with and checked against.
+- **Ignore** — the key files the keypair command writes, when `--output-dir` points into the
+  project: the recipe adds `/secrets/*.pem` and `/secrets/*.jwks.json` to `.gitignore` (or add
+  wherever they land).
 - **Remove** — drop the `BUNDLES` entry, delete `<app>/config/jwt.py` and the
   `JwtAuthenticatorConfig` from the firewall, then `uv remove xtr-security-jwt`.
 - **Check** — `debug:bundles` shows `jwt` as `listed` and `active`, and `security` as `required`;
@@ -292,7 +330,6 @@ Everything the package raises derives from `SecurityError` (from
 | `JwtFailureError` | `SecurityError` | The base of the signing and verification failures; carries a `reason` and any decoded `payload` |
 | `JwtEncodeFailureError` | `JwtFailureError` | A token could not be signed — `invalid_config` or `unsigned_token` |
 | `JwtDecodeFailureError` | `JwtFailureError` | A token could not be read — `invalid_token`, `expired_token` or `unverified_token` |
-| `MissingClaimError` | `JwtFailureError` | A token lacks a claim a caller required |
 | `ExpiredTokenError` | `AuthenticationError` | A caller presented an expired token — answered with a `401` "Expired JWT Token" |
 | `InvalidTokenError` | `AuthenticationError` | A caller presented a malformed, unsigned or tampered token — `401` "Invalid JWT Token" |
 | `MissingTokenError` | `AuthenticationError` | A request reached a protected resource with no token — `401` "JWT Token not found" |
@@ -302,7 +339,6 @@ Everything the package raises derives from `SecurityError` (from
 
 ```
 xtr_security_jwt/
-├── events.py                      the event name constants
 ├── encoder/                       the encoder interfaces and the default encoder
 ├── services/
 │   ├── jwt_manager.py             assembles, announces and signs a token

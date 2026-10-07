@@ -28,4 +28,10 @@ def test_its_body_is_the_code_and_message() -> None:
 
     body = cast("dict[str, object]", json.loads(bytes(response.body)))
     assert body == {"code": 401, "message": "Invalid JWT Token"}
-    assert response.get_message() == "Invalid JWT Token"
+
+
+def test_it_forbids_every_cache_from_keeping_the_refusal() -> None:
+    response = JwtAuthenticationFailureResponse("Invalid JWT Token")
+
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"

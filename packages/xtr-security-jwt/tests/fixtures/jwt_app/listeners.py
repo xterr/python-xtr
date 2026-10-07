@@ -8,7 +8,10 @@ from typing_extensions import override
 from xtr_dependency_injection import as_service
 from xtr_event_dispatcher import EventSubscriberInterface
 
-from xtr_security_jwt.events import Events
+from xtr_security_jwt.event.jwt_authenticated_event import JwtAuthenticatedEvent
+from xtr_security_jwt.event.jwt_expired_event import JwtExpiredEvent
+from xtr_security_jwt.event.jwt_invalid_event import JwtInvalidEvent
+from xtr_security_jwt.event.jwt_not_found_event import JwtNotFoundEvent
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -31,10 +34,10 @@ class RecordingSubscriber(EventSubscriberInterface):
     def get_subscribed_events(cls) -> Mapping[str | type, SubscribedEvents]:
         """Listen to every JWT event the firewall dispatches."""
         return {
-            Events.JWT_AUTHENTICATED: "on_event",
-            Events.JWT_INVALID: "on_event",
-            Events.JWT_EXPIRED: "on_event",
-            Events.JWT_NOT_FOUND: "on_event",
+            JwtAuthenticatedEvent: "on_event",
+            JwtInvalidEvent: "on_event",
+            JwtExpiredEvent: "on_event",
+            JwtNotFoundEvent: "on_event",
         }
 
     async def on_event(self, event: Event, event_name: str) -> None:

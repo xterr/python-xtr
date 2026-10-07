@@ -27,6 +27,7 @@ async def mint_token(
     ttl: int = 3600,
     when: str | None = None,
     user_id_claim: str = "username",
+    issuer: str = "https://jwt.test",
 ) -> str:
     """Sign a token for ``identifier`` with ``roles`` using the fixture key.
 
@@ -36,5 +37,10 @@ async def mint_token(
     """
     clock = MockClock(when) if when is not None else SystemClock()
     provider = JoserfcJwsProvider(RawKeyLoader(private_pem, None), "RS256", ttl, 0, clock)
-    manager = JwtManager(DefaultJwtEncoder(provider), RecordingDispatcher(), user_id_claim)
+    manager = JwtManager(
+        DefaultJwtEncoder(provider),
+        RecordingDispatcher(),
+        user_id_claim,
+        issuer=issuer,
+    )
     return await manager.create(InMemoryUser(identifier, roles=roles))

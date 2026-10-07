@@ -123,7 +123,12 @@ def _token_extractor_interface() -> type:
 
 
 def _extractors_from(config: TokenExtractorsConfig) -> list[TokenExtractorInterface]:
-    """Build, in the reference's fixed order, every extractor the configuration enables."""
+    """Build, in the fixed order, every extractor the configuration enables.
+
+    At least one is always built: ``TokenExtractorsConfig`` refuses a reading
+    that enables none while the configuration is built, so a firewall is never
+    wired to read a token from nowhere.
+    """
     extractors: list[TokenExtractorInterface] = []
     header = config.authorization_header
     if header.enabled:
@@ -134,8 +139,6 @@ def _extractors_from(config: TokenExtractorsConfig) -> list[TokenExtractorInterf
         extractors.append(CookieTokenExtractor(config.cookie.name))
     if config.split_cookie.enabled:
         extractors.append(SplitCookieExtractor(config.split_cookie.cookies))
-    if not extractors:
-        extractors.append(AuthorizationHeaderTokenExtractor())
     return extractors
 
 
@@ -163,6 +166,7 @@ def _authenticator_factory(
             dispatcher,
             cast("TokenExtractorInterface", extractor),
             provider,
+            firewall_name,
         )
 
     jwt_authenticator.__annotations__ = {

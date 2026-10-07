@@ -15,19 +15,21 @@ class JwtAuthenticationFailureResponse(JSONResponse):
 
     Its body is ``{"code": <status>, "message": <message>}`` and it always
     carries a ``WWW-Authenticate: Bearer`` header, so a client is told both what
-    went wrong and how to authenticate. A listener may swap it for one of its own
-    on the matching failure event.
+    went wrong and how to authenticate. It forbids every cache from keeping the
+    refusal — ``Cache-Control: no-store`` and, for the caches that read only it,
+    ``Pragma: no-cache`` — so a proxy cannot answer another caller's request with
+    one principal's refusal. A listener may swap it for one of its own on the
+    matching failure event.
     """
 
     def __init__(self, message: str = "Bad credentials", status_code: int = 401) -> None:
         """Answer with ``message`` at ``status_code``, challenging for a bearer token."""
-        self._message = message
         super().__init__(
             {"code": status_code, "message": message},
             status_code=status_code,
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={
+                "WWW-Authenticate": "Bearer",
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+            },
         )
-
-    def get_message(self) -> str:
-        """Return the message the response carries."""
-        return self._message

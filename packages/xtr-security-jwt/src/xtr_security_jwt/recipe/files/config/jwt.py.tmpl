@@ -7,11 +7,12 @@ text or the path of a file holding it — the bundle's key loader reads the file
 itself — so what ``JWT_SECRET_KEY_PATH`` carries is a path, and no key material
 is written into the repository.
 
-Everything else keeps its default: ``RS256``, an hour's lifetime, the user
-named by the ``username`` claim, a token read from the authorization header.
-The README's *Configure* table has the fields to change, and a firewall accepts
-these tokens once it lists ``JwtAuthenticatorConfig()`` under its
-``authenticators``.
+An ``issuer`` is required too: every token is stamped with it and every presented
+token is checked against it, so it is read from ``JWT_ISSUER``. Everything else
+keeps its default: ``RS256``, an hour's lifetime, the user named by the
+``username`` claim, a token read from the authorization header. The README's
+*Configure* table has the fields to change, and a firewall accepts these tokens
+once it lists ``JwtAuthenticatorConfig()`` under its ``authenticators``.
 """
 
 from __future__ import annotations
@@ -24,5 +25,5 @@ __all__ = ["jwt"]
 
 @configure
 def jwt() -> JwtConfig:
-    """Sign with the key ``JWT_SECRET_KEY_PATH`` points at, read when it is first used."""
-    return JwtConfig(secret_key=env("JWT_SECRET_KEY_PATH"))
+    """Sign with the key ``JWT_SECRET_KEY_PATH`` points at, stamped with ``JWT_ISSUER``."""
+    return JwtConfig(secret_key=env("JWT_SECRET_KEY_PATH"), issuer=env("JWT_ISSUER"))

@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-__all__ = ["KeyLoaderInterface"]
+    from .additional_public_key import AdditionalPublicKey
+
+__all__ = ["TYPE_PRIVATE", "TYPE_PUBLIC", "KeyLoaderInterface"]
 
 #: The kind of key a caller asks :meth:`KeyLoaderInterface.load_key` for.
 TYPE_PUBLIC: Final[str] = "public"
@@ -42,6 +44,14 @@ class KeyLoaderInterface(Protocol):
         """Return the public key text, or ``None`` when it is derived from the private key."""
         ...
 
-    def get_additional_public_keys(self) -> Sequence[str]:
+    def get_key_id(self) -> str | None:
+        """Return the id this loader's own key is known by, or ``None`` for none.
+
+        A verifier indexes the key under this id, so a token whose ``kid`` header
+        names it is settled by one lookup instead of by trying every trusted key.
+        """
+        ...
+
+    def get_additional_public_keys(self) -> Sequence[AdditionalPublicKey]:
         """Return the extra public keys a token may also be verified against."""
         ...

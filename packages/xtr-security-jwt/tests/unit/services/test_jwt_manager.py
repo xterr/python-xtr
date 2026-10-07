@@ -5,18 +5,31 @@ from __future__ import annotations
 import pytest
 from xtr_clock import MockClock
 from xtr_security_core.authentication.token.abstract_token import AbstractToken
+from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
-from tests.support.fakes import AttributedUser, RecordingDispatcher, RejectingDispatcher
+from tests.support.fakes import (
+    AttributedUser,
+    PlainUserProvider,
+    RecordingDispatcher,
+    RejectingDispatcher,
+)
 from tests.support.keys import RSA_PRIVATE_PEM
+from tests.support.requests import make_request
 from xtr_security_jwt.encoder.default_jwt_encoder import DefaultJwtEncoder
-from xtr_security_jwt.events import Events
+from xtr_security_jwt.event.jwt_created_event import JwtCreatedEvent
+from xtr_security_jwt.event.jwt_decoded_event import JwtDecodedEvent
+from xtr_security_jwt.event.jwt_encoded_event import JwtEncodedEvent
 from xtr_security_jwt.exception.jwt_decode_failure_error import JwtDecodeFailureError
+from xtr_security_jwt.security.authenticator.jwt_authenticator import JwtAuthenticator
 from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
 from xtr_security_jwt.services.jwt_manager import JwtManager
 from xtr_security_jwt.services.jwt_token_manager_interface import JwtTokenManagerInterface
 from xtr_security_jwt.services.key_loader.raw_key_loader import RawKeyLoader
 from xtr_security_jwt.services.payload_enrichment.random_jti_enrichment import RandomJtiEnrichment
+from xtr_security_jwt.token_extractor.authorization_header_token_extractor import (
+    AuthorizationHeaderTokenExtractor,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -31,10 +44,19 @@ def _manager(
     *,
     user_id_claim: str = "username",
     enrichment: RandomJtiEnrichment | None = None,
+    issuer: str = "https://jwt.test",
+    audience: tuple[str, ...] = (),
 ) -> tuple[JwtManager, RecordingDispatcher]:
     the_clock = clock if clock is not None else MockClock("2024-01-01 00:00:00")
     dispatcher = RecordingDispatcher()
-    manager = JwtManager(_encoder(the_clock), dispatcher, user_id_claim, enrichment)
+    manager = JwtManager(
+        _encoder(the_clock),
+        dispatcher,
+        user_id_claim,
+        enrichment,
+        issuer=issuer,
+        audience=audience,
+    )
     return manager, dispatcher
 
 
@@ -56,7 +78,7 @@ async def test_create_dispatches_created_and_encoded() -> None:
     manager, dispatcher = _manager()
     _ = await manager.create(InMemoryUser("ada"))
 
-    assert dispatcher.names() == [Events.JWT_CREATED, Events.JWT_ENCODED]
+    assert dispatcher.types() == [JwtCreatedEvent, JwtEncodedEvent]
 
 
 async def test_parse_dispatches_decoded() -> None:
@@ -65,7 +87,7 @@ async def test_parse_dispatches_decoded() -> None:
     dispatcher.events.clear()
     _ = await manager.parse(token)
 
-    assert dispatcher.names() == [Events.JWT_DECODED]
+    assert dispatcher.types() == [JwtDecodedEvent]
 
 
 async def test_the_id_claim_reads_a_user_attribute_when_present() -> None:
@@ -101,26 +123,45 @@ async def test_enrichment_stamps_a_claim() -> None:
     assert "jti" in payload
 
 
-async def test_decode_reads_a_stored_token_credentials() -> None:
+async def test_decode_reads_the_credentials_of_a_settled_security_token() -> None:
+    # The token is the one a firewall really settles on, built by the
+    # authenticator, so decode is proved against the token it will be handed.
+    user = InMemoryUser("ada", roles=["ROLE_USER"])
     manager, _ = _manager()
-    raw = await manager.create(InMemoryUser("ada"))
-    token = _StoredToken(raw)
+    raw = await manager.create(user)
+    authenticator = JwtAuthenticator(
+        manager,
+        RecordingDispatcher(),
+        AuthorizationHeaderTokenExtractor(),
+        PlainUserProvider(user),
+        "api",
+    )
+    passport = await authenticator.authenticate(
+        make_request(headers={"Authorization": f"Bearer {raw}"}),
+    )
+    _ = await passport.get_user()
+    settled = await authenticator.create_token(passport, "api")
 
-    decoded = await manager.decode(token)
+    decoded = await manager.decode(settled)
 
     assert isinstance(decoded, dict)
     assert decoded["username"] == "ada"
 
 
-async def test_decode_returns_false_without_credentials() -> None:
+async def test_decode_returns_false_for_a_token_carrying_no_credentials() -> None:
     manager, _ = _manager()
 
-    assert await manager.decode(_StoredToken(None)) is False
+    assert await manager.decode(_PlainToken()) is False
 
 
 async def test_parse_that_a_listener_rejects_fails() -> None:
     clock = MockClock("2024-01-01 00:00:00")
-    manager = JwtManager(_encoder(clock), RejectingDispatcher(Events.JWT_DECODED), "username")
+    manager = JwtManager(
+        _encoder(clock),
+        RejectingDispatcher(JwtDecodedEvent),
+        "username",
+        issuer="https://jwt.test",
+    )
     token = await manager.create(InMemoryUser("ada"))
 
     with pytest.raises(JwtDecodeFailureError):
@@ -132,8 +173,100 @@ def test_get_user_id_claim_reports_the_configured_claim() -> None:
     assert manager.get_user_id_claim() == "sub"
 
 
-class _StoredToken(AbstractToken):
-    def __init__(self, raw: str | None) -> None:
+async def test_create_stamps_the_issuer() -> None:
+    manager, _ = _manager(issuer="issuer-a")
+    payload = await manager.parse(await manager.create(InMemoryUser("ada")))
+
+    assert payload["iss"] == "issuer-a"
+
+
+async def test_a_token_minted_for_another_issuer_is_refused() -> None:
+    clock = MockClock("2024-01-01 00:00:00")
+    minted, _ = _manager(clock, issuer="issuer-a")
+    verifier, _ = _manager(clock, issuer="issuer-b")
+    token = await minted.create(InMemoryUser("ada"))
+
+    with pytest.raises(JwtDecodeFailureError):
+        _ = await verifier.parse(token)
+
+
+async def test_create_stamps_the_audience_when_set() -> None:
+    manager, _ = _manager(audience=("aud-a",))
+    payload = await manager.parse(await manager.create(InMemoryUser("ada")))
+
+    assert payload["aud"] == ["aud-a"]
+
+
+async def test_a_token_for_another_audience_is_refused() -> None:
+    clock = MockClock("2024-01-01 00:00:00")
+    minted, _ = _manager(clock, audience=("aud-a",))
+    verifier, _ = _manager(clock, audience=("aud-b",))
+    token = await minted.create(InMemoryUser("ada"))
+
+    with pytest.raises(JwtDecodeFailureError):
+        _ = await verifier.parse(token)
+
+
+async def test_a_token_naming_one_of_several_audiences_is_accepted() -> None:
+    clock = MockClock("2024-01-01 00:00:00")
+    minted, _ = _manager(clock, audience=("aud-a", "aud-b"))
+    verifier, _ = _manager(clock, audience=("aud-b",))
+    token = await minted.create(InMemoryUser("ada"))
+
+    payload = await verifier.parse(token)
+
+    assert payload["aud"] == ["aud-a", "aud-b"]
+
+
+async def test_a_token_naming_an_audience_is_refused_when_none_is_configured() -> None:
+    # RFC 7519 section 4.1.3: a reader that does not identify itself with the
+    # audience the token names must refuse it, and a deployment configuring no
+    # audience identifies itself with none.
+    clock = MockClock("2024-01-01 00:00:00")
+    minted, _ = _manager(clock, audience=("aud-a",))
+    verifier, _ = _manager(clock)
+    token = await minted.create(InMemoryUser("ada"))
+
+    with pytest.raises(JwtDecodeFailureError, match="names an audience"):
+        _ = await verifier.parse(token)
+
+
+async def test_a_token_naming_no_audience_is_accepted_when_none_is_configured() -> None:
+    manager, _ = _manager()
+
+    payload = await manager.parse(await manager.create(InMemoryUser("ada")))
+
+    assert "aud" not in payload
+
+
+async def test_create_from_payload_does_not_let_a_caller_widen_roles() -> None:
+    manager, _ = _manager()
+    token = await manager.create_from_payload(
+        InMemoryUser("ada", roles=["ROLE_USER"]),
+        {"roles": ["ROLE_ADMIN"]},
+    )
+    payload = await manager.parse(token)
+
+    assert payload["roles"] == ["ROLE_USER"]
+
+
+def test_an_audience_given_as_one_string_is_refused() -> None:
+    # A bare string is a sequence of its own letters, so an audience of "api"
+    # would be read as ("a", "p", "i") and a token claiming "a" would pass.
+    clock = MockClock("2024-01-01 00:00:00")
+
+    with pytest.raises(InvalidArgumentError, match=r"audience=\('api',\)"):
+        _ = JwtManager(
+            _encoder(clock),
+            RecordingDispatcher(),
+            "username",
+            issuer="https://jwt.test",
+            audience="api",
+        )
+
+
+class _PlainToken(AbstractToken):
+    """A security token of another kind: it keeps no compact token at all."""
+
+    def __init__(self) -> None:
         super().__init__(user=None, roles=())
-        if raw is not None:
-            self.set_attribute("token", raw)

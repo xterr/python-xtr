@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, cast, final
 
 from joserfc import jws, jwt
 from joserfc.errors import JoseError
-from joserfc.jwk import ECKey, OctKey, OKPKey, RSAKey
 from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
@@ -20,24 +19,22 @@ from xtr_security_jwt.services.key_loader.key_loader_interface import TYPE_PRIVA
 from xtr_security_jwt.signature.created_jws import CreatedJws
 from xtr_security_jwt.signature.loaded_jws import LoadedJws
 
+from ._key_material import (
+    import_additional_keys,
+    import_key,
+    require_hmac_secret_length,
+)
 from .jws_provider_interface import JwsProviderInterface
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from joserfc.jwk import Key
     from xtr_clock import ClockInterface
 
     from xtr_security_jwt.services.key_loader.key_loader_interface import KeyLoaderInterface
 
-__all__ = ["JoserfcJwsProvider"]
-
-_Key = OctKey | RSAKey | ECKey | OKPKey
-
-_PEM_KEY_CLASSES: dict[str, type[RSAKey | ECKey | OKPKey]] = {
-    "RSA": RSAKey,
-    "EC": ECKey,
-    "OKP": OKPKey,
-}
+__all__ = ["JoserfcJwsProvider", "require_hmac_secret_length"]
 
 
 @final
@@ -48,14 +45,16 @@ class JoserfcJwsProvider(JwsProviderInterface):
     payload's own value or the clock's now; ``exp`` is stamped only when a
     time-to-live is set or the payload already carries one, so a provider with no
     ttl and a payload without ``exp`` mints a token that never expires — which the
-    verifier honours only when the deployment allows tokens without an expiry.
-    The clock skew is spent at verification, never at signing.
+    verifier honours only when the deployment allows tokens without an expiry. An
+    expiry a token does carry is judged either way. The clock skew is spent at
+    verification, never at signing.
 
-    Verification tries the signing key's public half first, then every additional
-    public key, so a deployment rotating keys keeps accepting tokens signed by the
-    keys it still trusts. Only the one configured algorithm is ever accepted, so a
-    token presenting any other — ``none`` included — is refused before its
-    signature is considered.
+    A token naming a ``kid`` is verified against the key indexed under that id;
+    failing that, the signing key's public half is tried first and then every
+    additional public key, so a deployment rotating keys keeps accepting tokens
+    signed by the keys it still trusts. Only the one configured algorithm is ever
+    accepted, so a token presenting any other — ``none`` included — is refused
+    before its signature is considered.
     """
 
     __slots__ = (
@@ -64,7 +63,10 @@ class JoserfcJwsProvider(JwsProviderInterface):
         "_clock_skew",
         "_key_loader",
         "_signature_algorithm",
+        "_signing_key_cache",
         "_ttl",
+        "_verifying_keys_by_kid",
+        "_verifying_keys_cache",
     )
 
     def __init__(  # noqa: PLR0913 -- a wiring constructor; each part shapes one behaviour
@@ -90,6 +92,12 @@ class JoserfcJwsProvider(JwsProviderInterface):
         self._clock_skew = clock_skew
         self._clock = clock
         self._allow_no_expiration = allow_no_expiration
+        # The keys are imported once, on first use, and kept: a verify never
+        # reads a key file again, and a token naming a ``kid`` finds its key by
+        # that id rather than trying every trusted key in turn.
+        self._signing_key_cache: Key | None = None
+        self._verifying_keys_cache: list[Key] | None = None
+        self._verifying_keys_by_kid: dict[str, Key] = {}
 
     @override
     def create(
@@ -125,7 +133,8 @@ class JoserfcJwsProvider(JwsProviderInterface):
         """Read ``token`` back, verifying its signature and judging its times.
 
         Raises:
-            InvalidArgumentError: When the token is not a readable compact JWS.
+            InvalidArgumentError: When the token is not a readable compact JWS,
+                or an additional public key this deployment trusts cannot be read.
         """
         try:
             extracted = jws.extract_compact(token.encode("utf-8"))
@@ -139,70 +148,102 @@ class JoserfcJwsProvider(JwsProviderInterface):
         if not isinstance(decoded, dict):
             raise InvalidArgumentError("The token payload is not a JSON object.")
         payload = cast("dict[str, object]", decoded)
-        is_verified = self._verify(token)
+        kid = header.get("kid")
+        is_verified = self._verify(token, kid if isinstance(kid, str) else None)
         return LoadedJws(
             payload,
             self._clock,
             is_verified=is_verified,
-            should_check_expiration=not self._allow_no_expiration,
+            allow_no_expiration=self._allow_no_expiration,
             header=header,
             clock_skew=self._clock_skew,
         )
 
-    def _verify(self, token: str) -> bool:
-        """Tell whether ``token`` verifies against a key this provider trusts."""
-        for key in self._verifying_keys():
-            try:
-                _ = jwt.decode(token, key, algorithms=[self._signature_algorithm])
-            except (JoseError, ValueError):
-                continue
-            return True
-        return False
+    def _verify(self, token: str, kid: str | None) -> bool:
+        """Tell whether ``token`` verifies against a key this provider trusts.
 
-    def _signing_key(self) -> _Key:
+        A token naming a ``kid`` is tried against the key that id names first —
+        an O(1) lookup over the index every trusted key is filed in, which
+        settles a rotating deployment in one attempt. A keyed miss is no proof
+        the token is unsigned by a trusted key, because material naming no id —
+        a lone PEM given as text — is indexed under none, so the trusted keys are
+        then tried in turn anyway.
+        """
+        keys = self._verifying_keys()
+        if kid is not None:
+            keyed = self._verifying_keys_by_kid.get(kid)
+            if keyed is not None and self._verifies_with(token, keyed):
+                return True
+        return any(self._verifies_with(token, key) for key in keys)
+
+    def _verifies_with(self, token: str, key: Key) -> bool:
+        """Tell whether ``token`` verifies against the single ``key``."""
+        try:
+            _ = jwt.decode(token, key, algorithms=[self._signature_algorithm])
+        except (JoseError, ValueError):
+            return False
+        return True
+
+    def _signing_key(self) -> Key:
         """Import the private key the configured algorithm signs with.
 
         Raises:
             InvalidArgumentError: When the key cannot be read as one of the
                 algorithm's type.
         """
-        material = self._key_loader.load_key(TYPE_PRIVATE)
-        return self._import(material)
+        if self._signing_key_cache is None:
+            self._signing_key_cache = self._import(self._key_loader.load_key(TYPE_PRIVATE))
+        return self._signing_key_cache
 
-    def _verifying_keys(self) -> list[_Key]:
-        """Import the verifying key and every additional public key, skipping bad ones.
+    def _verifying_keys(self) -> list[Key]:
+        """Import the verifying key and every additional public key, indexing them by id.
 
         A shared secret verifies with the same key it signs with, so the private
-        material is read for HMAC; an asymmetric key verifies with its public half.
+        material is read for HMAC; an asymmetric key verifies with its public
+        half. The keys are imported once and kept, so a later verify reads no key
+        file, and each is filed under the ``kid`` it carries or, failing that, the
+        id its source names it by — the loader's own id for the main key, the
+        file's name for an extra.
+
+        Raises:
+            InvalidArgumentError: When an additional public key cannot be read.
+                A deployment that named a key file means it to be trusted, so an
+                unreadable one is reported rather than quietly dropped.
         """
-        keys: list[_Key] = []
+        if self._verifying_keys_cache is not None:
+            return self._verifying_keys_cache
+        keys: list[Key] = []
         verifying_type = (
             TYPE_PRIVATE if self._signature_algorithm in HMAC_ALGORITHMS else TYPE_PUBLIC
         )
-        with suppress(InvalidArgumentError):  # a misconfigured key set is skipped
-            keys.append(self._import(self._key_loader.load_key(verifying_type)))
-        for material in self._key_loader.get_additional_public_keys():
-            try:
-                keys.append(self._import(material))
-            except InvalidArgumentError:  # pragma: no cover — a misconfigured extra key
-                continue
+        with suppress(InvalidArgumentError):  # a verifier may hold extras only
+            main = self._import(self._key_loader.load_key(verifying_type))
+            keys.append(main)
+            self._index(main, self._key_loader.get_key_id())
+        passphrase = self._key_loader.get_passphrase()
+        for extra in self._key_loader.get_additional_public_keys():
+            for key in import_additional_keys(extra, self._signature_algorithm, passphrase):
+                keys.append(key)
+                self._index(key, extra.key_id)
+        self._verifying_keys_cache = keys
         return keys
 
-    def _import(self, material: str) -> _Key:
-        """Import ``material`` as a key of the algorithm's type.
+    def _index(self, key: Key, key_id: str | None) -> None:
+        """File ``key`` under the id it carries, or under ``key_id`` when it carries none."""
+        named = key.kid or key_id
+        if named:
+            _ = self._verifying_keys_by_kid.setdefault(named, key)
+
+    def _import(self, material: str) -> Key:
+        """Import ``material`` as the single key of the algorithm's type.
 
         Raises:
             InvalidArgumentError: When the material cannot be read as such a key.
+            InvalidConfigurationError: When an HMAC secret is shorter than the
+                algorithm requires.
         """
-        if self._signature_algorithm in HMAC_ALGORITHMS:
-            return OctKey.import_key(material)
-        key_type = key_type_for_algorithm(self._signature_algorithm)
-        key_class = _PEM_KEY_CLASSES[key_type]
-        passphrase = self._key_loader.get_passphrase()
-        password = passphrase.encode("utf-8") if passphrase else None
-        try:
-            return key_class.import_key(material, password=password)
-        except (JoseError, ValueError, TypeError) as error:
-            raise InvalidArgumentError(
-                f"The key material could not be read as a {key_type} key: {error}",
-            ) from error
+        return import_key(
+            material,
+            self._signature_algorithm,
+            self._key_loader.get_passphrase(),
+        )

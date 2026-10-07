@@ -83,3 +83,20 @@ def test_a_wrong_key_is_an_unverified_token() -> None:
         _ = _encoder().decode(token)
 
     assert info.value.get_reason() == JwtDecodeFailureError.UNVERIFIED_TOKEN
+
+
+def test_an_unverifiable_expired_token_is_unverified_not_expired_with_no_payload() -> None:
+    from tests.support.keys import SECOND_RSA_PRIVATE_PEM  # noqa: PLC0415
+
+    clock = _clock()
+    signer = DefaultJwtEncoder(
+        JoserfcJwsProvider(RawKeyLoader(SECOND_RSA_PRIVATE_PEM, None), "RS256", 50, 0, clock),
+    )
+    token = signer.encode({"sub": "ada"})
+    clock.sleep(100)
+
+    with pytest.raises(JwtDecodeFailureError) as info:
+        _ = _encoder(clock).decode(token)
+
+    assert info.value.get_reason() == JwtDecodeFailureError.UNVERIFIED_TOKEN
+    assert info.value.get_payload() is None

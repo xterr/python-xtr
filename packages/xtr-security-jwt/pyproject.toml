@@ -23,6 +23,7 @@ dependencies = [
     "xtr-security-core>=3.0,<4",
     "xtr-security-http>=3.0,<4",
     "joserfc>=1.7",
+    "starlette>=0.40",
     "xtr-clock>=3.0,<4",
     "xtr-event-dispatcher-contracts>=3.0,<4",
     "xtr-event-dispatcher>=3.0,<4",

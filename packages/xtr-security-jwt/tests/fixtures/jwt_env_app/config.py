@@ -1,4 +1,4 @@
-"""JWT and security configuration using env() placeholder for the secret key."""
+"""JWT and security configuration reading the signing key and the issuer from env()."""
 
 from __future__ import annotations
 
@@ -23,8 +23,12 @@ __all__ = ["jwt", "security"]
 
 @configure
 def jwt() -> JwtConfig:
-    """Sign and verify with the key from env("file:JWT_TEST_KEY_PATH")."""
-    return JwtConfig(secret_key=env("file:JWT_TEST_KEY_PATH"), user_id_claim="username")
+    """Sign with the key from env("file:JWT_TEST_KEY_PATH"), stamped with env("JWT_ISSUER")."""
+    return JwtConfig(
+        secret_key=env("file:JWT_TEST_KEY_PATH"),
+        issuer=env("JWT_ISSUER"),
+        user_id_claim="username",
+    )
 
 
 @configure

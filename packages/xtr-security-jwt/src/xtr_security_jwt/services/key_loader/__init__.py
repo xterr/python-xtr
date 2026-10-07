@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from .abstract_key_loader import AbstractKeyLoader
+from .additional_public_key import AdditionalPublicKey
 from .key_dumper_interface import KeyDumperInterface
 from .key_loader_interface import KeyLoaderInterface
 from .raw_key_loader import RawKeyLoader
 
 __all__ = [
     "AbstractKeyLoader",
+    "AdditionalPublicKey",
     "KeyDumperInterface",
     "KeyLoaderInterface",
     "RawKeyLoader",

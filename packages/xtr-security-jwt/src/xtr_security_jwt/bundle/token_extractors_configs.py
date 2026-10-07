@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from xtr_security_core.exception import InvalidArgumentError
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -95,3 +97,26 @@ class TokenExtractorsConfig:
         default_factory=QueryParameterExtractorConfig,
     )
     split_cookie: SplitCookieExtractorConfig = field(default_factory=SplitCookieExtractorConfig)
+
+    def __post_init__(self) -> None:
+        """Refuse a reading that enables no extractor at all.
+
+        A firewall that could read a token from nowhere would accept none, so
+        the misconfiguration fails where it is written — while the kernel builds
+        the configuration — rather than at the first request that carries a token.
+
+        Raises:
+            InvalidArgumentError: When none of the four extractors is enabled.
+        """
+        enabled = (
+            self.authorization_header.enabled,
+            self.query_parameter.enabled,
+            self.cookie.enabled,
+            self.split_cookie.enabled,
+        )
+        if not any(enabled):
+            raise InvalidArgumentError(
+                "TokenExtractorsConfig enables no token extractor; a firewall must read "
+                "a token from at least one of the authorization header, a cookie, a query "
+                "parameter or split cookies.",
+            )

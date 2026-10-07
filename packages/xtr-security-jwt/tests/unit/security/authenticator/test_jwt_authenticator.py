@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import final
+
 import pytest
 from xtr_clock import MockClock
 from xtr_security_core.user.chain_user_provider import ChainUserProvider
@@ -20,8 +22,10 @@ from tests.support.fakes import (
 from tests.support.keys import RSA_PRIVATE_PEM
 from tests.support.requests import make_request
 from xtr_security_jwt.encoder.default_jwt_encoder import DefaultJwtEncoder
+from xtr_security_jwt.event.jwt_authenticated_event import JwtAuthenticatedEvent
+from xtr_security_jwt.event.jwt_expired_event import JwtExpiredEvent
+from xtr_security_jwt.event.jwt_invalid_event import JwtInvalidEvent
 from xtr_security_jwt.event.jwt_not_found_event import JwtNotFoundEvent
-from xtr_security_jwt.events import Events
 from xtr_security_jwt.exception.expired_token_error import ExpiredTokenError
 from xtr_security_jwt.exception.invalid_payload_error import InvalidPayloadError
 from xtr_security_jwt.exception.invalid_token_error import InvalidTokenError
@@ -44,7 +48,12 @@ pytestmark = pytest.mark.anyio
 
 def _manager(clock: MockClock, *, ttl: int = 3600, claim: str = "username") -> JwtManager:
     provider = JoserfcJwsProvider(RawKeyLoader(RSA_PRIVATE_PEM, None), "RS256", ttl, 0, clock)
-    return JwtManager(DefaultJwtEncoder(provider), RecordingDispatcher(), claim)
+    return JwtManager(
+        DefaultJwtEncoder(provider),
+        RecordingDispatcher(),
+        claim,
+        issuer="https://jwt.test",
+    )
 
 
 async def _token(clock: MockClock, identifier: str = "ada", *, ttl: int = 3600) -> str:
@@ -64,6 +73,7 @@ def _authenticator(
         the_dispatcher,
         AuthorizationHeaderTokenExtractor(),
         provider,
+        "api",
     )
     return authenticator, the_dispatcher
 
@@ -204,7 +214,7 @@ async def test_create_token_dispatches_jwt_authenticated() -> None:
 
     _ = await authenticator.create_token(passport, "api")
 
-    assert dispatcher.names() == [Events.JWT_AUTHENTICATED]
+    assert dispatcher.types() == [JwtAuthenticatedEvent]
 
 
 async def test_on_success_answers_nothing() -> None:
@@ -228,7 +238,7 @@ async def test_on_failure_of_an_expired_token_answers_401_and_dispatches_expired
 
     assert response is not None
     assert response.status_code == 401
-    assert Events.JWT_EXPIRED in dispatcher.names()
+    assert JwtExpiredEvent in dispatcher.types()
 
 
 async def test_on_failure_of_an_invalid_token_dispatches_invalid() -> None:
@@ -238,7 +248,7 @@ async def test_on_failure_of_an_invalid_token_dispatches_invalid() -> None:
     response = await authenticator.on_authentication_failure(make_request(), InvalidTokenError())
 
     assert response is not None
-    assert Events.JWT_INVALID in dispatcher.names()
+    assert JwtInvalidEvent in dispatcher.types()
 
 
 async def test_start_answers_401_not_found_and_dispatches_not_found() -> None:
@@ -249,7 +259,7 @@ async def test_start_answers_401_not_found_and_dispatches_not_found() -> None:
 
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
-    assert Events.JWT_NOT_FOUND in dispatcher.names()
+    assert JwtNotFoundEvent in dispatcher.types()
 
 
 async def test_start_keeps_the_given_error_as_the_cause_of_the_not_found() -> None:
@@ -259,8 +269,7 @@ async def test_start_keeps_the_given_error_as_the_cause_of_the_not_found() -> No
 
     _ = await authenticator.start(make_request(), drew_the_challenge)
 
-    name, event = dispatcher.events[-1]
-    assert name == Events.JWT_NOT_FOUND
+    event = dispatcher.events[-1]
     assert isinstance(event, JwtNotFoundEvent)
     assert event.get_exception().__cause__ is drew_the_challenge
 
@@ -274,3 +283,53 @@ def test_as_mapping_returns_a_mapping_unchanged() -> None:
     payload = {"sub": "ada"}
 
     assert _as_mapping(payload) == payload
+
+
+async def test_the_token_is_extracted_once_per_request() -> None:
+    clock = MockClock("2024-01-01 00:00:00")
+    token = await _token(clock)
+    extractor = _CountingExtractor(token)
+    authenticator = JwtAuthenticator(
+        _manager(clock),
+        RecordingDispatcher(),
+        extractor,
+        PlainUserProvider(InMemoryUser("ada", roles=["ROLE_USER"])),
+        "api",
+    )
+    request = make_request(headers={"Authorization": f"Bearer {token}"})
+
+    assert authenticator.supports(request) is True
+    passport = await authenticator.authenticate(request)
+
+    assert (await passport.get_user()).get_user_identifier() == "ada"
+    assert extractor.calls == 1
+
+
+async def test_two_firewalls_sharing_a_request_each_extract_their_own_token() -> None:
+    clock = MockClock("2024-01-01 00:00:00")
+    token = await _token(clock)
+    first = _CountingExtractor(token)
+    second = _CountingExtractor(token)
+    provider = PlainUserProvider(InMemoryUser("ada", roles=["ROLE_USER"]))
+    api = JwtAuthenticator(_manager(clock), RecordingDispatcher(), first, provider, "api")
+    admin = JwtAuthenticator(_manager(clock), RecordingDispatcher(), second, provider, "admin")
+    request = make_request(headers={"Authorization": f"Bearer {token}"})
+
+    assert (api.supports(request), admin.supports(request)) == (True, True)
+    assert api.supports(request) is True
+
+    assert (first.calls, second.calls) == (1, 1)
+
+
+@final
+class _CountingExtractor:
+    """A token extractor that returns a fixed token and counts its calls."""
+
+    def __init__(self, token: str) -> None:
+        self._token = token
+        self.calls = 0
+
+    def extract(self, request: object) -> str | None:
+        del request
+        self.calls += 1
+        return self._token

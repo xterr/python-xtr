@@ -17,11 +17,15 @@
 # The file the written configuration reads the signing key from. No default to
 # offer, so it is written commented out and stays unset until a key is minted.
 JWT_SECRET_KEY_PATH = ""
+# The issuer every token is stamped with and checked against. Required: the
+# build fails until it is set, so it is written commented out for a deployment
+# to choose its own issuer name.
+JWT_ISSUER = ""
 
 [gitignore]
 # A private key never enters the repository, wherever the keypair command puts
-# it.
-lines = ["/secrets/*.pem"]
+# it; nor does the public JWK set the same command writes beside it.
+lines = ["/secrets/*.pem", "/secrets/*.jwks.json"]
 
 [notes]
 steps = [

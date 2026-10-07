@@ -34,36 +34,37 @@ _EventT = TypeVar("_EventT")
 
 @final
 class RecordingDispatcher(EventDispatcherInterface):
-    """An event dispatcher that records every event it is handed, by name."""
+    """An event dispatcher that records every event it is handed, in order."""
 
     def __init__(self) -> None:
         """Start with no recorded events."""
-        self.events: list[tuple[str, Event]] = []
+        self.events: list[Event] = []
 
     @override
     async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
-        """Record the event under its name and return it, running no listener."""
-        name = event_name if isinstance(event_name, str) else type(event).__name__
-        self.events.append((name, cast("Event", event)))
+        """Record the event and return it, running no listener."""
+        del event_name
+        self.events.append(cast("Event", event))
         return event
 
-    def names(self) -> list[str]:
-        """Return the names of the events recorded, in order."""
-        return [name for name, _ in self.events]
+    def types(self) -> list[type]:
+        """Return the classes of the events recorded, in order."""
+        return [type(one) for one in self.events]
 
 
 @final
 class RejectingDispatcher(EventDispatcherInterface):
-    """A dispatcher that rejects the decode event by marking it invalid."""
+    """A dispatcher that rejects one kind of event by marking it invalid."""
 
-    def __init__(self, reject_name: str) -> None:
-        """Reject the event dispatched under ``reject_name``."""
-        self._reject_name = reject_name
+    def __init__(self, reject: type) -> None:
+        """Reject every event that is an instance of ``reject``."""
+        self._reject = reject
 
     @override
     async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
         """Mark the target event invalid, leaving every other event untouched."""
-        if event_name == self._reject_name:
+        del event_name
+        if isinstance(event, self._reject):
             marker = getattr(event, "mark_as_invalid", None)
             if callable(marker):
                 _ = marker()

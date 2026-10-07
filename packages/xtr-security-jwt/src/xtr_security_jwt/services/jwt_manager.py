@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
+from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_jwt.encoder.header_aware_jwt_encoder_interface import (
     HeaderAwareJwtEncoderInterface,
@@ -12,14 +13,14 @@ from xtr_security_jwt.encoder.header_aware_jwt_encoder_interface import (
 from xtr_security_jwt.event.jwt_created_event import JwtCreatedEvent
 from xtr_security_jwt.event.jwt_decoded_event import JwtDecodedEvent
 from xtr_security_jwt.event.jwt_encoded_event import JwtEncodedEvent
-from xtr_security_jwt.events import Events
 from xtr_security_jwt.exception.jwt_decode_failure_error import JwtDecodeFailureError
 from xtr_security_jwt.services.payload_enrichment.null_enrichment import NullEnrichment
 
+from .credentialed_token_interface import CredentialedTokenInterface
 from .jwt_token_manager_interface import JwtTokenManagerInterface
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
@@ -29,9 +30,6 @@ if TYPE_CHECKING:
     from xtr_security_jwt.services.payload_enrichment_interface import PayloadEnrichmentInterface
 
 __all__ = ["JwtManager"]
-
-#: The credentials attribute a security token carries the raw JWT under.
-_TOKEN_ATTRIBUTE: str = "token"  # noqa: S105 -- an attribute name, not a secret
 
 
 @final
@@ -51,19 +49,58 @@ class JwtManager(JwtTokenManagerInterface):
     a listener may reject.
     """
 
-    __slots__ = ("_encoder", "_event_dispatcher", "_payload_enrichment", "_user_id_claim")
+    __slots__ = (
+        "_audience",
+        "_encoder",
+        "_event_dispatcher",
+        "_issuer",
+        "_payload_enrichment",
+        "_user_id_claim",
+    )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- a wiring constructor; each part shapes one behaviour
         self,
         encoder: JwtEncoderInterface,
         event_dispatcher: EventDispatcherInterface,
         user_id_claim: str,
         payload_enrichment: PayloadEnrichmentInterface | None = None,
+        *,
+        issuer: str,
+        audience: Sequence[str] = (),
     ) -> None:
-        """Mint tokens with ``encoder``, announcing on ``event_dispatcher``."""
+        """Mint tokens with ``encoder``, stamped with ``issuer``, announcing events.
+
+        Every minted token is stamped with ``issuer`` as ``iss`` and, when
+        ``audience`` is set, with those names as ``aud``; a presented token is
+        checked against both, so one issued for another issuer or audience is
+        refused as it is read back.
+
+        ``issuer`` is therefore refused empty: an unnamed issuer would stamp
+        nothing and accept a token carrying no ``iss`` at all. This is the point
+        where a configured issuer read from the environment is finally a value,
+        so it is where an empty one is caught.
+
+        Raises:
+            InvalidArgumentError: When ``issuer`` is empty, or when ``audience``
+                is a single string. A bare string is a sequence of its own
+                letters, so ``"api"`` would be read as three one-letter
+                audiences.
+        """
+        if not issuer:
+            raise InvalidArgumentError(
+                "The issuer cannot be empty: every minted token is stamped with it and "
+                "every presented token is checked against it.",
+            )
+        if isinstance(audience, str):
+            raise InvalidArgumentError(
+                "The audience is a sequence of audience names, not one name: a bare "
+                f"string is read letter by letter. Write audience=({audience!r},).",
+            )
         self._encoder = encoder
         self._event_dispatcher = event_dispatcher
         self._user_id_claim = user_id_claim
+        self._issuer = issuer
+        self._audience = tuple(audience)
         self._payload_enrichment = (
             payload_enrichment if payload_enrichment is not None else NullEnrichment()
         )
@@ -85,6 +122,9 @@ class JwtManager(JwtTokenManagerInterface):
         """Mint a signed token for ``user``, starting from a caller's ``payload``."""
         merged: dict[str, object] = {"roles": list(user.get_roles())}
         merged.update(payload)
+        # The user's roles are authoritative: a caller's payload must not widen
+        # them, so they are re-applied after the merge overwrites the seed.
+        merged["roles"] = list(user.get_roles())
         self._add_user_identity(user, merged)
         self._payload_enrichment.enrich(user, merged)
         return await self._generate(user, merged)
@@ -93,12 +133,14 @@ class JwtManager(JwtTokenManagerInterface):
     async def decode(self, token: TokenInterface) -> Mapping[str, object] | bool:
         """Read the claims out of a security ``token``, or ``False`` when it has none.
 
+        The raw compact token is read back from the token's credentials — where
+        the authenticator's own post-authentication token keeps it — so a token
+        of another kind, which keeps none, reports no claims.
+
         Where :meth:`parse` raises on a token that cannot be read or that a
         listener rejects, this reports the same outcome as ``False``.
         """
-        raw = (
-            token.get_attribute(_TOKEN_ATTRIBUTE) if token.has_attribute(_TOKEN_ATTRIBUTE) else None
-        )
+        raw = token.get_credentials() if isinstance(token, CredentialedTokenInterface) else None
         if not isinstance(raw, str) or not raw:
             return False
         try:
@@ -115,8 +157,9 @@ class JwtManager(JwtTokenManagerInterface):
                 rejects it.
         """
         payload = dict(self._encoder.decode(token))
+        self._check_issuer_and_audience(payload)
         event = JwtDecodedEvent(payload)
-        _ = await self._event_dispatcher.dispatch(event, Events.JWT_DECODED)
+        _ = await self._event_dispatcher.dispatch(event)
         if not event.is_valid():
             raise JwtDecodeFailureError(
                 JwtDecodeFailureError.INVALID_TOKEN,
@@ -137,10 +180,59 @@ class JwtManager(JwtTokenManagerInterface):
             value = user.get_user_identifier()
         payload[self._user_id_claim] = value
 
+    def _check_issuer_and_audience(self, payload: Mapping[str, object]) -> None:
+        """Refuse a token issued for another issuer or audience.
+
+        The issuer and audience judgement belongs to whoever reads the loaded
+        payload, not to the signing provider: a token's ``iss`` must equal the
+        configured issuer, and — when audiences are configured — its ``aud`` must
+        name at least one of them. A deployment configuring no audience
+        identifies itself with none, so a token that names one is refused rather
+        than read: RFC 7519 has a reader refuse a token whose audience it does
+        not answer to.
+
+        Raises:
+            JwtDecodeFailureError: When the issuer differs, when no configured
+                audience is named, or when the token names an audience and none
+                is configured.
+        """
+        if payload.get("iss") != self._issuer:
+            raise JwtDecodeFailureError(
+                JwtDecodeFailureError.INVALID_TOKEN,
+                "The token was issued for another issuer.",
+                payload=payload,
+            )
+        if not self._audience and "aud" in payload:
+            raise JwtDecodeFailureError(
+                JwtDecodeFailureError.INVALID_TOKEN,
+                "The token names an audience, and this deployment answers to none.",
+                payload=payload,
+            )
+        if self._audience and not self._audience_matches(payload.get("aud")):
+            raise JwtDecodeFailureError(
+                JwtDecodeFailureError.INVALID_TOKEN,
+                "The token was issued for another audience.",
+                payload=payload,
+            )
+
+    def _audience_matches(self, claimed: object) -> bool:
+        """Tell whether ``claimed`` names at least one configured audience."""
+        if isinstance(claimed, str):
+            names: tuple[str, ...] = (claimed,)
+        elif isinstance(claimed, (list, tuple)):
+            members: tuple[object, ...] = tuple(cast("tuple[object, ...]", claimed))
+            names = tuple(one for one in members if isinstance(one, str))
+        else:
+            return False
+        return any(one in self._audience for one in names)
+
     async def _generate(self, user: UserInterface, payload: dict[str, object]) -> str:
         """Announce, sign and announce again, returning the finished token."""
+        payload["iss"] = self._issuer
+        if self._audience:
+            payload["aud"] = list(self._audience)
         created = JwtCreatedEvent(payload, user)
-        _ = await self._event_dispatcher.dispatch(created, Events.JWT_CREATED)
+        _ = await self._event_dispatcher.dispatch(created)
         data = created.get_data()
         header = created.get_header()
         # The header-aware interface only widens ``encode``; the two protocols
@@ -149,5 +241,5 @@ class JwtManager(JwtTokenManagerInterface):
             token = self._encoder.encode(data, header)
         else:
             token = self._encoder.encode(data)
-        _ = await self._event_dispatcher.dispatch(JwtEncodedEvent(token), Events.JWT_ENCODED)
+        _ = await self._event_dispatcher.dispatch(JwtEncodedEvent(token))
         return token

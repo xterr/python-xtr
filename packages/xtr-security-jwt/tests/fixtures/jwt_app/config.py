@@ -25,7 +25,7 @@ __all__ = ["jwt", "security"]
 @configure
 def jwt() -> JwtConfig:
     """Sign and verify with the fixture key, reading the user from ``username``."""
-    return JwtConfig(secret_key=PRIVATE_PEM, user_id_claim="username")
+    return JwtConfig(secret_key=PRIVATE_PEM, issuer="https://jwt.test", user_id_claim="username")
 
 
 @configure

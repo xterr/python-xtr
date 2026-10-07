@@ -9,6 +9,7 @@ from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_jwt.services.key_loader.abstract_key_loader import AbstractKeyLoader
+from xtr_security_jwt.services.key_loader.additional_public_key import AdditionalPublicKey
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -59,7 +60,7 @@ def test_additional_public_keys_are_read_from_their_files(tmp_path: Path) -> Non
     _ = first.write_text("key-a", encoding="utf-8")
     loader = _Loader(None, None, None, (str(first),))
 
-    assert loader.get_additional_public_keys() == ("key-a",)
+    assert loader.get_additional_public_keys() == (AdditionalPublicKey("a", "key-a"),)
 
 
 def test_an_additional_public_key_that_is_not_a_file_is_refused() -> None:
@@ -67,3 +68,30 @@ def test_an_additional_public_key_that_is_not_a_file_is_refused() -> None:
 
     with pytest.raises(InvalidArgumentError):
         _ = loader.get_additional_public_keys()
+
+
+def test_a_key_set_file_is_read_under_the_id_its_name_holds(tmp_path: Path) -> None:
+    # ``jwt:generate-keypair`` writes ``<kid>.jwks.json``, so both suffixes go.
+    published = tmp_path / "k2.jwks.json"
+    _ = published.write_text("key-set", encoding="utf-8")
+    loader = _Loader(None, None, None, (str(published),))
+
+    assert loader.get_additional_public_keys() == (AdditionalPublicKey("k2", "key-set"),)
+
+
+def test_the_key_id_comes_from_the_signing_key_file(tmp_path: Path) -> None:
+    key_file = tmp_path / "k1.pem"
+    _ = key_file.write_text("from-disk", encoding="utf-8")
+
+    assert _Loader(str(key_file), None).get_key_id() == "k1"
+
+
+def test_the_key_id_falls_back_to_the_public_key_file(tmp_path: Path) -> None:
+    key_file = tmp_path / "k1.jwks.json"
+    _ = key_file.write_text("from-disk", encoding="utf-8")
+
+    assert _Loader(None, str(key_file)).get_key_id() == "k1"
+
+
+def test_a_key_given_as_text_names_no_key_id() -> None:
+    assert _Loader("raw-signing", "raw-public").get_key_id() is None

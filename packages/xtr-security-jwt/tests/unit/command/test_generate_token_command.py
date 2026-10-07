@@ -39,7 +39,12 @@ def _manager() -> JwtManager:
         0,
         MockClock("2024-01-01 00:00:00"),
     )
-    return JwtManager(DefaultJwtEncoder(provider), RecordingDispatcher(), "username")
+    return JwtManager(
+        DefaultJwtEncoder(provider),
+        RecordingDispatcher(),
+        "username",
+        issuer="https://jwt.test",
+    )
 
 
 def _locator(

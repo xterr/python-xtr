@@ -10,7 +10,7 @@ from xtr_security_core.exception import InvalidArgumentError
 from .token_extractor_interface import TokenExtractorInterface
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Sequence
 
     from starlette.requests import Request
 
@@ -46,7 +46,3 @@ class ChainTokenExtractor(TokenExtractorInterface):
             if token is not None:
                 return token
         return None
-
-    def __iter__(self) -> Iterator[TokenExtractorInterface]:
-        """Iterate the extractors this chain tries, in order."""
-        return iter(self._extractors)

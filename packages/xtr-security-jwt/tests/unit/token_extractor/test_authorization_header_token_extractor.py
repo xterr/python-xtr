@@ -39,3 +39,33 @@ def test_with_no_prefix_it_returns_the_whole_value() -> None:
     request = make_request(headers={"X-Token": "raw-token"})
 
     assert AuthorizationHeaderTokenExtractor("", "X-Token").extract(request) == "raw-token"
+
+
+def test_a_prefix_with_no_token_after_it_is_no_token() -> None:
+    request = make_request(headers={"Authorization": "Bearer "})
+
+    assert AuthorizationHeaderTokenExtractor().extract(request) is None
+
+
+def test_a_prefix_followed_by_only_spaces_is_no_token() -> None:
+    request = make_request(headers={"Authorization": "Bearer    "})
+
+    assert AuthorizationHeaderTokenExtractor().extract(request) is None
+
+
+def test_extra_space_between_the_prefix_and_the_token_is_tolerated() -> None:
+    request = make_request(headers={"Authorization": "Bearer  the-token"})
+
+    assert AuthorizationHeaderTokenExtractor().extract(request) == "the-token"
+
+
+def test_a_header_padded_with_whitespace_still_reads_its_token() -> None:
+    request = make_request(headers={"Authorization": "  Bearer the-token  "})
+
+    assert AuthorizationHeaderTokenExtractor().extract(request) == "the-token"
+
+
+def test_with_no_prefix_a_blank_header_is_no_token() -> None:
+    request = make_request(headers={"X-Token": "   "})
+
+    assert AuthorizationHeaderTokenExtractor("", "X-Token").extract(request) is None

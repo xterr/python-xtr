@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from joserfc.jwk import ECKey, OctKey, RSAKey
+import json
+
+from joserfc.jwk import ECKey, KeySet, OctKey, RSAKey
 
 __all__ = [
     "EC_PRIVATE_PEM",
@@ -11,6 +13,7 @@ __all__ = [
     "RSA_PRIVATE_PEM",
     "RSA_PUBLIC_PEM",
     "SECOND_RSA_PRIVATE_PEM",
+    "SECOND_RSA_PUBLIC_JWKS",
     "SECOND_RSA_PUBLIC_PEM",
 ]
 
@@ -21,6 +24,9 @@ RSA_PUBLIC_PEM: str = _RSA.as_pem(private=False).decode("utf-8")
 _SECOND_RSA = RSAKey.generate_key(2048, parameters={"kid": "rsa-2"})
 SECOND_RSA_PRIVATE_PEM: str = _SECOND_RSA.as_pem(private=True).decode("utf-8")
 SECOND_RSA_PUBLIC_PEM: str = _SECOND_RSA.as_pem(private=False).decode("utf-8")
+#: The second key's public half as the JWK set ``jwt:generate-keypair`` writes,
+#: carrying its own ``kid`` — which a PEM cannot.
+SECOND_RSA_PUBLIC_JWKS: str = json.dumps(KeySet([_SECOND_RSA]).as_dict(private=False), indent=2)
 
 _EC = ECKey.generate_key("P-256", parameters={"kid": "ec-1"})
 EC_PRIVATE_PEM: str = _EC.as_pem(private=True).decode("utf-8")

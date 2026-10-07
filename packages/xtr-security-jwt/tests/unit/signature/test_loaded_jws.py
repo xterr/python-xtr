@@ -48,6 +48,41 @@ def test_a_future_issued_at_is_invalid_overriding_a_good_signature() -> None:
     assert loaded.is_verified() is True
 
 
+def test_a_future_not_before_is_invalid() -> None:
+    now = int(_clock().now().timestamp())
+    loaded = LoadedJws(
+        {"iat": now, "nbf": now + 100, "exp": now + 200},
+        _clock(),
+        is_verified=True,
+    )
+
+    assert loaded.is_invalid() is True
+
+
+def test_clock_skew_widens_the_not_before_window() -> None:
+    now = int(_clock().now().timestamp())
+    loaded = LoadedJws(
+        {"iat": now, "nbf": now + 5, "exp": now + 200},
+        _clock(),
+        is_verified=True,
+        clock_skew=10,
+    )
+
+    assert loaded.is_invalid() is False
+
+
+def test_a_reached_not_before_is_valid() -> None:
+    now = int(_clock().now().timestamp())
+    loaded = LoadedJws(
+        {"iat": now - 100, "nbf": now - 50, "exp": now + 200},
+        _clock(),
+        is_verified=True,
+    )
+
+    assert loaded.is_invalid() is False
+    assert loaded.is_expired() is False
+
+
 def test_clock_skew_widens_the_expiry_window() -> None:
     now = int(_clock().now().timestamp())
     loaded = LoadedJws(
@@ -60,11 +95,38 @@ def test_clock_skew_widens_the_expiry_window() -> None:
     assert loaded.is_expired() is False
 
 
-def test_allowing_no_expiration_skips_the_time_check() -> None:
-    loaded = LoadedJws({}, _clock(), is_verified=True, should_check_expiration=False)
+def test_allowing_no_expiration_honours_a_token_carrying_none() -> None:
+    loaded = LoadedJws({}, _clock(), is_verified=True, allow_no_expiration=True)
 
     assert loaded.is_invalid() is False
     assert loaded.is_expired() is False
+
+
+def test_allowing_no_expiration_still_judges_a_past_expiry() -> None:
+    # The flag tolerates a missing expiry, never a lapsed one: a token that named
+    # its own expiry is held to it.
+    now = int(_clock().now().timestamp())
+    loaded = LoadedJws(
+        {"iat": now - 200, "exp": now - 100},
+        _clock(),
+        is_verified=True,
+        allow_no_expiration=True,
+    )
+
+    assert loaded.is_expired() is True
+
+
+def test_allowing_no_expiration_honours_an_expiry_still_ahead() -> None:
+    now = int(_clock().now().timestamp())
+    loaded = LoadedJws(
+        {"iat": now, "exp": now + 100},
+        _clock(),
+        is_verified=True,
+        allow_no_expiration=True,
+    )
+
+    assert loaded.is_expired() is False
+    assert loaded.is_invalid() is False
 
 
 def test_expiry_is_re_judged_as_time_passes() -> None:

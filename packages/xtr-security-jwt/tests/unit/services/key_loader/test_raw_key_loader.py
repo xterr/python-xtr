@@ -9,6 +9,7 @@ from xtr_security_core.exception import InvalidArgumentError
 
 from tests.support.keys import RSA_PRIVATE_PEM, RSA_PUBLIC_PEM
 from xtr_security_jwt.services.key_loader.abstract_key_loader import AbstractKeyLoader
+from xtr_security_jwt.services.key_loader.additional_public_key import AdditionalPublicKey
 from xtr_security_jwt.services.key_loader.key_dumper_interface import KeyDumperInterface
 from xtr_security_jwt.services.key_loader.key_loader_interface import (
     TYPE_PRIVATE,
@@ -83,7 +84,9 @@ def test_additional_public_keys_are_read_from_their_files(tmp_path: Path) -> Non
     _ = file.write_text(RSA_PUBLIC_PEM, encoding="utf-8")
     loader = RawKeyLoader(RSA_PRIVATE_PEM, None, None, (str(file),))
 
-    assert list(loader.get_additional_public_keys()) == [RSA_PUBLIC_PEM]
+    assert list(loader.get_additional_public_keys()) == [
+        AdditionalPublicKey("extra", RSA_PUBLIC_PEM),
+    ]
 
 
 def test_it_reports_the_passphrase() -> None:

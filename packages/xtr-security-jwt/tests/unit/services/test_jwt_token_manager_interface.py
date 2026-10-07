@@ -21,7 +21,12 @@ def test_the_real_manager_satisfies_the_interface() -> None:
         0,
         MockClock("2024-01-01 00:00:00"),
     )
-    manager = JwtManager(DefaultJwtEncoder(provider), RecordingDispatcher(), "username")
+    manager = JwtManager(
+        DefaultJwtEncoder(provider),
+        RecordingDispatcher(),
+        "username",
+        issuer="https://jwt.test",
+    )
 
     assert isinstance(manager, JwtTokenManagerInterface)
 

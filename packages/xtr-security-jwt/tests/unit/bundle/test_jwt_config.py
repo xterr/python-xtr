@@ -14,6 +14,8 @@ def test_it_is_buildable_with_no_arguments() -> None:
     config = JwtConfig()
 
     assert config.secret_key is None
+    assert config.issuer == ""
+    assert config.audience == ()
     assert config.token_ttl == 3600
     assert config.allow_no_expiration is False
     assert config.clock_skew == 0
@@ -58,3 +60,19 @@ def test_the_encoder_refuses_an_unsupported_algorithm() -> None:
 
 def test_a_secret_key_is_kept() -> None:
     assert JwtConfig(secret_key="pem").secret_key == "pem"
+
+
+def test_an_issuer_and_audience_are_kept() -> None:
+    config = JwtConfig(issuer="issuer-a", audience=("aud-a", "aud-b"))
+
+    assert config.issuer == "issuer-a"
+    assert config.audience == ("aud-a", "aud-b")
+
+
+def test_a_bare_string_audience_is_refused_naming_the_field_and_the_tuple_form() -> None:
+    with pytest.raises(InvalidArgumentError) as info:
+        _ = JwtConfig(audience="api")
+
+    message = str(info.value)
+    assert "audience" in message
+    assert "('api',)" in message

@@ -55,14 +55,3 @@ def test_every_enabled_extractor_is_built_in_the_fixed_order() -> None:
         CookieTokenExtractor,
         SplitCookieExtractor,
     ]
-
-
-def test_disabling_every_extractor_falls_back_to_the_header() -> None:
-    config = TokenExtractorsConfig(
-        authorization_header=AuthorizationHeaderExtractorConfig(enabled=False),
-    )
-
-    extractors = _extractors_from(config)
-
-    assert len(extractors) == 1
-    assert isinstance(extractors[0], AuthorizationHeaderTokenExtractor)

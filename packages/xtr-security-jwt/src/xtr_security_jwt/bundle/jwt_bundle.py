@@ -18,7 +18,7 @@ from collections.abc import (
     Hashable,
     Mapping,
 )
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
 
@@ -38,11 +38,18 @@ from xtr_event_dispatcher_contracts import (
 
 from xtr_security_jwt.encoder.default_jwt_encoder import DefaultJwtEncoder
 from xtr_security_jwt.encoder.jwt_encoder_interface import JwtEncoderInterface
-from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
+from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import (
+    JoserfcJwsProvider,
+    require_hmac_secret_length,
+)
 from xtr_security_jwt.services.jws_provider.jws_provider_interface import JwsProviderInterface
 from xtr_security_jwt.services.jwt_manager import JwtManager
 from xtr_security_jwt.services.jwt_token_manager_interface import JwtTokenManagerInterface
-from xtr_security_jwt.services.key_loader.key_loader_interface import KeyLoaderInterface
+from xtr_security_jwt.services.key_loader._algorithms import HMAC_ALGORITHMS
+from xtr_security_jwt.services.key_loader.key_loader_interface import (
+    TYPE_PRIVATE,
+    KeyLoaderInterface,
+)
 from xtr_security_jwt.services.key_loader.raw_key_loader import RawKeyLoader
 from xtr_security_jwt.services.payload_enrichment.chain_enrichment import ChainEnrichment
 from xtr_security_jwt.services.payload_enrichment.null_enrichment import NullEnrichment
@@ -60,8 +67,8 @@ if TYPE_CHECKING:
 __all__ = ["JwtBundle"]
 
 _CONFIGURE_HINT = (
-    "Set a signing key in <app>/config/jwt.py with a @configure function returning "
-    "JwtConfig(secret_key=...)."
+    "Set them in <app>/config/jwt.py with a @configure function returning "
+    "JwtConfig(secret_key=..., issuer=...)."
 )
 
 #: The tag every payload enrichment carries, so the manager collects them all.
@@ -124,16 +131,18 @@ class JwtBundle(Bundle[JwtConfig]):
         """Register the signing chain, the manager and the commands, or fail the build.
 
         Raises:
-            InvalidConfigurationError: When no signing key is configured — an
-                add-on bundle that cannot work without one.
+            InvalidConfigurationError: When no signing key or issuer is configured
+                — an add-on bundle that cannot work without them — or when an HMAC
+                secret is shorter than its algorithm requires.
         """
-        self._require_secret_key(config)
+        self._require_build_settings(config)
+        self._require_hmac_secret_length(config)
         _ = services.set(NullEnrichment).add_tag(_ENRICHMENT_TAG)
         _ = services.set(_key_loader_factory(config))
         services.alias(KeyLoaderInterface, RawKeyLoader)
         _ = services.set(_jws_provider_factory(config))
         services.alias(JwsProviderInterface, JoserfcJwsProvider)
-        _ = services.set(_encoder_factory(config))
+        _ = services.set(_encoder_factory())
         services.alias(JwtEncoderInterface, _encoder_service(config))
         _ = services.set(_manager_factory(config))
         services.alias(JwtTokenManagerInterface, JwtManager)
@@ -157,18 +166,61 @@ class JwtBundle(Bundle[JwtConfig]):
         _ = builder.get_definition(JwtManager).set_argument("enrichment_qualifiers", qualifiers)
 
     @staticmethod
-    def _require_secret_key(config: JwtConfig) -> None:
-        """Fail the build when no signing key is configured.
+    def _require_build_settings(config: JwtConfig) -> None:
+        """Fail the build when a signing key or an issuer is missing.
+
+        An add-on bundle that mints and verifies self-issued tokens cannot work
+        without a signing key to sign with and an issuer to stamp and check, so
+        it names both that are missing rather than failing at the first request.
+
+        A plain empty string is as missing as nothing at all, for the key as for
+        the issuer: it would reach the key loader as key material, or stamp
+        nothing as ``iss``, and fail far from the configuration that wrote it. An
+        unresolved ``env()`` placeholder — the form the recipe writes — stands
+        for a value read when the manager is built, so it cannot decide anything
+        here; it is taken as set, and the manager refuses an empty resolved
+        issuer where it is built.
 
         Raises:
-            InvalidConfigurationError: When ``secret_key`` is unset.
+            InvalidConfigurationError: When ``secret_key`` or ``issuer`` is unset.
         """
         from xtr_security.bundle import InvalidConfigurationError  # noqa: PLC0415
 
-        if config.secret_key is None:
+        missing: list[str] = []
+        if config.secret_key is None or (type(config.secret_key) is str and not config.secret_key):
+            missing.append("a signing key (secret_key)")
+        if type(config.issuer) is str and not config.issuer:
+            missing.append("an issuer (issuer)")
+        if missing:
             raise InvalidConfigurationError(
-                "The JWT bundle needs a signing key but none is configured. " + _CONFIGURE_HINT,
+                "The JWT bundle needs "
+                + " and ".join(missing)
+                + " but none is configured. "
+                + _CONFIGURE_HINT,
             )
+
+    @staticmethod
+    def _require_hmac_secret_length(config: JwtConfig) -> None:
+        """Fail the build when the HMAC secret is shorter than its algorithm requires.
+
+        ``secret_key`` may be the shared secret itself or the path of a file
+        holding it, so the floor is applied to the material the key loader
+        resolves — the very loader the container will build, asked the way the
+        JWS provider asks it — rather than to the configured string. Measuring
+        the string would pass a long path naming a five-byte secret and refuse a
+        short path naming a long one.
+
+        An unresolved ``env()`` placeholder is left alone: it carries its default,
+        not the deployment's secret, and the provider measures the real value as
+        it imports the key.
+
+        Raises:
+            InvalidConfigurationError: When the resolved secret is too short.
+        """
+        algorithm = config.encoder.signature_algorithm
+        if algorithm not in HMAC_ALGORITHMS or type(config.secret_key) is not str:
+            return
+        require_hmac_secret_length(algorithm, _key_loader_factory(config)().load_key(TYPE_PRIVATE))
 
 
 def _key_loader_factory(config: JwtConfig) -> Callable[[], RawKeyLoader]:
@@ -211,9 +263,8 @@ def _jws_provider_factory(
     return jws_provider
 
 
-def _encoder_factory(config: JwtConfig) -> Callable[..., DefaultJwtEncoder]:
+def _encoder_factory() -> Callable[..., DefaultJwtEncoder]:
     """Return a factory building the default encoder over the JWS provider."""
-    del config
 
     def default_encoder(provider: JwsProviderInterface) -> DefaultJwtEncoder:
         return DefaultJwtEncoder(provider)
@@ -221,10 +272,16 @@ def _encoder_factory(config: JwtConfig) -> Callable[..., DefaultJwtEncoder]:
     return default_encoder
 
 
-def _encoder_service(config: JwtConfig) -> type:
-    """Return the encoder service the manager reads, honouring an override."""
+def _encoder_service(config: JwtConfig) -> type[JwtEncoderInterface]:
+    """Return the encoder service the manager reads, honouring an override.
+
+    The override is validated as a ``JwtEncoderInterface`` class by
+    ``EncoderConfig``, so it is returned as one.
+    """
     override_service = config.encoder.service
-    return override_service if override_service is not None else DefaultJwtEncoder
+    if override_service is None:
+        return DefaultJwtEncoder
+    return cast("type[JwtEncoderInterface]", override_service)
 
 
 def _manager_factory(config: JwtConfig) -> Callable[..., JwtManager]:
@@ -236,6 +293,8 @@ def _manager_factory(config: JwtConfig) -> Callable[..., JwtManager]:
     never by reaching for the container, and with no empty-collection injection.
     """
     user_id_claim = config.user_id_claim
+    issuer = config.issuer
+    audience = tuple(config.audience)
 
     def jwt_manager(
         encoder: JwtEncoderInterface,
@@ -245,7 +304,14 @@ def _manager_factory(config: JwtConfig) -> Callable[..., JwtManager]:
     ) -> JwtManager:
         collected = [enrichments[qualifier] for qualifier in enrichment_qualifiers]
         enrichment = ChainEnrichment(collected) if collected else None
-        return JwtManager(encoder, dispatcher, user_id_claim, enrichment)
+        return JwtManager(
+            encoder,
+            dispatcher,
+            user_id_claim,
+            enrichment,
+            issuer=issuer,
+            audience=audience,
+        )
 
     jwt_manager.__annotations__ = {
         "encoder": JwtEncoderInterface,

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
     from xtr_clock import ClockInterface
 
-__all__ = ["LoadedJws"]
+__all__ = ["EXPIRED", "INVALID", "VERIFIED", "LoadedJws"]
 
 #: The token verified, and its times are in order.
 VERIFIED: Final[str] = "verified"
@@ -27,14 +27,15 @@ class LoadedJws:
 
     Built by a provider's ``load`` once it has decided whether the signature
     verifies. The state it settles on tells the encoder what to raise: a token
-    whose issued-at lies in the future, or whose expiry is missing, is
-    :data:`INVALID`; one past its expiry is :data:`EXPIRED`; otherwise it is
-    :data:`VERIFIED`. An invalid time overrides a good signature, so the time
-    is judged the moment the token is built.
+    whose issued-at lies in the future, whose not-before time has not yet been
+    reached, or whose expiry is missing, is :data:`INVALID`; one past its expiry
+    is :data:`EXPIRED`; otherwise it is :data:`VERIFIED`. An invalid time
+    overrides a good signature, so the time is judged the moment the token is
+    built. The configured clock skew widens every one of these windows.
 
-    When expiry is not to be checked — the application allows tokens with no
-    expiry — the time judgement is skipped entirely and the token stands on its
-    signature alone.
+    When the application allows tokens with no expiry, a token carrying none
+    stands on its signature alone. An expiry it does carry is still judged: the
+    allowance tolerates a missing ``exp``, never a lapsed one.
 
     Attributes:
         VERIFIED: The state of a token in order.
@@ -47,12 +48,12 @@ class LoadedJws:
     INVALID: Final[str] = INVALID
 
     __slots__ = (
+        "_allow_no_expiration",
         "_clock",
         "_clock_skew",
         "_header",
         "_is_verified",
         "_payload",
-        "_should_check_expiration",
         "_state",
     )
 
@@ -62,7 +63,7 @@ class LoadedJws:
         clock: ClockInterface,
         *,
         is_verified: bool,
-        should_check_expiration: bool = True,
+        allow_no_expiration: bool = False,
         header: Mapping[str, object] | None = None,
         clock_skew: int = 0,
     ) -> None:
@@ -72,9 +73,10 @@ class LoadedJws:
         self._header = dict(header) if header is not None else {}
         self._clock = clock
         self._clock_skew = clock_skew
-        self._should_check_expiration = should_check_expiration
+        self._allow_no_expiration = allow_no_expiration
         self._state = VERIFIED
         self._check_issued_at()
+        self._check_not_before()
         self._check_expiration()
 
     def get_header(self) -> Mapping[str, object]:
@@ -108,15 +110,23 @@ class LoadedJws:
         if issued_at - self._clock_skew > now:
             self._state = INVALID
 
-    def _check_expiration(self) -> None:
-        """Judge the expiry, unless the application allows tokens without one."""
-        if not self._should_check_expiration:
+    def _check_not_before(self) -> None:
+        """Mark the token invalid when its not-before time has not yet been reached."""
+        not_before = self._payload.get("nbf")
+        if not isinstance(not_before, (int, float)) or isinstance(not_before, bool):
             return
+        now = int(self._clock.now().timestamp())
+        if not_before - self._clock_skew > now:
+            self._state = INVALID
+
+    def _check_expiration(self) -> None:
+        """Judge the expiry the token carries; tolerate a missing one when allowed."""
         if self._state == INVALID:
             return
         expires_at = self._payload.get("exp")
         if not isinstance(expires_at, (int, float)) or isinstance(expires_at, bool):
-            self._state = INVALID
+            if not self._allow_no_expiration:
+                self._state = INVALID
             return
         now = int(self._clock.now().timestamp())
         if now - self._clock_skew >= expires_at:

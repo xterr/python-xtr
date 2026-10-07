@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+from xtr_security_core.exception import InvalidArgumentError
+
 from xtr_security_jwt.bundle.token_extractors_configs import (
     AuthorizationHeaderExtractorConfig,
     CookieExtractorConfig,
@@ -47,3 +50,20 @@ def test_the_group_enables_only_the_header_by_default() -> None:
     assert config.cookie.enabled is False
     assert config.query_parameter.enabled is False
     assert config.split_cookie.enabled is False
+
+
+def test_disabling_every_extractor_is_refused_naming_the_config() -> None:
+    with pytest.raises(InvalidArgumentError, match="TokenExtractorsConfig"):
+        _ = TokenExtractorsConfig(
+            authorization_header=AuthorizationHeaderExtractorConfig(enabled=False),
+        )
+
+
+def test_a_cookie_only_reading_is_accepted() -> None:
+    config = TokenExtractorsConfig(
+        authorization_header=AuthorizationHeaderExtractorConfig(enabled=False),
+        cookie=CookieExtractorConfig(enabled=True),
+    )
+
+    assert config.authorization_header.enabled is False
+    assert config.cookie.enabled is True
