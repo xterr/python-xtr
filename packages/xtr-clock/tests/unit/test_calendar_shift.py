@@ -30,3 +30,16 @@ def test_a_date_point_stays_a_date_point() -> None:
     moment = DatePoint(2026, 1, 1, tzinfo=BUCHAREST)
 
     assert isinstance(shift_calendar(moment, months=1), DatePoint)
+
+
+def test_shifting_by_nothing_hands_back_what_it_was_given() -> None:
+    moment = DatePoint(2026, 1, 1, tzinfo=BUCHAREST)
+
+    assert shift_calendar(moment) is moment
+
+
+def test_a_moment_with_no_zone_is_shifted_and_left_without_one() -> None:
+    shifted = shift_calendar(datetime(2026, 1, 31, 9), months=1)
+
+    assert shifted == datetime(2026, 2, 28, 9)
+    assert shifted.tzinfo is None

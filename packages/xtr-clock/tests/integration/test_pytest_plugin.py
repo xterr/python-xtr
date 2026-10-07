@@ -98,7 +98,9 @@ def test_the_library_imports_with_no_test_framework_present() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_the_library_imports_with_nothing_but_the_standard_library() -> None:
+def test_the_library_imports_with_nothing_but_the_standard_library_and_anyio() -> None:
+    # anyio is the one declared dependency, and sniffio is anyio's own; anything
+    # else in the graph is a dependency that arrived without being declared.
     result = subprocess.run(
         [
             sys.executable,
@@ -107,7 +109,8 @@ def test_the_library_imports_with_nothing_but_the_standard_library() -> None:
                 "import sys, xtr_clock\n"
                 "roots = {n.partition('.')[0] for n in sys.modules "
                 "if not n.startswith('_')}\n"
-                "extra = roots - set(sys.stdlib_module_names) - {'xtr_clock'}\n"
+                "allowed = {'xtr_clock', 'anyio', 'sniffio'}\n"
+                "extra = roots - set(sys.stdlib_module_names) - allowed\n"
                 "assert not extra, sorted(extra)\n"
             ),
         ],

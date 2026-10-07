@@ -24,7 +24,13 @@ def shift_calendar(moment: _DateT, /, *, months: int = 0, days: int = 0) -> _Dat
     24 hours later. A wall clock the zone skipped over (the hour lost as the
     clocks go forward) is read as the instant it names, shown on the hour
     that replaced it, so the result always really existed.
+
+    Asked for no shift at all — a scheduler stepping a calendar by zero —
+    it hands back what it was given, rather than resolving an instant it
+    never moved.
     """
+    if not months and not days:
+        return moment
     if months:
         position = moment.month - 1 + months
         year = moment.year + position // _MONTHS_PER_YEAR

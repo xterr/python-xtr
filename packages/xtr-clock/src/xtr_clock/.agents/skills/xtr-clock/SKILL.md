@@ -40,7 +40,7 @@ Every clock answers the same four calls:
 ```python
 clock.now()  # DatePoint, always aware
 clock.sleep(2.5)  # MockClock returns at once and moves 2.5s forward
-await clock.sleep_async(2.5)  # same, without blocking the event loop
+await clock.sleep_async(2.5)  # same, without blocking; waits through anyio, so any backend works
 clock.with_timezone("Europe/Paris")  # a copy; the original is unchanged
 ```
 
@@ -133,6 +133,9 @@ the steps below a recipe can do; the others it prints for you to make.
    def clock() -> ClockConfig:
        return ClockConfig(timezone="UTC")
    ```
+
+   `ClockConfig` resolves the zone as it is built, so an unknown one raises
+   `InvalidTimezoneError` at build time rather than on the first reading.
 
 4. **Use** — inject `ClockInterface`. The bundle also installs the same clock as the clock in
    force, so `now()` and the injected clock agree.

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Self, final
+
+import anyio
 
 from .date_point import DatePoint
 from .timezone import local_timezone, resolve_timezone
@@ -59,8 +60,12 @@ class SystemClock:
             time.sleep(seconds)
 
     async def sleep_async(self, seconds: float) -> None:
-        """Wait ``seconds`` without blocking the event loop."""
-        await asyncio.sleep(max(seconds, 0.0))
+        """Wait ``seconds`` without blocking the event loop.
+
+        The wait goes through anyio, so the clock works on whichever async
+        backend the application runs on rather than only on asyncio.
+        """
+        await anyio.sleep(max(seconds, 0.0))
 
     def with_timezone(self, timezone: str | tzinfo) -> Self:
         """Return the same clock reporting in ``timezone``.

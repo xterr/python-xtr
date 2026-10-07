@@ -4,8 +4,10 @@ import time
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
+import anyio
 import pytest
 
+from tests.support.anyio_backends import ANYIO_BACKENDS
 from xtr_clock import DatePoint, InvalidTimezoneError, MonotonicClock, local_timezone
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -80,6 +82,16 @@ async def test_sleep_async_lets_real_time_pass() -> None:
     await clock.sleep_async(0.05)
 
     assert (clock.now() - before).total_seconds() >= 0.05
+
+
+@pytest.mark.parametrize("backend", ANYIO_BACKENDS)
+def test_sleep_async_waits_on_any_async_backend(backend: str) -> None:
+    clock = MonotonicClock("UTC")
+
+    async def wait() -> None:
+        await clock.sleep_async(0.01)
+
+    anyio.run(wait, backend=backend)
 
 
 def test_with_timezone_leaves_the_original_alone() -> None:

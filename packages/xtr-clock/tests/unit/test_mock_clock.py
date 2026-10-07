@@ -5,8 +5,10 @@ import time
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
+import anyio
 import pytest
 
+from tests.support.anyio_backends import ANYIO_BACKENDS
 from xtr_clock import (
     Clock,
     DatePoint,
@@ -171,7 +173,22 @@ async def test_sleep_async_hands_control_back_so_other_tasks_get_a_turn() -> Non
     order.append("after")
     await task
 
+    # Which of the two runs first is the scheduler's call, and asyncio's
+    # answer is the ready task; what this pins is that the yield happens at
+    # all, since without it `other` could only run at the final await.
     assert order == ["other", "after"]
+
+
+@pytest.mark.parametrize("backend", ANYIO_BACKENDS)
+def test_sleep_async_moves_the_clock_on_any_async_backend(backend: str) -> None:
+    clock = MockClock("2024-04-09 12:00:00")
+
+    async def wait() -> None:
+        await clock.sleep_async(3600)
+
+    anyio.run(wait, backend=backend)
+
+    assert clock.now().isoformat() == "2024-04-09T13:00:00+00:00"
 
 
 @pytest.mark.anyio

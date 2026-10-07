@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from xtr_clock.timezone import resolve_timezone
+
 __all__ = ["ClockConfig"]
 
 
@@ -17,3 +19,13 @@ class ClockConfig:
     """
 
     timezone: str | None = None
+
+    def __post_init__(self) -> None:
+        """Resolve the zone now, so a typo fails the build and not the first reading.
+
+        Raises:
+            InvalidTimezoneError: When ``timezone`` names no zone this
+                system knows.
+        """
+        if self.timezone is not None:
+            _ = resolve_timezone(self.timezone)
