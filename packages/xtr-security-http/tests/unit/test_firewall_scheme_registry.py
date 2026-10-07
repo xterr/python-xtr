@@ -27,7 +27,6 @@ def test_the_registry_records_and_reads_a_scheme() -> None:
     entry = registry.get("api")
     assert entry is not None
     assert entry.scheme_name == "api"
-    assert registry.names() == ("api",)
 
 
 def test_the_registry_returns_none_for_an_unknown_firewall() -> None:

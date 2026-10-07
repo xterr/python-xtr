@@ -22,9 +22,10 @@ __all__ = [
 
 _PREFIX: Final = "_xtr_security_"
 
-#: Maps a firewall name to the outcome of authenticating this request under it —
-#: the error authentication raised, or ``None`` for a plain success — so
-#: authentication stays one pass per firewall.
+#: Maps a firewall name to the settled outcome of authenticating this request
+#: under it — the exception authentication raised, or ``None`` for a pass that
+#: authenticated — so authentication stays one pass per firewall. A name is
+#: absent until an outcome settles, so no unfinished pass reads as authenticated.
 AUTHENTICATED_FIREWALLS_KEY: Final = f"{_PREFIX}authenticated_firewalls"
 
 #: The firewall context in charge of the request, stashed by the firewall so the

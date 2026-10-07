@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse
 from typing_extensions import override
 from xtr_security_core.exception import AuthenticationError, BadCredentialsError
 
+from xtr_security_http._challenge import no_store_headers, quote_auth_param
 from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.authorization.oauth2_scope_voter import OAuth2ScopeVoter
 from xtr_security_http.entry_point.authentication_entry_point_interface import (
@@ -95,6 +96,11 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         self._failure_handler = failure_handler
         self._realm = realm
 
+    @property
+    def extractor(self) -> AccessTokenExtractorInterface:
+        """Return the extractor that reads the token out of a request."""
+        return self._extractor
+
     @override
     def supports(self, request: Request) -> bool | None:
         """Handle the request only when it carries a token this extractor reads.
@@ -180,14 +186,18 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         del request
         parts = ["Bearer"]
         if self._realm is not None:
-            parts.append(f'realm="{self._realm}"')
+            parts.append(f"realm={quote_auth_param(self._realm)}")
         body: dict[str, str] = {}
         if isinstance(error, InvalidAccessTokenError):
             parts.append('error="invalid_token"')
-            parts.append(f'error_description="{error.get_message_key()}"')
+            parts.append(f"error_description={quote_auth_param(error.get_message_key())}")
             body = {"error": "invalid_token"}
         challenge = parts[0] + (" " + ", ".join(parts[1:]) if len(parts) > 1 else "")
-        return JSONResponse(body, status_code=401, headers={"WWW-Authenticate": challenge})
+        return JSONResponse(
+            body,
+            status_code=401,
+            headers=no_store_headers(**{"WWW-Authenticate": challenge}),
+        )
 
     def _normalize_scope(self, scope: object) -> list[str]:
         """Turn a scope list or space-separated string into a list of scopes."""

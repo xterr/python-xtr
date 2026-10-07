@@ -31,7 +31,6 @@ from xtr_security_core.authorization.access_decision_manager_interface import (
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
 from tests.support.contexts import FakeFirewallContext
-from tests.support.dispatchers import RecordingDispatcher
 from xtr_security_http.access_map import AccessMap
 from xtr_security_http.authorization.oauth2_scope_voter import OAuth2ScopeVoter
 from xtr_security_http.exception import InvalidAccessTokenError
@@ -130,7 +129,6 @@ def _firewall_map(storage: TokenStorage, manager: AccessDecisionManager) -> Fire
         name="api",
         authenticator_manager=_FakeManager(storage),
         access_listener=AccessListener(access_map, manager),
-        dispatcher=RecordingDispatcher(),
         scheme=HTTPBearer(auto_error=False),
         entry_point=_FakeEntryPoint(),
         access_denied_handler=_FakeAccessDeniedHandler(),

@@ -35,7 +35,7 @@ class Firewall(Security):
     router = APIRouter(prefix="/api", dependencies=[api])
 
 
-    @router.get("/books", dependencies=[api.scopes("books:read")])
+    @router.get("/books", dependencies=[api.scoped("books:read")])
     async def books() -> list[Book]: ...
 
 

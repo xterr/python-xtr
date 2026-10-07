@@ -53,10 +53,6 @@ class FirewallSchemeRegistry:
         """Return the scheme registered for ``name``, or ``None`` when there is none."""
         return self._schemes.get(name)
 
-    def names(self) -> tuple[str, ...]:
-        """Return the names of every firewall with a registered scheme."""
-        return tuple(self._schemes)
-
 
 # The OpenAPI scheme is read synchronously while the schema is generated, from
 # a context the reader does not share with whoever activated the registry (a

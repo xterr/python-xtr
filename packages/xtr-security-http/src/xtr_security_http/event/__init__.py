@@ -2,7 +2,8 @@
 
 The passport check, the token created, and the login having succeeded or
 failed. Each derives the event contract's :class:`~xtr_event_dispatcher_contracts.Event`;
-:mod:`xtr_security_http.security_events` names them for a subscriber.
+a subscriber listens to the event class itself, which the dispatcher derives the
+event's name from.
 """
 
 from __future__ import annotations

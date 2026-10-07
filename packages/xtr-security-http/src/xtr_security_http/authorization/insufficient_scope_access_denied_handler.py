@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, final
 from starlette.responses import JSONResponse
 from typing_extensions import override
 
+from xtr_security_http._challenge import no_store_headers, quote_auth_param
+
 from .access_denied_handler_interface import AccessDeniedHandlerInterface
 from .oauth2_scope_voter import parse_oauth2_scope
 
@@ -45,16 +47,19 @@ class InsufficientScopeAccessDeniedHandler(AccessDeniedHandlerInterface):
         scope = self._required_scope(error)
         parts = ["Bearer"]
         if self._realm is not None:
-            parts.append(f'realm="{self._realm}"')
+            parts.append(f"realm={quote_auth_param(self._realm)}")
         parts.append('error="insufficient_scope"')
-        parts.append('error_description="The request requires higher privileges than provided."')
+        parts.append(
+            "error_description="
+            + quote_auth_param("The request requires higher privileges than provided."),
+        )
         if scope:
-            parts.append(f'scope="{scope}"')
+            parts.append(f"scope={quote_auth_param(scope)}")
         challenge = parts[0] + " " + ", ".join(parts[1:])
         return JSONResponse(
             {"error": "insufficient_scope"},
             status_code=403,
-            headers={"WWW-Authenticate": challenge},
+            headers=no_store_headers(**{"WWW-Authenticate": challenge}),
         )
 
     def _required_scope(self, error: AccessDeniedError) -> str:

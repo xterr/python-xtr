@@ -1,4 +1,4 @@
-"""The host matcher claims a request by its host, waiving a hostless one."""
+"""The host matcher claims a request by its host, never a hostless one."""
 
 from __future__ import annotations
 
@@ -30,9 +30,9 @@ def test_it_declines_a_non_matching_host() -> None:
     assert not matcher.matches(_request("other.example.com"))
 
 
-def test_a_hostless_request_is_claimed() -> None:
+def test_a_hostless_request_is_not_claimed() -> None:
     matcher = HostRequestMatcher(r"^api\.example\.com$")
-    assert matcher.matches(_request(None))
+    assert not matcher.matches(_request(None))
 
 
 def test_a_bad_pattern_is_refused_where_written() -> None:

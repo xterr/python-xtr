@@ -158,8 +158,8 @@ class OidcTokenHandler:
             "iss": {"essential": True, "values": list(self._issuers)},
             "aud": {"essential": True, "value": self._audience},
             "exp": {"essential": True},
-            self._claim: {"essential": True},
         }
+        options[self._claim] = {**options.get(self._claim, {}), "essential": True}
         registry = JWTClaimsRegistry(now=self._clock(), leeway=self._leeway, **options)
         try:
             registry.validate(dict(claims))

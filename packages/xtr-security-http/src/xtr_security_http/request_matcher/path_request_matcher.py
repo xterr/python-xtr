@@ -22,7 +22,9 @@ class PathRequestMatcher(RequestMatcherInterface):
     """Claims a request whose path matches a regular expression.
 
     The pattern is searched, not anchored, so ``^/api`` claims ``/api`` and
-    everything under it.
+    everything under it — including ``/apikeys`` and ``/api-docs``, which a bare
+    prefix was not meant to cover. Anchor the boundary to avoid that over-match:
+    ``^/api(/|$)`` claims ``/api`` and ``/api/...`` but not ``/apikeys``.
     """
 
     __slots__ = ("_pattern",)

@@ -1,7 +1,7 @@
 """A concrete firewall context for tests, now the http edge holds only the contract.
 
-The concrete :class:`~xtr_security.firewall_context.FirewallContext` lives in the
-bundle package, which the http edge cannot import; a test that needs a running
+The concrete :class:`~xtr_security.bundle.firewall_context.FirewallContext` lives
+in the bundle package, which the http edge cannot import; a test that needs a running
 firewall builds this stand-in, which implements
 :class:`~xtr_security_http.firewall_context_interface.FirewallContextInterface`.
 """
@@ -15,7 +15,6 @@ from xtr_security_http.firewall_context_interface import FirewallContextInterfac
 
 if TYPE_CHECKING:
     from fastapi.security.base import SecurityBase
-    from xtr_event_dispatcher_contracts import EventDispatcherInterface
 
     from xtr_security_http.authentication.authenticator_manager_interface import (
         AuthenticatorManagerInterface,
@@ -38,7 +37,6 @@ class FakeFirewallContext(FirewallContextInterface):
     name: str
     authenticator_manager: AuthenticatorManagerInterface
     access_listener: AccessListener
-    dispatcher: EventDispatcherInterface
     scheme: SecurityBase
     security: bool = True
     entry_point: AuthenticationEntryPointInterface | None = None

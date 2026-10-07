@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.authorization.access_decision import AccessDecision
-from xtr_security_core.exception import AccessDeniedError, AuthenticationError
+from xtr_security_core.exception import AccessDeniedError
 
 from ._state import (
     AUTHENTICATED_FIREWALLS_KEY,
@@ -63,6 +63,10 @@ async def run_firewall(  # noqa: PLR0913 -- the firewall's request, scopes and i
     """
     context = _resolve(firewall_map, name, request)
     if context is None or not context.security:
+        if scopes:
+            raise AccessDeniedError(
+                "A scoped resource was reached with no firewall to authenticate the caller.",
+            )
         return
 
     setattr(request.state, FIREWALL_CONTEXT_KEY, context)
@@ -86,25 +90,38 @@ def _resolve(
 async def _authenticate_once(context: FirewallContextInterface, request: Request) -> None:
     """Authenticate the request under ``context`` at most once, memoised by name.
 
+    Only a settled outcome is memoised: ``None`` for a pass that authenticated,
+    the exception for one that did not. Recording a crash as a pass would let a
+    later call over the same request skip authentication and go on with a null
+    token, so whatever the authenticators raised — a failure the handlers own or
+    a bug they do not — is recorded and raised again by every later call. A later
+    call raises a fresh instance of the recorded error's type and message rather
+    than the stored instance itself, so re-raising it does not splice this
+    request's traceback onto the one the first call already unwound, nor let a
+    caller that mutates the caught exception change what a later call raises.
+
     Raises:
         AuthenticationError: When authentication fails, on this call and every
             later one this request.
+        BaseException: Whatever else authentication raised, re-raised by every
+            later call this request rather than passing it off as authenticated.
         CarriedResponse: When a handler produced a response to send.
     """
     memo: dict[str, BaseException | None] = getattr(request.state, AUTHENTICATED_FIREWALLS_KEY, {})
     if not memo:
         setattr(request.state, AUTHENTICATED_FIREWALLS_KEY, memo)
     if context.name in memo:
-        outcome = memo[context.name]
-        if isinstance(outcome, BaseException):
-            raise outcome
+        recorded = memo[context.name]
+        if recorded is not None:
+            raise type(recorded)(str(recorded))
         return
     try:
         response = await context.authenticator_manager.authenticate_request(request)
-    except AuthenticationError as error:
+    except BaseException as error:
         memo[context.name] = error
         raise
-    memo[context.name] = None
+    else:
+        memo[context.name] = None
     if response is not None:
         raise CarriedResponse(response)
 

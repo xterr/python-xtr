@@ -45,8 +45,9 @@ class OAuth2ScopeVoter(CacheableVoterInterface):
     A bearer token keeps the scopes it was issued with in the ``oauth2_scope``
     attribute — a sequence, or a single space-separated string. This voter reads
     an ``OAUTH2_SCOPE(a b)`` attribute and grants only when every scope in it is
-    among the token's. A token that carries no scopes at all is not judged: the
-    voter abstains, leaving the question to the others.
+    among the token's. A token that carries no scopes at all is denied: a scope
+    request it cannot satisfy is a denial, not a question left to the others —
+    abstaining would let it through under an ``allow_if_all_abstain`` manager.
     """
 
     SCOPE_ATTRIBUTE: ClassVar[str] = "oauth2_scope"
@@ -59,14 +60,12 @@ class OAuth2ScopeVoter(CacheableVoterInterface):
         attributes: Sequence[object],
         vote: Vote | None = None,
     ) -> Access:
-        """Grant when the token holds every asked-for scope; abstain without scopes."""
+        """Grant when the token holds every asked-for scope; deny when it falls short."""
         del subject
         result = Access.ABSTAIN
         for attribute in attributes:
             scopes = parse_oauth2_scope(attribute)
             if scopes is None:
-                continue
-            if not token.has_attribute(self.SCOPE_ATTRIBUTE):
                 continue
             result = Access.DENIED
             held = self._held_scopes(token)
@@ -89,7 +88,13 @@ class OAuth2ScopeVoter(CacheableVoterInterface):
         return True
 
     def _held_scopes(self, token: TokenInterface) -> frozenset[str]:
-        """Read the scopes the token carries, from a string or a sequence."""
+        """Read the scopes the token carries, from a string or a sequence.
+
+        A token with no ``oauth2_scope`` attribute carries no scopes, so it holds
+        none of those asked for and the vote denies.
+        """
+        if not token.has_attribute(self.SCOPE_ATTRIBUTE):
+            return frozenset()
         value = token.get_attribute(self.SCOPE_ATTRIBUTE)
         if isinstance(value, str):
             return frozenset(value.split())

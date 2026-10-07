@@ -45,3 +45,13 @@ async def test_a_non_scope_denial_carries_no_scope() -> None:
 
     assert response is not None
     assert "scope=" not in response.headers["www-authenticate"]
+
+
+async def test_the_challenge_is_not_cached() -> None:
+    error = AccessDeniedError(attributes=(oauth2_scope("books:read"),))
+
+    response = await InsufficientScopeAccessDeniedHandler().handle(make_request(), error)
+
+    assert response is not None
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"

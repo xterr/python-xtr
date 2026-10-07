@@ -17,6 +17,7 @@ from xtr_security_core.exception import (
     InsufficientAuthenticationError,
 )
 
+from xtr_security_http._challenge import no_store_headers
 from xtr_security_http._state import FIREWALL_CONTEXT_KEY, TOKEN_KEY, CarriedResponse
 from xtr_security_http.authorization.oauth2_scope_voter import parse_oauth2_scope
 
@@ -118,7 +119,11 @@ class ExceptionListener(EventSubscriberInterface):
             answered = await context.access_denied_handler.handle(request, error)
             if answered is not None:
                 return answered
-        return JSONResponse({"error": "access_denied"}, status_code=403)
+        return JSONResponse(
+            {"error": "access_denied"},
+            status_code=403,
+            headers=no_store_headers(),
+        )
 
     def _is_full_fledged(self, request: Request) -> bool:
         """Tell whether the request's token is fully authenticated."""
@@ -142,7 +147,7 @@ def _bare_challenge() -> Response:
     return JSONResponse(
         {"error": "unauthorized"},
         status_code=401,
-        headers={"WWW-Authenticate": "Bearer"},
+        headers=no_store_headers(**{"WWW-Authenticate": "Bearer"}),
     )
 
 

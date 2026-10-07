@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from xtr_event_dispatcher import SubscribedEvents
     from xtr_password_hasher import PasswordHasherInterface, UserPasswordHasherInterface
 
-__all__ = ["CheckCredentialsListener"]
+__all__ = ["PRIORITY", "RESOLVE_PRIORITY", "CheckCredentialsListener"]
 
 #: The priority the credentials check runs at — after the account pre-check.
 PRIORITY = 128
@@ -44,20 +44,6 @@ RESOLVE_PRIORITY = 512
 #: The throwaway plaintext hashed once, so a burn is a constant-time verify.
 _DUMMY_PLAINTEXT = "dummy-password-for-timing"
 
-#: One dummy hash per hasher instance, computed eagerly and kept, so neither the
-#: first unknown-user call nor a per-request listener pays the hash cost twice.
-_DUMMY_HASHES: dict[int, str] = {}
-
-
-def _dummy_hash_for(hasher: PasswordHasherInterface) -> str:
-    """Return the dummy hash for ``hasher``, computing and caching it once."""
-    key = id(hasher)
-    cached = _DUMMY_HASHES.get(key)
-    if cached is None:
-        cached = hasher.hash(_DUMMY_PLAINTEXT)
-        _DUMMY_HASHES[key] = cached
-    return cached
-
 
 @final
 class CheckCredentialsListener(EventSubscriberInterface):
@@ -67,8 +53,10 @@ class CheckCredentialsListener(EventSubscriberInterface):
     the user password hasher, run in a worker thread so the argon2 cost never
     blocks the event loop; a match that used an outdated hash adds a
     ``PasswordUpgradeBadge`` for the migrating listener. When the user is
-    unknown, a dummy hash is still verified — the timing of a bad username and a
-    bad password stays the same, so neither reveals which was wrong.
+    unknown — or known but carrying no password — a dummy hash is still verified,
+    so the timing of a bad username, a passwordless user and a wrong password all
+    match and none reveals which was wrong. The dummy hash is computed once at
+    construction from the required dummy hasher.
 
     A ``CustomCredentials`` is verified by running its own check against the
     resolved user.
@@ -79,12 +67,12 @@ class CheckCredentialsListener(EventSubscriberInterface):
     def __init__(
         self,
         hasher: UserPasswordHasherInterface,
-        dummy_hasher: PasswordHasherInterface | None = None,
+        dummy_hasher: PasswordHasherInterface,
     ) -> None:
         """Record the user password hasher and, for the timing guard, a dummy hasher."""
         self._hasher = hasher
         self._dummy_hasher = dummy_hasher
-        self._dummy_hash = _dummy_hash_for(dummy_hasher) if dummy_hasher is not None else None
+        self._dummy_hash = dummy_hasher.hash(_DUMMY_PLAINTEXT)
 
     @classmethod
     @override
@@ -148,6 +136,9 @@ class CheckCredentialsListener(EventSubscriberInterface):
         if not isinstance(user, PasswordAuthenticatedUserInterface):
             await self._burn_dummy(plaintext)
             raise BadCredentialsError("The user carries no password to verify against.")
+        if user.get_password() is None:
+            await self._burn_dummy(plaintext)
+            raise BadCredentialsError("The presented credentials are invalid.")
         valid = await anyio.to_thread.run_sync(self._hasher.is_password_valid, user, plaintext)
         if not valid:
             raise BadCredentialsError("The presented credentials are invalid.")
@@ -157,6 +148,4 @@ class CheckCredentialsListener(EventSubscriberInterface):
 
     async def _burn_dummy(self, plaintext: str) -> None:
         """Verify a throwaway hash, so an unknown user costs the same as a wrong password."""
-        if self._dummy_hasher is None or self._dummy_hash is None:
-            return
         _ = await anyio.to_thread.run_sync(self._dummy_hasher.verify, self._dummy_hash, plaintext)

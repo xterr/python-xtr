@@ -93,6 +93,7 @@ class IssuerServer:
     _base_uri: str
     _omit_jwks_uri: bool
     _jwks_body: object | None
+    _jwks_uri_override: str | None
     jwks_requests: int
     discovery_requests: int
     down: bool
@@ -104,6 +105,7 @@ class IssuerServer:
         base_uri: str = "https://issuer.example",
         omit_jwks_uri: bool = False,
         jwks_body: object | None = None,
+        jwks_uri_override: str | None = None,
     ) -> None:
         """Serve ``keys`` as the JWKS the discovery document at ``base_uri`` names.
 
@@ -111,12 +113,15 @@ class IssuerServer:
         broken issuer would, so a provider pointed at it fails to discover. With
         ``jwks_body`` the JWKS path serves that raw value instead of the keys — a
         malformed set, or a body that is not even an object — so a provider fails
-        to read it.
+        to read it. With ``jwks_uri_override`` the discovery document names that
+        URI instead of the issuer's own, standing in for an issuer that points
+        its keys at another host.
         """
         self._keys = keys
         self._base_uri = base_uri.rstrip("/")
         self._omit_jwks_uri = omit_jwks_uri
         self._jwks_body = jwks_body
+        self._jwks_uri_override = jwks_uri_override
         self.jwks_requests = 0
         self.discovery_requests = 0
         self.down = False
@@ -148,7 +153,7 @@ class IssuerServer:
             self.discovery_requests += 1
             document: dict[str, object] = {"issuer": self._base_uri}
             if not self._omit_jwks_uri:
-                document["jwks_uri"] = self.jwks_uri
+                document["jwks_uri"] = self._jwks_uri_override or self.jwks_uri
             await _json(send, document)
             return
         if path == "/jwks.json":

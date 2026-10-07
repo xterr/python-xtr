@@ -40,8 +40,7 @@ class CurrentUser(DependsParam):
 
     (FastAPI does not hand a dependency the annotation of the parameter it
     fills, so nullability and the expected class are stated on the marker
-    rather than read from ``User | None`` — the one departure from the
-    spelling in the plan; see the package's DoneClaim.)
+    rather than read from ``User | None``.)
 
     Attributes:
         optional: Whether an anonymous request yields ``None`` instead of raising.

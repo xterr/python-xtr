@@ -9,6 +9,8 @@ and xtr-http-kernel.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .access_map import AccessMap
 from .access_map_interface import AccessMapInterface
 from .access_token import (
@@ -40,6 +42,7 @@ from .authenticator.passport.badge import (
     PreAuthenticatedUserBadge,
     UserBadge,
 )
+from .authenticator.passport.badge.user_badge import MAX_USERNAME_LENGTH
 from .authenticator.passport.credentials import (
     CredentialsInterface,
     CustomCredentials,
@@ -51,6 +54,7 @@ from .authorization import (
     InsufficientScopeAccessDeniedHandler,
     OAuth2ScopeVoter,
     oauth2_scope,
+    parse_oauth2_scope,
 )
 from .decorator.current_user import CurrentUser
 from .decorator.is_granted import IsGranted
@@ -82,8 +86,18 @@ from .firewall_scheme_registry import (
     FirewallSchemeRegistry,
     active_firewall_schemes,
 )
+from .request_matcher import (
+    CallableRequestMatcher,
+    ChainRequestMatcher,
+    HostRequestMatcher,
+    IpRequestMatcher,
+    MethodRequestMatcher,
+    PathRequestMatcher,
+    RequestMatcherInterface,
+)
 
 __all__ = [
+    "MAX_USERNAME_LENGTH",
     "AbstractAuthenticator",
     "AccessDeniedHandlerInterface",
     "AccessListener",
@@ -100,7 +114,9 @@ __all__ = [
     "AuthenticatorManager",
     "AuthenticatorManagerInterface",
     "BadgeInterface",
+    "CallableRequestMatcher",
     "ChainAccessTokenExtractor",
+    "ChainRequestMatcher",
     "CheckCredentialsListener",
     "CheckPassportEvent",
     "CredentialsInterface",
@@ -117,27 +133,41 @@ __all__ = [
     "FirewallSchemeRegistry",
     "FormEncodedBodyExtractor",
     "HeaderAccessTokenExtractor",
+    "HostRequestMatcher",
     "InsufficientScopeAccessDeniedHandler",
     "InvalidAccessTokenError",
+    "IpRequestMatcher",
     "IsGranted",
     "IsGrantedContext",
     "LoginFailureEvent",
     "LoginSuccessEvent",
+    "MethodRequestMatcher",
     "OAuth2ScopeVoter",
     "Passport",
     "PasswordCredentials",
     "PasswordMigratingListener",
     "PasswordUpgradeBadge",
+    "PathRequestMatcher",
     "PostAuthenticationToken",
     "PreAuthenticatedUserBadge",
     "QueryAccessTokenExtractor",
+    "RequestMatcherInterface",
     "SelfValidatingPassport",
     "UnknownFirewallError",
     "UserBadge",
     "UserCheckerListener",
     "UserProviderListener",
+    "__version__",
     "active_firewall_schemes",
     "is_sensitive",
     "mask",
     "oauth2_scope",
+    "parse_oauth2_scope",
 ]
+
+try:
+    __version__ = version("xtr-security-http")
+except PackageNotFoundError:  # pragma: no cover
+    # Running from a source tree with no installed metadata to read; having no
+    # version is better than refusing to import.
+    __version__ = "0+unknown"

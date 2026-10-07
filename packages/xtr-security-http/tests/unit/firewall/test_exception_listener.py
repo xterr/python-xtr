@@ -26,7 +26,7 @@ async def test_a_non_security_exception_is_left_alone() -> None:
 
     await _listener().on_exception(event)
 
-    assert event.has_response() is False
+    assert event.response is None
 
 
 async def test_a_carried_response_is_sent() -> None:
@@ -51,6 +51,8 @@ async def test_an_authentication_error_without_a_firewall_is_a_bare_challenge() 
     assert event.response is not None
     assert event.response.status_code == 401
     assert event.response.headers["www-authenticate"] == "Bearer"
+    assert event.response.headers["cache-control"] == "no-store"
+    assert event.response.headers["pragma"] == "no-cache"
 
 
 async def test_an_access_denied_without_a_firewall_challenges() -> None:
@@ -62,3 +64,35 @@ async def test_an_access_denied_without_a_firewall_challenges() -> None:
 
     assert event.response is not None
     assert event.response.status_code == 401
+
+
+async def test_a_full_fledged_denial_without_a_handler_is_an_uncached_403() -> None:
+    from fastapi.security import HTTPBearer  # noqa: PLC0415
+    from xtr_http_kernel import ExceptionEvent  # noqa: PLC0415
+    from xtr_security_core.user import InMemoryUser  # noqa: PLC0415
+
+    from tests.support.contexts import FakeFirewallContext  # noqa: PLC0415
+    from xtr_security_http._state import FIREWALL_CONTEXT_KEY, TOKEN_KEY  # noqa: PLC0415
+    from xtr_security_http.authenticator.token import PostAuthenticationToken  # noqa: PLC0415
+
+    request = make_request()
+    context = FakeFirewallContext(
+        name="api",
+        authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        scheme=HTTPBearer(auto_error=False),
+    )
+    setattr(request.state, FIREWALL_CONTEXT_KEY, context)
+    setattr(
+        request.state,
+        TOKEN_KEY,
+        PostAuthenticationToken(InMemoryUser("alice"), "api", ["ROLE_USER"]),
+    )
+    event = ExceptionEvent(request, AccessDeniedError(attributes=("ROLE_ADMIN",)))
+
+    await _listener().on_exception(event)
+
+    assert event.response is not None
+    assert event.response.status_code == 403
+    assert event.response.headers["cache-control"] == "no-store"
+    assert event.response.headers["pragma"] == "no-cache"

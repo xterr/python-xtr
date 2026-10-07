@@ -50,7 +50,12 @@ class Passport:
         self._attributes: dict[str, object] = dict(attributes) if attributes is not None else {}
 
     def add_badge(self, badge: BadgeInterface) -> Passport:
-        """Attach ``badge``, replacing any badge of its class, and return self."""
+        """Attach ``badge``, replacing any badge of its exact class, and return self.
+
+        Badges are keyed by ``type(badge)`` — the exact runtime class, not a base
+        class — so a subclass of a badge does not replace, and is not found by,
+        the base class it derives from.
+        """
         self._badges[type(badge)] = badge
         return self
 
@@ -59,7 +64,11 @@ class Passport:
         return badge_class in self._badges
 
     def get_badge(self, badge_class: type[_BadgeT]) -> _BadgeT | None:
-        """Return the badge of ``badge_class``, or ``None`` when none is attached."""
+        """Return the badge of ``badge_class``, or ``None`` when none is attached.
+
+        The lookup is by exact class: a badge is found only under the class it was
+        attached as, never under a base class of it.
+        """
         badge = self._badges.get(badge_class)
         return badge if isinstance(badge, badge_class) else None
 

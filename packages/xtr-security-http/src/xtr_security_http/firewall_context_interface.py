@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from fastapi.security.base import SecurityBase
-    from xtr_event_dispatcher_contracts import EventDispatcherInterface
 
     from xtr_security_http.authentication.authenticator_manager_interface import (
         AuthenticatorManagerInterface,
@@ -35,15 +34,14 @@ class FirewallContextInterface(Protocol):
     """The runtime pieces of one firewall, resolved once and shared for its lifetime.
 
     Groups the manager that authenticates a request, the access listener that
-    decides it, the entry point and handlers that answer it, the firewall's own
-    event dispatcher, and the OpenAPI scheme it contributes.
+    decides it, the entry point and handlers that answer it, and the OpenAPI
+    scheme it contributes.
 
     Attributes:
         name: The firewall's name — the key it is looked up by, and the memo
             key that keeps its authentication to one pass per request.
         authenticator_manager: Runs the firewall's authenticators.
         access_listener: Decides a request against the firewall's rules.
-        dispatcher: The firewall's own event dispatcher.
         scheme: The FastAPI security object the firewall shows in OpenAPI.
         security: Whether the firewall authenticates at all; ``False`` lets
             every request through untouched.
@@ -56,7 +54,6 @@ class FirewallContextInterface(Protocol):
     name: str
     authenticator_manager: AuthenticatorManagerInterface
     access_listener: AccessListener
-    dispatcher: EventDispatcherInterface
     scheme: SecurityBase
     security: bool
     entry_point: AuthenticationEntryPointInterface | None

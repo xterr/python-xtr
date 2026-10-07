@@ -256,6 +256,27 @@ async def test_a_non_string_identifier_claim_is_refused() -> None:
 
 
 @pytest.mark.anyio
+async def test_the_iss_claim_can_be_the_identity_and_is_still_validated() -> None:
+    key = make_key()
+    handler = _handler(key, claim="iss")
+    token = mint(key)
+
+    badge = await handler.get_user_badge_from(token)
+
+    assert badge.get_user_identifier() == ISSUER
+
+
+@pytest.mark.anyio
+async def test_the_issuer_allow_list_still_holds_when_the_identity_claim_is_iss() -> None:
+    key = make_key()
+    handler = _handler(key, claim="iss")
+    token = mint(key, issuer="https://evil.example")
+
+    with pytest.raises(InvalidAccessTokenError):
+        _ = await handler.get_user_badge_from(token)
+
+
+@pytest.mark.anyio
 async def test_without_a_provider_the_claims_become_an_oidc_user() -> None:
     key = make_key()
     handler = _handler(key)

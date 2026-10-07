@@ -26,7 +26,6 @@ def _context(name: str, *, security: bool = True) -> FakeFirewallContext:
         name=name,
         authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        dispatcher=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         scheme=scheme,
         security=security,
     )

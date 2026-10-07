@@ -151,7 +151,7 @@ routes. See [xtr-security's Quick start](../xtr-security#quick-start) for the wh
 ### Firewalls and the map
 
 A **`FirewallContextInterface`** is one firewall's runtime pieces: its `name`, its
-`authenticator_manager`, its `access_listener`, its own event `dispatcher`, the FastAPI `scheme`
+`authenticator_manager`, its `access_listener`, the FastAPI `scheme`
 it shows in OpenAPI, whether it has `security` at all, and the optional `entry_point`,
 `access_denied_handler` and `scope_denied_handler` that answer a failure. A **`FirewallMap`**
 holds those contexts: `match(request)` returns the first whose matcher claims the request,
@@ -332,9 +332,10 @@ answers a denied scope with a `403` carrying the RFC 6750 `insufficient_scope` c
 
 ### Security events
 
-The event name constants a dispatcher keys on live in `security_events.py`: `CHECK_PASSPORT`,
-`AUTHENTICATION_TOKEN_CREATED`, `LOGIN_SUCCESS`, `LOGIN_FAILURE`. A listener names the constant
-rather than importing the event class, so a listener chosen at runtime stays in step.
+Four events are raised around a request's authentication — `CheckPassportEvent`,
+`AuthenticationTokenCreatedEvent`, `LoginSuccessEvent`, `LoginFailureEvent`. A subscriber listens
+to the event class itself (the dispatcher derives each event's name from its class), so there is no
+separate table of name constants to keep in step.
 
 ## Errors
 
@@ -363,10 +364,9 @@ xtr_security_http/
 ├── access_map.py               the ordered access-control rules
 ├── request_matcher/            path, host, method, ip, chain, callable
 ├── authorization/              OAuth2ScopeVoter, oauth2_scope, the scope-denied handler
-├── decorator/                  Firewall, IsGranted, CurrentUser, IsGrantedContext
+├── decorator/                  IsGranted, CurrentUser, IsGrantedContext
 ├── entry_point/                AuthenticationEntryPointInterface
 ├── event/                      the four firewall events
-├── security_events.py          the name each is dispatched under
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)
 └── exception/                  the errors this package adds
 ```

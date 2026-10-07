@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import TYPE_CHECKING, final
 
 import anyio
 import pytest
@@ -11,6 +11,9 @@ from xtr_security_core.exception import InvalidArgumentError
 from tests.support.oidc import IssuerServer, make_key, make_key_set
 from xtr_security_http.access_token.oidc.exception.oidc_key_set_error import OidcKeySetError
 from xtr_security_http.oidc.oidc_discovery import DiscoveryOidcKeySetProvider
+
+if TYPE_CHECKING:
+    import httpx
 
 
 @final
@@ -153,6 +156,47 @@ async def test_a_burst_of_forced_refreshes_during_an_outage_makes_one_fetch() ->
         _ = await provider.get_key_set(force_refresh=True)
 
     assert server.jwks_requests == 2
+    assert [held.kid for held in key_set.keys] == [key.kid]
+
+
+@pytest.mark.anyio
+async def test_a_cached_set_stops_being_served_past_the_max_stale_ceiling() -> None:
+    key = make_key()
+    server = IssuerServer(make_key_set(key))
+    clock = _Clock()
+    provider = DiscoveryOidcKeySetProvider(
+        jwks_uri=server.jwks_uri,
+        http_client_factory=server.client_factory(),
+        refresh_cooldown=60,
+        max_stale=3600,
+        monotonic=clock,
+    )
+
+    _ = await provider.get_key_set()
+    server.down = True
+    clock.now = 3601
+    with pytest.raises(OidcKeySetError):
+        _ = await provider.get_key_set(force_refresh=True)
+
+
+@pytest.mark.anyio
+async def test_a_cached_set_is_still_served_within_the_max_stale_ceiling() -> None:
+    key = make_key()
+    server = IssuerServer(make_key_set(key))
+    clock = _Clock()
+    provider = DiscoveryOidcKeySetProvider(
+        jwks_uri=server.jwks_uri,
+        http_client_factory=server.client_factory(),
+        refresh_cooldown=60,
+        max_stale=3600,
+        monotonic=clock,
+    )
+
+    _ = await provider.get_key_set()
+    server.down = True
+    clock.now = 3599
+    key_set = await provider.get_key_set(force_refresh=True)
+
     assert [held.kid for held in key_set.keys] == [key.kid]
 
 
@@ -306,3 +350,111 @@ async def test_a_jwks_answer_that_is_not_an_object_becomes_a_key_set_error() -> 
 
     with pytest.raises(OidcKeySetError):
         _ = await provider.get_key_set()
+
+
+@pytest.mark.anyio
+async def test_a_discovered_jwks_uri_on_another_host_is_refused() -> None:
+    server = IssuerServer(
+        make_key_set(make_key()),
+        jwks_uri_override="https://evil.example/jwks.json",
+    )
+    provider = DiscoveryOidcKeySetProvider(
+        base_uri=server.base_uri,
+        http_client_factory=server.client_factory(),
+    )
+
+    with pytest.raises(OidcKeySetError):
+        _ = await provider.get_key_set()
+
+
+@pytest.mark.anyio
+async def test_a_discovered_jwks_uri_on_another_port_is_refused() -> None:
+    server = IssuerServer(
+        make_key_set(make_key()),
+        jwks_uri_override="https://issuer.example:8443/jwks.json",
+    )
+    provider = DiscoveryOidcKeySetProvider(
+        base_uri=server.base_uri,
+        http_client_factory=server.client_factory(),
+    )
+
+    with pytest.raises(OidcKeySetError):
+        _ = await provider.get_key_set()
+
+
+@pytest.mark.anyio
+async def test_a_discovered_jwks_uri_with_an_explicit_default_port_is_accepted() -> None:
+    key = make_key()
+    server = IssuerServer(
+        make_key_set(key),
+        jwks_uri_override="https://issuer.example:443/jwks.json",
+    )
+    provider = DiscoveryOidcKeySetProvider(
+        base_uri=server.base_uri,
+        http_client_factory=server.client_factory(),
+    )
+
+    key_set = await provider.get_key_set()
+
+    assert [held.kid for held in key_set.keys] == [key.kid]
+
+
+@pytest.mark.anyio
+async def test_a_forced_refresh_rediscovers_when_a_base_uri_is_configured() -> None:
+    key = make_key()
+    server = IssuerServer(make_key_set(key))
+    clock = _Clock()
+    provider = DiscoveryOidcKeySetProvider(
+        base_uri=server.base_uri,
+        http_client_factory=server.client_factory(),
+        refresh_cooldown=60,
+        monotonic=clock,
+    )
+
+    _ = await provider.get_key_set()
+    clock.now = 61
+    _ = await provider.get_key_set(force_refresh=True)
+
+    assert server.discovery_requests == 2
+    assert server.jwks_requests == 2
+
+
+@pytest.mark.anyio
+async def test_the_http_client_is_built_once_and_closed() -> None:
+    key = make_key()
+    server = IssuerServer(make_key_set(key))
+    inner = server.client_factory()
+    built: list[httpx.AsyncClient] = []
+
+    def factory() -> httpx.AsyncClient:
+        client = inner()
+        built.append(client)
+        return client
+
+    clock = _Clock()
+    provider = DiscoveryOidcKeySetProvider(
+        jwks_uri=server.jwks_uri,
+        http_client_factory=factory,
+        ttl=600,
+        monotonic=clock,
+    )
+
+    _ = await provider.get_key_set()
+    clock.now = 601
+    _ = await provider.get_key_set()
+
+    assert server.jwks_requests == 2
+    assert len(built) == 1
+    await provider.aclose()
+    assert built[0].is_closed
+
+
+@pytest.mark.anyio
+async def test_aclose_without_a_fetch_is_a_no_op() -> None:
+    server = IssuerServer(make_key_set(make_key()))
+    provider = DiscoveryOidcKeySetProvider(
+        jwks_uri=server.jwks_uri,
+        http_client_factory=server.client_factory(),
+    )
+
+    await provider.aclose()

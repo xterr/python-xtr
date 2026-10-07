@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+from xtr_security_core.authorization import AccessDecisionManager
+from xtr_security_core.authorization.strategy.unanimous_strategy import UnanimousStrategy
 from xtr_security_core.authorization.voter import Access, CacheableVoterInterface
 from xtr_security_core.authorization.voter.vote import Vote
 from xtr_security_core.exception import InvalidArgumentError
@@ -55,12 +57,25 @@ async def test_denies_on_partial_scopes() -> None:
 
 
 @pytest.mark.anyio
-async def test_abstains_when_the_token_carries_no_scopes() -> None:
+async def test_denies_when_the_token_carries_no_scopes() -> None:
     token = _token_with_scopes(None)
 
     result = await OAuth2ScopeVoter().vote(token, None, [oauth2_scope("books:read")])
 
-    assert result is Access.ABSTAIN
+    assert result is Access.DENIED
+
+
+@pytest.mark.anyio
+async def test_a_scopeless_token_is_denied_under_allow_if_all_abstain() -> None:
+    token = _token_with_scopes(None)
+    manager = AccessDecisionManager(
+        [OAuth2ScopeVoter()],
+        UnanimousStrategy(allow_if_all_abstain=True),
+    )
+
+    granted = await manager.decide(token, [oauth2_scope("books:read")])
+
+    assert granted is False
 
 
 @pytest.mark.anyio

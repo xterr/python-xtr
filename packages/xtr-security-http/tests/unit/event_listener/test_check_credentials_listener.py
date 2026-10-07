@@ -69,7 +69,8 @@ async def test_it_verifies_a_password() -> None:
         [PasswordCredentials("secret")],
     )
 
-    await CheckCredentialsListener(hasher).check_passport(_event(passport))
+    listener = CheckCredentialsListener(hasher, PlaintextPasswordHasher())
+    await listener.check_passport(_event(passport))
 
     credentials = passport.get_badge(PasswordCredentials)
     assert credentials is not None
@@ -85,7 +86,9 @@ async def test_it_rejects_a_wrong_password() -> None:
     )
 
     with pytest.raises(BadCredentialsError):
-        await CheckCredentialsListener(hasher).check_passport(_event(passport))
+        await CheckCredentialsListener(hasher, PlaintextPasswordHasher()).check_passport(
+            _event(passport),
+        )
 
 
 async def test_it_adds_an_upgrade_badge_when_rehash_is_needed() -> None:
@@ -96,7 +99,8 @@ async def test_it_adds_an_upgrade_badge_when_rehash_is_needed() -> None:
         [PasswordCredentials("secret")],
     )
 
-    await CheckCredentialsListener(hasher).check_passport(_event(passport))
+    listener = CheckCredentialsListener(hasher, PlaintextPasswordHasher())
+    await listener.check_passport(_event(passport))
 
     assert passport.has_badge(PasswordUpgradeBadge) is True
 
@@ -168,13 +172,28 @@ async def test_it_burns_a_dummy_when_the_user_has_no_password() -> None:
     assert dummy.verify_calls == 1
 
 
+async def test_it_burns_a_dummy_when_the_stored_password_is_none() -> None:
+    passport = Passport(
+        UserBadge("alice", user_loader=loader(password=None)),
+        [PasswordCredentials("secret")],
+    )
+    dummy = _SpyHasher()
+
+    with pytest.raises(BadCredentialsError):
+        await CheckCredentialsListener(_UserHasher(), dummy).check_passport(_event(passport))
+
+    assert dummy.verify_calls == 1
+
+
 async def test_it_runs_custom_credentials() -> None:
     passport = Passport(
         UserBadge("alice", user_loader=InMemoryUser),
         [CustomCredentials(accept, "ok")],
     )
 
-    await CheckCredentialsListener(_UserHasher()).check_passport(_event(passport))
+    await CheckCredentialsListener(_UserHasher(), PlaintextPasswordHasher()).check_passport(
+        _event(passport),
+    )
 
     custom = passport.get_badge(CustomCredentials)
     assert custom is not None
@@ -188,7 +207,9 @@ async def test_it_rejects_bad_custom_credentials() -> None:
     )
 
     with pytest.raises(BadCredentialsError):
-        await CheckCredentialsListener(_UserHasher()).check_passport(_event(passport))
+        await CheckCredentialsListener(_UserHasher(), PlaintextPasswordHasher()).check_passport(
+            _event(passport),
+        )
 
 
 async def test_resolve_user_burns_a_dummy_before_the_account_check() -> None:

@@ -152,6 +152,13 @@ async def test_start_without_a_realm_omits_it() -> None:
     assert response.headers["www-authenticate"] == "Bearer"
 
 
+async def test_the_challenge_is_not_cached() -> None:
+    response = await _authenticator().start(_request())
+
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
+
+
 async def test_a_scope_string_is_split() -> None:
     authenticator = AccessTokenAuthenticator(
         FakeAccessTokenHandler({}),
@@ -180,3 +187,10 @@ async def test_the_handlers_are_delegated_to() -> None:
 
     assert success is _SUCCESS_RESPONSE
     assert failure is _FAILURE_RESPONSE
+
+
+def test_the_extractor_is_exposed() -> None:
+    extractor = HeaderAccessTokenExtractor()
+    authenticator = AccessTokenAuthenticator(FakeAccessTokenHandler({}), extractor)
+
+    assert authenticator.extractor is extractor
