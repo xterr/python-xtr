@@ -12,6 +12,14 @@ on the first attempt to reach a backend. A :class:`Reference` is the sixth
 variant: it points the definition at a
 :class:`~xtr_storage.adapter.storage_adapter_interface.StorageAdapterInterface`
 the container already provides, for an adapter the application builds itself.
+
+A configuration that carries a credential keeps it out of its own ``repr``, and
+so does every open-ended option map: an application puts whatever a backend
+takes in one — a session token, a passphrase, a signed header — so the map is
+treated as a credential whether or not this one holds any. A configuration is
+rendered wherever a container is: a diagnostic report, a failed assertion, a
+traceback frame, a log line. The value stays readable on the attribute for the
+code that needs it, and is simply never printed.
 """
 
 from __future__ import annotations
@@ -116,26 +124,32 @@ class S3AdapterConfig:
         prefix: A key prefix under which this storage's objects live.
         region: The bucket's region, used to compose a public url.
         endpoint_url: An alternate endpoint, for a compatible store or emulator.
-        key: The access key id, or ``None`` to let the backend find one.
-        secret: The secret access key, paired with ``key``.
-        token: A session token, for temporary credentials.
+        key: The access key id, or ``None`` to let the backend find one. Kept
+            out of the ``repr``.
+        secret: The secret access key, paired with ``key``. Kept out of the
+            ``repr``.
+        token: A session token, for temporary credentials. Kept out of the
+            ``repr``.
         anon: Whether to reach the store without credentials.
-        client_kwargs: Extra keyword settings for the underlying client.
+        client_kwargs: Extra keyword settings for the underlying client. Kept
+            out of the ``repr``.
         config_kwargs: Extra client configuration for the underlying client.
+            Kept out of the ``repr``.
         write_options: Default write settings; only known keys are forwarded.
+            Kept out of the ``repr``.
     """
 
     bucket: str
     prefix: str = ""
     region: str | None = None
     endpoint_url: str | None = None
-    key: str | None = None
-    secret: str | None = None
-    token: str | None = None
+    key: str | None = field(default=None, repr=False)
+    secret: str | None = field(default=None, repr=False)
+    token: str | None = field(default=None, repr=False)
     anon: bool = False
-    client_kwargs: Mapping[str, object] = field(default_factory=_empty_options)
-    config_kwargs: Mapping[str, object] = field(default_factory=_empty_options)
-    write_options: Mapping[str, object] = field(default_factory=_empty_options)
+    client_kwargs: Mapping[str, object] = field(default_factory=_empty_options, repr=False)
+    config_kwargs: Mapping[str, object] = field(default_factory=_empty_options, repr=False)
+    write_options: Mapping[str, object] = field(default_factory=_empty_options, repr=False)
 
     def __post_init__(self) -> None:
         """Refuse a bucket that is not a non-empty string.
@@ -160,17 +174,18 @@ class GcsAdapterConfig:
         bucket: The bucket every path lives in.
         prefix: A key prefix within the bucket the caller never sees.
         project: The project the bucket belongs to, for operations that need one.
-        token: How the backend authenticates.
+        token: How the backend authenticates. Kept out of the ``repr``.
         endpoint_url: Where to reach the store, for pointing at an emulator.
-        write_options: Settings every write forwards unless a call overrides them.
+        write_options: Settings every write forwards unless a call overrides
+            them. Kept out of the ``repr``.
     """
 
     bucket: str
     prefix: str = ""
     project: str | None = None
-    token: str | None = None
+    token: str | None = field(default=None, repr=False)
     endpoint_url: str | None = None
-    write_options: Mapping[str, object] = field(default_factory=_empty_options)
+    write_options: Mapping[str, object] = field(default_factory=_empty_options, repr=False)
 
     def __post_init__(self) -> None:
         """Refuse a bucket that is not a non-empty string.
@@ -197,12 +212,13 @@ class FsspecAdapterConfig:
     Attributes:
         protocol: The filesystem protocol to build, such as ``"memory"``.
         root: What every path is stored under — a directory or a key prefix.
-        options: The keyword options the backend is built with.
+        options: The keyword options the backend is built with — a host, a
+            passphrase, a key file. Kept out of the ``repr``.
     """
 
     protocol: str
     root: str = ""
-    options: Mapping[str, object] = field(default_factory=_empty_options)
+    options: Mapping[str, object] = field(default_factory=_empty_options, repr=False)
 
     def __post_init__(self) -> None:
         """Refuse a protocol that is not a non-empty string.

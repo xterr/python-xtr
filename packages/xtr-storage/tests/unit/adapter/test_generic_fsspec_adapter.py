@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 import pytest
+from fsspec.asyn import AsyncFileSystem
 from fsspec.implementations.memory import MemoryFileSystem
 from typing_extensions import override
 
@@ -60,6 +61,43 @@ def _memory_filesystem() -> MemoryFileSystem:
     filesystem.store = {}
     filesystem.pseudo_dirs = [""]
     return filesystem
+
+
+@final
+class _AsyncFileSystem(AsyncFileSystem):
+    """A minimal asynchronous filesystem that opens a session on first use.
+
+    ``cachable`` is off so fsspec's argument-keyed cache never hands one test's
+    instance to the next.
+    """
+
+    async_impl = True
+    protocol = "fakeasync"
+    cachable = False
+
+    def __init__(self) -> None:
+        super().__init__(asynchronous=True)
+        self.asynchronous = True
+        self.store: dict[str, bytes] = {}
+
+    async def set_session(self) -> object:
+        return object()
+
+    @override
+    async def _pipe_file(
+        self, path: str, value: bytes, mode: str = "overwrite", **kwargs: object
+    ) -> None:
+        del mode, kwargs
+        self.store[path] = bytes(value)
+
+    @override
+    async def _cat_file(
+        self, path: str, start: int | None = None, end: int | None = None, **kwargs: object
+    ) -> bytes:
+        del kwargs
+        if path not in self.store:
+            raise FileNotFoundError(path)
+        return self.store[path][start:end]
 
 
 async def _entries(adapter: GenericFsspecAdapter, path: str = "") -> list[StorageAttributes]:
@@ -168,3 +206,18 @@ async def test_closing_the_adapter_leaves_the_filesystem_usable() -> None:
     await adapter.close()
 
     assert filesystem.cat_file("/a.txt") == b"x"
+
+
+async def test_a_closer_shuts_the_filesystem_the_owner_built() -> None:
+    filesystem = _AsyncFileSystem()
+    closed: list[object] = []
+
+    async def closer(given: object) -> None:
+        closed.append(given)
+
+    adapter = GenericFsspecAdapter(filesystem, closer=closer)
+    await adapter.write("a.txt", b"x", Config())
+
+    await adapter.close()
+
+    assert closed == [filesystem]

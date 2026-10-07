@@ -10,12 +10,14 @@ anywhere, is either left out of a listing or refused.
 
 from __future__ import annotations
 
+import errno
+import os
 import stat
 from typing import TYPE_CHECKING
 
 import pytest
 
-from xtr_storage.adapter.local_adapter import LocalAdapter
+from xtr_storage.adapter.local_adapter import LocalAdapter, _make_directories
 from xtr_storage.adapter.portable_visibility_converter import PortableVisibilityConverter
 from xtr_storage.config import Config
 from xtr_storage.exception import (
@@ -338,3 +340,280 @@ async def test_a_listing_of_ordinary_entries_is_untouched_by_link_handling(
 
     assert await _paths(adapter) == {"plain.txt", "sub"}
     assert await _paths(adapter, deep=True) == {"plain.txt", "sub", "sub/nested.txt"}
+
+
+def _link_out_of_root(tmp_path: Path, link_handling: LinkHandling) -> tuple[LocalAdapter, Path]:
+    """Build an adapter whose root holds a link to a file outside it.
+
+    Parametrized over every way of handling a link, because none of them
+    follows one out of the root: skipping hides a link from a listing, it does
+    not make the tree above the root reachable through it.
+    """
+    outside = tmp_path / "outside.txt"
+    _ = outside.write_bytes(b"secret")
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "escape.txt").symlink_to(outside)
+    return LocalAdapter(root, link_handling=link_handling), outside
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_reading_through_an_escaping_link_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, _outside = _link_out_of_root(tmp_path, link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        _ = await adapter.read("escape.txt")
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_streaming_a_read_through_an_escaping_link_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, _outside = _link_out_of_root(tmp_path, link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        async for _chunk in adapter.read_stream("escape.txt"):
+            pass
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_writing_through_an_escaping_link_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, outside = _link_out_of_root(tmp_path, link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        await adapter.write("escape.txt", b"overwritten", Config())
+
+    assert outside.read_bytes() == b"secret"
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_writing_a_stream_through_an_escaping_link_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, outside = _link_out_of_root(tmp_path, link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        await adapter.write_stream("escape.txt", _stream(b"over"), Config())
+
+    assert outside.read_bytes() == b"secret"
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_deleting_through_an_escaping_link_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, outside = _link_out_of_root(tmp_path, link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        await adapter.delete("escape.txt")
+
+    assert outside.exists()
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_moving_an_escaping_link_as_the_source_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, outside = _link_out_of_root(tmp_path, link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        await adapter.move("escape.txt", "moved.txt", Config())
+
+    assert outside.read_bytes() == b"secret"
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_moving_onto_an_escaping_link_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, outside = _link_out_of_root(tmp_path, link_handling)
+    await adapter.write("real.txt", b"payload", Config())
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        await adapter.move("real.txt", "escape.txt", Config())
+
+    assert outside.read_bytes() == b"secret"
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_copying_an_escaping_link_as_the_source_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, _outside = _link_out_of_root(tmp_path, link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        await adapter.copy("escape.txt", "copied.txt", Config())
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_copying_onto_an_escaping_link_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter, outside = _link_out_of_root(tmp_path, link_handling)
+    await adapter.write("real.txt", b"payload", Config())
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        await adapter.copy("real.txt", "escape.txt", Config())
+
+    assert outside.read_bytes() == b"secret"
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_a_directory_link_on_the_way_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    _ = (outside / "target.txt").write_bytes(b"secret")
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "linkdir").symlink_to(outside, target_is_directory=True)
+    adapter = LocalAdapter(root, link_handling=link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        _ = await adapter.read("linkdir/target.txt")
+
+
+def _root_behind_a_link(tmp_path: Path) -> Path:
+    """Return a link standing for a real directory, as a deployment root often is.
+
+    ``/var`` standing for ``/private/var``, a release directory a deploy
+    repoints: the operator names the link and expects the storage to work.
+    """
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    return link
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_a_root_that_is_itself_a_link_can_be_written_through(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter = LocalAdapter(_root_behind_a_link(tmp_path), link_handling=link_handling)
+
+    await adapter.write("deep/file.txt", b"payload", Config())
+
+    assert await adapter.read("deep/file.txt") == b"payload"
+    assert (tmp_path / "real" / "deep" / "file.txt").read_bytes() == b"payload"
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_a_root_that_is_itself_a_link_accepts_a_created_directory(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    adapter = LocalAdapter(_root_behind_a_link(tmp_path), link_handling=link_handling)
+
+    await adapter.create_directory("made", Config())
+
+    assert (tmp_path / "real" / "made").is_dir()
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_a_link_escaping_a_linked_root_is_still_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    link = _root_behind_a_link(tmp_path)
+    outside = tmp_path / "outside.txt"
+    _ = outside.write_bytes(b"secret")
+    (tmp_path / "real" / "escape.txt").symlink_to(outside)
+    adapter = LocalAdapter(link, link_handling=link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        _ = await adapter.read("escape.txt")
+
+
+@pytest.mark.parametrize("link_handling", list(LinkHandling))
+async def test_creating_a_directory_through_an_escaping_link_is_refused(
+    tmp_path: Path,
+    link_handling: LinkHandling,
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "linkdir").symlink_to(outside, target_is_directory=True)
+    adapter = LocalAdapter(root, link_handling=link_handling)
+
+    with pytest.raises(SymbolicLinkEncounteredError):
+        await adapter.create_directory("linkdir/made", Config())
+
+    assert not (outside / "made").exists()
+
+
+async def test_creating_a_directory_through_a_link_inside_the_root_is_refused(
+    tmp_path: Path,
+) -> None:
+    # A link whose target stays inside the root satisfies the prefixer's guard,
+    # so what refuses here is the creation walk itself: no component below the
+    # root is ever followed, wherever it leads.
+    root = tmp_path / "root"
+    inside = root / "inside"
+    inside.mkdir(parents=True)
+    (root / "linkdir").symlink_to(inside, target_is_directory=True)
+    adapter = LocalAdapter(root)
+
+    with pytest.raises(UnableToCreateDirectoryError):
+        await adapter.create_directory("linkdir/made", Config())
+
+    assert not (inside / "made").exists()
+
+
+def _walk_through_a_link(tmp_path: Path) -> tuple[str, str]:
+    """Plant a link where the creation walk expects a directory, and name the walk."""
+    inside = tmp_path / "root" / "inside"
+    inside.mkdir(parents=True)
+    link = tmp_path / "root" / "linkdir"
+    link.symlink_to(inside, target_is_directory=True)
+
+    return (tmp_path / "root").as_posix(), (link / "made").as_posix()
+
+
+def test_the_creation_walk_closes_each_descriptor_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, location = _walk_through_a_link(tmp_path)
+    closed: list[int] = []
+    real_close = os.close
+
+    def recording_close(descriptor: int) -> None:
+        closed.append(descriptor)
+        real_close(descriptor)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(os, "close", recording_close)
+        with pytest.raises(OSError, match="linkdir"):
+            _make_directories(root, location, 0o700)
+
+    assert len(closed) == len(set(closed))
+
+
+def test_a_link_on_the_creation_walk_surfaces_its_own_error(tmp_path: Path) -> None:
+    root, location = _walk_through_a_link(tmp_path)
+
+    with pytest.raises(OSError, match="linkdir") as caught:
+        _make_directories(root, location, 0o700)
+
+    # Two kernels, two words for the same refusal: Linux reports the link it was
+    # told not to follow, Darwin reports that a link is not the directory asked
+    # for. Either is the walk's own answer; a closed descriptor's EBADF is not.
+    assert caught.value.errno in (errno.ELOOP, errno.ENOTDIR)

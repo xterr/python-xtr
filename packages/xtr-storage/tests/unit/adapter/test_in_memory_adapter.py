@@ -14,7 +14,11 @@ import pytest
 
 from xtr_storage.adapter.in_memory_adapter import InMemoryAdapter
 from xtr_storage.config import Config
-from xtr_storage.exception import UnableToRetrieveMetadataError, UnableToSetVisibilityError
+from xtr_storage.exception import (
+    UnableToDeleteDirectoryError,
+    UnableToRetrieveMetadataError,
+    UnableToSetVisibilityError,
+)
 from xtr_storage.visibility import Visibility
 
 if TYPE_CHECKING:
@@ -140,14 +144,15 @@ async def test_deleting_a_directory_forgets_everything_under_it() -> None:
     assert set(adapter._visibility) == {"elsewhere.txt"}
 
 
-async def test_emptying_the_root_forgets_every_visibility() -> None:
+async def test_emptying_the_root_is_refused() -> None:
     adapter = InMemoryAdapter()
     await adapter.write("a.txt", b"x", Config())
     await adapter.write("d/b.txt", b"y", Config())
 
-    await adapter.delete_directory("")
+    with pytest.raises(UnableToDeleteDirectoryError):
+        await adapter.delete_directory("")
 
-    assert adapter._visibility == {}
+    assert set(adapter._visibility) == {"a.txt", "d/b.txt"}
 
 
 async def test_the_visibility_of_a_missing_file_cannot_be_read() -> None:

@@ -139,6 +139,9 @@ class StorageWriterInterface(Protocol):
     ) -> None:
         """Move the file at ``source`` to ``destination``, overwriting it.
 
+        Asked to move a file onto itself, nothing is done unless the options say
+        otherwise: see :class:`~xtr_storage.IdenticalPathPolicy`.
+
         Args:
             source: The file to move.
             destination: Where it ends up.
@@ -158,6 +161,9 @@ class StorageWriterInterface(Protocol):
         config: Mapping[str, object] | None = None,
     ) -> None:
         """Copy the file at ``source`` to ``destination``, overwriting it.
+
+        Asked to copy a file onto itself, nothing is done unless the options say
+        otherwise: see :class:`~xtr_storage.IdenticalPathPolicy`.
 
         Args:
             source: The file to copy.

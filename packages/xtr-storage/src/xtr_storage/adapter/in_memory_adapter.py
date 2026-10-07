@@ -78,6 +78,11 @@ class InMemoryAdapter(FsspecAdapter):
         self._visibility = {}
 
     @override
+    def __repr__(self) -> str:
+        """Name the default visibility; an in-memory store holds no secret."""
+        return f"{type(self).__name__}(default_visibility={self._default_visibility!r})"
+
+    @override
     def _create_filesystem(self) -> AbstractFileSystem:
         """Build a memory filesystem whose files are this adapter's alone.
 
@@ -128,9 +133,8 @@ class InMemoryAdapter(FsspecAdapter):
         """Delete the directory and forget the visibility of everything under it."""
         await super().delete_directory(path)
         directory = _key(path)
-        # An empty directory is the root, and every key starts with "": deleting
-        # it forgets the lot, which is what emptying the root means.
-        under = f"{directory}/" if directory else ""
+        # The base refuses an empty path, so a directory is always named here.
+        under = f"{directory}/"
         self._visibility = {
             key: visibility
             for key, visibility in self._visibility.items()

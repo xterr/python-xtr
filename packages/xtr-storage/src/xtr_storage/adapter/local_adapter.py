@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import stat
 from pathlib import Path
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Final, final
 
 from fsspec.implementations.local import (  # pyright: ignore[reportMissingTypeStubs] -- fsspec ships no type information; this is the only line in the package that names its local filesystem
     LocalFileSystem,
@@ -24,9 +25,9 @@ from xtr_storage.exception import (
 )
 from xtr_storage.file_attributes import FileAttributes
 from xtr_storage.link_handling import LinkHandling
+from xtr_storage.path.path_prefixer import PathPrefixer
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import AsyncIterable, Mapping
 
     from fsspec import (  # pyright: ignore[reportMissingTypeStubs] -- fsspec ships no type information; imported only to name what this adapter builds
@@ -39,6 +40,12 @@ if TYPE_CHECKING:
     from xtr_storage.visibility import Visibility
 
 __all__ = ["LocalAdapter"]
+
+_DIRECTORY_FLAGS: Final = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+"""The open flags that reach a directory, a symbolic link in its place followed."""
+
+_NO_FOLLOW_FLAGS: Final = _DIRECTORY_FLAGS | getattr(os, "O_NOFOLLOW", 0)
+"""The same, refusing a symbolic link in the directory's place."""
 
 
 @final
@@ -54,6 +61,16 @@ class LocalAdapter(FsspecAdapter):
     including outside the directory this storage is rooted in, are either left
     out of listings or refused outright.
 
+    Staying inside the root is enforced on every operation, not only on
+    listings, and under either way of handling a link: each caller path is
+    resolved through the filesystem before the backend is reached, and one that
+    a link — its own last segment, or a directory on the way — carries outside
+    the root is refused with
+    :class:`~xtr_storage.exception.SymbolicLinkEncounteredError`, because such a
+    path names a file the storage does not answer for. Skipping links decides
+    what a listing shows; it does not make the tree above the root reachable
+    through one.
+
     Nothing is touched until the first operation: the root directory is created
     by the first write, so an application may declare a storage for a disk that
     is not mounted yet and pay nothing until it uses it.
@@ -61,6 +78,7 @@ class LocalAdapter(FsspecAdapter):
 
     _link_handling: LinkHandling
     _visibility_converter: VisibilityConverterInterface
+    _root: str
 
     def __init__(
         self,
@@ -76,21 +94,29 @@ class LocalAdapter(FsspecAdapter):
             directory: The directory every path is relative to. Made absolute
                 here — reading the working directory, not the disk — because the
                 paths a listing hands back are absolute and the root has to be
-                strippable from them again.
+                strippable from them again. One that is itself a symbolic link
+                is honoured — the link is the operator's own choice — and only
+                links met below it are refused.
             visibility: How a visibility becomes permission bits; the portable
                 converter and its defaults when left out.
-            link_handling: What a listing does with a symbolic link it meets.
+            link_handling: What an operation does with a symbolic link it meets.
                 Refusing by default: a link is rarely meant to be part of a
-                storage, and silence about one is worse than a failure.
+                storage, and silence about one is worse than a failure. Either
+                way, no link is followed out of the root.
             mime_type_detector: How a media type is guessed from a name, since a
                 filesystem stores none.
         """
-        super().__init__(
-            Path(directory).absolute().as_posix(),
-            mime_type_detector=mime_type_detector,
-        )
+        root = Path(directory).absolute().as_posix()
+        super().__init__(root, mime_type_detector=mime_type_detector)
+        self._prefixer = _RootedPathPrefixer(root)
+        self._root = root
         self._visibility_converter = visibility or PortableVisibilityConverter()
         self._link_handling = link_handling
+
+    @override
+    def __repr__(self) -> str:
+        """Name the root and how links are handled; a local adapter holds no secret."""
+        return f"{type(self).__name__}(root={self._root!r}, link_handling={self._link_handling!r})"
 
     @override
     def _create_filesystem(self) -> AbstractFileSystem:
@@ -128,7 +154,9 @@ class LocalAdapter(FsspecAdapter):
         """
         location = self._prefixer.prefix_path(path)
         try:
-            await asyncio.to_thread(_make_directories, location, self._directory_mode(config))
+            await asyncio.to_thread(
+                _make_directories, self._root, location, self._directory_mode(config)
+            )
         except OSError as error:
             raise UnableToCreateDirectoryError(path) from error
 
@@ -189,7 +217,7 @@ class LocalAdapter(FsspecAdapter):
         parent = Path(self._prefixer.prefix_path(path)).parent
         try:
             await asyncio.to_thread(
-                _make_directories, parent.as_posix(), self._directory_mode(config)
+                _make_directories, self._root, parent.as_posix(), self._directory_mode(config)
             )
         except OSError as error:
             raise UnableToWriteFileError(path) from error
@@ -227,33 +255,137 @@ class LocalAdapter(FsspecAdapter):
         return self._visibility_converter.for_file(visibility)
 
 
-def _make_directories(location: str, mode: int) -> None:
-    """Create ``location`` and every missing directory above it, each with ``mode``.
+@final
+class _RootedPathPrefixer(PathPrefixer):
+    """A prefixer that refuses a path a symbolic link carries outside the root.
 
-    The mode is applied with a separate permission change rather than handed to
-    the creation call, because the process umask masks bits off the latter: a
-    directory asked to be readable by everyone would come out private under a
-    strict umask, and the storage's promise would depend on the environment.
+    The local adapter turns a caller path into a backend location in exactly one
+    place — this prefixer — so guarding here guards every operation at once: a
+    read, a write, a delete, a move, a copy or a metadata lookup all pass their
+    path through :meth:`prefix_path` (or :meth:`prefix_directory_path`) before the
+    backend is reached. The resolved location is required to stay at or below the
+    root; one a link resolves to elsewhere is refused, because it names a file
+    the storage does not hold. This holds whatever the adapter was told to do
+    with links: that setting decides what a listing shows, and a link left out
+    of a listing must not be a way in through the back. Listings keep their own
+    per-entry link handling, which sees links the prefix never resolves.
+    """
 
-    Only the directories this call creates are changed. One that already existed
-    is left exactly as it was, so writing a file never silently reopens the
-    directory tree above it.
+    def __init__(self, root: str) -> None:
+        """Remember the root every resolved path has to stay within."""
+        super().__init__(root)
+        self._root = root
+
+    @override
+    def prefix_path(self, path: str) -> str:
+        """Place ``path`` under the root, refusing one a link carries outside it."""
+        location = super().prefix_path(path)
+        self._refuse_escape(path, location)
+        return location
+
+    @override
+    def prefix_directory_path(self, path: str) -> str:
+        """Place a directory ``path`` under the root, refusing a link escape."""
+        location = super().prefix_directory_path(path)
+        self._refuse_escape(path, location)
+        return location
+
+    def _refuse_escape(self, path: str, location: str) -> None:
+        """Raise when ``location`` resolves outside the root.
+
+        Both sides are resolved through the filesystem so that a root reached by
+        a link of its own — ``/var`` standing for ``/private/var`` and the like —
+        is compared like with like, and only a path that genuinely leaves the
+        tree is refused.
+
+        Raises:
+            SymbolicLinkEncounteredError: When the resolved path is outside the
+                root.
+        """
+        real = os.path.realpath(location)
+        root = os.path.realpath(self._root)
+        if real != root and not real.startswith(root + os.sep):
+            raise SymbolicLinkEncounteredError(path.strip("/"))
+
+
+def _make_directories(root: str, location: str, mode: int) -> None:
+    """Create ``location`` and every missing directory down from ``root``, each ``mode``.
+
+    The chain below the root is walked one component at a time, each opened with
+    ``O_NOFOLLOW`` so a symbolic link planted on the way redirects nothing: the
+    creation stays inside the root or fails. The mode is applied with a separate
+    permission change rather than handed to the creation call, because the
+    process umask masks bits off the latter.
+
+    The root itself is opened following links, because it is the operator's own
+    choice and is often a link by design — ``/var`` standing for
+    ``/private/var``, a release directory a deploy repoints. Refusing it would
+    make every write and every directory creation fail on such a root. What a
+    link may not do is appear *below* the root and carry the tree elsewhere,
+    which is what the walk refuses.
+
+    Only the directories this call creates are changed, and only those at or
+    below the root: one that already existed is left exactly as it was, and an
+    ancestor above the root that had to be made is created but not re-permissioned.
 
     Raises:
-        NotADirectoryError: When ``location`` already exists and is not a
-            directory, which no amount of creating will fix.
+        NotADirectoryError: When the root already exists and is not a directory,
+            which no amount of creating will fix.
     """
-    target = Path(location)
+    root_path = Path(root)
+    _ensure_root(root_path, mode)
+    descriptor = os.open(root, _DIRECTORY_FLAGS)
+    try:
+        for part in Path(location).relative_to(root_path).parts:
+            child = _descend(descriptor, part, mode)
+            os.close(descriptor)
+            descriptor = child
+    finally:
+        os.close(descriptor)
+
+
+def _ensure_root(root: Path, mode: int) -> None:
+    """Create the root and any missing ancestor, giving ``mode`` to the root alone."""
     missing: list[Path] = []
-    candidate = target
+    candidate = root
     while not candidate.exists():
         missing.append(candidate)
         parent = candidate.parent
         if parent == candidate:
             break
         candidate = parent
-    if not missing and not target.is_dir():
-        raise NotADirectoryError(location)
+    if not missing and not root.is_dir():
+        raise NotADirectoryError(str(root))
     for directory in reversed(missing):
         directory.mkdir(exist_ok=True)
-        directory.chmod(mode)
+        if directory == root:
+            directory.chmod(mode)
+
+
+def _descend(parent_fd: int, name: str, mode: int) -> int:
+    """Open ``name`` under ``parent_fd`` without following a link, creating it if missing.
+
+    A freshly created directory is given ``mode``; an existing one is left alone.
+    ``parent_fd`` stays open and stays the caller's: the walk closes it once the
+    child is in hand. Closing it here as well would close it twice whenever this
+    descent failed — and a second close is not merely wasteful, it answers
+    ``EBADF`` over the real error and can land on a descriptor another thread has
+    been handed in the meantime.
+
+    Raises:
+        OSError: When ``name`` is a symbolic link (``O_NOFOLLOW`` refuses it) or
+            exists as something other than a directory.
+    """
+    try:
+        os.mkdir(name, dir_fd=parent_fd)
+        created = True
+    except FileExistsError:
+        created = False
+    descriptor = os.open(name, _NO_FOLLOW_FLAGS, dir_fd=parent_fd)
+    if created:
+        try:
+            os.fchmod(descriptor, mode)
+        except OSError:
+            os.close(descriptor)
+            raise
+    return descriptor

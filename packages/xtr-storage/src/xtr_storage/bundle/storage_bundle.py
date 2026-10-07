@@ -325,4 +325,17 @@ async def _build_adapter(
         **entry.options,
     )
 
-    return GenericFsspecAdapter(filesystem, entry.root)
+    return GenericFsspecAdapter(filesystem, entry.root, closer=_close_built_filesystem)
+
+
+async def _close_built_filesystem(filesystem: AbstractFileSystem) -> None:
+    """Close the session a bundle-built fsspec filesystem opened, if it opened one.
+
+    A storage over a filesystem the application handed in leaves it open — the
+    application owns it — but one this bundle built itself is the bundle's to
+    shut when the container closes, so the aiohttp session a networked backend
+    keeps does not outlive the process.
+    """
+    session = getattr(filesystem, "_session", None)
+    if session is not None:
+        await session.close()  # pyright: ignore[reportAny] -- fsspec ships no type information; an async backend keeps its aiohttp session here

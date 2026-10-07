@@ -28,16 +28,17 @@ the code that stores them. Every call that reaches the backend is awaited.
 from xtr_storage import InMemoryAdapter, Storage, Visibility
 
 
-async with Storage(InMemoryAdapter()) as storage:
-    await storage.write("notes/todo.txt", b"buy milk", {"visibility": Visibility.PUBLIC})
-    data = await storage.read("notes/todo.txt")  # b"buy milk"
-    await storage.file_exists("notes/todo.txt")  # True
-    await storage.mime_type("notes/todo.txt")  # "text/plain"
-    await storage.file_size("notes/todo.txt")  # 8
-    await storage.copy("notes/todo.txt", "notes/copy.txt")
-    await storage.move("notes/copy.txt", "archive/copy.txt")
-    names = sorted([entry.path async for entry in storage.list_contents("notes", deep=True)])
-    await storage.delete("notes/todo.txt")
+async def main() -> None:
+    async with Storage(InMemoryAdapter()) as storage:
+        await storage.write("notes/todo.txt", b"buy milk", {"visibility": Visibility.PUBLIC})
+        data = await storage.read("notes/todo.txt")  # b"buy milk"
+        await storage.file_exists("notes/todo.txt")  # True
+        await storage.mime_type("notes/todo.txt")  # "text/plain"
+        await storage.file_size("notes/todo.txt")  # 8
+        await storage.copy("notes/todo.txt", "notes/copy.txt")
+        await storage.move("notes/copy.txt", "archive/copy.txt")
+        names = sorted([entry.path async for entry in storage.list_contents("notes", deep=True)])
+        await storage.delete("notes/todo.txt")
 ```
 
 | Call | Does |
@@ -53,8 +54,24 @@ async with Storage(InMemoryAdapter()) as storage:
 | `public_url(path)`, `temporary_url(path, expires_at)` | Lasting and expiring addresses |
 
 Paths are normalized before an adapter sees them: backslashes become `/`, `.` and empty segments
-drop. A control or zero-width character raises `CorruptedPathDetectedError`; `..` climbing past
-the root raises `PathTraversalDetectedError` when `allow_relative_path_traversal` is `False`.
+drop, and a `..` pops the segment before it. A control or zero-width character raises
+`CorruptedPathDetectedError`. A `..` that climbs above the root raises `PathTraversalDetectedError`;
+with `allow_relative_path_traversal` set to `False`, any `..` does.
+
+`copy(path, path)` and `move(path, path)` follow an `IdenticalPathPolicy`, set per call or as a
+storage default under `Config.COPY_IDENTICAL_PATH` / `Config.MOVE_IDENTICAL_PATH`:
+
+| Policy | Does |
+| --- | --- |
+| `IGNORE` (`"ignore"`) | Returns as though done, touching nothing; a path with no file there is still reported as a missing source — **the default** |
+| `FAIL` (`"fail"`) | Raises `UnableToCopyFileError` / `UnableToMoveFileError` before the backend |
+| `TRY` (`"try"`) | Hands it to the adapter: a rewrite, a refusal, or a lost file on a copy-then-delete move |
+
+```python
+from xtr_storage import Config, IdenticalPathPolicy
+
+await storage.copy("a.txt", "a.txt", {Config.COPY_IDENTICAL_PATH: IdenticalPathPolicy.FAIL})
+```
 
 ## Pick an adapter
 
@@ -72,16 +89,23 @@ An adapter whose extra is missing raises `MissingBackendError` naming it. A capa
 lacks raises `FeatureNotSupportedError` instead of guessing. No adapter opens anything when built;
 `LocalAdapter` creates its root on the first write.
 
+`LocalAdapter(root, link_handling=...)` decides what a *listing* does with a symbolic link:
+`LinkHandling.DISALLOW` (the default) raises `SymbolicLinkEncounteredError`, `LinkHandling.SKIP`
+leaves it out. Neither follows a link out of the root — any operation naming a path a link carries
+above the root is refused — so `SKIP` hides a link, it does not open a door through it.
+
 ## Several storages
 
 ```python
 from xtr_storage import InMemoryAdapter, MountManager, Storage
 
-async with MountManager(
-    {"uploads": Storage(InMemoryAdapter()), "reports": Storage(InMemoryAdapter())}
-) as files:
-    await files.write("uploads://a.txt", b"hi")
-    await files.copy("uploads://a.txt", "reports://a.txt")  # streamed across storages
+
+async def main() -> None:
+    async with MountManager(
+        {"uploads": Storage(InMemoryAdapter()), "reports": Storage(InMemoryAdapter())}
+    ) as files:
+        await files.write("uploads://a.txt", b"hi")
+        await files.copy("uploads://a.txt", "reports://a.txt")  # streamed across storages
 ```
 
 There is no default mount: an unknown name, a missing `://` or an empty name raises
@@ -188,6 +212,7 @@ Everything derives from `StorageError`; a failure of an operation the backend re
 | `UnableToGeneratePublicUrlError`, `UnableToGenerateTemporaryUrlError` | No url can be produced |
 | `UnableToResolveMountError` | A mount location names no storage, or is malformed |
 | `PathTraversalDetectedError`, `CorruptedPathDetectedError` | A path climbs past the root, or carries a control character |
+| `SymbolicLinkEncounteredError` | A path a symbolic link carries outside a `LocalAdapter`'s root, or a link met in a listing that refuses them |
 | `FeatureNotSupportedError` | The backend lacks the capability (also a `NotImplementedError`) |
 | `MissingBackendError` | The adapter's extra is not installed (also an `ImportError`) |
 | `InvalidVisibilityError`, `InvalidArgumentError` | A bad visibility string or option (also a `ValueError`) |
@@ -200,6 +225,8 @@ Everything derives from `StorageError`; a failure of an operation the backend re
 - Do not build paths with `os.path` or `pathlib`; pass `/`-separated strings, as every backend
   sees them.
 - Do not read a large file whole with `read`; stream it with `read_stream` and `write_stream`.
+- Do not read `LinkHandling.SKIP` as "links are followed": no link leads out of a `LocalAdapter`'s
+  root under either setting.
 - Do not expect a backend to fake a capability: GCS and generic fsspec backends refuse visibility,
   and a local or in-memory storage gives urls only through a configured generator.
 - Do not leave a storage you built open; use `async with` or `close()`. The container closes the

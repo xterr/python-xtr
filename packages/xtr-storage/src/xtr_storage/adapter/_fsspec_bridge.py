@@ -36,14 +36,13 @@ class FsspecBridge:
     free. On an asynchronous filesystem the first awaited method opens the
     session once, under a lock, and ``close`` hands that session back to a
     per-backend closer; on a synchronous one every call is pushed to a worker
-    thread and there is nothing to close.
+    thread and the bridge itself holds nothing open — though a closer handed in
+    still runs, because what it closes is the filesystem's, not the bridge's.
     """
 
     __slots__ = (
-        "_closed",
         "_closer",
         "_fs",
-        "_session_created",
         "_session_lock",
         "_session_ready",
     )
@@ -62,14 +61,17 @@ class FsspecBridge:
                 call so a caller may flip ``asynchronous`` before first use.
             closer: What to run once, on ``close``, when a session was opened —
                 the S3 and object-store adapters pass the coroutine that shuts
-                their client down. ``None`` means there is nothing to close.
+                their client down, and the bundle passes one for a filesystem it
+                built itself. Run on every ``close``, whatever dialect the
+                filesystem speaks and whether or not a session was opened: only
+                the closer knows what its backend holds, and a bridge that
+                decided for it left a bundle-built session open. ``None`` means
+                there is nothing to close.
         """
         self._fs = filesystem
         self._closer = closer
         self._session_lock = asyncio.Lock()
         self._session_ready = False
-        self._session_created = False
-        self._closed = False
 
     @property
     def _is_async(self) -> bool:
@@ -79,20 +81,22 @@ class FsspecBridge:
     async def _ensure_session(self) -> None:
         """Open the filesystem's session once, the first async call to need it.
 
-        A filesystem without ``set_session`` (a plain asynchronous one) needs no
-        session; one with it (s3fs, gcsfs) gets exactly one call however many
-        coroutines race here, because the lock and the flag together let only
-        the first through.
+        A filesystem that opens a session names the coroutine that does it
+        ``set_session`` (s3fs) or ``_set_session`` (gcsfs); a plain asynchronous
+        one names neither and needs none. Whichever exists is called exactly
+        once however many coroutines race here, because the lock and the flag
+        together let only the first through.
         """
         if self._session_ready:
             return
         async with self._session_lock:
             if self._session_ready:
                 return
-            set_session = getattr(self._fs, "set_session", None)
+            set_session = getattr(self._fs, "set_session", None) or getattr(
+                self._fs, "_set_session", None
+            )
             if set_session is not None:
                 _ = await set_session()
-                self._session_created = True
             self._session_ready = True
 
     async def _dispatch(self, name: str, *args: object, **kwargs: object) -> Any:  # noqa: ANN401
@@ -190,10 +194,6 @@ class FsspecBridge:
                 return str(await url_method(path, expires=expiration))
         return str(await asyncio.to_thread(self._fs.sign, path, expiration))
 
-    async def exists(self, path: str) -> bool:
-        """Whether the path exists."""
-        return bool(await self._dispatch("exists", path))
-
     async def call(self, name: str, *args: object, **kwargs: object) -> object:
         """Run a backend-specific method by name, dispatched like the rest.
 
@@ -204,9 +204,14 @@ class FsspecBridge:
         return await self._dispatch(name, *args, **kwargs)
 
     async def close(self) -> None:
-        """Close the session, once, if one was opened; safe to call again."""
-        if self._closed:
-            return
-        self._closed = True
-        if self._closer is not None and self._session_created:
+        """Hand the filesystem to the closer, if there is one; the bridge is reusable.
+
+        Closing resets the session state, so a later call opens a fresh one: an
+        adapter that closes between requests may go on using the same bridge.
+        Every closer this library hands over asks the filesystem what it holds
+        before closing anything, so a close with nothing open — or a second
+        close — costs a lookup and does nothing.
+        """
+        self._session_ready = False
+        if self._closer is not None:
             await self._closer(self._fs)

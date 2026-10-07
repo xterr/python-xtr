@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from io import BytesIO
-from typing import TYPE_CHECKING, cast
+from io import BytesIO, StringIO
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
+from fsspec.asyn import (  # pyright: ignore[reportMissingTypeStubs] -- fsspec ships no type information; imported only to shape the copy-then-delete fake below
+    AsyncFileSystem,
+)
+from typing_extensions import override
 
 from tests.support.scripted_adapter import (
     ChecksumScriptedAdapter,
@@ -12,6 +16,9 @@ from tests.support.scripted_adapter import (
     ScriptedAdapter,
     TemporaryUrlScriptedAdapter,
 )
+from xtr_storage.adapter.generic_fsspec_adapter import GenericFsspecAdapter
+from xtr_storage.adapter.in_memory_adapter import InMemoryAdapter
+from xtr_storage.adapter.local_adapter import LocalAdapter
 from xtr_storage.config import Config
 from xtr_storage.exception import (
     FeatureNotSupportedError,
@@ -30,6 +37,8 @@ from xtr_storage.visibility import Visibility
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from pathlib import Path
+    from typing import BinaryIO
 
     from xtr_storage.config import Config as ConfigType
 
@@ -112,13 +121,33 @@ async def test_copy_to_the_same_path_is_ignored_when_asked_to() -> None:
     assert "copy a->a" not in adapter.calls
 
 
-async def test_copy_to_the_same_path_is_tried_by_default() -> None:
+async def test_copy_to_the_same_path_reaches_the_backend_when_asked_to() -> None:
+    adapter = ScriptedAdapter(files={"a": b"x"})
+    storage = Storage(adapter)
+
+    await storage.copy("a", "a", {Config.COPY_IDENTICAL_PATH: "try"})
+
+    assert "copy a->a" in adapter.calls
+
+
+async def test_copy_to_the_same_path_is_ignored_by_default() -> None:
     adapter = ScriptedAdapter(files={"a": b"x"})
     storage = Storage(adapter)
 
     await storage.copy("a", "a")
 
-    assert "copy a->a" in adapter.calls
+    assert "copy a->a" not in adapter.calls
+
+
+async def test_copy_to_the_same_missing_path_still_reports_the_missing_source() -> None:
+    adapter = ScriptedAdapter()
+    storage = Storage(adapter)
+
+    with pytest.raises(UnableToCopyFileError) as caught:
+        await storage.copy("ghost", "ghost")
+
+    assert caught.value.reason == "the source file does not exist"
+    assert "copy ghost->ghost" not in adapter.calls
 
 
 # --- identical-path policy: move --------------------------------------------
@@ -140,13 +169,137 @@ async def test_move_to_the_same_path_is_ignored_when_asked_to() -> None:
     assert "move a->a" not in adapter.calls
 
 
-async def test_move_to_the_same_path_is_tried_by_default() -> None:
+async def test_move_to_the_same_path_reaches_the_backend_when_asked_to() -> None:
+    adapter = ScriptedAdapter(files={"a": b"x"})
+    storage = Storage(adapter)
+
+    await storage.move("a", "a", {Config.MOVE_IDENTICAL_PATH: "try"})
+
+    assert "move a->a" in adapter.calls
+
+
+async def test_move_to_the_same_path_is_ignored_by_default() -> None:
     adapter = ScriptedAdapter(files={"a": b"x"})
     storage = Storage(adapter)
 
     await storage.move("a", "a")
 
-    assert "move a->a" in adapter.calls
+    assert "move a->a" not in adapter.calls
+
+
+async def test_move_to_the_same_missing_path_still_reports_the_missing_source() -> None:
+    adapter = ScriptedAdapter()
+    storage = Storage(adapter)
+
+    with pytest.raises(UnableToMoveFileError) as caught:
+        await storage.move("ghost", "ghost")
+
+    assert caught.value.reason == "the source file does not exist"
+    assert "move ghost->ghost" not in adapter.calls
+
+
+# --- identical-path policy: the default over the adapters this package ships -
+
+
+async def test_copy_to_the_same_path_keeps_the_file_in_memory() -> None:
+    storage = Storage(InMemoryAdapter())
+    await storage.write("a.txt", b"payload")
+
+    await storage.copy("a.txt", "a.txt")
+
+    assert await storage.read("a.txt") == b"payload"
+
+
+async def test_move_to_the_same_path_keeps_the_file_in_memory() -> None:
+    storage = Storage(InMemoryAdapter())
+    await storage.write("a.txt", b"payload")
+
+    await storage.move("a.txt", "a.txt")
+
+    assert await storage.read("a.txt") == b"payload"
+
+
+async def test_copy_to_the_same_path_keeps_the_file_on_disk(tmp_path: Path) -> None:
+    storage = Storage(LocalAdapter(tmp_path / "root"))
+    await storage.write("a.txt", b"payload")
+
+    await storage.copy("a.txt", "a.txt")
+
+    assert await storage.read("a.txt") == b"payload"
+
+
+async def test_move_to_the_same_path_keeps_the_file_on_disk(tmp_path: Path) -> None:
+    storage = Storage(LocalAdapter(tmp_path / "root"))
+    await storage.write("a.txt", b"payload")
+
+    await storage.move("a.txt", "a.txt")
+
+    assert await storage.read("a.txt") == b"payload"
+
+
+@final
+class _CopyThenDeleteFileSystem(AsyncFileSystem):
+    """An object store's shape: asynchronous, and moving by copy-then-delete.
+
+    An asynchronous filesystem that names no ``_mv`` — s3fs and gcsfs are two,
+    and the adapters over them drive the asynchronous dialect — gets its move
+    from a copy followed by a delete of the source. When the two paths are one
+    path, the copy writes what is already there and the delete then takes it
+    away. This fake is the smallest backend of that shape.
+    """
+
+    protocol = "copythendelete"
+    cachable = False
+
+    def __init__(self) -> None:
+        super().__init__(asynchronous=True)  # pyright: ignore[reportUnknownMemberType] -- fsspec ships no type information, so its initializer is untyped
+        self.store: dict[str, bytes] = {}
+
+    @override
+    async def _pipe_file(
+        self, path: str, value: bytes, mode: str = "overwrite", **kwargs: object
+    ) -> None:
+        del mode, kwargs
+        self.store[path] = bytes(value)
+
+    @override
+    async def _cat_file(
+        self, path: str, start: int | None = None, end: int | None = None, **kwargs: object
+    ) -> bytes:
+        del kwargs
+        if path not in self.store:
+            raise FileNotFoundError(path)
+        return self.store[path][start:end]
+
+    @override
+    async def _cp_file(self, path1: str, path2: str, **kwargs: object) -> None:
+        del kwargs
+        self.store[path2] = self.store[path1]
+
+    @override
+    async def _rm_file(self, path: str, **kwargs: object) -> list[None]:
+        """Delete one file, answering with the empty gathering the base promises."""
+        del kwargs
+        del self.store[path]
+        return []
+
+    @override
+    async def _info(self, path: str, **kwargs: object) -> dict[str, object]:
+        del kwargs
+        if path not in self.store:
+            raise FileNotFoundError(path)
+        return {"name": path, "size": len(self.store[path]), "type": "file"}
+
+
+async def test_move_to_the_same_path_keeps_the_file_on_a_copy_then_delete_backend() -> None:
+    # The one backend shape where the old default destroyed the file: the copy
+    # rewrites what is already there, and the delete of the source removes it.
+    storage = Storage(GenericFsspecAdapter(_CopyThenDeleteFileSystem()))
+    await storage.write("a.txt", b"payload")
+
+    await storage.move("a.txt", "a.txt")
+
+    assert await storage.read("a.txt") == b"payload"
 
 
 # --- retain-visibility stripping --------------------------------------------
@@ -338,6 +491,13 @@ async def test_write_stream_refuses_raw_bytes() -> None:
 
     with pytest.raises(InvalidStreamError):
         await storage.write_stream("f", cast("Iterable[bytes]", b"foobar"))
+
+
+async def test_write_stream_refuses_a_text_file_object() -> None:
+    storage = Storage(ScriptedAdapter())
+
+    with pytest.raises(InvalidStreamError):
+        await storage.write_stream("f", cast("BinaryIO", cast("object", StringIO("foobar"))))
 
 
 # --- listing errors are wrapped lazily --------------------------------------

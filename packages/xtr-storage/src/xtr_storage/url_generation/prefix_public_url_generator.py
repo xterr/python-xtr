@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
+from urllib.parse import quote
 
 from typing_extensions import override
 
@@ -51,4 +52,4 @@ class PrefixPublicUrlGenerator(PublicUrlGeneratorInterface):
         """
         del config  # the address is fixed at construction; a call cannot move it
 
-        return self._prefixer.prefix_path(path)
+        return self._prefixer.prefix_path(quote(path, safe="/"))

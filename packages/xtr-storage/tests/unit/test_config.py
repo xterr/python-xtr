@@ -136,8 +136,8 @@ def test_bool_option_refuses_a_value_that_is_neither_true_nor_false() -> None:
         _ = config.bool_option(Config.RETAIN_VISIBILITY, default=True)
 
 
-def test_identical_path_policy_tries_the_operation_when_nobody_chose() -> None:
-    assert Config().identical_path_policy(Config.COPY_IDENTICAL_PATH) is IdenticalPathPolicy.TRY
+def test_identical_path_policy_ignores_the_operation_when_nobody_chose() -> None:
+    assert Config().identical_path_policy(Config.COPY_IDENTICAL_PATH) is IdenticalPathPolicy.IGNORE
 
 
 def test_identical_path_policy_reads_the_string_form() -> None:

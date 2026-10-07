@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from collections.abc import AsyncIterable, Iterable, Sequence
-from io import IOBase
+from io import IOBase, TextIOBase
 from typing import TYPE_CHECKING, Final, cast, final
 
 from xtr_storage.checksum_provider_interface import ChecksumProviderInterface
@@ -142,7 +142,12 @@ class Storage:
         return await self._adapter.file_exists(path) or await self._adapter.directory_exists(path)
 
     async def read(self, location: str) -> bytes:
-        """Return the whole contents of the file at ``location``."""
+        """Return the whole contents of the file at ``location``.
+
+        The whole file lands in memory, so reach for :meth:`read_stream` instead
+        whenever the size is a caller's to decide — an upload, a remote object —
+        rather than something this application wrote and knows the bound of.
+        """
         return await self._adapter.read(self._normalize(location))
 
     def read_stream(self, location: str) -> AsyncIterator[bytes]:
@@ -268,7 +273,14 @@ class Storage:
         destination: str,
         config: Mapping[str, object] | None = None,
     ) -> None:
-        """Move the file at ``source`` to ``destination``, overwriting it."""
+        """Move the file at ``source`` to ``destination``, overwriting it.
+
+        Raises:
+            UnableToMoveFileError: Under the ``fail`` policy when the two paths
+                are the same, and under the ``ignore`` policy when they are the
+                same and no file is there: nothing was moved, so answering
+                success would tell the caller a file exists that does not.
+        """
         from_path = self._normalize(source)
         to_path = self._normalize(destination)
         merged = self._merged(config)
@@ -277,6 +289,8 @@ class Storage:
             if policy is IdenticalPathPolicy.FAIL:
                 raise UnableToMoveFileError(source, destination, _SAME_PATH)
             if policy is IdenticalPathPolicy.IGNORE:
+                if not await self._adapter.file_exists(from_path):
+                    raise UnableToMoveFileError(source, destination, _MISSING_SOURCE)
                 return
 
         await self._adapter.move(from_path, to_path, self._transfer_config(config))
@@ -287,7 +301,14 @@ class Storage:
         destination: str,
         config: Mapping[str, object] | None = None,
     ) -> None:
-        """Copy the file at ``source`` to ``destination``, overwriting it."""
+        """Copy the file at ``source`` to ``destination``, overwriting it.
+
+        Raises:
+            UnableToCopyFileError: Under the ``fail`` policy when the two paths
+                are the same, and under the ``ignore`` policy when they are the
+                same and no file is there: nothing was copied, so answering
+                success would tell the caller a file exists that does not.
+        """
         from_path = self._normalize(source)
         to_path = self._normalize(destination)
         merged = self._merged(config)
@@ -296,6 +317,8 @@ class Storage:
             if policy is IdenticalPathPolicy.FAIL:
                 raise UnableToCopyFileError(source, destination, _SAME_PATH)
             if policy is IdenticalPathPolicy.IGNORE:
+                if not await self._adapter.file_exists(from_path):
+                    raise UnableToCopyFileError(source, destination, _MISSING_SOURCE)
                 return
 
         await self._adapter.copy(from_path, to_path, self._transfer_config(config))
@@ -325,13 +348,13 @@ class Storage:
         """
         normalized = self._normalize(path)
         merged = self._merged(config)
-        algorithm = merged.str_option(Config.CHECKSUM_ALGORITHM, _DEFAULT_CHECKSUM_ALGORITHM)
         if isinstance(self._adapter, ChecksumProviderInterface):
             try:
                 return await self._adapter.checksum(normalized, merged)
             except ChecksumAlgorithmNotSupportedError:
                 pass  # the backend keeps no such digest; compute it from the bytes
 
+        algorithm = merged.str_option(Config.CHECKSUM_ALGORITHM, _DEFAULT_CHECKSUM_ALGORITHM)
         return await self._stream_checksum(normalized, algorithm)
 
     async def _stream_checksum(self, path: str, algorithm: str) -> str:
@@ -427,6 +450,8 @@ class Storage:
 
 _SAME_PATH: Final = "source and destination are the same"
 
+_MISSING_SOURCE: Final = "the source file does not exist"
+
 
 async def _binary_io_stream(stream: BinaryIO) -> AsyncIterator[bytes]:
     """Read an open binary file a megabyte at a time, rewinding it first when it can be."""
@@ -452,9 +477,13 @@ def _coerce_stream(contents: object) -> AsyncIterable[bytes]:
 
     Text is not a stream: encoding it is a decision, and guessing the encoding
     is how files become unreadable. So :class:`str` and raw :class:`bytes` are
-    refused rather than iterated.
+    refused rather than iterated — and so is a text file object, whose
+    :class:`~io.TextIOBase` is an :class:`~io.IOBase` and would otherwise be read
+    as if it yielded bytes.
     """
     if isinstance(contents, (str, bytes, bytearray)):
+        raise InvalidStreamError(type(contents).__name__)
+    if isinstance(contents, TextIOBase):
         raise InvalidStreamError(type(contents).__name__)
     if isinstance(contents, IOBase):
         return _binary_io_stream(cast("BinaryIO", cast("object", contents)))

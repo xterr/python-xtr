@@ -52,7 +52,10 @@ class Config:  # noqa: PLW1641 -- option values are arbitrary, mappings included
     """Whether a copy or a move keeps what the source had. True unless said otherwise."""
 
     MOVE_IDENTICAL_PATH: Final[str] = "move_identical_path"
-    """What a move from a path to itself does: an :class:`~xtr_storage.IdenticalPathPolicy`."""
+    """What a move from a path to itself does: an :class:`~xtr_storage.IdenticalPathPolicy`.
+
+    Nothing, unless said otherwise.
+    """
 
     COPY_IDENTICAL_PATH: Final[str] = "copy_identical_path"
     """The same, for a copy."""
@@ -194,13 +197,13 @@ class Config:  # noqa: PLW1641 -- option values are arbitrary, mappings included
         )
 
     def identical_path_policy(self, key: str) -> IdenticalPathPolicy:
-        """Return the policy ``key`` holds, trying the operation when it holds none.
+        """Return the policy ``key`` holds, ignoring the operation when it holds none.
 
         Args:
             key: :attr:`COPY_IDENTICAL_PATH` or :attr:`MOVE_IDENTICAL_PATH`.
 
         Returns:
-            The policy asked for, or :attr:`IdenticalPathPolicy.TRY`.
+            The policy asked for, or :attr:`IdenticalPathPolicy.IGNORE`.
 
         Raises:
             InvalidArgumentError: When the option names no policy, or is not text.
@@ -208,7 +211,7 @@ class Config:  # noqa: PLW1641 -- option values are arbitrary, mappings included
         value = self._options.get(key)
 
         if value is None:
-            return IdenticalPathPolicy.TRY
+            return IdenticalPathPolicy.IGNORE
 
         if isinstance(value, str):
             try:

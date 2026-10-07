@@ -34,10 +34,6 @@ def test_stripping_an_empty_prefix_returns_the_path_unchanged() -> None:
     assert PathPrefixer("").strip_prefix("c/d.txt") == "c/d.txt"
 
 
-def test_it_strips_trailing_separators_when_stripping_a_directory_prefix() -> None:
-    assert PathPrefixer("a/b").strip_directory_prefix("a/b/c/") == "c"
-
-
 def test_it_prefixes_a_directory_path_with_a_trailing_separator() -> None:
     assert PathPrefixer("a").prefix_directory_path("sub") == "a/sub/"
 

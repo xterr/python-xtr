@@ -106,7 +106,7 @@ class StorageReaderInterface(Protocol):
         ...
 
     def list_contents(
-        self, location: str = "", deep: bool = False
+        self, location: str, deep: bool = False
     ) -> DirectoryListing[StorageAttributes]:
         """Return what is under ``location``, as a listing that has read nothing yet.
 
@@ -115,7 +115,11 @@ class StorageReaderInterface(Protocol):
         something iterates it.
 
         Args:
-            location: The directory to look in; the storage's root by default.
+            location: The directory to look in. An implementation that has a
+                single root — a :class:`~xtr_storage.Storage` — may default it to
+                that root; one routing by name — a
+                :class:`~xtr_storage.MountManager` — requires it, since an empty
+                location names no mount.
             deep: Whether to descend into the directories found, rather than
                 naming them and stopping.
 

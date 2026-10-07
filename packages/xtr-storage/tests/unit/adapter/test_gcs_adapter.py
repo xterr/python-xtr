@@ -339,6 +339,31 @@ async def test_it_composes_a_public_url_from_an_emulator_endpoint(
     assert url == "http://emulator:4443/bucket/prefix/a.txt"
 
 
+async def test_it_strips_slashes_from_the_bucket_and_prefix(
+    gcs_backends: list[_FakeGcsFileSystem],
+) -> None:
+    del gcs_backends
+    subject = GcsAdapter("/bucket/", "/prefix/")
+
+    url = await subject.public_url("a.txt", Config())
+
+    assert url == "https://storage.googleapis.com/bucket/prefix/a.txt"
+
+
+async def test_its_mime_type_comes_from_the_name_not_the_stores_stamp(
+    adapter: GcsAdapter,
+) -> None:
+    await adapter.write("a.txt", b"payload", Config())
+
+    assert (await adapter.mime_type("a.txt")).mime_type == "text/plain"
+
+
+def test_the_token_never_reaches_the_representation() -> None:
+    subject = GcsAdapter("bucket", "prefix", token="a-secret-token")  # noqa: S106 -- a stand-in credential asserted to be absent from the repr
+
+    assert "a-secret-token" not in repr(subject)
+
+
 async def test_it_signs_a_temporary_url(
     adapter: GcsAdapter,
     gcs_backends: list[_FakeGcsFileSystem],

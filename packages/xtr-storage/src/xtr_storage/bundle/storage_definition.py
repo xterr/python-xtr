@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from xtr_dependency_injection import Reference
 
 from xtr_storage.exception import InvalidArgumentError
+from xtr_storage.path.whitespace_path_normalizer import WhitespacePathNormalizer
 from xtr_storage.visibility import Visibility
 
 from .adapter_configs import AdapterEntry, LocalAdapterConfig
@@ -55,19 +56,33 @@ class StorageDefinition:
     allow_relative_path_traversal: bool = True
 
     def __post_init__(self) -> None:
-        """Refuse a visibility that names nothing, an empty prefix, or a bad url.
+        """Refuse a visibility that names nothing, a bad prefix, or a bad url.
+
+        The prefix is normalised with traversal disallowed, so a ``..`` segment
+        is refused here rather than at the first write, and the stored value is
+        the one the path-prefixed adapter will root the storage at.
 
         Raises:
-            InvalidArgumentError: When the prefix is empty, or a public url entry
-                is not a non-empty string.
+            InvalidArgumentError: When the prefix normalises to nothing, or a
+                public url entry is not a non-empty string.
+            PathTraversalDetectedError: When the prefix carries a ``..`` segment.
+            CorruptedPathDetectedError: When the prefix carries a control
+                character.
             InvalidVisibilityError: When a visibility string names no visibility.
         """
         if self.visibility is not None:
             _ = Visibility.parse(self.visibility)
         if self.directory_visibility is not None:
             _ = Visibility.parse(self.directory_visibility)
-        if self.prefix is not None and self.prefix == "":
-            raise InvalidArgumentError("a storage prefix must not be empty; leave it unset instead")
+        if self.prefix is not None:
+            normalized = WhitespacePathNormalizer(
+                allow_relative_path_traversal=False,
+            ).normalize_path(self.prefix)
+            if normalized == "":
+                raise InvalidArgumentError(
+                    "a storage prefix must not be empty; leave it unset instead",
+                )
+            object.__setattr__(self, "prefix", normalized)
         self._validate_public_url()
 
     def _validate_public_url(self) -> None:

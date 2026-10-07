@@ -12,6 +12,7 @@ times a file in.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -19,14 +20,21 @@ import pytest
 from fsspec.implementations.memory import MemoryFileSystem
 from typing_extensions import override
 
+from xtr_storage.adapter._fsspec_bridge import FsspecBridge
 from xtr_storage.adapter.fsspec_adapter import FsspecAdapter
 from xtr_storage.config import Config
-from xtr_storage.exception import FeatureNotSupportedError
+from xtr_storage.exception import (
+    FeatureNotSupportedError,
+    UnableToDeleteDirectoryError,
+    UnableToReadFileError,
+    UnableToWriteFileError,
+)
 from xtr_storage.feature import Feature
 from xtr_storage.visibility import Visibility
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import AsyncIterator, Mapping
+    from pathlib import Path
 
     from fsspec import AbstractFileSystem
 
@@ -178,3 +186,109 @@ def test_content_type_reads_the_backends_own_key() -> None:
 def test_content_type_is_none_when_absent_or_empty() -> None:
     assert FsspecAdapter._content_type({}) is None
     assert FsspecAdapter._content_type({"ContentType": ""}) is None
+
+
+async def _stream(*chunks: bytes) -> AsyncIterator[bytes]:
+    """Yield the given chunks, as the async source a streamed write takes."""
+    for chunk in chunks:
+        yield chunk
+
+
+async def _breaking_stream() -> AsyncIterator[bytes]:
+    """Yield enough to spill to a temp, then fail as a socket read would."""
+    yield b"01234567"
+    raise OSError("the source stream broke")
+
+
+async def test_read_stream_refuses_a_file_the_backend_gives_no_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = _MemoryAdapter()
+    await adapter.write("sizeless.txt", b"payload", Config())
+
+    async def info_without_size(self: FsspecBridge, path: str) -> dict[str, object]:
+        del self, path
+        return {"type": "file"}
+
+    monkeypatch.setattr(FsspecBridge, "info", info_without_size)
+
+    with pytest.raises(UnableToReadFileError):
+        async for _chunk in adapter.read_stream("sizeless.txt"):
+            pass
+
+
+async def test_a_small_stream_is_written_in_one_piece() -> None:
+    adapter = _MemoryAdapter()
+
+    await adapter.write_stream("small.txt", _stream(b"foo", b"bar"), Config())
+
+    assert await adapter.read("small.txt") == b"foobar"
+
+
+async def test_a_stream_past_the_spool_limit_spills_through_a_temp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("xtr_storage.adapter.fsspec_adapter._SPOOL_MAX_SIZE", 4)
+    adapter = _MemoryAdapter()
+    payload = b"0123456789abcdef"
+
+    await adapter.write_stream("big.txt", _stream(b"0123", b"456789ab", b"cdef"), Config())
+
+    assert await adapter.read("big.txt") == payload
+
+
+async def test_a_spilled_stream_leaves_no_temporary_file_behind(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("xtr_storage.adapter.fsspec_adapter._SPOOL_MAX_SIZE", 4)
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+    adapter = _MemoryAdapter()
+
+    await adapter.write_stream("big.txt", _stream(b"0123", b"4567"), Config())
+
+    remaining = await asyncio.to_thread(lambda: list(tmp_path.iterdir()))
+    assert remaining == []
+
+
+async def test_a_source_that_breaks_after_spilling_leaves_no_temporary_file_behind(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("xtr_storage.adapter.fsspec_adapter._SPOOL_MAX_SIZE", 4)
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+    adapter = _MemoryAdapter()
+
+    with pytest.raises(UnableToWriteFileError):
+        await adapter.write_stream("big.txt", _breaking_stream(), Config())
+
+    remaining = await asyncio.to_thread(lambda: list(tmp_path.iterdir()))
+    assert remaining == []
+
+
+async def test_a_same_path_copy_reaches_the_backend() -> None:
+    adapter = _MemoryAdapter()
+    await adapter.write("x.txt", b"keep", Config())
+    real_cp_file = FsspecBridge.cp_file
+    calls: list[tuple[str, str]] = []
+
+    async def recording_cp_file(self: FsspecBridge, src: str, dst: str, **kwargs: object) -> None:
+        calls.append((src, dst))
+        await real_cp_file(self, src, dst, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(FsspecBridge, "cp_file", recording_cp_file)
+        await adapter.copy("x.txt", "x.txt", Config())
+
+    assert calls == [("x.txt", "x.txt")]
+    assert await adapter.read("x.txt") == b"keep"
+
+
+async def test_deleting_the_storage_root_is_refused() -> None:
+    adapter = _MemoryAdapter()
+    await adapter.write("kept.txt", b"a", Config())
+
+    with pytest.raises(UnableToDeleteDirectoryError):
+        await adapter.delete_directory("")
+
+    assert await adapter.file_exists("kept.txt")

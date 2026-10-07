@@ -51,3 +51,15 @@ async def test_different_paths_spread_across_the_prefixes() -> None:
 def test_an_empty_run_of_prefixes_is_refused() -> None:
     with pytest.raises(InvalidArgumentError):
         _ = ShardedPrefixPublicUrlGenerator([])
+
+
+@pytest.mark.anyio
+async def test_it_escapes_characters_a_url_would_misread() -> None:
+    prefixes = ["https://a/", "https://b/", "https://c/"]
+    generator = ShardedPrefixPublicUrlGenerator(prefixes)
+    path = "a b?c#d.txt"
+    index = zlib.crc32(path.encode()) % len(prefixes)
+
+    url = await generator.public_url(path, Config())
+
+    assert url == prefixes[index] + "a%20b%3Fc%23d.txt"

@@ -29,6 +29,7 @@ from xtr_storage.exception import (
     UnableToWriteFileError,
 )
 from xtr_storage.path.path_prefixer import PathPrefixer
+from xtr_storage.path.whitespace_path_normalizer import WhitespacePathNormalizer
 from xtr_storage.url_generation.public_url_generator_interface import PublicUrlGeneratorInterface
 from xtr_storage.url_generation.temporary_url_generator_interface import (
     TemporaryUrlGeneratorInterface,
@@ -92,12 +93,23 @@ class PathPrefixedAdapter(
                 prefixes nothing would make this a pass-through, and a storage
                 quietly writing to a shared root instead of its own corner is
                 the kind of mistake that is found by finding the files.
+            PathTraversalDetectedError: When ``prefix`` carries a ``..`` segment.
+            CorruptedPathDetectedError: When ``prefix`` carries a control
+                character.
         """
-        if prefix.strip("\\/") == "":
+        normalized = WhitespacePathNormalizer(
+            allow_relative_path_traversal=False,
+        ).normalize_path(prefix)
+        if normalized == "":
             raise InvalidArgumentError("the storage prefix must name a path")
 
         self._inner = inner
-        self._prefixer = PathPrefixer(prefix)
+        self._prefixer = PathPrefixer(normalized)
+
+    @override
+    def __repr__(self) -> str:
+        """Name the prefix and the wrapped adapter; neither carries a secret."""
+        return f"{type(self).__name__}({self._inner!r}, prefix={self._prefixer.prefix_path('')!r})"
 
     def _prefixed(self, path: str) -> str:
         """Put ``path`` under the prefix, in the shape an adapter is handed paths in.

@@ -211,7 +211,7 @@ def test_a_listing_of_a_location_routing_nowhere_is_refused_where_it_is_asked_fo
     manager = MountManager({"uploads": memory_storage()})
 
     with pytest.raises(UnableToResolveMountError):
-        _ = manager.list_contents()
+        _ = manager.list_contents("")
 
 
 # --- listings ---------------------------------------------------------------
@@ -486,10 +486,23 @@ async def test_a_storage_that_will_not_close_does_not_stop_the_rest() -> None:
     following = ClosingStorage()
     manager = MountManager({"refusing": mounted(refusing), "following": mounted(following)})
 
-    with pytest.raises(RuntimeError, match="stuck"):
+    with pytest.raises(ExceptionGroup) as caught:
         await manager.close()
 
     assert following.closed
+    assert [type(error) for error in caught.value.exceptions] == [RuntimeError]
+    assert "stuck" in str(caught.value.exceptions[0])
+
+
+async def test_every_failure_to_close_is_raised_together() -> None:
+    first = ClosingStorage(RuntimeError("first is stuck"))
+    second = ClosingStorage(RuntimeError("second is stuck"))
+    manager = MountManager({"first": mounted(first), "second": mounted(second)})
+
+    with pytest.raises(ExceptionGroup) as caught:
+        await manager.close()
+
+    assert len(caught.value.exceptions) == 2
 
 
 async def test_a_storage_with_nothing_to_close_is_passed_over() -> None:

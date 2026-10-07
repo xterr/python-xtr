@@ -257,6 +257,18 @@ class AdapterConformance:
     ) -> None:
         await adapter.delete("ghost.txt")
 
+    async def test_it_is_usable_again_after_being_closed(
+        self,
+        adapter: StorageAdapterInterface,
+    ) -> None:
+        await adapter.write("before.txt", b"before", Config())
+
+        await adapter.close()
+
+        await adapter.write("after.txt", b"after", Config())
+        assert await adapter.read("before.txt") == b"before"
+        assert await adapter.read("after.txt") == b"after"
+
     async def test_it_copies_content(self, adapter: StorageAdapterInterface) -> None:
         write_config = (
             Config({Config.VISIBILITY: Visibility.PUBLIC.value})
@@ -303,16 +315,6 @@ class AdapterConformance:
 
         assert await adapter.read("onto.txt") == b"new"
 
-    async def test_a_copy_to_the_same_path_keeps_the_content(
-        self,
-        adapter: StorageAdapterInterface,
-    ) -> None:
-        await adapter.write("same.txt", b"keep", Config())
-
-        await adapter.copy("same.txt", "same.txt", Config())
-
-        assert await adapter.read("same.txt") == b"keep"
-
     async def test_it_moves_a_file(self, adapter: StorageAdapterInterface) -> None:
         await adapter.write("m1.txt", b"data", Config())
 
@@ -338,16 +340,6 @@ class AdapterConformance:
         await adapter.move("mfrom.txt", "monto.txt", Config())
 
         assert await adapter.read("monto.txt") == b"fresh"
-
-    async def test_a_move_to_the_same_path_keeps_the_content(
-        self,
-        adapter: StorageAdapterInterface,
-    ) -> None:
-        await adapter.write("stay.txt", b"kept", Config())
-
-        await adapter.move("stay.txt", "stay.txt", Config())
-
-        assert await adapter.read("stay.txt") == b"kept"
 
     async def test_creating_a_directory_twice_leaves_one(
         self,

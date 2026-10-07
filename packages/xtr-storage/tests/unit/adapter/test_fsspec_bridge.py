@@ -78,7 +78,7 @@ async def test_it_removes_one_file() -> None:
 
     await bridge.rm_file("/a.txt")
 
-    assert not await bridge.exists("/a.txt")
+    assert await bridge.call("exists", "/a.txt") is False
 
 
 async def test_it_removes_a_tree_recursively() -> None:
@@ -88,8 +88,8 @@ async def test_it_removes_a_tree_recursively() -> None:
 
     await bridge.rm("/dir", recursive=True)
 
-    assert not await bridge.exists("/dir/a.txt")
-    assert not await bridge.exists("/dir/b.txt")
+    assert await bridge.call("exists", "/dir/a.txt") is False
+    assert await bridge.call("exists", "/dir/b.txt") is False
 
 
 async def test_it_makes_a_directory() -> None:
@@ -116,15 +116,7 @@ async def test_it_moves_a_file() -> None:
     await bridge.mv("/a.txt", "/b.txt")
 
     assert await bridge.cat_file("/b.txt") == b"payload"
-    assert not await bridge.exists("/a.txt")
-
-
-async def test_it_answers_exists() -> None:
-    bridge = FsspecBridge(_memory_fs())
-
-    assert not await bridge.exists("/a.txt")
-    await bridge.pipe_file("/a.txt", b"a")
-    assert await bridge.exists("/a.txt")
+    assert await bridge.call("exists", "/a.txt") is False
 
 
 async def test_it_lets_a_missing_path_raise_file_not_found() -> None:
@@ -211,13 +203,13 @@ async def test_it_opens_the_session_once_under_concurrent_calls() -> None:
     _ = await asyncio.gather(
         bridge.pipe_file("/a.txt", b"a"),
         bridge.pipe_file("/b.txt", b"b"),
-        bridge.exists("/a.txt"),
+        bridge.call("exists", "/a.txt"),
     )
 
     assert fs.session_calls == 1
 
 
-async def test_it_closes_the_session_once_and_is_idempotent() -> None:
+async def test_every_close_hands_the_filesystem_to_the_closer() -> None:
     fs = _FakeAsyncFileSystem()
     closes = 0
 
@@ -232,10 +224,10 @@ async def test_it_closes_the_session_once_and_is_idempotent() -> None:
     await bridge.close()
     await bridge.close()
 
-    assert closes == 1
+    assert closes == 2
 
 
-async def test_it_does_not_close_when_no_session_was_created() -> None:
+async def test_the_closer_runs_on_a_filesystem_that_opened_no_session() -> None:
     calls = 0
 
     async def closer(_fs: object) -> None:
@@ -247,7 +239,18 @@ async def test_it_does_not_close_when_no_session_was_created() -> None:
 
     await bridge.close()
 
-    assert calls == 0
+    assert calls == 1
+
+
+async def test_a_closed_bridge_opens_a_fresh_session_on_the_next_call() -> None:
+    fs = _FakeAsyncFileSystem()
+    bridge = FsspecBridge(fs)
+    await bridge.pipe_file("/a.txt", b"a")
+    await bridge.close()
+
+    await bridge.pipe_file("/b.txt", b"b")
+
+    assert fs.session_calls == 2
 
 
 async def test_the_call_escape_hatch_dispatches_async() -> None:

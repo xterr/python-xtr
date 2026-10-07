@@ -22,13 +22,13 @@ def test_its_message_names_both() -> None:
 
 
 def test_it_is_also_a_not_implemented_error() -> None:
-    error = FeatureNotSupportedError(Feature.TEMPORARY_URL, "LocalAdapter")
+    error = FeatureNotSupportedError(Feature.VISIBILITY, "LocalAdapter")
 
     assert isinstance(error, StorageError)
     assert isinstance(error, NotImplementedError)
 
 
 def test_it_is_not_a_failed_operation() -> None:
-    error = FeatureNotSupportedError(Feature.CHECKSUM, "InMemoryAdapter")
+    error = FeatureNotSupportedError(Feature.VISIBILITY, "InMemoryAdapter")
 
     assert not isinstance(error, StorageOperationFailedError)

@@ -164,7 +164,7 @@ class MountManager:
 
     def list_contents(
         self,
-        location: str = "",
+        location: str,
         deep: bool = False,
     ) -> DirectoryListing[StorageAttributes]:
         """Return a lazy listing of what is under ``location``.
@@ -176,7 +176,9 @@ class MountManager:
 
         The mount is resolved here rather than on first iteration: routing
         nowhere is a mistake in the call, and an error is worth more where the
-        call is than wherever the listing is eventually read.
+        call is than wherever the listing is eventually read. There is no default
+        location: a bare ``""`` names no mount, so the caller always says which
+        storage to list.
         """
         route = self._route(location)
         prefix = f"{route.name}{_SEPARATOR}"
@@ -405,7 +407,8 @@ class MountManager:
 
         One storage refusing to close must not leave the rest open — a pool
         nobody shut is what outlives the process — so each is closed in turn,
-        and the first failure is raised once they all have been. A storage with
+        and every failure is raised together, in an :class:`ExceptionGroup`, once
+        they all have been, so none is lost behind another. A storage with
         nothing to close is passed over.
         """
         failures: list[Exception] = []
@@ -415,7 +418,7 @@ class MountManager:
                 failures.append(failure)
 
         if failures:
-            raise failures[0]
+            raise ExceptionGroup("one or more mounted storages failed to close", failures)
 
     async def __aenter__(self) -> MountManager:
         """Enter a context that closes every mounted storage on the way out."""

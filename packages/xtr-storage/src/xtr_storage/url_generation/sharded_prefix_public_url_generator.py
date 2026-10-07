@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import zlib
 from typing import TYPE_CHECKING, final
+from urllib.parse import quote
 
 from typing_extensions import override
 
@@ -65,4 +66,4 @@ class ShardedPrefixPublicUrlGenerator(PublicUrlGeneratorInterface):
 
         index = zlib.crc32(path.encode()) % len(self._prefixers)
 
-        return self._prefixers[index].prefix_path(path)
+        return self._prefixers[index].prefix_path(quote(path, safe="/"))

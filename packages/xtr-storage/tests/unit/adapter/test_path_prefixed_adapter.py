@@ -32,6 +32,7 @@ from xtr_storage.exception import (
     ChecksumAlgorithmNotSupportedError,
     FeatureNotSupportedError,
     InvalidArgumentError,
+    PathTraversalDetectedError,
     StorageOperationFailedError,
     UnableToCheckDirectoryExistenceError,
     UnableToCheckFileExistenceError,
@@ -116,6 +117,21 @@ class _OddShapeError(StorageOperationFailedError):
 async def test_a_prefix_that_names_no_path_is_refused(prefix: str) -> None:
     with pytest.raises(InvalidArgumentError):
         _ = PathPrefixedAdapter(ScriptedAdapter(), prefix)
+
+
+@pytest.mark.parametrize("prefix", ["..", "../escape", "a/../..", "a/../../b"])
+async def test_a_prefix_that_climbs_above_the_root_is_refused(prefix: str) -> None:
+    with pytest.raises(PathTraversalDetectedError):
+        _ = PathPrefixedAdapter(ScriptedAdapter(), prefix)
+
+
+async def test_a_prefix_is_normalised_before_it_roots_the_storage() -> None:
+    inner = ScriptedAdapter()
+    adapter = PathPrefixedAdapter(inner, "some//prefix/./")
+
+    await adapter.write(_PATH, b"payload", Config())
+
+    assert inner.files == {_INNER_PATH: b"payload"}
 
 
 async def test_a_write_lands_under_the_prefix() -> None:

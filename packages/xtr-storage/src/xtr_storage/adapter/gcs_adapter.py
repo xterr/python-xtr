@@ -49,7 +49,7 @@ from xtr_storage.feature import Feature
 from xtr_storage.path.path_prefixer import PathPrefixer
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterable, Mapping
+    from collections.abc import AsyncIterable, Awaitable, Callable, Mapping
     from types import ModuleType
 
     from fsspec import (  # pyright: ignore[reportMissingTypeStubs] -- fsspec ships no type information; imported only to type the filesystem built below
@@ -101,7 +101,6 @@ class GcsAdapter(FsspecAdapter):
     _token: str | None
     _endpoint_url: str | None
     _default_write_options: dict[str, object]
-    _filesystem: AbstractFileSystem | None
 
     def __init__(  # noqa: PLR0913 -- a bucket adapter is configured by many independent, optional knobs (project, token, endpoint, write defaults, detector); none belongs grouped with another
         self,
@@ -131,14 +130,23 @@ class GcsAdapter(FsspecAdapter):
             mime_type_detector: How a media type is guessed from a name when the
                 object carries none; a name-only detector by default.
         """
-        super().__init__(f"{bucket}/{prefix}", mime_type_detector=mime_type_detector)
-        self._bucket = bucket
-        self._key_prefixer = PathPrefixer(prefix)
+        stripped_bucket = bucket.strip("/")
+        stripped_prefix = prefix.strip("/")
+        root = f"{stripped_bucket}/{stripped_prefix}" if stripped_prefix else stripped_bucket
+        super().__init__(root, mime_type_detector=mime_type_detector)
+        self._bucket = stripped_bucket
+        self._key_prefixer = PathPrefixer(stripped_prefix)
         self._project = project
         self._token = token
         self._endpoint_url = endpoint_url
         self._default_write_options = dict(write_options) if write_options is not None else {}
-        self._filesystem = None
+
+    @override
+    def __repr__(self) -> str:
+        """Name the bucket and endpoint, never the token held for the client."""
+        return (
+            f"{type(self).__name__}(bucket={self._bucket!r}, endpoint_url={self._endpoint_url!r})"
+        )
 
     @override
     def _create_filesystem(self) -> AbstractFileSystem:
@@ -152,8 +160,23 @@ class GcsAdapter(FsspecAdapter):
             token=self._token,
             endpoint_url=self._endpoint_url,
         )
-        self._filesystem = filesystem
         return filesystem
+
+    @override
+    def _session_closer(self) -> Callable[[AbstractFileSystem], Awaitable[None]] | None:
+        """Return the coroutine that shuts the client's session down on close.
+
+        ``gcsfs`` opens an aiohttp session on first use and registers no
+        finalizer for it, so an owner must close it or leak the connection. The
+        bridge runs this once, on close, and only when a session was ever opened.
+        """
+
+        async def close(filesystem: AbstractFileSystem) -> None:
+            session = getattr(filesystem, "_session", None)
+            if session is not None:
+                await session.close()  # pyright: ignore[reportAny] -- gcsfs keeps its aiohttp session here; closing it leaves no dangling connection
+
+        return close
 
     @override
     def _write_options(self, config: Config) -> Mapping[str, object]:
@@ -178,6 +201,20 @@ class GcsAdapter(FsspecAdapter):
     def _is_hidden_entry(self, path: str) -> bool:
         """Hide the zero-byte object that stands in for a directory in a listing."""
         return is_directory_marker(path)
+
+    @staticmethod
+    @override
+    def _content_type(info: Mapping[str, object]) -> str | None:
+        """Ignore the type the store stamps on every object; trust the name instead.
+
+        The store gives every object a media type, inventing a generic one for a
+        write that named none, so reading it back would report that invention for
+        a file whose name says nothing. The name-based detector the base falls
+        back to is the very source a write records the type from, so what is read
+        and what is written agree.
+        """
+        del info
+        return None
 
     @override
     async def write(self, path: str, contents: bytes, config: Config) -> None:
@@ -284,18 +321,6 @@ class GcsAdapter(FsspecAdapter):
             # Signing fails in backend-specific ways — no credentials, a refusal,
             # a transport error — and the contract is to report any as one error.
             raise UnableToGenerateTemporaryUrlError(path) from error
-
-    @override
-    async def close(self) -> None:
-        """Close the client's session, if the store opened one; safe to call again."""
-        await super().close()
-        filesystem = self._filesystem
-        if filesystem is None:
-            return
-        session = getattr(filesystem, "_session", None)
-        if session is not None:
-            await session.close()  # pyright: ignore[reportAny] -- gcsfs keeps its aiohttp session here; closing it leaves no dangling connection
-        self._filesystem = None
 
     def _reject_explicit_visibility(self, config: Config) -> None:
         """Refuse a call that names a visibility this store has no way to keep.

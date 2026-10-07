@@ -17,7 +17,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile, SpooledTemporaryFile
+from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, Final
 
 from typing_extensions import override
@@ -146,7 +146,9 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
 
         A synchronous filesystem keeps nothing open; a networked one overrides
         this to hand back the coroutine that shuts its client down, which the
-        bridge runs once, on close, only if a session was ever opened.
+        bridge runs on close. A closer asks the filesystem what it holds before
+        closing anything, because the bridge does not know which dialect opened
+        what — so one that finds nothing simply returns.
         """
         return None
 
@@ -163,7 +165,18 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
 
     @override
     async def read_stream(self, path: str) -> AsyncIterator[bytes]:
-        """Yield the file at ``path`` a mebibyte at a time, reaching back for each."""
+        """Yield the file at ``path`` a mebibyte at a time, reaching back for each.
+
+        The size is read once, up front, and the ranges are cut from it: a
+        stream is a sequence of independent ranged reads, not a held handle.
+        A file rewritten while it is being streamed therefore hands back a
+        mixture — ranges from before the rewrite and ranges from after, or a
+        short last range when it shrank — and one deleted mid-stream fails on
+        the next range with :class:`UnableToReadFileError`. No backend this
+        library speaks to offers a consistent snapshot across separate reads,
+        so a caller who needs one writes a new object and swaps the name rather
+        than rewriting a file something is reading.
+        """
         location = self._prefixer.prefix_path(path)
         bridge = self._get_bridge()
         try:
@@ -173,9 +186,10 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
         except OSError as error:
             raise UnableToReadFileError(path) from error
         size = info.get("size")
-        total = size if isinstance(size, int) else 0
-        for start in range(0, total, CHUNK_SIZE):
-            end = min(start + CHUNK_SIZE, total)
+        if not isinstance(size, int):
+            raise UnableToReadFileError(path, "the backend reports no size for the file")
+        for start in range(0, size, CHUNK_SIZE):
+            end = min(start + CHUNK_SIZE, size)
             try:
                 yield await bridge.cat_file(location, start=start, end=end)
             except OSError as error:
@@ -193,61 +207,61 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
 
     @override
     async def write_stream(self, path: str, contents: AsyncIterable[bytes], config: Config) -> None:
-        """Spool ``contents`` to a temporary file, then hand that to the backend."""
+        """Write ``contents`` at ``path``, in memory while small, through a temp above.
+
+        A stream that fits in :data:`_SPOOL_MAX_SIZE` is gathered in memory and
+        written in one :meth:`pipe_file`; one that grows past it spills, from that
+        point on, into a named temporary file the backend reads with
+        :meth:`put_file`, so an upload of any size lands without ever holding the
+        whole file in memory.
+        """
         location = self._prefixer.prefix_path(path)
         options = self._write_options(config)
-        # A `with` cannot span the awaited helper calls the spool is handed to; the
-        # try/finally below closes it on every path instead.
-        spooled = SpooledTemporaryFile(max_size=_SPOOL_MAX_SIZE)  # noqa: SIM115
         try:
-            async for chunk in contents:
-                _ = await asyncio.to_thread(spooled.write, chunk)
-            await asyncio.to_thread(spooled.rollover)
-            await self._upload_spooled(spooled, location, options)
+            await self._spool_stream(location, contents, options)
         except OSError as error:
             raise UnableToWriteFileError(path) from error
-        finally:
-            await asyncio.to_thread(spooled.close)
 
-    async def _upload_spooled(
+    async def _spool_stream(
         self,
-        spooled: SpooledTemporaryFile[bytes],
         location: str,
+        contents: AsyncIterable[bytes],
         options: Mapping[str, object],
     ) -> None:
-        """Upload a spooled write, by its own path when it has one, else via a copy.
+        """Gather the stream in memory, spilling to a temp once it grows too large."""
+        buffer = bytearray()
+        chunks = aiter(contents)
+        async for chunk in chunks:
+            buffer += chunk
+            if len(buffer) > _SPOOL_MAX_SIZE:
+                await self._upload_spilled(location, bytes(buffer), chunks, options)
+                return
+        await self._get_bridge().pipe_file(location, bytes(buffer), **options)
 
-        A spooled file that has spilled to disk sometimes exposes a real path and
-        sometimes only a file descriptor; when the path is usable the backend
-        reads it directly, otherwise the bytes are copied to a named temporary
-        file first, since ``put_file`` needs a name on disk.
+    async def _upload_spilled(
+        self,
+        location: str,
+        head: bytes,
+        rest: AsyncIterator[bytes],
+        options: Mapping[str, object],
+    ) -> None:
+        """Drain the gathered head and the remaining chunks to a temp, then upload it.
+
+        The temporary file is created with ``delete=False`` because the backend
+        reads it by name after it is closed. Draining and uploading sit inside
+        the same ``try``/``finally``, so the temp is removed however this ends —
+        including the case the source itself breaks halfway, which would
+        otherwise leave a full-sized file behind in the system temp directory.
         """
-        name = getattr(spooled, "name", None)
-        if isinstance(name, str) and await asyncio.to_thread(Path(name).exists):
-            await asyncio.to_thread(spooled.flush)
-            await self._get_bridge().put_file(name, location, **options)
-            return
-        await self._upload_via_named_temp(spooled, location, options)
-
-    async def _upload_via_named_temp(
-        self,
-        spooled: SpooledTemporaryFile[bytes],
-        location: str,
-        options: Mapping[str, object],
-    ) -> None:
-        """Copy a spooled write to a named temporary file and upload that."""
-        _ = await asyncio.to_thread(spooled.seek, 0)
-        with NamedTemporaryFile(delete=False) as handle:
-            name = handle.name
-            while True:
-                chunk = await asyncio.to_thread(spooled.read, CHUNK_SIZE)
-                if not chunk:
-                    break
-                _ = await asyncio.to_thread(handle.write, chunk)
+        handle = NamedTemporaryFile("wb", delete=False)  # noqa: SIM115 -- the file outlives the block that writes it: the backend reads it by name once closed, and the try/finally below owns its removal
         try:
-            await self._get_bridge().put_file(name, location, **options)
+            with handle:
+                _ = await asyncio.to_thread(handle.write, head)
+                async for chunk in rest:
+                    _ = await asyncio.to_thread(handle.write, chunk)
+            await self._get_bridge().put_file(handle.name, location, **options)
         finally:
-            await asyncio.to_thread(Path(name).unlink)
+            await asyncio.to_thread(Path(handle.name).unlink)
 
     @override
     async def file_exists(self, path: str) -> bool:
@@ -285,6 +299,10 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
     @override
     async def delete_directory(self, path: str) -> None:
         """Delete the directory at ``path`` and its tree, missing being no failure."""
+        if path.strip("/") == "":
+            raise UnableToDeleteDirectoryError(
+                path, "refusing to delete the storage root; name a directory under it"
+            )
         location = self._prefixer.prefix_directory_path(path)
         try:
             await self._get_bridge().rm(location, recursive=True)
@@ -351,8 +369,6 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
     @override
     async def move(self, source: str, destination: str, config: Config) -> None:
         """Move ``source`` onto ``destination``, then settle its visibility."""
-        if source == destination:
-            return
         retained = await self._retained_visibility(source, config)
         try:
             await self._get_bridge().mv(
@@ -370,8 +386,6 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
     @override
     async def copy(self, source: str, destination: str, config: Config) -> None:
         """Copy ``source`` onto ``destination``, then settle its visibility."""
-        if source == destination:
-            return
         retained = await self._retained_visibility(source, config)
         try:
             await self._get_bridge().cp_file(
@@ -470,7 +484,13 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
 
     @override
     async def close(self) -> None:
-        """Close the backend's session, if one was opened; safe to call again."""
+        """Close the backend's session, if one was opened; safe to call again.
+
+        The bridge resets rather than being dropped, so the filesystem it wraps —
+        and, for the in-memory backend, the files that live in it — survive the
+        close while the networked session is released: a storage closed between
+        requests is usable again, not stuck closed and not emptied.
+        """
         if self._bridge is not None:
             await self._bridge.close()
 

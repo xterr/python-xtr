@@ -85,6 +85,11 @@ class ReadOnlyAdapter(
         self._inner = inner
 
     @override
+    def __repr__(self) -> str:
+        """Name the wrapped adapter; a read-only view adds no secret of its own."""
+        return f"{type(self).__name__}({self._inner!r})"
+
+    @override
     async def file_exists(self, path: str) -> bool:
         """Return whether a file is at ``path``, as the wrapped adapter sees it."""
         return await self._inner.file_exists(path)

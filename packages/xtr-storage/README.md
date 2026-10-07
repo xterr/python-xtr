@@ -103,6 +103,24 @@ alone, so one upload can be public without changing the next. A `Storage` is an
 async context manager too: `async with Storage(adapter) as storage:` closes the
 adapter on the way out.
 
+### Copying or moving a file onto itself
+
+What `copy(path, path)` and `move(path, path)` do is chosen by an
+`IdenticalPathPolicy`, read from the `copy_identical_path` and
+`move_identical_path` options — per call or as a storage default:
+
+| Policy | Does |
+| --- | --- |
+| `IdenticalPathPolicy.IGNORE` (`"ignore"`) | Returns as though it were done and touches nothing — unless no file is there, which is still reported. **The default.** |
+| `IdenticalPathPolicy.FAIL` (`"fail"`) | Raises `UnableToCopyFileError` / `UnableToMoveFileError` before the backend is reached |
+| `IdenticalPathPolicy.TRY` (`"try"`) | Hands the call to the adapter and lives with its answer — a rewrite, a refusal, or, on a backend that moves by copy-then-delete, a lost file |
+
+```python
+from xtr_storage import Config, IdenticalPathPolicy
+
+await storage.move("a.txt", "a.txt", {Config.MOVE_IDENTICAL_PATH: IdenticalPathPolicy.FAIL})
+```
+
 ## Adapters
 
 Every adapter satisfies the same `StorageAdapterInterface`. They differ only in
@@ -126,6 +144,12 @@ replace; directories a write needs are created with the mode that converter
 names, not the process umask. Symbolic links in a listing are either skipped or
 refused. Nothing is touched until the first operation — the root is created by
 the first write.
+Whichever of the two is chosen, no link is followed out of the root: a read, a
+write, a delete, a move or a copy naming a path a link carries above the root is
+refused with `SymbolicLinkEncounteredError`. `LinkHandling.SKIP` hides a link
+from a listing; it does not open a door through it.
+The root itself may be a symbolic link — the operator's choice; only links met
+below it are refused.
 
 | Visibility | Checksum | Public url | Temporary url |
 |---|---|---|---|
@@ -247,8 +271,11 @@ print(await storage.visibility("logo.svg"))  # Visibility.PRIVATE
 
 Large files never have to land in memory whole. `read_stream` yields the bytes
 in chunks; `write_stream` accepts an async iterable of bytes, a plain iterable,
-or a binary file object, spooling it to the backend a chunk at a time. A
-seekable file object is rewound first; anything else raises `InvalidStreamError`.
+or a binary file object. A stream small enough is gathered in memory and written
+in one call; one that grows past the spool limit spills into a temporary file
+and is uploaded from there, so no upload holds the whole file in memory. A
+seekable file object is rewound first; a string, raw bytes or a text file object
+raises `InvalidStreamError`, since encoding is the caller's decision.
 
 ```python
 async def chunks() -> AsyncIterator[bytes]:
@@ -311,7 +338,7 @@ backwards, what removing it undoes.
 - **Environment** — nothing required. Credentials and directories given as
   `env(...)` must be set when the application boots: booting checks every
   storage.
-- **Ignore** — `var/storage/`: where the default storage keeps files, under the
+- **Ignore** — `/var/storage/`: where the default storage keeps files, under the
   project.
 - **Remove** — drop the `BUNDLES` entry, delete `<app>/config/storage.py`, then
   `uv remove xtr-storage`.

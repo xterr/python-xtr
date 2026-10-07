@@ -164,6 +164,13 @@ class S3Adapter(FsspecAdapter):
         self._configured_write_options = dict(write_options) if write_options is not None else {}
 
     @override
+    def __repr__(self) -> str:
+        """Name the bucket and endpoint, never the credentials held for the client."""
+        return (
+            f"{type(self).__name__}(bucket={self._bucket!r}, endpoint_url={self._endpoint_url!r})"
+        )
+
+    @override
     def _create_filesystem(self) -> AbstractFileSystem:
         """Import the backend and build an asynchronous client for the bucket.
 

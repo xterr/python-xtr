@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from typing import final
-
 __all__ = ["PathPrefixer"]
 
 
-@final
 class PathPrefixer:
     """Joins a caller's path to a backend's root and strips it back off again.
 
@@ -24,7 +21,9 @@ class PathPrefixer:
     separator, keeping a leading-slash convention intact.
     """
 
-    __slots__ = ("_prefix", "_separator")
+    __slots__: tuple[str, str] = ("_prefix", "_separator")
+    _prefix: str
+    _separator: str
 
     def __init__(self, prefix: str, separator: str = "/") -> None:
         """Store the root in the shape every method below relies on.
@@ -48,10 +47,6 @@ class PathPrefixer:
     def strip_prefix(self, path: str) -> str:
         """Return ``path`` with the stored root removed from its front."""
         return path[len(self._prefix) :]
-
-    def strip_directory_prefix(self, path: str) -> str:
-        """Return a directory ``path`` with the root removed and no trailing separator."""
-        return self.strip_prefix(path).rstrip("\\/")
 
     def prefix_directory_path(self, path: str) -> str:
         """Place a directory ``path`` under the root, ending it with the separator.
