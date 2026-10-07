@@ -4084,6 +4084,9 @@ dev = [
 name = "xtr-clock"
 version = "3.0.0"
 source = { editable = "packages/xtr-clock" }
+dependencies = [
+    { name = "anyio" },
+]
 
 [package.optional-dependencies]
 di = [
@@ -4096,17 +4099,18 @@ tzdata = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "anyio" },
     { name = "basedpyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "trio" },
     { name = "ty" },
     { name = "xtr-dependency-injection" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.0" },
     { name = "typing-extensions", marker = "extra == 'di'", specifier = ">=4.4" },
     { name = "tzdata", marker = "extra == 'tzdata'", specifier = ">=2024.1" },
     { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
@@ -4115,11 +4119,11 @@ provides-extras = ["tzdata", "di"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
+    { name = "trio", specifier = ">=0.27" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
 ]
@@ -4244,7 +4248,9 @@ dependencies = [
 
 [package.optional-dependencies]
 console = [
+    { name = "anyio" },
     { name = "xtr-console" },
+    { name = "xtr-dependency-injection" },
 ]
 di = [
     { name = "xtr-dependency-injection" },
@@ -4264,10 +4270,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", marker = "extra == 'console'", specifier = ">=4.0" },
     { name = "pydantic-settings", specifier = ">=2.4,<3" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", marker = "extra == 'console'", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
 ]
 provides-extras = ["di", "console"]
@@ -5028,6 +5036,7 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
     { name = "xtr-console" },
+    { name = "xtr-password-hasher", extra = ["bcrypt"] },
 ]
 
 [package.metadata]
@@ -5055,6 +5064,7 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-password-hasher", extras = ["bcrypt"], editable = "packages/xtr-password-hasher" },
 ]
 
 [[package]]
@@ -5105,6 +5115,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "starlette" },
     { name = "typing-extensions" },
+    { name = "xtr-dependency-injection", extra = ["fastapi"] },
+    { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-http-kernel" },
     { name = "xtr-logging-contracts" },
@@ -5128,8 +5140,6 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-event-dispatcher" },
 ]
 
 [package.metadata]
@@ -5140,6 +5150,8 @@ requires-dist = [
     { name = "joserfc", marker = "extra == 'oidc'", specifier = ">=1.7" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
@@ -5158,8 +5170,6 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
-    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
-    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
 ]
 
 [[package]]
@@ -5168,6 +5178,7 @@ version = "3.0.0"
 source = { editable = "packages/xtr-security-jwt" }
 dependencies = [
     { name = "joserfc" },
+    { name = "starlette" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
@@ -5200,6 +5211,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "joserfc", specifier = ">=1.7" },
+    { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },

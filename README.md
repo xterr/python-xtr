@@ -60,6 +60,8 @@ graph LR
     cachecon[xtr-cache-contracts] --> clock
     cache[xtr-cache] --> cachecon
     cache --> lock
+    cache --> clock
+    cache --> logcon
     cache -. console extra .-> console
     events[xtr-event-dispatcher] --> eventcon[xtr-event-dispatcher-contracts]
     events --> logcon
@@ -69,12 +71,15 @@ graph LR
     scheduler --> lock
     scheduler --> cachecon
     scheduler --> events
+    scheduler --> eventcon
     scheduler --> svccon
     scheduler -. console extra .-> console
-    httpkernel[xtr-http-kernel] --> di[xtr-dependency-injection]
+    di[xtr-dependency-injection] --> svccon
+    httpkernel[xtr-http-kernel] --> di
     httpkernel --> events
     httpkernel --> eventcon
     httpkernel --> logcon
+    httpkernel --> svccon
     httpkernel -. logging extra .-> logging
     httpkernel -. console extra .-> console
     orm[xtr-orm] --> logcon
@@ -95,6 +100,8 @@ graph LR
     securitycore --> svccon
     securityhttp[xtr-security-http] --> securitycore
     securityhttp --> httpkernel
+    securityhttp --> di
+    securityhttp --> events
     securityhttp --> eventcon
     securityhttp --> logcon
     securityhttp --> passwordhasher
@@ -114,6 +121,10 @@ graph LR
     securityjwt --> eventcon
     securityjwt -. console extra .-> console
     storage[xtr-storage] -. di extra .-> di
+    dotenv[xtr-dotenv] -. di extra .-> di
+    dotenv -. console extra .-> console
+    recipes[xtr-recipes] --> di
+    recipes --> console
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

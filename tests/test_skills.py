@@ -18,6 +18,16 @@ _SKILLS = sorted(_ROOT.glob("packages/*/src/*/.agents/skills/*/SKILL.md"))
 _NAME = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 _LINK = re.compile(r"\]\(([^)\s]+)\)")
 _MAX_DESCRIPTION = 1024
+_SECTION = "## "
+_REQUIRED_SECTIONS = ("Quick reference", "Testing", "Errors", "Do not")
+_APPLICATION_SECTION = "Use in an application"
+# The kernel's own two skills are exempt from *Use in an application* (AGENTS.md, Agent
+# skills): xtr-dependency-injection is the container every other bundle plugs into rather
+# than a package an application activates, so it has no Activate, Configure, Environment or
+# Ignore steps to restate as that section's steps.
+_EXEMPT_FROM_APPLICATION_SECTION = frozenset(
+    {"xtr-dependency-injection", "xtr-dependency-injection-bundle-authoring"}
+)
 
 
 def _frontmatter(skill: Path) -> dict[str, str]:
@@ -29,6 +39,15 @@ def _frontmatter(skill: Path) -> dict[str, str]:
         key, _, value = line.partition(":")
         fields[key.strip()] = value.strip()
     return fields
+
+
+def _sections(skill: Path) -> list[str]:
+    """Return the skill's body sections, in the order it writes them."""
+    return [
+        line.removeprefix(_SECTION).strip()
+        for line in skill.read_text(encoding="utf-8").splitlines()
+        if line.startswith(_SECTION)
+    ]
 
 
 def _id(skill: Path) -> str:
@@ -60,6 +79,31 @@ def test_description_says_when_to_use_it(skill: Path) -> None:
     assert ": " not in description
     assert " #" not in description
     assert "Use when" in description
+
+
+@pytest.mark.parametrize("skill", _SKILLS, ids=_id)
+def test_the_body_carries_the_sections_an_agent_reads(skill: Path) -> None:
+    sections = _sections(skill)
+
+    missing = [wanted for wanted in _REQUIRED_SECTIONS if wanted not in sections]
+
+    assert missing == [], f"{skill}: {missing}"
+
+
+@pytest.mark.parametrize("skill", _SKILLS, ids=_id)
+def test_a_skill_says_how_to_use_the_package_in_an_application(skill: Path) -> None:
+    exempt = skill.parent.name in _EXEMPT_FROM_APPLICATION_SECTION
+
+    assert (_APPLICATION_SECTION in _sections(skill)) is not exempt, skill
+
+
+@pytest.mark.parametrize("skill", _SKILLS, ids=_id)
+def test_the_body_covers_at_least_one_task(skill: Path) -> None:
+    sections = _sections(skill)
+
+    tasks = sections[sections.index("Quick reference") + 1 : sections.index("Testing")]
+
+    assert tasks, f"{skill}: no task section between Quick reference and Testing"
 
 
 @pytest.mark.parametrize("skill", _SKILLS, ids=_id)
