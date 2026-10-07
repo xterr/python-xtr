@@ -16,3 +16,6 @@ wheels/
 
 # What an application writes while it runs: kernel.share_dir is var/share.
 var/
+
+# The local rebrand tool and its test stay out of the repository.
+.rebrand/
