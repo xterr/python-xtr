@@ -29,6 +29,8 @@ class AbstractToken(TokenInterface):
     this and add whatever their own kind needs.
     """
 
+    __slots__: tuple[str, ...] = ("_attributes", "_role_names", "_user")
+
     _user: UserInterface | None
     _role_names: tuple[str, ...]
     _attributes: dict[str, object]

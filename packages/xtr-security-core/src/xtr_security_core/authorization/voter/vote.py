@@ -22,13 +22,11 @@ class Vote:
             loosely — the record does not depend on the voter's contract.
         result: The answer the voter gave.
         reasons: Human-readable reasons the voter added.
-        extra_data: Anything else a voter attached for a reader of the decision.
     """
 
     voter: object | None = None
     result: Access = Access.ABSTAIN
     reasons: list[str] = field(default_factory=list)
-    extra_data: dict[str, object] = field(default_factory=dict)
 
     def add_reason(self, reason: str) -> None:
         """Add a human-readable reason for this vote."""

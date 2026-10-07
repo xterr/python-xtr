@@ -22,6 +22,16 @@ def test_it_carries_the_token_and_user() -> None:
     assert context.user is token.get_user()
 
 
+def test_repr_hides_the_token_and_user() -> None:
+    token = _token("ROLE_USER")
+    context = IsGrantedContext(token=token, user=token.get_user(), _manager=AccessDecisionManager())
+
+    rendered = repr(context)
+
+    assert "token=" not in rendered
+    assert "user=" not in rendered
+
+
 @pytest.mark.anyio
 async def test_it_defers_a_nested_question_to_the_manager() -> None:
     token = _token("ROLE_USER")

@@ -5,7 +5,12 @@ from __future__ import annotations
 import pytest
 
 from xtr_security_core.exception import DisabledError
-from xtr_security_core.user import InMemoryUser, InMemoryUserChecker, UserCheckerInterface
+from xtr_security_core.user import (
+    InMemoryUser,
+    InMemoryUserChecker,
+    OidcUser,
+    UserCheckerInterface,
+)
 
 
 def test_it_inherits_the_user_checker_interface() -> None:
@@ -21,6 +26,11 @@ async def test_it_passes_an_enabled_user() -> None:
 async def test_it_refuses_a_disabled_user() -> None:
     with pytest.raises(DisabledError):
         await InMemoryUserChecker().check_pre_auth(InMemoryUser("alice", enabled=False))
+
+
+@pytest.mark.anyio
+async def test_it_leaves_a_user_without_the_enabled_flag_alone() -> None:
+    await InMemoryUserChecker().check_pre_auth(OidcUser({"sub": "alice"}))
 
 
 @pytest.mark.anyio

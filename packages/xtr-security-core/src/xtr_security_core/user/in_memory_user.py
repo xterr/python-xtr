@@ -34,7 +34,7 @@ class InMemoryUser(UserInterface, PasswordAuthenticatedUserInterface, EquatableI
     """
 
     identifier: str
-    password: str | None = None
+    password: str | None = field(default=None, repr=False)
     roles: Sequence[str] = field(default=())
     enabled: bool = True
 

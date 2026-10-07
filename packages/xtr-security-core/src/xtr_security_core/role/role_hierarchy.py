@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections import deque
+from collections import OrderedDict, deque
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
@@ -57,7 +57,7 @@ class RoleHierarchy(RoleHierarchyInterface):
         """
         self._exact: dict[str, tuple[str, ...]] = {}
         self._wildcards: list[tuple[re.Pattern[str], tuple[str, ...]]] = []
-        self._memo: dict[frozenset[str], tuple[str, ...]] = {}
+        self._memo: OrderedDict[frozenset[str], tuple[str, ...]] = OrderedDict()
         for key, values in (hierarchy or {}).items():
             parents = tuple(values)
             if "*" in key:
@@ -79,15 +79,26 @@ class RoleHierarchy(RoleHierarchyInterface):
 
         The expansion of a given set of roles is memoised, so a voter asking the
         same question every decision runs the search once.
+
+        Raises:
+            InvalidArgumentError: When expansion reaches ``_MAX_REACHABLE``
+                roles, which a finite hierarchy never does — a wildcard entry
+                feeding its own output would otherwise expand without bound.
         """
         key = frozenset(roles)
         cached = self._memo.get(key)
         if cached is not None:
+            self._memo.move_to_end(key)
             return list(cached)
         reachable: list[str] = []
         seen: set[str] = set()
         pending: deque[str] = deque(roles)
-        while pending and len(reachable) < _MAX_REACHABLE:
+        while pending:
+            if len(reachable) >= _MAX_REACHABLE:
+                raise InvalidArgumentError(
+                    f"Expanding roles reached the cap of {_MAX_REACHABLE}; "
+                    "a wildcard entry likely feeds its own output.",
+                )
             role = pending.popleft()
             if role in seen:
                 continue
@@ -95,13 +106,9 @@ class RoleHierarchy(RoleHierarchyInterface):
             reachable.append(role)
             pending.extend(parent for parent in self._parents_of(role) if parent not in seen)
         if len(self._memo) >= _MAX_MEMO:
-            _ = self._memo.pop(next(iter(self._memo)))
+            _ = self._memo.popitem(last=False)
         self._memo[key] = tuple(reachable)
         return reachable
-
-    def get_parent_role_names(self, role: str) -> list[str]:
-        """Return the roles ``role`` reaches directly, one level down."""
-        return self._parents_of(role)
 
     def _parents_of(self, role: str) -> list[str]:
         """Return the direct parents of ``role``, wildcard patterns expanded."""

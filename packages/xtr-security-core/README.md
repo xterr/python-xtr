@@ -202,8 +202,8 @@ The **`AccessDecisionManager(voters, strategy)`** gathers the votes and folds th
 Each takes `allow_if_all_abstain` (and `ConsensusStrategy` a tie-breaker). `decide(token,
 attributes, subject=None, access_decision=None)` reports one `bool`, filling an optional
 **`AccessDecision`** with every `Vote` cast, the deciding strategy's name, and a `message`
-accounting for the outcome. Each `Vote` carries its `voter`, its `result`, the `reasons` the
-voter added with `add_reason(...)`, and any `extra_data`.
+accounting for the outcome. Each `Vote` carries its `voter`, its `result`, and the `reasons` the
+voter added with `add_reason(...)`.
 
 The built-in voters:
 
@@ -231,7 +231,7 @@ question.
 
 **`RoleHierarchy(mapping)`** expands a set of roles: `get_reachable_role_names(roles)` returns
 the input roles plus every role they reach transitively, with no duplicates and safe against
-cycles; `get_parent_role_names(role)` is one level down. A `*` in a key captures a segment of a
+cycles. A `*` in a key captures a segment of a
 matching role and substitutes it into the values, so
 `{"ROLE_TENANT_*_ADMIN": ["ROLE_TENANT_*_USER"]}` makes `ROLE_TENANT_42_ADMIN` reach
 `ROLE_TENANT_42_USER`.
@@ -240,11 +240,11 @@ matching role and substitutes it into the values, so
 
 **`TraceableVoter(voter, event_dispatcher)`** wraps any voter and announces its answer as a
 `VoteEvent` — the voter, the subject, the attributes, the `Access` and the reasons — so a
-decision can be read after the fact; `get_decorated_voter()` returns the voter it wraps. The
-two event names a dispatcher keys on live in `authentication_events.py`:
-`AUTHENTICATION_SUCCESS` (announced once a token is created for an authenticated user, carrying
-an `AuthenticationSuccessEvent`) and `VOTE` (announced by a `TraceableVoter`). An
-`AuthenticationEvent` carries the `token` it settled on.
+decision can be read after the fact; `get_decorated_voter()` returns the voter it wraps. A
+dispatcher keys on an event's qualified class name, so a listener names the class it listens
+to: `AuthenticationSuccessEvent` (once a token is created for an authenticated user) and
+`VoteEvent` (announced by a `TraceableVoter`). An `AuthenticationEvent` carries the `token` it
+settled on.
 
 ## Errors
 
@@ -276,10 +276,9 @@ typed attributes rather than only a message.
 xtr_security_core/
 ├── user/                     UserInterface, InMemoryUser(Provider/Checker), chains, OidcUser
 ├── authentication/
-│   ├── token/                TokenInterface, AbstractToken, NullToken, UsernamePasswordToken
+│   ├── token/                TokenInterface, AbstractToken, NullToken, OfflineToken, UsernamePasswordToken
 │   │   └── storage/          TokenStorage, the current token per unit of work
 │   └── authentication_trust_resolver.py  is a token authenticated, and how fully
-├── authentication_events.py  AUTHENTICATION_SUCCESS, VOTE
 ├── authorization/
 │   ├── access_decision_manager.py  gathers voters and decides with a strategy
 │   ├── authorization_checker.py    is_granted — the one call the application makes

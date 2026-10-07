@@ -6,11 +6,7 @@ from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
 
-from xtr_security_core.exception import (
-    InvalidArgumentError,
-    UnsupportedUserError,
-    UserNotFoundError,
-)
+from xtr_security_core.exception import InvalidArgumentError, UserNotFoundError
 
 from .in_memory_user import InMemoryUser
 from .user_provider_interface import UserProviderInterface
@@ -19,6 +15,11 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
 __all__ = ["InMemoryUserProvider"]
+
+#: The fields a user definition may carry; any other is a typo, and a typo on
+#: a security field (``enabledd`` for ``enabled``) silently left the account as
+#: it defaulted, so an unknown field is refused rather than ignored.
+_FIELDS: frozenset[str] = frozenset({"password", "roles", "enabled"})
 
 
 @final
@@ -61,7 +62,7 @@ class InMemoryUserProvider(UserProviderInterface):
     @override
     def supports_class(self, user_class: type) -> bool:
         """Tell whether ``user_class`` is the in-memory user."""
-        return issubclass(user_class, InMemoryUser)
+        return isinstance(user_class, type) and issubclass(user_class, InMemoryUser)  # pyright: ignore[reportUnnecessaryIsInstance] — runtime guard against a non-type argument
 
     @staticmethod
     def _coerce(identifier: str, definition: InMemoryUser | Mapping[str, object]) -> InMemoryUser:
@@ -73,13 +74,19 @@ class InMemoryUserProvider(UserProviderInterface):
                     f'The user under "{identifier}" has identifier "{found}".',
                 )
             return definition
+        unknown = sorted(set(definition) - _FIELDS)
+        if unknown:
+            named = ", ".join(f'"{key}"' for key in unknown)
+            raise InvalidArgumentError(
+                f'The definition of "{identifier}" has unknown fields: {named}.',
+            )
         password = definition.get("password")
         roles = definition.get("roles", ())
         enabled = definition.get("enabled", True)
         if password is not None and not isinstance(password, str):
-            raise UnsupportedUserError(f'The password of "{identifier}" must be a string.')
+            raise InvalidArgumentError(f'The password of "{identifier}" must be a string.')
         if not isinstance(enabled, bool):
-            raise UnsupportedUserError(f'The enabled flag of "{identifier}" must be a boolean.')
+            raise InvalidArgumentError(f'The enabled flag of "{identifier}" must be a boolean.')
         return InMemoryUser(
             identifier=identifier,
             password=password,
@@ -91,6 +98,6 @@ class InMemoryUserProvider(UserProviderInterface):
 def _as_str_sequence(value: object) -> Sequence[str]:
     """Read ``value`` as a sequence of role strings, or reject it."""
     if isinstance(value, str) or not isinstance(value, (list, tuple)):
-        raise UnsupportedUserError("Roles must be given as a list or tuple of strings.")
+        raise InvalidArgumentError("Roles must be given as a list or tuple of strings.")
     items = cast("Iterable[object]", value)
     return [str(role) for role in items]

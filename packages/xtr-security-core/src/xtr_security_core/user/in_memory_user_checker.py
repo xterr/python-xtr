@@ -8,6 +8,7 @@ from typing_extensions import override
 
 from xtr_security_core.exception import DisabledError
 
+from .enabled_aware_interface import EnabledAwareInterface
 from .user_checker_interface import UserCheckerInterface
 
 if TYPE_CHECKING:
@@ -34,8 +35,7 @@ class InMemoryUserChecker(UserCheckerInterface):
         Raises:
             DisabledError: When the account is disabled.
         """
-        is_enabled = getattr(user, "is_enabled", None)
-        if callable(is_enabled) and not is_enabled():
+        if isinstance(user, EnabledAwareInterface) and not user.is_enabled():
             raise DisabledError(user)
 
     @override

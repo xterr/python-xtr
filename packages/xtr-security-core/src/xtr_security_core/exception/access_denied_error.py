@@ -20,7 +20,9 @@ class AccessDeniedError(SecurityError):
     Distinct from an authentication failure: who is calling was established;
     what they asked to do was not permitted. When the caller turns out not to
     be fully authenticated, an entry point may answer this with a challenge
-    instead of a plain refusal; otherwise it becomes a 403.
+    instead of a plain refusal; otherwise it becomes a 403. When a decision is
+    passed, its :attr:`~xtr_security_core.authorization.access_decision.AccessDecision.message`
+    — the denying voters' reasons — is appended to the error message.
 
     Attributes:
         attributes: The attributes that were checked (one, in this library).
@@ -44,4 +46,6 @@ class AccessDeniedError(SecurityError):
         self.attributes = tuple(attributes)
         self.subject = subject
         self.access_decision = access_decision
+        if access_decision is not None:
+            message = f"{message} {access_decision.message}"
         super().__init__(message)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -30,8 +30,8 @@ class IsGrantedContext:
         user: The token's user, or ``None`` when nobody is authenticated.
     """
 
-    token: TokenInterface
-    user: UserInterface | None
+    token: TokenInterface = field(repr=False)
+    user: UserInterface | None = field(repr=False)
     _manager: AccessDecisionManagerInterface
 
     async def is_granted(self, attribute: object, subject: object = None) -> bool:

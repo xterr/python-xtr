@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import pytest
 
+from xtr_security_core.authentication import AuthenticationTrustResolver
 from xtr_security_core.authentication.token import UsernamePasswordToken
 from xtr_security_core.authentication.token.storage import TokenStorage
 from xtr_security_core.authorization import (
     AccessDecisionManager,
+    AuthenticatedVoter,
     AuthorizationChecker,
     AuthorizationCheckerInterface,
     GuestAuthorizationCheckerInterface,
@@ -45,3 +47,18 @@ async def test_is_granted_for_user_uses_the_user_roles() -> None:
 
     assert await checker.is_granted_for_user(user, "ROLE_ADMIN") is True
     assert await checker.is_granted_for_user(user, "ROLE_OTHER") is False
+
+
+@pytest.mark.anyio
+async def test_is_granted_for_user_is_not_fully_authenticated() -> None:
+    manager = AccessDecisionManager(
+        [AuthenticatedVoter(AuthenticationTrustResolver()), RoleVoter()],
+    )
+    checker = AuthorizationChecker(TokenStorage(), manager)
+    user = InMemoryUser("bob", roles=["ROLE_ADMIN"])
+
+    assert await checker.is_granted_for_user(user, AuthenticatedVoter.IS_AUTHENTICATED) is False
+    assert (
+        await checker.is_granted_for_user(user, AuthenticatedVoter.IS_AUTHENTICATED_FULLY) is False
+    )
+    assert await checker.is_granted_for_user(user, "ROLE_ADMIN") is True

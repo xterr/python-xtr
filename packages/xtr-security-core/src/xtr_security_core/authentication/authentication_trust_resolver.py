@@ -8,6 +8,7 @@ from typing_extensions import override
 
 from .authentication_trust_resolver_interface import AuthenticationTrustResolverInterface
 from .token.null_token import NullToken
+from .token.offline_token import OfflineToken
 
 if TYPE_CHECKING:
     from xtr_security_core.authentication.token.token_interface import TokenInterface
@@ -19,18 +20,23 @@ __all__ = ["AuthenticationTrustResolver"]
 class AuthenticationTrustResolver(AuthenticationTrustResolverInterface):
     """Reads authentication strength from a token.
 
-    A token carries an authenticated user when it is neither absent nor the
+    A token carries an authenticated user when it is neither absent, the
     :class:`~xtr_security_core.authentication.token.null_token.NullToken` that
-    stands for nobody. Without the remembered-me machinery this library does
-    not port, full authentication and authentication are the same question:
-    a real token is both, an anonymous one is neither.
+    stands for nobody, nor the
+    :class:`~xtr_security_core.authentication.token.offline_token.OfflineToken`
+    that decides for a user who is not the current caller. Without the
+    remembered-me machinery this library does not port, full authentication
+    and authentication are the same question: a real token is both, an
+    anonymous or offline one is neither.
     """
 
     @override
     def is_authenticated(self, token: TokenInterface | None) -> bool:
         """Tell whether ``token`` carries an authenticated user at all."""
         return (
-            token is not None and not isinstance(token, NullToken) and token.get_user() is not None
+            token is not None
+            and not isinstance(token, (NullToken, OfflineToken))
+            and token.get_user() is not None
         )
 
     @override

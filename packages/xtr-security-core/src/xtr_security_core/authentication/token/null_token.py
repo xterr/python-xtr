@@ -18,6 +18,8 @@ class NullToken(AbstractToken):
     identifier and no roles, so a voter reading roles simply finds none.
     """
 
+    __slots__: tuple[str, ...] = ()
+
     def __init__(self) -> None:
         """Build the token that stands for nobody."""
         super().__init__(user=None, roles=())

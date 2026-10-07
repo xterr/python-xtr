@@ -7,6 +7,8 @@ surface so an application imports it from one place.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .authentication import (
     AuthenticationTrustResolver,
     AuthenticationTrustResolverInterface,
@@ -14,6 +16,7 @@ from .authentication import (
 from .authentication.token import (
     AbstractToken,
     NullToken,
+    OfflineToken,
     TokenInterface,
     UsernamePasswordToken,
 )
@@ -67,6 +70,7 @@ from .user import (
     AttributesBasedUserProviderInterface,
     ChainUserChecker,
     ChainUserProvider,
+    EnabledAwareInterface,
     EquatableInterface,
     InMemoryUser,
     InMemoryUserChecker,
@@ -110,6 +114,7 @@ __all__ = [
     "CustomUserMessageAccountStatusError",
     "CustomUserMessageAuthenticationError",
     "DisabledError",
+    "EnabledAwareInterface",
     "EquatableInterface",
     "GuestAuthorizationCheckerInterface",
     "InMemoryUser",
@@ -120,6 +125,7 @@ __all__ = [
     "IsGrantedContext",
     "LockedError",
     "NullToken",
+    "OfflineToken",
     "OidcUser",
     "PasswordUpgraderInterface",
     "PriorityStrategy",
@@ -143,4 +149,12 @@ __all__ = [
     "VoteEvent",
     "Voter",
     "VoterInterface",
+    "__version__",
 ]
+
+try:
+    __version__ = version("xtr-security-core")
+except PackageNotFoundError:  # pragma: no cover
+    # Running from a source tree with no installed metadata to read; having no
+    # version is better than refusing to import.
+    __version__ = "0+unknown"

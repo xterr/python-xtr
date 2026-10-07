@@ -20,7 +20,7 @@ class AccountStatusError(AuthenticationError):
     The credentials were correct: the account is disabled, locked, or expired.
     A user checker raises one of the subclasses; whether the client is told the
     real reason or only that its credentials failed is decided by the exposure
-    level (see :func:`~xtr_security_core.authentication.is_sensitive`).
+    level (see :func:`~xtr_security_http.authentication.is_sensitive`).
 
     Attributes:
         user: The user whose account state refused authentication.

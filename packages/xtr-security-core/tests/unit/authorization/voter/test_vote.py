@@ -11,7 +11,6 @@ def test_defaults() -> None:
     assert vote.voter is None
     assert vote.result is Access.ABSTAIN
     assert vote.reasons == []
-    assert vote.extra_data == {}
 
 
 def test_add_reason_accumulates() -> None:

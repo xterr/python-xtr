@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from xtr_security_core.authorization import Access, AccessDecision, Vote
 from xtr_security_core.exception import AccessDeniedError, SecurityError
 
 
@@ -24,3 +25,12 @@ def test_it_records_the_attributes_and_subject() -> None:
 
     assert error.attributes == ("ROLE_ADMIN",)
     assert error.subject is subject
+
+
+def test_its_message_includes_the_decision_message() -> None:
+    vote = Vote(result=Access.DENIED, reasons=["no such role"])
+    decision = AccessDecision(is_granted=False, votes=[vote])
+
+    error = AccessDeniedError("Denied.", access_decision=decision)
+
+    assert "no such role" in str(error)

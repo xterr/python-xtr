@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Final, final
 
@@ -31,8 +32,15 @@ __all__ = ["AccessDecisionManager"]
 #: A cap on how many distinct ``(voter, attribute)`` applicability answers are
 #: remembered. Static route attributes never approach it; a public entry point
 #: that decides on caller-supplied strings could otherwise grow the cache
-#: without bound, so the oldest entries are dropped once it is reached.
+#: without bound, so the least-recently-used entry is dropped once it is reached.
 _MAX_ATTRIBUTE_CACHE: Final = 4096
+
+#: A cap on how many distinct ``(voter, subject type)`` applicability answers
+#: are remembered. Bounded for the same reason as ``_MAX_ATTRIBUTE_CACHE``: a
+#: public entry point deciding on caller-supplied subjects could otherwise grow
+#: this cache without bound, so the least-recently-used entry is dropped once
+#: it is reached.
+_MAX_TYPE_CACHE: Final = 4096
 
 #: The decisions in progress on the current task, innermost last. A voter that
 #: asks a nested question reuses the decision on top, so its votes are gathered
@@ -72,8 +80,8 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
         self._strategy: AccessDecisionStrategyInterface = (
             strategy if strategy is not None else AffirmativeStrategy()
         )
-        self._attribute_cache: dict[tuple[int, str], bool] = {}
-        self._type_cache: dict[tuple[int, str], bool] = {}
+        self._attribute_cache: OrderedDict[tuple[int, str], bool] = OrderedDict()
+        self._type_cache: OrderedDict[tuple[int, str], bool] = OrderedDict()
         for voter in self._voters:
             underlying = _unwrap(voter)
             if isinstance(underlying, ClosureVoter):
@@ -95,10 +103,13 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
             )
         attribute = attribute_list[0]
         stack = _decision_stack.get()
+        owns_record = True
         if access_decision is None:
-            access_decision = (
-                stack[-1] if stack else AccessDecision(strategy=type(self._strategy).__name__)
-            )
+            if stack:
+                access_decision = stack[-1]
+                owns_record = False
+            else:
+                access_decision = AccessDecision(strategy=type(self._strategy).__name__)
         elif access_decision.strategy is None:
             access_decision.strategy = type(self._strategy).__name__
         reset_token = _decision_stack.set((*stack, access_decision))
@@ -108,7 +119,8 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
                 granted = await self._strategy.decide(results, access_decision)
             finally:
                 await results.aclose()
-            access_decision.is_granted = granted
+            if owns_record:
+                access_decision.is_granted = granted
             return granted
         finally:
             _decision_stack.reset(reset_token)
@@ -144,8 +156,10 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
         if supported_attribute is None:
             supported_attribute = voter.supports_attribute(attribute)
             if len(self._attribute_cache) >= _MAX_ATTRIBUTE_CACHE:
-                _ = self._attribute_cache.pop(next(iter(self._attribute_cache)))
+                _ = self._attribute_cache.popitem(last=False)
             self._attribute_cache[attribute_key] = supported_attribute
+        else:
+            self._attribute_cache.move_to_end(attribute_key)
         if not supported_attribute:
             return False
         type_name = _type_name(subject)
@@ -153,7 +167,11 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
         supported_type = self._type_cache.get(type_key)
         if supported_type is None:
             supported_type = voter.supports_type(type_name)
+            if len(self._type_cache) >= _MAX_TYPE_CACHE:
+                _ = self._type_cache.popitem(last=False)
             self._type_cache[type_key] = supported_type
+        else:
+            self._type_cache.move_to_end(type_key)
         return supported_type
 
 

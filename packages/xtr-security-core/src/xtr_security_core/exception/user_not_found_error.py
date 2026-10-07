@@ -16,16 +16,18 @@ class UserNotFoundError(AuthenticationError, LookupError):  # pyright: ignore[re
     """No user matched the identifier presented.
 
     Also a :class:`LookupError`, so a provider's caller may treat a missing
-    user like any other failed lookup. Its public key is
-    ``"Bad credentials."`` rather than anything naming the identifier: telling
-    a client that a user does not exist is a way to enumerate accounts, so the
-    identifier stays on :attr:`user_identifier` for logs alone.
+    user like any other failed lookup. Its public key is the one
+    :class:`~xtr_security_core.exception.bad_credentials_error.BadCredentialsError`
+    carries — ``"Invalid credentials."`` — rather than anything naming the
+    identifier: a distinct key would tell a client that a user does not exist,
+    a way to enumerate accounts, so the identifier stays on
+    :attr:`user_identifier` for logs alone.
 
     Attributes:
         user_identifier: The identifier that matched no user.
     """
 
-    MESSAGE_KEY: ClassVar[str] = "Bad credentials."
+    MESSAGE_KEY: ClassVar[str] = "Invalid credentials."
 
     user_identifier: str | None
 

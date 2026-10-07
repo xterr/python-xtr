@@ -27,6 +27,10 @@ class UsernamePasswordToken(AbstractToken):
         firewall_name: The firewall (or unit of work) that authenticated.
     """
 
+    __slots__: tuple[str, ...] = ("_firewall_name",)
+
+    _firewall_name: str
+
     def __init__(
         self,
         user: UserInterface,

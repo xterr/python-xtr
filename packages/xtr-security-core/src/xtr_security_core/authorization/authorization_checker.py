@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, final
 from typing_extensions import override
 
 from xtr_security_core.authentication.token.null_token import NullToken
-from xtr_security_core.authentication.token.username_password_token import UsernamePasswordToken
+from xtr_security_core.authentication.token.offline_token import OfflineToken
 
 from .authorization_checker_interface import AuthorizationCheckerInterface
 from .guest_authorization_checker_interface import GuestAuthorizationCheckerInterface
@@ -23,9 +23,6 @@ if TYPE_CHECKING:
 
 __all__ = ["AuthorizationChecker"]
 
-#: The firewall name on a token built for a user who is not the current caller.
-_GUEST_FIREWALL: str = "__guest__"
-
 
 @final
 class AuthorizationChecker(AuthorizationCheckerInterface, GuestAuthorizationCheckerInterface):
@@ -34,9 +31,11 @@ class AuthorizationChecker(AuthorizationCheckerInterface, GuestAuthorizationChec
     :meth:`is_granted` reads the token from the storage — the anonymous
     :class:`~xtr_security_core.authentication.token.null_token.NullToken` when none is
     set — so the everyday question needs no token in hand.
-    :meth:`is_granted_for_user` steps outside the current caller: it builds a
-    throwaway token from the user's own roles and decides against that, which is
-    what a consent screen or a worker needs.
+    :meth:`is_granted_for_user` steps outside the current caller: it builds an
+    :class:`~xtr_security_core.authentication.token.offline_token.OfflineToken`
+    from the user's own roles and decides against that, which is what a consent
+    screen or a worker needs. That token's roles decide the same way the live
+    caller's would, but a trust resolver treats it as not authenticated.
     """
 
     __slots__ = ("_access_decision_manager", "_token_storage")
@@ -77,7 +76,7 @@ class AuthorizationChecker(AuthorizationCheckerInterface, GuestAuthorizationChec
         access_decision: AccessDecision | None = None,
     ) -> bool:
         """Tell whether ``user`` may have ``attribute`` over ``subject``."""
-        token = UsernamePasswordToken(user, _GUEST_FIREWALL, list(user.get_roles()))
+        token = OfflineToken(user, list(user.get_roles()))
         return await self._access_decision_manager.decide(
             token,
             [attribute],

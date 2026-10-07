@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, final
+from enum import StrEnum
+from typing import TYPE_CHECKING, ClassVar, assert_never, final
 
 from typing_extensions import override
 
@@ -22,6 +23,14 @@ if TYPE_CHECKING:
 __all__ = ["AuthenticatedVoter"]
 
 
+class _Attribute(StrEnum):
+    """The three attributes this voter answers, as a closed set to match on."""
+
+    PUBLIC_ACCESS = "PUBLIC_ACCESS"
+    IS_AUTHENTICATED = "IS_AUTHENTICATED"
+    IS_AUTHENTICATED_FULLY = "IS_AUTHENTICATED_FULLY"
+
+
 @final
 class AuthenticatedVoter(CacheableVoterInterface):
     """Grants access by the strength of a token's authentication.
@@ -38,9 +47,9 @@ class AuthenticatedVoter(CacheableVoterInterface):
     know how a token was made.
     """
 
-    IS_AUTHENTICATED: ClassVar[str] = "IS_AUTHENTICATED"
-    IS_AUTHENTICATED_FULLY: ClassVar[str] = "IS_AUTHENTICATED_FULLY"
-    PUBLIC_ACCESS: ClassVar[str] = "PUBLIC_ACCESS"
+    IS_AUTHENTICATED: ClassVar[str] = _Attribute.IS_AUTHENTICATED
+    IS_AUTHENTICATED_FULLY: ClassVar[str] = _Attribute.IS_AUTHENTICATED_FULLY
+    PUBLIC_ACCESS: ClassVar[str] = _Attribute.PUBLIC_ACCESS
 
     __slots__ = ("_trust_resolver",)
 
@@ -60,10 +69,11 @@ class AuthenticatedVoter(CacheableVoterInterface):
         del subject
         result = Access.ABSTAIN
         for attribute in attributes:
-            if not self.supports_attribute(attribute if isinstance(attribute, str) else ""):
+            known = _recognise(attribute)
+            if known is None:
                 continue
             result = Access.DENIED
-            if self._grants(attribute, token):
+            if self._grants(known, token):
                 return Access.GRANTED
             if vote is not None:
                 vote.add_reason(f'The token does not satisfy "{attribute}".')
@@ -80,10 +90,26 @@ class AuthenticatedVoter(CacheableVoterInterface):
         del subject_type
         return True
 
-    def _grants(self, attribute: object, token: TokenInterface) -> bool:
+    def _grants(self, attribute: _Attribute, token: TokenInterface) -> bool:
         """Decide the one recognised attribute against the token."""
-        if attribute == self.PUBLIC_ACCESS:
-            return True
-        if attribute == self.IS_AUTHENTICATED:
-            return self._trust_resolver.is_authenticated(token)
-        return self._trust_resolver.is_full_fledged(token)
+        match attribute:
+            case _Attribute.PUBLIC_ACCESS:
+                return True
+            case _Attribute.IS_AUTHENTICATED:
+                return self._trust_resolver.is_authenticated(token)
+            case _Attribute.IS_AUTHENTICATED_FULLY:
+                return self._trust_resolver.is_full_fledged(token)
+            case _:
+                assert_never(attribute)
+
+
+def _recognise(attribute: object) -> _Attribute | None:
+    """Return the attribute as one this voter reads, or ``None`` for any other."""
+    if isinstance(attribute, _Attribute):
+        return attribute
+    if isinstance(attribute, str):
+        try:
+            return _Attribute(attribute)
+        except ValueError:
+            return None
+    return None

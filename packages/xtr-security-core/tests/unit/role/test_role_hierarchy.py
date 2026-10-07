@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from xtr_security_core.exception import InvalidArgumentError
-from xtr_security_core.role import RoleHierarchy, RoleHierarchyInterface
+from xtr_security_core.role import RoleHierarchy, RoleHierarchyInterface, role_hierarchy
 from xtr_security_core.role.role_hierarchy import _MAX_REACHABLE
 
 
@@ -83,14 +83,6 @@ def test_wildcard_to_a_fixed_role() -> None:
     assert set(reachable) == {"ROLE_TENANT_7", "ROLE_MEMBER"}
 
 
-def test_get_parent_role_names_is_one_level() -> None:
-    hierarchy = RoleHierarchy(
-        {"ROLE_SUPER": ["ROLE_ADMIN"], "ROLE_ADMIN": ["ROLE_USER"]},
-    )
-
-    assert hierarchy.get_parent_role_names("ROLE_SUPER") == ["ROLE_ADMIN"]
-
-
 def test_multiple_wildcards_substitute_in_order() -> None:
     hierarchy = RoleHierarchy({"ROLE_*_*_ADMIN": ["ROLE_*_*_USER"]})
 
@@ -99,12 +91,11 @@ def test_multiple_wildcards_substitute_in_order() -> None:
     assert reachable == ["ROLE_EU_42_ADMIN", "ROLE_EU_42_USER"]
 
 
-def test_a_self_feeding_wildcard_stops_at_the_cap() -> None:
+def test_a_self_feeding_wildcard_is_refused_at_the_cap() -> None:
     hierarchy = RoleHierarchy({"ROLE_*": ["ROLE_X_*"]})
 
-    reachable = hierarchy.get_reachable_role_names(["ROLE_A"])
-
-    assert len(reachable) == _MAX_REACHABLE
+    with pytest.raises(InvalidArgumentError, match=str(_MAX_REACHABLE)):
+        _ = hierarchy.get_reachable_role_names(["ROLE_A"])
 
 
 def test_a_value_with_more_wildcards_than_its_key_is_refused() -> None:
@@ -120,3 +111,23 @@ def test_the_expansion_of_a_role_set_is_memoised() -> None:
 
     assert first == second
     assert first is not second
+
+
+def test_the_memo_never_grows_past_its_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    cap = 3
+    monkeypatch.setattr(role_hierarchy, "_MAX_MEMO", cap)
+    hierarchy = RoleHierarchy({"ROLE_ADMIN": ["ROLE_USER"]})
+
+    for index in range(10):
+        _ = hierarchy.get_reachable_role_names([f"ROLE_{index}"])
+        assert len(hierarchy._memo) <= cap
+
+
+def test_a_re_asked_role_set_outlives_a_newer_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(role_hierarchy, "_MAX_MEMO", 2)
+    hierarchy = RoleHierarchy()
+
+    for role in ("ROLE_FIRST", "ROLE_SECOND", "ROLE_FIRST", "ROLE_THIRD"):
+        _ = hierarchy.get_reachable_role_names([role])
+
+    assert list(hierarchy._memo) == [frozenset({"ROLE_FIRST"}), frozenset({"ROLE_THIRD"})]

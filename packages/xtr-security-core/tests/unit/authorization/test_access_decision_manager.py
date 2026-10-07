@@ -16,6 +16,7 @@ from xtr_security_core.authorization import (
     PriorityStrategy,
     RoleVoter,
     UnanimousStrategy,
+    access_decision_manager,
 )
 from xtr_security_core.authorization.access_decision_manager import _type_name
 from xtr_security_core.authorization.voter import Access
@@ -140,6 +141,26 @@ async def test_a_nested_decision_reuses_the_outer_record() -> None:
 
 
 @pytest.mark.anyio
+async def test_a_nested_decision_does_not_overwrite_the_outer_outcome() -> None:
+    closure_voter = ClosureVoter()
+    manager = AccessDecisionManager([RoleVoter(), closure_voter])
+    decision = AccessDecision()
+    observed: list[tuple[bool, bool]] = []
+
+    async def closure(context: IsGrantedContext, subject: object) -> bool:
+        del subject
+        nested = await context.is_granted("ROLE_USER")
+        observed.append((nested, decision.is_granted))
+        return False
+
+    granted = await manager.decide(_token("ROLE_USER"), [closure], access_decision=decision)
+
+    assert observed == [(True, False)]
+    assert granted is False
+    assert decision.is_granted is False
+
+
+@pytest.mark.anyio
 async def test_a_deciding_first_voter_stops_the_rest_under_priority() -> None:
     first = ConstantVoter(Access.GRANTED)
     second = ConstantVoter(Access.DENIED)
@@ -172,6 +193,49 @@ async def test_two_same_named_classes_from_different_modules_are_cached_apart() 
     _ = await manager.decide(token, ["ROLE_USER"], subject=_class_in_module("mod_b")())
 
     assert voter.supports_type_calls == 2
+
+
+@pytest.mark.anyio
+async def test_the_type_cache_never_grows_past_its_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    cap = 3
+    monkeypatch.setattr(access_decision_manager, "_MAX_TYPE_CACHE", cap)
+    voter = CountingRoleVoter()
+    manager = AccessDecisionManager([voter])
+    token = _token("ROLE_USER")
+
+    for index in range(10):
+        subject = _class_in_module(f"mod_{index}")()
+        _ = await manager.decide(token, ["ROLE_USER"], subject=subject)
+        assert len(manager._type_cache) <= cap
+
+    assert voter.supports_type_calls == 10
+
+
+@pytest.mark.anyio
+async def test_a_re_asked_subject_type_outlives_a_newer_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(access_decision_manager, "_MAX_TYPE_CACHE", 2)
+    manager = AccessDecisionManager([CountingRoleVoter()])
+    token = _token("ROLE_USER")
+    subjects = {name: _class_in_module(name)() for name in ("mod_first", "mod_second", "mod_third")}
+
+    for name in ("mod_first", "mod_second", "mod_first", "mod_third"):
+        _ = await manager.decide(token, ["ROLE_USER"], subject=subjects[name])
+
+    assert list(manager._type_cache) == [(0, "mod_first.Probe"), (0, "mod_third.Probe")]
+
+
+@pytest.mark.anyio
+async def test_a_re_asked_attribute_outlives_a_newer_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(access_decision_manager, "_MAX_ATTRIBUTE_CACHE", 2)
+    manager = AccessDecisionManager([CountingRoleVoter()])
+    token = _token("ROLE_USER")
+
+    for attribute in ("ROLE_FIRST", "ROLE_SECOND", "ROLE_FIRST", "ROLE_THIRD"):
+        _ = await manager.decide(token, [attribute])
+
+    assert list(manager._attribute_cache) == [(0, "ROLE_FIRST"), (0, "ROLE_THIRD")]
 
 
 def test_type_name_reads_each_branch() -> None:

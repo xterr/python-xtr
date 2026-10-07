@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
@@ -88,10 +89,8 @@ class ChainUserProvider(AttributesBasedUserProviderInterface, PasswordUpgraderIn
             if provider.supports_class(user_class) and isinstance(
                 provider, PasswordUpgraderInterface
             ):
-                try:
+                with contextlib.suppress(UnsupportedUserError):
                     await provider.upgrade_password(user, new_hashed_password)
-                except UnsupportedUserError:
-                    continue
 
     def get_providers(self) -> Sequence[UserProviderInterface]:
         """Return the chained providers, in order."""

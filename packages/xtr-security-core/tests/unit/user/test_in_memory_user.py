@@ -46,6 +46,13 @@ def test_str_is_the_identifier() -> None:
     assert str(InMemoryUser("alice")) == "alice"
 
 
+def test_repr_hides_the_password() -> None:
+    user = InMemoryUser("alice", password="secret-hash", roles=["ROLE_USER"])  # noqa: S106 — a dummy hash fixture, not a secret
+
+    assert "secret-hash" not in repr(user)
+    assert "password" not in repr(user)
+
+
 def test_is_equal_to_the_same_fields() -> None:
     one = InMemoryUser("alice", password="h", roles=["ROLE_USER", "ROLE_ADMIN"], enabled=True)  # noqa: S106 — a dummy hash fixture, not a secret
     other = InMemoryUser("alice", password="h", roles=["ROLE_ADMIN", "ROLE_USER"], enabled=True)  # noqa: S106 — a dummy hash fixture, not a secret

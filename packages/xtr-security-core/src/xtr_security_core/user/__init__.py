@@ -15,6 +15,7 @@ from xtr_password_hasher import (
 from .attributes_based_user_provider_interface import AttributesBasedUserProviderInterface
 from .chain_user_checker import ChainUserChecker
 from .chain_user_provider import ChainUserProvider
+from .enabled_aware_interface import EnabledAwareInterface
 from .equatable_interface import EquatableInterface
 from .in_memory_user import InMemoryUser
 from .in_memory_user_checker import InMemoryUserChecker
@@ -29,6 +30,7 @@ __all__ = [
     "AttributesBasedUserProviderInterface",
     "ChainUserChecker",
     "ChainUserProvider",
+    "EnabledAwareInterface",
     "EquatableInterface",
     "InMemoryUser",
     "InMemoryUserChecker",
