@@ -8,14 +8,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import final
 
-from .exception import ProjectNotFoundError
+from .exception import ProjectNotFoundError, UnreadableFileError
+from .normalise import normalise
 
 __all__ = ["Project"]
 
 _PYPROJECT = "pyproject.toml"
 _APP_SETTING = "[tool.xtr-recipes] app"
 _NAME_SETTING = "[project].name"
-# PEP 503 normalisation: a run of dashes, underscores or dots is one separator.
+# An import name: a run of dashes, underscores or dots becomes one underscore.
 _SEPARATORS = re.compile(r"[-_.]+")
 # A requirement's name ends at the first extra, marker, URL, space or operator.
 _NAME_END = re.compile(r"[\s;<>=!~@(\[]")
@@ -116,8 +117,11 @@ class Project:
 
 def _read(path: Path) -> dict[str, object]:
     """Read a ``pyproject.toml`` into a mapping of untyped values."""
-    with path.open("rb") as handle:
-        data: dict[str, object] = tomllib.load(handle)
+    try:
+        with path.open("rb") as handle:
+            data: dict[str, object] = tomllib.load(handle)
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        raise UnreadableFileError(path, f"not valid TOML: {error}") from error
     return data
 
 
@@ -176,7 +180,7 @@ def _requirement_name(requirement: str) -> str:
     stripped = requirement.strip()
     match = _NAME_END.search(stripped)
     name = stripped[: match.start()] if match is not None else stripped
-    return _SEPARATORS.sub("-", name.strip()).lower()
+    return normalise(name)
 
 
 def _script(data: dict[str, object]) -> str | None:

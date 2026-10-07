@@ -14,12 +14,12 @@ commands — without a command module importing the package back.
 
 from __future__ import annotations
 
-import re
 import subprocess
 from typing import TYPE_CHECKING
 
 from xtr_console import ExitCode, escape
 
+from .normalise import normalise
 from .project import Project
 from .synchronizer import Synchronizer
 
@@ -45,9 +45,6 @@ __all__ = [
 
 _NOTHING = "nothing to do"
 _SYNC = ("uv", "run", "xtr-recipes", "recipes:sync", "--project-dir")
-# PEP 503 normalisation, so a package named on a command line matches the
-# dependency list however it was spelled.
-_SEPARATORS = re.compile(r"[-_.]+")
 
 
 def load_project(project_dir: Path | None) -> Project:
@@ -130,8 +127,3 @@ def failed(io: ConsoleStyle, error: RecipesError) -> int:
     """
     io.error(escape(str(error)))
     return ExitCode.FAILURE
-
-
-def normalise(package: str) -> str:
-    """Return a distribution name as a dependency list spells it."""
-    return _SEPARATORS.sub("-", package.strip()).lower()

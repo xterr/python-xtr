@@ -12,7 +12,9 @@ from xtr_recipes.exception import RecipesError
 
 __all__ = ["RemoveCommand"]
 
-_UV_REMOVE = ("uv", "remove")
+# ``--`` ends uv's own options, so a package name that begins with a dash is
+# passed through as a package, not parsed as a flag of ``uv remove``.
+_UV_REMOVE = ("uv", "remove", "--")
 
 
 @as_command("recipes:remove")

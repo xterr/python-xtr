@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, final
 
 from .exception import InvalidManifestError
 from .notes_config import NotesConfig
+from .safe_path import has_traversal
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -69,7 +70,7 @@ class RecipeConfig:
             raise InvalidManifestError(package, unknown[0], "unknown table")
         return cls(
             bundles=_read_bundles(package, data.get("bundles")),
-            files=_read_strings(package, "files", data.get("files")),
+            files=_read_files(package, data.get("files")),
             env=_read_strings(package, "env", data.get("env")),
             gitignore=_read_gitignore(package, data.get("gitignore")),
             notes=_read_notes(package, data.get("notes")),
@@ -117,6 +118,26 @@ def _read_strings(package: str, key: str, value: object) -> dict[str, str]:
         if not isinstance(item, str):
             raise InvalidManifestError(package, f"{key}.{name}", "must be a string")
         result[name] = item
+    return result
+
+
+def _read_files(package: str, value: object) -> dict[str, str]:
+    """Parse the ``[files]`` table: each destination mapped to its template.
+
+    A destination is written relative to the application package, so an
+    absolute one or one climbing out with ``..`` would let a recipe write
+    anywhere on disk; it is refused here, at the trust boundary, rather than
+    caught when the planner joins it to a directory.
+    """
+    result: dict[str, str] = {}
+    for destination, template in _as_table(package, "files", value).items():
+        if not isinstance(template, str):
+            raise InvalidManifestError(package, f"files.{destination}", "must be a string")
+        if has_traversal(destination):
+            raise InvalidManifestError(
+                package, destination, "destination must be a relative path inside the package"
+            )
+        result[destination] = template
     return result
 
 

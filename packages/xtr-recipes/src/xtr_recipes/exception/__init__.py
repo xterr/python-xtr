@@ -14,6 +14,8 @@ from .marked_block_error import MarkedBlockError
 from .project_not_found_error import ProjectNotFoundError
 from .recipe_not_installed_error import RecipeNotInstalledError
 from .recipes_error import RecipesError
+from .unreadable_file_error import UnreadableFileError
+from .unsafe_path_error import UnsafePathError
 
 __all__ = [
     "BundlesNotEditableError",
@@ -22,4 +24,6 @@ __all__ = [
     "ProjectNotFoundError",
     "RecipeNotInstalledError",
     "RecipesError",
+    "UnreadableFileError",
+    "UnsafePathError",
 ]

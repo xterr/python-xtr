@@ -6,11 +6,15 @@ import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, TypeAlias, final
 
+from .exception import UnreadableFileError
+from .file_write import write_text
+from .safe_path import within
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
 
-__all__ = ["BundleState", "LockEntry", "LockedFile", "RecipeLock"]
+__all__ = ["LOCK_NAME", "BundleState", "LockEntry", "LockedFile", "RecipeLock"]
 
 BundleState: TypeAlias = Literal["listed", "adopted", "required"]
 """How a recipe's bundle came to be in ``BUNDLES``.
@@ -19,7 +23,8 @@ BundleState: TypeAlias = Literal["listed", "adopted", "required"]
 ``required`` when another listed bundle requires it, so the sync leaves it out.
 """
 
-_LOCK_NAME = "xtr.lock"
+LOCK_NAME = "xtr.lock"
+"""The lock's file name, relative to the project directory."""
 
 
 @final
@@ -73,20 +78,23 @@ class RecipeLock:
     @classmethod
     def load(cls, project_dir: Path) -> RecipeLock:
         """Read ``xtr.lock`` from ``project_dir``; a missing file is an empty lock."""
-        path = project_dir / _LOCK_NAME
+        path = project_dir / LOCK_NAME
         if not path.is_file():
             return cls({})
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise UnreadableFileError(path, f"not valid JSON: {error}") from error
         if not isinstance(raw, dict):
             return cls({})
         entries: dict[str, LockEntry] = {}
         for name, value in raw.items():
-            entries[str(name)] = _entry(value)
+            entries[str(name)] = _entry(project_dir, value)
         return cls(entries)
 
     def write(self, project_dir: Path) -> None:
         """Write ``xtr.lock`` into ``project_dir``: sorted keys, 2-space, newline-ended."""
-        _ = (project_dir / _LOCK_NAME).write_text(self.dumps(), encoding="utf-8")
+        write_text(project_dir / LOCK_NAME, self.dumps())
 
     def dumps(self) -> str:
         """Return the exact text :meth:`write` would write: sorted, 2-space, newline-ended.
@@ -114,13 +122,13 @@ class RecipeLock:
         }
 
 
-def _entry(value: object) -> LockEntry:
+def _entry(project_dir: Path, value: object) -> LockEntry:
     """Build one lock entry from its JSON object, tolerating a foreign shape."""
     table = value if isinstance(value, dict) else {}
     return LockEntry(
         recipe=_as_str(table.get("recipe")),
         bundles=_as_bundles(table.get("bundles")),
-        files=_as_files(table.get("files")),
+        files=_as_files(project_dir, table.get("files")),
         env=_as_str_tuple(table.get("env")),
         gitignore=_as_str_tuple(table.get("gitignore")),
     )
@@ -150,13 +158,24 @@ def _as_state(value: object) -> BundleState | None:
             return None
 
 
-def _as_files(value: object) -> dict[str, LockedFile]:
-    """Read a files table into typed entries, skipping malformed ones."""
+def _as_files(project_dir: Path, value: object) -> dict[str, LockedFile]:
+    """Read a files table into typed entries, skipping malformed ones.
+
+    Every path is validated to be relative and inside ``project_dir``: the
+    lock is the sole authority on what to undo once a package is gone, so a
+    tampered entry naming ``../x`` or an absolute path would otherwise let a
+    removal delete anywhere on disk.
+
+    Raises:
+        UnsafePathError: When a recorded path resolves outside the project.
+    """
     result: dict[str, LockedFile] = {}
     if isinstance(value, dict):
         for path, locked in value.items():
             if isinstance(locked, dict):
-                result[str(path)] = LockedFile(
+                key = str(path)
+                _ = within(project_dir, key)
+                result[key] = LockedFile(
                     sha256=_as_str(locked.get("sha256")),
                     adopted=locked.get("adopted") is True,
                 )

@@ -9,6 +9,7 @@ from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 from tests.support import FakeRecipeSource, build_project, recipe_content
 from xtr_recipes.bundle_requirements import BundleRequirements
 from xtr_recipes.exception import BundlesNotEditableError, RecipeNotInstalledError
+from xtr_recipes.file_write import write_text
 from xtr_recipes.project import Project
 from xtr_recipes.recipe_lock import LockedFile, LockEntry, RecipeLock
 from xtr_recipes.sync_options import SyncOptions
@@ -96,8 +97,8 @@ _OWN_BUNDLES = (
     '__all__ = ["BUNDLES"]\n'
     "\n"
     "BUNDLES = {\n"
-    '    ClockBundle: {"all": True},\n'
     '    OwnBundle: {"all": True},\n'
+    '    ClockBundle: {"all": True},\n'
     "}\n"
 )
 
@@ -441,12 +442,13 @@ def test_removing_the_dependency_undoes_the_recipe(tmp_path: Path) -> None:
         "  clear .env",
         "  clear .gitignore",
         "  bundle MessengerBundle removed",
-        f"write {_BUNDLES}",
-        "write xtr.lock",
+        f"delete {_BUNDLES}",
+        "delete xtr.lock",
     )
     assert not (tmp_path / _CONFIG).exists()
     assert not _read(tmp_path, ".env")
     assert _lock(tmp_path).entries == {}
+    assert not (tmp_path / _BUNDLES).exists()
 
 
 def test_unconfiguring_removes_the_bundle_from_the_list(tmp_path: Path) -> None:
@@ -455,7 +457,7 @@ def test_unconfiguring_removes_the_bundle_from_the_list(tmp_path: Path) -> None:
 
     undoing.apply(undoing.plan())
 
-    assert "MessengerBundle" not in _read(tmp_path, _BUNDLES)
+    assert not (tmp_path / _BUNDLES).exists()
 
 
 def test_unconfiguring_leaves_the_config_package_alone(tmp_path: Path) -> None:
@@ -639,9 +641,11 @@ def test_it_syncs_an_application_laid_out_at_the_project_root(tmp_path: Path) ->
 
 
 def test_a_bundle_of_the_applications_own_packages_is_imported_last(tmp_path: Path) -> None:
-    project = build_project(tmp_path, dependencies=[_MESSENGER, _CLOCK])
-    (tmp_path / "src" / "shared").mkdir()
-    manifests = {_MESSENGER: _OWN_MANIFEST, _CLOCK: _CLOCK_MANIFEST}
+    project = build_project(tmp_path, dependencies=["shared", _CLOCK])
+    shared = tmp_path / "src" / "shared"
+    shared.mkdir()
+    _ = (shared / "__init__.py").write_text('"""Shared."""\n', encoding="utf-8")
+    manifests = {"shared": _OWN_MANIFEST, _CLOCK: _CLOCK_MANIFEST}
     synchronizer = _synchronizer(project, manifests)
 
     synchronizer.apply(synchronizer.plan())
@@ -712,3 +716,26 @@ def test_a_bundle_is_not_listed_while_its_requirer_does_not_load(tmp_path: Path)
 
     assert not plan.has_changes
     assert _snapshot(tmp_path) == before
+
+
+def test_a_run_that_stops_part_way_locks_only_the_package_it_finished(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = build_project(tmp_path, dependencies=[_CLOCK, _MESSENGER])
+    manifests = {_CLOCK: _CLOCK_MANIFEST, _MESSENGER: _MESSENGER_MANIFEST}
+    synchronizer = _synchronizer(project, manifests)
+
+    def refuse(path: Path, text: str, *, private: bool = False) -> None:
+        if path.name == "messenger.py":
+            raise OSError("no room left")
+        write_text(path, text, private=private)
+
+    monkeypatch.setattr("xtr_recipes.operation.write_file.write_text", refuse)
+
+    with pytest.raises(OSError, match="no room left"):
+        synchronizer.apply(synchronizer.plan())
+
+    assert set(_lock(tmp_path).entries) == {_CLOCK}
+    monkeypatch.undo()
+    assert f"configure {_MESSENGER}" in _synchronizer(project, manifests).plan().render()

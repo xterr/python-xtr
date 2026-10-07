@@ -28,10 +28,10 @@ def test_a_locked_package_no_longer_installed_is_unconfigured() -> None:
     assert SyncSelection.diff({}, lock).unconfigure == ("xtr-messenger",)
 
 
-def test_locked_packages_are_unconfigured_in_reverse_lock_order() -> None:
+def test_locked_packages_are_unconfigured_in_lock_order() -> None:
     lock = RecipeLock({"a-pkg": LockEntry(), "b-pkg": LockEntry(), "c-pkg": LockEntry()})
 
-    assert SyncSelection.diff({}, lock).unconfigure == ("c-pkg", "b-pkg", "a-pkg")
+    assert SyncSelection.diff({}, lock).unconfigure == ("a-pkg", "b-pkg", "c-pkg")
 
 
 def test_a_package_whose_recipe_moved_on_is_updated() -> None:

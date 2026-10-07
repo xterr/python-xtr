@@ -212,3 +212,19 @@ async def test_show_reports_a_package_with_no_recipe(
 
     assert code == ExitCode.FAILURE
     assert "xtr-nothing has no recipe to apply" in tester.display
+
+
+async def test_show_reads_a_removed_package_from_the_lock(
+    tester: ApplicationTester,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_recipes(monkeypatch, {MESSENGER: _FULL_MANIFEST}, {TARGET: MessengerBundle})
+    _ = await tester.execute(["recipes:sync", "--project-dir", str(project_dir)])
+    install_recipes(monkeypatch, {})
+
+    code = await tester.execute(_argv(project_dir, MESSENGER))
+
+    assert code == ExitCode.SUCCESS
+    assert f"{TARGET} (listed)" in tester.display
+    assert "- MESSENGER_DSN" in tester.display

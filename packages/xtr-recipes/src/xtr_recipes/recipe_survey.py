@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, final
 
+from .recipe_lock import RecipeLock
 from .sync_selection import SyncSelection
 
 if TYPE_CHECKING:
@@ -44,8 +45,11 @@ class RecipeSurvey:
         selection: Where each of them stands — never configured, configured
             and current, configured and since changed, or locked and no
             longer installed.
+        lock: The lock as the last sync left it, so a package the lock still
+            records but the project no longer installs can be read from it.
     """
 
     installed: Mapping[str, Recipe] = field(default_factory=_no_recipes)
     skipped: Mapping[str, tuple[str, ...]] = field(default_factory=_no_targets)
     selection: SyncSelection = field(default_factory=SyncSelection)
+    lock: RecipeLock = field(default_factory=RecipeLock)

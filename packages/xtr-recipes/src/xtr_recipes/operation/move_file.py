@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, final
 
+from xtr_recipes.file_write import refuse_symlink
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -42,5 +44,6 @@ class MoveFile:
         return (f"  moved {self.display} to {self.target_display} ({self.reason})",)
 
     def apply(self) -> None:
-        """Rename the file."""
+        """Rename the file, refusing a destination that is a symbolic link."""
+        refuse_symlink(self.target)
         _ = self.path.rename(self.target)

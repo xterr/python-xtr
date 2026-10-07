@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
-import re
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, final
 
 from .exception import InvalidManifestError
+from .normalise import normalise
 from .recipe_content import RecipeContent
 
 if TYPE_CHECKING:
@@ -26,11 +26,12 @@ stop every other recipe from being read.
 """
 
 _MANIFEST = "manifest.toml"
-# Bytecode written beside an installed recipe carries the interpreter version
-# and the source's timestamp: hashing it would move a hash between installs.
-_BYTECODE = "__pycache__"
-# PEP 503 normalisation: a run of dashes, underscores or dots is one separator.
-_SEPARATORS = re.compile(r"[-_.]+")
+# The one subtree a recipe's templates live in. Everything else in the package
+# — its ``__init__.py``, bytecode written beside it, a stray editor file — is
+# neither a template nor part of what the recipe applies, so it is read by
+# nothing and left out of the hash: hashing it would move a hash between
+# installs and churn the lock on nothing.
+_FILES = "files"
 
 
 @final
@@ -44,7 +45,7 @@ class EntryPointRecipeSource:
             distribution = entry.dist
             if distribution is None:
                 continue
-            name = _normalise(distribution.name)
+            name = normalise(distribution.name)
             result[name] = read_recipe_content(_locate(name, entry.module))
         return result
 
@@ -65,33 +66,28 @@ def _locate(distribution: str, module: str) -> Path:
 
 
 def read_recipe_content(root: Traversable) -> RecipeContent:
-    """Read a recipe package's manifest and templates from its root.
+    """Read a recipe package's manifest and the templates under ``files/``.
 
     Args:
         root: The recipe package, as a traversable tree.
 
     Returns:
-        The manifest bytes and every other file keyed by its path under
-        ``root``.
+        The manifest bytes and every file under ``files/``, keyed by its path
+        under ``root`` (``files/...``). Nothing else in the package is read.
     """
     manifest = (root / _MANIFEST).read_bytes()
-    return RecipeContent(manifest=manifest, templates=_read_templates(root, ""))
+    files = root / _FILES
+    templates = _read_templates(files, f"{_FILES}/") if files.is_dir() else {}
+    return RecipeContent(manifest=manifest, templates=templates)
 
 
 def _read_templates(node: Traversable, prefix: str) -> dict[str, bytes]:
-    """Return every file under ``node`` except the manifest and bytecode, by path."""
+    """Return every file under ``node``, keyed by its path with ``prefix``."""
     templates: dict[str, bytes] = {}
     for child in node.iterdir():
         path = f"{prefix}{child.name}"
-        if child.name == _BYTECODE:
-            continue
         if child.is_dir():
             templates.update(_read_templates(child, f"{path}/"))
-        elif child.name != _MANIFEST:
+        else:
             templates[path] = child.read_bytes()
     return templates
-
-
-def _normalise(name: str) -> str:
-    """Return the PEP 503-normalised form of a distribution name."""
-    return _SEPARATORS.sub("-", name).lower()

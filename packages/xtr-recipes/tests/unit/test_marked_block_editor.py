@@ -201,3 +201,21 @@ def test_it_writes_a_file_it_has_to_make_room_for(
     editor.write(path, _BLOCK)
 
     assert editor.read(path) == _BLOCK
+
+
+def test_it_creates_an_env_file_owner_only(editor: MarkedBlockEditor, tmp_path: Path) -> None:
+    path = tmp_path / ".env"
+
+    editor.write(path, _BLOCK)
+
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_it_does_not_force_a_gitignore_to_owner_only(
+    editor: MarkedBlockEditor, tmp_path: Path
+) -> None:
+    path = tmp_path / ".gitignore"
+
+    editor.write(path, "/var/messenger\n")
+
+    assert path.stat().st_mode & 0o200

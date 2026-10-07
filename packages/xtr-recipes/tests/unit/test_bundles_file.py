@@ -69,13 +69,16 @@ def test_it_reads_every_entry_an_application_lists() -> None:
         "xtr_rate_limiter.bundle:RateLimiterBundle",
         "xtr_security_jwt.bundle:JwtBundle",
         "bookshop.dev_tools:DevToolsBundle",
+        "xtr_storage.bundle:StorageBundle",
     ]
 
 
 def test_it_reads_the_flags_of_an_entry_active_in_two_environments() -> None:
     bundles = BundlesFile.read(_ITS_BUNDLES)
 
-    assert bundles.entries[-1].flags == {"dev": True, "test": True}
+    listed = {entry.target: entry.flags for entry in bundles.entries}
+
+    assert listed["bookshop.dev_tools:DevToolsBundle"] == {"dev": True, "test": True}
 
 
 def test_it_keeps_the_docstring_a_file_already_has() -> None:
@@ -210,14 +213,6 @@ def test_removing_drops_only_the_targets_named() -> None:
     assert bundles.removing(["a.b:First"]).entries == (BundleEntry("c.d:Second", {}),)
 
 
-def test_with_entries_replaces_the_whole_list() -> None:
-    bundles = BundlesFile(entries=(BundleEntry("a.b:First", {}),))
-
-    assert bundles.with_entries([BundleEntry("c.d:Second", {})]).entries == (
-        BundleEntry("c.d:Second", {}),
-    )
-
-
 def test_render_imports_the_applications_own_modules_in_the_second_block() -> None:
     bundles = BundlesFile(
         entries=(
@@ -283,38 +278,6 @@ def test_a_class_name_coming_from_two_modules_is_refused() -> None:
     assert refusal.value.entries == ("a.b:Bundle", "c.d:Bundle")
 
 
-def test_write_creates_a_file_that_is_not_there_yet(tmp_path: Path) -> None:
-    path = tmp_path / "src" / "app" / "bundles.py"
-
-    changed = BundlesFile().write(path, first_party=())
-
-    assert changed
-    assert BundlesFile.read(path).entries == ()
-
-
-def test_write_leaves_a_file_that_already_says_this_untouched(tmp_path: Path) -> None:
-    path = tmp_path / "bundles.py"
-    bundles = BundlesFile(entries=(BundleEntry("a.b:C", {"all": True}),))
-    _ = bundles.write(path, first_party=())
-    written_at = path.stat().st_mtime_ns
-
-    changed = bundles.write(path, first_party=())
-
-    assert not changed
-    assert path.stat().st_mtime_ns == written_at
-
-
-def test_write_rewrites_a_file_whose_entries_changed(tmp_path: Path) -> None:
-    path = tmp_path / "bundles.py"
-    bundles = BundlesFile(entries=(BundleEntry("a.b:C", {"all": True}),))
-    _ = bundles.write(path, first_party=())
-
-    changed = bundles.adding([BundleEntry("d.e:F", {"all": True})]).write(path, first_party=())
-
-    assert changed
-    assert len(BundlesFile.read(path).entries) == 2
-
-
 def test_what_it_renders_passes_the_applications_own_check(tmp_path: Path) -> None:
     rendered = BundlesFile.read(_ITS_BUNDLES).render(_ITS_PACKAGES)
 
@@ -335,6 +298,16 @@ def test_it_refuses_a_file_holding_code_it_would_not_write_back(tmp_path: Path) 
     path = _write(
         tmp_path,
         'from a.bundle import ABundle\n\nDEBUG = True\n\nBUNDLES = {ABundle: {"all": True}}\n',
+    )
+
+    with pytest.raises(BundlesNotEditableError):
+        _ = BundlesFile.read(path)
+
+
+def test_it_refuses_a_plain_import_statement(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        'import a.bundle\n\nfrom a.bundle import ABundle\n\nBUNDLES = {ABundle: {"all": True}}\n',
     )
 
     with pytest.raises(BundlesNotEditableError):

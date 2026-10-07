@@ -36,6 +36,8 @@ _EXPECTED = {
     "SyncOptions",
     "SyncSelection",
     "Synchronizer",
+    "UnreadableFileError",
+    "UnsafePathError",
     "__version__",
 }
 

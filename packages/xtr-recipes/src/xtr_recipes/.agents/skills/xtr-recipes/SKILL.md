@@ -21,8 +21,10 @@ It is a developer and CI tool, so install it as a dev dependency.
 - Read one recipe in full: `uv run xtr-recipes recipes:show xtr-messenger`.
 - Restore a config file you deleted: `uv run xtr-recipes recipes:install xtr-messenger`.
 - Guard it in CI: `uv run xtr-recipes recipes:sync --check` (exit 1 when anything drifted).
-- A recipe only writes bundles, files, env and ignore lines, and prints notes. It never runs code
-  and never edits your application code; the notes tell you the steps it cannot take.
+- A recipe only writes bundles, files, env and ignore lines, and prints notes. It runs no recipe
+  step and no template; the only code it imports is the bundle class a recipe lists, and only from
+  a module under that package's own import package, to read its requirements. It never edits your
+  application code; the notes tell you the steps it cannot take.
 
 ## Add, sync and remove a package
 
@@ -126,7 +128,15 @@ Every error derives from `RecipesError` and names the package and the key or fil
   `"<module>:<Class>"` target, a value of the wrong type, or a template with an unknown placeholder.
 - `BundlesNotEditableError` — `bundles.py` was not written in the form the tool can read back; it
   prints the entries to add by hand.
-- `RecipeNotInstalledError` — `recipes:show <package>` named a package with no installed recipe.
+- `RecipeNotInstalledError` — the named package is not one a command can work on. `recipes:install`
+  raises it for a package that is not a direct dependency or ships no recipe; `recipes:show` only
+  when the lock has no entry for it either, because a locked package is read from the lock.
+- `UnsafePathError` — a path in `xtr.lock` is absolute, climbs out with `..` or is spelled with
+  backslashes, or a file a recipe is about to write is a symbolic link; it is refused before
+  anything is written or deleted. A `[files]` destination shaped the same way is an
+  `InvalidManifestError` instead, because the manifest is where it was declared.
+- `UnreadableFileError` — `pyproject.toml` is not valid TOML, or `xtr.lock` is not valid JSON;
+  it names the file and what was wrong with it.
 
 ## Do not
 

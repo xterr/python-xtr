@@ -32,6 +32,8 @@ from .exception import (
     ProjectNotFoundError,
     RecipeNotInstalledError,
     RecipesError,
+    UnreadableFileError,
+    UnsafePathError,
 )
 from .marked_block_editor import MarkedBlockEditor
 from .notes_config import NotesConfig
@@ -91,5 +93,7 @@ __all__ = [
     "SyncOptions",
     "SyncSelection",
     "Synchronizer",
+    "UnreadableFileError",
+    "UnsafePathError",
     "__version__",
 ]

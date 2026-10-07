@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, cast, final
 from xtr_dependency_injection.bundle import Bundle
 from xtr_dependency_injection.bundle.required_bundle import required_bundles_of
 
+from .normalise import normalise
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection
 
@@ -41,19 +43,23 @@ class BundleRequirements:
             loader if loader is not None else _import_bundle
         )
 
-    def loadable(self, target: str) -> bool:
-        """Whether ``target`` names a bundle class that can be loaded.
+    def loadable(self, target: str, distribution: str) -> bool:
+        """Whether ``target`` names a loadable bundle of ``distribution``'s own package.
 
-        A package installed without the extra that brings its container
-        integration has no bundle class to name; writing the import anyway would
-        break the application, so a sync skips the recipe and retries next time.
+        Resolving a target imports its module, so a recipe may only name a
+        bundle under its own distribution's import package: a manifest naming
+        ``os:system`` or another package's module would otherwise make a sync
+        import whatever it points at. A target outside the package, or one the
+        installation cannot load — a package installed without the extra that
+        brings its container integration — is reported as not loadable, so a
+        sync skips the recipe and retries next time.
         """
-        return self._loader(target) is not None
+        return _under(target, distribution) and self._loader(target) is not None
 
     def required(
         self,
         targets: Collection[str],
-        requirers: Collection[str] | None = None,
+        requirers: Collection[str],
     ) -> frozenset[str]:
         """Return the members of ``targets`` that another member requires.
 
@@ -65,9 +71,9 @@ class BundleRequirements:
 
         Args:
             targets: The bundle targets, ``"module:Class"``, of the final set.
-            requirers: The members whose requirements count, every member when
-                ``None``. A bundle active in some environments only activates
-                its peers there only, so it cannot stand in for listing them.
+            requirers: The members whose requirements count. A bundle active in
+                some environments only activates its peers there only, so it
+                cannot stand in for listing them.
 
         Returns:
             Those of them something else in the set reaches; listing them would
@@ -79,7 +85,7 @@ class BundleRequirements:
             if loaded is not None:
                 _ = owners.setdefault(loaded, target)
         found: set[str] = set()
-        roots = members if requirers is None else set(requirers)
+        roots = set(requirers)
         pending = [
             loaded for target, loaded in members.items() if loaded is not None and target in roots
         ]
@@ -106,6 +112,24 @@ class BundleRequirements:
 def _name_of(bundle: type[AnyBundle]) -> str:
     """Return the ``"module:Class"`` target naming ``bundle``."""
     return f"{bundle.__module__}:{bundle.__qualname__}"
+
+
+def _under(target: str, distribution: str) -> bool:
+    """Whether ``target``'s module belongs to ``distribution``'s import package.
+
+    A distribution name is compared however it was spelled, and its import
+    package is that name with every separator turned to an underscore —
+    ``xtr-messenger`` ships ``xtr_messenger``. A dotted name is its own
+    spelling of a namespace package, so ``zope-interface`` is also read as
+    ``zope.interface``; a target names one of those two packages or a module
+    inside it.
+    """
+    module = target.partition(":")[0]
+    name = normalise(distribution)
+    return any(
+        module == package or module.startswith(f"{package}.")
+        for package in (name.replace("-", "_"), name.replace("-", "."))
+    )
 
 
 def _import_bundle(target: str) -> type[AnyBundle] | None:

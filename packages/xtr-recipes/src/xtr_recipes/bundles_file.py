@@ -80,10 +80,6 @@ class BundlesFile:
             path=path,
         )
 
-    def with_entries(self, entries: Iterable[BundleEntry]) -> BundlesFile:
-        """Return a copy listing exactly ``entries``, in the order given."""
-        return replace(self, entries=tuple(entries))
-
     def adding(self, entries: Iterable[BundleEntry]) -> BundlesFile:
         """Return a copy with every target not already listed appended.
 
@@ -126,26 +122,6 @@ class BundlesFile:
             _mapping_block(self.entries),
         ]
         return "\n\n".join(blocks) + "\n"
-
-    def write(self, path: Path, first_party: Collection[str]) -> bool:
-        """Write the canonical file to ``path`` unless it already says this.
-
-        Args:
-            path: Where to write.
-            first_party: As in :meth:`render`.
-
-        Returns:
-            Whether the file changed.
-
-        Raises:
-            BundlesNotEditableError: As in :meth:`render`.
-        """
-        rendered = self.render(first_party)
-        if path.is_file() and path.read_text(encoding="utf-8") == rendered:
-            return False
-        path.parent.mkdir(parents=True, exist_ok=True)
-        _ = path.write_text(rendered, encoding="utf-8")
-        return True
 
     def _import_blocks(self, first_party: Collection[str]) -> tuple[str, str]:
         """Group the entries into the two import blocks, sorted by module."""
@@ -196,12 +172,16 @@ def _refuse_other_code(path: Path, tree: ast.Module) -> None:
     """Refuse a statement the generated form would not write back.
 
     The file is regenerated from its entries, so anything else in it — a
-    constant, a condition, a function — would be deleted without a word.
+    constant, a condition, a function — would be deleted without a word. Only a
+    ``from <module> import <Class>`` is kept, because that is the only import
+    the generated form writes and the only one a bundle key is read from; a
+    plain ``import x`` binds no name a ``BUNDLES`` key could use, so it too is
+    refused rather than silently dropped.
     """
     for index, node in enumerate(tree.body):
         if index == 0 and isinstance(node, ast.Expr) and ast.get_docstring(tree) is not None:
             continue
-        if isinstance(node, ast.Import | ast.ImportFrom):
+        if isinstance(node, ast.ImportFrom):
             continue
         if isinstance(node, ast.Assign | ast.AnnAssign) and _assigns(node, (_BUNDLES, _ALL)):
             continue

@@ -21,9 +21,12 @@ declarative, shipped beside the package, so one command does the chores — and,
 undoes them when the package is removed.
 
 A recipe is declarative only: bundles to list, files to write, environment and ignore lines to
-add, and notes to print. No code from a dependency ever runs. Because applying a recipe is a diff
-against a committed lock file, it does not matter how a package arrived, and running it twice
-changes nothing the second time.
+add, and notes to print. No recipe step and no template is ever executed. The one thing imported
+is the bundle class a recipe lists — and only from a module under the declaring distribution's own
+import package, never an arbitrary module a manifest names — so its `@required_bundle` declarations
+can be read to decide whether listing it is redundant; nothing else a dependency ships is imported
+or run. Because applying a recipe is a diff against a committed lock file, it does not matter how a
+package arrived, and running it twice changes nothing the second time.
 
 ## Install
 
@@ -79,7 +82,7 @@ A plan reads as one block per package, under a heading naming the action:
 ```console
 configure xtr-messenger
   write src/bookshop/config/messenger.py
-  write src/bookshop/.env
+  write .env
   bundle MessengerBundle listed
   steps:
     - Name the transports in config/messenger.py and route your messages to them: a message routed nowhere is neither sent nor handled.
@@ -92,8 +95,8 @@ write src/bookshop/bundles.py
 write xtr.lock
 ```
 
-The bundle list and the lock are each written once for the whole run, so they are the only
-unindented steps besides the headings.
+The bundle list and the lock belong to the whole run — each written once, or deleted once when
+nothing is left to put in it — so they are the only unindented steps besides the headings.
 
 ### `recipes:show`
 
@@ -102,6 +105,11 @@ about, with its standing — `locked`, `not configured`, `outdated`, `removed`, 
 `skipped: install <package>[di]` for a package installed without the extra that ships its bundle
 class. Named with a package it prints that one recipe in full: its bundles, files, env keys,
 ignore lines and notes, exactly as the recipe ships them.
+
+A package the project no longer installs but the lock still records — removed from the
+dependencies and not yet synced away — is read from the lock instead: its recorded bundles, files,
+env keys and ignore lines, so what a sync is about to undo can still be inspected. Only a package
+with neither an installed recipe nor a lock entry is a `RecipeNotInstalledError`.
 
 ### `recipes:install`
 
@@ -294,4 +302,3 @@ uv run ruff check && uv run ruff format --check && uv run basedpyright && uv run
 ## License
 
 MIT — see [LICENSE](LICENSE).
-</content>

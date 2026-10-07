@@ -126,3 +126,24 @@ def test_it_rejects_a_non_string_table_key() -> None:
         _ = RecipeConfig.from_toml("xtr-x", {"files": {123: "y"}})
 
     assert exc.value.key == "files"
+
+
+def test_it_rejects_a_files_destination_that_climbs_out_of_the_package() -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-x", {"files": {"../../outside.txt": "files/x.tmpl"}})
+
+    assert exc.value.key == "../../outside.txt"
+
+
+def test_it_rejects_an_absolute_files_destination() -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-x", {"files": {"/etc/passwd": "files/x.tmpl"}})
+
+    assert exc.value.key == "/etc/passwd"
+
+
+def test_it_rejects_a_files_destination_climbing_out_with_backslashes() -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-x", {"files": {"..\\..\\outside.txt": "files/x.tmpl"}})
+
+    assert exc.value.key == "..\\..\\outside.txt"

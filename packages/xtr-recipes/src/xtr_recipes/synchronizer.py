@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, final
 
@@ -11,11 +10,13 @@ from .bundle_requirements import BundleRequirements
 from .bundles_file import BundlesFile
 from .exception import RecipeNotInstalledError
 from .marked_block_editor import MarkedBlockEditor
+from .normalise import normalise
+from .operation.delete_project_file import DeleteProjectFile
 from .operation.plan import Plan
 from .operation.write_bundles import WriteBundles
 from .operation.write_lock import WriteLock
 from .recipe_loader import RecipeLoader
-from .recipe_lock import RecipeLock
+from .recipe_lock import LOCK_NAME, RecipeLock
 from .recipe_planner import RecipePlanner
 from .recipe_survey import RecipeSurvey
 from .sync_draft import SyncDraft
@@ -35,11 +36,7 @@ if TYPE_CHECKING:
 __all__ = ["Synchronizer"]
 
 _BUNDLES_NAME = "bundles.py"
-_LOCK_NAME = "xtr.lock"
 _SRC = "src"
-# PEP 503 normalisation, so a package named on a command line matches the
-# dependency list however it was spelled.
-_SEPARATORS = re.compile(r"[-_.]+")
 
 
 @final
@@ -128,7 +125,11 @@ class Synchronizer:
             lock=current.lock,
             listed=frozenset(entry.target for entry in current.bundles.entries),
         )
-        return Plan((*draft.sections(), *self._write_steps(draft, current, bundles)))
+        return Plan(
+            operations=draft.sections(),
+            project_operations=self._write_steps(draft, current, bundles),
+            previous_lock=current.lock,
+        )
 
     def apply(self, plan: Plan) -> None:
         """Carry out a plan :meth:`plan` computed."""
@@ -154,6 +155,7 @@ class Synchronizer:
             installed=current.installed,
             skipped=current.unloadable,
             selection=SyncSelection.diff(current.installed, current.lock, current.unloadable),
+            lock=current.lock,
         )
 
     def _read(self) -> _Current:
@@ -172,7 +174,7 @@ class Synchronizer:
             absent = tuple(
                 target
                 for target in recipe.config.bundles
-                if not self._requirements.loadable(target)
+                if not self._requirements.loadable(target, recipe.distribution)
             )
             if absent:
                 unloadable[recipe.distribution] = absent
@@ -182,7 +184,7 @@ class Synchronizer:
             bundles=bundles,
             bundles_text=_text(bundles_path),
             lock=RecipeLock.load(self._project.project_dir),
-            lock_text=_text(self._project.project_dir / _LOCK_NAME),
+            lock_text=_text(self._project.project_dir / LOCK_NAME),
             installed=installed,
             unloadable=unloadable,
         )
@@ -196,7 +198,7 @@ class Synchronizer:
         if only is None:
             selection = SyncSelection.diff(current.installed, current.lock, current.unloadable)
             return selection, current.unloadable
-        package = _normalise(only)
+        package = normalise(only)
         if package in current.unloadable:
             return SyncSelection(), {package: current.unloadable[package]}
         if package not in current.installed:
@@ -236,16 +238,27 @@ class Synchronizer:
         current: _Current,
         bundles: BundlesFile,
     ) -> tuple[OperationInterface, ...]:
-        """Return the two whole-project writes, each only when it would change something."""
+        """Return the two whole-project writes, each only when it would change something.
+
+        A file that would come out empty — no bundle left to list, no recipe
+        left to lock — is deleted rather than written blank, so unconfiguring
+        the last package leaves the project as it was before the first.
+        """
         steps: list[OperationInterface] = []
-        path = self._project.package_dir / _BUNDLES_NAME
+        bundles_path = self._project.package_dir / _BUNDLES_NAME
+        bundles_display = bundles_path.relative_to(self._project.project_dir).as_posix()
         rendered = bundles.render(self._first_party())
-        if _replaces(rendered, current.bundles_text, has_entries=bool(bundles.entries)):
-            display = path.relative_to(self._project.project_dir).as_posix()
-            steps.append(WriteBundles(path, display, rendered))
+        if bundles.entries:
+            if _replaces(rendered, current.bundles_text, has_entries=True):
+                steps.append(WriteBundles(bundles_path, bundles_display, rendered))
+        elif current.bundles_text is not None:
+            steps.append(DeleteProjectFile(bundles_path, bundles_display))
         lock = draft.next_lock()
-        if _replaces(lock.dumps(), current.lock_text, has_entries=bool(lock.entries)):
-            steps.append(WriteLock(lock, self._project.project_dir))
+        if lock.entries:
+            if _replaces(lock.dumps(), current.lock_text, has_entries=True):
+                steps.append(WriteLock(lock, self._project.project_dir))
+        elif current.lock_text is not None:
+            steps.append(DeleteProjectFile(self._project.project_dir / LOCK_NAME, LOCK_NAME))
         return tuple(steps)
 
     def _first_party(self) -> frozenset[str]:
@@ -258,13 +271,12 @@ class Synchronizer:
         parent = self._project.package_dir.parent
         if parent.name != _SRC:
             return frozenset({self._project.app})
-        beside = (child.name for child in parent.iterdir() if child.is_dir())
+        beside = (
+            child.name
+            for child in parent.iterdir()
+            if child.is_dir() and (child / "__init__.py").is_file()
+        )
         return frozenset({self._project.app, *(name for name in beside if name.isidentifier())})
-
-
-def _normalise(name: str) -> str:
-    """Return a distribution name as a dependency list spells it."""
-    return _SEPARATORS.sub("-", name.strip()).lower()
 
 
 def _recorded_required(current: _Current) -> frozenset[str]:

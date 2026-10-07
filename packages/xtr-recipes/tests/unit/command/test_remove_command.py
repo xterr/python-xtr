@@ -43,7 +43,7 @@ async def test_remove_drops_the_package_then_syncs_in_a_fresh_process(
     code = await tester.execute(_argv(project_dir))
 
     assert recorder.calls == [
-        (("uv", "remove", MESSENGER), project_dir),
+        (("uv", "remove", "--", MESSENGER), project_dir),
         (
             ("uv", "run", "xtr-recipes", "recipes:sync", "--project-dir", str(project_dir)),
             project_dir,
@@ -61,9 +61,9 @@ async def test_remove_stops_before_the_sync_when_the_removal_failed(
 
     code = await tester.execute(_argv(project_dir))
 
-    assert recorder.calls == [(("uv", "remove", MESSENGER), project_dir)]
+    assert recorder.calls == [(("uv", "remove", "--", MESSENGER), project_dir)]
     assert code == ExitCode.FAILURE
-    assert f"uv remove {MESSENGER} failed" in tester.display
+    assert f"uv remove -- {MESSENGER} failed" in tester.display
 
 
 async def test_remove_reports_a_project_it_cannot_resolve(

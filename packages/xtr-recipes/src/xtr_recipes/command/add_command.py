@@ -12,7 +12,10 @@ from xtr_recipes.exception import RecipesError
 
 __all__ = ["AddCommand"]
 
-_UV_ADD = ("uv", "add")
+# ``--`` ends uv's own options, so a requirement that begins with a dash
+# (``-e .``, an index flag someone pasted) is passed through as a package, not
+# parsed as a flag of ``uv add``.
+_UV_ADD = ("uv", "add", "--")
 
 
 @as_command("recipes:add")

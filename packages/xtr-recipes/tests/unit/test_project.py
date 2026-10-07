@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from xtr_recipes.exception import ProjectNotFoundError
+from xtr_recipes.exception import ProjectNotFoundError, UnreadableFileError
 from xtr_recipes.project import Project
 
 if TYPE_CHECKING:
@@ -218,3 +218,12 @@ def test_discover_raises_when_no_project_is_found(tmp_path: Path) -> None:
         _ = Project.discover(tmp_path.parents[-1])
 
     assert exc.value.setting is None
+
+
+def test_it_names_the_manifest_when_it_is_not_valid_toml(tmp_path: Path) -> None:
+    _ = (tmp_path / "pyproject.toml").write_text("not = = toml", encoding="utf-8")
+
+    with pytest.raises(UnreadableFileError) as exc:
+        _ = Project.load(tmp_path)
+
+    assert exc.value.path == tmp_path / "pyproject.toml"

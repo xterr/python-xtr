@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, final
 
+from xtr_recipes.file_write import write_text
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -21,7 +23,8 @@ class WriteNewFile:
     A file the application owner has edited, or one that was already there
     when the recipe first ran, is never overwritten: the new version is put
     beside it and reported, for the two to be reconciled by hand. There is no
-    three-way merge.
+    three-way merge. The planner emits this step only when ``<path>.new`` does
+    not already hold the content, so a second sync has nothing to do here.
 
     Attributes:
         path: The file that is being left as it is.
@@ -42,6 +45,4 @@ class WriteNewFile:
 
     def apply(self) -> None:
         """Write the content beside the file, under the ``.new`` suffix."""
-        destination = self.path.parent / f"{self.path.name}{_SUFFIX}"
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        _ = destination.write_text(self.content, encoding="utf-8")
+        write_text(self.path.parent / f"{self.path.name}{_SUFFIX}", self.content)

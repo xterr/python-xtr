@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, final
 
+from xtr_recipes.file_write import ENV_NAME, write_text
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -39,5 +41,4 @@ class WriteFile:
 
     def apply(self) -> None:
         """Write the content, creating the parent directories first."""
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        _ = self.path.write_text(self.content, encoding="utf-8")
+        write_text(self.path, self.content, private=self.path.name == ENV_NAME)

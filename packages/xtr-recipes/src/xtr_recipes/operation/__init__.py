@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from .bundle_note import BundleNote
 from .delete_file import DeleteFile
+from .delete_project_file import DeleteProjectFile
 from .keep_file import KeepFile
 from .move_file import MoveFile
 from .notes import Notes
@@ -28,6 +29,7 @@ from .write_new_file import WriteNewFile
 __all__ = [
     "BundleNote",
     "DeleteFile",
+    "DeleteProjectFile",
     "KeepFile",
     "MoveFile",
     "Notes",

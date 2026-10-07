@@ -13,7 +13,7 @@ __all__ = ["Section"]
 class Section:
     """Announces the package the following steps belong to.
 
-    The only unindented step besides the two whole-project writes, so a plan
+    The only unindented step besides those of the run as a whole, so a plan
     reads as one block per package.
 
     Attributes:

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
+from xtr_recipes.exception import UnreadableFileError, UnsafePathError
 from xtr_recipes.recipe_lock import LockedFile, LockEntry, RecipeLock
 
 if TYPE_CHECKING:
@@ -137,3 +140,32 @@ def test_two_locks_recording_the_same_thing_dump_the_same_text() -> None:
     second = RecipeLock({"a-pkg": LockEntry(recipe="g"), "b-pkg": LockEntry(recipe="h")})
 
     assert first.dumps() == second.dumps()
+
+
+def test_it_refuses_a_lock_path_that_climbs_out_of_the_project(tmp_path: Path) -> None:
+    _ = (tmp_path / "xtr.lock").write_text(
+        '{"p": {"files": {"../x": {"sha256": "s", "adopted": false}}}}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(UnsafePathError):
+        _ = RecipeLock.load(tmp_path)
+
+
+def test_it_refuses_an_absolute_lock_path(tmp_path: Path) -> None:
+    _ = (tmp_path / "xtr.lock").write_text(
+        '{"p": {"files": {"/etc/passwd": {"sha256": "s", "adopted": false}}}}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(UnsafePathError):
+        _ = RecipeLock.load(tmp_path)
+
+
+def test_it_names_the_lock_file_when_it_is_not_valid_json(tmp_path: Path) -> None:
+    _ = (tmp_path / "xtr.lock").write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(UnreadableFileError) as exc:
+        _ = RecipeLock.load(tmp_path)
+
+    assert exc.value.path == tmp_path / "xtr.lock"

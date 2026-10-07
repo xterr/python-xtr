@@ -24,9 +24,9 @@ class SyncSelection:
     the work, and running it twice finds none.
 
     Attributes:
-        unconfigure: Locked packages no longer installed, in reverse lock
-            order — a package listed later may have been configured on top of
-            an earlier one.
+        unconfigure: Locked packages no longer installed, in lock order. Each
+            is undone from the lock alone and touches only what it recorded, so
+            the order they are undone in does not matter.
         configure: Installed packages the lock has never recorded.
         update: Locked packages whose recipe content has moved on.
         unchanged: Locked packages with nothing to re-apply; their bundle
@@ -58,10 +58,9 @@ class SyncSelection:
         Returns:
             The selection a full sync works from.
         """
-        locked = tuple(lock.entries)
         return cls(
             unconfigure=tuple(
-                name for name in reversed(locked) if name not in installed and name not in held
+                name for name in lock.entries if name not in installed and name not in held
             ),
             configure=tuple(sorted(name for name in installed if name not in lock.entries)),
             update=cls._changed(installed, lock, changed=True),

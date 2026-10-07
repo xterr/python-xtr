@@ -244,6 +244,19 @@ def test_update_offers_a_new_file_beside_one_that_was_edited(
     assert planned.files == {_LOCKED: locked}
 
 
+def test_update_offers_nothing_when_the_new_copy_already_holds_the_content(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    path = _existing(project, "EDITED\n")
+    _ = (path.parent / f"{path.name}.new").write_text(_RENDERED, encoding="utf-8")
+    locked = LockedFile(_sha256("ORIGINAL\n"), adopted=False)
+
+    planned = planner.update(_recipe(), LockEntry(files={_LOCKED: locked}), force=False)
+
+    assert planned.operations == ()
+
+
 def test_update_overwrites_an_edited_file_when_forced(
     planner: RecipePlanner,
     project: Project,

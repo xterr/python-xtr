@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING, final
 
 from .exception import MarkedBlockError
+from .file_write import ENV_NAME, write_text
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -48,8 +49,7 @@ class MarkedBlockEditor:
 
     def write(self, path: Path, text: str) -> None:
         """Write ``text`` to ``path``, creating the directories above it."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        _ = path.write_text(text, encoding="utf-8")
+        write_text(path, text, private=path.name == ENV_NAME)
 
     def env_lines(self, text: str, package: str, entries: Mapping[str, str]) -> tuple[str, ...]:
         """Return the assignments to write for ``entries`` that ``text`` lacks.

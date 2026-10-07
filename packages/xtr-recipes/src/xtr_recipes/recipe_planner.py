@@ -16,6 +16,7 @@ from .operation.write_file import WriteFile
 from .operation.write_new_file import WriteNewFile
 from .planned_recipe import PlannedRecipe
 from .recipe_lock import LockedFile
+from .safe_path import within
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping, Sequence
@@ -133,10 +134,15 @@ class RecipePlanner:
 
     def _target(self, recipe: Recipe, destination: str, template: str) -> _Destination:
         """Resolve one manifest entry against the project and render its template."""
+        package_rel = self._project.package_dir.relative_to(self._project.project_dir)
+        display = (package_rel / destination).as_posix()
+        # The manifest already refuses a traversing destination; this is the
+        # backstop that no rendered file lands outside the project even so.
+        _ = within(self._project.project_dir, display)
         path = self._project.package_dir / destination
         return _Destination(
             path=path,
-            display=self._display(path),
+            display=display,
             content=recipe.render(template, app=self._project.app),
         )
 
@@ -166,8 +172,12 @@ class RecipePlanner:
         kept = prior
         # A file that already reads as the recipe renders it has nothing to
         # reconcile; offering one anyway would leave a `.new` copy beside every
-        # adopted file, on every release.
-        step = None if current == target.content else WriteNewFile(*_parts(target))
+        # adopted file, on every release. A `.new` copy that already holds this
+        # exact content is nothing to write either, so a second sync is quiet.
+        if current == target.content or _new_holds(target):
+            step = None
+        else:
+            step = WriteNewFile(*_parts(target))
         return step, kept
 
     def _dropped(
@@ -302,6 +312,12 @@ def _parts(target: _Destination) -> tuple[Path, str, str]:
 def _read(path: Path) -> str:
     """Return a file's text."""
     return path.read_text(encoding="utf-8")
+
+
+def _new_holds(target: _Destination) -> bool:
+    """Whether ``<path>.new`` already holds exactly the content a sync would write there."""
+    new = target.path.parent / f"{target.path.name}.new"
+    return new.is_file() and new.read_text(encoding="utf-8") == target.content
 
 
 def _free_name(path: Path) -> Path:

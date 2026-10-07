@@ -14,6 +14,7 @@ from xtr_recipes.operation.notes import Notes
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from xtr_recipes.recipe_lock import LockEntry
     from xtr_recipes.recipe_survey import RecipeSurvey
 
 __all__ = ["ShowCommand"]
@@ -87,12 +88,22 @@ def _detail(io: ConsoleStyle, survey: RecipeSurvey, package: str) -> None:
         survey: The project's recipes, read once.
         package: The distribution to read, normalised.
 
+    A package the project no longer installs but the lock still records — one
+    removed from the dependencies but not yet synced away — is read from the
+    lock instead, so its standing can still be inspected before a sync undoes
+    it.
+
     Raises:
-        RecipeNotInstalledError: No installed recipe belongs to ``package``.
+        RecipeNotInstalledError: Neither an installed recipe nor a lock entry
+            belongs to ``package``.
     """
     recipe = survey.installed.get(package)
     if recipe is None:
-        raise RecipeNotInstalledError(package)
+        entry = survey.lock.entries.get(package)
+        if entry is None:
+            raise RecipeNotInstalledError(package)
+        _detail_from_lock(io, package, entry)
+        return
     config = recipe.config
     notes = config.notes
     io.section(escape(package))
@@ -104,6 +115,20 @@ def _detail(io: ConsoleStyle, survey: RecipeSurvey, package: str) -> None:
             *_group("env", list(config.env)),
             *_group("gitignore", config.gitignore),
             *Notes(steps=notes.steps, check=notes.check, run=notes.run).render(),
+        ),
+    )
+
+
+def _detail_from_lock(io: ConsoleStyle, package: str, entry: LockEntry) -> None:
+    """Print what the lock records for a package the project no longer installs."""
+    io.section(escape(package))
+    command_support.write(
+        io,
+        (
+            *_group("bundles", [f"{target} ({state})" for target, state in entry.bundles.items()]),
+            *_group("files", list(entry.files)),
+            *_group("env", list(entry.env)),
+            *_group("gitignore", list(entry.gitignore)),
         ),
     )
 

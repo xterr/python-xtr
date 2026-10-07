@@ -76,20 +76,22 @@ def test_read_recipe_content_reads_the_manifest_and_nested_templates(tmp_path: P
     assert content.templates == {"files/config/messenger.py.tmpl": b"MESSENGER = ${app}\n"}
 
 
-def test_read_recipe_content_skips_the_manifest_among_the_templates(tmp_path: Path) -> None:
+def test_read_recipe_content_reads_only_what_is_under_files(tmp_path: Path) -> None:
     _ = (tmp_path / "manifest.toml").write_bytes(b"[env]\n")
+    _ = (tmp_path / "__init__.py").write_bytes(b'"""Recipe."""\n')
     _ = (tmp_path / "notes.txt").write_bytes(b"hello")
+    files = tmp_path / "files"
+    files.mkdir()
+    _ = (files / "config.py.tmpl").write_bytes(b"BODY\n")
 
     content = read_recipe_content(tmp_path)
 
-    assert content.templates == {"notes.txt": b"hello"}
+    assert content.templates == {"files/config.py.tmpl": b"BODY\n"}
 
 
-def test_read_recipe_content_ignores_compiled_bytecode(tmp_path: Path) -> None:
+def test_read_recipe_content_has_no_templates_without_a_files_tree(tmp_path: Path) -> None:
     _ = (tmp_path / "manifest.toml").write_bytes(b"[env]\n")
-    cache = tmp_path / "__pycache__"
-    cache.mkdir()
-    _ = (cache / "__init__.cpython-313.pyc").write_bytes(b"\x00compiled")
+    _ = (tmp_path / "__init__.py").write_bytes(b'"""Recipe."""\n')
 
     content = read_recipe_content(tmp_path)
 

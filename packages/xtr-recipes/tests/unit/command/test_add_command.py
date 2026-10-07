@@ -44,7 +44,7 @@ async def test_add_installs_the_requirement_then_syncs_in_a_fresh_process(
     code = await tester.execute(_argv(project_dir))
 
     assert recorder.calls == [
-        (("uv", "add", _REQUIREMENT), project_dir),
+        (("uv", "add", "--", _REQUIREMENT), project_dir),
         (
             ("uv", "run", "xtr-recipes", "recipes:sync", "--project-dir", str(project_dir)),
             project_dir,
@@ -62,9 +62,9 @@ async def test_add_stops_before_the_sync_when_the_install_failed(
 
     code = await tester.execute(_argv(project_dir))
 
-    assert recorder.calls == [(("uv", "add", _REQUIREMENT), project_dir)]
+    assert recorder.calls == [(("uv", "add", "--", _REQUIREMENT), project_dir)]
     assert code == ExitCode.FAILURE
-    assert f"uv add {_REQUIREMENT} failed" in tester.display
+    assert f"uv add -- {_REQUIREMENT} failed" in tester.display
 
 
 async def test_add_reports_a_project_it_cannot_resolve(
