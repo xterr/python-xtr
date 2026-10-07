@@ -27,10 +27,12 @@ from xtr_security.bundle.access_control_configs import (
 )
 from xtr_security.bundle.access_decision_manager_config import AccessDecisionManagerConfig
 from xtr_security.bundle.password_hasher_configs import (
-    HasherConfig,  # noqa: TC001 -- field type read at runtime
+    HasherConfig,
+    Pbkdf2HasherConfig,
 )
 from xtr_security.bundle.user_provider_configs import (
-    UserProviderConfig,  # noqa: TC001 -- field type read at runtime
+    ChainUserProviderConfig,
+    UserProviderConfig,
 )
 from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory import AccessTokenFactory, AuthenticatorFactoryInterface
@@ -122,7 +124,11 @@ class SecurityConfig:
 
     Raises:
         InvalidConfigurationError: When a firewall names a provider that is not
-            declared, or an entry point that is not one of its authenticators.
+            declared, when a chain user provider names a provider that is not
+            declared, or when a PBKDF2 hasher is configured as a top-level
+            ``password_hashers`` value rather than inside another hasher's
+            ``migrate_from``. A firewall's entry point is checked against its
+            authenticators at build time, where they have been assigned.
     """
 
     firewalls: Mapping[str, FirewallConfig] = field(default_factory=_no_firewalls)
@@ -146,10 +152,26 @@ class SecurityConfig:
     )
 
     def __post_init__(self) -> None:
-        """Cross-check firewalls against providers and their own authenticators."""
+        """Cross-check firewalls, chains and hashers against what is declared."""
         for name, firewall in self.firewalls.items():
             if firewall.provider is not None and firewall.provider not in self.providers:
                 raise InvalidConfigurationError(
                     f'The firewall "{name}" names the provider "{firewall.provider}", '
                     f"which is not declared.",
+                )
+        for provider_name, provider in self.providers.items():
+            if isinstance(provider, ChainUserProviderConfig):
+                missing = [name for name in provider.providers if name not in self.providers]
+                if missing:
+                    raise InvalidConfigurationError(
+                        f'The chain user provider "{provider_name}" names {missing}, '
+                        f"which are not declared.",
+                    )
+        for key, hasher in self.password_hashers.items():
+            if isinstance(hasher, Pbkdf2HasherConfig):
+                label = key if isinstance(key, str) else key.__name__
+                raise InvalidConfigurationError(
+                    f'The PBKDF2 hasher under "{label}" verifies salted legacy hashes '
+                    f"only; reach it through another hasher's migrate_from, not as a "
+                    f"top-level password_hashers value.",
                 )

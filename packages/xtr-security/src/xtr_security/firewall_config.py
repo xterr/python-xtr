@@ -7,9 +7,11 @@ turns each into the runtime pieces a :class:`FirewallContext` groups.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_http.request_matcher.callable_request_matcher import CallableRequestMatcher
 from xtr_security_http.request_matcher.chain_request_matcher import ChainRequestMatcher
 from xtr_security_http.request_matcher.host_request_matcher import HostRequestMatcher
@@ -72,7 +74,14 @@ class FirewallConfig:
     required_badges: tuple[type, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
-        """Refuse a stateful firewall, and a secured one with no authenticators."""
+        """Refuse a stateful firewall, a secured one with no authenticators, a bad regex.
+
+        Raises:
+            InvalidConfigurationError: When ``stateless`` is ``False``, or a
+                secured firewall names no authenticators.
+            InvalidArgumentError: When ``pattern`` or ``host`` is not a valid
+                regular expression.
+        """
         if not self.stateless:
             raise InvalidConfigurationError(
                 "Only stateless firewalls are supported; set stateless=True.",
@@ -82,7 +91,15 @@ class FirewallConfig:
                 "A secured firewall needs at least one authenticator; "
                 "set security=False for an open firewall.",
             )
-        _ = self.to_matcher()
+        for label, regex in (("pattern", self.pattern), ("host", self.host)):
+            if regex is not None:
+                try:
+                    _ = re.compile(regex)
+                except re.error as error:
+                    raise InvalidArgumentError(
+                        f"The firewall {label} {regex!r} is not a valid regular expression: "
+                        f"{error}.",
+                    ) from error
 
     def to_matcher(self) -> RequestMatcherInterface:
         """Return the request matcher this firewall claims requests with.

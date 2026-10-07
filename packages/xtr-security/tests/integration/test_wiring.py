@@ -22,9 +22,9 @@ from xtr_security_core.authorization.access_decision_manager_interface import (
 )
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 from xtr_security_http._runner import run_firewall
+from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
 from xtr_security.bundle import SecurityBundle
-from xtr_security.firewall_map import FirewallMap
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
@@ -40,7 +40,7 @@ async def _run(unit: ContainerInterface, request: Request, scopes: Sequence[str]
         "api",
         request,
         scopes,
-        firewall_map=await unit.get(FirewallMap),
+        firewall_map=await unit.get(FirewallMapInterface),
         token_storage=await unit.get(TokenStorageInterface),
         access_decision_manager=await unit.get(AccessDecisionManagerInterface),
     )

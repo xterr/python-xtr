@@ -8,8 +8,7 @@ from xtr_console import Argument, ConsoleStyle, ExitCode, as_command, escape
 
 # The console reads the command's signature at runtime to inject the firewall map.
 from xtr_dependency_injection import Injected  # noqa: TC002
-
-from xtr_security.firewall_map import FirewallMap  # noqa: TC001
+from xtr_security_http.firewall_map_interface import FirewallMapInterface  # noqa: TC002
 
 __all__ = ["DebugFirewallCommand"]
 
@@ -24,7 +23,7 @@ class DebugFirewallCommand:
     async def __call__(
         self,
         io: ConsoleStyle,
-        firewall_map: Injected[FirewallMap],
+        firewall_map: Injected[FirewallMapInterface],
         name: Annotated[str | None, Argument(name="name")] = None,
     ) -> int:
         """List the firewalls, or the one named.
@@ -39,7 +38,7 @@ class DebugFirewallCommand:
             return self._describe(io, firewall_map, name)
         return self._list(io, firewall_map)
 
-    def _list(self, io: ConsoleStyle, firewall_map: FirewallMap) -> int:
+    def _list(self, io: ConsoleStyle, firewall_map: FirewallMapInterface) -> int:
         """List every firewall, its scheme and whether it secures its requests."""
         names = firewall_map.names()
         io.section(f"Firewalls ({len(names)})")
@@ -56,7 +55,7 @@ class DebugFirewallCommand:
         )
         return ExitCode.SUCCESS
 
-    def _describe(self, io: ConsoleStyle, firewall_map: FirewallMap, name: str) -> int:
+    def _describe(self, io: ConsoleStyle, firewall_map: FirewallMapInterface, name: str) -> int:
         """Describe one firewall, or report it is not configured."""
         if not firewall_map.has(name):
             io.error(f'No firewall named "{escape(name)}"; known are {list(firewall_map.names())}.')

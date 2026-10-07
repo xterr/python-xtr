@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast, final
+from typing import TYPE_CHECKING, Annotated, assert_never, cast, final
 
 from typing_extensions import override
 
@@ -20,7 +20,7 @@ from xtr_security_http.access_token.access_token_extractor_interface import (  #
     AccessTokenExtractorInterface,
 )
 
-from xtr_security.bundle.authenticator_configs import AccessTokenConfig
+from xtr_security.bundle.authenticator_configs import AccessTokenConfig, ExtractorName
 from xtr_security.exception import InvalidConfigurationError
 
 from .authenticator_factory_interface import AuthenticatorFactoryInterface
@@ -151,7 +151,7 @@ class AccessTokenFactory(AuthenticatorFactoryInterface):
 
 
 def _extractor_factory(
-    names: tuple[str, ...],
+    names: tuple[ExtractorName, ...],
 ) -> Callable[[], AccessTokenExtractorInterface]:
     """Return a factory building the extractor the named extractors describe."""
 
@@ -164,13 +164,17 @@ def _extractor_factory(
     return access_token_extractor
 
 
-def _one_extractor(name: str) -> AccessTokenExtractorInterface:
+def _one_extractor(name: ExtractorName) -> AccessTokenExtractorInterface:
     """Build one extractor from its name."""
-    if name == "header":
-        return HeaderAccessTokenExtractor()
-    if name == "query":
-        return QueryAccessTokenExtractor()
-    return FormEncodedBodyExtractor()
+    match name:
+        case "header":
+            return HeaderAccessTokenExtractor()
+        case "query":
+            return QueryAccessTokenExtractor()
+        case "body":
+            return FormEncodedBodyExtractor()
+        case _:  # pragma: no cover -- exhaustive over ExtractorName
+            assert_never(name)
 
 
 def _authenticator_factory(

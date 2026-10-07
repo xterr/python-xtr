@@ -3,8 +3,9 @@
 Split out of the bundle so each concern reads on its own: the voters and their
 optional tracing, the password hashers, the user providers, and — the large one —
 the per-firewall wiring that gathers an authenticator manager, an access map, an
-entry point and the firewall's own dispatcher into a :class:`FirewallContext`, and
-every context into a :class:`FirewallMap`.
+entry point and the firewall's own dispatcher into a
+:class:`~xtr_security.bundle.firewall_context.FirewallContext`, and every context
+into the HTTP edge's :class:`~xtr_security_http.firewall_map.FirewallMap`.
 
 Every factory declares the services it needs as typed parameters — a bare type
 for an unqualified service, ``Annotated[T, Target(name)]`` for a qualified one,
@@ -18,7 +19,7 @@ map, the qualifiers of its authenticators) and has the container fill the rest.
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
-from typing import TYPE_CHECKING, Annotated, cast, final
+from typing import TYPE_CHECKING, Annotated, Protocol, cast, final, runtime_checkable
 
 # These types annotate factory parameters and returns the container reads at
 # runtime, so they must be importable when it does — never under TYPE_CHECKING.
@@ -31,7 +32,6 @@ from xtr_password_hasher import (
     PasswordHasherInterface,
     UserPasswordHasher,
     UserPasswordHasherInterface,
-    create_auto_password_hasher,
 )
 from xtr_security_core import (
     AccessDecisionManagerInterface,
@@ -47,12 +47,10 @@ from xtr_security_http import (
     AccessListener,
     AccessMap,
     AuthenticatorManager,
+    ExposeSecurityLevel,
     FirewallMapInterface,
     InsufficientScopeAccessDeniedHandler,
     OAuth2ScopeVoter,
-)
-from xtr_security_http.access_token.access_token_extractor_interface import (
-    AccessTokenExtractorInterface,
 )
 from xtr_security_http.authenticator.authenticator_interface import (
     AuthenticatorInterface,
@@ -63,15 +61,14 @@ from xtr_security_http.event_listener import (
     UserCheckerListener,
     UserProviderListener,
 )
+from xtr_security_http.firewall_map import FirewallMap as HttpFirewallMap
 
 from xtr_security.bundle._password_hasher_build import build_hasher
 from xtr_security.bundle.authenticator_configs import AccessTokenConfig
+from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
-from xtr_security.bundle.password_hasher_configs import ServiceHasherConfig
-from xtr_security.bundle.security_config import SecurityConfig
+from xtr_security.bundle.password_hasher_configs import AutoHasherConfig, ServiceHasherConfig
 from xtr_security.exception import InvalidConfigurationError
-from xtr_security.firewall_context import FirewallContext
-from xtr_security.firewall_map import FirewallMap
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
@@ -79,6 +76,9 @@ if TYPE_CHECKING:
     from fastapi.security.base import SecurityBase
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
     from xtr_security_core.user.user_checker_interface import UserCheckerInterface
+    from xtr_security_http.access_token.access_token_extractor_interface import (
+        AccessTokenExtractorInterface,
+    )
     from xtr_security_http.authentication.authenticator_manager_interface import (
         AuthenticatorManagerInterface,
     )
@@ -93,8 +93,8 @@ if TYPE_CHECKING:
 
     from xtr_security.access_token import TokenHandlerFactoryInterface
     from xtr_security.bundle.password_hasher_configs import HasherConfig
+    from xtr_security.bundle.security_config import SecurityConfig
     from xtr_security.factory import AuthenticatorFactoryInterface
-    from xtr_security.factory.access_token_factory import AccessTokenFactory
     from xtr_security.firewall_config import FirewallConfig
     from xtr_security.user_provider import UserProviderFactoryInterface
 
@@ -203,12 +203,43 @@ def register_hashers(services: ServiceConfigurator, config: SecurityConfig) -> N
     services.alias(PasswordHasherFactoryInterface, PasswordHasherFactory)
     _ = services.set(_user_password_hasher)
     services.alias(UserPasswordHasherInterface, UserPasswordHasher)
-    _ = services.set(_dummy_password_hasher, qualifier=DUMMY_PASSWORD_HASHER_QUALIFIER)
+    _ = services.set(
+        _dummy_password_hasher(_default_hasher_config(config)),
+        qualifier=DUMMY_PASSWORD_HASHER_QUALIFIER,
+    )
 
 
-def _dummy_password_hasher() -> PasswordHasherInterface:
-    """Build the timing-guard hasher an unknown user's credentials check burns."""
-    return create_auto_password_hasher()
+def _default_hasher_config(config: SecurityConfig) -> HasherConfig:
+    """Return the hasher config the dummy timing-guard hasher mirrors.
+
+    The dummy burn must cost what a real verify costs, so it is built from the
+    application's first configured hasher — the default the hash command hashes
+    for too. A service hasher cannot be built without the container, and nothing
+    configured falls back to the secure default, so either yields
+    :class:`AutoHasherConfig`.
+
+    The guard is only worth what the mirrored hasher costs: an application whose
+    default is a plaintext hasher burns nothing, so a missing user still answers
+    faster than a wrong password. That is the plaintext hasher's documented
+    trade, not a defect here — an application that wants the guard configures a
+    real hasher as its default.
+    """
+    for hasher_config in config.password_hashers.values():
+        if isinstance(hasher_config, ServiceHasherConfig):
+            break
+        return hasher_config
+    return AutoHasherConfig()
+
+
+def _dummy_password_hasher(
+    config: HasherConfig,
+) -> Callable[[], PasswordHasherInterface]:
+    """Return a factory building the timing-guard hasher from ``config``."""
+
+    def dummy_password_hasher() -> PasswordHasherInterface:
+        return build_hasher(config)
+
+    return dummy_password_hasher
 
 
 def _service_hasher_forward(
@@ -292,27 +323,24 @@ def build_firewall_map(
     services: ServiceConfigurator,
     config: SecurityConfig,
 ) -> None:
-    """Register a :class:`FirewallContext` per firewall and a :class:`FirewallMap`.
+    """Register a firewall context per firewall and the HTTP edge's firewall map.
 
     For each firewall this registers its authenticators through their factories,
     its own dispatcher with the listeners only it runs, and a context factory
     that gathers an authenticator manager, an access map, an entry point and the
     firewall's OpenAPI scheme. The listeners every secured firewall shares join
     the main dispatcher, once. A final factory asks a locator for every context,
-    by firewall name, and pairs each with its matcher and its configuration into
-    the map.
+    by firewall name, and pairs each with its matcher into the map.
     """
     matchers: dict[str, RequestMatcherInterface] = {}
-    configs: dict[str, FirewallConfig] = {}
     for name, firewall in config.firewalls.items():
         matchers[name] = firewall.to_matcher()
-        configs[name] = firewall
         _build_firewall_context(services, config, name, firewall)
     if any(firewall.security for firewall in config.firewalls.values()):
         _register_shared_listeners(services)
 
-    _ = services.set(_firewall_map_factory(matchers, configs), lifetime="scoped")
-    services.alias(FirewallMapInterface, FirewallMap)
+    _ = services.set(_firewall_map_factory(matchers), lifetime="scoped")
+    services.alias(FirewallMapInterface, HttpFirewallMap)
 
 
 def _build_firewall_context(
@@ -341,6 +369,7 @@ def _build_firewall_context(
             auth_qualifiers=auth_qualifiers,
             entry_point_qualifier=entry_point_qualifier,
             access_map=access_map,
+            expose=config.expose_security_errors,
         )
 
 
@@ -357,7 +386,6 @@ def _register_open_context(services: ServiceConfigurator, name: str) -> None:
                 AccessMap(),
                 cast("AccessDecisionManagerInterface", cast("object", null)),
             ),
-            dispatcher=cast("EventDispatcherInterface", cast("object", _NullDispatcher())),
             scheme=HTTPBearer(auto_error=False),
             security=False,
         )
@@ -510,10 +538,36 @@ def _prepare_factory(
     token_handler_factories: dict[str, TokenHandlerFactoryInterface],
 ) -> AuthenticatorFactoryInterface:
     """Give an access-token factory the token-handler registry it needs."""
-    with_registry = getattr(factory, "with_token_handler_factories", None)
-    if with_registry is not None:
-        return cast("AccessTokenFactory", with_registry(token_handler_factories))
+    if isinstance(factory, _TakesTokenHandlerFactories):
+        return factory.with_token_handler_factories(token_handler_factories)
     return factory
+
+
+@runtime_checkable
+class _TakesTokenHandlerFactories(Protocol):
+    """An authenticator factory that resolves token handlers through a registry.
+
+    The access-token factory needs the token-handler factories to build its
+    handler; another kind of authenticator factory does not. This is the shape
+    the wiring tests for, instead of probing an attribute by name.
+    """
+
+    def with_token_handler_factories(
+        self,
+        token_handler_factories: Mapping[str, TokenHandlerFactoryInterface],
+    ) -> AuthenticatorFactoryInterface:
+        """Return a copy of the factory bound to ``token_handler_factories``."""
+        ...
+
+
+@runtime_checkable
+class _HasExtractor(Protocol):
+    """An authenticator exposing the extractor whose scheme a firewall shows."""
+
+    @property
+    def extractor(self) -> AccessTokenExtractorInterface:
+        """The extractor that reads a token out of a request."""
+        ...
 
 
 def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one firewall's parts
@@ -524,6 +578,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     auth_qualifiers: tuple[str, ...],
     entry_point_qualifier: str | None,
     access_map: AccessMap,
+    expose: ExposeSecurityLevel,
 ) -> None:
     """Register the factory that gathers one firewall's parts into a context.
 
@@ -531,11 +586,12 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     authenticators were aliased under, so a firewall builds its own and no other
     firewall's; the manager is built over them and the injected storage and
     dispatcher; the scheme and the entry point are read off the same
-    authenticators.
+    authenticators. ``expose`` is the configured
+    :class:`~xtr_security_http.ExposeSecurityLevel`, threaded to the manager so a
+    non-default level reaches every firewall.
     """
     realm = _realm_of(firewall)
     access_denied = firewall.access_denied_handler
-    expose = SecurityConfig().expose_security_errors
     required_badges = firewall.required_badges
 
     async def firewall_context(
@@ -569,7 +625,6 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
             name=name,
             authenticator_manager=manager,
             access_listener=AccessListener(access_map, decision_manager),
-            dispatcher=dispatcher,
             scheme=_scheme_from(auths),
             entry_point=entry_point,
             access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
@@ -593,22 +648,17 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
 
 def _firewall_map_factory(
     matchers: Mapping[str, RequestMatcherInterface],
-    configs: Mapping[str, FirewallConfig],
-) -> Callable[..., Awaitable[FirewallMap]]:
-    """Return the factory pairing every firewall context with its matcher and config, in order.
+) -> Callable[..., Awaitable[HttpFirewallMap]]:
+    """Return the factory pairing every firewall context with its matcher, in order.
 
     With no firewalls the locator is empty, asked for nothing, and the map is
     empty too.
     """
     ordered = dict(matchers)
-    ordered_configs = dict(configs)
 
-    async def firewall_map(contexts: ServiceLocator[FirewallContext]) -> FirewallMap:
-        return FirewallMap(
-            [
-                (matcher, await contexts.get(name), ordered_configs[name])
-                for name, matcher in ordered.items()
-            ]
+    async def firewall_map(contexts: ServiceLocator[FirewallContext]) -> HttpFirewallMap:
+        return HttpFirewallMap(
+            [(matcher, await contexts.get(name)) for name, matcher in ordered.items()]
         )
 
     return firewall_map
@@ -619,9 +669,8 @@ def _scheme_from(authenticators: Sequence[AuthenticatorInterface]) -> SecurityBa
     from fastapi.security import HTTPBearer  # noqa: PLC0415 -- http-only
 
     for authenticator in authenticators:
-        extractor = getattr(authenticator, "_extractor", None)
-        if isinstance(extractor, AccessTokenExtractorInterface):
-            return extractor.scheme()
+        if isinstance(authenticator, _HasExtractor):
+            return authenticator.extractor.scheme()
     return HTTPBearer(auto_error=False, bearerFormat="JWT")
 
 
@@ -722,13 +771,6 @@ class _NullManager:
     async def authenticate_request(self, request: object) -> None:
         """Do nothing: an open firewall lets every request through."""
         del request
-
-
-@final
-class _NullDispatcher:
-    """A dispatcher an open firewall never uses."""
-
-    __slots__ = ()
 
 
 # A sentinel where a factory's ``builder`` argument is not used: the built-in

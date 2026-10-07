@@ -8,6 +8,15 @@ that configures :mod:`xtr_security_core`, :mod:`xtr_security_http` and
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .security import Security
 
-__all__ = ["Security"]
+__all__ = ["Security", "__version__"]
+
+try:
+    __version__ = version("xtr-security")
+except PackageNotFoundError:  # pragma: no cover
+    # Running from a source tree with no installed metadata to read; having no
+    # version is better than refusing to import.
+    __version__ = "0+unknown"

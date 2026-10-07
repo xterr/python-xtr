@@ -20,6 +20,7 @@ from xtr_security.bundle import (
     ServiceHasherConfig,
 )
 from xtr_security.bundle._password_hasher_build import build_hasher
+from xtr_security.exception import InvalidConfigurationError
 
 
 class _Service:
@@ -97,3 +98,16 @@ def test_auto_verifies_a_bcrypt_hash_when_available() -> None:
 def test_a_service_config_cannot_be_built_directly() -> None:
     with pytest.raises(InvalidArgumentError):
         _ = build_hasher(ServiceHasherConfig(service=_Service))
+
+
+def test_a_plaintext_migrate_from_source_is_refused() -> None:
+    config = NativeHasherConfig(
+        algorithm="argon2id",
+        time_cost=1,
+        memory_cost=8,
+        parallelism=1,
+        migrate_from=(PlaintextHasherConfig(),),
+    )
+
+    with pytest.raises(InvalidConfigurationError):
+        _ = build_hasher(config)

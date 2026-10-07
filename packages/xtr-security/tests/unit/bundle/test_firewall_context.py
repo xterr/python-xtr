@@ -9,7 +9,7 @@ import pytest
 from fastapi.security import HTTPBearer
 from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
-from xtr_security.firewall_context import FirewallContext
+from xtr_security.bundle.firewall_context import FirewallContext
 
 if TYPE_CHECKING:
     from fastapi.security.base import SecurityBase
@@ -21,7 +21,6 @@ def _context(**overrides: object) -> FirewallContext:
         "name": "api",
         "authenticator_manager": object(),
         "access_listener": object(),
-        "dispatcher": object(),
         "scheme": scheme,
     }
     fields.update(overrides)

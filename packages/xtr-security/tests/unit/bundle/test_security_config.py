@@ -8,7 +8,10 @@ import pytest
 
 from xtr_security.bundle import (
     AccessTokenConfig,
+    ChainUserProviderConfig,
     FirewallConfig,
+    NativeHasherConfig,
+    Pbkdf2HasherConfig,
     SecurityConfig,
     ServiceTokenHandlerConfig,
     ServiceUserProviderConfig,
@@ -78,3 +81,37 @@ def test_an_unknown_provider_is_refused() -> None:
                 )
             },
         )
+
+
+def test_a_chain_naming_an_undeclared_provider_is_refused() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = SecurityConfig(
+            providers={
+                "users": ServiceUserProviderConfig(_Provider),
+                "chain": ChainUserProviderConfig(providers=("users", "missing")),
+            },
+        )
+
+
+def test_a_chain_naming_only_declared_providers_is_accepted() -> None:
+    config = SecurityConfig(
+        providers={
+            "users": ServiceUserProviderConfig(_Provider),
+            "chain": ChainUserProviderConfig(providers=("users",)),
+        },
+    )
+
+    assert "chain" in config.providers
+
+
+def test_a_top_level_pbkdf2_hasher_is_refused() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = SecurityConfig(password_hashers={"legacy": Pbkdf2HasherConfig()})
+
+
+def test_a_pbkdf2_hasher_inside_migrate_from_is_accepted() -> None:
+    config = SecurityConfig(
+        password_hashers={"users": NativeHasherConfig(migrate_from=(Pbkdf2HasherConfig(),))},
+    )
+
+    assert "users" in config.password_hashers

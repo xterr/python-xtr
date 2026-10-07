@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, Kernel, as_bundle
 from xtr_dependency_injection.testing import boot_for_test
+from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 
 from xtr_security.bundle import (
@@ -70,3 +71,13 @@ async def test_it_builds_a_provider_that_loads_the_inline_user() -> None:
 
     assert user.get_user_identifier() == "alice"
     assert "ROLE_USER" in user.get_roles()
+
+
+def test_a_non_boolean_enabled_flag_is_refused() -> None:
+    factory = InMemoryUserProviderFactory()
+    config = InMemoryUserProviderConfig(users={"alice": {"enabled": "false"}})
+    services = cast("ServiceConfigurator", object())
+    builder = cast("ContainerBuilder", object())
+
+    with pytest.raises(InvalidArgumentError):
+        _ = factory.create(services, builder, "users", config)

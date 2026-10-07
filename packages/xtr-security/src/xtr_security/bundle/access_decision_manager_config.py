@@ -8,7 +8,7 @@ object the manager is built with.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, assert_never, get_args
 
 from xtr_security_core import (
     AccessDecisionStrategyInterface,
@@ -22,7 +22,8 @@ from xtr_security.exception import InvalidConfigurationError
 
 __all__ = ["AccessDecisionManagerConfig"]
 
-_STRATEGIES = ("affirmative", "consensus", "unanimous", "priority")
+_Strategy = Literal["affirmative", "consensus", "unanimous", "priority"]
+_STRATEGIES = get_args(_Strategy)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +42,7 @@ class AccessDecisionManagerConfig:
         InvalidConfigurationError: When ``strategy`` is not one of the four.
     """
 
-    strategy: Literal["affirmative", "consensus", "unanimous", "priority"] = "affirmative"
+    strategy: _Strategy = "affirmative"
     allow_if_all_abstain: bool = False
     allow_if_equal_granted_denied: bool = True
 
@@ -54,13 +55,17 @@ class AccessDecisionManagerConfig:
 
     def build(self) -> AccessDecisionStrategyInterface:
         """Return the strategy object this configuration describes."""
-        if self.strategy == "affirmative":
-            return AffirmativeStrategy(allow_if_all_abstain=self.allow_if_all_abstain)
-        if self.strategy == "unanimous":
-            return UnanimousStrategy(allow_if_all_abstain=self.allow_if_all_abstain)
-        if self.strategy == "priority":
-            return PriorityStrategy(allow_if_all_abstain=self.allow_if_all_abstain)
-        return ConsensusStrategy(
-            allow_if_all_abstain=self.allow_if_all_abstain,
-            allow_if_equal_granted_denied=self.allow_if_equal_granted_denied,
-        )
+        match self.strategy:
+            case "affirmative":
+                return AffirmativeStrategy(allow_if_all_abstain=self.allow_if_all_abstain)
+            case "unanimous":
+                return UnanimousStrategy(allow_if_all_abstain=self.allow_if_all_abstain)
+            case "priority":
+                return PriorityStrategy(allow_if_all_abstain=self.allow_if_all_abstain)
+            case "consensus":
+                return ConsensusStrategy(
+                    allow_if_all_abstain=self.allow_if_all_abstain,
+                    allow_if_equal_granted_denied=self.allow_if_equal_granted_denied,
+                )
+            case _:  # pragma: no cover -- exhaustive over the Literal
+                assert_never(self.strategy)

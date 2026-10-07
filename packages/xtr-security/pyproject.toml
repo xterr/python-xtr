@@ -55,6 +55,9 @@ dev = [
     "joserfc>=1.7",
     "fastapi>=0.123",
     "xtr-console>=3.0,<4",
+    # The hasher wiring is tested against both algorithms, bcrypt included, so its
+    # backend has to be installed here even though the library leaves it optional.
+    "xtr-password-hasher[bcrypt]>=3.0,<4",
 ]
 
 [build-system]

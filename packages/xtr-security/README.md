@@ -338,8 +338,6 @@ Everything the family raises derives from `SecurityError` (from
 xtr_security/
 ├── security.py                the Security facade
 ├── firewall_config.py         FirewallConfig, the firewall an application writes
-├── firewall_context.py        FirewallContext, one firewall's runtime pieces
-├── firewall_map.py            FirewallMap, the container-backed map + get_firewall_config
 ├── exception/                 InvalidConfigurationError
 ├── command/                   debug:firewall
 ├── factory/                   authenticator factory interface + AccessTokenFactory,
@@ -351,6 +349,7 @@ xtr_security/
 └── bundle/
     ├── security_bundle.py     SecurityBundle
     ├── security_config.py     SecurityConfig
+    ├── firewall_context.py    FirewallContext, one firewall's runtime pieces (internal)
     └── *_configs.py           the configs an application writes, incl. password_hasher_configs
 ```
 

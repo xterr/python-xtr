@@ -13,6 +13,7 @@ schema reads.
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
+from dataclasses import replace
 from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
@@ -48,9 +49,10 @@ from xtr_security_http import (
     ExceptionListener,
     FirewallSchemeRegistry,
 )
+from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
+from xtr_security.access_token import OidcTokenHandlerFactory
 from xtr_security.bundle.security_config import SecurityConfig
-from xtr_security.firewall_map import FirewallMap
 from xtr_security.security import Security
 
 from ._firewall_scheme_middleware_factory import FirewallSchemeMiddlewareFactory
@@ -70,6 +72,10 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
+
+    from xtr_security.access_token.oidc_token_handler_factory import (
+        _AsyncCloseable,  # pyright: ignore[reportPrivateUsage] -- the family's own close contract
+    )
 
 __all__ = ["SecurityBundle"]
 
@@ -101,6 +107,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
         )
         self._trace_votes = False
         self._user_classes: tuple[str, ...] = ()
+        self._oidc_closeables: list[_AsyncCloseable] = []
 
     @override
     def build(self, builder: ContainerBuilder) -> None:
@@ -159,7 +166,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
         register_user_providers(services, config)
 
         self._firewall_names = tuple(config.firewalls)
-        build_firewall_map(services, config)
+        build_firewall_map(services, self._bind_oidc_closeables(config))
 
         _ = services.set(ExceptionListener).add_tag(
             LISTENER_TAG,
@@ -237,12 +244,60 @@ class SecurityBundle(Bundle[SecurityConfig]):
         if not self._firewall_names:
             return
         async with unit_of_work(container) as unit:
-            firewall_map = await unit.get(FirewallMap)
+            firewall_map = await unit.get(FirewallMapInterface)
             for name in self._firewall_names:
                 if not firewall_map.has(name):
                     continue
                 context = firewall_map.get(name)
                 self._scheme_registry.register(name, context.scheme.model, scheme_name=name)
+
+    @override
+    async def shutdown(self) -> None:
+        """Close every discovery key-set provider's HTTP client built this run.
+
+        An OIDC firewall's discovery provider lazily opens an HTTP client; those
+        that opened one are collected here so the client does not outlive the
+        kernel. The sink is emptied in place: the OIDC factories the extension
+        bound hold this very list, so a run after this one records into the same
+        sink and is closed by the next shutdown.
+
+        Every provider is closed even when one fails, so one leaking client
+        cannot keep the others open; the sink is cleared whatever happens, and
+        the failures are re-raised together as an :class:`ExceptionGroup`.
+
+        Raises:
+            ExceptionGroup: When one or more providers raised while closing.
+        """
+        failures: list[Exception] = []
+        for closeable in self._oidc_closeables:
+            try:
+                await closeable.aclose()
+            except Exception as error:  # noqa: BLE001 -- gather every failure, re-raised below
+                failures.append(error)
+        self._oidc_closeables.clear()
+        if failures:
+            raise ExceptionGroup("OIDC key-set providers failed to close", failures)
+
+    def _bind_oidc_closeables(self, config: SecurityConfig) -> SecurityConfig:
+        """Return ``config`` with every OIDC factory recording into this bundle's sink.
+
+        A config with no OIDC factory is returned untouched, so the zero-config
+        path builds nothing new.
+        """
+        if not any(
+            isinstance(factory, OidcTokenHandlerFactory)
+            for factory in config.token_handler_factories
+        ):
+            return config
+        return replace(
+            config,
+            token_handler_factories=tuple(
+                factory.with_closeables(self._oidc_closeables)
+                if isinstance(factory, OidcTokenHandlerFactory)
+                else factory
+                for factory in config.token_handler_factories
+            ),
+        )
 
 
 def _access_decision_manager_factory(

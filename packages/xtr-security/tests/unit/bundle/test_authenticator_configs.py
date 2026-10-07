@@ -39,5 +39,5 @@ def test_it_refuses_an_unknown_extractor() -> None:
     with pytest.raises(InvalidConfigurationError):
         _ = AccessTokenConfig(
             token_handler=ServiceTokenHandlerConfig(_Handler),
-            token_extractors=("cookie",),
+            token_extractors=("cookie",),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  -- a bad name is rejected at runtime
         )

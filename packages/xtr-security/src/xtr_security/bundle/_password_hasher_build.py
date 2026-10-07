@@ -20,6 +20,8 @@ from xtr_password_hasher import (
 )
 from xtr_password_hasher.exception import InvalidArgumentError
 
+from xtr_security.exception import InvalidConfigurationError
+
 from .password_hasher_configs import (
     AutoHasherConfig,
     NativeHasherConfig,
@@ -78,6 +80,19 @@ def _migrating(
     base: PasswordHasherInterface,
     migrate_from: tuple[HasherConfig, ...],
 ) -> PasswordHasherInterface:
+    """Fold ``migrate_from`` hashers behind ``base``, newest first.
+
+    Raises:
+        InvalidConfigurationError: When a :class:`PlaintextHasherConfig` is
+            named — a plaintext hasher verifies any password and would turn a
+            migrating hasher into an authentication bypass.
+    """
+    for config in migrate_from:
+        if isinstance(config, PlaintextHasherConfig):
+            raise InvalidConfigurationError(
+                "A plaintext hasher cannot be a migrate_from source; it verifies "
+                "any password and would bypass authentication.",
+            )
     if not migrate_from:
         return base
     return MigratingPasswordHasher(base, *(build_hasher(config) for config in migrate_from))

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
 
+import pytest
 from typing_extensions import override
 
 from xtr_security.bundle import SecurityConfig
+from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory import AuthenticatorFactoryInterface
 from xtr_security.factory.add_authenticator_factory import add_authenticator_factory
 
@@ -69,3 +71,11 @@ def test_it_leaves_the_other_tuples_alone() -> None:
     assert isinstance(after, SecurityConfig)
     assert after.token_handler_factories == before.token_handler_factories
     assert after.user_provider_factories == before.user_provider_factories
+
+
+def test_a_duplicate_factory_key_is_refused() -> None:
+    factory = _FakeAuthenticatorFactory()
+    once = add_authenticator_factory(factory)(SecurityConfig())
+
+    with pytest.raises(InvalidConfigurationError):
+        _ = add_authenticator_factory(_FakeAuthenticatorFactory())(once)

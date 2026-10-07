@@ -8,6 +8,8 @@ attribute an :class:`~xtr_security_http.access_map.AccessMap` pairs it with.
 
 from __future__ import annotations
 
+import ipaddress
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -22,6 +24,9 @@ if TYPE_CHECKING:
     from xtr_security_http.request_matcher.request_matcher_interface import RequestMatcherInterface
 
 __all__ = ["AccessControlConfig"]
+
+_METHOD_TOKEN = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
+"""An HTTP method is a token: no space, no separator, never empty."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,8 +49,10 @@ class AccessControlConfig:
         firewall: The firewall the rule belongs to, or ``None`` for any.
 
     Raises:
-        InvalidArgumentError: When ``attribute`` is empty, or ``path`` or
-            ``host`` is not a valid regular expression.
+        InvalidArgumentError: When ``attribute`` is empty, ``path`` or ``host``
+            is not a valid regular expression, a ``methods`` entry is not an
+            HTTP method token, or an ``ips`` entry is neither an address nor a
+            CIDR network.
     """
 
     path: str
@@ -56,15 +63,43 @@ class AccessControlConfig:
     firewall: str | None = None
 
     def __post_init__(self) -> None:
-        """Validate the fields by building the request matcher they describe.
+        """Check the attribute, the two patterns, every method and every address.
+
+        ``attribute`` must not be empty; ``path`` and ``host`` must compile as
+        regular expressions; each ``methods`` entry must be an HTTP method token;
+        each ``ips`` entry must parse as an address or CIDR network. Nothing is
+        built here — :meth:`to_matcher` builds the matcher, and this check means
+        a rule that cannot work is refused where the application wrote it rather
+        than when the bundle assembles the access map.
 
         Raises:
-            InvalidArgumentError: When ``attribute`` is empty, or a pattern will
-                not compile.
+            InvalidArgumentError: When ``attribute`` is empty, a pattern will not
+                compile, a method is not a token, or an address entry is neither
+                an address nor a network.
         """
         if not self.attribute:
             raise InvalidArgumentError("An access-control rule needs an attribute to require.")
-        _ = self.to_matcher()
+        for label, regex in (("path", self.path), ("host", self.host)):
+            if regex is not None:
+                try:
+                    _ = re.compile(regex)
+                except re.error as error:
+                    raise InvalidArgumentError(
+                        f"The access-control {label} {regex!r} is not a valid regular "
+                        f"expression: {error}.",
+                    ) from error
+        for method in self.methods:
+            if _METHOD_TOKEN.fullmatch(method) is None:
+                raise InvalidArgumentError(
+                    f"The access-control method {method!r} is not an HTTP method token.",
+                )
+        for entry in self.ips:
+            try:
+                _ = ipaddress.ip_network(entry, strict=False)
+            except ValueError as error:
+                raise InvalidArgumentError(
+                    f"The access-control address {entry!r} is not a valid address or network.",
+                ) from error
 
     def to_matcher(self) -> RequestMatcherInterface:
         """Return the request matcher this configuration describes.

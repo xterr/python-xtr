@@ -22,6 +22,9 @@ __all__ = [
     "TokenHandlerConfig",
 ]
 
+_MAX_LEEWAY = 300
+"""The ceiling, in seconds, on the clock skew an OIDC handler tolerates."""
+
 
 @dataclass(frozen=True, slots=True)
 class ServiceTokenHandlerConfig:
@@ -48,7 +51,7 @@ class ServiceTokenHandlerConfig:
             )
 
 
-def _one_issuer() -> Sequence[str]:
+def _no_issuers() -> Sequence[str]:
     """The empty issuer list an OIDC handler configuration starts with."""
     return ()
 
@@ -67,7 +70,7 @@ class OidcTokenHandlerConfig:
         audience: The audience a token's ``aud`` must contain.
         algorithms: The signature algorithms allowed, asymmetric only.
         claim: The claim the user identifier is read from.
-        leeway: The clock skew, in seconds, allowed on the time claims.
+        leeway: The clock skew, in seconds, allowed on the time claims — 0 to 300.
         enforce_at_jwt_type: Whether the header's ``typ`` must be ``at+jwt``.
         keyset: A JWKS document pinning the verifying keys, or ``None``.
         discovery_uri: An issuer base URI the ``jwks_uri`` is discovered from, or
@@ -79,10 +82,11 @@ class OidcTokenHandlerConfig:
 
     Raises:
         InvalidConfigurationError: When no issuer is given, or the key source is
-            not exactly one of ``keyset``, ``discovery_uri`` or ``jwks_uri``.
+            not exactly one of ``keyset``, ``discovery_uri`` or ``jwks_uri``, or
+            ``leeway`` is outside 0 to 300 seconds.
     """
 
-    issuers: Sequence[str] = field(default_factory=_one_issuer)
+    issuers: Sequence[str] = field(default_factory=_no_issuers)
     audience: str = ""
     algorithms: Sequence[str] = ("RS256",)
     claim: str = "sub"
@@ -99,7 +103,7 @@ class OidcTokenHandlerConfig:
 
         Raises:
             InvalidConfigurationError: When no issuer or audience is given, or the
-                key source is not exactly one.
+                key source is not exactly one, or ``leeway`` is outside 0 to 300.
         """
         if not self.issuers:
             raise InvalidConfigurationError(
@@ -107,6 +111,10 @@ class OidcTokenHandlerConfig:
             )
         if not self.audience:
             raise InvalidConfigurationError("An OIDC token handler needs an audience.")
+        if not 0 <= self.leeway <= _MAX_LEEWAY:
+            raise InvalidConfigurationError(
+                f"The leeway must be between 0 and {_MAX_LEEWAY} seconds, not {self.leeway}.",
+            )
         sources = [self.keyset, self.discovery_uri, self.jwks_uri]
         given = [source for source in sources if source is not None]
         if len(given) != 1:

@@ -71,3 +71,24 @@ def test_an_oidc_handler_refuses_more_than_one_key_source() -> None:
             keyset='{"keys": []}',
             jwks_uri="https://issuer.example/jwks.json",
         )
+
+
+def test_an_oidc_handler_refuses_a_leeway_over_the_cap() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = OidcTokenHandlerConfig(
+            issuers=("https://issuer.example",),
+            audience="shop-api",
+            keyset='{"keys": []}',
+            leeway=301,
+        )
+
+
+def test_an_oidc_handler_accepts_a_leeway_at_the_cap() -> None:
+    config = OidcTokenHandlerConfig(
+        issuers=("https://issuer.example",),
+        audience="shop-api",
+        keyset='{"keys": []}',
+        leeway=300,
+    )
+
+    assert config.leeway == 300

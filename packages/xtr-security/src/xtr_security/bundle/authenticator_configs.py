@@ -9,16 +9,19 @@ firewall lists them under its ``authenticators``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, get_args
 
 from xtr_security.exception import InvalidConfigurationError
 
 if TYPE_CHECKING:
     from .token_handler_configs import TokenHandlerConfig
 
-__all__ = ["AccessTokenConfig"]
+__all__ = ["AccessTokenConfig", "ExtractorName"]
 
-_KNOWN_EXTRACTORS = ("header", "query", "body")
+ExtractorName = Literal["header", "query", "body"]
+"""The name of an extractor an access-token authenticator reads tokens by."""
+
+_KNOWN_EXTRACTORS = get_args(ExtractorName)
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +43,7 @@ class AccessTokenConfig:
     """
 
     token_handler: TokenHandlerConfig
-    token_extractors: tuple[str, ...] = ("header",)
+    token_extractors: tuple[ExtractorName, ...] = ("header",)
     realm: str | None = None
 
     def __post_init__(self) -> None:

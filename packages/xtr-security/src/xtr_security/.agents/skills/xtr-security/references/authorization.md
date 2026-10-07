@@ -115,8 +115,7 @@ captures a segment and substitutes it into the values, so
 `{"ROLE_TENANT_*_ADMIN": ("ROLE_TENANT_*_USER",)}` makes `ROLE_TENANT_42_ADMIN` reach
 `ROLE_TENANT_42_USER`.
 
-Standalone, `RoleHierarchy(mapping).get_reachable_role_names(roles)` is the same expansion and
-`get_parent_role_names(role)` is one level of it.
+Standalone, `RoleHierarchy(mapping).get_reachable_role_names(roles)` is the same expansion.
 
 ## OAuth2 scopes
 

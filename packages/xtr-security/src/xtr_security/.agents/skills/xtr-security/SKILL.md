@@ -91,7 +91,7 @@ def security() -> SecurityConfig:
   it goes last.
 - `access_control` rules are tried in order too, so the narrow `^/api/admin` rule comes before
   the broad `^/api`. One attribute per rule: a role, `"IS_AUTHENTICATED"`, `"PUBLIC_ACCESS"`, or
-  an `oauth2_scope(...)` string.
+  an `OAUTH2_SCOPE(...)` string the `oauth2_scope(...)` helper builds.
 - `role_hierarchy` expands the token's roles, so `ROLE_ADMIN` need not list `ROLE_USER`.
 - Every string in a bundle config is parameter-resolved: write a literal `%` as `%%`, and read
   secrets with `env("...")`.

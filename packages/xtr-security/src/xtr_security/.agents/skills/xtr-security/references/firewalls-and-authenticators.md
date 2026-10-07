@@ -85,9 +85,9 @@ in the generated schema. `realm` is named in the `WWW-Authenticate` challenge.
 | `OidcTokenHandlerConfig(issuers=(…), audience="…", keyset=… \| discovery_uri=… \| jwks_uri=…)` | a third-party OIDC issuer's tokens; needs the `oidc` extra |
 
 `OidcTokenHandlerConfig` takes **exactly one** key source, and at least one issuer and an
-audience; `algorithms` default to `("RS256",)`, `claim` to `"sub"`, plus `leeway`,
-`enforce_at_jwt_type` and `allow_insecure_http`. `exp` is required on a token: one that never
-expires is refused.
+audience; `algorithms` default to `("RS256",)`, `claim` to `"sub"`, plus `leeway` (0 to 300
+seconds), `enforce_at_jwt_type` and `allow_insecure_http`. `exp` is required on a token: one that
+never expires is refused.
 
 ## The token handler you write
 
