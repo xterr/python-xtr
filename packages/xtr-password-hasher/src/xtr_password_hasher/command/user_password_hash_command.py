@@ -87,7 +87,7 @@ class UserPasswordHashCommand:
             return ExitCode.INVALID
 
         self_salting = not empty_salt and not is_legacy_password_hasher(hasher)
-        empty_salt = empty_salt or self_salting
+        generate_salt = not empty_salt and not self_salting
 
         if not password:
             password = _ask_password(io) if io.interactive else None
@@ -95,7 +95,7 @@ class UserPasswordHashCommand:
                 io.error(_BLANK_MESSAGE)
                 return ExitCode.FAILURE
 
-        salt = None if empty_salt else _salt(io)
+        salt = _salt(io) if generate_salt else None
 
         try:
             hashed_password = hash_with_salt(hasher, password, salt)

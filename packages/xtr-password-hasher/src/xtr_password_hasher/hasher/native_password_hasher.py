@@ -211,8 +211,12 @@ def _fold_for_bcrypt(plain: str) -> str:
 
     bcrypt reads at most 72 bytes and pwdlib refuses a longer input outright.
     A longer password is replaced by the base64 of its SHA-512 digest, cut to
-    the 72 bytes bcrypt would itself have kept — so hashing and verifying agree,
-    and a hash another stack made the same way still verifies.
+    the 72 bytes bcrypt would itself have kept — so hashing and verifying here
+    agree on long inputs. This folding is this hasher's own convention, not a
+    standard: a hash from another stack verifies only when that stack folds
+    long inputs identically (base64 of the SHA-512 digest, truncated to 72
+    bytes). An up-to-72-byte password is passed through untouched, so those
+    interoperate regardless.
     """
     encoded = plain.encode("utf-8")
     if len(encoded) <= _BCRYPT_MAX_BYTES:

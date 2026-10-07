@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .create_auto_password_hasher import bcrypt_available, create_auto_password_hasher
 from .migrating_password_hasher import MigratingPasswordHasher
 from .native_password_hasher import NativePasswordHasher
 from .password_hasher_aware_interface import PasswordHasherAwareInterface
@@ -22,4 +23,6 @@ __all__ = [
     "PlaintextPasswordHasher",
     "UserPasswordHasher",
     "UserPasswordHasherInterface",
+    "bcrypt_available",
+    "create_auto_password_hasher",
 ]

@@ -147,8 +147,10 @@ bcrypt (when installed) and PBKDF2 behind it.
 
 **bcrypt's 72-byte limit.** bcrypt reads at most 72 bytes and refuses a longer input outright. A
 longer password is folded first — the base64 of its SHA-512 digest, cut to the 72 bytes bcrypt
-would itself have kept — on both hashing and verifying, so a long password stays stable and a hash
-another stack made the same way still verifies.
+would itself have kept — on both hashing and verifying, so a long password stays stable here. This
+folding is this package's own convention, not a standard: a hash from another stack verifies only
+when that stack folds long inputs the same way. A password of up to 72 bytes is passed through
+untouched, so those interoperate regardless.
 
 ## Hashing off the event loop
 

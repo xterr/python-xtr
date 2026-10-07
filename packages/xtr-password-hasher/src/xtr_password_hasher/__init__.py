@@ -5,13 +5,15 @@ argon2id by default, legacy hashes verified and upgraded.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .exception import (
     InvalidArgumentError,
     InvalidPasswordError,
     PasswordHasherError,
     UnknownPasswordHasherError,
 )
-from .hasher.create_auto_password_hasher import create_auto_password_hasher
+from .hasher.create_auto_password_hasher import bcrypt_available, create_auto_password_hasher
 from .hasher.migrating_password_hasher import MigratingPasswordHasher
 from .hasher.native_password_hasher import NativePasswordHasher
 from .hasher.password_hasher_aware_interface import PasswordHasherAwareInterface
@@ -48,6 +50,15 @@ __all__ = [
     "UnknownPasswordHasherError",
     "UserPasswordHasher",
     "UserPasswordHasherInterface",
+    "__version__",
+    "bcrypt_available",
     "create_auto_password_hasher",
     "is_legacy_password_hasher",
 ]
+
+try:
+    __version__ = version("xtr-password-hasher")
+except PackageNotFoundError:  # pragma: no cover
+    # Running from a source tree with no installed metadata to read; having no
+    # version is better than refusing to import.
+    __version__ = "0+unknown"

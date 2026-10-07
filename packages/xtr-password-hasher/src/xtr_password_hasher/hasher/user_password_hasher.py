@@ -60,6 +60,12 @@ class UserPasswordHasher(UserPasswordHasherInterface):
     ) -> bool:
         """Return whether ``plain_password`` matches ``user``'s stored password.
 
+        A user whose stored password is ``None`` returns ``False`` at once,
+        without hashing ``plain_password``. The early return is observable in
+        time, so a caller that must not reveal which accounts have a password
+        owns the timing guard — burning a dummy verify for the passwordless
+        user, as the credentials listener does.
+
         Raises:
             UnknownPasswordHasherError: When no hasher is configured for the user.
         """

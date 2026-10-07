@@ -22,12 +22,13 @@ __all__ = ["Pbkdf2PasswordHasher"]
 class Pbkdf2PasswordHasher(LegacyPasswordHasherInterface):
     """Derives a key with PBKDF2-HMAC and stores only the encoded key.
 
-    The hash is the derived key alone — base64, or hex — so the salt lives
-    beside it and the algorithm, the work factor and the key length live in
-    this hasher's configuration. That is the shape of hashes many older
-    applications stored; this hasher exists to verify them, and its defaults
-    are the ones those hashes were typically made with. A ``None`` salt hashes
-    with an empty one.
+    For verification of legacy hashes only: new passwords belong on a
+    memory-hard hasher. The hash is the derived key alone — base64, or hex — so
+    the salt lives beside it and the algorithm, the work factor and the key
+    length live in this hasher's configuration. That is the shape of hashes
+    many older applications stored; this hasher exists to verify them, and its
+    defaults are the ones those hashes were typically made with. A ``None``
+    salt hashes with an empty one.
 
     Since the hash carries no parameters, :meth:`needs_rehash` cannot tell a
     weak hash from a strong one and always answers ``False``; put this hasher

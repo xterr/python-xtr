@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import pytest
+from typing_extensions import override
+
 from xtr_password_hasher import (
+    InvalidArgumentError,
     MigratingPasswordHasher,
     NativePasswordHasher,
     PasswordHasherInterface,
@@ -9,6 +13,23 @@ from xtr_password_hasher import (
     is_legacy_password_hasher,
 )
 from xtr_password_hasher.hasher.migrating_password_hasher import hash_with_salt, verify_with_salt
+
+
+class _MatchAnything(PasswordHasherInterface):
+    @override
+    def hash(self, plain_password: str, salt: str | None = None) -> str:
+        del salt
+        return plain_password
+
+    @override
+    def verify(self, hashed_password: str, plain_password: str, salt: str | None = None) -> bool:
+        del hashed_password, plain_password, salt
+        return True
+
+    @override
+    def needs_rehash(self, hashed_password: str) -> bool:
+        del hashed_password
+        return False
 
 
 def _argon2() -> NativePasswordHasher:
@@ -73,12 +94,12 @@ def test_a_nested_migrating_hasher_receives_the_salt() -> None:
 
 
 def test_a_best_hash_is_only_tried_against_the_best() -> None:
-    # A plaintext extra would "verify" anything equal to the stored string; a
-    # best (argon2) hash never reaches it, so the plaintext extra cannot match.
-    hasher = MigratingPasswordHasher(_argon2(), PlaintextPasswordHasher())
+    # A match-anything extra would "verify" any plaintext; a best (argon2) hash
+    # never reaches it, so the extra cannot match a hash best already owns.
+    hasher = MigratingPasswordHasher(_argon2(), _MatchAnything())
     hashed = hasher.hash("secret")
 
-    assert not hasher.verify(hashed, hashed)
+    assert not hasher.verify(hashed, "wrong")
     assert hasher.verify(hashed, "secret")
 
 
@@ -88,6 +109,11 @@ def test_needs_rehash_delegates_to_the_best() -> None:
 
     assert hasher.needs_rehash(legacy)
     assert not hasher.needs_rehash(hasher.hash("secret"))
+
+
+def test_it_refuses_a_plaintext_hasher_among_the_extras() -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = MigratingPasswordHasher(_argon2(), PlaintextPasswordHasher())
 
 
 def test_the_salt_helpers_leave_a_self_salting_hasher_without_one() -> None:

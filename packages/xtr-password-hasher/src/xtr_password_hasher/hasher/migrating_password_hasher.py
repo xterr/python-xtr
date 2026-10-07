@@ -6,8 +6,11 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 
+from xtr_password_hasher.exception import InvalidArgumentError
 from xtr_password_hasher.legacy_password_hasher_interface import is_legacy_password_hasher
 from xtr_password_hasher.password_hasher_interface import PasswordHasherInterface
+
+from .plaintext_password_hasher import PlaintextPasswordHasher
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -16,7 +19,7 @@ if TYPE_CHECKING:
         LegacyPasswordHasherInterface,
     )
 
-__all__ = ["MigratingPasswordHasher"]
+__all__ = ["MigratingPasswordHasher", "hash_with_salt", "verify_with_salt"]
 
 
 @final
@@ -47,7 +50,20 @@ class MigratingPasswordHasher(PasswordHasherInterface):
         best: PasswordHasherInterface,
         *extras: PasswordHasherInterface,
     ) -> None:
-        """Hash with ``best``; fall back to ``extras`` only for hashes it disowns."""
+        """Hash with ``best``; fall back to ``extras`` only for hashes it disowns.
+
+        Raises:
+            InvalidArgumentError: When an extra is a
+                :class:`~xtr_password_hasher.PlaintextPasswordHasher`; it
+                "verifies" any string equal to the stored one, so behind a
+                migrating hasher a leaked hash would be a working password.
+        """
+        for extra in extras:
+            if isinstance(extra, PlaintextPasswordHasher):
+                raise InvalidArgumentError(
+                    "A PlaintextPasswordHasher must not be a MigratingPasswordHasher extra: "
+                    "a leaked hash would then be a working password.",
+                )
         self._best = best
         self._extras = extras
 
