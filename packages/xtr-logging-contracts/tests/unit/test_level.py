@@ -39,10 +39,6 @@ def test_an_invalid_level_is_also_a_value_error() -> None:
         _ = Level.parse("loud")
 
 
-def test_lower_name_is_the_lower_case_name() -> None:
-    assert Level.EMERGENCY.lower_name == "emergency"
-
-
 @pytest.mark.parametrize(
     ("level", "severity"),
     [(Level.EMERGENCY, 0), (Level.ALERT, 1), (Level.NOTICE, 5), (Level.DEBUG, 7)],
@@ -58,9 +54,8 @@ def test_a_threshold_includes_levels_at_or_above_it() -> None:
 
 
 def test_comparisons_are_strict() -> None:
-    assert Level.ERROR.is_higher_than(Level.WARNING)
-    assert not Level.ERROR.is_higher_than(Level.ERROR)
     assert Level.INFO.is_lower_than(Level.NOTICE)
+    assert not Level.NOTICE.is_lower_than(Level.INFO)
 
 
 @pytest.mark.parametrize("value", [4.5, None, object()])

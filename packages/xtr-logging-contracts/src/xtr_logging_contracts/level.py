@@ -74,11 +74,6 @@ class Level(IntEnum):
         return found
 
     @property
-    def lower_name(self) -> str:
-        """The name of this level in lower case, as configuration writes it."""
-        return self.name.lower()
-
-    @property
     def rfc5424(self) -> int:
         """The RFC 5424 severity: 0 for EMERGENCY through 7 for DEBUG."""
         return _TO_RFC5424[self]
@@ -86,10 +81,6 @@ class Level(IntEnum):
     def includes(self, other: Level) -> bool:
         """Whether a threshold of this level lets ``other`` through."""
         return self <= other
-
-    def is_higher_than(self, other: Level) -> bool:
-        """Whether this level is strictly more severe than ``other``."""
-        return self > other
 
     def is_lower_than(self, other: Level) -> bool:
         """Whether this level is strictly less severe than ``other``."""
