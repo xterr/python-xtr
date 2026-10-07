@@ -17,6 +17,11 @@ RESERVED_CHARACTERS: Final = "{}()/\\@:"
 
 Pools use them for their own structure — namespace separators above all — so
 a key holding one could reach into another key's space.
+
+No key or tag may hold a non-printable character either (anything
+:py:meth:`str.isprintable` rejects): a pool builds its own internal keys —
+a tag's version among them — with control characters, so a key that could
+hold one could name them.
 """
 
 
@@ -80,8 +85,8 @@ class ItemInterface(Protocol):
         Tags follow the same rules as keys.
 
         Raises:
-            InvalidArgumentError: When a tag is empty or holds a reserved
-                character.
+            InvalidArgumentError: When a tag is empty, holds a reserved
+                character, or holds a non-printable character.
             CacheError: When the item comes from a pool that cannot store
                 tags.
         """

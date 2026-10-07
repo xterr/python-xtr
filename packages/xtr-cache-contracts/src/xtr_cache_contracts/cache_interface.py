@@ -62,7 +62,9 @@ class CacheInterface(Protocol):
             metadata: A mapping to fill with the metadata of the value — see
                 :class:`~xtr_cache_contracts.metadata.Metadata` — plus
                 ``save_failed`` when a computed value could not be saved.
-                Keys already in it are overwritten, not cleared.
+                The value's own keys are overwritten and ``save_failed`` is
+                reset each call; any other key already in the mapping is left
+                untouched.
 
         Returns:
             The cached value, or the one ``callback`` computed.
