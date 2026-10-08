@@ -1,0 +1,19 @@
+"""``app:hello``: the example command — replace it with your own."""
+
+from __future__ import annotations
+
+from xtr_console import ConsoleStyle, ExitCode, as_command, escape
+
+__all__ = ["hello"]
+
+
+@as_command("app:hello")
+async def hello(io: ConsoleStyle, name: str = "world") -> int:
+    """Greet someone.
+
+    Args:
+        io: Where the command writes.
+        name: Who to greet.
+    """
+    io.success(f"Hello, {escape(name)}!")
+    return ExitCode.SUCCESS

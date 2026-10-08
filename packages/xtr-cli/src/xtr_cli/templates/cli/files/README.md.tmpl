@@ -1,0 +1,44 @@
+# ${name}
+
+A console application on the xtr packages.
+
+## Run
+
+```sh
+uv run ${name}                  # every command
+uv run ${name} app:hello Ada    # the example command
+uv run ${name} debug:bundles    # the bundles and whether each is active
+```
+
+The environment is read from `.env`, then `.env.local`, then `.env.<APP_ENV>` and
+`.env.<APP_ENV>.local`; a variable set in the shell wins. Keep machine-specific values in
+`.env.local`, which is not committed.
+
+## Layout
+
+```
+src/${app}/
+├── __main__.py        the console entry point
+├── kernel.py          the kernel every entry point builds, and the environment loader
+├── bundles.py         the active bundles — written by xtr-recipes
+└── command/           the console commands
+```
+
+## Add a package
+
+```sh
+uv run xtr-recipes recipes:add "xtr-messenger[di,console]"
+```
+
+It installs the package and applies its recipe — the bundle, its configuration file, its
+environment variables — and prints any step left to do by hand. `xtr.lock` records what was
+applied; commit it.
+
+## Check
+
+```sh
+uv run pytest
+uv run ruff check && uv run ruff format --check
+uv run basedpyright && uv run ty check
+uv run xtr-recipes recipes:sync --check
+```

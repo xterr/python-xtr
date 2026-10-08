@@ -1,0 +1,34 @@
+# A console application: the kernel, the console entry point and one command.
+summary = "A console application: a kernel, its commands, the layered .env files and logging."
+
+[dependencies]
+packages = [
+    "xtr-dependency-injection",
+    "xtr-console[di]",
+    "xtr-dotenv[di,console]",
+    "xtr-logging[di]",
+]
+dev = ["xtr-recipes", "pytest", "ruff", "basedpyright", "ty"]
+
+# Only what no package's recipe writes. The bundle list, .env and the ignore
+# blocks are the recipes' to write, once the packages are installed.
+[files]
+"pyproject.toml" = "files/pyproject.toml.tmpl"
+".python-version" = "files/python-version.tmpl"
+".gitignore" = "files/gitignore.tmpl"
+"README.md" = "files/README.md.tmpl"
+"src/${app}/__init__.py" = "files/app/__init__.py.tmpl"
+"src/${app}/__main__.py" = "files/app/__main__.py.tmpl"
+"src/${app}/kernel.py" = "files/app/kernel.py.tmpl"
+"src/${app}/py.typed" = "files/app/py.typed.tmpl"
+"src/${app}/command/__init__.py" = "files/app/command/__init__.py.tmpl"
+"src/${app}/command/hello_command.py" = "files/app/command/hello_command.py.tmpl"
+"tests/__init__.py" = "files/tests/__init__.py.tmpl"
+"tests/test_kernel.py" = "files/tests/test_kernel.py.tmpl"
+
+[notes]
+next = [
+    "uv run ${name} app:hello",
+    "uv run ${name} debug:bundles",
+    "uv run pytest",
+]

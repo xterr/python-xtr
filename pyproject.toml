@@ -15,6 +15,7 @@ package = false
 xtr-cache                = { workspace = true }
 xtr-cache-contracts      = { workspace = true }
 xtr-clock                = { workspace = true }
+xtr-cli                  = { workspace = true }
 xtr-console              = { workspace = true }
 xtr-dependency-injection = { workspace = true }
 xtr-dotenv               = { workspace = true }

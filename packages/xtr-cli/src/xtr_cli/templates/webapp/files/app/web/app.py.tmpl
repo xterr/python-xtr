@@ -1,0 +1,23 @@
+"""The web application: FastAPI, as the framework documents it, served from the kernel.
+
+``setup(app, kernel)`` is the whole of serving it from the kernel: every life of the
+application builds and boots its own kernel and shuts it down again, and every request runs
+through the lifecycle the http_kernel bundle contributes. Left out of the kernel's scan
+(see ``exclude`` in :mod:`${app}.kernel`): importing this module builds the application.
+"""
+
+from __future__ import annotations
+
+from fastapi import FastAPI
+from xtr_http_kernel import setup
+
+from ${app}.kernel import kernel
+
+from .routes import router
+
+__all__ = ["app"]
+
+app = FastAPI(title="${name}")
+app.include_router(router)
+
+setup(app, kernel)

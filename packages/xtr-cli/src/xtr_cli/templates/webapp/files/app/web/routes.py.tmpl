@@ -1,0 +1,15 @@
+"""The routes — replace the example with your own."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter
+
+__all__ = ["router"]
+
+router = APIRouter()
+
+
+@router.get("/")
+async def home() -> dict[str, str]:
+    """Answer that the application is up."""
+    return {"status": "ok"}

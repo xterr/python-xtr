@@ -1,0 +1,9 @@
+"""The application's kernel builds, with every listed bundle."""
+
+from __future__ import annotations
+
+from ${app}.kernel import kernel
+
+
+def test_the_kernel_builds_in_the_test_environment() -> None:
+    _ = kernel.with_env("test").build()

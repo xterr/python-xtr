@@ -23,6 +23,7 @@ packages is one commit, and released separately so an application installs only 
 |---|---|
 | [xtr-cache](packages/xtr-cache) | Cache pools in memory, in files, in Redis, chained or tag-aware, with stampede protection. |
 | [xtr-cache-contracts](packages/xtr-cache-contracts) | The caching interfaces alone: fetch-or-compute, item pools, tags and namespaces. |
+| [xtr-cli](packages/xtr-cli) | `uvx xtr-cli new`: a new console or web application, its packages installed and their recipes applied, in one command. |
 | [xtr-clock](packages/xtr-clock) | An injectable clock, a timezone-aware `DatePoint`, and a frozen clock for tests. |
 | [xtr-console](packages/xtr-console) | Async-native console applications: commands as functions or classes, wired by a container. |
 | [xtr-dependency-injection](packages/xtr-dependency-injection) | A bundle and kernel layer for Python, compiled to a wireup container. |
@@ -125,6 +126,7 @@ graph LR
     dotenv -. console extra .-> console
     recipes[xtr-recipes] --> di
     recipes --> console
+    cli[xtr-cli] --> console
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

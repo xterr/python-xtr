@@ -1,0 +1,49 @@
+# ${name}
+
+A web application on the xtr packages: FastAPI, served from the same kernel as its console.
+
+## Run
+
+```sh
+uv run ${name}-web              # serve on WEB_HOST:WEB_PORT, 127.0.0.1:8000 by default
+uv run ${name}                  # every console command
+uv run ${name} debug:router     # the routes
+uv run ${name} debug:bundles    # the bundles and whether each is active
+```
+
+The environment is read from `.env`, then `.env.local`, then `.env.<APP_ENV>` and
+`.env.<APP_ENV>.local`; a variable set in the shell wins. Keep machine-specific values in
+`.env.local`, which is not committed.
+
+## Layout
+
+```
+src/${app}/
+├── __main__.py        the console entry point
+├── kernel.py          the kernel every entry point builds, and the environment loader
+├── bundles.py         the active bundles — written by xtr-recipes
+├── command/           the console commands
+└── web/
+    ├── __main__.py    the web entry point
+    ├── app.py         the FastAPI application, served from the kernel
+    └── routes.py      the routes
+```
+
+## Add a package
+
+```sh
+uv run xtr-recipes recipes:add "xtr-messenger[di,console]"
+```
+
+It installs the package and applies its recipe — the bundle, its configuration file, its
+environment variables — and prints any step left to do by hand. `xtr.lock` records what was
+applied; commit it.
+
+## Check
+
+```sh
+uv run pytest
+uv run ruff check && uv run ruff format --check
+uv run basedpyright && uv run ty check
+uv run xtr-recipes recipes:sync --check
+```

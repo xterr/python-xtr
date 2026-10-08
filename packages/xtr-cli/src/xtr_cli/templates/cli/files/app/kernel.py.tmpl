@@ -1,0 +1,34 @@
+"""The kernel every entry point builds, and the environment it is built for.
+
+``Kernel(...)`` stores a recipe and does no work; ``build()``, ``boot()`` and ``run()`` do,
+each time afresh, so every entry point builds its own container from the same line.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Final
+
+from xtr_dependency_injection import Kernel, exclude
+from xtr_dotenv import Dotenv
+
+__all__ = ["PROJECT_DIR", "kernel", "load_environment"]
+
+PROJECT_DIR: Final = Path(__file__).resolve().parents[2]
+"""The directory holding ``pyproject.toml`` and the ``.env`` files."""
+
+kernel: Final = Kernel(
+    "${app}",
+    # The bundles are read from ${app}.bundles.BUNDLES; the environment from APP_ENV.
+    allowed_envs=("dev", "test", "prod"),
+)
+
+
+@exclude
+def load_environment() -> None:
+    """Load the layered ``.env`` files into the environment, before the kernel is built.
+
+    ``@exclude`` keeps this helper out of the container: it is an entry point's concern,
+    never a service.
+    """
+    _ = Dotenv().boot_env(str(PROJECT_DIR / ".env"))

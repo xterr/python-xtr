@@ -1,0 +1,23 @@
+"""The console entry point: ``uv run ${name} <command>`` or ``python -m ${app} <command>``.
+
+``*.__main__`` modules are never scanned by the kernel, so importing the application never
+runs it.
+"""
+
+from __future__ import annotations
+
+from xtr_console.bundle import console
+
+from ${app}.kernel import kernel, load_environment
+
+__all__ = ["main"]
+
+
+def main() -> None:
+    """Load the environment, then boot, run the console, shut down and exit with its code."""
+    load_environment()
+    raise SystemExit(kernel.run(console))
+
+
+if __name__ == "__main__":
+    main()

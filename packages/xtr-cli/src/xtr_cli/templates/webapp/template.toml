@@ -1,0 +1,45 @@
+# A web application: the cli template, plus a FastAPI application served from the
+# same kernel through the http-kernel request lifecycle.
+summary = "A web application: FastAPI served from the kernel, with the console beside it."
+
+[dependencies]
+packages = [
+    "xtr-dependency-injection[fastapi]",
+    "xtr-console[di]",
+    "xtr-dotenv[di,console]",
+    "xtr-logging[di]",
+    "xtr-http-kernel[logging,console]",
+    "fastapi",
+    "uvicorn",
+]
+dev = ["xtr-recipes", "pytest", "httpx", "ruff", "basedpyright", "ty"]
+
+# Only what no package's recipe writes. The bundle list, .env and the ignore
+# blocks are the recipes' to write, once the packages are installed.
+[files]
+"pyproject.toml" = "files/pyproject.toml.tmpl"
+".python-version" = "files/python-version.tmpl"
+".gitignore" = "files/gitignore.tmpl"
+"README.md" = "files/README.md.tmpl"
+"src/${app}/__init__.py" = "files/app/__init__.py.tmpl"
+"src/${app}/__main__.py" = "files/app/__main__.py.tmpl"
+"src/${app}/kernel.py" = "files/app/kernel.py.tmpl"
+"src/${app}/py.typed" = "files/app/py.typed.tmpl"
+"src/${app}/command/__init__.py" = "files/app/command/__init__.py.tmpl"
+"src/${app}/command/hello_command.py" = "files/app/command/hello_command.py.tmpl"
+"src/${app}/config/__init__.py" = "files/app/config/__init__.py.tmpl"
+"src/${app}/config/http_kernel.py" = "files/app/config/http_kernel.py.tmpl"
+"src/${app}/web/__init__.py" = "files/app/web/__init__.py.tmpl"
+"src/${app}/web/__main__.py" = "files/app/web/__main__.py.tmpl"
+"src/${app}/web/app.py" = "files/app/web/app.py.tmpl"
+"src/${app}/web/routes.py" = "files/app/web/routes.py.tmpl"
+"tests/__init__.py" = "files/tests/__init__.py.tmpl"
+"tests/test_kernel.py" = "files/tests/test_kernel.py.tmpl"
+"tests/test_web.py" = "files/tests/test_web.py.tmpl"
+
+[notes]
+next = [
+    "uv run ${name}-web",
+    "uv run ${name} debug:router",
+    "uv run pytest",
+]

@@ -1,0 +1,238 @@
+<div align="center">
+
+# xtr-cli
+
+**A new xtr application — a console application or a web application — ready to run, in one command.**
+
+<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
+<img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
+
+</div>
+
+---
+
+## Why?
+
+An application on the xtr packages starts the same way every time: a project manifest, a kernel,
+an entry point that loads the environment and runs the console, a web entry point that serves
+the application from the same kernel. Then each package's *Use in an application* steps — the
+bundle list, the configuration files, the `.env` and ignore lines.
+
+The packages already describe their own steps as recipes, which
+[xtr-recipes](../xtr-recipes) applies. So this tool writes only what no recipe can — the
+manifest, the kernel and the entry points — installs the packages with `uv`, and lets each
+package's recipe configure itself. The project it leaves boots, passes its own tests, and is
+already in the state `recipes:sync --check` expects.
+
+## Install
+
+Nothing to install: run it with `uvx`.
+
+```sh
+uvx xtr-cli new shop
+```
+
+Or install it once, and call it `xtr`:
+
+```sh
+uv tool install xtr-cli
+xtr new shop
+```
+
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) on the `PATH`, and `git` unless
+`--no-git` is given.
+
+## Quick start
+
+```console
+$ uvx xtr-cli new shop
+ • cli — A console application: a kernel, its commands, the layered .env files and logging.
+ • webapp — A web application: FastAPI served from the kernel, with the console beside it.
+ Template [cli/webapp] (cli): webapp
+ • orm — Database engines, sessions per unit of work and versioned migrations.
+ • messenger — A message bus: handlers, middleware, transports and consumers.
+ …
+ Add-ons, comma-separated (empty for none): orm, messenger
+ Database drivers for orm — sqlite, postgres, mysql, joined with + (sqlite): sqlite+postgres
+ Transports and serializers for messenger — amqp, taskiq, pydantic, joined with +:
+
+shop — the webapp template
+--------------------------
+
+ • directory: /home/ada/shop
+ • add-ons:   orm (sqlite, postgres), messenger
+ • python:    3.13
+The same, with no question asked:
+  uvx xtr-cli new shop --template=webapp --with=orm:sqlite+postgres,messenger --python=3.13 -n
+
+ Create it? [y/n] (y):
+write pyproject.toml
+…
+run   uv add -- 'xtr-dependency-injection[fastapi]>=3.0,<4' …
+run   uv add --dev -- 'xtr-recipes>=3.0,<4' pytest httpx ruff basedpyright ty
+run   uv run xtr-recipes recipes:sync
+run   git init --quiet
+
+ [OK] shop is ready in /home/ada/shop
+```
+
+```sh
+cd shop
+uv run shop-web             # serve it
+uv run shop debug:bundles   # what is active
+uv run pytest
+```
+
+## Commands
+
+```sh
+xtr project:new [<directory>] [options]   # alias: new — into a new or empty directory
+xtr project:init [options]                # alias: init — into the current directory
+```
+
+| Option | Default | |
+|---|---|---|
+| `--template` | asked; `cli` with `-n` | `cli`, `webapp`, or a directory holding a `template.toml` |
+| `--name` | the directory's name | the distribution and console script; dashes become underscores for the import package |
+| `--with` | asked; none with `-n` | add-ons, comma-separated: `orm:sqlite+postgres,messenger` |
+| `--python` | the Python running this tool | the `3.<minor>` the project is pinned to; 3.11 or later |
+| `--no-git` | | do not run `git init`; `init` never re-initialises an existing repository |
+| `--dry-run` | | print every file and command, and write nothing |
+| `--local-packages` | | install the xtr packages, editable, from a directory of their sources |
+| `-n` | | ask nothing: every question takes its default |
+
+**Questions fill in only what the command line left out**, and an option given is never asked.
+With `-n` — or wherever nothing can answer, such as CI — nothing is asked at all. Before anything
+is written the run prints the command that makes the same project with no question asked, so an
+answered run can be repeated in a script.
+
+The directory must be missing, or hold nothing but `.git` and editor metadata: nothing is ever
+written over. A name that would not import — a keyword, a module of the standard library — is
+refused before anything is written.
+
+### What it runs
+
+1. Writes the template's files.
+2. `uv add` the template's packages and the add-ons; every unversioned xtr requirement is pinned
+   to this tool's major version, so the files and the packages are from the same release.
+3. `uv add --dev` the tools: `xtr-recipes`, `pytest`, `ruff`, `basedpyright`, `ty`.
+4. `uv run xtr-recipes recipes:sync` — each package's recipe writes `<app>/bundles.py`, its
+   configuration files, its `.env` and `.gitignore` blocks, and `xtr.lock`; the steps it cannot
+   make are printed.
+5. `git init`; nothing is committed.
+
+A step that fails stops the run; what was made so far is left in place, and the error names the
+command to run by hand.
+
+## Templates
+
+| Template | Packages | Scripts |
+|---|---|---|
+| `cli` | `xtr-dependency-injection`, `xtr-console[di]`, `xtr-dotenv[di,console]`, `xtr-logging[di]` | `<name>` |
+| `webapp` | the same, `xtr-dependency-injection[fastapi]`, `xtr-http-kernel[logging,console]`, `fastapi`, `uvicorn` | `<name>`, `<name>-web` |
+
+Both write `pyproject.toml` (with ruff, basedpyright, ty and pytest configured), `.python-version`,
+`.gitignore`, `README.md`, `src/<app>/kernel.py`, `src/<app>/__main__.py`, an example
+`app:hello` command and a test that builds the kernel. `webapp` adds `src/<app>/web/` — the
+FastAPI application served with `setup(app, kernel)`, its routes and a uvicorn entry point — and
+a test that requests the home page.
+
+### A template of your own
+
+`--template=<directory>` takes any directory holding a `template.toml`:
+
+```toml
+summary = "What it makes, in one line."
+
+[dependencies]
+packages = ["xtr-console[di]"]     # uv add
+dev = ["xtr-recipes", "pytest"]    # uv add --dev; with xtr-recipes, the recipes are applied
+
+[files]
+# destination in the project = file under the template directory
+"pyproject.toml" = "files/pyproject.toml.tmpl"
+"src/${app}/__main__.py" = "files/main.py.tmpl"
+
+[notes]
+next = ["uv run ${name} list"]     # printed once the project is made
+```
+
+Destinations, files and notes substitute `${name}` (the distribution), `${app}` (the import
+name), `${python}` (`3.13`) and `${minor}` (`13`); a literal `$` is written `$$`. An unknown
+placeholder, table or key is an `InvalidTemplateError` before anything is written. Write only
+what no recipe writes: the bundle list, `.env` and the ignore lines are the recipes'.
+
+## Add-ons
+
+Choosing an add-on only adds its requirement; the recipe the package ships configures it, the
+way it would for a package added later with `xtr-recipes recipes:add`.
+
+| Add-on | Installs | Variants |
+|---|---|---|
+| `orm` | `xtr-orm[di,console]` | `sqlite` (default), `postgres`, `mysql` |
+| `messenger` | `xtr-messenger[di,console]` | `amqp`, `taskiq`, `pydantic` |
+| `scheduler` | `xtr-scheduler[di,console,cron]` | |
+| `event-dispatcher` | `xtr-event-dispatcher[di,console]` | |
+| `cache` | `xtr-cache[di,console]` | `redis` |
+| `lock` | `xtr-lock[di]` | `redis` |
+| `rate-limiter` | `xtr-rate-limiter[di,cache,lock]` | `redis` |
+| `storage` | `xtr-storage[di]` | `s3`, `gcs` |
+| `security` | `xtr-security[console]` — `webapp` only | |
+
+Variants follow the name after `:`, joined with `+`: `orm:sqlite+postgres`. A name alone takes
+the defaults; `messenger:` picks none. Asked interactively, an add-on with variants is followed by
+a question for them.
+
+## Errors
+
+Everything this library raises derives from `CliError`, and carries what went wrong as typed
+attributes. A command reports it and exits `1`.
+
+| Error | Raised when |
+|---|---|
+| `DirectoryNotEmptyError` | the directory is a file, or holds anything but version-control and editor metadata |
+| `InvalidProjectNameError` | the name normalises to nothing, or to a keyword, a non-identifier or a standard-library module |
+| `InvalidTemplateError` | a `template.toml` does not parse, holds an unknown key, names a missing file, or a placeholder is unknown |
+| `StepFailedError` | `uv` or `git` exited with a failure; the later steps were not run |
+| `UnknownAddOnError` | `--with` names an unknown add-on, one the template cannot take, one twice, or an unknown variant |
+| `UnknownTemplateError` | `--template` is neither a shipped template nor a directory holding one |
+| `UnsupportedPythonError` | `--python` is not `3.<minor>` with a minor of 11 or more |
+
+## Layout
+
+```
+xtr_cli/
+├── command/                 project:new and project:init
+├── command_support.py       what both commands share: questions, plan, apply, report
+├── project_questions.py     what the command line left out, asked
+├── project_name.py          the distribution and import names
+├── project_settings.py      everything decided, and the command line repeating it
+├── template.py              a template.toml and its files
+├── template_catalog.py      the shipped templates, or a directory
+├── add_on.py                one add-on: a name standing for a requirement
+├── add_on_catalog.py        the add-ons, and how --with names them
+├── scaffolder.py            settings into a plan, a plan into a project
+├── scaffold_plan.py         the files and commands, before anything is made
+├── subprocess_runner.py     uv and git, run as real processes
+├── templates/               cli/ and webapp/
+└── exception/               CliError, the root of everything this library raises
+```
+
+## Development
+
+Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under
+`packages/xtr-cli`; run the commands below from there.
+
+```sh
+uv sync --all-extras
+uv run ruff check && uv run ruff format --check && uv run basedpyright && uv run ty check && uv run pytest
+```
+
+`tests/integration/test_scaffold.py` makes each template for real, from the working tree's
+packages, and runs the project's own checks and commands. It needs `uv` and the network for the
+third-party packages, and is skipped unless `XTR_CLI_SCAFFOLD=1` is set.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

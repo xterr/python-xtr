@@ -1,0 +1,28 @@
+"""The web application answers, served from its kernel."""
+
+from __future__ import annotations
+
+from http import HTTPStatus
+
+import httpx
+import pytest
+
+from ${app}.web.app import app
+
+pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+async def test_the_home_page_answers() -> None:
+    # The lifespan is what builds and boots the kernel the requests are served from.
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {"status": "ok"}
