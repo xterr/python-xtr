@@ -31,6 +31,8 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-event-dispatcher](packages/xtr-event-dispatcher) | Events dispatched to listeners and subscribers by priority, any of them able to stop the rest. |
 | [xtr-event-dispatcher-contracts](packages/xtr-event-dispatcher-contracts) | The event dispatching interfaces alone, for libraries that emit events without choosing who hears them. |
 | [xtr-http-kernel](packages/xtr-http-kernel) | A request lifecycle for FastAPI applications: requests turned into responses through events, wired by a container. |
+| [xtr-http-message](packages/xtr-http-message) | The HTTP message interfaces implemented: requests, responses, streams, URIs, uploaded files and one factory for all six. |
+| [xtr-http-message-contracts](packages/xtr-http-message-contracts) | The HTTP message interfaces alone: requests, responses, streams, URIs, uploaded files and their factories. |
 | [xtr-logging](packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. |
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
@@ -83,6 +85,8 @@ graph LR
     httpkernel --> svccon
     httpkernel -. logging extra .-> logging
     httpkernel -. console extra .-> console
+    httpmsgcon[xtr-http-message-contracts]
+    httpmsg[xtr-http-message] --> httpmsgcon
     orm[xtr-orm] --> logcon
     orm -. di extra .-> di
     orm -. di extra .-> svccon

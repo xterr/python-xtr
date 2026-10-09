@@ -9,6 +9,8 @@ contributors.
 | [Symfony](https://symfony.com) | xtr-cache, xtr-cache-contracts, xtr-clock, xtr-console, xtr-dependency-injection, xtr-dotenv, xtr-event-dispatcher, xtr-event-dispatcher-contracts, xtr-http-kernel, xtr-lock, xtr-logging, xtr-messenger, xtr-orm, xtr-password-hasher, xtr-rate-limiter, xtr-recipes, xtr-scheduler, xtr-security, xtr-security-core, xtr-security-http, xtr-service-contracts |
 | [Monolog](https://github.com/Seldaek/monolog) | xtr-logging |
 | [PSR-3 Logger Interface](https://github.com/php-fig/log) (PHP-FIG) | xtr-logging-contracts |
+| [PSR-7 HTTP Message Interfaces](https://github.com/php-fig/http-message) and [PSR-17 HTTP Factories](https://github.com/php-fig/http-factory) (PHP-FIG) | xtr-http-message-contracts |
+| [nyholm/psr7](https://github.com/Nyholm/psr7) (Tobias Nyholm) and [php-http/psr7-integration-tests](https://github.com/php-http/psr7-integration-tests) (PHP HTTP Team) | xtr-http-message |
 | [Flysystem](https://flysystem.thephpleague.com) and [FlysystemBundle](https://github.com/thephpleague/flysystem-bundle) | xtr-storage |
 | [Doctrine Migrations](https://github.com/doctrine/migrations), [DoctrineBundle](https://github.com/doctrine/DoctrineBundle) and [DoctrineMigrationsBundle](https://github.com/doctrine/DoctrineMigrationsBundle) | xtr-orm |
 | [LexikJWTAuthenticationBundle](https://github.com/lexik/LexikJWTAuthenticationBundle) | xtr-security-jwt |
