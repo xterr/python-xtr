@@ -70,3 +70,9 @@ def test_a_scaffolded_project_runs_and_checks_clean(
         _ = _run(check, project)
     for command in commands:
         _ = _run(("uv", "run", project.name, *command), project)
+    if template == "webapp":
+        served = _run(
+            ("uv", "run", "xtr", "serve", f"--project-dir={project}", "--dry-run", "-n"),
+            _PACKAGES / "xtr-cli",
+        )
+        assert f"WEB_RELOAD=1 uv run {project.name}-web" in served

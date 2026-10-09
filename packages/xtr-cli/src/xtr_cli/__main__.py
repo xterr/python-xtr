@@ -15,7 +15,7 @@ from . import (
 
 __all__ = ["main"]
 
-_DESCRIPTION = "Creates a new xtr application: a console application or a web application."
+_DESCRIPTION = "Creates a new xtr application — a console or a web application — and serves it."
 
 
 def main() -> None:

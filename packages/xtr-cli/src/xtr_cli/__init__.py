@@ -18,14 +18,17 @@ from .add_on import AddOn
 from .add_on_catalog import AddOnCatalog
 from .add_on_choice import AddOnChoice
 from .exception import (
+    AmbiguousWebEntryPointError,
     CliError,
     DirectoryNotEmptyError,
     InvalidProjectNameError,
     InvalidTemplateError,
+    ProjectNotFoundError,
     StepFailedError,
     UnknownAddOnError,
     UnknownTemplateError,
     UnsupportedPythonError,
+    WebEntryPointNotFoundError,
 )
 from .process_runner_interface import ProcessRunnerInterface
 from .project_name import ProjectName
@@ -36,6 +39,8 @@ from .scaffolder import Scaffolder
 from .subprocess_runner import SubprocessRunner
 from .template import Template
 from .template_catalog import TemplateCatalog
+from .web_entry_point import WebEntryPoint
+from .web_entry_point_finder import WebEntryPointFinder
 
 try:
     __version__ = version("xtr-cli")
@@ -48,12 +53,14 @@ __all__ = [
     "AddOn",
     "AddOnCatalog",
     "AddOnChoice",
+    "AmbiguousWebEntryPointError",
     "CliError",
     "DirectoryNotEmptyError",
     "InvalidProjectNameError",
     "InvalidTemplateError",
     "ProcessRunnerInterface",
     "ProjectName",
+    "ProjectNotFoundError",
     "ProjectQuestions",
     "ProjectSettings",
     "ScaffoldPlan",
@@ -65,5 +72,8 @@ __all__ = [
     "UnknownAddOnError",
     "UnknownTemplateError",
     "UnsupportedPythonError",
+    "WebEntryPoint",
+    "WebEntryPointFinder",
+    "WebEntryPointNotFoundError",
     "__version__",
 ]

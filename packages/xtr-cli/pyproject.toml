@@ -1,7 +1,7 @@
 [project]
 name = "xtr-cli"
 version = "3.0.0"
-description = "Scaffolds a new xtr application — a console application or a web application — in one command."
+description = "Scaffolds a new xtr application — a console application or a web application — in one command, and serves it."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -65,6 +65,13 @@ reportPrivateUsage = "error"
 # boundary, not a type hole in the public API.
 [[tool.basedpyright.executionEnvironments]]
 root = "src/xtr_cli/template.py"
+reportAny = "none"
+reportUnknownVariableType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownMemberType = "none"
+
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_cli/web_entry_point_finder.py"
 reportAny = "none"
 reportUnknownVariableType = "none"
 reportUnknownArgumentType = "none"

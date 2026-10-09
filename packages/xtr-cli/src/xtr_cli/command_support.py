@@ -29,12 +29,22 @@ if TYPE_CHECKING:
 
     from xtr_console import ConsoleStyle
 
+    from .process_runner_interface import ProcessRunnerInterface
     from .scaffold_plan import ScaffoldPlan
 
-__all__ = ["build_scaffolder", "default_python", "scaffold"]
+__all__ = ["build_runner", "build_scaffolder", "default_python", "scaffold"]
 
 _PYTHON = re.compile(r"^3\.(?P<minor>\d+)$")
 _OLDEST_MINOR = 11
+
+
+def build_runner() -> ProcessRunnerInterface:
+    """Return what the commands start ``uv``, ``git`` and a server through.
+
+    The one seam between a command and a real process: a test replaces this
+    with a recorder.
+    """
+    return SubprocessRunner()
 
 
 def build_scaffolder() -> Scaffolder:
@@ -44,7 +54,7 @@ def build_scaffolder() -> Scaffolder:
     replaces this with a scaffolder over a recorder, so a project is planned
     and written without installing anything.
     """
-    return Scaffolder(SubprocessRunner(), __version__)
+    return Scaffolder(build_runner(), __version__)
 
 
 def default_python() -> str:

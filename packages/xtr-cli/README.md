@@ -2,7 +2,7 @@
 
 # xtr-cli
 
-**A new xtr application — a console application or a web application — ready to run, in one command.**
+**A new xtr application — a console application or a web application — ready to run in one command, and served in another.**
 
 <img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
@@ -89,6 +89,7 @@ uv run pytest
 ```sh
 xtr project:new [<directory>] [options]   # alias: new — into a new or empty directory
 xtr project:init [options]                # alias: init — into the current directory
+xtr server:start [options]                # alias: serve — run the project's web application
 ```
 
 | Option | Default | |
@@ -124,6 +125,43 @@ refused before anything is written.
 
 A step that fails stops the run; what was made so far is left in place, and the error names the
 command to run by hand.
+
+### Serving
+
+```sh
+cd shop
+uvx xtr-cli serve                       # or `xtr serve` once installed
+uvx xtr-cli serve --port 9000 --no-reload
+```
+
+`serve` finds the project — the nearest `pyproject.toml` at or above the current directory, or
+`--project-dir` — and its web entry point, then runs it in the project's own environment with
+`uv run`. The server restarts on every source change; `--no-reload` turns that off.
+
+| Option | Default | |
+|---|---|---|
+| `--project-dir` | the nearest project | the project to serve |
+| `--entrypoint` | found in the project | a console script, or an ASGI application as `module:attribute` |
+| `--host` | the entry point's own | where to listen |
+| `--port` | the entry point's own | the port to listen on |
+| `--reload` / `--no-reload` | `--reload` | restart on every source change |
+| `--dry-run` | | print the command, and run nothing |
+
+The web entry point is found by reading the project's files, never by importing them:
+
+1. **A web console script** — a `[project.scripts]` entry whose module imports `uvicorn`,
+   `hypercorn` or `granian`, or whose name ends in `-web` or `-server`. It is run as it is, so
+   whatever it does before serving — loading the `.env` files, for one — still happens. The host,
+   the port and reloading reach it as `WEB_HOST`, `WEB_PORT` and `WEB_RELOAD=1`, which the
+   `webapp` template's `<name>-web` reads.
+2. **An ASGI application** — only when there is no such script: a module-level
+   `FastAPI()`, `Starlette()` or `Litestar()`, handed to `uv run uvicorn module:attribute`, on
+   `127.0.0.1:8000` unless told otherwise. `uvicorn` must be installed in the project, and
+   nothing the application does at startup outside that module runs.
+
+Several candidates are offered to choose from; with `-n` the command fails and lists them for
+`--entrypoint`. Ctrl-C stops the server and waits for it to finish shutting down, so the
+application's shutdown hooks run.
 
 ## Templates
 
@@ -197,18 +235,21 @@ attributes. A command reports it and exits `1`.
 | Error | Raised when |
 |---|---|
 | `DirectoryNotEmptyError` | the directory is a file, or holds anything but version-control and editor metadata |
+| `AmbiguousWebEntryPointError` | `serve` found several web entry points, and no question may be asked |
 | `InvalidProjectNameError` | the name normalises to nothing, or to a keyword, a non-identifier or a standard-library module |
 | `InvalidTemplateError` | a `template.toml` does not parse, holds an unknown key, names a missing file, or a placeholder is unknown |
+| `ProjectNotFoundError` | `serve` was run outside a project |
 | `StepFailedError` | `uv` or `git` exited with a failure; the later steps were not run |
 | `UnknownAddOnError` | `--with` names an unknown add-on, one the template cannot take, one twice, or an unknown variant |
 | `UnknownTemplateError` | `--template` is neither a shipped template nor a directory holding one |
 | `UnsupportedPythonError` | `--python` is not `3.<minor>` with a minor of 11 or more |
+| `WebEntryPointNotFoundError` | the project has nothing to serve, or `--entrypoint` names nothing it has |
 
 ## Layout
 
 ```
 xtr_cli/
-├── command/                 project:new and project:init
+├── command/                 project:new, project:init and server:start
 ├── command_support.py       what both commands share: questions, plan, apply, report
 ├── project_questions.py     what the command line left out, asked
 ├── project_name.py          the distribution and import names
@@ -219,7 +260,9 @@ xtr_cli/
 ├── add_on_catalog.py        the add-ons, and how --with names them
 ├── scaffolder.py            settings into a plan, a plan into a project
 ├── scaffold_plan.py         the files and commands, before anything is made
-├── subprocess_runner.py     uv and git, run as real processes
+├── web_entry_point.py       what serves an application, and the command starting it
+├── web_entry_point_finder.py the project around a directory, and its web entry point
+├── subprocess_runner.py     uv, git and the server, run as real processes
 ├── templates/               cli/ and webapp/
 └── exception/               CliError, the root of everything this library raises
 ```

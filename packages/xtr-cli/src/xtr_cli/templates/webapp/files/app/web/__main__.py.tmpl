@@ -1,7 +1,8 @@
 """The web entry point: ``uv run ${name}-web`` or ``python -m ${app}.web``.
 
 The environment is loaded before anything reads it, then the server runs the application on
-``WEB_HOST`` / ``WEB_PORT``. Ctrl-C or SIGTERM stops it: the application's lifespan ends and
+``WEB_HOST`` / ``WEB_PORT``, restarting it on every source change when ``WEB_RELOAD=1`` —
+``xtr serve --reload`` sets it. Ctrl-C or SIGTERM stops it: the application's lifespan ends and
 the kernel shuts down with it.
 """
 
@@ -12,23 +13,28 @@ from typing import Final
 
 import uvicorn
 
-from ${app}.kernel import load_environment
-
-from .app import app
+from ${app}.kernel import PROJECT_DIR, load_environment
 
 __all__ = ["main"]
 
 _HOST: Final = "127.0.0.1"
 _PORT: Final = 8000
+# An import string, not the object: reloading imports the application afresh in a new process,
+# which inherits the environment loaded here.
+_APP: Final = "${app}.web.app:app"
 
 
 def main() -> None:
     """Load the environment, then serve the application where the variables say."""
     load_environment()
     uvicorn.run(
-        app,
+        _APP,
         host=os.environ.get("WEB_HOST", _HOST),
         port=int(os.environ.get("WEB_PORT", str(_PORT))),
+        reload=os.environ.get("WEB_RELOAD") == "1",
+        # The application's own sources, not the whole project: the virtual environment
+        # under it would only slow every scan down.
+        reload_dirs=[str(PROJECT_DIR / "src")],
     )
 
 

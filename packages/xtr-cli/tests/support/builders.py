@@ -5,15 +5,15 @@ from typing import TYPE_CHECKING
 from xtr_console import Application, ApplicationTester
 
 from xtr_cli import AddOnCatalog, ProjectName, ProjectSettings, TemplateCatalog
-from xtr_cli.command import InitCommand, NewCommand
+from xtr_cli.command import InitCommand, NewCommand, ServeCommand
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = ["DECLARED", "build_settings", "build_tester", "write_template"]
+__all__ = ["DECLARED", "build_settings", "build_tester", "write_project", "write_template"]
 
-DECLARED = (InitCommand, NewCommand)
-"""Named so importing this module declares both commands."""
+DECLARED = (InitCommand, NewCommand, ServeCommand)
+"""Named so importing this module declares every command."""
 
 
 def build_tester() -> ApplicationTester:
@@ -51,6 +51,17 @@ def write_template(directory: Path, manifest: str, files: dict[str, str] | None 
     directory.mkdir(parents=True, exist_ok=True)
     _ = (directory / "template.toml").write_text(manifest, encoding="utf-8")
     for path, text in (files or {}).items():
+        target = directory / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _ = target.write_text(text, encoding="utf-8")
+    return directory
+
+
+def write_project(directory: Path, scripts: dict[str, str], files: dict[str, str]) -> Path:
+    """Write a project with ``scripts`` in ``[project.scripts]`` and ``files``; return it."""
+    lines = "".join(f'"{name}" = "{target}"\n' for name, target in scripts.items())
+    manifest = f'[project]\nname = "shop"\n\n[project.scripts]\n{lines}'
+    for path, text in {"pyproject.toml": manifest, **files}.items():
         target = directory / path
         target.parent.mkdir(parents=True, exist_ok=True)
         _ = target.write_text(text, encoding="utf-8")

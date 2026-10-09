@@ -1,11 +1,11 @@
-"""What the scaffold runs ``uv`` and ``git`` through."""
+"""What the commands run ``uv``, ``git`` and an application's server through."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from pathlib import Path
 
 __all__ = ["ProcessRunnerInterface"]
@@ -20,6 +20,10 @@ class ProcessRunnerInterface(Protocol):
     installing anything.
     """
 
-    def run(self, argv: Sequence[str], cwd: Path) -> int:
-        """Run ``argv`` in ``cwd``, its output going straight to the terminal; return its code."""
+    def run(self, argv: Sequence[str], cwd: Path, env: Mapping[str, str] | None = None) -> int:
+        """Run ``argv`` in ``cwd``, its output going straight to the terminal; return its code.
+
+        ``env`` holds variables set for the command on top of this process's
+        own environment.
+        """
         ...
