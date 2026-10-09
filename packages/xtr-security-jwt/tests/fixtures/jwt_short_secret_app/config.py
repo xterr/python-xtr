@@ -11,7 +11,7 @@ __all__ = ["jwt"]
 
 @configure
 def jwt() -> JwtConfig:
-    """Sign with HS256 over a five-byte secret, so the build must refuse it."""
+    """Sign with HS256 over a five-byte secret, so the first signature must refuse it."""
     return JwtConfig(
         secret_key="short",
         issuer="https://jwt.test",

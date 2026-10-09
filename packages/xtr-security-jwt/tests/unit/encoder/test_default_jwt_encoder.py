@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from xtr_clock import MockClock
 
-from tests.support.keys import RSA_PRIVATE_PEM
+from tests.support.keys import RSA_PRIVATE_PEM, RSA_PUBLIC_PEM
 from xtr_security_jwt.encoder.default_jwt_encoder import DefaultJwtEncoder
 from xtr_security_jwt.encoder.header_aware_jwt_encoder_interface import (
     HeaderAwareJwtEncoderInterface,
 )
 from xtr_security_jwt.encoder.jwt_encoder_interface import JwtEncoderInterface
 from xtr_security_jwt.exception.jwt_decode_failure_error import JwtDecodeFailureError
+from xtr_security_jwt.exception.missing_key_error import MissingKeyError
 from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
 from xtr_security_jwt.services.key_loader.raw_key_loader import RawKeyLoader
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _clock() -> MockClock:
@@ -33,6 +39,33 @@ def _encoder(clock: MockClock | None = None, *, ttl: int = 3600) -> DefaultJwtEn
 
 def test_it_implements_both_encoder_interfaces() -> None:
     assert isinstance(_encoder(), JwtEncoderInterface)
+
+
+def _keyless(*extras: str) -> DefaultJwtEncoder:
+    provider = JoserfcJwsProvider(
+        RawKeyLoader(None, None, None, extras), "RS256", 3600, 0, _clock()
+    )
+    return DefaultJwtEncoder(provider)
+
+
+def test_signing_with_no_key_raises_the_missing_key_unwrapped() -> None:
+    with pytest.raises(MissingKeyError):
+        _ = _keyless().encode({"sub": "ada"})
+
+
+def test_verifying_with_no_key_at_all_raises_the_missing_key_not_a_decode_failure() -> None:
+    token = _encoder().encode({"sub": "ada"})
+
+    with pytest.raises(MissingKeyError):
+        _ = _keyless().decode(token)
+
+
+def test_a_verifier_holding_only_additional_keys_still_verifies(tmp_path: Path) -> None:
+    public = tmp_path / "rsa-1.pem"
+    _ = public.write_text(RSA_PUBLIC_PEM, encoding="utf-8")
+    token = _encoder().encode({"sub": "ada"})
+
+    assert _keyless(str(public)).decode(token)["sub"] == "ada"
     assert isinstance(_encoder(), HeaderAwareJwtEncoderInterface)
 
 

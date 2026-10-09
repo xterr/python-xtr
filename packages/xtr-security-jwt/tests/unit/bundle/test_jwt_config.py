@@ -14,7 +14,7 @@ def test_it_is_buildable_with_no_arguments() -> None:
     config = JwtConfig()
 
     assert config.secret_key is None
-    assert config.issuer == ""
+    assert config.issuer == "%kernel.name%"
     assert config.audience == ()
     assert config.token_ttl == 3600
     assert config.allow_no_expiration is False

@@ -14,6 +14,7 @@ from xtr_security_jwt.encoder.jwt_encoder_interface import (  # noqa: TC001 -- r
     JwtEncoderInterface,
 )
 from xtr_security_jwt.exception.jwt_failure_error import JwtFailureError
+from xtr_security_jwt.exception.missing_key_error import MissingKeyError
 
 __all__ = ["CheckConfigCommand"]
 
@@ -35,7 +36,7 @@ class CheckConfigCommand:
         try:
             token = encoder.encode({"sub": "jwt:check-config"})
             claims = encoder.decode(token)
-        except JwtFailureError as error:
+        except (JwtFailureError, MissingKeyError) as error:
             io.error(f"The JWT configuration is not usable: {escape(str(error).rstrip('.'))}.")
             return ExitCode.FAILURE
         if claims.get("sub") != "jwt:check-config":

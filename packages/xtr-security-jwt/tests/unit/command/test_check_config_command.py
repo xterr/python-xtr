@@ -50,6 +50,19 @@ async def test_it_reports_a_working_configuration() -> None:
     assert "signs and verifies" in output.getvalue()
 
 
+async def test_it_reports_a_missing_key_and_how_to_mint_one() -> None:
+    style, output = _style()
+    provider = JoserfcJwsProvider(
+        RawKeyLoader(None, None), "RS256", 3600, 0, MockClock("2024-01-01 00:00:00")
+    )
+
+    code = await CheckConfigCommand()(style, DefaultJwtEncoder(provider))
+
+    assert code == 1
+    assert "No JWT key is configured" in output.getvalue()
+    assert "jwt:generate-keypair" in output.getvalue()
+
+
 async def test_it_reports_a_failure() -> None:
     style, output = _style()
 

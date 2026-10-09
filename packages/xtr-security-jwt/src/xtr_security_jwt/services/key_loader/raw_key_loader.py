@@ -9,6 +9,8 @@ from joserfc.jwk import ECKey, OKPKey, RSAKey
 from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
+from xtr_security_jwt.exception.missing_key_error import MissingKeyError
+
 from .abstract_key_loader import AbstractKeyLoader
 from .key_dumper_interface import KeyDumperInterface
 from .key_loader_interface import TYPE_PUBLIC
@@ -39,13 +41,14 @@ class RawKeyLoader(AbstractKeyLoader, KeyDumperInterface):
         """Return the private or public key text.
 
         Raises:
-            InvalidArgumentError: When the requested key is not available.
+            MissingKeyError: When the requested key is not configured, or names a
+                key file that does not exist.
         """
         if key_type == TYPE_PUBLIC:
             return self.dump_key()
         signing_key = self.get_signing_key()
-        if signing_key is None:
-            raise InvalidArgumentError("This key loader holds no signing key.")
+        if not signing_key:
+            raise MissingKeyError
         return signing_key
 
     @override
@@ -53,17 +56,16 @@ class RawKeyLoader(AbstractKeyLoader, KeyDumperInterface):
         """Return the public key text, deriving it from the private key when unset.
 
         Raises:
-            InvalidArgumentError: When neither a public key nor a private key to
-                derive one from is available, or the private key cannot be read.
+            MissingKeyError: When neither a public key nor a private key to
+                derive one from is configured.
+            InvalidArgumentError: When the private key cannot be read.
         """
         public_key = self.get_public_key()
-        if public_key is not None:
+        if public_key:
             return public_key
         signing_key = self.get_signing_key()
-        if signing_key is None:
-            raise InvalidArgumentError(
-                "This key loader has neither a public key nor a private key to derive one from.",
-            )
+        if not signing_key:
+            raise MissingKeyError
         return _public_pem_from_private(signing_key, self.get_passphrase())
 
 

@@ -47,8 +47,10 @@ class KeyLoaderInterface(Protocol):
     def get_key_id(self) -> str | None:
         """Return the id this loader's own key is known by, or ``None`` for none.
 
-        A verifier indexes the key under this id, so a token whose ``kid`` header
-        names it is settled by one lookup instead of by trying every trusted key.
+        A verifier indexes the key under this id and under its RFC 7638
+        thumbprint — the name a published key set announces it by — so a token
+        whose ``kid`` header carries either name is settled by one lookup instead
+        of by trying every trusted key.
         """
         ...
 

@@ -8,6 +8,7 @@ import pytest
 from xtr_security_core.exception import InvalidArgumentError
 
 from tests.support.keys import RSA_PRIVATE_PEM, RSA_PUBLIC_PEM
+from xtr_security_jwt.exception import MissingKeyError
 from xtr_security_jwt.services.key_loader.abstract_key_loader import AbstractKeyLoader
 from xtr_security_jwt.services.key_loader.additional_public_key import AdditionalPublicKey
 from xtr_security_jwt.services.key_loader.key_dumper_interface import KeyDumperInterface
@@ -52,8 +53,26 @@ def test_it_returns_a_configured_public_key_as_is() -> None:
 def test_it_refuses_a_private_key_request_when_only_verifying() -> None:
     loader = RawKeyLoader(None, RSA_PUBLIC_PEM)
 
-    with pytest.raises(InvalidArgumentError):
+    with pytest.raises(MissingKeyError):
         _ = loader.load_key(TYPE_PRIVATE)
+
+
+def test_an_empty_key_is_as_missing_as_none() -> None:
+    loader = RawKeyLoader("", "")
+
+    with pytest.raises(MissingKeyError):
+        _ = loader.load_key(TYPE_PRIVATE)
+    with pytest.raises(MissingKeyError):
+        _ = loader.load_key(TYPE_PUBLIC)
+
+
+def test_a_key_file_not_yet_there_is_a_missing_key_naming_it(tmp_path: Path) -> None:
+    path = str(tmp_path / "secrets" / "jwt.pem")
+
+    with pytest.raises(MissingKeyError) as info:
+        _ = RawKeyLoader(path, None).load_key(TYPE_PRIVATE)
+
+    assert info.value.location == path
 
 
 def test_it_refuses_to_dump_with_neither_key() -> None:

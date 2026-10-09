@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Annotated, Final, Literal, final
 
 import anyio.to_thread
-from joserfc.jwk import ECKey, KeySet, OKPKey, RSAKey
+from joserfc.jwk import KeySet
 from xtr_console import ConsoleStyle, ExitCode, Option, as_command, escape
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_jwt.command._registry import JWT_COMMANDS
+from xtr_security_jwt.services.key_loader.generate_signing_key import generate_signing_key
 
 __all__ = ["GenerateKeyPairCommand"]
 
@@ -73,7 +74,7 @@ class GenerateKeyPairCommand:
         """Mint the key and print or write its private PEM and public JWKS."""
         key_id = kid if kid is not None else secrets.token_hex(8)
         _require_safe_kid(key_id)
-        key = _generate(algorithm, key_id)
+        key = generate_signing_key(algorithm, key_id)
         private_pem = key.as_pem(private=True).decode()
         public_jwks = json.dumps(KeySet([key]).as_dict(private=False), indent=2)
 
@@ -231,12 +232,3 @@ def _make_directory_private(directory: Path) -> None:
         os.fchmod(descriptor, _DIRECTORY_MODE)
     finally:
         os.close(descriptor)
-
-
-def _generate(algorithm: str, key_id: str) -> RSAKey | ECKey | OKPKey:
-    """Mint a key of the type ``algorithm`` demands, carrying ``key_id``."""
-    if algorithm == "RS256":
-        return RSAKey.generate_key(2048, parameters={"kid": key_id})
-    if algorithm == "ES256":
-        return ECKey.generate_key("P-256", parameters={"kid": key_id})
-    return OKPKey.generate_key("Ed25519", parameters={"kid": key_id})

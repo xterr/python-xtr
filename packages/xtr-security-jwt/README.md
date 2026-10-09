@@ -68,8 +68,7 @@ from xtr_security_jwt.bundle import JwtConfig
 @configure
 def jwt() -> JwtConfig:
     return JwtConfig(
-        secret_key=env("file:JWT_SECRET_KEY_PATH"),
-        issuer=env("JWT_ISSUER"),
+        secret_key=env("resolve:JWT_SECRET_KEY_PATH"),
         user_id_claim="username",
     )
 ```
@@ -163,21 +162,22 @@ HTTP/1.1 200 OK
 
 ## Configure
 
-`JwtConfig` is a frozen dataclass buildable with no arguments, but the JWT bundle is an add-on
-that cannot sign a token without a key: the build fails with an `InvalidConfigurationError`
-naming the missing setting and the `<app>/config/jwt.py` `@configure` function when no
-`secret_key` or no `issuer` is configured — it names both when both are missing.
+`JwtConfig` is a frozen dataclass buildable with no arguments, and the bundle builds and boots
+on it. No key is read until a token is signed or verified, so an application with no key yet
+still runs — its console included, which is how `jwt:generate-keypair` mints the key it lacks.
+The first token signed or verified without one raises `MissingKeyError`, naming the setting to
+fill in and the command that mints a key; `jwt:check-config` asks the same question before a
+request does, so a deploy can run it as a gate. A key is never minted on the application's
+behalf: in production a deployment mounts its own and points `secret_key` at it.
 
-An `env()` placeholder counts as configured: it stands for a variable read when the service
-needing it is built, so it cannot decide anything while the container compiles. A
-`secret_key=env(…)` too short for its HMAC algorithm, and an `issuer=env(…)` resolving to
-nothing, are therefore refused where the key loader and the token manager are built, not at the
-build.
+The key is measured where it is read, too: an HMAC secret shorter than its algorithm requires is
+refused the first time it signs, with an `InvalidConfigurationError` naming the floor; an
+`issuer=env(…)` resolving to nothing is refused where the token manager is built.
 
 | Field | Default | What it is |
 |---|---|---|
-| `secret_key` | `None` | The private key or shared secret that signs, as the key text or a file path. Required |
-| `issuer` | `""` | The `iss` every token is stamped with and checked against. Required |
+| `secret_key` | `None` | The private key or shared secret that signs, as the key text or a file path. Nothing signs until it names a key |
+| `issuer` | `"%kernel.name%"` | The `iss` every token is stamped with and checked against: the kernel's name unless set |
 | `audience` | `()` | Audiences a token is minted for; when set, a presented token must name at least one. Always a tuple — `audience="api"` is refused, write `audience=("api",)` |
 | `public_key` | `None` | The public key that verifies, or `None` to derive it from the private key |
 | `additional_public_keys` | `()` | Files of extra public keys a token may also be verified against, each named after the key id it holds |
@@ -216,16 +216,34 @@ claims.
 | `DefaultJwtEncoder` | `JwtEncoderInterface` | Maps the provider's outcome to encode/decode failures |
 | `JwtManager` | `JwtTokenManagerInterface` | Assembles, announces and signs a token, reads one back |
 
-Every verifying key is imported once and filed under the id it is known by — the `kid` a JWK or
-a JWK set carries, or the name of the file it was read from, since `jwt:generate-keypair` writes
-`<kid>.pem` and `<kid>.jwks.json` — so a presented token naming a `kid` is verified in a single
-attempt, and a deployment rotating keys keeps accepting tokens signed by the keys it still
-trusts. An extra key file that cannot be read as a key of the configured algorithm's type is
-refused by name rather than quietly dropped.
+Every verifying key is imported once and filed under both ids it is known by — the one its source
+gives it, the `kid` a JWK or a JWK set carries or the name of the file it was read from, since
+`jwt:generate-keypair` writes `<kid>.pem` and `<kid>.jwks.json`; and its RFC 7638 thumbprint, the
+name `public_key_set` publishes it under. So a presented token naming a `kid` is verified in a
+single attempt whichever of the two it carries, and a deployment rotating keys keeps accepting
+tokens signed by the keys it still trusts. An extra key file that cannot be read as a key of the
+configured algorithm's type is refused by name rather than quietly dropped.
 
 The token manager gathers every registered `PayloadEnrichmentInterface` into a chain, so a
 deployment stamps a claim onto every token by registering an enrichment — a `RandomJtiEnrichment`
 for a unique id — never by reaching for the container.
+
+Beside those services, `xtr_security_jwt.services.key_loader` exposes the key layer as plain
+functions, for a package or an endpoint that mints and publishes keys without a container:
+
+| Function | Returns |
+|---|---|
+| `generate_signing_key(algorithm, key_id=None)` | The private key `algorithm` signs with — `RS*`/`PS*` an RSA-2048 key, `ES*` the curve the algorithm names, `EdDSA` an Ed25519 key. What `jwt:generate-keypair` mints |
+| `public_key_set(key_loader, algorithm)` | `{"keys": [...]}` — the signing key's public half, then every additional public key, each with its public members alone |
+| `signing_key_id(key_loader, algorithm)` | The id the signing key is published under, for a token's `kid` header |
+
+A key is named by the `kid` its own material carries or, since a lone PEM carries none, by its
+RFC 7638 thumbprint — which is derived from the key's public members, so it is the same taken
+from either half. The `kid` a signer stamps into a header and the one the published set announces
+therefore agree with nothing passed between them. A shared secret is never published: both
+functions refuse an `HS*` algorithm rather than hand out, or quietly omit, the key that signs.
+Each reads the key material as it is called, so a deployment serving the set at an endpoint
+caches the document rather than rebuilding it per request.
 
 ## Events
 
@@ -275,7 +293,7 @@ removing it undoes.
 - **Install** — `uv add xtr-security-jwt`; add `[console]` for the commands.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
   and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/jwt.py`,
-  `JWT_SECRET_KEY_PATH` and `JWT_ISSUER` (both commented out) in `.env`, and adds `/secrets/*.pem`
+  `JWT_SECRET_KEY_PATH=%kernel.project_dir%/secrets/jwt.pem` in `.env`, and adds `/secrets/*.pem`
   and `/secrets/*.jwks.json` to `.gitignore`. It prints the keypair and firewall steps, which a
   recipe cannot make for you.
 - **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
@@ -285,21 +303,22 @@ removing it undoes.
   [clock](../xtr-clock) and the [event dispatcher](../xtr-event-dispatcher) always, because this
   bundle requires them; the [console](../xtr-console) bundle when xtr-console is installed, for
   the commands.
-- **Configure** — the bundle needs a signing key and an issuer: a `<app>/config/jwt.py`
-  `@configure` function returning a `JwtConfig(secret_key=…, issuer=…)`, and a firewall that lists
-  `JwtAuthenticatorConfig()` under its `authenticators` — see [Configure](#configure) and
-  [Kernel / bundle](#kernel--bundle). Without a `secret_key` or an `issuer` the build fails,
-  naming the missing setting.
-- **Environment** — whatever the key material reads: an application usually points the key at a
-  file with `env("file:JWT_SECRET_KEY_PATH")`, so `JWT_SECRET_KEY_PATH` must be set; and
-  `JWT_ISSUER`, the name every token is stamped with and checked against.
+- **Configure** — with no configuration the bundle builds and boots, the issuer is the kernel's
+  name, and nothing signs until a key is named: a `<app>/config/jwt.py` `@configure` function
+  returning a `JwtConfig(secret_key=…)`, and a firewall that lists `JwtAuthenticatorConfig()`
+  under its `authenticators` — see [Configure](#configure) and [Kernel / bundle](#kernel--bundle).
+  Mint a development key with `jwt:generate-keypair --kid jwt --output-dir secrets`; a deployment
+  mounts its own.
+- **Environment** — `JWT_SECRET_KEY_PATH`, the key file the written `config/jwt.py` reads with
+  `env("resolve:JWT_SECRET_KEY_PATH")`; until the file exists, signing raises `MissingKeyError`.
 - **Ignore** — the key files the keypair command writes, when `--output-dir` points into the
   project: the recipe adds `/secrets/*.pem` and `/secrets/*.jwks.json` to `.gitignore` (or add
   wherever they land).
 - **Remove** — drop the `BUNDLES` entry, delete `<app>/config/jwt.py` and the
   `JwtAuthenticatorConfig` from the firewall, then `uv remove xtr-security-jwt`.
 - **Check** — `debug:bundles` shows `jwt` as `listed` and `active`, and `security` as `required`;
-  `debug:firewall api` lists the firewall's `jwt` authenticator.
+  `debug:firewall api` lists the firewall's `jwt` authenticator; `jwt:check-config` exits `0` once
+  the key is there and signs and verifies.
 
 ## Kernel / bundle
 
@@ -317,8 +336,8 @@ authenticator factory keyed `jwt` and a user-provider factory keyed `jwt`. A fir
 dispatcher, the configured token extractors and the firewall's user provider. It
 requires the [security](../xtr-security), [clock](../xtr-clock) and
 [event dispatcher](../xtr-event-dispatcher) bundles, and the [console](../xtr-console) bundle
-when it is installed. It touches no cryptography until a service is asked for — but, needing a
-signing key the application must choose, it fails the build when none is configured.
+when it is installed. It touches no cryptography and reads no key until a token is signed or
+verified, so it builds and boots with no configuration.
 
 ## Errors
 
@@ -330,6 +349,7 @@ Everything the package raises derives from `SecurityError` (from
 | `JwtFailureError` | `SecurityError` | The base of the signing and verification failures; carries a `reason` and any decoded `payload` |
 | `JwtEncodeFailureError` | `JwtFailureError` | A token could not be signed — `invalid_config` or `unsigned_token` |
 | `JwtDecodeFailureError` | `JwtFailureError` | A token could not be read — `invalid_token`, `expired_token` or `unverified_token` |
+| `MissingKeyError` | `InvalidArgumentError` | No key is configured, or the key file it names is not there. A deployment's fault, not a token's: it passes through the encoder, so a request meeting it is a server error rather than a `401` |
 | `ExpiredTokenError` | `AuthenticationError` | A caller presented an expired token — answered with a `401` "Expired JWT Token" |
 | `InvalidTokenError` | `AuthenticationError` | A caller presented a malformed, unsigned or tampered token — `401` "Invalid JWT Token" |
 | `MissingTokenError` | `AuthenticationError` | A request reached a protected resource with no token — `401` "JWT Token not found" |
@@ -343,7 +363,7 @@ xtr_security_jwt/
 ├── services/
 │   ├── jwt_manager.py             assembles, announces and signs a token
 │   ├── jws_provider/              signs and verifies with joserfc
-│   ├── key_loader/                reads the signing and verifying key material
+│   ├── key_loader/                reads, mints and publishes the key material
 │   └── payload_enrichment/        claims added to every token
 ├── signature/                     the created- and loaded-token value objects
 ├── security/

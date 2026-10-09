@@ -11,6 +11,7 @@ from joserfc.errors import JoseError
 from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
+from xtr_security_jwt.exception.missing_key_error import MissingKeyError
 from xtr_security_jwt.services.key_loader._algorithms import (
     HMAC_ALGORITHMS,
     key_type_for_algorithm,
@@ -165,9 +166,9 @@ class JoserfcJwsProvider(JwsProviderInterface):
         A token naming a ``kid`` is tried against the key that id names first —
         an O(1) lookup over the index every trusted key is filed in, which
         settles a rotating deployment in one attempt. A keyed miss is no proof
-        the token is unsigned by a trusted key, because material naming no id —
-        a lone PEM given as text — is indexed under none, so the trusted keys are
-        then tried in turn anyway.
+        the token is unsigned by a trusted key, because a signer may name a key
+        by an id of its own that none of the names the key is filed under
+        matches, so the trusted keys are then tried in turn anyway.
         """
         keys = self._verifying_keys()
         if kid is not None:
@@ -201,14 +202,15 @@ class JoserfcJwsProvider(JwsProviderInterface):
         A shared secret verifies with the same key it signs with, so the private
         material is read for HMAC; an asymmetric key verifies with its public
         half. The keys are imported once and kept, so a later verify reads no key
-        file, and each is filed under the ``kid`` it carries or, failing that, the
-        id its source names it by — the loader's own id for the main key, the
-        file's name for an extra.
+        file, and each is filed under every name a token may call it by: see
+        :meth:`_index`.
 
         Raises:
             InvalidArgumentError: When an additional public key cannot be read.
                 A deployment that named a key file means it to be trusted, so an
                 unreadable one is reported rather than quietly dropped.
+            MissingKeyError: When no key is configured and no additional public
+                key is either, so there is nothing at all to verify with.
         """
         if self._verifying_keys_cache is not None:
             return self._verifying_keys_cache
@@ -216,8 +218,13 @@ class JoserfcJwsProvider(JwsProviderInterface):
         verifying_type = (
             TYPE_PRIVATE if self._signature_algorithm in HMAC_ALGORITHMS else TYPE_PUBLIC
         )
+        missing: MissingKeyError | None = None
         with suppress(InvalidArgumentError):  # a verifier may hold extras only
-            main = self._import(self._key_loader.load_key(verifying_type))
+            try:
+                main = self._import(self._key_loader.load_key(verifying_type))
+            except MissingKeyError as error:
+                missing = error  # kept: with no extras either, it is the answer
+                raise
             keys.append(main)
             self._index(main, self._key_loader.get_key_id())
         passphrase = self._key_loader.get_passphrase()
@@ -225,14 +232,26 @@ class JoserfcJwsProvider(JwsProviderInterface):
             for key in import_additional_keys(extra, self._signature_algorithm, passphrase):
                 keys.append(key)
                 self._index(key, extra.key_id)
+        if missing is not None and not keys:
+            raise missing
         self._verifying_keys_cache = keys
         return keys
 
     def _index(self, key: Key, key_id: str | None) -> None:
-        """File ``key`` under the id it carries, or under ``key_id`` when it carries none."""
-        named = key.kid or key_id
-        if named:
-            _ = self._verifying_keys_by_kid.setdefault(named, key)
+        """File ``key`` under both names a token's ``kid`` may call it by.
+
+        One is the id the key is configured as: the ``kid`` its own material
+        carries or, carrying none, ``key_id`` — the loader's own id for the main
+        key, the file's name for an extra. The other is its RFC 7638 thumbprint,
+        the name
+        :func:`~xtr_security_jwt.services.key_loader.public_key_set.public_key_set`
+        publishes it under, so a signer that read the published document and a
+        deployment that read the key off disk name the same key and both land in
+        one lookup. Material naming no id of its own is therefore still indexed.
+        """
+        for name in (key.kid or key_id, key.thumbprint()):
+            if name:
+                _ = self._verifying_keys_by_kid.setdefault(name, key)
 
     def _import(self, material: str) -> Key:
         """Import ``material`` as the single key of the algorithm's type.

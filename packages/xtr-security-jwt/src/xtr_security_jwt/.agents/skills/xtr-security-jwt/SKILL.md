@@ -1,6 +1,6 @@
 ---
 name: xtr-security-jwt
-description: How to issue and accept self-issued JSON Web Tokens with xtr-security-jwt. Use when an application must mint an access token for one of its users, write a /token or login endpoint, accept a bearer token on a protected route, configure a signing key or key pair, pass phrase or extra trusted public keys, pick a signature algorithm (RS256, ES256, EdDSA, HS256), publish a JWK set, read a token from a header, cookie or query parameter, add a claim such as jti or a tenant to every token, listen to token created, encoded, decoded, expired, invalid or not-found events, run jwt:generate-keypair, jwt:generate-token or jwt:check-config, or activate JwtBundle and fix the build failure it raises until a signing key and the firewall entry are configured.
+description: How to issue and accept self-issued JSON Web Tokens with xtr-security-jwt. Use when an application must mint an access token for one of its users, write a /token or login endpoint, accept a bearer token on a protected route, configure a signing key or key pair, pass phrase or extra trusted public keys, pick a signature algorithm (RS256, ES256, EdDSA, HS256), publish a JWK set, read a token from a header, cookie or query parameter, add a claim such as jti or a tenant to every token, listen to token created, encoded, decoded, expired, invalid or not-found events, run jwt:generate-keypair, jwt:generate-token or jwt:check-config, or activate JwtBundle and fix the MissingKeyError it raises until a signing key is configured.
 ---
 
 # xtr-security-jwt
@@ -15,14 +15,16 @@ Firewalls, access control, voters and user providers belong to the family: load 
 ## Quick reference
 
 - Inject `JwtTokenManagerInterface` to mint a token: `await tokens.create(user)`.
-- `JwtBundle` **fails the build** until `JwtConfig(secret_key=..., issuer=...)` is configured — it
-  names both when both are missing. There is no zero-config path. See
-  [Use in an application](#use-in-an-application).
+- `JwtBundle` builds and boots with no configuration; nothing signs until `secret_key` names a
+  key, and the first token signed or verified without one raises `MissingKeyError`. The issuer
+  is the kernel's name unless set. See [Use in an application](#use-in-an-application).
 - A firewall accepts tokens by listing `JwtAuthenticatorConfig()` under its `authenticators`;
   a deployment with no user store adds `JwtUserProviderConfig()` as a provider.
 - Tokens arrive in the `Authorization: Bearer` header by default; cookies, a query parameter and
   split cookies opt in through `TokenExtractorsConfig`.
 - `jwt:generate-keypair` mints a key; `jwt:check-config` proves the configured one works.
+- `public_key_set(loader, algorithm)` builds the JWK set to publish and
+  `signing_key_id(loader, algorithm)` names the key inside it; neither publishes a shared secret.
 - Every failure derives from `SecurityError`.
 
 ## Issue a token
@@ -102,8 +104,7 @@ from xtr_security_jwt.bundle import EncoderConfig, JwtConfig
 @configure
 def jwt() -> JwtConfig:
     return JwtConfig(
-        secret_key=env("file:JWT_SECRET_KEY_PATH"),
-        issuer=env("JWT_ISSUER"),
+        secret_key=env("resolve:JWT_SECRET_KEY_PATH"),
         encoder=EncoderConfig(signature_algorithm="RS256"),
         token_ttl=900,
         user_id_claim="username",
@@ -114,8 +115,8 @@ The fields that matter most:
 
 | Field | Default | What it is |
 | --- | --- | --- |
-| `secret_key` | `None` | **Required.** The private key or shared secret, as key text or a file path |
-| `issuer` | `""` | **Required.** The `iss` every token is stamped with and checked against |
+| `secret_key` | `None` | The private key or shared secret, as key text or a file path; nothing signs until it names a key |
+| `issuer` | `"%kernel.name%"` | The `iss` every token is stamped with and checked against |
 | `audience` | `()` | Audiences a token is minted for; when set, a presented token must name at least one |
 | `public_key` | `None` | The verifying key, or `None` to derive it from the private key |
 | `token_ttl` | `3600` | Seconds a minted token lives |
@@ -124,6 +125,40 @@ The fields that matter most:
 
 Every field, the supported algorithms, the pass phrase, extra trusted public keys and the four
 token extractors: [references/configuration.md](references/configuration.md).
+
+## Publish a JWK set
+
+`xtr_security_jwt.services.key_loader` exposes the key layer as plain functions, so a package or
+an endpoint mints a key and builds the published document with no container in the way:
+
+```python
+from xtr_security_jwt.services.key_loader import (
+    generate_signing_key,
+    public_key_set,
+    signing_key_id,
+)
+from xtr_security_jwt.services.key_loader.raw_key_loader import RawKeyLoader
+
+key = generate_signing_key("RS256")  # key_id omitted: the key is named by its thumbprint
+loader = RawKeyLoader(key.as_pem(private=True).decode(), None)
+
+document = public_key_set(loader, "RS256")  # {"keys": [...]}, ready to serve
+kid = signing_key_id(loader, "RS256")  # the kid to stamp into a token header
+assert kid in [published["kid"] for published in document["keys"]]
+```
+
+| Function | Returns |
+| --- | --- |
+| `generate_signing_key(algorithm, key_id=None)` | The private key `algorithm` signs with: `RS*`/`PS*` an RSA-2048 key, `ES*` the curve the algorithm names, `EdDSA` an Ed25519 key |
+| `public_key_set(key_loader, algorithm)` | `{"keys": [...]}` — the signing key's public half, then every additional public key |
+| `signing_key_id(key_loader, algorithm)` | The `kid` the signing key is published under |
+
+- A key is named by the `kid` its own material carries or, since a lone PEM carries none, by its
+  RFC 7638 thumbprint, so a signer and a verifier agree on the id with nothing passed between
+  them.
+- Both read the key material as they are called: cache the document rather than rebuilding it
+  per request.
+- Neither publishes a shared secret — an `HS*` algorithm raises `InvalidArgumentError`.
 
 ## Add a claim to every token
 
@@ -172,8 +207,8 @@ already in place unless `--force` is given, and never writes through a symbolic 
 ## Testing
 
 Boot the kernel and resolve the manager; nothing is mocked, and a throwaway key file keeps the
-test self-contained. The bundle refuses to build unconfigured, so the test application carries
-the same `@configure` function a real one does:
+test self-contained. The bundle boots unconfigured but signs nothing without a key, so the test
+application carries the same `@configure` function a real one does:
 
 ```python
 # tests/fixtures/token_app/config.py
@@ -183,7 +218,7 @@ from xtr_security_jwt.bundle import JwtConfig
 
 @configure
 def jwt() -> JwtConfig:
-    return JwtConfig(secret_key=env("file:JWT_SECRET_KEY_PATH"), issuer=env("JWT_ISSUER"))
+    return JwtConfig(secret_key=env("file:JWT_SECRET_KEY_PATH"))
 ```
 
 ```python
@@ -210,7 +245,7 @@ async def test_a_token_names_its_user(tmp_path) -> None:
         env="test",
         bundles={JwtBundle: {"all": True}},
         concurrent_scoped_access=True,
-        environ={"JWT_SECRET_KEY_PATH": str(key), "JWT_ISSUER": "https://tokens.test"},
+        environ={"JWT_SECRET_KEY_PATH": str(key)},
     )
 
     async with await kernel.build().boot() as booted:
@@ -222,8 +257,8 @@ async def test_a_token_names_its_user(tmp_path) -> None:
 
 - Generate the key per test run, as above, rather than committing one; build it once per session
   when minting it per test costs too much.
-- `issuer` has to resolve to something: the manager refuses an empty one where it is built, so a
-  `JWT_ISSUER` left unset fails the boot, not the build.
+- With no `issuer`, tokens carry the kernel's name — `token_app` here. An `issuer=env(…)` that
+  resolves to nothing is refused where the manager is built.
 - Drive a served application through `httpx.ASGITransport` inside its own lifespan, so
   `setup(app, kernel)` builds and boots the kernel for the test.
 - Replace a service with `boot_for_test(kernel, overrides={...})` from
@@ -237,7 +272,7 @@ undoes.
 1. **Install** — `uv add xtr-security-jwt`; add `[console]` for the commands.
 2. **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
    and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/jwt.py`,
-   `JWT_SECRET_KEY_PATH` and `JWT_ISSUER` (both commented out) in `.env`, and adds
+   `JWT_SECRET_KEY_PATH=%kernel.project_dir%/secrets/jwt.pem` in `.env`, and adds
    `/secrets/*.pem` and `/secrets/*.jwks.json` to `.gitignore`. It prints the keypair and firewall
    steps, which a recipe cannot make for you.
 3. **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, from
@@ -245,21 +280,20 @@ undoes.
    `setup(app, kernel)` where the application is served, as the security family requires.
 4. **Brings along** — the security, clock and event dispatcher bundles always; the console
    bundle when xtr-console is installed.
-5. **Configure, and you must** — this bundle has no zero-config path. Write
-   `<app>/config/jwt.py` returning a `JwtConfig(secret_key=..., issuer=...)` and add
-   `JwtAuthenticatorConfig()` to a firewall's `authenticators` in `<app>/config/security.py`.
-   Without a `secret_key` or an `issuer` the build fails with `InvalidConfigurationError`, naming
-   the missing setting (both, when both are missing) and the config function to write.
-6. **Environment** — with `secret_key=env("file:JWT_SECRET_KEY_PATH")`, set `JWT_SECRET_KEY_PATH`;
-   and `JWT_ISSUER`, the name every token is stamped with and checked against. Both resolve at
-   boot, not at build.
+5. **Configure** — the bundle builds and boots unconfigured, so the console runs to mint a key:
+   `jwt:generate-keypair --kid jwt --output-dir secrets` writes the file the recipe's
+   `<app>/config/jwt.py` points `secret_key` at. In production mount the deployment's own key
+   instead; never mint one at runtime. Add `JwtAuthenticatorConfig()` to a firewall's
+   `authenticators` in `<app>/config/security.py`.
+6. **Environment** — `JWT_SECRET_KEY_PATH`, read with `env("resolve:JWT_SECRET_KEY_PATH")`.
+   Until the file is there, signing or verifying raises `MissingKeyError`.
 7. **Ignore** — `.gitignore` the key files when they land in the project: the recipe adds
    `/secrets/*.pem` and `/secrets/*.jwks.json`.
 8. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/jwt.py` and the
    `JwtAuthenticatorConfig` from the firewall, then `uv remove xtr-security-jwt`.
 9. **Check** — `debug:bundles` shows `jwt` as `listed` and `active` and `security` as
    `required`; `debug:firewall api` lists the `jwt` authenticator; `jwt:check-config` proves the
-   keys sign and verify.
+   key is there and signs and verifies — exit `1` naming what to set when it is not.
 
 ## Errors
 
@@ -271,6 +305,7 @@ Import from `xtr_security_jwt.exception`. All derive from `SecurityError`, so on
 | `JwtFailureError` | The base of the signing and verification failures; carries a `reason` and any decoded `payload` |
 | `JwtEncodeFailureError` | `tokens.create` could not sign |
 | `JwtDecodeFailureError` | `tokens.parse` could not read, verify or accept the expiry of a token |
+| `MissingKeyError` | No key is configured, or its file is missing — a server error, never a `401` |
 | `ExpiredTokenError`, `InvalidTokenError`, `MissingTokenError`, `InvalidPayloadError` | The firewall's own `401` answers; it raises and handles these itself |
 
 Reasons, messages, and the two errors from outside the family:
@@ -281,9 +316,12 @@ Reasons, messages, and the two errors from outside the family:
 - Do not build a token from anything a client sent. Authenticate the user, then call `create`.
 - Do not commit a private key or write one into `JwtConfig` as literal text; point `secret_key`
   at a file with `env("file:...")`.
-- Do not expect `JwtBundle` to boot unconfigured. It is the one bundle here that refuses to.
+- Do not mint a key at runtime or ship one in the image; mount the deployment's key and run
+  `jwt:check-config` as the deploy gate.
 - Do not verify a token by hand with a JOSE library; `tokens.parse` applies the configured keys,
   algorithm, skew and expiry rules.
+- Do not assemble a JWK set by hand or publish an `HS*` key. `public_key_set` strips every
+  private member and refuses a shared secret outright.
 - Do not enable the query-parameter extractor unless you accept tokens in logs and referrers.
 - Do not reach for the family's generic bearer authenticator for a self-issued token; that one
   is for tokens issued elsewhere.

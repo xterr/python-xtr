@@ -19,20 +19,21 @@ __all__ = ["JwtConfig"]
 class JwtConfig:
     """Everything the JWT bundle signs and verifies with, mirroring the reference options.
 
-    Two fields a deployment must set are ``secret_key`` — the private key or
-    shared secret that signs, given as the key text or the path of a file holding
-    it — and ``issuer``, the name every minted token is stamped with and every
-    presented token is checked against. The public key is derived from the signing
-    key when absent; ``additional_public_keys`` name files of other keys tokens
-    may also be verified against. The bundle fails the build with a clear error
-    when ``secret_key`` or ``issuer`` is unset, so a misconfiguration is caught at
-    build rather than at the first signature.
+    Buildable with no arguments, and the bundle builds and boots on it: a token
+    cannot be signed until ``secret_key`` — the private key or shared secret
+    that signs, as the key text or the path of a file holding it — names a key,
+    and the first attempt raises
+    :class:`~xtr_security_jwt.exception.MissingKeyError` saying so. ``issuer``,
+    the name every minted token is stamped with and every presented token is
+    checked against, is the kernel's name unless set. The public key is derived
+    from the signing key when absent; ``additional_public_keys`` name files of
+    other keys tokens may also be verified against.
 
     Attributes:
         secret_key: The private key or shared secret that signs, as text or a
-            file path. Required — the build fails without it.
-        issuer: The ``iss`` every token is stamped with and checked against.
-            Required — the build fails without it.
+            file path; ``None`` until a deployment configures one.
+        issuer: The ``iss`` every token is stamped with and checked against:
+            the kernel's name (``%kernel.name%``) by default.
         audience: The audiences a token is minted for; when set, every token
             carries them as ``aud`` and a presented token must name at least one.
         public_key: The public key that verifies, or ``None`` to derive it.
@@ -48,7 +49,7 @@ class JwtConfig:
     """
 
     secret_key: str | None = None
-    issuer: str = ""
+    issuer: str = "%kernel.name%"
     audience: Sequence[str] = ()
     public_key: str | None = None
     additional_public_keys: tuple[str, ...] = ()
@@ -63,10 +64,9 @@ class JwtConfig:
     def __post_init__(self) -> None:
         """Refuse a clock skew below zero, an empty user-id claim or a string audience.
 
-        The absence of a signing key is not refused here — the zero-config path
-        must build — but at the build, where the bundle names the missing setting.
-        The issuer is likewise left to the build: an empty one is allowed on the
-        config object, and the bundle refuses it there.
+        The absence of a signing key is not refused at all until a token needs
+        one. An issuer resolving to nothing is refused where the token manager is
+        built, since an ``env()`` placeholder has no value before then.
 
         Raises:
             InvalidArgumentError: When the clock skew is negative, the token

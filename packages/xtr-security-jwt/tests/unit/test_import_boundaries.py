@@ -18,6 +18,8 @@ CRYPTO_LAYERS = (
     "xtr_security_jwt.encoder.default_jwt_encoder",
     "xtr_security_jwt.services.jwt_manager",
     "xtr_security_jwt.services.jws_provider.joserfc_jws_provider",
+    "xtr_security_jwt.services.key_loader.generate_signing_key",
+    "xtr_security_jwt.services.key_loader.public_key_set",
     "xtr_security_jwt.services.key_loader.raw_key_loader",
     "xtr_security_jwt.signature.created_jws",
     "xtr_security_jwt.signature.loaded_jws",

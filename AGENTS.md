@@ -122,11 +122,10 @@ These apply to every package that ships a bundle. Read
 - The bundle's zero-config path must build and boot with no application configuration and do
   no I/O until a service is requested. Every bundle test suite calls
   `assert_zero_config(<Bundle>)`.
-  The one exception is an add-on bundle no other bundle requires (so it only ever arrives by
-  being listed) and that cannot do anything without settings the application must choose —
-  `xtr-security-jwt`'s `JwtBundle` needs a signing key and an issuer. Such a bundle fails the
-  build with an error naming the missing settings and the `@configure` function to write; its
-  tests assert that failure instead of calling `assert_zero_config`.
+  A setting only the application can supply — a signing key, a credential — is checked where it
+  is used, never at build: the bundle builds and boots without it (so the console still runs,
+  to mint or inspect it), and the service needing it raises an error naming the setting the
+  first time it is used. Never generate such a setting on the application's behalf.
 - Never inject the whole container. A service, command, listener or factory declares the
   services it needs as typed parameters (`Injected[...]`, `Target(...)`, `Sequence[T]`,
   `Mapping[..., T]`, `ServiceLocator[T]` for a name-keyed lookup); a service whose dependency may

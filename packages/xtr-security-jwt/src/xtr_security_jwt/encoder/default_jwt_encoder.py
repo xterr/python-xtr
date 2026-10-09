@@ -9,6 +9,7 @@ from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_jwt.exception.jwt_decode_failure_error import JwtDecodeFailureError
 from xtr_security_jwt.exception.jwt_encode_failure_error import JwtEncodeFailureError
+from xtr_security_jwt.exception.missing_key_error import MissingKeyError
 
 from .header_aware_jwt_encoder_interface import HeaderAwareJwtEncoderInterface
 
@@ -35,6 +36,11 @@ class DefaultJwtEncoder(HeaderAwareJwtEncoderInterface):
     are the times judged — a future-dated or otherwise malformed token is
     ``invalid_token`` and an expired one is ``expired_token`` — and those failures
     carry the verified payload.
+
+    A key that is not configured, or names a file that is not there, is neither:
+    :class:`~xtr_security_jwt.exception.MissingKeyError` passes through both
+    ways, so a deployment's missing key fails a request as a server error rather
+    than as a token the client got wrong.
     """
 
     __slots__ = ("_jws_provider",)
@@ -54,9 +60,12 @@ class DefaultJwtEncoder(HeaderAwareJwtEncoderInterface):
         Raises:
             JwtEncodeFailureError: When the signing configuration cannot sign, or
                 the provider returned an unsigned token.
+            MissingKeyError: When no signing key is configured or its file is missing.
         """
         try:
             created = self._jws_provider.create(data, header)
+        except MissingKeyError:
+            raise
         except InvalidArgumentError as error:
             raise JwtEncodeFailureError(
                 JwtEncodeFailureError.INVALID_CONFIG,
@@ -76,9 +85,12 @@ class DefaultJwtEncoder(HeaderAwareJwtEncoderInterface):
         Raises:
             JwtDecodeFailureError: When the token cannot be read, has expired, or
                 its signature does not verify.
+            MissingKeyError: When no verifying key is configured or its file is missing.
         """
         try:
             loaded = self._jws_provider.load(token)
+        except MissingKeyError:
+            raise
         except Exception as error:
             raise JwtDecodeFailureError(
                 JwtDecodeFailureError.INVALID_TOKEN,

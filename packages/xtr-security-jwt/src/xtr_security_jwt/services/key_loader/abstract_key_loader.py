@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, ClassVar
 from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
+from xtr_security_jwt.exception.missing_key_error import MissingKeyError
+
 from .additional_public_key import AdditionalPublicKey
 from .key_loader_interface import KeyLoaderInterface
 
@@ -113,7 +115,7 @@ class AbstractKeyLoader(  # pyright: ignore[reportImplicitAbstractClass]  -- Raw
         """Return ``value`` itself, or the contents of the file it names.
 
         Raises:
-            InvalidArgumentError: When ``value`` names a key file that does not
+            MissingKeyError: When ``value`` names a key file that does not
                 exist. A missing ``.pem`` path would otherwise be handed on as key
                 text and fail far away, as an unreadable-key error.
         """
@@ -123,7 +125,7 @@ class AbstractKeyLoader(  # pyright: ignore[reportImplicitAbstractClass]  -- Raw
         if file is not None:
             return file.read_text(encoding="utf-8")
         if "-----BEGIN" not in value and Path(value).suffix.lower() in _KEY_FILE_SUFFIXES:
-            raise InvalidArgumentError(f"The key file {value!r} does not exist.")
+            raise MissingKeyError(value)
         return value
 
 

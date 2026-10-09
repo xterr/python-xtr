@@ -1,12 +1,13 @@
 # JwtConfig, field by field
 
 `from xtr_security_jwt.bundle import JwtConfig`. A frozen dataclass; every field has a default,
-but the bundle refuses to build without `secret_key` and `issuer`.
+and the bundle builds and boots on them. Nothing signs until `secret_key` names a key: the first
+token signed or verified without one raises `MissingKeyError`.
 
 | Field | Default | What it is |
 | --- | --- | --- |
-| `secret_key` | `None` | **Required.** The private key or shared secret, as key text or a file path |
-| `issuer` | `""` | **Required.** The `iss` every token is stamped with and checked against |
+| `secret_key` | `None` | The private key or shared secret, as key text or a file path |
+| `issuer` | `"%kernel.name%"` | The `iss` every token is stamped with and checked against |
 | `audience` | `()` | Audiences a token is minted for; when set, a presented token's `aud` must name at least one. Always a tuple — `audience="api"` is refused, write `audience=("api",)` |
 | `public_key` | `None` | The verifying key, or `None` to derive it from the private key |
 | `additional_public_keys` | `()` | Files of extra public keys a token may also verify against, each named after the key id it holds |

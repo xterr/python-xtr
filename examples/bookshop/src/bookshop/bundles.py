@@ -23,8 +23,8 @@ What each entry brings:
   under the default lock.
 - ``JwtBundle`` — self-issued JSON Web Tokens: brings ``SecurityBundle`` with it (which in
   turn needs the event-dispatcher and http-kernel bundles, already active), and registers the
-  jwt authenticator the api firewall lists. An add-on bundle: it fails the build unless
-  ``config/jwt.py`` names a signing key, so it is not zero-config.
+  jwt authenticator the api firewall lists. It boots without a key; ``config/jwt.py`` names
+  the one it signs with, and signing without it raises ``MissingKeyError``.
 - ``DevToolsBundle`` — development helpers, never active in prod. Its resources are only
   scanned when active.
 

@@ -15,8 +15,11 @@ class AdditionalPublicKey:
 
     A key file is named after the key it holds — ``jwt:generate-keypair`` writes
     ``<kid>.pem`` and ``<kid>.jwks.json`` — so the name a loader read the
-    material under is the id a token's ``kid`` header names that key by. Material
+    material under is one id a token's ``kid`` header names that key by. Material
     carrying its own ``kid``, a JWK or a JWK set, names itself and wins over this.
+    Either way the key is also known by its RFC 7638 thumbprint, the name a
+    published key set announces it under, so a token carrying either name finds
+    the key in one lookup.
 
     Attributes:
         key_id: The id the material's source names it by.

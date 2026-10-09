@@ -7,7 +7,7 @@ import secrets
 from typing import TYPE_CHECKING, final
 
 import pytest
-from joserfc.jwk import ECKey, KeySet, OctKey
+from joserfc.jwk import ECKey, KeySet, OctKey, RSAKey
 from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_security.bundle import InvalidConfigurationError
@@ -29,6 +29,7 @@ from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import (
 from xtr_security_jwt.services.jws_provider.jws_provider_interface import JwsProviderInterface
 from xtr_security_jwt.services.key_loader.additional_public_key import AdditionalPublicKey
 from xtr_security_jwt.services.key_loader.key_loader_interface import KeyLoaderInterface
+from xtr_security_jwt.services.key_loader.public_key_set import signing_key_id
 from xtr_security_jwt.services.key_loader.raw_key_loader import RawKeyLoader
 
 if TYPE_CHECKING:
@@ -297,6 +298,44 @@ def test_a_token_naming_no_kid_is_still_tried_against_every_trusted_key(
 
     assert loaded.is_verified() is True
     assert len(attempted) == 2
+
+
+def test_a_token_whose_kid_is_an_extras_published_thumbprint_verifies_in_one_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The published set names a PEM by its RFC 7638 thumbprint, so a signer
+    # reading that document stamps the thumbprint — not the file's name — into
+    # the header, and the index has to answer to it too. The extra is second in
+    # the trusted order, so the fallback would need a further attempt.
+    extra = tmp_path / "rotated.pem"
+    _ = extra.write_text(SECOND_RSA_PUBLIC_PEM, encoding="utf-8")
+    loader = RawKeyLoader(RSA_PRIVATE_PEM, RSA_PUBLIC_PEM, None, (str(extra),))
+    provider = JoserfcJwsProvider(loader, "RS256", 3600, 0, _clock())
+    published = RSAKey.import_key(SECOND_RSA_PUBLIC_PEM).thumbprint()
+    attempted = _attempted_keys(monkeypatch)
+
+    loaded = provider.load(_token_from_the_second_key(published))
+
+    assert loaded.is_verified() is True
+    assert len(attempted) == 1
+
+
+def test_a_file_based_loaders_key_answers_to_its_file_name_and_its_published_id(
+    tmp_path: Path,
+) -> None:
+    # ``jwt:generate-keypair`` writes ``<kid>.pem``, and ``public_key_set``
+    # publishes that same key under its thumbprint: a token may carry either, so
+    # the index the kid lookup reads is filed under both.
+    private = tmp_path / "current.pem"
+    _ = private.write_text(RSA_PRIVATE_PEM, encoding="utf-8")
+    loader = RawKeyLoader(str(private), None)
+    provider = JoserfcJwsProvider(loader, "RS256", 3600, 0, _clock())
+
+    loaded = provider.load(provider.create({"sub": "ada"}).get_token())
+
+    assert loaded.is_verified() is True
+    assert {"current", signing_key_id(loader, "RS256")} <= set(provider._verifying_keys_by_kid)
 
 
 def test_an_additional_public_key_that_cannot_be_read_is_refused(tmp_path: Path) -> None:

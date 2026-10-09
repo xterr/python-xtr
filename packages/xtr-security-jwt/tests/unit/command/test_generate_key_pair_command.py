@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import io
+import json
 import stat
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
+from joserfc.jwk import RSAKey
 from xtr_console import ConsoleStyle
 from xtr_security_core.exception import InvalidArgumentError
 
@@ -22,6 +24,73 @@ def _style() -> tuple[ConsoleStyle, io.StringIO]:
     output = io.StringIO()
     style = ConsoleStyle(output, io.StringIO(), width=200, decorated=False, interactive=False)
     return style, output
+
+
+def _published_key(directory: Path, key_id: str) -> dict[str, str]:
+    """Return the one key the written JWK set publishes."""
+    text = (directory / f"{key_id}.jwks.json").read_text(encoding="utf-8")
+    keys = cast("dict[str, list[dict[str, str]]]", json.loads(text))["keys"]
+    assert len(keys) == 1
+    return keys[0]
+
+
+async def test_the_written_key_set_publishes_one_rsa_key_under_the_requested_id(
+    tmp_path: Path,
+) -> None:
+    style, _ = _style()
+
+    _ = await GenerateKeyPairCommand()(style, kid="written", output_dir=str(tmp_path))
+
+    key = _published_key(tmp_path, "written")
+    assert (key["kty"], key["kid"]) == ("RSA", "written")
+
+
+async def test_the_written_key_set_publishes_the_public_members_alone(tmp_path: Path) -> None:
+    style, _ = _style()
+
+    _ = await GenerateKeyPairCommand()(style, kid="written", output_dir=str(tmp_path))
+
+    assert set(_published_key(tmp_path, "written")) == {"kty", "kid", "n", "e"}
+
+
+async def test_an_ec_key_set_names_the_curve_its_algorithm_demands(tmp_path: Path) -> None:
+    style, _ = _style()
+
+    _ = await GenerateKeyPairCommand()(
+        style,
+        algorithm="ES256",
+        kid="curve",
+        output_dir=str(tmp_path),
+    )
+
+    key = _published_key(tmp_path, "curve")
+    assert (key["kty"], key["crv"]) == ("EC", "P-256")
+
+
+async def test_an_eddsa_key_set_names_the_curve_its_algorithm_demands(tmp_path: Path) -> None:
+    style, _ = _style()
+
+    _ = await GenerateKeyPairCommand()(
+        style,
+        algorithm="EdDSA",
+        kid="edwards",
+        output_dir=str(tmp_path),
+    )
+
+    key = _published_key(tmp_path, "edwards")
+    assert (key["kty"], key["crv"]) == ("OKP", "Ed25519")
+
+
+async def test_the_written_pem_holds_the_signing_half_of_the_published_key(
+    tmp_path: Path,
+) -> None:
+    style, _ = _style()
+
+    _ = await GenerateKeyPairCommand()(style, kid="paired", output_dir=str(tmp_path))
+
+    signing = RSAKey.import_key((tmp_path / "paired.pem").read_text(encoding="utf-8"))
+    assert signing.is_private
+    assert _published_key(tmp_path, "paired")["n"] == signing.as_dict(private=False)["n"]
 
 
 async def test_it_prints_a_private_pem_and_public_jwks() -> None:
