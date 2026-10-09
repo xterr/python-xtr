@@ -48,9 +48,10 @@ def test_an_add_on_the_template_cannot_take_is_refused(catalog: AddOnCatalog) ->
         _ = catalog.parse("security", "cli")
 
 
-def test_the_web_template_takes_the_security_add_on(catalog: AddOnCatalog) -> None:
-    assert "security" in [add_on.name for add_on in catalog.available("webapp")]
-    assert "security" not in [add_on.name for add_on in catalog.available("cli")]
+@pytest.mark.parametrize("name", ["security", "jwt"])
+def test_only_the_web_template_takes_the_security_add_ons(catalog: AddOnCatalog, name: str) -> None:
+    assert name in [add_on.name for add_on in catalog.available("webapp")]
+    assert name not in [add_on.name for add_on in catalog.available("cli")]
 
 
 def test_an_add_on_chosen_twice_is_refused(catalog: AddOnCatalog) -> None:

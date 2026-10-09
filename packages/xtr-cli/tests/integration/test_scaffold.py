@@ -43,7 +43,7 @@ def _run(argv: tuple[str, ...], cwd: Path) -> str:
     ("template", "add_ons", "commands"),
     [
         ("cli", "", (("app:hello", "Ada"), ("debug:bundles",))),
-        ("webapp", "orm,messenger", (("app:hello",), ("debug:router",), ("debug:bundles",))),
+        ("webapp", "orm,messenger,jwt", (("app:hello",), ("debug:router",), ("debug:bundles",))),
     ],
 )
 def test_a_scaffolded_project_runs_and_checks_clean(

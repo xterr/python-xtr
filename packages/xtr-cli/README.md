@@ -179,6 +179,11 @@ way it would for a package added later with `xtr-recipes recipes:add`.
 | `rate-limiter` | `xtr-rate-limiter[di,cache,lock]` | `redis` |
 | `storage` | `xtr-storage[di]` | `s3`, `gcs` |
 | `security` | `xtr-security[console]` — `webapp` only | |
+| `jwt` | `xtr-security-jwt[console]` — `webapp` only; brings `security` | |
+
+`jwt` boots without a key and signs nothing until one is there: run
+`uv run <name> jwt:generate-keypair --kid jwt --output-dir secrets` for development, and mount
+the deployment's own key in production. No key is ever minted for you.
 
 Variants follow the name after `:`, joined with `+`: `orm:sqlite+postgres`. A name alone takes
 the defaults; `messenger:` picks none. Asked interactively, an add-on with variants is followed by

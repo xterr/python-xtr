@@ -81,6 +81,13 @@ _SHIPPED = (
         ("console",),
         templates=_WEBAPP,
     ),
+    AddOn(
+        "jwt",
+        "Self-issued JSON Web Tokens: a token manager and a firewall authenticator.",
+        "xtr-security-jwt",
+        ("console",),
+        templates=_WEBAPP,
+    ),
 )
 
 
