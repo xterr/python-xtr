@@ -51,7 +51,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "afe8bfc3441356aa30512c1628a27403ec0506b58000ccf927dd6da369c70963"
+    "recipe": "054a64aee198e82efc49ebe88c9b79294dbd3827244468b8a061cad68f958680"
   },
   "xtr-lock": {
     "bundles": {
@@ -143,7 +143,7 @@
       }
     },
     "gitignore": [],
-    "recipe": "8f73e134f36cd92d91246b4eb6e0ba660441bb4f7a249d1a6463393f75d4745c"
+    "recipe": "db0ea13a9eb65e861f11437979dd4b82243803bea26fcf47c5e92eaefc4e4fc8"
   },
   "xtr-storage": {
     "bundles": {

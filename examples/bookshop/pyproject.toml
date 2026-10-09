@@ -80,6 +80,8 @@ xtr-dotenv               = { path = "../../packages/xtr-dotenv", editable = true
 xtr-event-dispatcher     = { path = "../../packages/xtr-event-dispatcher", editable = true }
 xtr-event-dispatcher-contracts = { path = "../../packages/xtr-event-dispatcher-contracts", editable = true }
 xtr-http-kernel          = { path = "../../packages/xtr-http-kernel", editable = true }
+xtr-http-message         = { path = "../../packages/xtr-http-message", editable = true }
+xtr-http-message-contracts = { path = "../../packages/xtr-http-message-contracts", editable = true }
 xtr-lock                 = { path = "../../packages/xtr-lock", editable = true }
 xtr-logging              = { path = "../../packages/xtr-logging", editable = true }
 xtr-logging-contracts    = { path = "../../packages/xtr-logging-contracts", editable = true }
