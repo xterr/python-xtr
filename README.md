@@ -87,6 +87,8 @@ graph LR
     httpkernel -. console extra .-> console
     httpmsgcon[xtr-http-message-contracts]
     httpmsg[xtr-http-message] --> httpmsgcon
+    httpkernel --> httpmsg
+    httpkernel --> httpmsgcon
     orm[xtr-orm] --> logcon
     orm -. di extra .-> di
     orm -. di extra .-> svccon
