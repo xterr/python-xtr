@@ -8,13 +8,14 @@ bus.
 
 from __future__ import annotations
 
-from .consumer import ConsumerInterface
+from .consumer import ConsumerInterface, ConsumerLocator
 from .decorator import as_remote_event_consumer
 from .payload_converter_interface import PayloadConverterInterface
 from .remote_event import RemoteEvent
 
 __all__ = [
     "ConsumerInterface",
+    "ConsumerLocator",
     "PayloadConverterInterface",
     "RemoteEvent",
     "as_remote_event_consumer",

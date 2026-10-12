@@ -131,6 +131,11 @@ unfixable = []
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+# Message dataclasses are read field by field at runtime, so the imports their
+# annotations name must stay out of TYPE_CHECKING blocks.
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-decorators = ["dataclasses.dataclass"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
