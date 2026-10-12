@@ -35,6 +35,7 @@ members = [
     "xtr-security-core",
     "xtr-security-http",
     "xtr-security-jwt",
+    "xtr-security-oauth2-server",
     "xtr-service-contracts",
     "xtr-storage",
 ]
@@ -5358,6 +5359,90 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
+]
+
+[[package]]
+name = "xtr-security-oauth2-server"
+version = "3.0.0"
+source = { editable = "packages/xtr-security-oauth2-server" }
+dependencies = [
+    { name = "anyio" },
+    { name = "fastapi" },
+    { name = "joserfc" },
+    { name = "python-multipart" },
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher" },
+    { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-kernel" },
+    { name = "xtr-http-message-contracts" },
+    { name = "xtr-logging-contracts" },
+    { name = "xtr-password-hasher" },
+    { name = "xtr-security" },
+    { name = "xtr-security-core" },
+    { name = "xtr-security-http" },
+    { name = "xtr-security-jwt" },
+]
+
+[package.optional-dependencies]
+console = [
+    { name = "xtr-console" },
+]
+orm = [
+    { name = "xtr-orm" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "aiosqlite" },
+    { name = "basedpyright" },
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-console" },
+    { name = "xtr-http-message" },
+    { name = "xtr-orm" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "fastapi", specifier = ">=0.123" },
+    { name = "joserfc", specifier = ">=1.7" },
+    { name = "python-multipart", specifier = ">=0.0.9" },
+    { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
+    { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
+    { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
+    { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-orm", marker = "extra == 'orm'", editable = "packages/xtr-orm" },
+    { name = "xtr-password-hasher", editable = "packages/xtr-password-hasher" },
+    { name = "xtr-security", editable = "packages/xtr-security" },
+    { name = "xtr-security-core", editable = "packages/xtr-security-core" },
+    { name = "xtr-security-http", editable = "packages/xtr-security-http" },
+    { name = "xtr-security-jwt", editable = "packages/xtr-security-jwt" },
+]
+provides-extras = ["orm", "console"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "aiosqlite", specifier = ">=0.20" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-http-message", editable = "packages/xtr-http-message" },
+    { name = "xtr-orm", editable = "packages/xtr-orm" },
 ]
 
 [[package]]

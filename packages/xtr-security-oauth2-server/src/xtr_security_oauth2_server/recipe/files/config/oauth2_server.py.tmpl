@@ -1,0 +1,63 @@
+"""The authorization server this application hosts: who it is, what it signs with, where it stores.
+
+Four settings have no safe default, and they are the four written here.
+
+``issuer`` is the origin clients reach this server at: every token claims it,
+and the discovery document publishes it, so change it to this deployment's own
+origin before anything else. ``private_key`` takes the key text or the path of
+a file holding it — the key loader reads the file itself — so
+``OAUTH2_SERVER_PRIVATE_KEY_PATH`` carries a path and no key material is
+written into the repository. ``encryption_key`` is what an authorization code
+and a refresh token are sealed with, read from
+``OAUTH2_SERVER_ENCRYPTION_KEY`` as the base64url of 32 random bytes, which is
+what ``encryption_key_type="key"`` means.
+
+Neither variable is read while the application builds — a variable is read
+when the service needing it is built — so the application runs, and its
+console with it, before either is set; a request then reports the variable or
+the setting that is still missing. Nothing is ever minted on the
+application's behalf.
+
+``scopes.available`` is the whole vocabulary this server issues, and
+``scopes.default`` what a client registered naming none is given. The store
+starts in memory, which forgets everything when the process ends: swap it for
+``OrmPersistenceConfig()`` and generate the revision as soon as the clients
+and the credentials have to outlive a restart.
+
+Everything else keeps its default: an hour's access token, thirty days of
+refresh token, the client-credentials, refresh-token and authorization-code
+flows on, the password and implicit flows off, a proof key required of a
+client holding no secret, revocation and discovery served, introspection not.
+The flow for a device with no browser is off here because it owes one more
+setting — where a person goes to type the user code, which is a page the
+application builds: turn it on by naming ``device_code_verification_uri``.
+The README's *Configure* section has the rest of the fields to change.
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure, env
+from xtr_security_oauth2_server.bundle import (
+    AuthorizationServerConfig,
+    InMemoryPersistenceConfig,
+    OAuth2ServerConfig,
+    ScopesConfig,
+)
+
+__all__ = ["oauth2_server"]
+
+
+@configure
+def oauth2_server() -> OAuth2ServerConfig:
+    """Issue tokens as the configured issuer, signing and sealing with the configured keys."""
+    return OAuth2ServerConfig(
+        authorization_server=AuthorizationServerConfig(
+            issuer="https://authorization.example.com",
+            private_key=env("resolve:OAUTH2_SERVER_PRIVATE_KEY_PATH"),
+            encryption_key=env("OAUTH2_SERVER_ENCRYPTION_KEY"),
+            encryption_key_type="key",
+            enable_device_code_grant=False,
+        ),
+        scopes=ScopesConfig(available=("read", "write"), default=("read",)),
+        persistence=InMemoryPersistenceConfig(),
+    )
