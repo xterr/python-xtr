@@ -148,6 +148,8 @@ unfixable = []
     "SLF001",  # tests reach into privates
     "D",       # test names are the docs
     "FBT003",  # a scripted outcome is a value, not a flag
+    "S105",    # fake secret literals are test data
+    "S106",    # fake secret literals are test data
 ]
 
 [tool.ruff.lint.pydocstyle]

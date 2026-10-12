@@ -15,9 +15,11 @@ __all__ = ["RejectWebhookError"]
 class RejectWebhookError(WebhookError):
     """An incoming webhook is refused: it carries the answer the sender is given.
 
-    A sender is not debugged by the receiver, so the refusal is one status code
-    and, at most, the headers that status needs — never what gave it away. The
-    default, 406, says the request was understood and still not acceptable,
+    Everything here reaches the sender — the endpoint answers with the status,
+    the headers, and the message as a plain-text body. A sender is not debugged
+    by the receiver, so the message says which check refused it and nothing
+    more: never the values that failed it, nothing an attacker could probe with.
+    The default, 406, says the request was understood and still not acceptable,
     which is what a wrong signature, a stale timestamp or an unreadable payload
     all amount to from the sender's side.
 
@@ -39,7 +41,9 @@ class RejectWebhookError(WebhookError):
 
         Args:
             status_code: What to answer with.
-            message: Why it was refused, for this side's logs. It never reaches the sender.
+            message: Why it was refused. The endpoint sends it to the sender as
+                the answer's plain-text body, so name the check that refused the
+                webhook, never the values that failed it.
             headers: Headers the answer must carry.
         """
         self.status_code = status_code
