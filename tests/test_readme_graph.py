@@ -18,7 +18,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 _README = _ROOT / "README.md"
 
 _GRAPH = re.compile(r"```mermaid\ngraph LR\n(?P<body>.*?)\n```", re.DOTALL)
-_NODE = re.compile(r"(?P<id>\w+)\[(?P<name>xtr-[a-z-]+)\]")
+_NODE = re.compile(r"(?P<id>\w+)\[(?P<name>xtr-[a-z0-9-]+)\]")
 _EDGE = re.compile(r"^\s*(?P<tail>\w+)(?:\[[^\]]*\])?\s*-->\s*(?P<head>\w+)(?:\[[^\]]*\])?\s*$")
 
 

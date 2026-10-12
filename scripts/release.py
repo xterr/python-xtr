@@ -40,7 +40,7 @@ README_VERSION = re.compile(
     r'(version = "|release\.py bump |"bump: |git tag |push origin |read-only repository `)'
     r"\d+\.\d+\.\d+"
 )
-DOC_RANGE = re.compile(r"(xtr-[a-z-]+(?:\[[a-z,]+\])?>=)\d+\.0,<\d+")
+DOC_RANGE = re.compile(r"(xtr-[a-z0-9-]+(?:\[[a-z,]+\])?>=)\d+\.0,<\d+")
 
 
 @dataclass(frozen=True, slots=True)
