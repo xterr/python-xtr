@@ -30,6 +30,7 @@ members = [
     "xtr-password-hasher",
     "xtr-rate-limiter",
     "xtr-recipes",
+    "xtr-remote-event",
     "xtr-scheduler",
     "xtr-security",
     "xtr-security-core",
@@ -38,6 +39,7 @@ members = [
     "xtr-security-oauth2-server",
     "xtr-service-contracts",
     "xtr-storage",
+    "xtr-webhook",
 ]
 
 [[package]]
@@ -5049,6 +5051,52 @@ dev = [
 ]
 
 [[package]]
+name = "xtr-remote-event"
+version = "3.0.0"
+source = { editable = "packages/xtr-remote-event" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-messenger" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.optional-dependencies]
+di = [
+    { name = "xtr-dependency-injection" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-dependency-injection" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+provides-extras = ["di"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+]
+
+[[package]]
 name = "xtr-scheduler"
 version = "3.0.0"
 source = { editable = "packages/xtr-scheduler" }
@@ -5532,6 +5580,80 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+
+[[package]]
+name = "xtr-webhook"
+version = "3.0.0"
+source = { editable = "packages/xtr-webhook" }
+dependencies = [
+    { name = "msgspec" },
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-http-message-contracts" },
+    { name = "xtr-messenger" },
+    { name = "xtr-remote-event" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.optional-dependencies]
+client = [
+    { name = "anyio" },
+    { name = "httpx" },
+]
+di = [
+    { name = "xtr-dependency-injection" },
+]
+http = [
+    { name = "fastapi" },
+    { name = "xtr-http-kernel" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-http-kernel" },
+    { name = "xtr-http-message" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", marker = "extra == 'client'", specifier = ">=4.0" },
+    { name = "fastapi", marker = "extra == 'http'", specifier = ">=0.121.3" },
+    { name = "httpx", marker = "extra == 'client'", specifier = ">=0.27" },
+    { name = "msgspec", specifier = ">=0.18" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-http-kernel", marker = "extra == 'http'", editable = "packages/xtr-http-kernel" },
+    { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
+    { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-remote-event", editable = "packages/xtr-remote-event" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+provides-extras = ["client", "http", "di"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "fastapi", specifier = ">=0.121.3" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
+    { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 
 [[package]]

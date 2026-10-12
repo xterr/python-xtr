@@ -32,6 +32,7 @@ xtr-orm                  = { workspace = true }
 xtr-password-hasher      = { workspace = true }
 xtr-rate-limiter         = { workspace = true }
 xtr-recipes              = { workspace = true }
+xtr-remote-event         = { workspace = true }
 xtr-scheduler            = { workspace = true }
 xtr-security             = { workspace = true }
 xtr-security-core        = { workspace = true }
@@ -40,6 +41,7 @@ xtr-security-jwt         = { workspace = true }
 xtr-security-oauth2-server = { workspace = true }
 xtr-service-contracts    = { workspace = true }
 xtr-storage              = { workspace = true }
+xtr-webhook              = { workspace = true }
 
 [dependency-groups]
 dev = [
