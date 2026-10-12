@@ -217,9 +217,12 @@ WebhookConfig(no_private_network=NoPrivateNetworkConfig(enabled=True, allow_list
 
 ## Testing
 
-`xtr_webhook.testing` turns a directory of recorded payloads into tests. Each `*.json` fixture
-has a sibling `*.py` defining a module-level `EXPECTED`, the event or list of events it must
-parse to:
+`xtr_webhook.testing` turns a directory of recorded payloads into tests. Before using it, install
+the `testing` extra — the helpers build requests with xtr-http-message:
+`uv add --dev "xtr-webhook[testing]"`.
+
+Each `*.json` fixture has a sibling `*.py` defining a module-level `EXPECTED`, the event or list of
+events it must parse to:
 
 ```python
 from pathlib import Path

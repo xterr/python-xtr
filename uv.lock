@@ -5608,6 +5608,9 @@ http = [
     { name = "fastapi" },
     { name = "xtr-http-kernel" },
 ]
+testing = [
+    { name = "xtr-http-message" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -5634,12 +5637,13 @@ requires-dist = [
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-http-kernel", marker = "extra == 'http'", editable = "packages/xtr-http-kernel" },
+    { name = "xtr-http-message", marker = "extra == 'testing'", editable = "packages/xtr-http-message" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
     { name = "xtr-remote-event", editable = "packages/xtr-remote-event" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
-provides-extras = ["client", "http", "di"]
+provides-extras = ["client", "http", "di", "testing"]
 
 [package.metadata.requires-dev]
 dev = [

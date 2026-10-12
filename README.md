@@ -144,6 +144,7 @@ graph LR
     webhook --> svccon
     webhook -. http extra .-> httpkernel
     webhook -. di extra .-> di
+    webhook -. testing extra .-> httpmsg
     remoteevent -. di extra .-> di
 ```
 
