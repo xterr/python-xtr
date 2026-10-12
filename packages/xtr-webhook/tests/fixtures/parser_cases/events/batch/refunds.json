@@ -1,0 +1,6 @@
+{
+  "events": [
+    {"type": "order.refunded", "id": "ord_2", "amount": 1200},
+    {"type": "order.refunded", "id": "ord_3", "amount": 450}
+  ]
+}

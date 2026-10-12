@@ -48,6 +48,8 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-rate-limiter](packages/xtr-rate-limiter) | Limits on how often anything may happen, by fixed window, sliding window or token bucket, in memory, in a cache or atomically in Redis. |
 | [xtr-recipes](packages/xtr-recipes) | A command that applies each dependency's use-in-an-application steps from a committed lock, and undoes them when the package is removed. |
 | [xtr-storage](packages/xtr-storage) | Files on local disk, in memory or in object stores, behind one async interface. |
+| [xtr-remote-event](packages/xtr-remote-event) | Events received from another system, as one value type, handed to the consumer registered under their source's name. |
+| [xtr-webhook](packages/xtr-webhook) | Webhooks received as events — verified and replay-bounded — and sent signed, in the legacy or the Standard Webhooks format. |
 
 How they depend on each other (runtime dependencies only; extras are dotted):
 
@@ -133,6 +135,17 @@ graph LR
     recipes[xtr-recipes] --> di
     recipes --> console
     cli[xtr-cli] --> console
+    remoteevent[xtr-remote-event] --> messenger
+    remoteevent --> svccon
+    webhook[xtr-webhook] --> remoteevent
+    webhook --> messenger
+    webhook --> clock
+    webhook --> httpmsgcon
+    webhook --> svccon
+    webhook -. http extra .-> httpkernel
+    webhook -. di extra .-> di
+    webhook -. testing extra .-> httpmsg
+    remoteevent -. di extra .-> di
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

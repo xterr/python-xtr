@@ -1,0 +1,32 @@
+# The recipe for xtr-webhook: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_webhook.bundle:WebhookBundle" = { all = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# Needed to receive anything: with no routing the endpoint knows no type, and
+# every webhook is answered 404.
+"config/webhook.py" = "files/config/webhook.py.tmpl"
+
+[env]
+# The secret the written routing verifies its one example type against. No
+# default to offer — a secret is the sender's — so it is written commented out
+# and stays unset until the sender names one.
+WEBHOOK_SECRET = ""
+
+[gitignore]
+# Nothing of its own: a webhook is read and handed on, never written to disk.
+lines = []
+
+[notes]
+steps = [
+  "Mount the endpoint where you want it: app.include_router(routes()) with routes from xtr_webhook.routes, which serves POST /webhook/{type}.",
+  "Name each sender's type in config/webhook.py and give its subscribers the URL that type is served at.",
+]
+check = [
+  "<script> debug:bundles — webhook and remote_event are listed and active",
+  "<script> debug:config webhook — the resolved routing, header names and signature format",
+]
