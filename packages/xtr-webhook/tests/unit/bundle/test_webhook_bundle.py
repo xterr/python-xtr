@@ -25,14 +25,14 @@ async def test_the_controller_factory_is_refused_before_the_bundle_booted() -> N
         _ = await build(WebhookConfig(), RecordingMessageBus())
 
 
-def _no_spec(name: str) -> None:
+def _finds_nothing(name: str) -> None:
     del name
 
 
 async def test_without_httpx_the_transport_stays_out_but_the_controller_stays_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("xtr_webhook.bundle.webhook_bundle.find_spec", _no_spec)
+    monkeypatch.setattr("xtr_webhook.bundle.webhook_bundle.find_spec", _finds_nothing)
 
     kernel = Kernel(
         "xtr_webhook.bundle", env="test", bundles={WebhookBundle: {"all": True}}, resources=()
