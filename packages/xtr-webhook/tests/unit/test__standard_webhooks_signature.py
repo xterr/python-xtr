@@ -64,6 +64,10 @@ def test_a_prefixed_secret_that_is_not_base64_is_the_key_as_it_stands() -> None:
     assert sign("msg_1", "1", b"{}", whsec) == _expected(b"msg_1.1.{}", whsec.encode())
 
 
+def test_a_bare_prefix_falls_back_to_the_secret_as_the_key() -> None:
+    assert sign("id", "1", b"{}", "whsec_") == _expected(b"id.1.{}", b"whsec_")
+
+
 def test_a_tampered_body_does_not_keep_the_signature() -> None:
     signed = sign("msg_1", "1700000000", b'{"amount": 10}', _VECTOR_WHSEC)
     tampered = sign("msg_1", "1700000000", b'{"amount": 99}', _VECTOR_WHSEC)

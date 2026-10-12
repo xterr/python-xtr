@@ -61,12 +61,16 @@ def _key(secret: str) -> bytes:
     bytes that need not be text. A secret written any other way is its own key: a
     receiver configured with a plain string must keep working, and a prefix over
     something that is not base64 is a secret that happens to start with those six
-    characters, not a mistake to raise over.
+    characters, not a mistake to raise over. A prefix over nothing decodes to an empty
+    key, and an empty HMAC key is no secret at all, so that case falls back to the
+    secret itself as well.
     """
     if not secret.startswith(_WHSEC_PREFIX):
         return secret.encode()
 
     try:
-        return base64.b64decode(secret[len(_WHSEC_PREFIX) :], validate=True)
+        decoded = base64.b64decode(secret[len(_WHSEC_PREFIX) :], validate=True)
     except binascii.Error:
         return secret.encode()
+
+    return decoded or secret.encode()
