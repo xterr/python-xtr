@@ -137,6 +137,7 @@ unfixable = []
 # The bundle registers factory functions whose signatures the engine reads at
 # runtime; deferring these would register the factories under nothing.
 "src/xtr_webhook/bundle/*.py" = ["TC001", "TC002", "TC003"]
+"src/xtr_webhook/routes.py" = ["A002"] # FastAPI binds the {type} path segment by argument name
 "tests/**/*.py" = [
     "S101",    # assert is the point of pytest
     "ARG",     # fixtures look unused
