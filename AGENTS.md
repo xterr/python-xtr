@@ -245,6 +245,16 @@ import of a sibling), from the repository root:
 uv run --package xtr-<name> --exact pytest packages/xtr-<name>
 ```
 
+Running commands — hard rule:
+
+- Do not wrap commands in long `timeout`s (`timeout 900`, `timeout 600`, …). The shell tool
+  already has its own timeout. A package gate takes seconds; a hung command under a long
+  `timeout` just blocks everyone for its full length. Run the gate bare, or with a short
+  `timeout` (at most a minute or two) when a hang is a real risk.
+- Run a package suite once per change set; iterate with the targeted test files.
+- Never run two `--exact` commands at the same time: they share one `.venv` and uninstall each
+  other's dependencies mid-run. Run them one after another, then `uv sync`.
+
 ## Git
 
 - Conventional commits: `<type>: <lowercase description>`.
