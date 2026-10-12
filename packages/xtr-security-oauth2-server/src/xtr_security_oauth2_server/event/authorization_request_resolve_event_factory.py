@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 from xtr_security_oauth2_server.converter.scope_converter_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ScopeConverterInterface,
 )
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.manager.client_manager_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ClientManagerInterface,
 )
@@ -18,8 +18,7 @@ from .authorization_request_resolve_event import AuthorizationRequestResolveEven
 
 if TYPE_CHECKING:
     from xtr_security_core.user.user_interface import UserInterface
-
-    from xtr_security_oauth2_server.request_types.authorization_request_interface import (
+    from xtr_security_oauth2_server_core.request_types.authorization_request_interface import (
         AuthorizationRequestInterface,
     )
 

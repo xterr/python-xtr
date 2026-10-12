@@ -12,10 +12,11 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING, Final
 
+from xtr_security_oauth2_server_core.entities.access_token_signer import AccessTokenSigner
+
 from tests.support.encryption import seal
 from tests.support.entities import AccessToken, make_client, make_scope
 from tests.support.signing import FROZEN_NOW, ISSUER, KEY_ID, make_clock, make_signer
-from xtr_security_oauth2_server.entities.access_token_signer import AccessTokenSigner
 
 if TYPE_CHECKING:
     from datetime import datetime

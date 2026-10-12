@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.value_object.scope import Scope
 
 

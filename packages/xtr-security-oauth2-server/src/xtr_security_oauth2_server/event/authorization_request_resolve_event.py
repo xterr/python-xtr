@@ -12,11 +12,11 @@ if TYPE_CHECKING:
 
     from xtr_http_message_contracts import ResponseInterface
     from xtr_security_core.user.user_interface import UserInterface
-
-    from xtr_security_oauth2_server.model.client_interface import ClientInterface
-    from xtr_security_oauth2_server.request_types.authorization_request_interface import (
+    from xtr_security_oauth2_server_core.request_types.authorization_request_interface import (
         AuthorizationRequestInterface,
     )
+
+    from xtr_security_oauth2_server.model.client_interface import ClientInterface
     from xtr_security_oauth2_server.value_object.scope import Scope
 
 __all__ = ["AuthorizationRequestResolveEvent"]

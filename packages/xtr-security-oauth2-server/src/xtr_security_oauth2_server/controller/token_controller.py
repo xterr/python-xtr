@@ -8,12 +8,12 @@ from typing_extensions import override
 from xtr_event_dispatcher_contracts import (  # noqa: TC002 -- container hydrates this constructor at runtime
     EventDispatcherInterface,
 )
-
-from xtr_security_oauth2_server.authorization_server import (  # noqa: TC001 -- container hydrates this constructor at runtime
+from xtr_security_oauth2_server_core.authorization_server import (  # noqa: TC002 -- container hydrates this constructor at runtime
     AuthorizationServer,
 )
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
+
 from xtr_security_oauth2_server.event.token_request_resolve_event import TokenRequestResolveEvent
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
 
 from ._served_response import served

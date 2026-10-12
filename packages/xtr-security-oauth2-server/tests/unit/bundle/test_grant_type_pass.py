@@ -6,15 +6,16 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.grant.client_credentials_grant import ClientCredentialsGrant
+from xtr_security_oauth2_server_core.grant.grant_type_interface import GrantTypeInterface
+from xtr_security_oauth2_server_core.grant.refresh_token_grant import RefreshTokenGrant
 
 from tests.support.building import processing_builder
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server.bundle._parameters import ACCESS_TOKEN_TTL_DEFAULT
 from xtr_security_oauth2_server.bundle.grant_type_pass import GRANT_TAG, GrantTypePass
+from xtr_security_oauth2_server.controller.metadata_controller import MetadataController
 from xtr_security_oauth2_server.exception import InvalidConfigurationError
-from xtr_security_oauth2_server.grant.client_credentials_grant import ClientCredentialsGrant
-from xtr_security_oauth2_server.grant.grant_type_interface import GrantTypeInterface
-from xtr_security_oauth2_server.grant.refresh_token_grant import RefreshTokenGrant
 
 if TYPE_CHECKING:
     from xtr_dependency_injection import ContainerBuilder
@@ -75,6 +76,22 @@ def test_every_tagged_grant_is_reachable_under_its_own_qualifier() -> None:
     ]
     for qualifier, _ttl in _enabled(builder):
         assert builder.has_alias(GrantTypeInterface, qualifier)
+
+
+def test_the_description_is_told_the_grants_the_server_runs() -> None:
+    # What the description names is read off these very grants, so a flow an
+    # add-on or the application registered is named with the shipped ones.
+    builder = _builder()
+    _ = builder.register(MetadataController)
+    _ = builder.register(ClientCredentialsGrant).add_tag(GRANT_TAG)
+    _ = builder.register(RefreshTokenGrant).add_tag(GRANT_TAG)
+
+    GrantTypePass().process(builder)
+
+    assert builder.get_definition(MetadataController).arguments["grant_qualifiers"] == (
+        "oauth2_server_grant_0",
+        "oauth2_server_grant_1",
+    )
 
 
 def test_a_grant_carrying_its_own_lifetime_keeps_it() -> None:

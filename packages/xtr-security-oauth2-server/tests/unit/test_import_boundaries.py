@@ -1,21 +1,28 @@
-"""The protocol library imports none of the edges that sit on top of it.
+"""The bundle's model layer imports none of the edges that sit on top of it.
 
-The grants, entities, repositories and response types are framework-neutral: an
-application builds them by hand, so nothing below the HTTP edge may reach for
+The entities, models, managers, repositories and converters are framework-neutral:
+an application builds them by hand, so nothing below the HTTP edge may reach for
 the web framework, the security family's bundle or the ORM. Only the parts that
 *are* an edge may, and those are the paths named in ``ALLOWED`` — everything
 else is walked and checked, so a module added anywhere later is covered without
 anyone remembering to list it.
+
+Nothing here reaches into another package's private modules either: a module
+whose name starts with an underscore is its own package's business, free to
+change or go without notice, so the package's code and its tests are read for
+an import of one.
 """
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
 
 _IMPORT_PACKAGE = "xtr_security_oauth2_server"
-_SOURCE = Path(__file__).resolve().parents[2] / "src" / _IMPORT_PACKAGE
+_PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+_SOURCE = _PACKAGE_ROOT / "src" / _IMPORT_PACKAGE
 
 #: What a library module must not pull in: the web framework the controllers
 #: adapt the library to, the family's bundle the wiring plugs into, and the ORM
@@ -31,6 +38,10 @@ FORBIDDEN = (
 #: naming a directory covers every module beneath it.
 ALLOWED = (
     "bundle",
+    # A console command is an edge too: it exists only where the optional
+    # console extra is installed, it is wired by the bundle, and it asks the
+    # container for its stores — which is what pulls the container in.
+    "command",
     "controller",
     "factory",
     "manager/orm",
@@ -63,14 +74,57 @@ def _library_modules() -> tuple[str, ...]:
 LIBRARY_MODULES = _library_modules()
 
 
+def _private_to_another_package(dotted: str) -> bool:
+    """Tell whether ``dotted`` reaches a private module of another ``xtr_`` package."""
+    root, *rest = dotted.split(".")
+
+    return (
+        root.startswith("xtr_")
+        and root != _IMPORT_PACKAGE
+        and any(part.startswith("_") for part in rest)
+    )
+
+
+def _imports_private_to_another_package() -> list[str]:
+    """Return each import of another package's private module, as ``path:line name``.
+
+    A ``from`` import is read with the names it takes, so importing a private
+    module by name from its package counts the same as importing it by path.
+    """
+    found: list[str] = []
+    for path in sorted([*_SOURCE.rglob("*.py"), *(_PACKAGE_ROOT / "tests").rglob("*.py")]):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                names = [f"{node.module}.{alias.name}" for alias in node.names]
+            else:
+                continue
+            where = f"{path.relative_to(_PACKAGE_ROOT).as_posix()}:{node.lineno}"
+            found.extend(f"{where} {name}" for name in names if _private_to_another_package(name))
+
+    return found
+
+
 def test_the_library_modules_are_found() -> None:
-    assert f"{_IMPORT_PACKAGE}.exception.oauth2_error" in LIBRARY_MODULES
+    assert f"{_IMPORT_PACKAGE}.exception.invalid_configuration_error" in LIBRARY_MODULES
 
 
 def test_an_edge_is_left_out_of_the_walk() -> None:
     assert _is_edge("routes.py")
     assert _is_edge("manager/orm/access_token_manager.py")
+    assert _is_edge("command/create_client_command.py")
     assert not _is_edge("manager/access_token_manager_interface.py")
+
+
+def test_a_private_module_of_another_package_is_told_apart_from_a_public_one() -> None:
+    assert _private_to_another_package("xtr_security_oauth2_server_core._internal.thing")
+    assert not _private_to_another_package("xtr_security_oauth2_server_core.grant.thing")
+    assert not _private_to_another_package(f"{_IMPORT_PACKAGE}.bundle._parameters")
+
+
+def test_nothing_imports_a_private_module_of_another_package() -> None:
+    assert _imports_private_to_another_package() == []
 
 
 def test_importing_the_library_pulls_in_none_of_the_edges() -> None:

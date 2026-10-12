@@ -1,4 +1,4 @@
-"""The access-token manager for a deployment that stores no access token."""
+"""An access-token manager that stores nothing, for stores of the application's own."""
 
 from __future__ import annotations
 
@@ -25,9 +25,12 @@ class AccessTokenManager(AccessTokenManagerInterface):
     issued, and no lookup on the way in. What it gives up is revocation — a
     token stays good until it expires, because there is nothing to mark.
 
-    Wired in place of a real manager when access tokens are not persisted, so
-    the repository bridge above it is unchanged and nothing else in the server
-    knows the difference.
+    The bundle never wires it: with ``persist_access_token`` off it registers
+    the ``NullAccessTokenRepository`` bridge instead, and no access-token
+    manager is asked anything. This is the manager an application keeping its
+    credentials in stores of its own names as
+    ``CustomPersistenceConfig(access_token_manager=...)`` — registered as a
+    service, as every store named there is — when it keeps no access token.
     """
 
     @override

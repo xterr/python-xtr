@@ -24,29 +24,29 @@ from xtr_clock import ClockInterface
 from xtr_dependency_injection import Target, named_factory
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.entities.access_token_signer import AccessTokenSigner
+from xtr_security_oauth2_server_core.grant.grant_type_interface import GrantTypeInterface
+from xtr_security_oauth2_server_core.repositories.access_token_repository_interface import (
+    AccessTokenRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.client_repository_interface import (
+    ClientRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.refresh_token_repository_interface import (
+    RefreshTokenRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.scope_repository_interface import (
+    ScopeRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.response_types.response_type_interface import (
+    ResponseTypeInterface,
+)
+from xtr_security_oauth2_server_core.token_server import TokenServer
 
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
-from xtr_security_oauth2_server.entities.access_token_signer import AccessTokenSigner
 from xtr_security_oauth2_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
-from xtr_security_oauth2_server.grant.grant_type_interface import GrantTypeInterface
-from xtr_security_oauth2_server.repositories.access_token_repository_interface import (
-    AccessTokenRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.client_repository_interface import (
-    ClientRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.refresh_token_repository_interface import (
-    RefreshTokenRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.scope_repository_interface import (
-    ScopeRepositoryInterface,
-)
-from xtr_security_oauth2_server.response_types.response_type_interface import (
-    ResponseTypeInterface,
-)
-from xtr_security_oauth2_server.token_server import TokenServer
 
 from ._required_settings import supplied
 from ._signing_factories import QUALIFIER
@@ -68,8 +68,13 @@ _UNSEALED = (
     "client, and there is no key to seal them with"
 )
 
-#: How a deployment comes by one.
-_MINT_ENCRYPTION_KEY = "Mint one with 'oauth2-server:generate-keypair'."
+#: How a deployment comes by one. Not the key-pair command: that writes the
+#: PEM pair this server *signs* with, which is a different key entirely.
+_MINT_ENCRYPTION_KEY = (
+    "Mint one for encryption_key_type='key' with: python -c \"import base64, secrets; "
+    "print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip('='))\". "
+    "The 'plain' type takes a password of at least 32 characters instead."
+)
 
 #: What cannot be done when this server does not know who it is.
 _NAMELESS = "a token could not be checked against the server that issued it"

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
+from xtr_security_oauth2_server_core.request_types.authorization_request import AuthorizationRequest
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.models import client_model
@@ -13,9 +15,7 @@ from xtr_security_oauth2_server.entity.scope import Scope as ScopeEntity
 from xtr_security_oauth2_server.event.authorization_request_resolve_event_factory import (
     AuthorizationRequestResolveEventFactory,
 )
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
-from xtr_security_oauth2_server.request_types.authorization_request import AuthorizationRequest
 from xtr_security_oauth2_server.value_object.scope import Scope
 
 pytestmark = pytest.mark.anyio

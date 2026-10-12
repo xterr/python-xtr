@@ -7,14 +7,14 @@ from datetime import timedelta
 from typing import Literal
 from urllib.parse import urlsplit
 
-from xtr_security_oauth2_server.exception.invalid_configuration_error import (
-    InvalidConfigurationError,
-)
-
 # The response type a deployment may put in place of the bearer document is
 # named as a class the container builds, so this annotation is read at runtime.
-from xtr_security_oauth2_server.response_types.response_type_interface import (  # noqa: TC001 -- a bundle config: its annotations are read at runtime
+from xtr_security_oauth2_server_core.response_types.response_type_interface import (  # noqa: TC002 -- a bundle config: its annotations are read at runtime
     ResponseTypeInterface,
+)
+
+from xtr_security_oauth2_server.exception.invalid_configuration_error import (
+    InvalidConfigurationError,
 )
 
 __all__ = ["AuthorizationServerConfig"]
@@ -23,7 +23,8 @@ __all__ = ["AuthorizationServerConfig"]
 #: enough that a client is not refreshing constantly.
 DEFAULT_ACCESS_TOKEN_TTL = timedelta(hours=1)
 
-#: Thirty days, as the reference server's one month.
+#: Thirty days: a client in use at least monthly never has to send its owner
+#: through the flow again.
 DEFAULT_REFRESH_TOKEN_TTL = timedelta(days=30)
 
 #: Ten minutes: an authorization code is redeemed by the client immediately
@@ -40,18 +41,19 @@ class AuthorizationServerConfig:
     """Everything the server issuing tokens is built from.
 
     Buildable with no arguments, because the bundle has to be declarable
-    before any application configures it — but not *usable* that way: the
-    build stops with
+    before any application configures it — but not *usable* that way: each of
+    ``private_key``, ``encryption_key`` and ``issuer`` that is still unset is
+    reported by the first service that cannot be built without it, as an
     :class:`~xtr_security_oauth2_server.exception.InvalidConfigurationError`
-    naming each of ``private_key``, ``encryption_key`` and ``issuer`` that is
-    still unset. There is no safe default for a signing key, for the key this
-    server's own payloads are sealed with, or for the name every token claims
-    to come from.
+    naming the setting. There is no safe default for a signing key, for the key
+    this server's own payloads are sealed with, or for the name every token
+    claims to come from.
 
     Validation here is of shape, never of presence: an issuer that is not an
     origin, a lifetime that is not positive, a polling interval below zero.
-    Presence is the bundle's to report, so that a deployment missing four
-    settings is told all four at once.
+    Presence is reported where a setting is used, so the bundle still builds
+    and boots without one — and the console still runs to mint what is
+    missing.
 
     Attributes:
         private_key: The key access tokens are signed with, as PEM text or the

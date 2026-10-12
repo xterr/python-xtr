@@ -18,21 +18,22 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.token_server import TokenServer
+
 from tests.support.encryption import ENCRYPTION_KEY
 from tests.support.signing import make_signer
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
-from xtr_security_oauth2_server.token_server import TokenServer
 
 if TYPE_CHECKING:
     from datetime import timedelta
 
     from xtr_clock import ClockInterface
+    from xtr_security_oauth2_server_core.response_types.response_type_interface import (
+        ResponseTypeInterface,
+    )
 
     from tests.support.dispatcher import RecordingEventDispatcher
     from tests.support.grants import Storage
-    from xtr_security_oauth2_server.response_types.response_type_interface import (
-        ResponseTypeInterface,
-    )
 
 __all__ = ["make_server", "make_token_server"]
 

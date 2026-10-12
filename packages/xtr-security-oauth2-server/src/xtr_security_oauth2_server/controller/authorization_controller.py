@@ -12,18 +12,18 @@ from xtr_logging_contracts import (  # noqa: TC002 -- container hydrates this co
     LoggerInterface,
 )
 from xtr_security import Security  # noqa: TC002 -- container hydrates this constructor at runtime
-
-from xtr_security_oauth2_server._redirect_uri import redirect_uri_carrying
-from xtr_security_oauth2_server.authorization_server import (  # noqa: TC001 -- container hydrates this constructor at runtime
+from xtr_security_oauth2_server_core.authorization_server import (  # noqa: TC002 -- container hydrates this constructor at runtime
     AuthorizationServer,
 )
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
+from xtr_security_oauth2_server_core.redirect_uri import redirect_uri_carrying
+
 from xtr_security_oauth2_server.converter.user_converter_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     UserConverterInterface,
 )
 from xtr_security_oauth2_server.event.authorization_request_resolve_event_factory import (  # noqa: TC001 -- container hydrates this constructor at runtime
     AuthorizationRequestResolveEventFactory,
 )
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server.manager.client_manager_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ClientManagerInterface,
 )
@@ -34,8 +34,7 @@ from ._served_response import served
 if TYPE_CHECKING:
     from xtr_http_kernel.bridge import Response
     from xtr_http_message_contracts import ServerRequestInterface
-
-    from xtr_security_oauth2_server.request_types.authorization_request_interface import (
+    from xtr_security_oauth2_server_core.request_types.authorization_request_interface import (
         AuthorizationRequestInterface,
     )
 

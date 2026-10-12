@@ -10,9 +10,9 @@ from sqlalchemy import CHAR, MetaData, String
 from sqlalchemy.orm import class_mapper
 from sqlalchemy.orm.exc import UnmappedClassError
 from xtr_orm.mapping_driver_interface import MappingDriverInterface
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 from tests.support.app_client import AuditAppClient, PlainAppClient
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.model.access_token import AccessToken
 from xtr_security_oauth2_server.model.authorization_code import AuthorizationCode
 from xtr_security_oauth2_server.model.client import Client

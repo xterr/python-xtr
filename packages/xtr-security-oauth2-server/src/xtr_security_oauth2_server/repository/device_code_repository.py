@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_security_oauth2_server_core.repositories.client_repository_interface import (
+    ClientRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.device_code_repository_interface import (
+    DeviceCodeRepositoryInterface,
+)
 
 from xtr_security_oauth2_server.converter.scope_converter_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ScopeConverterInterface,
@@ -17,23 +23,18 @@ from xtr_security_oauth2_server.manager.device_code_manager_interface import (  
     DeviceCodeManagerInterface,
 )
 from xtr_security_oauth2_server.model.device_code import DeviceCode as DeviceCodeModel
-from xtr_security_oauth2_server.repositories.client_repository_interface import (
-    ClientRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.device_code_repository_interface import (
-    DeviceCodeRepositoryInterface,
-)
 
 from ._stored_client import stored_client_of
 
 if TYPE_CHECKING:
-    from xtr_security_oauth2_server.entities.device_code_entity_interface import (
+    from xtr_security_oauth2_server_core.entities.device_code_entity_interface import (
         DeviceCodeEntityInterface,
     )
-    from xtr_security_oauth2_server.model.device_code_interface import DeviceCodeInterface
-    from xtr_security_oauth2_server.repositories.client_repository_interface import (
+    from xtr_security_oauth2_server_core.repositories.client_repository_interface import (
         ClientRepositoryInterface,
     )
+
+    from xtr_security_oauth2_server.model.device_code_interface import DeviceCodeInterface
 
 __all__ = ["DeviceCodeRepository"]
 

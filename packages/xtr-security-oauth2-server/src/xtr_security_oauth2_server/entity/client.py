@@ -5,10 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-
-from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
-from xtr_security_oauth2_server.entities.traits.client_trait import ClientTrait
-from xtr_security_oauth2_server.entities.traits.entity_trait import EntityTrait
+from xtr_security_oauth2_server_core.entities.client_entity_interface import ClientEntityInterface
+from xtr_security_oauth2_server_core.entities.traits.client_trait import ClientTrait
+from xtr_security_oauth2_server_core.entities.traits.entity_trait import EntityTrait
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

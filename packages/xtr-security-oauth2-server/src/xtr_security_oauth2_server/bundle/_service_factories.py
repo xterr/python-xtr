@@ -19,11 +19,14 @@ from xtr_password_hasher import PasswordHasherInterface, create_auto_password_ha
 from xtr_security import Security
 from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
 from xtr_security_jwt.services.key_loader.key_loader_interface import KeyLoaderInterface
-
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
-from xtr_security_oauth2_server.authorization_validators.bearer_token_validator import (
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.authorization_validators.bearer_token_validator import (
     BearerTokenValidator,
 )
+from xtr_security_oauth2_server_core.repositories.access_token_repository_interface import (
+    AccessTokenRepositoryInterface,
+)
+
 from xtr_security_oauth2_server.controller.authorization_controller import AuthorizationController
 from xtr_security_oauth2_server.controller.jwks_controller import JwksController
 from xtr_security_oauth2_server.converter.user_converter_interface import UserConverterInterface
@@ -32,9 +35,6 @@ from xtr_security_oauth2_server.event.authorization_request_resolve_event_factor
 )
 from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
 from xtr_security_oauth2_server.manager.in_memory.scope_manager import ScopeManager
-from xtr_security_oauth2_server.repositories.access_token_repository_interface import (
-    AccessTokenRepositoryInterface,
-)
 from xtr_security_oauth2_server.repository.client_repository import ClientRepository
 
 from ._required_settings import supplied, supplied_scopes

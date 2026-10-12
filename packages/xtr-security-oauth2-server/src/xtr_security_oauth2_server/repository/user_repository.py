@@ -8,6 +8,9 @@ from typing_extensions import override
 from xtr_event_dispatcher_contracts import (  # noqa: TC002 -- container hydrates this constructor at runtime
     EventDispatcherInterface,
 )
+from xtr_security_oauth2_server_core.repositories.user_repository_interface import (
+    UserRepositoryInterface,
+)
 
 from xtr_security_oauth2_server.converter.user_converter_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     UserConverterInterface,
@@ -17,16 +20,16 @@ from xtr_security_oauth2_server.manager.client_manager_interface import (
     ClientManagerInterface,
 )
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
-from xtr_security_oauth2_server.repositories.user_repository_interface import (
-    UserRepositoryInterface,
-)
 from xtr_security_oauth2_server.value_object.grant import Grant
 
 from ._stored_client import stored_client_of
 
 if TYPE_CHECKING:
-    from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
-    from xtr_security_oauth2_server.entities.user_entity_interface import UserEntityInterface
+    from xtr_security_oauth2_server_core.entities.client_entity_interface import (
+        ClientEntityInterface,
+    )
+    from xtr_security_oauth2_server_core.entities.user_entity_interface import UserEntityInterface
+
     from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
 
 __all__ = ["UserRepository"]

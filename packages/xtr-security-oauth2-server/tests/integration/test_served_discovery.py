@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from tests.fixtures.oauth2_own_grant_app.grant import SERVICE_ACCOUNT
 from tests.support.served import (
     client_credentials_token,
     header_of,
     json_of,
+    oauth2_kernel,
     served_application,
     serving,
     text_field,
@@ -74,6 +76,16 @@ async def test_the_description_names_the_authorization_responses_the_flows_ask_f
         document = json_of(await client.get(METADATA_PATH))
 
     assert set(text_fields(document, "response_types_supported")) == {"code", "token"}
+
+
+async def test_a_flow_the_application_registered_is_named_beside_the_shipped_ones() -> None:
+    # The description names the flows the server runs, and a grant an
+    # application registers is run without a setting saying so.
+    application = served_application(oauth2_kernel("tests.fixtures.oauth2_own_grant_app"))
+    async with serving(application) as client:
+        document = json_of(await client.get(METADATA_PATH))
+
+    assert SERVICE_ACCOUNT in text_fields(document, "grant_types_supported")
 
 
 async def test_the_description_names_how_a_proof_key_may_be_derived() -> None:

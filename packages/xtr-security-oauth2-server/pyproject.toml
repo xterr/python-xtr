@@ -20,6 +20,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "xtr-security-oauth2-server-core>=3.0,<4",
     "xtr-security-core>=3.0,<4",
     "xtr-security-http>=3.0,<4",
     "xtr-security>=3.0,<4",
@@ -103,14 +104,6 @@ reportPrivateUsage = "error"
 # An error message long enough to be useful has to wrap, and a 100-column
 # limit puts the break inside the string.
 reportImplicitStringConcatenation = "none"
-
-# A trait cannot run a constructor — an entity composing several of them would
-# have to call each one — so the state the traits declare is set when the entity
-# is filled, and reading it before that raises rather than handing back a
-# made-up value.
-[[tool.basedpyright.executionEnvironments]]
-root = "src/xtr_security_oauth2_server/entities/traits"
-reportUninitializedInstanceVariable = "none"
 
 # Tests reach into what a class keeps to itself, for the same reason ruff's
 # SLF001 is off for tests; the extra path lets them import the support package.

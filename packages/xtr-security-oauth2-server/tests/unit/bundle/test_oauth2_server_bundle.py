@@ -4,8 +4,32 @@ from __future__ import annotations
 
 import pytest
 from xtr_dependency_injection import Kernel, unit_of_work
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.oauth2_grants import OAuth2Grants
+from xtr_security_oauth2_server_core.repositories.access_token_repository_interface import (
+    AccessTokenRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.auth_code_repository_interface import (
+    AuthCodeRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.client_repository_interface import (
+    ClientRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.device_code_repository_interface import (
+    DeviceCodeRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.refresh_token_repository_interface import (
+    RefreshTokenRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.scope_repository_interface import (
+    ScopeRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.user_repository_interface import (
+    UserRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.resource_server import ResourceServer
+from xtr_security_oauth2_server_core.token_server import TokenServer
 
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 from xtr_security_oauth2_server.controller.authorization_controller import AuthorizationController
 from xtr_security_oauth2_server.controller.device_code_controller import DeviceCodeController
@@ -30,30 +54,6 @@ from xtr_security_oauth2_server.manager.refresh_token_manager_interface import (
     RefreshTokenManagerInterface,
 )
 from xtr_security_oauth2_server.manager.scope_manager_interface import ScopeManagerInterface
-from xtr_security_oauth2_server.oauth2_grants import OAuth2Grants
-from xtr_security_oauth2_server.repositories.access_token_repository_interface import (
-    AccessTokenRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.auth_code_repository_interface import (
-    AuthCodeRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.client_repository_interface import (
-    ClientRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.device_code_repository_interface import (
-    DeviceCodeRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.refresh_token_repository_interface import (
-    RefreshTokenRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.scope_repository_interface import (
-    ScopeRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.user_repository_interface import (
-    UserRepositoryInterface,
-)
-from xtr_security_oauth2_server.resource_server import ResourceServer
-from xtr_security_oauth2_server.token_server import TokenServer
 
 pytestmark = pytest.mark.anyio
 

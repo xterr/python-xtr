@@ -42,6 +42,8 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-security-http](packages/xtr-security-http) | The HTTP edge of security: firewalls, authenticators, bearer access tokens and the request surface. |
 | [xtr-security-jwt](packages/xtr-security-jwt) | Self-issued JSON Web Tokens: key sets, an encoder and a token manager for a user. |
 | [xtr-security](packages/xtr-security) | The security bundle: the family facade and the container wiring that configures it. |
+| [xtr-security-oauth2-server-core](packages/xtr-security-oauth2-server-core) | The OAuth 2.0 authorization-server library: grants, servers, entities, response types and the resource server. |
+| [xtr-security-oauth2-server](packages/xtr-security-oauth2-server) | An OAuth 2.0 authorization server and resource-server authenticator. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
 | [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
 | [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger: cron and intervals, catch-up after downtime, locks and saved state. |
@@ -129,6 +131,26 @@ graph LR
     securityjwt --> events
     securityjwt --> eventcon
     securityjwt -. console extra .-> console
+    oauth2core[xtr-security-oauth2-server-core] --> securitycore
+    oauth2core --> securityjwt
+    oauth2core --> clock
+    oauth2core --> eventcon
+    oauth2core --> httpmsgcon
+    oauth2server[xtr-security-oauth2-server] --> oauth2core
+    oauth2server --> securitycore
+    oauth2server --> securityhttp
+    oauth2server --> security
+    oauth2server --> securityjwt
+    oauth2server --> passwordhasher
+    oauth2server --> clock
+    oauth2server --> eventcon
+    oauth2server --> events
+    oauth2server --> logcon
+    oauth2server --> di
+    oauth2server --> httpmsgcon
+    oauth2server --> httpkernel
+    oauth2server -. orm extra .-> orm
+    oauth2server -. console extra .-> console
     storage[xtr-storage] -. di extra .-> di
     dotenv[xtr-dotenv] -. di extra .-> di
     dotenv -. console extra .-> console

@@ -17,16 +17,14 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_dependency_injection import as_service
-
-from xtr_security_oauth2_server.grant.abstract_grant import AbstractGrant
-from xtr_security_oauth2_server.oauth2_grants import OAuth2Grants
+from xtr_security_oauth2_server_core.grant.abstract_grant import AbstractGrant
+from xtr_security_oauth2_server_core.oauth2_grants import OAuth2Grants
 
 if TYPE_CHECKING:
     from datetime import timedelta
 
     from xtr_http_message_contracts import ServerRequestInterface
-
-    from xtr_security_oauth2_server.response_types.response_type_interface import (
+    from xtr_security_oauth2_server_core.response_types.response_type_interface import (
         ResponseTypeInterface,
     )
 

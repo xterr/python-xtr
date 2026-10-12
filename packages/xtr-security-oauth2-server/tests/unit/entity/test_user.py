@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from xtr_security_oauth2_server.entities.user_entity_interface import UserEntityInterface
+from xtr_security_oauth2_server_core.entities.user_entity_interface import UserEntityInterface
+
 from xtr_security_oauth2_server.entity.user import User
 
 

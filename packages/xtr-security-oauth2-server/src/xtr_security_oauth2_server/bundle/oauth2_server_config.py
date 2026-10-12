@@ -35,10 +35,12 @@ class OAuth2ServerConfig:
     Buildable with no arguments, because the bundle must be declarable before
     an application has written a line of configuration — and the console must
     keep running on a fresh application, so that the key and the clients it is
-    missing can be minted. It is not *usable* that way: the build stops with
+    missing can be minted. It is not *usable* that way: each setting still
+    missing is reported where it is first needed, by the service that cannot be
+    built without it, as an
     :class:`~xtr_security_oauth2_server.exception.InvalidConfigurationError`
-    naming every setting that is still missing, all of them at once, and the
-    file to write them in.
+    naming the setting and the file to write it in — never by the build, which
+    would take the console down with it.
 
     ``persistence`` is the one choice with no default at all. The three
     variants are a real decision — a database, this process's memory, or the

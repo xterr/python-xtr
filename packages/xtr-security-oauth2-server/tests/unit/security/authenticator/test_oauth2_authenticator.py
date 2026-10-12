@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING, Final, final
 import pytest
 from starlette.requests import Request
 from typing_extensions import override
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
+from xtr_security_oauth2_server_core.resource_server import ResourceServer
 
 from tests.support.messages import server_request
 from tests.support.repositories import InMemoryAccessTokenRepository
 from tests.support.users import SecurityUser
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
-from xtr_security_oauth2_server.resource_server import ResourceServer
 from xtr_security_oauth2_server.security.authentication.token.oauth2_token import OAuth2Token
 from xtr_security_oauth2_server.security.authenticator.oauth2_authenticator import (
     OAuth2Authenticator,
@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.anyio
 
 ROLE_PREFIX: Final = "ROLE_OAUTH2_"
+FIREWALL: Final = "api"
 CLIENT_ID: Final = "a-confidential-client"
 OWNER: Final = "ada"
 TOKEN_ID: Final = "at-1"
@@ -126,6 +127,7 @@ def _authenticator(attributes: Mapping[str, object]) -> OAuth2Authenticator:
         ResourceServer(InMemoryAccessTokenRepository(), validator),
         _KnownUsers(),
         ROLE_PREFIX,
+        FIREWALL,
     )
 
 
@@ -135,6 +137,19 @@ def test_it_handles_only_a_request_carrying_a_bearer_token() -> None:
     assert authenticator.supports(_served({"Authorization": "Bearer abc"})) is True
     assert authenticator.supports(_served({"Authorization": "Basic abc"})) is False
     assert authenticator.supports(_served()) is False
+
+
+def test_the_scheme_is_claimed_whatever_case_it_was_written_in() -> None:
+    # The scheme name of the HTTP authentication framework is
+    # case-insensitive (RFC 9110 section 11.1), so a caller writing RFC 6750's
+    # ``Bearer`` differently is still presenting a bearer token.
+    authenticator = _authenticator({})
+
+    assert authenticator.supports(_served({"Authorization": "bearer abc"})) is True
+    assert authenticator.supports(_served({"Authorization": "BEARER abc"})) is True
+    # The scheme and nothing after it is not a token, and neither is a name
+    # that only begins like the scheme.
+    assert authenticator.supports(_served({"Authorization": "Bearerish abc"})) is False
 
 
 async def test_a_token_naming_a_resource_owner_loads_them_through_the_provider() -> None:
@@ -213,6 +228,7 @@ async def test_a_token_the_resource_server_will_not_accept_is_refused() -> None:
         ResourceServer(InMemoryAccessTokenRepository(), _RefuseToken()),
         _KnownUsers(),
         ROLE_PREFIX,
+        FIREWALL,
     )
 
     with pytest.raises(OAuth2AuthenticationFailedError):
@@ -223,7 +239,12 @@ async def test_a_request_that_proved_nothing_is_challenged_with_a_bearer_scheme(
     answered = await _authenticator({}).start(_served())
 
     assert answered.status_code == HTTPStatus.UNAUTHORIZED
-    assert answered.headers["WWW-Authenticate"] == "Bearer"
+    # "This scheme MUST be followed by one or more auth-param values"
+    # (RFC 6750 section 3), and section 3.1 asks that a request lacking any
+    # authentication information be told no error code — so the realm is all
+    # the challenge names.
+    assert answered.headers["WWW-Authenticate"] == f'Bearer realm="{FIREWALL}"'
+    assert "error" not in answered.headers["WWW-Authenticate"]
     # A refusal must never be kept by a cache: a proxy answering another
     # caller with it would tell the wrong person about the right one.
     assert answered.headers["Cache-Control"] == "no-store"
@@ -235,6 +256,10 @@ async def test_a_refusal_of_this_package_is_answered_with_what_it_carries() -> N
     answered = await _authenticator({}).on_authentication_failure(_served(), failure)
 
     assert answered is not None
+    # "in case of any failure in the validation checks listed above, the
+    # authorization server response MUST include the error code
+    # "invalid_token"" (RFC 9068 section 4).
+    assert 'error="invalid_token"' in answered.headers["WWW-Authenticate"]
     body = json.loads(bytes(answered.body))  # pyright: ignore[reportAny] -- what a JSON document decodes to
     assert isinstance(body, dict)
     assert body["message"] == "The access token could not be accepted."
@@ -252,5 +277,7 @@ async def test_a_failure_from_somewhere_else_is_left_to_the_firewall() -> None:
     assert answered is None
 
 
-def test_it_names_the_role_prefix_and_nothing_it_holds() -> None:
-    assert repr(_authenticator({})) == f"OAuth2Authenticator(role_prefix={ROLE_PREFIX!r})"
+def test_it_names_its_configuration_and_nothing_it_holds() -> None:
+    assert repr(_authenticator({})) == (
+        f"OAuth2Authenticator(role_prefix={ROLE_PREFIX!r}, realm={FIREWALL!r})"
+    )

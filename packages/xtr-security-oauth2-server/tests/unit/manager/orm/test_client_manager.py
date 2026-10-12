@@ -11,6 +11,7 @@ from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.models import client_model
 from tests.support.orm import CONNECTION, connections_of, orm_driver, stored
 from xtr_security_oauth2_server.event.pre_save_client_event import PreSaveClientEvent
+from xtr_security_oauth2_server.exception import ClientAlreadyRegisteredError
 from xtr_security_oauth2_server.manager.client_filter import ClientFilter
 from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
 from xtr_security_oauth2_server.manager.orm.client_manager import ClientManager
@@ -233,6 +234,38 @@ async def test_it_finds_a_client_by_its_identifier_and_not_by_its_primary_key(
 
         assert found is not None
         assert found.get_name() == "App"
+
+
+async def test_storing_a_client_under_a_taken_identifier_is_reported_as_one(
+    tmp_path: Path,
+) -> None:
+    # The race a caller that looked first can still lose: two units of work
+    # registering one identifier, the second refused by the store.
+    async with stored(tmp_path) as database:
+        first, _ = _manager(database)
+        second, _ = _manager(database)
+        await first.save(client_model("client-1"))
+
+        with pytest.raises(ClientAlreadyRegisteredError) as reported:
+            await second.save(client_model("client-1"))
+
+        assert reported.value.identifier == "client-1"
+
+
+async def test_the_refusal_says_nothing_of_the_row_the_store_would_not_write(
+    tmp_path: Path,
+) -> None:
+    async with stored(tmp_path) as database:
+        first, _ = _manager(database)
+        second, _ = _manager(database)
+        await first.save(client_model("client-1"))
+
+        with pytest.raises(ClientAlreadyRegisteredError) as reported:
+            await second.save(client_model("client-1"))
+
+        assert reported.value.__cause__ is None
+        assert reported.value.__suppress_context__
+        assert "hashed-secret" not in str(reported.value)
 
 
 def _replace_with(replacement: Client) -> Callable[[object], None]:

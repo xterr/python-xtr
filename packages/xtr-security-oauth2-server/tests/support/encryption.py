@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final, final
 
-from xtr_security_oauth2_server.crypt_trait import CryptTrait
+from xtr_security_oauth2_server_core.crypt_trait import CryptTrait
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

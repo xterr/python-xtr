@@ -1,7 +1,7 @@
 """The bridges between what the protocol asks for and what is stored.
 
 Each one implements a contract from
-:mod:`xtr_security_oauth2_server.repositories` — the surface the grants, the
+:mod:`xtr_security_oauth2_server_core.repositories` — the surface the grants, the
 servers and the validators reach storage through — over the managers in
 :mod:`xtr_security_oauth2_server.manager`. That is the whole of the seam: the
 protocol knows the contracts, a deployment chooses the managers, and these

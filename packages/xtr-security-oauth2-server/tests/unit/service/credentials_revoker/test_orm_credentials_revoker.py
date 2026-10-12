@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from xtr_clock import MockClock
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.models import (
@@ -19,7 +20,6 @@ from tests.support.models import (
 )
 from tests.support.orm import CONNECTION, connections_of, orm_driver, stored
 from tests.support.users import SecurityUser
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.manager.orm.access_token_manager import AccessTokenManager
 from xtr_security_oauth2_server.manager.orm.authorization_code_manager import (
     AuthorizationCodeManager,

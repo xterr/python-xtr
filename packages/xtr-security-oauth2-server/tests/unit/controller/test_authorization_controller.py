@@ -10,6 +10,8 @@ from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_http_kernel.bridge import Response
 from xtr_security import Security
+from xtr_security_oauth2_server_core.grant.abstract_grant import AbstractGrant
+from xtr_security_oauth2_server_core.request_types.authorization_request import AuthorizationRequest
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entity_builders import client_entity
@@ -26,19 +28,16 @@ from xtr_security_oauth2_server.converter.user_converter import UserConverter
 from xtr_security_oauth2_server.event.authorization_request_resolve_event_factory import (
     AuthorizationRequestResolveEventFactory,
 )
-from xtr_security_oauth2_server.grant.abstract_grant import AbstractGrant
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
-from xtr_security_oauth2_server.request_types.authorization_request import AuthorizationRequest
 
 if TYPE_CHECKING:
     from datetime import timedelta
 
     from xtr_http_message_contracts import ServerRequestInterface
-
-    from xtr_security_oauth2_server.request_types.authorization_request_interface import (
+    from xtr_security_oauth2_server_core.request_types.authorization_request_interface import (
         AuthorizationRequestInterface,
     )
-    from xtr_security_oauth2_server.response_types.response_type_interface import (
+    from xtr_security_oauth2_server_core.response_types.response_type_interface import (
         ResponseTypeInterface,
     )
 

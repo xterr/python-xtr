@@ -118,6 +118,7 @@ def served_application(
         secret: str = CLIENT_SECRET,
         grant: str = "client_credentials",
         redirect_uri: str = "",
+        scope: str = SCOPE,
         plain_pkce: bool = False,
     ) -> dict[str, str]:
         # An empty secret registers a public client, which is what the
@@ -133,7 +134,10 @@ def served_application(
         # Whether this client may send the verifier unhashed, which only a
         # registration may say.
         _ = client.set_allow_plain_text_pkce(plain_pkce)
-        _ = client.set_scopes(Scope(SCOPE))
+        # A registration naming several scopes is what a token carrying
+        # several is issued against; one is the usual case, so it is the
+        # default.
+        _ = client.set_scopes(*(Scope(name) for name in scope.split(" ") if name))
         await clients.save(client)
 
         return {"client_id": identifier}

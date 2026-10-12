@@ -3,7 +3,7 @@
 The library side of the seam: these are what a grant reads and writes while it
 handles one request, and what the repository bridges mint, fill from storage
 and read back. An application may bring its own instead — the contracts in
-:mod:`xtr_security_oauth2_server.entities` are what a grant depends on — but a
+:mod:`xtr_security_oauth2_server_core.entities` are what a grant depends on — but a
 deployment using the managers here gets these.
 
 Every one of them is built with no arguments and filled through setters,

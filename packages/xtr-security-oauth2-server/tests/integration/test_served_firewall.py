@@ -67,8 +67,11 @@ async def test_a_request_carrying_no_token_is_challenged_for_one() -> None:
         answered = await client.get("/api/me")
 
     assert answered.status_code == 401
-    # The challenge says what would have worked.
-    assert answered.headers["www-authenticate"] == "Bearer"
+    # The challenge says what would have worked, and nothing else: RFC 6750
+    # section 3 has the scheme followed by one or more auth-param values, and
+    # section 3.1 asks that a request lacking any authentication information
+    # be told no error code.
+    assert answered.headers["www-authenticate"] == f'Bearer realm="{FIREWALL}"'
 
 
 async def test_the_challenge_is_never_cached() -> None:

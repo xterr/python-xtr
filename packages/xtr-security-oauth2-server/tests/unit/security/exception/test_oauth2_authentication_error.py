@@ -5,8 +5,8 @@ from __future__ import annotations
 from http import HTTPStatus
 
 from xtr_security_core.exception import AuthenticationError
+from xtr_security_oauth2_server_core.exception.oauth2_error import OAuth2Error
 
-from xtr_security_oauth2_server.exception.oauth2_error import OAuth2Error
 from xtr_security_oauth2_server.security.exception.oauth2_authentication_error import (
     OAuth2AuthenticationError,
 )
@@ -31,10 +31,22 @@ def test_the_status_the_refusal_is_answered_with_is_carried() -> None:
 
 def test_it_always_suggests_presenting_a_bearer_token() -> None:
     # This server accepts its access tokens in no other way, so that is the
-    # whole of what it can suggest.
+    # whole of what it can suggest — and the challenge names the error code
+    # RFC 9068 section 4 requires of a failed check, beside the public text.
     assert OAuth2AuthenticationError(INTERNAL, 401).get_headers() == {
-        "WWW-Authenticate": "Bearer",
+        "WWW-Authenticate": (
+            'Bearer error="invalid_token", '
+            f'error_description="{OAuth2AuthenticationError.MESSAGE_KEY}"'
+        ),
     }
+
+
+def test_the_challenge_never_quotes_the_internal_message() -> None:
+    # The description is the public text, so a refusal that named the check it
+    # failed would turn the challenge into a way of probing what is held.
+    refused = OAuth2AuthenticationError(INTERNAL, 401)
+
+    assert INTERNAL not in refused.get_headers()["WWW-Authenticate"]
 
 
 def test_the_internal_message_is_not_what_a_caller_is_shown() -> None:

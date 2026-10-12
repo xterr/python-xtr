@@ -6,9 +6,8 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
-from xtr_security_oauth2_server.token_server import (  # noqa: TC001 -- container hydrates this constructor at runtime
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
+from xtr_security_oauth2_server_core.token_server import (  # noqa: TC002 -- container hydrates this constructor at runtime
     TokenServer,
 )
 

@@ -13,8 +13,11 @@ an atomic revoke, because two refreshes of one token must not both succeed.
 process, for tests and demonstrations;
 :mod:`xtr_security_oauth2_server.manager.orm` keeps it in a database, which is
 what a deployment of more than one worker needs;
-:mod:`xtr_security_oauth2_server.manager.null` is the access-token manager a
-deployment that stores no access token uses.
+:mod:`xtr_security_oauth2_server.manager.null` is an access-token manager that
+stores nothing, which an application keeping its credentials in stores of its
+own names as ``CustomPersistenceConfig(access_token_manager=...)`` when it keeps
+no access token. The bundle never wires it itself: with access tokens not
+persisted it registers a repository bridge that keeps none instead.
 """
 
 from __future__ import annotations

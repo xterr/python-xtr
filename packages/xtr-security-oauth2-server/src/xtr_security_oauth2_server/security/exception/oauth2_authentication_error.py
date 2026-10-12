@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Final
 
 from xtr_security_core.exception import AuthenticationError
-
-from xtr_security_oauth2_server.exception.oauth2_error import OAuth2Error
+from xtr_security_oauth2_server_core.bearer_challenge import bearer_challenge
+from xtr_security_oauth2_server_core.exception.oauth2_error import OAuth2Error
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
 __all__ = ["OAuth2AuthenticationError"]
+
+#: What RFC 6750 section 3.1 calls a token that is "expired, revoked,
+#: malformed, or invalid for other reasons", and what RFC 9068 section 4
+#: requires the answer to a failed check to name.
+_INVALID_TOKEN: Final[str] = "invalid_token"  # noqa: S105 -- an error code the standard names, not a secret
 
 
 class OAuth2AuthenticationError(  # pyright: ignore[reportUnsafeMultipleInheritance]  -- both bases are exceptions, and the family's __init__ walks the chain to this package's base
@@ -71,5 +76,18 @@ class OAuth2AuthenticationError(  # pyright: ignore[reportUnsafeMultipleInherita
         Always a bearer challenge: this server accepts its access tokens in no
         other way, so telling a caller to present one is the whole of what it
         can suggest.
+
+        It names ``invalid_token``, which RFC 9068 section 4 requires of the
+        answer to any failed validation check and RFC 6750 section 3 asks for
+        whenever a request did present a token and failed authentication. The
+        description beside it is the public text, which is the same for every
+        unusable token: which check it was stays in the exception, so the
+        answer cannot be read as a way of probing what this server holds.
         """
-        return {"WWW-Authenticate": "Bearer"}
+        return {
+            "WWW-Authenticate": bearer_challenge(
+                "error",
+                _INVALID_TOKEN,
+                error_description=self.get_message_key(),
+            ),
+        }

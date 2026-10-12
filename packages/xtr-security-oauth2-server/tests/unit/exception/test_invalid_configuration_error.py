@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import pytest
+from xtr_security_oauth2_server_core.exception.oauth2_error import OAuth2Error
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 
 from xtr_security_oauth2_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
-from xtr_security_oauth2_server.exception.oauth2_error import OAuth2Error
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
 
 
 def test_one_except_for_this_library_catches_it() -> None:

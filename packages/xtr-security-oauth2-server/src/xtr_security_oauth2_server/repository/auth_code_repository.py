@@ -5,14 +5,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_security_oauth2_server_core.exception import (
+    UniqueTokenIdentifierConstraintViolationError,
+)
+from xtr_security_oauth2_server_core.repositories.auth_code_repository_interface import (
+    AuthCodeRepositoryInterface,
+)
 
 from xtr_security_oauth2_server.converter.scope_converter_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ScopeConverterInterface,
 )
 from xtr_security_oauth2_server.entity.auth_code import AuthCode
-from xtr_security_oauth2_server.exception import (
-    UniqueTokenIdentifierConstraintViolationError,
-)
 from xtr_security_oauth2_server.manager.authorization_code_manager_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     AuthorizationCodeManagerInterface,
 )
@@ -20,16 +23,14 @@ from xtr_security_oauth2_server.manager.client_manager_interface import (
     ClientManagerInterface,
 )
 from xtr_security_oauth2_server.model.authorization_code import AuthorizationCode
-from xtr_security_oauth2_server.repositories.auth_code_repository_interface import (
-    AuthCodeRepositoryInterface,
-)
 
 from ._stored_client import stored_client_of
 
 if TYPE_CHECKING:
-    from xtr_security_oauth2_server.entities.auth_code_entity_interface import (
+    from xtr_security_oauth2_server_core.entities.auth_code_entity_interface import (
         AuthCodeEntityInterface,
     )
+
     from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
 
 __all__ = ["AuthCodeRepository"]

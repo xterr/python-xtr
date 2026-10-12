@@ -4,22 +4,22 @@ from __future__ import annotations
 
 import pytest
 from xtr_clock import MockClock
+from xtr_security_oauth2_server_core.exception import (
+    UniqueTokenIdentifierConstraintViolationError,
+)
+from xtr_security_oauth2_server_core.repositories.refresh_token_repository_interface import (
+    RefreshTokenRepositoryInterface,
+)
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entity_builders import access_token_entity, refresh_token_entity
 from tests.support.models import NOW, client_model
 from xtr_security_oauth2_server.converter.scope_converter import ScopeConverter
-from xtr_security_oauth2_server.exception import (
-    UniqueTokenIdentifierConstraintViolationError,
-)
 from xtr_security_oauth2_server.manager.in_memory.access_token_manager import AccessTokenManager
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
 from xtr_security_oauth2_server.manager.in_memory.refresh_token_manager import RefreshTokenManager
 from xtr_security_oauth2_server.manager.null.access_token_manager import (
     AccessTokenManager as NullAccessTokenManager,
-)
-from xtr_security_oauth2_server.repositories.refresh_token_repository_interface import (
-    RefreshTokenRepositoryInterface,
 )
 from xtr_security_oauth2_server.repository.access_token_repository import AccessTokenRepository
 from xtr_security_oauth2_server.repository.refresh_token_repository import RefreshTokenRepository

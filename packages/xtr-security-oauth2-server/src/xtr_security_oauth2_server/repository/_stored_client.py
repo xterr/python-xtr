@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 if TYPE_CHECKING:
-    from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
+    from xtr_security_oauth2_server_core.entities.client_entity_interface import (
+        ClientEntityInterface,
+    )
+
     from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
     from xtr_security_oauth2_server.model.client_interface import ClientInterface
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .oauth2_error import OAuth2Error
+from xtr_security_oauth2_server_core.exception import OAuth2Error
 
 __all__ = ["InvalidConfigurationError"]
 

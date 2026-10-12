@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from tests.support.signing import make_signer
-from xtr_security_oauth2_server.entities.access_token_entity_interface import (
+from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
     AccessTokenEntityInterface,
 )
+
+from tests.support.signing import make_signer
 from xtr_security_oauth2_server.entity.access_token import AccessToken
 from xtr_security_oauth2_server.entity.client import Client
 from xtr_security_oauth2_server.entity.scope import Scope

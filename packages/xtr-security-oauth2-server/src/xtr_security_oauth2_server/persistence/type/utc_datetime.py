@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING, final
 from sqlalchemy import DateTime
 from sqlalchemy.types import TypeDecorator
 from typing_extensions import override
-
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 if TYPE_CHECKING:
     from sqlalchemy import Dialect

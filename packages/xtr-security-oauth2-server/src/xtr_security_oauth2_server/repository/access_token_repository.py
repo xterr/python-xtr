@@ -8,6 +8,12 @@ from typing_extensions import override
 from xtr_event_dispatcher_contracts import (  # noqa: TC002 -- container hydrates this constructor at runtime
     EventDispatcherInterface,
 )
+from xtr_security_oauth2_server_core.exception import (
+    UniqueTokenIdentifierConstraintViolationError,
+)
+from xtr_security_oauth2_server_core.repositories.access_token_repository_interface import (
+    AccessTokenRepositoryInterface,
+)
 
 from xtr_security_oauth2_server.converter.scope_converter_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ScopeConverterInterface,
@@ -15,9 +21,6 @@ from xtr_security_oauth2_server.converter.scope_converter_interface import (  # 
 from xtr_security_oauth2_server.entity.access_token import AccessToken as AccessTokenEntity
 from xtr_security_oauth2_server.event.access_token_extra_claims_resolve_event import (
     AccessTokenExtraClaimsResolveEvent,
-)
-from xtr_security_oauth2_server.exception import (
-    UniqueTokenIdentifierConstraintViolationError,
 )
 from xtr_security_oauth2_server.manager.access_token_manager_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     AccessTokenManagerInterface,
@@ -27,20 +30,19 @@ from xtr_security_oauth2_server.manager.client_manager_interface import (  # noq
 )
 from xtr_security_oauth2_server.model.access_token import AccessToken as AccessTokenModel
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
-from xtr_security_oauth2_server.repositories.access_token_repository_interface import (
-    AccessTokenRepositoryInterface,
-)
 
 from ._stored_client import stored_client_of
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from xtr_security_oauth2_server.entities.access_token_entity_interface import (
+    from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
         AccessTokenEntityInterface,
     )
-    from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
-    from xtr_security_oauth2_server.entities.scope_entity_interface import ScopeEntityInterface
+    from xtr_security_oauth2_server_core.entities.client_entity_interface import (
+        ClientEntityInterface,
+    )
+    from xtr_security_oauth2_server_core.entities.scope_entity_interface import ScopeEntityInterface
 
 __all__ = ["AccessTokenRepository"]
 

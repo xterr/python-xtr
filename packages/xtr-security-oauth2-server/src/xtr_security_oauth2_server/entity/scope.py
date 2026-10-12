@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import final
 
-from xtr_security_oauth2_server.entities.scope_entity_interface import ScopeEntityInterface
-from xtr_security_oauth2_server.entities.traits.entity_trait import EntityTrait
-from xtr_security_oauth2_server.entities.traits.scope_trait import ScopeTrait
+from xtr_security_oauth2_server_core.entities.scope_entity_interface import ScopeEntityInterface
+from xtr_security_oauth2_server_core.entities.traits.entity_trait import EntityTrait
+from xtr_security_oauth2_server_core.entities.traits.scope_trait import ScopeTrait
 
 __all__ = ["Scope"]
 

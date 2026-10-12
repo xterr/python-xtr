@@ -15,8 +15,9 @@ from xtr_security_http.authenticator.passport.self_validating_passport import (
 from xtr_security_http.entry_point.authentication_entry_point_interface import (
     AuthenticationEntryPointInterface,
 )
+from xtr_security_oauth2_server_core.bearer_challenge import bearer_challenge
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server.security.authentication.token.oauth2_token import OAuth2Token
 from xtr_security_oauth2_server.security.exception.oauth2_authentication_error import (
     OAuth2AuthenticationError,
@@ -37,17 +38,13 @@ if TYPE_CHECKING:
     from xtr_security_core.user.user_interface import UserInterface
     from xtr_security_core.user.user_provider_interface import UserProviderInterface
     from xtr_security_http.authenticator.passport.passport import Passport
-
-    from xtr_security_oauth2_server.resource_server import ResourceServer
+    from xtr_security_oauth2_server_core.resource_server import ResourceServer
 
 __all__ = ["OAuth2Authenticator"]
 
-#: The scheme this authenticator reads, and the only one it suggests.
-_BEARER: Final = "Bearer"
-
 #: What a request has to start its ``Authorization`` header with to be one of
-#: ours.
-_BEARER_PREFIX: Final = f"{_BEARER} "
+#: ours, written lowercase because the scheme name is compared that way.
+_BEARER_PREFIX: Final = "bearer "
 
 #: Where the resource server records what the token said, once it has read it.
 _USER_ID_ATTRIBUTE: Final = "oauth_user_id"
@@ -80,12 +77,20 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
     identifier instead.
 
     It is also the firewall's entry point. A request with no token at all gets
-    the same ``401`` and the same bearer challenge as one whose token was
-    refused, because the two are the same thing from the caller's side: it has
-    not proved who it is, and presenting a token is how it would.
+    a ``401`` and a bearer challenge, as one whose token was refused does —
+    but a bare one, naming only the realm. RFC 6750 section 3.1 asks that a
+    request lacking any authentication information be told no reason: a caller
+    that presented nothing has learned nothing about this server beyond that a
+    token is how it would be read.
     """
 
-    __slots__ = ("_http_message_factory", "_resource_server", "_role_prefix", "_user_provider")
+    __slots__ = (
+        "_http_message_factory",
+        "_realm",
+        "_resource_server",
+        "_role_prefix",
+        "_user_provider",
+    )
 
     def __init__(
         self,
@@ -93,6 +98,7 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
         resource_server: ResourceServer,
         user_provider: UserProviderInterface,
         role_prefix: str,
+        realm: str,
     ) -> None:
         """Read tokens through ``resource_server``, loading users from ``user_provider``.
 
@@ -104,16 +110,28 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
             user_provider: The firewall's own provider, where a resource owner
                 is loaded from.
             role_prefix: What each of the token's scopes becomes a role under.
+            realm: The protection space the challenge names — the firewall
+                this authenticator was built for, since an application serving
+                two of them protects two different things.
         """
         self._http_message_factory = http_message_factory
         self._resource_server = resource_server
         self._user_provider = user_provider
         self._role_prefix = role_prefix
+        self._realm = realm
 
     @override
     def supports(self, request: Request) -> bool | None:
-        """Handle the request only when it carries a bearer token."""
-        return request.headers.get("Authorization", "").startswith(_BEARER_PREFIX)
+        """Handle the request only when it carries a bearer token.
+
+        The scheme is read whatever case it was written in: RFC 6750 section
+        2.1 writes it ``Bearer``, and it sits on the HTTP authentication
+        framework, whose scheme names are case-insensitive (RFC 9110 section
+        11.1). A caller writing ``bearer`` is presenting a bearer token.
+        """
+        header = request.headers.get("Authorization", "")
+
+        return header[: len(_BEARER_PREFIX)].lower() == _BEARER_PREFIX
 
     @override
     async def authenticate(self, request: Request) -> SelfValidatingPassport:
@@ -197,7 +215,16 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
         request: Request,
         error: AuthenticationError | None = None,
     ) -> Response:
-        """Answer a request that proved nothing with a ``401`` and a bearer challenge."""
+        """Answer a request that proved nothing with a ``401`` and a bearer challenge.
+
+        The challenge names the realm and nothing else. RFC 6750 section 3 has
+        the scheme followed by one or more auth-param values, so a bare
+        ``Bearer`` is no challenge at all; and section 3.1 asks that a request
+        lacking any authentication information be told no error code, which is
+        what this answers — a refused token is answered by
+        :meth:`on_authentication_failure` instead, out of what the refusal
+        itself carries.
+        """
         del request
         message = (
             error.get_message_key()
@@ -205,12 +232,16 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
             else "An access token is required to call this."
         )
 
-        return _refusal(message, HTTPStatus.UNAUTHORIZED, {"WWW-Authenticate": _BEARER})
+        return _refusal(
+            message,
+            HTTPStatus.UNAUTHORIZED,
+            {"WWW-Authenticate": bearer_challenge("realm", self._realm)},
+        )
 
     @override
     def __repr__(self) -> str:
-        """Name the type and the role prefix, which is configuration."""
-        return f"{type(self).__name__}(role_prefix={self._role_prefix!r})"
+        """Name the type, the role prefix and the realm, which are configuration."""
+        return f"{type(self).__name__}(role_prefix={self._role_prefix!r}, realm={self._realm!r})"
 
 
 def _refusal(message: str, status: int, headers: Mapping[str, str]) -> JSONResponse:

@@ -15,10 +15,10 @@ from xtr_dependency_injection import Kernel
 from xtr_security_jwt.bundle import JwtBundle
 from xtr_security_jwt.services.jws_provider.jws_provider_interface import JwsProviderInterface
 from xtr_security_jwt.services.key_loader.key_loader_interface import KeyLoaderInterface
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
 
 from tests.fixtures.oauth2_with_jwt_app.config import JWT_SECRET
 from tests.support.signing import SIGNING_KEY_PEM
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 
 pytestmark = pytest.mark.anyio

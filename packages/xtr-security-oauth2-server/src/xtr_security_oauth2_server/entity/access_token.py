@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import final
 
-from xtr_security_oauth2_server.entities.access_token_entity_interface import (
+from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
     AccessTokenEntityInterface,
 )
-from xtr_security_oauth2_server.entities.traits.access_token_trait import AccessTokenTrait
-from xtr_security_oauth2_server.entities.traits.entity_trait import EntityTrait
-from xtr_security_oauth2_server.entities.traits.token_entity_trait import TokenEntityTrait
+from xtr_security_oauth2_server_core.entities.traits.access_token_trait import AccessTokenTrait
+from xtr_security_oauth2_server_core.entities.traits.entity_trait import EntityTrait
+from xtr_security_oauth2_server_core.entities.traits.token_entity_trait import TokenEntityTrait
 
 __all__ = ["AccessToken"]
 
@@ -29,7 +29,7 @@ class AccessToken(EntityTrait, TokenEntityTrait, AccessTokenTrait, AccessTokenEn
     It takes no constructor arguments, because the access-token repository
     mints one and then fills it — including the extra claims a listener asked
     for, which go on through
-    :meth:`~xtr_security_oauth2_server.entities.traits.access_token_trait.AccessTokenTrait.set_extra_claims`
+    :meth:`~xtr_security_oauth2_server_core.entities.traits.access_token_trait.AccessTokenTrait.set_extra_claims`
     so the reserved names are refused where they are set rather than where
     they are signed.
     """

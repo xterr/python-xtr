@@ -98,7 +98,12 @@ async def test_a_token_claiming_another_server_is_refused() -> None:
         )
 
     assert answered.status_code == 401
-    assert answered.headers["www-authenticate"] == "Bearer"
+    # A token was presented and failed a check, so the challenge names the
+    # error code RFC 9068 section 4 requires of any such failure — and only
+    # the public text beside it, never which check it was.
+    assert answered.headers["www-authenticate"] == (
+        'Bearer error="invalid_token", error_description="The access token could not be accepted."'
+    )
 
 
 async def test_an_expired_token_is_refused_however_it_is_signed() -> None:

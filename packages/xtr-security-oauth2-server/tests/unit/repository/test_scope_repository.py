@@ -5,20 +5,20 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
+from xtr_security_oauth2_server_core.repositories.scope_repository_interface import (
+    ScopeRepositoryInterface,
+)
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entity_builders import client_entity, scope_entities
 from tests.support.models import client_model
 from xtr_security_oauth2_server.converter.scope_converter import ScopeConverter
 from xtr_security_oauth2_server.event.scope_resolve_event import ScopeResolveEvent
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
 from xtr_security_oauth2_server.manager.in_memory.scope_manager import ScopeManager
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
-from xtr_security_oauth2_server.repositories.scope_repository_interface import (
-    ScopeRepositoryInterface,
-)
 from xtr_security_oauth2_server.repository.scope_repository import ScopeRepository
 from xtr_security_oauth2_server.value_object.grant import Grant
 from xtr_security_oauth2_server.value_object.scope import Scope

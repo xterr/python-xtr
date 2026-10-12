@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Final
 
 import pytest
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 from xtr_security_oauth2_server.authorization_server_metadata import AuthorizationServerMetadata
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 
 _ISSUER: Final[str] = "https://authorization.example.com"
 _TOKEN: Final[str] = "https://authorization.example.com/token"

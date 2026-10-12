@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_dependency_injection import CompilerPassInterface
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.grant.grant_type_interface import GrantTypeInterface
 
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server.controller.metadata_controller import MetadataController
 from xtr_security_oauth2_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
-from xtr_security_oauth2_server.grant.grant_type_interface import GrantTypeInterface
 
 from ._parameters import ACCESS_TOKEN_TTL_DEFAULT
 
@@ -26,6 +27,16 @@ __all__ = ["GRANT_TAG", "GrantTypePass"]
 #: application registering one has nothing to write; a grant that carries the
 #: tag already — because the bundle gave it one, with a lifetime — is not tagged
 #: a second time.
+#:
+#: The tag takes one attribute, ``access_token_ttl``: a
+#: :class:`datetime.timedelta` saying how long the tokens *that* grant issues
+#: last, where the deployment's ``authorization_server.access_token_ttl`` is
+#: not the answer. An add-on registering a flow of its own writes it on the
+#: definition it registers::
+#:
+#:     services.set(MyGrant).add_tag(GRANT_TAG, access_token_ttl=timedelta(minutes=3))
+#:
+#: Left out, the deployment's own lifetime applies.
 GRANT_TAG: Final = "oauth2_server.authorization_server.grant"
 
 #: The tag attribute naming how long the tokens that grant issues last.
@@ -63,6 +74,11 @@ class GrantTypePass(CompilerPassInterface):
     list of those qualifiers with the lifetime each issues for — which its
     factory replays, enabling one grant after another in exactly this order.
 
+    The description endpoint is given the same qualifiers, so the flows it
+    names are read off the grants the server runs — one an add-on or the
+    application registered among them — rather than off the settings that turn
+    the shipped ones on.
+
     A deployment with no grant at all is refused rather than left with a server
     that answers ``unsupported_grant_type`` to everything: an authorization
     server that can issue nothing is a deployment mistake, not a
@@ -71,7 +87,7 @@ class GrantTypePass(CompilerPassInterface):
 
     @override
     def process(self, builder: ContainerBuilder) -> None:
-        """Alias every tagged grant and give the server the order to enable them in.
+        """Alias every tagged grant, and give the server and its description their order.
 
         Raises:
             InvalidConfigurationError: When no grant is tagged at all, or when
@@ -104,6 +120,11 @@ class GrantTypePass(CompilerPassInterface):
             # it twice would only replace it with itself.
             enabled.append((qualifier, _ttl_of(tags[0], default_ttl, key)))
         _ = builder.get_definition(AuthorizationServer).set_argument("grants", tuple(enabled))
+        if builder.has_definition(MetadataController):
+            _ = builder.get_definition(MetadataController).set_argument(
+                "grant_qualifiers",
+                tuple(qualifier for qualifier, _ttl in enabled),
+            )
         builder.log(self, f"Enabled {len(enabled)} grant(s) on the authorization server.")
 
 

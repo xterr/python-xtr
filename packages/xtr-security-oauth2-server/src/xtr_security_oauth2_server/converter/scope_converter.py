@@ -14,7 +14,7 @@ from .scope_converter_interface import ScopeConverterInterface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from xtr_security_oauth2_server.entities.scope_entity_interface import ScopeEntityInterface
+    from xtr_security_oauth2_server_core.entities.scope_entity_interface import ScopeEntityInterface
 
 __all__ = ["ScopeConverter"]
 

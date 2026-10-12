@@ -11,6 +11,33 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from xtr_security_oauth2_server_core.repositories.access_token_repository_interface import (
+    AccessTokenRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.auth_code_repository_interface import (
+    AuthCodeRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.client_repository_interface import (
+    ClientRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.device_code_repository_interface import (
+    DeviceCodeRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.refresh_token_repository_interface import (
+    RefreshTokenRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.scope_repository_interface import (
+    ScopeRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.repositories.user_repository_interface import (
+    UserRepositoryInterface,
+)
+from xtr_security_oauth2_server_core.resource_server import ResourceServer
+from xtr_security_oauth2_server_core.response_types.bearer_token_response import BearerTokenResponse
+from xtr_security_oauth2_server_core.response_types.response_type_interface import (
+    ResponseTypeInterface,
+)
+
 from xtr_security_oauth2_server.converter.scope_converter import ScopeConverter
 from xtr_security_oauth2_server.converter.scope_converter_interface import (
     ScopeConverterInterface,
@@ -22,27 +49,6 @@ from xtr_security_oauth2_server.event.authorization_request_resolve_event_factor
 )
 from xtr_security_oauth2_server.manager.in_memory.scope_manager import ScopeManager
 from xtr_security_oauth2_server.manager.scope_manager_interface import ScopeManagerInterface
-from xtr_security_oauth2_server.repositories.access_token_repository_interface import (
-    AccessTokenRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.auth_code_repository_interface import (
-    AuthCodeRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.client_repository_interface import (
-    ClientRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.device_code_repository_interface import (
-    DeviceCodeRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.refresh_token_repository_interface import (
-    RefreshTokenRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.scope_repository_interface import (
-    ScopeRepositoryInterface,
-)
-from xtr_security_oauth2_server.repositories.user_repository_interface import (
-    UserRepositoryInterface,
-)
 from xtr_security_oauth2_server.repository.access_token_repository import AccessTokenRepository
 from xtr_security_oauth2_server.repository.auth_code_repository import AuthCodeRepository
 from xtr_security_oauth2_server.repository.client_repository import ClientRepository
@@ -53,11 +59,6 @@ from xtr_security_oauth2_server.repository.null_access_token_repository import (
 from xtr_security_oauth2_server.repository.refresh_token_repository import RefreshTokenRepository
 from xtr_security_oauth2_server.repository.scope_repository import ScopeRepository
 from xtr_security_oauth2_server.repository.user_repository import UserRepository
-from xtr_security_oauth2_server.resource_server import ResourceServer
-from xtr_security_oauth2_server.response_types.bearer_token_response import BearerTokenResponse
-from xtr_security_oauth2_server.response_types.response_type_interface import (
-    ResponseTypeInterface,
-)
 
 from ._grant_factories import (
     auth_code_grant_factory,
@@ -214,10 +215,10 @@ def register_response_type(config: OAuth2ServerConfig, services: ServiceConfigur
 
 def register_servers(config: OAuth2ServerConfig, services: ServiceConfigurator) -> None:
     """Register the three servers and the reading of a token they share."""
-    from xtr_security_oauth2_server.authorization_validators.authorization_validator_interface import (  # noqa: E501, PLC0415 -- one dotted path, imported beside what it aliases
+    from xtr_security_oauth2_server_core.authorization_validators.authorization_validator_interface import (  # noqa: E501, PLC0415 -- one dotted path, imported beside what it aliases
         AuthorizationValidatorInterface,
     )
-    from xtr_security_oauth2_server.authorization_validators.bearer_token_validator import (  # noqa: PLC0415 -- imported beside the interface it is aliased under
+    from xtr_security_oauth2_server_core.authorization_validators.bearer_token_validator import (  # noqa: PLC0415 -- imported beside the interface it is aliased under
         BearerTokenValidator,
     )
 

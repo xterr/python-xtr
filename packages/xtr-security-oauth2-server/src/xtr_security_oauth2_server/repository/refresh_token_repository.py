@@ -5,11 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-
-from xtr_security_oauth2_server.entity.refresh_token import RefreshToken as RefreshTokenEntity
-from xtr_security_oauth2_server.exception import (
+from xtr_security_oauth2_server_core.exception import (
     UniqueTokenIdentifierConstraintViolationError,
 )
+from xtr_security_oauth2_server_core.repositories.refresh_token_repository_interface import (
+    RefreshTokenRepositoryInterface,
+)
+
+from xtr_security_oauth2_server.entity.refresh_token import RefreshToken as RefreshTokenEntity
 from xtr_security_oauth2_server.manager.access_token_manager_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     AccessTokenManagerInterface,
 )
@@ -17,12 +20,9 @@ from xtr_security_oauth2_server.manager.refresh_token_manager_interface import (
     RefreshTokenManagerInterface,
 )
 from xtr_security_oauth2_server.model.refresh_token import RefreshToken as RefreshTokenModel
-from xtr_security_oauth2_server.repositories.refresh_token_repository_interface import (
-    RefreshTokenRepositoryInterface,
-)
 
 if TYPE_CHECKING:
-    from xtr_security_oauth2_server.entities.refresh_token_entity_interface import (
+    from xtr_security_oauth2_server_core.entities.refresh_token_entity_interface import (
         RefreshTokenEntityInterface,
     )
 

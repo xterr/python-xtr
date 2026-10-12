@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import final
 
-from xtr_security_oauth2_server.entities.auth_code_entity_interface import AuthCodeEntityInterface
-from xtr_security_oauth2_server.entities.traits.auth_code_trait import AuthCodeTrait
-from xtr_security_oauth2_server.entities.traits.entity_trait import EntityTrait
-from xtr_security_oauth2_server.entities.traits.token_entity_trait import TokenEntityTrait
+from xtr_security_oauth2_server_core.entities.auth_code_entity_interface import (
+    AuthCodeEntityInterface,
+)
+from xtr_security_oauth2_server_core.entities.traits.auth_code_trait import AuthCodeTrait
+from xtr_security_oauth2_server_core.entities.traits.entity_trait import EntityTrait
+from xtr_security_oauth2_server_core.entities.traits.token_entity_trait import TokenEntityTrait
 
 __all__ = ["AuthCode"]
 

@@ -5,20 +5,22 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-
-from xtr_security_oauth2_server.entity.access_token import AccessToken
-from xtr_security_oauth2_server.repositories.access_token_repository_interface import (
+from xtr_security_oauth2_server_core.repositories.access_token_repository_interface import (
     AccessTokenRepositoryInterface,
 )
+
+from xtr_security_oauth2_server.entity.access_token import AccessToken
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from xtr_security_oauth2_server.entities.access_token_entity_interface import (
+    from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
         AccessTokenEntityInterface,
     )
-    from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
-    from xtr_security_oauth2_server.entities.scope_entity_interface import ScopeEntityInterface
+    from xtr_security_oauth2_server_core.entities.client_entity_interface import (
+        ClientEntityInterface,
+    )
+    from xtr_security_oauth2_server_core.entities.scope_entity_interface import ScopeEntityInterface
 
 __all__ = ["NullAccessTokenRepository"]
 

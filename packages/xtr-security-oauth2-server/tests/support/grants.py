@@ -26,8 +26,7 @@ from tests.support.signing import make_signer
 
 if TYPE_CHECKING:
     from xtr_clock import ClockInterface
-
-    from xtr_security_oauth2_server.grant.grant_type_interface import GrantTypeInterface
+    from xtr_security_oauth2_server_core.grant.grant_type_interface import GrantTypeInterface
 
 __all__ = ["Storage", "wire"]
 

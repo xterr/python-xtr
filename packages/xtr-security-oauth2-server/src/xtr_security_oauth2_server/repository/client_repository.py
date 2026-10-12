@@ -10,17 +10,20 @@ from typing_extensions import override
 from xtr_password_hasher import (
     PasswordHasherInterface,  # noqa: TC002 -- container hydrates this constructor at runtime
 )
+from xtr_security_oauth2_server_core.repositories.client_repository_interface import (
+    ClientRepositoryInterface,
+)
 
 from xtr_security_oauth2_server.entity.client import Client as ClientEntity
 from xtr_security_oauth2_server.manager.client_manager_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ClientManagerInterface,
 )
-from xtr_security_oauth2_server.repositories.client_repository_interface import (
-    ClientRepositoryInterface,
-)
 
 if TYPE_CHECKING:
-    from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
+    from xtr_security_oauth2_server_core.entities.client_entity_interface import (
+        ClientEntityInterface,
+    )
+
     from xtr_security_oauth2_server.model.client_interface import ClientInterface
 
 __all__ = ["ClientRepository"]
@@ -46,6 +49,11 @@ class ClientRepository(ClientRepositoryInterface):
     which is the one moment the plaintext is in hand. If that write fails, the
     authentication still succeeds: the secret was already verified, the client
     has done nothing wrong, and the upgrade will be tried again next time.
+
+    A deactivated client is not found at all. A client holding no secret is
+    never asked to prove one, so the lookup is the one place every request
+    passes through — and a client nobody can find is refused as
+    ``invalid_client`` on every path, whether or not it holds a secret.
     """
 
     def __init__(
@@ -64,9 +72,9 @@ class ClientRepository(ClientRepositoryInterface):
 
     @override
     async def get_client_entity(self, client_identifier: str) -> ClientEntityInterface | None:
-        """Return the client registered as ``client_identifier``, or ``None``."""
+        """Return the active client registered as ``client_identifier``, or ``None``."""
         client = await self._client_manager.find(client_identifier)
-        if client is None:
+        if client is None or not client.is_active():
             return None
 
         return _entity_of(client)

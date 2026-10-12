@@ -15,14 +15,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
 
-from xtr_security_oauth2_server.entities.traits.access_token_trait import AccessTokenTrait
-from xtr_security_oauth2_server.entities.traits.auth_code_trait import AuthCodeTrait
-from xtr_security_oauth2_server.entities.traits.client_trait import ClientTrait
-from xtr_security_oauth2_server.entities.traits.device_code_trait import DeviceCodeTrait
-from xtr_security_oauth2_server.entities.traits.entity_trait import EntityTrait
-from xtr_security_oauth2_server.entities.traits.refresh_token_trait import RefreshTokenTrait
-from xtr_security_oauth2_server.entities.traits.scope_trait import ScopeTrait
-from xtr_security_oauth2_server.entities.traits.token_entity_trait import TokenEntityTrait
+from xtr_security_oauth2_server_core.entities.traits.access_token_trait import AccessTokenTrait
+from xtr_security_oauth2_server_core.entities.traits.auth_code_trait import AuthCodeTrait
+from xtr_security_oauth2_server_core.entities.traits.client_trait import ClientTrait
+from xtr_security_oauth2_server_core.entities.traits.device_code_trait import DeviceCodeTrait
+from xtr_security_oauth2_server_core.entities.traits.entity_trait import EntityTrait
+from xtr_security_oauth2_server_core.entities.traits.refresh_token_trait import RefreshTokenTrait
+from xtr_security_oauth2_server_core.entities.traits.scope_trait import ScopeTrait
+from xtr_security_oauth2_server_core.entities.traits.token_entity_trait import TokenEntityTrait
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

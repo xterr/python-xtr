@@ -29,7 +29,8 @@ ACCESS_TOKEN_ID_ATTRIBUTE: Final = "access_token_id"  # noqa: S105 -- an attribu
 #: The attribute carrying the client the access token was issued to.
 CLIENT_ID_ATTRIBUTE: Final = "oauth_client_id"
 
-#: The attribute carrying the scopes, under the name the reference server uses.
+#: The attribute carrying the scopes as the token was issued them, under their
+#: plain name.
 SCOPES_ATTRIBUTE: Final = "scopes"
 
 

@@ -1,9 +1,10 @@
 """Building each shipped grant, configured as the deployment asked for it.
 
 A factory rather than a plain registration for every grant that has anything
-set on it after it is built: the container holds no method calls, so what
-upstream does with ``addMethodCall`` happens here instead — the refresh-token
-lifetime, the proof-key requirement, what a device is told about polling.
+set on it after it is built: the container holds no method calls, so the
+setters a grant is configured through are called here instead — the
+refresh-token lifetime, the proof-key requirement, what a device is told about
+polling.
 
 Each factory returns its own grant class, so the definition is still keyed by
 that class: autoconfiguration recognises it as a grant and the grant pass
@@ -24,23 +25,22 @@ from xtr_dependency_injection import named_factory
 from xtr_event_dispatcher_contracts import (  # noqa: TC002 -- the container evaluates these factory annotations at runtime
     EventDispatcherInterface,
 )
-
-from xtr_security_oauth2_server.grant.auth_code_grant import AuthCodeGrant
-from xtr_security_oauth2_server.grant.client_credentials_grant import ClientCredentialsGrant
-from xtr_security_oauth2_server.grant.device_code_grant import DeviceCodeGrant
-from xtr_security_oauth2_server.grant.implicit_grant import ImplicitGrant
-from xtr_security_oauth2_server.grant.password_grant import PasswordGrant
-from xtr_security_oauth2_server.grant.refresh_token_grant import RefreshTokenGrant
-from xtr_security_oauth2_server.repositories.auth_code_repository_interface import (  # noqa: TC001 -- the container evaluates these factory annotations at runtime
+from xtr_security_oauth2_server_core.grant.auth_code_grant import AuthCodeGrant
+from xtr_security_oauth2_server_core.grant.client_credentials_grant import ClientCredentialsGrant
+from xtr_security_oauth2_server_core.grant.device_code_grant import DeviceCodeGrant
+from xtr_security_oauth2_server_core.grant.implicit_grant import ImplicitGrant
+from xtr_security_oauth2_server_core.grant.password_grant import PasswordGrant
+from xtr_security_oauth2_server_core.grant.refresh_token_grant import RefreshTokenGrant
+from xtr_security_oauth2_server_core.repositories.auth_code_repository_interface import (  # noqa: TC002 -- the container evaluates these factory annotations at runtime
     AuthCodeRepositoryInterface,
 )
-from xtr_security_oauth2_server.repositories.device_code_repository_interface import (  # noqa: TC001 -- the container evaluates these factory annotations at runtime
+from xtr_security_oauth2_server_core.repositories.device_code_repository_interface import (  # noqa: TC002 -- the container evaluates these factory annotations at runtime
     DeviceCodeRepositoryInterface,
 )
-from xtr_security_oauth2_server.repositories.refresh_token_repository_interface import (  # noqa: TC001 -- the container evaluates these factory annotations at runtime
+from xtr_security_oauth2_server_core.repositories.refresh_token_repository_interface import (  # noqa: TC002 -- the container evaluates these factory annotations at runtime
     RefreshTokenRepositoryInterface,
 )
-from xtr_security_oauth2_server.repositories.user_repository_interface import (  # noqa: TC001 -- the container evaluates these factory annotations at runtime
+from xtr_security_oauth2_server_core.repositories.user_repository_interface import (  # noqa: TC002 -- the container evaluates these factory annotations at runtime
     UserRepositoryInterface,
 )
 

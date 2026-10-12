@@ -20,8 +20,9 @@ from xtr_dependency_injection import Target, named_factory
 from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
 from xtr_security_jwt.services.key_loader import RawKeyLoader, signing_key_id
 from xtr_security_jwt.services.key_loader.key_loader_interface import KeyLoaderInterface
+from xtr_security_oauth2_server_core.entities.access_token_signer import AccessTokenSigner
 
-from xtr_security_oauth2_server.entities.access_token_signer import AccessTokenSigner
+from xtr_security_oauth2_server._service_qualifier import SERVICE_QUALIFIER
 
 from ._required_settings import supplied
 
@@ -39,7 +40,7 @@ __all__ = [
 ]
 
 #: What this package's own key loader and JWS provider are registered under.
-QUALIFIER: Final = "oauth2_server"
+QUALIFIER: Final = SERVICE_QUALIFIER
 
 #: An access token stamps its own expiry, so the provider is given no lifetime
 #: of its own to impose on one.

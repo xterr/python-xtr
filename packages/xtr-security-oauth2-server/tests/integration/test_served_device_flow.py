@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Final
 import pytest
 from fastapi import FastAPI
 from xtr_dependency_injection import Injected
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.oauth2_grants import OAuth2Grants
 
 from tests.support.served import (
     CLIENT_ID,
@@ -25,8 +27,6 @@ from tests.support.served import (
     serving,
     text_field,
 )
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
-from xtr_security_oauth2_server.oauth2_grants import OAuth2Grants
 
 if TYPE_CHECKING:
     import httpx

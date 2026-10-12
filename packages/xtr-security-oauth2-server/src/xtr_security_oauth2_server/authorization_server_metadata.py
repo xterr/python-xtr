@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING, Final, final
 from urllib.parse import urlsplit
 
 from typing_extensions import override
-
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence

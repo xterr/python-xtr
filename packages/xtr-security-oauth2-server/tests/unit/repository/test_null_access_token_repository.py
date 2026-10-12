@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
-
-from tests.support.entity_builders import access_token_entity, client_entity, scope_entities
-from xtr_security_oauth2_server.repositories.access_token_repository_interface import (
+from xtr_security_oauth2_server_core.repositories.access_token_repository_interface import (
     AccessTokenRepositoryInterface,
 )
+
+from tests.support.entity_builders import access_token_entity, client_entity, scope_entities
 from xtr_security_oauth2_server.repository.null_access_token_repository import (
     NullAccessTokenRepository,
 )

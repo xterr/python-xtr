@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Final, final
 
 from sqlalchemy import Text, or_, select
 from sqlalchemy import cast as as_text
+from sqlalchemy.exc import IntegrityError
 from typing_extensions import override
 from xtr_event_dispatcher_contracts import (
     EventDispatcherInterface,  # noqa: TC002 — read at runtime by the container
@@ -13,6 +14,9 @@ from xtr_event_dispatcher_contracts import (
 from xtr_orm import ConnectionRegistry  # noqa: TC002 — read at runtime by the container
 
 from xtr_security_oauth2_server.event.pre_save_client_event import PreSaveClientEvent
+from xtr_security_oauth2_server.exception.client_already_registered_error import (
+    ClientAlreadyRegisteredError,
+)
 from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
 from xtr_security_oauth2_server.model.abstract_client import (
     AbstractClient,  # noqa: TC001 — read at runtime by the container
@@ -100,14 +104,32 @@ class ClientManager(ClientManagerInterface):
 
     @override
     async def save(self, client: ClientInterface) -> None:
-        """Announce ``client``, then store whatever the event ends up holding."""
+        """Announce ``client``, then store whatever the event ends up holding.
+
+        Raises:
+            ClientAlreadyRegisteredError: When the identifier is one another
+                row already holds. Translated here rather than let out as it
+                stands: what the store says of a refused write quotes the
+                statement and the values bound to it, which for a client are
+                the registration and the hash of its secret. The unique
+                identifier is the one integrity constraint a client row has —
+                every other column is either filled by the model or nullable —
+                so a refused write is a taken identifier, and the store's own
+                words are dropped rather than chained.
+        """
         event = await self._dispatcher.dispatch(
             PreSaveClientEvent(client),
             OAuth2Events.PRE_SAVE_CLIENT,
         )
+        stored = event.get_client()
         session = await self._session()
-        session.add(event.get_client())
-        await session.commit()
+        session.add(stored)
+        try:
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+
+            raise ClientAlreadyRegisteredError(stored.get_identifier()) from None
 
     @override
     async def remove(self, client: ClientInterface) -> None:

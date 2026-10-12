@@ -13,6 +13,7 @@ from urllib.parse import parse_qsl, urlsplit
 import httpx
 import pytest
 from fastapi import FastAPI
+from xtr_dependency_injection import Injected
 from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.oauth2_auth_code_app.config import USER_IDENTIFIER, USER_PASSWORD
@@ -30,6 +31,7 @@ from tests.support.served import (
     serving,
     text_field,
 )
+from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -55,6 +57,10 @@ STATE: Final = "the-opaque-state"
 
 PUBLIC_CLIENT_ID: Final = "a-public-client"
 
+#: Where the served application deactivates a client, as an administration
+#: screen or the update-client command would.
+DEACTIVATE_PATH: Final = "/deactivate-client"
+
 
 def _application() -> FastAPI:
     """Return the served application of the redirect-flow deployment.
@@ -68,6 +74,31 @@ def _application() -> FastAPI:
     """
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_auth_code_app"),
+        dependencies=[Firewall()],
+    )
+
+
+def _mount_deactivation(app: FastAPI) -> None:
+    """Add the route that deactivates a client through the client manager."""
+
+    @app.post(DEACTIVATE_PATH)
+    async def deactivate_client(
+        clients: Injected[ClientManagerInterface],
+        *,
+        identifier: str,
+    ) -> dict[str, str]:
+        registered = await clients.find(identifier)
+        assert registered is not None
+        await clients.save(registered.set_active(False))
+
+        return {"client_id": identifier}
+
+
+def _administered_application() -> FastAPI:
+    """Return the redirect-flow deployment, with a way to deactivate a client."""
+    return served_application(
+        oauth2_kernel("tests.fixtures.oauth2_auth_code_app"),
+        _mount_deactivation,
         dependencies=[Firewall()],
     )
 
@@ -130,6 +161,26 @@ async def _seed(client: httpx.AsyncClient) -> None:
     # A seed that quietly failed would surface far away, as a client that
     # cannot authenticate.
     assert seeded.status_code == 200, seeded.text
+
+
+async def _seed_public_client(client: httpx.AsyncClient) -> None:
+    """Register a client holding no secret, beside the confidential one."""
+    seeded = await client.post(
+        SEED_PATH,
+        params={
+            "identifier": PUBLIC_CLIENT_ID,
+            "secret": "",
+            "grant": "",
+            "redirect_uri": REDIRECT_URI,
+        },
+    )
+    assert seeded.status_code == 200, seeded.text
+
+
+async def _deactivate(client: httpx.AsyncClient, identifier: str) -> None:
+    """Deactivate the client registered as ``identifier``."""
+    deactivated = await client.post(DEACTIVATE_PATH, params={"identifier": identifier})
+    assert deactivated.status_code == 200, deactivated.text
 
 
 async def _code(client: httpx.AsyncClient) -> str:
@@ -281,6 +332,54 @@ async def test_a_public_client_must_commit_to_a_proof_key() -> None:
     # any redirect target has been established as one worth trusting.
     assert answered.status_code == 400
     assert text_field(json_of(answered), "error") == "invalid_request"
+
+
+async def test_a_deactivated_public_client_is_refused_at_the_authorization_endpoint() -> None:
+    # A client holding no secret is never asked to prove one, so nothing but
+    # the lookup stands between a deactivated one and a code.
+    async with serving(_administered_application()) as client:
+        await _seed(client)
+        await _seed_public_client(client)
+        owner = await _owner_token(client)
+        await _deactivate(client, PUBLIC_CLIENT_ID)
+        answered = await _authorize(client, owner, client_id=PUBLIC_CLIENT_ID)
+
+    assert answered.status_code == 401
+    assert text_field(json_of(answered), "error") == "invalid_client"
+
+
+async def test_a_deactivated_public_client_cannot_spend_its_refresh_token() -> None:
+    # The tokens it already holds stop being redeemable with it.
+    async with serving(_administered_application()) as client:
+        await _seed(client)
+        await _seed_public_client(client)
+        authorized = await _authorize(
+            client, await _owner_token(client), client_id=PUBLIC_CLIENT_ID
+        )
+        issued = json_of(
+            await client.post(
+                "/token",
+                data={
+                    "grant_type": "authorization_code",
+                    "client_id": PUBLIC_CLIENT_ID,
+                    "redirect_uri": REDIRECT_URI,
+                    "code": _redirect_params(authorized)["code"],
+                    "code_verifier": VERIFIER,
+                },
+            ),
+        )
+        await _deactivate(client, PUBLIC_CLIENT_ID)
+        answered = await client.post(
+            "/token",
+            data={
+                "grant_type": "refresh_token",
+                "client_id": PUBLIC_CLIENT_ID,
+                "refresh_token": text_field(issued, "refresh_token"),
+            },
+        )
+
+    assert answered.status_code == 401
+    assert text_field(json_of(answered), "error") == "invalid_client"
 
 
 async def test_nobody_established_means_nobody_to_ask() -> None:

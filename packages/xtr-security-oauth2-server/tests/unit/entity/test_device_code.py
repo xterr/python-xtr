@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from xtr_security_oauth2_server.entities.device_code_entity_interface import (
+from xtr_security_oauth2_server_core.entities.device_code_entity_interface import (
     DeviceCodeEntityInterface,
 )
+
 from xtr_security_oauth2_server.entity.client import Client
 from xtr_security_oauth2_server.entity.device_code import DeviceCode
 

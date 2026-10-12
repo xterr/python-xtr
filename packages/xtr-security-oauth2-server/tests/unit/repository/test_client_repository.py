@@ -6,15 +6,15 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from xtr_password_hasher.hasher.plaintext_password_hasher import PlaintextPasswordHasher
+from xtr_security_oauth2_server_core.repositories.client_repository_interface import (
+    ClientRepositoryInterface,
+)
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.hashers import RecordingPasswordHasher
 from tests.support.models import client_model
 from xtr_security_oauth2_server.entity.client import Client as ClientEntity
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
-from xtr_security_oauth2_server.repositories.client_repository_interface import (
-    ClientRepositoryInterface,
-)
 from xtr_security_oauth2_server.repository.client_repository import ClientRepository
 
 if TYPE_CHECKING:
@@ -119,6 +119,14 @@ async def test_the_entity_of_a_public_client_says_it_keeps_no_secret() -> None:
 
     assert entity is not None
     assert entity.is_confidential() is False
+
+
+async def test_it_finds_no_entity_for_a_client_that_was_deactivated() -> None:
+    # A client holding no secret is never asked to prove one, so a deactivated
+    # client is turned away where it is looked up, as one nobody registered.
+    repository, _ = await _repository(client_model(secret=None, active=False))
+
+    assert await repository.get_client_entity("client-1") is None
 
 
 async def test_it_refuses_a_client_nobody_registered() -> None:

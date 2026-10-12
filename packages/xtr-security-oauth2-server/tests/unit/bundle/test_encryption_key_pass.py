@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.token_server import TokenServer
 
 from tests.support.building import processing_builder
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server.bundle._parameters import ENCRYPTION_KEY, ENCRYPTION_KEY_TYPE
 from xtr_security_oauth2_server.bundle.encryption_key_pass import EncryptionKeyPass
 from xtr_security_oauth2_server.exception import InvalidConfigurationError
-from xtr_security_oauth2_server.token_server import TokenServer
 
 _KEY = "a-password-long-enough-to-stretch-into-a-key"
 

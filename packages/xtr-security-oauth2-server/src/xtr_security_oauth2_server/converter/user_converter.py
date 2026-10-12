@@ -12,8 +12,7 @@ from .user_converter_interface import UserConverterInterface
 
 if TYPE_CHECKING:
     from xtr_security_core.user.user_interface import UserInterface
-
-    from xtr_security_oauth2_server.entities.user_entity_interface import UserEntityInterface
+    from xtr_security_oauth2_server_core.entities.user_entity_interface import UserEntityInterface
 
 __all__ = ["UserConverter"]
 

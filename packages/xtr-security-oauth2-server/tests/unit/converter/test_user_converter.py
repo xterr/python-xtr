@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from xtr_security_oauth2_server_core.entities.user_entity_interface import UserEntityInterface
+
 from tests.support.users import SecurityUser
 from xtr_security_oauth2_server.converter.user_converter import UserConverter
 from xtr_security_oauth2_server.converter.user_converter_interface import UserConverterInterface
-from xtr_security_oauth2_server.entities.user_entity_interface import UserEntityInterface
 
 
 def test_it_declares_the_user_converter_contract() -> None:

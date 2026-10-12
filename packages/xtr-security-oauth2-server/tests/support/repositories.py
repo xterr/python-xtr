@@ -17,27 +17,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, final
 
+from xtr_security_oauth2_server_core.exception import UniqueTokenIdentifierConstraintViolationError
+
 from tests.support.entities import AccessToken, AuthCode, DeviceCode, RefreshToken, make_scope
-from xtr_security_oauth2_server.exception import UniqueTokenIdentifierConstraintViolationError
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from xtr_security_oauth2_server.entities.access_token_entity_interface import (
+    from xtr_security_oauth2_server_core.entities import ClientEntityInterface
+    from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
         AccessTokenEntityInterface,
     )
-    from xtr_security_oauth2_server.entities.auth_code_entity_interface import (
+    from xtr_security_oauth2_server_core.entities.auth_code_entity_interface import (
         AuthCodeEntityInterface,
     )
-    from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
-    from xtr_security_oauth2_server.entities.device_code_entity_interface import (
+    from xtr_security_oauth2_server_core.entities.device_code_entity_interface import (
         DeviceCodeEntityInterface,
     )
-    from xtr_security_oauth2_server.entities.refresh_token_entity_interface import (
+    from xtr_security_oauth2_server_core.entities.refresh_token_entity_interface import (
         RefreshTokenEntityInterface,
     )
-    from xtr_security_oauth2_server.entities.scope_entity_interface import ScopeEntityInterface
-    from xtr_security_oauth2_server.entities.user_entity_interface import UserEntityInterface
+    from xtr_security_oauth2_server_core.entities.scope_entity_interface import ScopeEntityInterface
+    from xtr_security_oauth2_server_core.entities.user_entity_interface import UserEntityInterface
 
 __all__ = [
     "CredentialsAsked",

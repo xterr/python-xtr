@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 from xtr_dependency_injection import Kernel
 from xtr_dependency_injection.exception import ServiceResolutionError
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
 
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 from xtr_security_oauth2_server.exception import InvalidConfigurationError
 

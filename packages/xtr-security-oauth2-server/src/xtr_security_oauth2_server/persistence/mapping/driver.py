@@ -8,8 +8,8 @@ from sqlalchemy.orm import class_mapper, registry, relationship
 from sqlalchemy.orm.exc import UnmappedClassError
 from typing_extensions import override
 from xtr_orm import MappingDriverInterface
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.model.access_token import AccessToken
 from xtr_security_oauth2_server.model.authorization_code import AuthorizationCode
 from xtr_security_oauth2_server.model.client import Client
@@ -55,7 +55,7 @@ class Driver(MappingDriverInterface):
     client row becomes, whether access tokens are written down at all, the
     prefix every table carries, and whether the device flow is on.
 
-    Five tables, three of them always there. ``{prefix}client`` exists only
+    Five tables, two of them always there. ``{prefix}client`` exists only
     where the shipped client class is the one configured — an application
     bringing its own maps that table itself, with
     :class:`~xtr_security_oauth2_server.persistence.mapping.client_mapping_mixin.ClientMappingMixin`

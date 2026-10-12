@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import final
 
-from xtr_security_oauth2_server.entities.refresh_token_entity_interface import (
+from xtr_security_oauth2_server_core.entities.refresh_token_entity_interface import (
     RefreshTokenEntityInterface,
 )
-from xtr_security_oauth2_server.entities.traits.entity_trait import EntityTrait
-from xtr_security_oauth2_server.entities.traits.refresh_token_trait import RefreshTokenTrait
+from xtr_security_oauth2_server_core.entities.traits.entity_trait import EntityTrait
+from xtr_security_oauth2_server_core.entities.traits.refresh_token_trait import RefreshTokenTrait
 
 __all__ = ["RefreshToken"]
 

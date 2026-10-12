@@ -14,15 +14,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 from xtr_dependency_injection import Kernel
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.token_server import TokenServer
 
 from tests.fixtures.oauth2_env_app.config import (
     ENCRYPTION_KEY_VARIABLE,
     PRIVATE_KEY_VARIABLE,
 )
 from tests.support.signing import SIGNING_KEY_PEM
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
-from xtr_security_oauth2_server.token_server import TokenServer
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

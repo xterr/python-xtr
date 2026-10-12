@@ -7,6 +7,13 @@ from typing import TYPE_CHECKING
 import pytest
 from joserfc import jwt as joserfc_jwt
 from xtr_clock import MockClock
+from xtr_security_oauth2_server_core.exception import (
+    UniqueTokenIdentifierConstraintViolationError,
+)
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
+from xtr_security_oauth2_server_core.repositories.access_token_repository_interface import (
+    AccessTokenRepositoryInterface,
+)
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entity_builders import access_token_entity, client_entity, scope_entities
@@ -16,16 +23,9 @@ from xtr_security_oauth2_server.converter.scope_converter import ScopeConverter
 from xtr_security_oauth2_server.event.access_token_extra_claims_resolve_event import (
     AccessTokenExtraClaimsResolveEvent,
 )
-from xtr_security_oauth2_server.exception import (
-    UniqueTokenIdentifierConstraintViolationError,
-)
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.manager.in_memory.access_token_manager import AccessTokenManager
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
-from xtr_security_oauth2_server.repositories.access_token_repository_interface import (
-    AccessTokenRepositoryInterface,
-)
 from xtr_security_oauth2_server.repository.access_token_repository import AccessTokenRepository
 from xtr_security_oauth2_server.value_object.scope import Scope
 

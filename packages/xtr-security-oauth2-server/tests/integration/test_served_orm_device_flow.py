@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from xtr_security_http.firewall.firewall import Firewall
+from xtr_security_oauth2_server_core.oauth2_grants import OAuth2Grants
 
 from tests.support.orm_app import orm_kernel, stored_tables, stored_url
 from tests.support.served import (
@@ -29,7 +30,6 @@ from tests.support.served import (
     text_field,
 )
 from xtr_security_oauth2_server.model.device_code import DeviceCode
-from xtr_security_oauth2_server.oauth2_grants import OAuth2Grants
 
 if TYPE_CHECKING:
     from datetime import datetime

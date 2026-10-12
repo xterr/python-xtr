@@ -8,21 +8,61 @@ place what the request carries. That is what :func:`server_request` is for.
 
 :func:`body_of` is the other half: a response body is a stream of bytes, and a
 test asserting on a document wants the text.
+
+:class:`MultiValuedForm` is what a served request really carries where this one
+carries a plain dictionary: an object that remembers every value sent under a
+name, which is the only way a repeated parameter can be seen at all.
 """
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, cast
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, cast, final
 
+from typing_extensions import override
 from xtr_http_message import ServerRequest
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterator, Sequence
 
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
 
-__all__ = ["body_of", "document_of", "server_request"]
+__all__ = ["MultiValuedForm", "body_of", "document_of", "server_request"]
+
+
+@final
+class MultiValuedForm(Mapping[str, str]):
+    """A form or query as the web framework hands one over: every value kept.
+
+    Asked for a name it answers the last value sent, the way a plain mapping
+    would; asked under ``getlist`` it answers every one, which is what lets a
+    request that sent a name twice be told apart from one that sent it once.
+    """
+
+    def __init__(self, fields: Sequence[tuple[str, str]]) -> None:
+        """Carry ``fields`` in the order they were sent."""
+        self._fields: tuple[tuple[str, str], ...] = tuple(fields)
+
+    def getlist(self, key: str) -> Sequence[str]:
+        """Return every value sent under ``key``, in the order they were sent."""
+        return tuple(value for name, value in self._fields if name == key)
+
+    @override
+    def __getitem__(self, key: str) -> str:
+        sent = self.getlist(key)
+        if sent == ():
+            raise KeyError(key)
+
+        return sent[-1]
+
+    @override
+    def __iter__(self) -> Iterator[str]:
+        return iter(dict(self._fields))
+
+    @override
+    def __len__(self) -> int:
+        return len(dict(self._fields))
 
 
 def server_request(

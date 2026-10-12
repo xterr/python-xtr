@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
+from xtr_security_oauth2_server_core.entities.client_entity_interface import ClientEntityInterface
+
 from xtr_security_oauth2_server.entity.client import Client
 
 

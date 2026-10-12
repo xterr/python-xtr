@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import final
 
-from xtr_security_oauth2_server.entities.device_code_entity_interface import (
+from xtr_security_oauth2_server_core.entities.device_code_entity_interface import (
     DeviceCodeEntityInterface,
 )
-from xtr_security_oauth2_server.entities.traits.device_code_trait import DeviceCodeTrait
-from xtr_security_oauth2_server.entities.traits.entity_trait import EntityTrait
-from xtr_security_oauth2_server.entities.traits.token_entity_trait import TokenEntityTrait
+from xtr_security_oauth2_server_core.entities.traits.device_code_trait import DeviceCodeTrait
+from xtr_security_oauth2_server_core.entities.traits.entity_trait import EntityTrait
+from xtr_security_oauth2_server_core.entities.traits.token_entity_trait import TokenEntityTrait
 
 __all__ = ["DeviceCode"]
 

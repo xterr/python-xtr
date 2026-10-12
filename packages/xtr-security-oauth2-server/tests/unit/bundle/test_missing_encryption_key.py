@@ -14,11 +14,11 @@ from typing import TYPE_CHECKING
 import pytest
 from xtr_dependency_injection import Kernel
 from xtr_dependency_injection.exception import ServiceResolutionError
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.token_server import TokenServer
 
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 from xtr_security_oauth2_server.exception import InvalidConfigurationError
-from xtr_security_oauth2_server.token_server import TokenServer
 
 if TYPE_CHECKING:
     from xtr_service_contracts import ContainerInterface
@@ -88,4 +88,20 @@ async def test_the_refusal_says_where_to_write_it_and_how_to_come_by_one(service
         refusal = await _refused(booted.container, service)
 
     assert "config/oauth2_server.py" in str(refusal)
-    assert "oauth2-server:generate-keypair" in str(refusal)
+    # The same one-liner the recipe's steps give: the base64url of 32 random
+    # bytes, which is what ``encryption_key_type="key"`` reads.
+    assert "base64.urlsafe_b64encode(secrets.token_bytes(32))" in str(refusal)
+    assert "at least 32 characters" in str(refusal)
+
+
+@pytest.mark.parametrize("service", UNSEALABLE, ids=_server_id)
+async def test_the_refusal_does_not_point_at_the_command_that_mints_a_signing_key(
+    service: type,
+) -> None:
+    # Two separate keys: one signs access tokens, the other seals this
+    # server's own payloads. The key-pair command writes the signing pair as
+    # PEM files and has nothing to do with this setting.
+    async with await _unsealed().boot() as booted:
+        refusal = await _refused(booted.container, service)
+
+    assert "generate-keypair" not in str(refusal)

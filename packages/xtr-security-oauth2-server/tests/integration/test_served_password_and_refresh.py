@@ -151,9 +151,7 @@ async def test_a_refresh_token_that_was_already_spent_is_refused() -> None:
         answered = await client.post("/token", data=form)
 
     # The standard names this one: a refresh token that is invalid, expired or
-    # revoked is an `invalid_grant`, and that is a 400. The reference server
-    # answers `invalid_request` with a 401 here, which this port does not
-    # follow.
+    # revoked is an `invalid_grant`, and that is a 400.
     assert answered.status_code == 400
     assert text_field(json_of(answered), "error") == "invalid_grant"
 

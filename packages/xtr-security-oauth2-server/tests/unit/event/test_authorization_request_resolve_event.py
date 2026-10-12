@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from xtr_event_dispatcher_contracts import Event
 from xtr_http_message import Response
+from xtr_security_oauth2_server_core.request_types.authorization_request import AuthorizationRequest
 
 from tests.support.models import client_model
 from tests.support.users import SecurityUser
@@ -11,7 +12,6 @@ from xtr_security_oauth2_server.entity.client import Client as ClientEntity
 from xtr_security_oauth2_server.event.authorization_request_resolve_event import (
     AuthorizationRequestResolveEvent,
 )
-from xtr_security_oauth2_server.request_types.authorization_request import AuthorizationRequest
 from xtr_security_oauth2_server.value_object.scope import Scope
 
 

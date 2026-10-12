@@ -12,13 +12,13 @@ from typing import Final
 
 from xtr_event_dispatcher import as_event_listener
 from xtr_security_core.user.in_memory_user import InMemoryUser
+from xtr_security_oauth2_server_core.request_access_token_event import RequestAccessTokenEvent
+from xtr_security_oauth2_server_core.request_event import RequestEvent
 
 # The dispatcher reads a listener's annotations at runtime to find the event it
 # hears, so neither of these can hide under TYPE_CHECKING.
 from xtr_security_oauth2_server.event.user_resolve_event import UserResolveEvent
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
-from xtr_security_oauth2_server.request_access_token_event import RequestAccessTokenEvent
-from xtr_security_oauth2_server.request_event import RequestEvent
 
 from .config import USER_IDENTIFIER, USER_PASSWORD, USER_ROLES
 

@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Final, cast, final
 
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, bundle_active, required_bundle
+from xtr_security_oauth2_server_core.grant.grant_type_interface import GrantTypeInterface
 
-from xtr_security_oauth2_server.grant.grant_type_interface import GrantTypeInterface
-
+from ._command_wiring import configure_commands, register_commands
 from ._endpoint_wiring import register_controllers, register_listeners
 from ._parameters import (
     ACCESS_TOKEN_TTL_DEFAULT,
@@ -83,7 +83,8 @@ class OAuth2ServerBundle(Bundle[OAuth2ServerConfig]):
 
     What each half of a deployment is made of lives beside this: the stores in
     ``_persistence_wiring``, the protocol engine in ``_service_wiring``, the
-    endpoints in ``_endpoint_wiring``.
+    endpoints in ``_endpoint_wiring``, and — only where a console is — the
+    commands in ``_command_wiring``.
     """
 
     __slots__ = ("_persistence",)
@@ -157,10 +158,12 @@ class OAuth2ServerBundle(Bundle[OAuth2ServerConfig]):
             OAUTH2_SERVER_CHANNEL if bundle_active(builder, "logging") else None,
         )
         register_listeners(config, services)
+        if bundle_active(builder, "console"):
+            register_commands(services)
 
     @override
     def process(self, builder: ContainerBuilder) -> None:
-        """Refuse a persistence nothing can serve.
+        """Hand the commands their settings, and refuse a persistence nothing can serve.
 
         Raises:
             InvalidConfigurationError: When this deployment keeps its clients
@@ -169,6 +172,7 @@ class OAuth2ServerBundle(Bundle[OAuth2ServerConfig]):
                 named its own stores and one of them is not a registered
                 service.
         """
+        configure_commands(builder)
         self._persistence.refuse_what_nothing_can_serve(builder)
 
 

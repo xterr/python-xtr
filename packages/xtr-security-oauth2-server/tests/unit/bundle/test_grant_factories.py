@@ -7,6 +7,13 @@ from typing import Final
 
 import pytest
 from xtr_clock import MockClock
+from xtr_security_oauth2_server_core.grant.auth_code_grant import AuthCodeGrant
+from xtr_security_oauth2_server_core.grant.client_credentials_grant import ClientCredentialsGrant
+from xtr_security_oauth2_server_core.grant.device_code_grant import DeviceCodeGrant
+from xtr_security_oauth2_server_core.grant.implicit_grant import ImplicitGrant
+from xtr_security_oauth2_server_core.grant.password_grant import PasswordGrant
+from xtr_security_oauth2_server_core.grant.refresh_token_grant import RefreshTokenGrant
+from xtr_security_oauth2_server_core.oauth2_grants import OAuth2Grants
 
 from tests.support.grants import Storage
 from tests.support.messages import server_request
@@ -23,13 +30,6 @@ from xtr_security_oauth2_server.bundle.authorization_server_config import (
     AuthorizationServerConfig,
 )
 from xtr_security_oauth2_server.exception import InvalidConfigurationError
-from xtr_security_oauth2_server.grant.auth_code_grant import AuthCodeGrant
-from xtr_security_oauth2_server.grant.client_credentials_grant import ClientCredentialsGrant
-from xtr_security_oauth2_server.grant.device_code_grant import DeviceCodeGrant
-from xtr_security_oauth2_server.grant.implicit_grant import ImplicitGrant
-from xtr_security_oauth2_server.grant.password_grant import PasswordGrant
-from xtr_security_oauth2_server.grant.refresh_token_grant import RefreshTokenGrant
-from xtr_security_oauth2_server.oauth2_grants import OAuth2Grants
 
 pytestmark = pytest.mark.anyio
 

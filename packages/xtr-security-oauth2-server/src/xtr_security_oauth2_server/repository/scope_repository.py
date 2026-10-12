@@ -8,12 +8,15 @@ from typing_extensions import override
 from xtr_event_dispatcher_contracts import (  # noqa: TC002 -- container hydrates this constructor at runtime
     EventDispatcherInterface,
 )
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
+from xtr_security_oauth2_server_core.repositories.scope_repository_interface import (
+    ScopeRepositoryInterface,
+)
 
 from xtr_security_oauth2_server.converter.scope_converter_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ScopeConverterInterface,
 )
 from xtr_security_oauth2_server.event.scope_resolve_event import ScopeResolveEvent
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server.manager.client_manager_interface import (  # noqa: TC001 -- container hydrates this constructor at runtime
     ClientManagerInterface,
 )
@@ -21,9 +24,6 @@ from xtr_security_oauth2_server.manager.scope_manager_interface import (  # noqa
     ScopeManagerInterface,
 )
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
-from xtr_security_oauth2_server.repositories.scope_repository_interface import (
-    ScopeRepositoryInterface,
-)
 from xtr_security_oauth2_server.value_object.grant import Grant
 
 from ._stored_client import stored_client_of
@@ -31,8 +31,11 @@ from ._stored_client import stored_client_of
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
-    from xtr_security_oauth2_server.entities.scope_entity_interface import ScopeEntityInterface
+    from xtr_security_oauth2_server_core.entities.client_entity_interface import (
+        ClientEntityInterface,
+    )
+    from xtr_security_oauth2_server_core.entities.scope_entity_interface import ScopeEntityInterface
+
     from xtr_security_oauth2_server.model.client_interface import ClientInterface
     from xtr_security_oauth2_server.value_object.scope import Scope
 

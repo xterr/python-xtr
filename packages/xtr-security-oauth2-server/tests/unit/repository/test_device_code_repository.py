@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import pytest
 from xtr_clock import MockClock
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
+from xtr_security_oauth2_server_core.repositories.device_code_repository_interface import (
+    DeviceCodeRepositoryInterface,
+)
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entity_builders import client_entity, device_code_entity
 from tests.support.hashers import RecordingPasswordHasher
 from tests.support.models import NOW, client_model
 from xtr_security_oauth2_server.converter.scope_converter import ScopeConverter
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
 from xtr_security_oauth2_server.manager.in_memory.device_code_manager import DeviceCodeManager
-from xtr_security_oauth2_server.repositories.device_code_repository_interface import (
-    DeviceCodeRepositoryInterface,
-)
 from xtr_security_oauth2_server.repository.client_repository import ClientRepository
 from xtr_security_oauth2_server.repository.device_code_repository import DeviceCodeRepository
 from xtr_security_oauth2_server.value_object.scope import Scope

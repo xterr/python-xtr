@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, final
 from sqlalchemy import select, update
 from typing_extensions import override
 from xtr_orm import ConnectionRegistry  # noqa: TC002 — read at runtime by the container
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.manager.client_manager_interface import (
     ClientManagerInterface,  # noqa: TC001 — read at runtime by the container
 )

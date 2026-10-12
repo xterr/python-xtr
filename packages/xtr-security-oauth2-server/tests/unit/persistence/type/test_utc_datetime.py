@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 import pytest
 from sqlalchemy import DateTime
 from sqlalchemy.dialects import sqlite
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 from tests.support.orm import round_trip
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.persistence.type.utc_datetime import UtcDateTime
 
 if TYPE_CHECKING:

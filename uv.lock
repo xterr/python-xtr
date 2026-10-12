@@ -37,6 +37,7 @@ members = [
     "xtr-security-http",
     "xtr-security-jwt",
     "xtr-security-oauth2-server",
+    "xtr-security-oauth2-server-core",
     "xtr-service-contracts",
     "xtr-storage",
     "xtr-webhook",
@@ -5431,6 +5432,7 @@ dependencies = [
     { name = "xtr-security-core" },
     { name = "xtr-security-http" },
     { name = "xtr-security-jwt" },
+    { name = "xtr-security-oauth2-server-core" },
 ]
 
 [package.optional-dependencies]
@@ -5476,6 +5478,7 @@ requires-dist = [
     { name = "xtr-security-core", editable = "packages/xtr-security-core" },
     { name = "xtr-security-http", editable = "packages/xtr-security-http" },
     { name = "xtr-security-jwt", editable = "packages/xtr-security-jwt" },
+    { name = "xtr-security-oauth2-server-core", editable = "packages/xtr-security-oauth2-server-core" },
 ]
 provides-extras = ["orm", "console"]
 
@@ -5491,6 +5494,53 @@ dev = [
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
     { name = "xtr-orm", editable = "packages/xtr-orm" },
+]
+
+[[package]]
+name = "xtr-security-oauth2-server-core"
+version = "3.0.0"
+source = { editable = "packages/xtr-security-oauth2-server-core" }
+dependencies = [
+    { name = "joserfc" },
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-message-contracts" },
+    { name = "xtr-security-core" },
+    { name = "xtr-security-jwt" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-http-message" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "joserfc", specifier = ">=1.7" },
+    { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
+    { name = "xtr-security-core", editable = "packages/xtr-security-core" },
+    { name = "xtr-security-jwt", editable = "packages/xtr-security-jwt" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 
 [[package]]

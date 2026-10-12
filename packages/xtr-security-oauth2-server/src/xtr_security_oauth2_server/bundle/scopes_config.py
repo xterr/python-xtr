@@ -1,4 +1,4 @@
-"""Which scopes exist in a deployment, and which a silent request gets."""
+"""Which scopes exist in a deployment, and which a client registered with none is given."""
 
 from __future__ import annotations
 
@@ -13,12 +13,17 @@ __all__ = ["ScopesConfig"]
 
 @dataclass(frozen=True, slots=True)
 class ScopesConfig:
-    """The scopes a deployment knows, and the ones it falls back to.
+    """The scopes a deployment knows, and the ones a client registered with none is given.
 
     ``available`` is the whole vocabulary: a request naming anything else is
     refused, which is what stops a client inventing permissions. The bundle
     reports an empty ``available`` as a missing setting, because a server that
     knows no scope can grant none.
+
+    ``default`` is what a client registered naming no scope is given when it is
+    saved. A request naming no scope is granted the scopes its client is
+    registered for — never ``default`` itself — so a client that was given the
+    defaults is issued them when it asks for none.
 
     ``default`` may be empty, and that is a real choice rather than an
     oversight: a client registered with no scopes then stays scope-less, the
@@ -27,8 +32,7 @@ class ScopesConfig:
 
     Attributes:
         available: Every scope a client may ask for.
-        default: The scopes a client registered with none is given, which are
-            also what a request naming no scope falls back to.
+        default: The scopes a client registered with none is given.
     """
 
     available: tuple[str, ...] = ()

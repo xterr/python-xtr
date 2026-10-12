@@ -11,8 +11,10 @@ from xtr_event_dispatcher_contracts import Event
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from xtr_security_oauth2_server.entities.client_entity_interface import ClientEntityInterface
-    from xtr_security_oauth2_server.entities.scope_entity_interface import ScopeEntityInterface
+    from xtr_security_oauth2_server_core.entities.client_entity_interface import (
+        ClientEntityInterface,
+    )
+    from xtr_security_oauth2_server_core.entities.scope_entity_interface import ScopeEntityInterface
 
 __all__ = ["AccessTokenExtraClaimsResolveEvent"]
 

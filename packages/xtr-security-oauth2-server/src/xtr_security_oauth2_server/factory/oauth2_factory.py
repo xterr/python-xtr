@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING, Annotated, final
 from xtr_dependency_injection import Target, named_factory
 from xtr_http_kernel.bridge import HttpMessageFactoryInterface
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
+from xtr_security_oauth2_server_core.resource_server import ResourceServer
 
 from xtr_security_oauth2_server.bundle.oauth2_authenticator_config import (
     OAuth2AuthenticatorConfig,
 )
 from xtr_security_oauth2_server.bundle.oauth2_server_config import OAuth2ServerConfig
-from xtr_security_oauth2_server.resource_server import ResourceServer
 from xtr_security_oauth2_server.security.authenticator.oauth2_authenticator import (
     OAuth2Authenticator,
 )
@@ -92,6 +92,10 @@ def _authenticator_factory(
     reads the token, the deployment's configuration and the firewall's own user
     provider are each injected by their type or key, so the factory is never
     handed the whole container.
+
+    The firewall's name is closed over rather than injected: it is what the
+    bearer challenge names as its protection space, and it is known here
+    rather than anywhere in the container.
     """
 
     async def oauth2_authenticator(
@@ -105,6 +109,7 @@ def _authenticator_factory(
             resource_server,
             provider,
             config.role_prefix,
+            firewall_name,
         )
 
     oauth2_authenticator.__annotations__ = {

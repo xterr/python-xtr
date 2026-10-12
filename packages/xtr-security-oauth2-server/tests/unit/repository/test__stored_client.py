@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entity_builders import client_entity
 from tests.support.models import client_model
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
 from xtr_security_oauth2_server.repository._stored_client import stored_client_of
 

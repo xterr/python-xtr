@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from http import HTTPStatus
 
-from xtr_security_oauth2_server.exception.oauth_server_error import OAuthServerError
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
+
 from xtr_security_oauth2_server.security.exception.oauth2_authentication_error import (
     OAuth2AuthenticationError,
 )
@@ -50,7 +51,10 @@ def test_the_internal_message_is_kept_apart_from_the_public_text() -> None:
     assert refused.get_message_key() == OAuth2AuthenticationFailedError.MESSAGE_KEY
 
 
-def test_it_challenges_for_a_bearer_token() -> None:
+def test_it_challenges_for_a_bearer_token_and_names_the_profiles_error_code() -> None:
     assert OAuth2AuthenticationFailedError.create(INTERNAL).get_headers() == {
-        "WWW-Authenticate": "Bearer",
+        "WWW-Authenticate": (
+            'Bearer error="invalid_token", '
+            f'error_description="{OAuth2AuthenticationFailedError.MESSAGE_KEY}"'
+        ),
     }

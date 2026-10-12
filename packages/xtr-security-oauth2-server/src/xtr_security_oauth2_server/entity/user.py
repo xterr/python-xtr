@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import final
 
-from xtr_security_oauth2_server.entities.traits.entity_trait import EntityTrait
-from xtr_security_oauth2_server.entities.user_entity_interface import UserEntityInterface
+from xtr_security_oauth2_server_core.entities.traits.entity_trait import EntityTrait
+from xtr_security_oauth2_server_core.entities.user_entity_interface import UserEntityInterface
 
 __all__ = ["User"]
 

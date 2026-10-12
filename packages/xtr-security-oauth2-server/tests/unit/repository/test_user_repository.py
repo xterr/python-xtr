@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
+from xtr_security_oauth2_server_core.repositories.user_repository_interface import (
+    UserRepositoryInterface,
+)
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entity_builders import client_entity
@@ -12,12 +16,8 @@ from tests.support.models import client_model
 from tests.support.users import SecurityUser
 from xtr_security_oauth2_server.converter.user_converter import UserConverter
 from xtr_security_oauth2_server.event.user_resolve_event import UserResolveEvent
-from xtr_security_oauth2_server.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server.manager.in_memory.client_manager import ClientManager
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
-from xtr_security_oauth2_server.repositories.user_repository_interface import (
-    UserRepositoryInterface,
-)
 from xtr_security_oauth2_server.repository.user_repository import UserRepository
 from xtr_security_oauth2_server.value_object.grant import Grant
 

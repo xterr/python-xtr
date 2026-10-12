@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_dependency_injection import CompilerPassInterface
+from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
+from xtr_security_oauth2_server_core.token_server import TokenServer
 
-from xtr_security_oauth2_server.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
-from xtr_security_oauth2_server.token_server import TokenServer
 
 from ._parameters import ENCRYPTION_KEY, ENCRYPTION_KEY_TYPE
 

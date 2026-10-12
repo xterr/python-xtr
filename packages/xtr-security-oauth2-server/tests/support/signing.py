@@ -22,8 +22,7 @@ from xtr_security_jwt.services.key_loader import (
     generate_signing_key,
     signing_key_id,
 )
-
-from xtr_security_oauth2_server.entities.access_token_signer import AccessTokenSigner
+from xtr_security_oauth2_server_core.entities.access_token_signer import AccessTokenSigner
 
 if TYPE_CHECKING:
     from joserfc.jwk import Key
