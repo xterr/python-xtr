@@ -8,4 +8,14 @@ bus.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .consumer import ConsumerInterface
+from .decorator import as_remote_event_consumer
+from .payload_converter_interface import PayloadConverterInterface
+from .remote_event import RemoteEvent
+
+__all__ = [
+    "ConsumerInterface",
+    "PayloadConverterInterface",
+    "RemoteEvent",
+    "as_remote_event_consumer",
+]
