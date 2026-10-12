@@ -58,7 +58,9 @@ asyncio.run(main())
 
 A `RemoteEvent` is three fields and no behaviour: `name` (the source, and what decides who is
 handed it), `id` (what the sender calls this event) and `payload` (the body as it arrived). It
-is frozen, so a consumer cannot rewrite the event the next one is given.
+is frozen, so no consumer can rebind `name`, `id` or `payload` on the event; `payload` is an
+ordinary dict, though, and the next consumer is handed the same event, so every consumer must treat
+the payload as read-only.
 
 ## Consumers
 
