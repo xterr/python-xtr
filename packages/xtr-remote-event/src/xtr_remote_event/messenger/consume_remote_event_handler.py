@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import final
 
 from xtr_messenger import as_message_handler
 
 from xtr_remote_event.consumer.consumer_interface import ConsumerInterface
+from xtr_remote_event.consumer.consumer_locator import ConsumerLocator
 from xtr_remote_event.exception import LogicError
 
 from .consume_remote_event_message import ConsumeRemoteEventMessage
-
-if TYPE_CHECKING:
-    from xtr_remote_event.consumer.consumer_locator import ConsumerLocator
 
 __all__ = ["ConsumeRemoteEventHandler"]
 

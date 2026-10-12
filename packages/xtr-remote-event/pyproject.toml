@@ -119,6 +119,9 @@ unfixable = []
 # The bundle registers factory functions whose signatures the engine reads at
 # runtime; deferring these would register the factories under nothing.
 "src/xtr_remote_event/bundle/*.py" = ["TC001", "TC002", "TC003"]
+# A container builds the handler from its constructor's annotation, which it
+# reads at runtime; deferring it would leave the locator unresolvable.
+"src/xtr_remote_event/messenger/consume_remote_event_handler.py" = ["TC001"]
 "tests/**/*.py" = [
     "S101",    # assert is the point of pytest
     "ARG",     # fixtures look unused
