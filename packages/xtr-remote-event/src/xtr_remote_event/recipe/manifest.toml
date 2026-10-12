@@ -1,0 +1,25 @@
+# The recipe for xtr-remote-event: what *Use in an application* in the README
+# takes, as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_remote_event.bundle:RemoteEventBundle" = { all = true }
+
+# No [files]: there is nothing to configure. Which consumer answers for which
+# source is declared beside the class with @as_remote_event_consumer, so an
+# application that writes no configuration module is already wired.
+
+# No [env]: nothing is read from the environment.
+
+[gitignore]
+# Nothing of its own: this package writes no file into a project.
+lines = []
+
+[notes]
+steps = [
+  "Declare each consumer with @as_remote_event_consumer(\"<source>\") where the class lives: with none declared, an event has nobody to go to.",
+  "Route ConsumeRemoteEventMessage to a transport in the messenger configuration to consume on a worker; left unrouted it is handled in the process that dispatched it.",
+]
+check = [
+  "<script> debug:bundles — remote_event is listed and active",
+]
