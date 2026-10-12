@@ -10,6 +10,7 @@ def test_it_publishes_the_receiving_side() -> None:
         "IsJsonRequestMatcher",
         "MethodRequestMatcher",
         "RequestMatcherInterface",
+        "RequestParser",
         "RequestParserInterface",
     ]
 

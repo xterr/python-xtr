@@ -12,6 +12,7 @@ from .chain_request_matcher import ChainRequestMatcher
 from .is_json_request_matcher import IsJsonRequestMatcher
 from .method_request_matcher import MethodRequestMatcher
 from .request_matcher_interface import RequestMatcherInterface
+from .request_parser import RequestParser
 from .request_parser_interface import RequestParserInterface
 
 __all__ = [
@@ -20,5 +21,6 @@ __all__ = [
     "IsJsonRequestMatcher",
     "MethodRequestMatcher",
     "RequestMatcherInterface",
+    "RequestParser",
     "RequestParserInterface",
 ]
