@@ -66,10 +66,56 @@ async def test_it_refuses_a_request_its_matcher_does_not_claim() -> None:
 
 @pytest.mark.anyio
 async def test_it_refuses_a_json_body_that_is_not_an_object() -> None:
+    body = b"1"
+    request = _request(
+        body,
+        {
+            "Webhook-Signature": _legacy("event-name", body),
+            "Webhook-Event": "event-name",
+            "Webhook-Id": "event-id",
+        },
+    )
+
     with pytest.raises(RejectWebhookError) as refused:
-        _ = await _parser().parse(_request(b"1"), _WHSEC)
+        _ = await _parser().parse(request, _WHSEC)
 
     assert refused.value.status_code == 406
+    assert str(refused.value) == "Request body is malformed."
+
+
+@pytest.mark.anyio
+async def test_a_wrong_signature_is_answered_before_the_body_is_decoded() -> None:
+    body = b"{not json at all"
+    request = _request(
+        body,
+        {
+            "Webhook-Signature": _legacy("event-name", body, key="wrong-value"),
+            "Webhook-Event": "event-name",
+            "Webhook-Id": "event-id",
+        },
+    )
+
+    with pytest.raises(RejectWebhookError) as refused:
+        _ = await _parser().parse(request, _WHSEC)
+
+    assert str(refused.value) == "Signature is wrong."
+
+
+@pytest.mark.anyio
+async def test_a_body_that_will_not_decode_is_still_malformed_once_it_is_genuine() -> None:
+    body = b"{not json at all"
+    request = _request(
+        body,
+        {
+            "Webhook-Signature": _legacy("event-name", body),
+            "Webhook-Event": "event-name",
+            "Webhook-Id": "event-id",
+        },
+    )
+
+    with pytest.raises(RejectWebhookError) as refused:
+        _ = await _parser().parse(request, _WHSEC)
+
     assert str(refused.value) == "Request body is malformed."
 
 
@@ -268,6 +314,28 @@ async def test_standard_rejects_a_non_numeric_timestamp() -> None:
     with pytest.raises(RejectWebhookError) as refused:
         _ = await _parser(SignatureFormat.STANDARD).parse(request, _WHSEC)
 
+    assert str(refused.value) == _WINDOW
+
+
+@pytest.mark.anyio
+async def test_standard_refuses_a_timestamp_too_long_to_read_as_a_number() -> None:
+    body = b'{"type":"event-name"}'
+    # Longer than the runtime converts a digit string to an int, so reading it would
+    # raise where the sender is owed a refusal.
+    timestamp = "9" * 5000
+    request = _request(
+        body,
+        {
+            "Webhook-Signature": _standard(timestamp, body),
+            "Webhook-Id": "event-id",
+            "Webhook-Timestamp": timestamp,
+        },
+    )
+
+    with pytest.raises(RejectWebhookError) as refused:
+        _ = await _parser(SignatureFormat.STANDARD).parse(request, _WHSEC)
+
+    assert refused.value.status_code == 406
     assert str(refused.value) == _WINDOW
 
 
@@ -485,3 +553,10 @@ async def test_the_signature_format_may_arrive_as_its_string() -> None:
     assert await parser.parse(request, _WHSEC) == RemoteEvent(
         "event-name", "event-id", {"type": "event-name"}
     )
+
+
+def test_an_algorithm_this_runtime_cannot_make_is_refused_where_it_is_configured() -> None:
+    with pytest.raises(InvalidArgumentError) as misconfigured:
+        _ = RequestParser(algorithm="not-a-digest")
+
+    assert str(misconfigured.value) == 'The signing algorithm "not-a-digest" is not available.'

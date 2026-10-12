@@ -216,7 +216,31 @@ class AbstractRequestParser(RequestParserInterface, ABC):
                 rather than refused here, so that :meth:`parse` turns it into
                 the same refusal wherever in a subclass it came from.
         """
+        return self._decode_json(self.read_body(request))
+
+    def _decode_json(self, body: bytes) -> dict[str, object]:
+        """Return bytes already read from the body, as a JSON object.
+
+        What :meth:`read_json` does once the body is in hand, separately, for a
+        parser that needs those bytes before it is willing to decode them: a
+        signature covers the body, so it has to be read whole and verified
+        first, and reading the stream a second time to decode it would be
+        decoding something nothing checked.
+
+        Args:
+            body: The bytes of the body, whole.
+
+        Returns:
+            The object they decoded to, their values left as they came.
+
+        Raises:
+            RejectWebhookError: When they are valid JSON but not an object
+                — an array or a bare value is not a webhook payload.
+            msgspec.DecodeError: When they are not JSON at all. Raised rather
+                than refused here, so that :meth:`parse` turns it into the same
+                refusal wherever in a subclass it came from.
+        """
         try:
-            return msgspec.json.decode(self.read_body(request), type=dict[str, object])
+            return msgspec.json.decode(body, type=dict[str, object])
         except msgspec.ValidationError as not_an_object:
             raise RejectWebhookError(_UNACCEPTABLE, _MALFORMED) from not_an_object

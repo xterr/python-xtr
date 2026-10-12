@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import re
 from typing import TYPE_CHECKING, Final, final
@@ -29,8 +30,14 @@ __all__ = ["RequestParser"]
 
 _UNACCEPTABLE: Final = 406
 
-_NUMERIC: Final = re.compile(r"^-?\d+$")
-"""What a timestamp this parser can bound looks like: an integer, nothing else."""
+_NUMERIC: Final = re.compile(r"^-?\d{1,19}$")
+"""What a timestamp this parser can bound looks like: an integer, nothing else.
+
+Bounded in length as well as in shape, because this runtime refuses to read a
+long enough digit string as an int at all — and a sender that sent one is owed
+the same refusal as any other unacceptable timestamp, not a server error.
+Nineteen digits reach far past any time the window can accept.
+"""
 
 
 @final
@@ -81,8 +88,15 @@ class RequestParser(AbstractRequestParser):
                 rebuilding the parser.
 
         Raises:
-            InvalidArgumentError: When ``signature_format`` names no format.
+            InvalidArgumentError: When this runtime cannot make ``algorithm``, or
+                when ``signature_format`` names no format. Both are caught here
+                rather than at the first webhook: a receiver that cannot
+                recompute a signature is misconfigured, and finding out when one
+                arrives means refusing a sender for this side's mistake.
         """
+        if algorithm not in hashlib.algorithms_available:
+            raise InvalidArgumentError(f'The signing algorithm "{algorithm}" is not available.')
+
         self._algorithm = algorithm
         self._signature_header_name = signature_header_name
         self._event_header_name = event_header_name
@@ -101,6 +115,12 @@ class RequestParser(AbstractRequestParser):
     async def do_parse(self, request: ServerRequestInterface, secret: str) -> RemoteEvent:
         """Check that the request is genuine and read the one event it carries.
 
+        In that order, and over one read of the body: nothing decodes it until a
+        signature over those exact bytes has verified, so a request that is not
+        the sender's is answered on its signature rather than on whatever its
+        body turned out to be — which is both what the sender needs told and the
+        answer that says least about what this side does with a payload.
+
         Args:
             request: The request that arrived, already claimed by the matcher.
             secret: What the signature entries are checked against.
@@ -116,13 +136,13 @@ class RequestParser(AbstractRequestParser):
                 configuration, not the sender's doing, so it surfaces as a
                 server error rather than as a refusal.
             RejectWebhookError: When a required header is missing, no signature
-                entry verifies, the signed timestamp is outside the window, or
-                the payload names no event.
+                entry verifies, the signed timestamp is outside the window, the
+                body is not a JSON object, or the payload names no event.
         """
         if not secret:
             raise InvalidArgumentError("A non-empty secret is required.")
 
-        payload = self.read_json(request)
+        body = self.read_body(request)
 
         required = [self._signature_header_name, self._id_header_name]
         if self._signature_format is SignatureFormat.LEGACY:
@@ -136,7 +156,8 @@ class RequestParser(AbstractRequestParser):
                     _UNACCEPTABLE, f'Missing "{name}" HTTP request signature header.'
                 )
 
-        verified = self._verify_signature(request, self.read_body(request), secret)
+        verified = self._verify_signature(request, body, secret)
+        payload = self._decode_json(body)
 
         return RemoteEvent(
             self._event_name(payload)
@@ -208,9 +229,11 @@ class RequestParser(AbstractRequestParser):
             timestamp: What the timestamp header carried, already signed.
 
         Raises:
-            RejectWebhookError: When the timestamp does not read as an integer —
-                a value that cannot be bounded is not accepted on faith — or
-                lies further than the tolerance from now.
+            RejectWebhookError: When the timestamp does not read as an integer
+                this runtime will convert — a value that cannot be bounded is
+                not accepted on faith, and one too long to read is refused as
+                such rather than raised over — or lies further than the
+                tolerance from now.
         """
         if self._timestamp_tolerance <= 0:
             return
