@@ -315,3 +315,69 @@ def test_it_describes_itself() -> None:
     assert body.get_metadata() == {"mode": "rb", "seekable": False, "eof": False}
     assert body.get_metadata("mode") == "rb"
     assert body.get_metadata("nothing-of-the-sort") is None
+
+
+async def test_a_piece_another_reader_took_is_kept_when_the_body_is(bodies: Bodies) -> None:
+    body = bodies.over(arriving(b"def"))
+
+    await body.feed(b"abc")
+    await body.receive_all()
+
+    assert await body.get_contents() == b"abcdef"
+
+
+async def test_a_piece_another_reader_took_is_not_handed_over_again_when_not_kept(
+    bodies: Bodies,
+) -> None:
+    body = bodies.over(arriving(b"def"), buffered=False)
+
+    await body.feed(b"abc")
+
+    assert await body.get_contents() == b"def"
+    assert body.received == 6
+
+
+async def test_another_reader_can_say_the_body_is_complete(bodies: Bodies) -> None:
+    body = bodies.over(arriving(b"never read"), buffered=False)
+    await body.feed(b"abc")
+
+    body.end()
+
+    assert body.complete
+    assert await body.read(64) == b""
+
+
+async def test_an_empty_body_another_reader_completed_is_kept(bodies: Bodies) -> None:
+    body = bodies.over(arriving(), buffered=False)
+
+    body.end()
+
+    assert body.buffered
+
+
+async def test_receiving_the_rest_leaves_the_cursor_where_it_was(bodies: Bodies) -> None:
+    body = bodies.over(arriving(b"abc", b"def"))
+    _ = await body.read(2)
+
+    await body.receive_all()
+
+    assert body.complete
+    assert body.tell() == 2
+    assert await body.read(64) == b"cdef"
+
+
+async def test_a_closed_body_receives_nothing_more(bodies: Bodies) -> None:
+    body = bodies.over(arriving(b"abc"))
+    await body.close()
+
+    with pytest.raises(RuntimeError, match="closed"):
+        await body.receive_all()
+
+
+async def test_a_closed_body_ignores_what_another_reader_took(bodies: Bodies) -> None:
+    body = bodies.over(arriving())
+    await body.close()
+
+    await body.feed(b"abc")
+
+    assert body.received == 0

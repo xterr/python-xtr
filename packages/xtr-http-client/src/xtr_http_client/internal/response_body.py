@@ -248,22 +248,50 @@ class ResponseBody:
             return metadata
         return metadata.get(key)
 
+    async def receive_all(self) -> None:
+        """Take the rest of the body off the transfer, leaving the cursor where it is.
+
+        Raises:
+            RuntimeError: When the body has been closed.
+        """
+        if self._closed:
+            raise RuntimeError("The response body is closed.")
+        while not self._complete:
+            await self._receive()
+
+    async def feed(self, piece: bytes) -> None:
+        """Take in a piece another reader took off the transfer.
+
+        A kept body keeps it, so it can still be read; one not kept counts it
+        as read already, since it was handed over once.
+        """
+        if not self._closed:
+            await self._arrived(piece, read=True)
+
+    def end(self) -> None:
+        """Learn from another reader that the transfer is complete."""
+        self._complete = True
+        # A body that never received anything becomes kept, whatever was
+        # asked for: there is nothing to hold, and an empty body that could
+        # only be read once would make "read twice" fail for the one case
+        # where the answer is not in doubt.
+        self._buffered = self._buffered or self._received == 0
+
     async def _receive(self) -> None:
         """Take the next piece off the transfer, or learn that there is none."""
         try:
             piece = await anext(self._source)
         except StopAsyncIteration:
-            self._complete = True
-            # A body that never received anything becomes kept, whatever was
-            # asked for: there is nothing to hold, and an empty body that
-            # could only be read once would make "read twice" fail for the one
-            # case where the answer is not in doubt.
-            self._buffered = self._buffered or self._received == 0
+            self.end()
             return
+        await self._arrived(piece, read=False)
 
+    async def _arrived(self, piece: bytes, read: bool) -> None:
+        """Count a piece in, and hold it for a reader who has not had it."""
         self._received += len(piece)
         if not self._buffered:
-            self._pending += piece
+            if not read:
+                self._pending += piece
             return
 
         # The kept stream's cursor *is* the read cursor, so an arriving piece
