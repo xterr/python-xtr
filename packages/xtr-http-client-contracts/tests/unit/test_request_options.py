@@ -1,16 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 
 from tests.support.fake_http_client import FakeHttpClient
 from xtr_http_client_contracts import RequestOptions
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from xtr_http_client_contracts import QueryValue
 
 pytestmark = pytest.mark.anyio
 
@@ -30,7 +23,6 @@ OPTION_NAMES = {
     "max_connect_duration",
     "resolve",
     "proxy",
-    "no_proxy",
     "verify_peer",
     "verify_host",
     "cafile",
@@ -40,12 +32,6 @@ OPTION_NAMES = {
     "passphrase",
     "max_retries",
     "extra",
-}
-
-NESTED_QUERY: Mapping[str, QueryValue] = {
-    "page": 2,
-    "tags": ["new", "sale"],
-    "filter": {"since": None, "scores": [1.5, True]},
 }
 
 
@@ -58,9 +44,10 @@ def test_no_option_is_required() -> None:
     assert RequestOptions.__optional_keys__ == frozenset(OPTION_NAMES)
 
 
-def test_a_query_value_may_nest_sequences_and_mappings() -> None:
-    assert NESTED_QUERY["page"] == 2
-    assert NESTED_QUERY["filter"] == {"since": None, "scores": [1.5, True]}
+def test_a_query_takes_scalars_and_sequences_that_repeat_the_name() -> None:
+    options: RequestOptions = {"query": {"page": 2, "tags": ["new", "sale"]}}
+
+    assert options["query"] == {"page": 2, "tags": ["new", "sale"]}
 
 
 async def test_a_prepared_mapping_of_options_goes_straight_into_a_request() -> None:

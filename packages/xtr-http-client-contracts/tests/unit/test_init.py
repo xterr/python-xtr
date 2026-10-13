@@ -32,7 +32,6 @@ def test_the_whole_contract_is_reachable_from_the_package_itself() -> None:
         "HttpResponseInterface",
         "InvalidArgumentError",
         "JsonError",
-        "QueryValue",
         "RedirectionError",
         "RequestOptions",
         "ServerError",

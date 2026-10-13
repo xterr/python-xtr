@@ -27,7 +27,7 @@ from .exception import (
 from .http_client_interface import HttpClientInterface
 from .http_response_interface import HttpResponseInterface
 from .options_defaults import OPTIONS_DEFAULTS
-from .request_options import QueryValue, RequestOptions
+from .request_options import RequestOptions
 
 __all__ = [
     "OPTIONS_DEFAULTS",
@@ -39,7 +39,6 @@ __all__ = [
     "HttpResponseInterface",
     "InvalidArgumentError",
     "JsonError",
-    "QueryValue",
     "RedirectionError",
     "RequestOptions",
     "ServerError",

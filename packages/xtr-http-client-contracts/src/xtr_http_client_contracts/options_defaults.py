@@ -36,7 +36,6 @@ OPTIONS_DEFAULTS: Final[RequestOptions] = {
     # Hosts are resolved the usual way, and reached without a proxy.
     "resolve": {},
     "proxy": None,
-    "no_proxy": None,
     # A certificate is checked, and checked against the host asked for.
     # Turning either off is a decision an application makes in the open.
     "verify_peer": True,

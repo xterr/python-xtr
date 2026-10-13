@@ -24,7 +24,6 @@ def test_the_default_of_every_option() -> None:
         "max_connect_duration": 0.0,
         "resolve": {},
         "proxy": None,
-        "no_proxy": None,
         "verify_peer": True,
         "verify_host": True,
         "cafile": None,

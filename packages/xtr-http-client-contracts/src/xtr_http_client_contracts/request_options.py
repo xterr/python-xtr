@@ -2,23 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias, TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterable, Mapping, Sequence
 
-__all__ = ["QueryValue", "RequestOptions"]
-
-QueryValue: TypeAlias = (
-    "str | int | float | bool | Sequence[QueryValue] | Mapping[str, QueryValue] | None"
-)
-"""What a query string parameter may hold, nested as deeply as it needs to be.
-
-A scalar becomes one parameter, a sequence repeats the name, and a mapping
-names sub-keys — so ``{"tag": ["new", "sale"]}`` and ``{"page": {"size": 10}}``
-both have an unambiguous way of being written out. ``None`` drops the
-parameter.
-"""
+__all__ = ["RequestOptions"]
 
 
 class RequestOptions(TypedDict, total=False):
@@ -40,8 +29,10 @@ class RequestOptions(TypedDict, total=False):
             or the user alone, or the two as a tuple. ``None`` sends none.
         auth_bearer: A token to send as a bearer credential. ``None`` sends
             none.
-        query: Parameters to merge into the URL's query string. They win over
-            a parameter of the same name already in the URL.
+        query: Parameters to merge into the URL's query string. A scalar is one
+            value; a sequence repeats the name once per item. ``None``, booleans
+            and nested mappings are not accepted. They win over a parameter of
+            the same name already in the URL.
         headers: Headers to send, a mapping of name to one value or several.
         body: What to send as the request body. Bytes or text go as they are;
             a mapping is sent as an HTML form; an async iterable of bytes is
@@ -72,7 +63,6 @@ class RequestOptions(TypedDict, total=False):
             checked, so that nothing can change under it between the check
             and the connection.
         proxy: The proxy to go through, as a URL.
-        no_proxy: Hosts to reach directly, comma separated.
         verify_peer: Whether to check that the peer's certificate is trusted.
         verify_host: Whether to check that the certificate is for the host
             being asked for.
@@ -92,7 +82,7 @@ class RequestOptions(TypedDict, total=False):
 
     auth_basic: str | tuple[str] | tuple[str, str] | None
     auth_bearer: str | None
-    query: Mapping[str, QueryValue]
+    query: Mapping[str, str | int | float | Sequence[str | int | float]]
     headers: Mapping[str, str | Sequence[str]]
     body: bytes | str | Mapping[str, object] | AsyncIterable[bytes]
     json: object
@@ -105,7 +95,6 @@ class RequestOptions(TypedDict, total=False):
     max_connect_duration: float
     resolve: Mapping[str, str]
     proxy: str | None
-    no_proxy: str | None
     verify_peer: bool
     verify_host: bool
     cafile: str | None
