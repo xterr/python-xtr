@@ -17,8 +17,7 @@ class TransportError(HttpClientError):
     an option that was spelled wrong, or that this client cannot honour,
     cannot pass for one it quietly obeyed.
 
-    It is also what reading a body twice raises when the response was asked
-    not to keep it, since the bytes are gone by then.
+    It is also what reading a response raises once it has been cancelled.
 
     Attributes:
         reason: What went wrong, naming the URL it went wrong for.

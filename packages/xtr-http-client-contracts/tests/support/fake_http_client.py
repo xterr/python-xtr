@@ -2,24 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import TYPE_CHECKING, Self, final
 
 from typing_extensions import Unpack
 
-from tests.support.fake_chunk import FakeChunk
 from tests.support.fake_response import FakeResponse
-from tests.support.fake_response_stream import FakeResponseStream
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Mapping
 
-    from xtr_http_client_contracts import (
-        ChunkInterface,
-        RequestOptions,
-        ResponseInterface,
-        ResponseStreamInterface,
-    )
+    from xtr_http_message_contracts import RequestInterface
+
+    from xtr_http_client_contracts import HttpResponseInterface, RequestOptions
 
 __all__ = ["FakeHttpClient"]
 
@@ -34,10 +28,10 @@ class FakeHttpClient:
 
     def __init__(
         self,
-        response: ResponseInterface | None = None,
+        response: HttpResponseInterface | None = None,
         default_options: Mapping[str, object] | None = None,
     ) -> None:
-        self.response: ResponseInterface = response if response is not None else FakeResponse()
+        self.response: HttpResponseInterface = response if response is not None else FakeResponse()
         self.default_options: Mapping[str, object] = dict(default_options or {})
         self.calls: list[tuple[str, str, Mapping[str, object]]] = []
 
@@ -46,21 +40,16 @@ class FakeHttpClient:
         method: str,
         url: str,
         **options: Unpack[RequestOptions],
-    ) -> ResponseInterface:
+    ) -> HttpResponseInterface:
         self.calls.append((method, url, {**self.default_options, **options}))
         return self.response
 
-    def stream(
+    async def send_request(
         self,
-        responses: ResponseInterface | Iterable[ResponseInterface],
-        timeout: float | None = None,
-    ) -> ResponseStreamInterface:
-        del timeout
-        answered: Sequence[ResponseInterface] = (
-            tuple(responses) if isinstance(responses, Iterable) else (responses,)
-        )
-        chunk: ChunkInterface = FakeChunk(first=True)
-        return FakeResponseStream([(response, chunk) for response in answered])
+        request: RequestInterface,
+        **options: Unpack[RequestOptions],
+    ) -> HttpResponseInterface:
+        return await self.request(request.get_method(), str(request.get_uri()), **options)
 
     def with_options(self, **options: Unpack[RequestOptions]) -> Self:
         return type(self)(self.response, {**self.default_options, **options})

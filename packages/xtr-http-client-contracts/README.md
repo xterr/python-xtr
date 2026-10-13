@@ -20,8 +20,8 @@ interface, asks for a method and a URL, and leaves connection pooling, redirects
 whatever the application wired behind it.
 
 That needs the *seam*, not a client. This package is that seam: the client interface, the
-response and chunk interfaces, the typed request options, the errors they raise, and a
-conformance suite any implementation runs against itself.
+response interface, the typed request options, the errors they raise, and a conformance suite
+any implementation runs against itself.
 
 ## Install
 

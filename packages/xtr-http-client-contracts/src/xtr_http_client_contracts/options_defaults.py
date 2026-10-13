@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ssl
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
@@ -27,43 +26,30 @@ OPTIONS_DEFAULTS: Final[RequestOptions] = {
     "http_version": None,
     # Every URL is absolute until a caller says otherwise.
     "base_uri": None,
-    # The body is kept, so reading it twice works; a transfer too large to
-    # hold is what `buffer=False` is for.
-    "buffer": True,
-    "on_progress": None,
-    # Hosts are resolved the usual way.
-    "resolve": {},
-    # `None` rather than "no proxy": the proxy environment variables still
-    # apply, and that is what an application expects of a command it runs
-    # behind one.
-    "proxy": None,
-    "no_proxy": None,
-    # The client decides how long a transfer may go quiet for; the clients
-    # here settle on 60 seconds, which is long enough for a slow server and
-    # short enough to free the connection.
+    # 60 seconds: long enough for a slow server, short enough to free the
+    # connection.
     "timeout": None,
     # Neither the transfer as a whole nor connecting is time limited: the
     # idle timeout already ends a transfer nothing is coming in on.
     "max_duration": 0.0,
     "max_connect_duration": 0.0,
-    # Any local interface.
-    "bindto": "0",
+    # Hosts are resolved the usual way, and reached without a proxy.
+    "resolve": {},
+    "proxy": None,
+    "no_proxy": None,
     # A certificate is checked, and checked against the host asked for.
     # Turning either off is a decision an application makes in the open.
     "verify_peer": True,
     "verify_host": True,
-    # The trust store, the cipher suites and the client certificate are
-    # whatever the platform offers.
+    # The trust store and the client certificate are whatever the platform
+    # offers.
     "cafile": None,
     "capath": None,
     "local_cert": None,
     "local_pk": None,
     "passphrase": None,
-    "ciphers": None,
-    "peer_fingerprint": None,
-    "capture_peer_cert_chain": False,
-    # Everything below TLS 1.2 is refused.
-    "crypto_method": ssl.TLSVersion.TLSv1_2,
+    # How often a client that retries tries again.
+    "max_retries": 3,
     # Additional options a client may ignore when it does not support them,
     # unlike the regular options it must refuse; `use_persistent_connections`
     # says whether to use persistent connections where supported.
@@ -77,10 +63,8 @@ Nothing here is an instruction — it is the absence of one, which is why the
 defaults name no host, no credentials and no deadline.
 
 The entries worth reading twice: ``timeout`` of ``None`` is not "no timeout"
-but "the client's own", 60 seconds in the clients here; ``max_duration`` and
-``max_connect_duration`` of zero *are* "no limit"; ``bindto`` of ``"0"`` is
-any local interface; and ``crypto_method`` is a floor, not a choice of
-version.
+but 60 seconds; ``max_duration`` and ``max_connect_duration`` of zero *are*
+"no limit".
 
 The mapping is shared, so merge into a copy rather than writing to it.
 """

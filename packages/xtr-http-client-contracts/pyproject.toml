@@ -1,7 +1,7 @@
 [project]
 name = "xtr-http-client-contracts"
 version = "4.0.0"
-description = "The async HTTP client contract alone: one request call, a response read on demand, streamed chunks, typed options and the errors they raise."
+description = "The async HTTP client contract alone: a request call, a response read on demand, typed options and the errors they raise."
 readme = "README.md"
 authors = [
     { name = "Xterr", email = "me@xterr.dev" }
@@ -124,13 +124,11 @@ fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
-# A conformance suite is tests that happen to ship in `src`: it asserts, the status codes and
-# durations it asserts on are its subject matter, and the `pytest.raises` blocks that wrap an
-# `async for` cannot be one statement.
+# A conformance suite is tests that happen to ship in `src`: it asserts, and the status codes and
+# durations it asserts on are its subject matter.
 "src/xtr_http_client_contracts/testing/http_client_test_case.py" = [
     "S101",    # assert is the point of a test
     "PLR2004", # a status code in an assertion is the assertion
-    "PT012",   # streaming inside `pytest.raises` takes a loop
 ]
 "tests/**/*.py" = [
     "S101",    # assert is the point of pytest

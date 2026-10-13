@@ -10,8 +10,8 @@ __all__ = ["DecodingError"]
 class DecodingError(HttpClientError, ValueError):
     """A body could not be turned into the shape that was asked for.
 
-    What :meth:`ResponseInterface.to_array
-    <xtr_http_client_contracts.response_interface.ResponseInterface.to_array>`
+    What :meth:`HttpResponseInterface.to_array
+    <xtr_http_client_contracts.http_response_interface.HttpResponseInterface.to_array>`
     raises when the body is empty, is not JSON, or is JSON that is not an
     object. The transfer succeeded, so this is about the payload, not the
     connection.

@@ -24,17 +24,15 @@ def test_every_exported_name_resolves() -> None:
 def test_the_whole_contract_is_reachable_from_the_package_itself() -> None:
     assert set(xtr_http_client_contracts.__all__) == {
         "OPTIONS_DEFAULTS",
-        "ChunkInterface",
         "ClientError",
         "DecodingError",
         "HttpClientError",
         "HttpClientInterface",
         "HttpError",
+        "HttpResponseInterface",
         "QueryValue",
         "RedirectionError",
         "RequestOptions",
-        "ResponseInterface",
-        "ResponseStreamInterface",
         "ServerError",
         "TransportError",
         "TransportTimeoutError",

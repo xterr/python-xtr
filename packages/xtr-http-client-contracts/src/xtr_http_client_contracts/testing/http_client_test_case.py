@@ -11,57 +11,54 @@ reading around. (allow: SIZE_OK — one conformance suite, one file.)
 
 What came from the reference suite, test by test. "ported" means the same calls and the same
 assertions; "translated" says what had to change for an async client whose ``request()``
-returns once the status line and the headers are in.
+returns once the status line and the headers are in; "removed" names the feature the contract
+dropped, which took the test with it.
 
 ==================================  ==========================================================
 ``testGetRequest``                  translated: eager request
-``testHeadRequest``                 translated: eager request
-``testNonBufferedGetRequest``       ported
+``testHeadRequest``                 translated: eager request, and the body is always kept
+``testNonBufferedGetRequest``       removed: the body is always kept
 ``testBufferSink``                  no counterpart: the sink is a writable stream resource,
                                     which an async client has no equivalent of
-``testConditionalBuffering``        translated: the callback is handed the response, and reads
-                                    the headers off it
-``testReentrantBufferCallback``     translated: async callback receiving the response
-``testThrowingBufferCallback``      translated: what the callback raises comes back from
-                                    ``request()``
+``testConditionalBuffering``        removed: the body is always kept
+``testReentrantBufferCallback``     removed: the body is always kept
+``testThrowingBufferCallback``      removed: the body is always kept
 ``testUnsupportedOption``           translated: an unsupported option is a ``TransportError``
 ``testHttpVersion``                 translated: ``http_version`` is the version as text
 ``testChunkedEncoding``             translated: the fixture's chunked body
-``testClientError``                 translated: the first pair of the stream starts the run
+``testClientError``                 translated: eager request, without the streamed half
 ``testIgnoreErrors``                ported
 ``testDnsError``                    translated: eager request
 ``testInlineAuth``                  translated: the fixture's ``AUTH_USER`` / ``AUTH_PW``
 ``testBadRequestBody``              translated: eager request
-``test304``                         ported
+``test304``                         translated: the body is always kept
 ``testRedirects``                   translated: parametrized, and the header filter names
                                     ``Content-Type`` because the fixture declares a length
 ``testInvalidRedirect``             translated: the status is raised by reading the content
 ``testRelativeRedirects``           ported
 ``testRedirect307``                 ported
 ``testMaxRedirects``                translated: the status is raised by reading the content
-``testStream``                      translated: ``async for``
-``testAddToStream``                 translated: ``async for``
-``testCompleteTypeError``           ported
-``testOnProgress``                  ported
+``testStream``                      removed: no chunk streaming
+``testAddToStream``                 removed: no chunk streaming
+``testCompleteTypeError``           removed: no chunk streaming
+``testOnProgress``                  removed: no progress callback
 ``testPostJson``                    ported
 ``testPostArray``                   ported
 ``testPostResource``                translated: an ``AsyncIterable[bytes]`` body
 ``testPostCallback``                translated: an ``AsyncIterable[bytes]`` body
 ``testCancel``                      ported
 ``testInfoOnCanceledResponse``      ported
-``testCancelInStream``              translated: ``async for``
-``testOnProgressCancel``            ported
-``testOnProgressError``             translated: a ``BaseException`` that is not an
-                                    ``Exception`` stands for a bug, which is never wrapped
+``testCancelInStream``              removed: no chunk streaming
+``testOnProgressCancel``            removed: no progress callback
+``testOnProgressError``             removed: no progress callback
 ``testResolve``                     translated: eager request
 ``testIdnResolve``                  ported
 ``testIPv6Resolve``                 translated: a second server, started by the test
 ``testNotATimeout``                 ported
 ``testTimeoutOnAccess``             translated: eager request
 ``testTimeoutIsNotAFatalError``     ported
-``testTimeoutOnStream``             translated: ``async for``
-``testUncheckedTimeoutThrows``      translated: the ``async with`` exit raises the timeout
-                                    nobody asked the chunk about
+``testTimeoutOnStream``             removed: no chunk streaming
+``testUncheckedTimeoutThrows``      removed: no chunk streaming
 ``testTimeoutWithActiveConcurrentStream``  translated: two servers, started by the test
 ``testTimeoutOnInitialize``         translated: eager request
 ``testTimeoutOnDestruct``           translated: eager request — the timeouts are reported
@@ -75,21 +72,20 @@ returns once the status line and the headers are in.
 ``testBaseUri``                     ported
 ``testQuery``                       ported
 ``testInformationalResponse``       ported
-``testInformationalResponseStream`` translated: ``async for``, and header names are compared
-                                    lowercased because the message contract keeps their case
+``testInformationalResponseStream`` removed: no chunk streaming
 ``testUserlandEncodingRequest``     ported
 ``testGzipBroken``                  ported
 ``testMaxDuration``                 ported
 ``testMaxConnectDurationInfo``      ported
 ``testMaxConnectDuration``          translated: eager request
 ``testWithOptions``                 ported
-``testBindToPort``                  ported
-``testBindToPortV6``                translated: a second server, started by the test
+``testBindToPort``                  removed: no ``bindto`` option
+``testBindToPortV6``                removed: no ``bindto`` option
 ==================================  ==========================================================
 
-63 reference methods: 62 here, 1 with no counterpart. One test is the contract's own addition,
-with nothing behind it in the reference suite: ``test_body_stream``, which reads the body
-through the message's stream rather than in one go.
+63 reference methods: 46 here, 16 removed with the features they test, 1 with no counterpart.
+One test is the contract's own addition, with nothing behind it in the reference suite:
+``test_body_stream``, which reads the body through the message's stream rather than in one go.
 """
 
 from __future__ import annotations
@@ -116,11 +112,9 @@ from .test_http_server import TestHttpServer
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator, Sequence
 
-    from xtr_http_client_contracts.chunk_interface import ChunkInterface
     from xtr_http_client_contracts.http_client_interface import HttpClientInterface
+    from xtr_http_client_contracts.http_response_interface import HttpResponseInterface
     from xtr_http_client_contracts.request_options import RequestOptions
-    from xtr_http_client_contracts.response_interface import ResponseInterface
-    from xtr_http_client_contracts.response_stream_interface import ResponseStreamInterface
 
 __all__ = ["HttpClientTestCase"]
 
@@ -166,15 +160,6 @@ class _RunningTest(Protocol):
     def node(self) -> _NamedNode: ...
 
 
-class _ProgressBug(BaseException):
-    """A bug raised from a progress callback, which a client must never wrap.
-
-    Not an :class:`Exception`: the contract has a client turn a failing progress callback into
-    a :class:`TransportError`, and this is how the suite says "that is for errors the caller
-    meant, not for a mistake in their own code".
-    """
-
-
 def _decode_object(content: bytes) -> Mapping[str, object]:
     """``content`` read as the JSON object it is.
 
@@ -191,28 +176,28 @@ def _expect(value: object, kind: type[_T]) -> _T:
     return value
 
 
-def _info(response: ResponseInterface, key: str, kind: type[_T]) -> _T:
+def _info(response: HttpResponseInterface, key: str, kind: type[_T]) -> _T:
     """The ``key`` entry of ``response``'s info, narrowed to ``kind``."""
     return _expect(response.get_info(key), kind)
 
 
-def _info_map(response: ResponseInterface) -> Mapping[str, object]:
+def _info_map(response: HttpResponseInterface) -> Mapping[str, object]:
     """Every entry of ``response``'s info at once."""
     return cast("Mapping[str, object]", _expect(response.get_info(), Mapping))
 
 
-def _info_lines(response: ResponseInterface) -> list[str]:
+def _info_lines(response: HttpResponseInterface) -> list[str]:
     """The ``response_headers`` entry, as the lines it holds."""
     lines = cast("Sequence[object]", response.get_info("response_headers"))
     return [_expect(line, str) for line in lines]
 
 
-def _chain(response: ResponseInterface) -> list[str]:
+def _chain(response: HttpResponseInterface) -> list[str]:
     """Where every hop of a redirect chain went, and what it answered with."""
     return [line for line in _info_lines(response) if line.startswith(_CHAIN_FIELDS)]
 
 
-def _header(response: ResponseInterface, name: str) -> Sequence[str]:
+def _header(response: HttpResponseInterface, name: str) -> Sequence[str]:
     """Every value under ``name``, matched without regard to case."""
     wanted = name.lower()
     headers = response.get_headers()
@@ -220,20 +205,6 @@ def _header(response: ResponseInterface, name: str) -> Sequence[str]:
         if key.lower() == wanted:
             return values
     raise AssertionError(f"no {name} header among {sorted(headers)}")
-
-
-def _header_names(response: ResponseInterface) -> list[str]:
-    """The header names, lowercased: the contract keeps the case they arrived in."""
-    return [name.lower() for name in response.get_headers()]
-
-
-async def _first_pair(
-    stream: ResponseStreamInterface,
-) -> tuple[ResponseInterface, ChunkInterface]:
-    """The first pair ``stream`` yields, which is what gets its transfers going."""
-    async for pair in stream:
-        return pair
-    raise AssertionError("the stream ended without yielding a chunk")
 
 
 async def _parts(*parts: bytes) -> AsyncIterator[bytes]:
@@ -260,7 +231,7 @@ class HttpClientTestCase:
 
         class TestMyClient(HttpClientTestCase):
             skipped_tests: ClassVar[Mapping[str, str]] = {
-                "test_bind_to_port_v6": "no IPv6 in this environment",
+                "test_ipv6_resolve": "no IPv6 in this environment",
             }
 
     The suite starts the fixture server once for the whole session; the few tests that need a
@@ -354,12 +325,7 @@ class HttpClientTestCase:
     async def test_head_request(self) -> None:
         """A HEAD answers headers describing a body it does not send."""
         client = self.create_client()
-        response = await client.request(
-            "HEAD",
-            f"{_BASE_URI}/head",
-            headers={"Foo": "baR"},
-            buffer=False,
-        )
+        response = await client.request("HEAD", f"{_BASE_URI}/head", headers={"Foo": "baR"})
 
         assert _info_lines(response)
         assert response.get_status_code() == 200
@@ -369,63 +335,6 @@ class HttpClientTestCase:
         assert int(_header(response, "content-length")[0]) > 0
 
         assert await response.get_content() == b""
-
-    async def test_non_buffered_get_request(self) -> None:
-        """With buffering off, the body is readable once and once only."""
-        client = self.create_client()
-        response = await client.request("GET", _BASE_URI, buffer=False, headers={"Foo": "baR"})
-
-        body = await response.to_array()
-        assert body["HTTP_FOO"] == "baR"
-
-        with pytest.raises(TransportError):
-            _ = await response.get_content()
-
-    async def test_conditional_buffering(self) -> None:
-        """Buffering kept means the same bytes twice; refused by the callback means once."""
-        client = self.create_client()
-        response = await client.request("GET", _BASE_URI)
-        first_content = await response.get_content()
-        second_content = await response.get_content()
-
-        assert first_content == second_content
-
-        def refuse(response: ResponseInterface) -> bool:
-            """Refuse to buffer, having read the headers the decision is made from."""
-            assert _header(response, "content-type") == ["application/json"]
-            return False
-
-        response = await client.request("GET", _BASE_URI, buffer=refuse)
-        _ = await response.get_content()
-
-        with pytest.raises(TransportError):
-            _ = await response.get_content()
-
-    async def test_reentrant_buffer_callback(self) -> None:
-        """A buffer callback may cancel the response it is handed, leaving nothing to read."""
-        client = self.create_client()
-
-        async def buffer(response: ResponseInterface) -> bool:
-            await response.cancel()
-            return True
-
-        response = await client.request("GET", _BASE_URI, buffer=buffer)
-
-        assert response.get_status_code() == 200
-
-        with pytest.raises(TransportError):
-            _ = await response.get_content()
-
-    async def test_throwing_buffer_callback(self) -> None:
-        """A buffer callback that raises fails the request, saying what it raised."""
-        client = self.create_client()
-
-        def buffer(response: ResponseInterface) -> bool:
-            del response
-            raise RuntimeError("Boo.")
-
-        with pytest.raises(TransportError, match="Boo"):
-            _ = await client.request("GET", _BASE_URI, buffer=buffer)
 
     async def test_unsupported_option(self) -> None:
         """An option the client has never heard of is refused, never quietly obeyed."""
@@ -467,8 +376,6 @@ class HttpClientTestCase:
         client = self.create_client()
         response = await client.request("GET", f"{_BASE_URI}/404")
 
-        _ = await _first_pair(client.stream(response))
-
         assert _info(response, "http_code", int) == 404
 
         with pytest.raises(ClientError):
@@ -477,12 +384,6 @@ class HttpClientTestCase:
         assert response.get_status_code() == 404
         assert _header(response, "content-type") == ["application/json"]
         assert await response.get_content(throw=False)
-
-        response = await client.request("GET", f"{_BASE_URI}/404")
-
-        with pytest.raises(ClientError):
-            async for _paired, chunk in client.stream(response):
-                assert chunk.is_first()
 
     async def test_ignore_errors(self) -> None:
         """Reading the status of a 404 is not being told about it."""
@@ -521,18 +422,13 @@ class HttpClientTestCase:
     async def test_304(self) -> None:
         """A 304 carries no body, whatever length it declares."""
         client = self.create_client()
-        response = await client.request(
-            "GET",
-            f"{_BASE_URI}/304",
-            headers={"If-Match": '"abc"'},
-            buffer=False,
-        )
+        response = await client.request("GET", f"{_BASE_URI}/304", headers={"If-Match": '"abc"'})
 
         assert response.get_status_code() == 304
         assert await response.get_content(throw=False) == b""
 
-    @pytest.mark.parametrize("headers", [[], ["Content-Length: 7"]])
-    async def test_redirects(self, headers: list[str]) -> None:
+    @pytest.mark.parametrize("headers", [{}, {"Content-Length": "7"}])
+    async def test_redirects(self, headers: Mapping[str, str]) -> None:
         """A chain is followed as GET, and credentials come back when it returns home."""
         client = self.create_client()
         response = await client.request(
@@ -633,94 +529,6 @@ class HttpClientTestCase:
             "Content-Type: application/json",
         ]
 
-    async def test_stream(self) -> None:
-        """A run opens with the head and ends with the last chunk, and says so again after."""
-        client = self.create_client()
-
-        response = await client.request("GET", _BASE_URI)
-        paired: ResponseInterface | None = None
-        result: list[str] = []
-
-        # B007 is suppressed because `paired` is what the assertion after the loop is about.
-        async for paired, chunk in client.stream(response):  # noqa: B007
-            if chunk.is_timeout():
-                result.append("t")
-            elif chunk.is_last():
-                result.append("l")
-            elif chunk.is_first():
-                result.append("f")
-
-        assert paired is response
-        assert result == ["f", "l"]
-
-        last: ChunkInterface | None = None
-        seen = 0
-
-        # B007 is suppressed because `last` is what the assertion after the loop is about.
-        async for _paired, last in client.stream(response):  # noqa: B007
-            seen += 1
-
-        assert seen == 1
-        assert last is not None
-        assert last.is_last()
-
-    async def test_add_to_stream(self) -> None:
-        """A response made while a run is going on is read in a run of its own."""
-        client = self.create_client()
-
-        first = await client.request("GET", _BASE_URI)
-
-        completed: list[ResponseInterface] = []
-        second: ResponseInterface | None = None
-        pool: list[ResponseInterface] = [first]
-
-        while pool:
-            chunks = client.stream(pool)
-            pool = []
-
-            async for paired, chunk in chunks:
-                if not chunk.is_last():
-                    continue
-
-                if paired is first:
-                    second = await client.request("GET", _BASE_URI)
-                    pool.append(second)
-
-                completed.append(paired)
-
-        assert completed == [first, second]
-
-    async def test_complete_type_error(self) -> None:
-        """Streaming something that is not a response is a mistake, not a transfer failure."""
-        client = self.create_client()
-        not_a_response = cast("ResponseInterface", cast("object", 123))
-
-        with pytest.raises(TypeError):
-            _ = await _first_pair(client.stream(not_a_response))
-
-    async def test_on_progress(self) -> None:
-        """The progress callback is told the totals and where the transfer is going."""
-        client = self.create_client()
-        steps: list[tuple[int, int, Mapping[str, object]]] = []
-
-        def on_progress(received: int, total: int, info: Mapping[str, object]) -> None:
-            steps.append((received, total, dict(info)))
-
-        response = await client.request(
-            "POST",
-            f"{_BASE_URI}/post",
-            headers={"Content-Length": "14"},
-            body="foo=0123456789",
-            on_progress=on_progress,
-        )
-
-        body = await response.to_array()
-
-        assert body == {"foo": "0123456789", "REQUEST_METHOD": "POST"}
-        assert steps[0][:2] == (0, 0)
-        assert steps[-1][:2] == (57, 57)
-        assert steps[0][2]["url"] == f"{_BASE_URI}/post"
-
     async def test_post_json(self) -> None:
         """A JSON body is sent as JSON, and says so in its content type."""
         client = self.create_client()
@@ -785,68 +593,6 @@ class HttpClientTestCase:
         assert _info(response, "canceled", bool) is False
         await response.cancel()
         assert _info(response, "canceled", bool) is True
-
-    async def test_cancel_in_stream(self) -> None:
-        """A response cancelled mid-run cannot be streamed again."""
-        client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/404")
-
-        async for _paired, _chunk in client.stream(response):
-            await response.cancel()
-
-        with pytest.raises(TransportError):
-            async for _paired, _chunk in client.stream(response):
-                pass
-
-    async def test_on_progress_cancel(self) -> None:
-        """A progress callback that raises aborts the transfer, keeping what it raised."""
-        client = self.create_client()
-
-        def on_progress(received: int, total: int, info: Mapping[str, object]) -> None:
-            del total, info
-            if received > 0:
-                raise RuntimeError("Aborting the request.")
-
-        response = await client.request(
-            "GET",
-            f"{_BASE_URI}/timeout-body",
-            on_progress=on_progress,
-        )
-
-        with pytest.raises(TransportError) as caught:
-            async for _paired, _chunk in client.stream([response]):
-                pass
-
-        assert str(caught.value.__cause__) == "Aborting the request."
-
-        assert response.get_info("error") is not None
-
-        with pytest.raises(TransportError):
-            _ = await response.get_content()
-
-    async def test_on_progress_error(self) -> None:
-        """A bug in a progress callback reaches the caller as the bug it is."""
-        client = self.create_client()
-
-        def on_progress(received: int, total: int, info: Mapping[str, object]) -> None:
-            del total, info
-            if received > 0:
-                raise _ProgressBug("BUG.")
-
-        response = await client.request(
-            "GET",
-            f"{_BASE_URI}/timeout-body",
-            on_progress=on_progress,
-        )
-
-        with pytest.raises(_ProgressBug, match=r"BUG\."):
-            async for _paired, _chunk in client.stream([response]):
-                pass
-
-        assert response.get_info("error") is not None
-
-        with pytest.raises(TransportError):
-            _ = await response.get_content()
 
     async def test_resolve(self) -> None:
         """A host pinned to an address is reached at it, and is not once the pin is gone."""
@@ -934,36 +680,6 @@ class HttpClientTestCase:
             break
         else:
             pytest.fail("the body never arrived")
-
-    async def test_timeout_on_stream(self) -> None:
-        """A run says it went quiet, and picks the body up where it left off."""
-        client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/timeout-body")
-
-        assert response.get_status_code() == 200
-
-        result: list[bytes] = []
-
-        async for _paired, chunk in client.stream([response], 0.2):
-            result.append(b"t" if chunk.is_timeout() else chunk.get_content())
-
-        assert result == [b"<1>", b"t"]
-
-        async for paired, chunk in client.stream([response]):
-            assert chunk.get_content() == b"<2>"
-            assert await paired.get_content() == b"<1><2>"
-            return
-
-        pytest.fail("the response should have completed")
-
-    async def test_unchecked_timeout_throws(self) -> None:
-        """A run that went quiet and was never asked about says so on the way out."""
-        client = self.create_client()
-
-        with pytest.raises(TransportError):
-            async with await client.request("GET", f"{_BASE_URI}/timeout-body") as response:
-                async for _paired, _chunk in client.stream([response], 0.1):
-                    pass
 
     async def test_timeout_with_active_concurrent_stream(self) -> None:
         """A transfer that keeps arriving does not hold a timeout back."""
@@ -1148,30 +864,6 @@ class HttpClientTestCase:
         assert await response.get_content() == b"Here the body"
         assert response.get_status_code() == 200
 
-    async def test_informational_response_stream(self) -> None:
-        """A run reports the 1xx and its headers, then the response it came ahead of."""
-        client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/103")
-
-        chunks: list[ChunkInterface] = []
-        async for _paired, chunk in client.stream(response):
-            chunks.append(chunk)
-
-        informational = chunks[0].get_informational_status()
-        assert informational is not None
-        assert informational[0] == 103
-        assert informational[1]["link"] == [
-            "</style.css>; rel=preload; as=style",
-            "</script.js>; rel=preload; as=script",
-        ]
-        assert chunks[1].is_first()
-        assert chunks[2].get_content() == b"Here the body"
-        assert chunks[3].is_last()
-        assert chunks[3].get_informational_status() is None
-
-        assert _header_names(response) == ["date", "content-length"]
-        assert "Link: </style.css>; rel=preload; as=style" in _info_lines(response)
-
     async def test_userland_encoding_request(self) -> None:
         """Asking for an encoding outright hands the body over as it arrived."""
         client = self.create_client()
@@ -1243,37 +935,6 @@ class HttpClientTestCase:
 
         response = await scoped.request("GET", "/")
         assert response.get_status_code() == 200
-
-    async def test_bind_to_port(self) -> None:
-        """A request sent from a named local port arrives from it."""
-        client = self.create_client()
-        response = await client.request("GET", _BASE_URI, bindto="127.0.0.1:9876")
-        _ = response.get_status_code()
-
-        variables = await response.to_array()
-
-        assert variables["REMOTE_ADDR"] == "127.0.0.1"
-        assert variables["REMOTE_PORT"] == "9876"
-
-    async def test_bind_to_port_v6(self) -> None:
-        """The same, over IPv6."""
-        server = TestHttpServer(host=_IPV6_HOST, port=_IPV6_PORT)
-        server.start()
-        try:
-            client = self.create_client()
-            response = await client.request(
-                "GET",
-                f"http://[{_IPV6_HOST}]:{_IPV6_PORT}",
-                bindto=f"[{_IPV6_HOST}]:9876",
-            )
-            _ = response.get_status_code()
-
-            variables = await response.to_array()
-
-            assert variables["REMOTE_ADDR"] == _IPV6_HOST
-            assert variables["REMOTE_PORT"] == "9876"
-        finally:
-            server.stop()
 
     @staticmethod
     async def _expect_timeout(client: HttpClientInterface, port: int) -> None:

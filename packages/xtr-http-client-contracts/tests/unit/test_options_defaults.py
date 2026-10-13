@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import ssl
-
 from xtr_http_client_contracts import OPTIONS_DEFAULTS, RequestOptions
 
 
@@ -21,15 +19,12 @@ def test_the_default_of_every_option() -> None:
         "max_redirects": 20,
         "http_version": None,
         "base_uri": None,
-        "buffer": True,
-        "on_progress": None,
-        "resolve": {},
-        "proxy": None,
-        "no_proxy": None,
         "timeout": None,
         "max_duration": 0.0,
         "max_connect_duration": 0.0,
-        "bindto": "0",
+        "resolve": {},
+        "proxy": None,
+        "no_proxy": None,
         "verify_peer": True,
         "verify_host": True,
         "cafile": None,
@@ -37,9 +32,6 @@ def test_the_default_of_every_option() -> None:
         "local_cert": None,
         "local_pk": None,
         "passphrase": None,
-        "ciphers": None,
-        "peer_fingerprint": None,
-        "capture_peer_cert_chain": False,
-        "crypto_method": ssl.TLSVersion.TLSv1_2,
+        "max_retries": 3,
         "extra": {"use_persistent_connections": False},
     }

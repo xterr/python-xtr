@@ -12,6 +12,7 @@ from xtr_http_client_contracts import (
     DecodingError,
     RedirectionError,
     ServerError,
+    TransportError,
 )
 
 if TYPE_CHECKING:
@@ -108,8 +109,12 @@ class FakeResponse:
             "http_method": self.method,
             "redirect_count": 0,
             "redirect_url": None,
-            "response_headers": self.headers,
+            "response_headers": [
+                f"HTTP/{self.protocol_version} {self.status_code} {self.reason_phrase}",
+                *(f"{name}: {value}" for name, values in self.headers.items() for value in values),
+            ],
             "start_time": 0.0,
+            "total_time": 0.0,
             "url": self.url,
             "user_data": self.user_data,
         }
@@ -119,9 +124,12 @@ class FakeResponse:
 
     async def cancel(self) -> None:
         self.canceled = True
+        self.error = "Response has been canceled."
         await self.body.close()
 
     async def get_content(self, throw: bool = True) -> bytes:
+        if self.error is not None:
+            raise TransportError(self.error)
         if throw:
             self._raise_for_status()
         return await self.body.get_contents()

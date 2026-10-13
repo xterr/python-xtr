@@ -16,6 +16,6 @@ class RedirectionError(HttpError):
     back is the response from the last hop.
 
     Where the answer points is in the ``redirect_url`` entry of
-    :meth:`ResponseInterface.get_info
-    <xtr_http_client_contracts.response_interface.ResponseInterface.get_info>`.
+    :meth:`HttpResponseInterface.get_info
+    <xtr_http_client_contracts.http_response_interface.HttpResponseInterface.get_info>`.
     """

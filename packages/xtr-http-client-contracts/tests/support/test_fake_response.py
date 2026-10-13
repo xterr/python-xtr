@@ -12,6 +12,7 @@ from xtr_http_client_contracts import (
     DecodingError,
     RedirectionError,
     ServerError,
+    TransportError,
 )
 
 if TYPE_CHECKING:
@@ -28,6 +29,7 @@ INFO_KEYS = {
     "redirect_url",
     "response_headers",
     "start_time",
+    "total_time",
     "url",
     "user_data",
 }
@@ -122,6 +124,16 @@ def test_one_info_entry_can_be_asked_for_and_an_unknown_one_reads_as_none() -> N
     assert response.get_info("primary_ip") is None
 
 
+def test_the_response_headers_are_the_raw_status_and_header_lines() -> None:
+    response = FakeResponse(headers={"Set-Cookie": ("a=1", "b=2")})
+
+    assert response.get_info("response_headers") == [
+        "HTTP/1.1 200 OK",
+        "Set-Cookie: a=1",
+        "Set-Cookie: b=2",
+    ]
+
+
 @pytest.mark.parametrize(
     ("status_code", "expected"),
     [(302, RedirectionError), (404, ClientError), (500, ServerError)],
@@ -166,6 +178,15 @@ async def test_cancelling_lets_go_of_the_body_and_shows_in_the_info() -> None:
 
     assert body.closed
     assert response.get_info("canceled") is True
+    assert response.get_info("error") == "Response has been canceled."
+
+
+async def test_reading_a_cancelled_response_raises_the_cancellation() -> None:
+    response = FakeResponse(body=FakeStream(b"hello"))
+    await response.cancel()
+
+    with pytest.raises(TransportError, match="Response has been canceled"):
+        _ = await response.get_content()
 
 
 async def test_leaving_the_block_closes_the_body() -> None:

@@ -44,23 +44,3 @@ def test_a_copy_leaves_the_client_it_came_from_as_it_was() -> None:
     assert copy is not client
     assert client.default_options == {}
     assert copy.default_options == {"timeout": 2.5}
-
-
-async def test_streaming_one_response_yields_it_paired_with_a_chunk() -> None:
-    response = FakeResponse()
-    client = FakeHttpClient(response)
-
-    pairs = [pair async for pair in client.stream(response)]
-
-    assert [answered for answered, _ in pairs] == [response]
-    assert [chunk.is_first() for _, chunk in pairs] == [True]
-
-
-async def test_streaming_several_responses_yields_one_pair_each() -> None:
-    first = FakeResponse()
-    second = FakeResponse(status_code=404)
-    client = FakeHttpClient()
-
-    pairs = [pair async for pair in client.stream([first, second], timeout=1.0)]
-
-    assert [answered for answered, _ in pairs] == [first, second]

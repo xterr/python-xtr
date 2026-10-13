@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from xtr_http_client_contracts.http_client_interface import HttpClientInterface
 
-PORTED_FROM_THE_REFERENCE_SUITE = 62
+PORTED_FROM_THE_REFERENCE_SUITE = 46
 ADDED_BY_THIS_CONTRACT = frozenset({"test_body_stream"})
 
 EXPECTED_TESTS = frozenset(
@@ -28,10 +28,6 @@ EXPECTED_TESTS = frozenset(
         "test_get_request",
         "test_body_stream",
         "test_head_request",
-        "test_non_buffered_get_request",
-        "test_conditional_buffering",
-        "test_reentrant_buffer_callback",
-        "test_throwing_buffer_callback",
         "test_unsupported_option",
         "test_http_version",
         "test_chunked_encoding",
@@ -46,27 +42,18 @@ EXPECTED_TESTS = frozenset(
         "test_relative_redirects",
         "test_redirect_307",
         "test_max_redirects",
-        "test_stream",
-        "test_add_to_stream",
-        "test_complete_type_error",
-        "test_on_progress",
         "test_post_json",
         "test_post_array",
         "test_post_resource",
         "test_post_callback",
         "test_cancel",
         "test_info_on_canceled_response",
-        "test_cancel_in_stream",
-        "test_on_progress_cancel",
-        "test_on_progress_error",
         "test_resolve",
         "test_idn_resolve",
         "test_ipv6_resolve",
         "test_not_a_timeout",
         "test_timeout_on_access",
         "test_timeout_is_not_a_fatal_error",
-        "test_timeout_on_stream",
-        "test_unchecked_timeout_throws",
         "test_timeout_with_active_concurrent_stream",
         "test_timeout_on_initialize",
         "test_timeout_on_destruct",
@@ -79,15 +66,12 @@ EXPECTED_TESTS = frozenset(
         "test_base_uri",
         "test_query",
         "test_informational_response",
-        "test_informational_response_stream",
         "test_userland_encoding_request",
         "test_gzip_broken",
         "test_max_duration",
         "test_max_connect_duration_info",
         "test_max_connect_duration",
         "test_with_options",
-        "test_bind_to_port",
-        "test_bind_to_port_v6",
     }
 )
 
