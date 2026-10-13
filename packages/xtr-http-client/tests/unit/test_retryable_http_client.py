@@ -8,6 +8,7 @@ from typing_extensions import override
 from xtr_http_message import Request
 from xtr_logging_contracts import AbstractLogger
 
+from tests.support.fake_client import FakeClient
 from xtr_http_client import (
     GenericRetryStrategy,
     MockHttpClient,
@@ -523,3 +524,25 @@ async def test_narrowing_the_client_leaves_the_one_it_was_narrowed_from_alone() 
     async with await narrowed.request("GET", _URL) as response:
         assert response.get_status_code() == 200
         assert response.get_info("user_data") == "narrowed"
+
+
+async def test_resetting_reaches_a_wrapped_client_that_can_be_reset() -> None:
+    inner = _scripted(_answer(200))
+    client = RetryableHttpClient(inner, sleep=_instantly)
+
+    async with await client.request("GET", _URL):
+        pass
+    client.reset()
+
+    assert inner.get_requests_count() == 0
+
+
+async def test_resetting_leaves_a_wrapped_client_that_cannot_be_reset_able_to_answer() -> None:
+    client = RetryableHttpClient(FakeClient([_answer(200), _answer(201)]), sleep=_instantly)
+
+    async with await client.request("GET", _URL):
+        pass
+    client.reset()
+
+    async with await client.request("GET", _URL) as response:
+        assert response.get_status_code() == 201

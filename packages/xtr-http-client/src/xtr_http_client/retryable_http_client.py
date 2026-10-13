@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, final
 import anyio
 from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
+from xtr_service_contracts import ResetInterface
 
 from .exception import InvalidArgumentError, TransportError
 from .internal.option_merge import as_options
@@ -38,7 +39,7 @@ __all__ = ["RetryableHttpClient"]
 
 
 @final
-class RetryableHttpClient(HttpClientInterface):
+class RetryableHttpClient(HttpClientInterface, ResetInterface):
     """Wraps a client and makes the request again while a strategy says to.
 
     A server that answered 503, or a connection that never came up, has not
@@ -221,6 +222,17 @@ class RetryableHttpClient(HttpClientInterface):
         narrowed._base_uris = base_uris  # noqa: SLF001 — same class, seeded as a field
 
         return narrowed
+
+    @override
+    def reset(self) -> None:
+        """Reset the wrapped client.
+
+        Nothing here outlives a request — how many attempts are allowed and
+        what decides them are configuration — so there is only the client
+        behind to pass this on to.
+        """
+        if isinstance(self._client, ResetInterface):
+            self._client.reset()
 
     async def _attempted(
         self,

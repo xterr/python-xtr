@@ -43,6 +43,11 @@ di = [
 http2 = [
     "httpx[http2]>=0.27",
 ]
+# The limiter the throttling client paces requests by; nothing else needs it,
+# so the package imports and every other client works without it.
+throttling = [
+    "xtr-rate-limiter>=4.0,<5",
+]
 
 [dependency-groups]
 dev = [
@@ -53,7 +58,9 @@ dev = [
     "anyio>=4.0",
     "h2>=4.0",
     "ty>=0.0.83",
+    "xtr-clock>=4.0,<5",
     "xtr-dependency-injection>=4.0,<5",
+    "xtr-rate-limiter>=4.0,<5",
 ]
 
 [build-system]

@@ -28,7 +28,8 @@ calls out sees one type however much is layered under it.
 
 ```sh
 uv add xtr-http-client
-uv add "xtr-http-client[di]"    # + the bundle
+uv add "xtr-http-client[di]"            # + the bundle
+uv add "xtr-http-client[throttling]"    # + the limiter the throttling client paces by
 ```
 
 Requires Python 3.11+.

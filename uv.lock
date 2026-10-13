@@ -4495,6 +4495,9 @@ di = [
 http2 = [
     { name = "httpx", extra = ["http2"] },
 ]
+throttling = [
+    { name = "xtr-rate-limiter" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -4505,7 +4508,9 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
+    { name = "xtr-rate-limiter" },
 ]
 
 [package.metadata]
@@ -4520,9 +4525,10 @@ requires-dist = [
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-rate-limiter", marker = "extra == 'throttling'", editable = "packages/xtr-rate-limiter" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
-provides-extras = ["di", "http2"]
+provides-extras = ["di", "http2", "throttling"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4533,7 +4539,9 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-rate-limiter", editable = "packages/xtr-rate-limiter" },
 ]
 
 [[package]]
