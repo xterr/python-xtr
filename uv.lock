@@ -4484,6 +4484,7 @@ dependencies = [
     { name = "xtr-http-foundation" },
     { name = "xtr-http-message" },
     { name = "xtr-http-message-contracts" },
+    { name = "xtr-logging-contracts" },
     { name = "xtr-service-contracts" },
 ]
 
@@ -4518,6 +4519,7 @@ requires-dist = [
     { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
+    { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 provides-extras = ["di", "http2"]
