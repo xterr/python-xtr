@@ -32,12 +32,9 @@ def test_a_timeout_chunk_says_so_without_raising() -> None:
     assert chunk.is_timeout() is True
 
 
-def test_a_failed_transfer_raises_when_asked_whether_it_timed_out() -> None:
+def test_a_failed_transfer_says_it_did_not_time_out_without_raising() -> None:
     chunk = ErrorChunk(7, BROKEN)
-    with pytest.raises(TransportError, match="Connection reset by peer") as raised:
-        _ = chunk.is_timeout()
-    assert raised.value.__cause__ is BROKEN
-    assert not isinstance(raised.value, TransportTimeoutError)
+    assert chunk.is_timeout() is False
 
 
 @pytest.mark.parametrize("ask", EVERY_OTHER_QUESTION)
@@ -58,29 +55,13 @@ def test_every_other_question_about_a_failure_raises_with_the_original_cause(
         _ = ask(chunk)
     assert str(raised.value) == "Connection reset by peer"
     assert raised.value.__cause__ is BROKEN
+    assert not isinstance(raised.value, TransportTimeoutError)
 
 
 def test_the_offset_and_the_error_never_raise() -> None:
     chunk = ErrorChunk(99, BROKEN)
     assert chunk.get_offset() == 99
     assert chunk.get_error() == "Connection reset by peer"
-
-
-def test_it_starts_out_not_having_reported_anything() -> None:
-    assert ErrorChunk(0, IDLE).did_throw() is False
-
-
-def test_it_remembers_that_a_reader_was_told() -> None:
-    chunk = ErrorChunk(0, IDLE)
-    with pytest.raises(TransportTimeoutError):
-        _ = chunk.is_last()
-    assert chunk.did_throw() is True
-
-
-def test_a_timeout_answered_without_raising_still_counts_as_telling_the_reader() -> None:
-    chunk = ErrorChunk(0, IDLE)
-    assert chunk.is_timeout() is True
-    assert chunk.did_throw() is True
 
 
 def test_it_records_how_long_the_transfer_was_allowed_to_stay_quiet() -> None:

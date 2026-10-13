@@ -17,28 +17,23 @@ class ErrorChunk:
     """The one chunk that tells a reader rather than letting it ask.
 
     Two things end up here, told apart by what it was built with. A plain
-    message is the idle timeout being reached: the transfer is alive, nothing
-    has come in for as long as it was allowed to, and a reader that asks
-    :meth:`is_timeout` is told so without being interrupted — which is what
-    lets it do something else and keep waiting. An exception is a transfer
-    that is over, and every question about it raises.
+    message is the idle timeout being reached: the transfer is alive, and
+    nothing has come in for as long as it was allowed to. An exception is a
+    transfer that is over.
 
-    Either way, only :meth:`is_timeout` can answer quietly. Every other
-    accessor raises, so a reader that never asks about the error still finds
-    out about it from the question it did ask — the idle timeout as
-    :class:`TransportTimeoutError
+    Three accessors answer quietly, whichever it is: :meth:`is_timeout`, which
+    is what lets a reader waiting on a quiet transfer do something else and
+    keep waiting, and :meth:`get_offset` and :meth:`get_error`, for a reader
+    that would rather ask than be told. Every other accessor raises, so a
+    reader that never asks about the error still finds out about it from the
+    question it did ask — the idle timeout as :class:`TransportTimeoutError
     <xtr_http_client_contracts.exception.transport_timeout_error.TransportTimeoutError>`,
     a failure as :class:`TransportError
     <xtr_http_client_contracts.exception.transport_error.TransportError>` with
-    whatever broke it as the cause. :meth:`get_offset` and :meth:`get_error`
-    are the two that never raise, for a reader that would rather ask.
-
-    :meth:`did_throw` is how the stream that made the chunk learns whether the
-    reader was ever told: a chunk nobody asked anything of is an error on its
-    way to being swallowed, and the stream raises it itself instead.
+    whatever broke it as the cause.
     """
 
-    __slots__ = ("_did_throw", "_error", "_message", "_offset", "_timeout")
+    __slots__ = ("_error", "_message", "_offset", "_timeout")
 
     def __init__(self, offset: int, error: str | BaseException, timeout: float = 0.0) -> None:
         """Record where the body stopped, what stopped it, and how long it was given.
@@ -54,7 +49,6 @@ class ErrorChunk:
         """
         self._offset = offset
         self._timeout = timeout
-        self._did_throw = False
         self._error = error if isinstance(error, BaseException) else None
         self._message = str(error)
 
@@ -67,16 +61,12 @@ class ErrorChunk:
         """Tell whether the transfer went quiet for longer than it was allowed to.
 
         Returns:
-            ``True`` when this chunk is the idle timeout being reached.
-
-        Raises:
-            TransportError: When the transfer failed instead, since then there
-                is nothing left to wait for.
+            ``True`` when this chunk is the idle timeout being reached,
+            ``False`` when the transfer failed instead. Which of the two it is
+            gets answered rather than raised: a reader deciding whether to
+            keep waiting asked about the chunk, not about the body behind it.
         """
-        self._did_throw = True
-        if self._error is not None:
-            raise TransportError(self._message) from self._error
-        return True
+        return self._error is None
 
     def is_first(self) -> bool:
         """Raise, since no head arrives after this.
@@ -118,17 +108,7 @@ class ErrorChunk:
         """Return what went wrong, for a reader that would rather ask than be told."""
         return self._message
 
-    def did_throw(self) -> bool:
-        """Tell whether a reader has been told about the error yet.
-
-        An idle timeout answered by :meth:`is_timeout` counts as telling: the
-        reader asked what this chunk was and got the truth, so nothing is
-        being swallowed.
-        """
-        return self._did_throw
-
     def _report(self) -> NoReturn:
-        self._did_throw = True
         if self._error is not None:
             raise TransportError(self._message) from self._error
         raise TransportTimeoutError(self._message)
