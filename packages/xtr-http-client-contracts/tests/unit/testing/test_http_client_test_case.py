@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from xtr_http_client_contracts.http_client_interface import HttpClientInterface
 
-PORTED_FROM_THE_REFERENCE_SUITE = 61
+PORTED_FROM_THE_REFERENCE_SUITE = 62
 ADDED_BY_THIS_CONTRACT = frozenset({"test_body_stream"})
 
 EXPECTED_TESTS = frozenset(
@@ -30,6 +30,7 @@ EXPECTED_TESTS = frozenset(
         "test_head_request",
         "test_non_buffered_get_request",
         "test_conditional_buffering",
+        "test_reentrant_buffer_callback",
         "test_throwing_buffer_callback",
         "test_unsupported_option",
         "test_http_version",

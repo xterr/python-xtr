@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, TypeAlias, TypedDict
 
 if TYPE_CHECKING:
     import ssl
-    from collections.abc import AsyncIterable, Callable, Iterable, Mapping, Sequence
+    from collections.abc import AsyncIterable, Awaitable, Callable, Iterable, Mapping, Sequence
+
+    from .response_interface import ResponseInterface
 
 __all__ = ["QueryValue", "RequestOptions"]
 
@@ -70,8 +72,15 @@ class RequestOptions(TypedDict, total=False):
             version the connection offers.
         base_uri: The URI a relative URL is resolved against.
         buffer: Whether to keep the body once it has been read, so it can be
-            read again. A callable decides from the response headers, which
-            it is given keyed by lowercased name.
+            read again. A callable decides instead, and is handed the
+            response itself — its headers through ``get_headers()`` — so
+            that it can act on the transfer rather than only judge it: it
+            may ``await response.cancel()``, after which reading the body
+            raises ``TransportError``. It is called once the headers have
+            arrived, before ``request()`` returns, and may be a coroutine
+            function; what it returns decides whether the body is kept, and
+            an exception it raises comes back as a ``TransportError`` from
+            ``request()``.
         on_progress: Called as the transfer goes on, with the bytes received
             so far, the total when it is known (zero when it is not), and the
             info as it stands. Raising from it aborts the request, which is
@@ -121,7 +130,7 @@ class RequestOptions(TypedDict, total=False):
     max_redirects: int
     http_version: str | None
     base_uri: str | None
-    buffer: bool | Callable[[Mapping[str, Sequence[str]]], bool]
+    buffer: bool | Callable[[ResponseInterface], bool | Awaitable[bool]]
     on_progress: Callable[[int, int, Mapping[str, object]], None] | None
     resolve: Mapping[str, str]
     proxy: str | None

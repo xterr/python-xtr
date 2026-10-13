@@ -19,11 +19,11 @@ returns once the status line and the headers are in.
 ``testNonBufferedGetRequest``       ported
 ``testBufferSink``                  no counterpart: the sink is a writable stream resource,
                                     which an async client has no equivalent of
-``testConditionalBuffering``        ported
-``testReentrantBufferCallback``     no counterpart: pending user decision (a synchronous buffer
-                                    callback cannot await ``cancel()`` and the response does
-                                    not exist yet when it runs)
-``testThrowingBufferCallback``      ported
+``testConditionalBuffering``        translated: the callback is handed the response, and reads
+                                    the headers off it
+``testReentrantBufferCallback``     translated: async callback receiving the response
+``testThrowingBufferCallback``      translated: what the callback raises comes back from
+                                    ``request()``
 ``testUnsupportedOption``           translated: an unsupported option is a ``TransportError``
 ``testHttpVersion``                 translated: ``http_version`` is the version as text
 ``testChunkedEncoding``             translated: the fixture's chunked body
@@ -87,7 +87,7 @@ returns once the status line and the headers are in.
 ``testBindToPortV6``                translated: a second server, started by the test
 ==================================  ==========================================================
 
-63 reference methods: 61 here, 2 with no counterpart. One test is the contract's own addition,
+63 reference methods: 62 here, 1 with no counterpart. One test is the contract's own addition,
 with nothing behind it in the reference suite: ``test_body_stream``, which reads the body
 through the message's stream rather than in one go.
 """
@@ -390,26 +390,42 @@ class HttpClientTestCase:
 
         assert first_content == second_content
 
-        response = await client.request("GET", _BASE_URI, buffer=lambda _headers: False)
+        def refuse(response: ResponseInterface) -> bool:
+            """Refuse to buffer, having read the headers the decision is made from."""
+            assert _header(response, "content-type") == ["application/json"]
+            return False
+
+        response = await client.request("GET", _BASE_URI, buffer=refuse)
         _ = await response.get_content()
 
         with pytest.raises(TransportError):
             _ = await response.get_content()
 
-    async def test_throwing_buffer_callback(self) -> None:
-        """A buffer callback that raises fails the transfer, saying what it raised."""
+    async def test_reentrant_buffer_callback(self) -> None:
+        """A buffer callback may cancel the response it is handed, leaving nothing to read."""
         client = self.create_client()
 
-        def buffer(headers: Mapping[str, Sequence[str]]) -> bool:
-            del headers
-            raise RuntimeError("Boo.")
+        async def buffer(response: ResponseInterface) -> bool:
+            await response.cancel()
+            return True
 
         response = await client.request("GET", _BASE_URI, buffer=buffer)
 
         assert response.get_status_code() == 200
 
-        with pytest.raises(TransportError, match="Boo"):
+        with pytest.raises(TransportError):
             _ = await response.get_content()
+
+    async def test_throwing_buffer_callback(self) -> None:
+        """A buffer callback that raises fails the request, saying what it raised."""
+        client = self.create_client()
+
+        def buffer(response: ResponseInterface) -> bool:
+            del response
+            raise RuntimeError("Boo.")
+
+        with pytest.raises(TransportError, match="Boo"):
+            _ = await client.request("GET", _BASE_URI, buffer=buffer)
 
     async def test_unsupported_option(self) -> None:
         """An option the client has never heard of is refused, never quietly obeyed."""
