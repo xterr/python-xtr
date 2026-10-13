@@ -70,12 +70,25 @@ reportPrivateUsage = "error"
 # limit puts the break inside the string.
 reportImplicitStringConcatenation = "none"
 
+# A connection's address comes out of the standard library's streams untyped.
+# Scoped here only; every other module keeps this on.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_http_client_contracts/testing/_fixture_request.py"
+reportAny = "none"
+
+# So does the JSON a request body carries, which only `_json_fields` looks at.
+# Scoped here only; every other module keeps this on.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_http_client_contracts/testing/_fixture_routes.py"
+reportAny = "none"
+
 # Tests check state a class keeps to itself, for the same reason ruff's
-# SLF001 is off for tests.
+# SLF001 is off for tests. They also read sockets and JSON, both untyped.
 [[tool.basedpyright.executionEnvironments]]
 root = "tests"
 extraPaths = ["."]
 reportPrivateUsage = "none"
+reportAny = "none"
 
 # ─────────────────────────────────────────────────────────────────
 # ruff — select = ["ALL"], minimal justified ignores
