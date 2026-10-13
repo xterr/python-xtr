@@ -9,7 +9,20 @@ from xtr_http_client.exception import InvalidArgumentError
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-__all__ = ["merge_default_options", "validate_options"]
+    from xtr_http_client_contracts import RequestOptions
+
+__all__ = ["as_options", "merge_default_options", "validate_options"]
+
+
+def as_options(options: Mapping[str, object]) -> RequestOptions:
+    """``options`` read as the typed options, for handing on as keyword arguments.
+
+    A client that builds options name by name — adding one, dropping another —
+    holds them as a plain mapping, which is the same thing the contract types
+    key by key. This says so once, rather than at every call that passes them
+    on.
+    """
+    return cast("RequestOptions", options)
 
 
 def merge_default_options(

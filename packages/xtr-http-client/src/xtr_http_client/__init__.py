@@ -1,7 +1,9 @@
 """An async HTTP client: typed options in, a response read on demand out.
 
 One interface with clients behind it — one that opens real connections and
-streams what comes back, one that answers from a script a test wrote, and
+streams what comes back, one that answers from a script a test wrote, two
+that wrap another and add what every application writes again (a set of
+defaults per service, and a refusal to reach inwards), and
 :class:`HttpClient`, the one call that hands one over so nothing else has to
 name it.
 
@@ -16,7 +18,9 @@ from .http_client import HttpClient
 from .http_client_mixin import HttpClientMixin
 from .httpx_http_client import HttpxHttpClient
 from .mock_http_client import MockHttpClient
+from .no_private_network_http_client import NoPrivateNetworkHttpClient
 from .response import HttpResponse, JsonMockResponse, MockResponse
+from .scoping_http_client import ScopingHttpClient
 
 __all__ = [
     "HttpClient",
@@ -26,4 +30,6 @@ __all__ = [
     "JsonMockResponse",
     "MockHttpClient",
     "MockResponse",
+    "NoPrivateNetworkHttpClient",
+    "ScopingHttpClient",
 ]
