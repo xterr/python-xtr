@@ -65,7 +65,7 @@ async def _published(controller: MetadataController) -> Mapping[str, object]:
         server_request("GET", "/.well-known/oauth-authorization-server"),
         Response(200),
     )
-    document = document_of(answered)
+    document = await document_of(answered)
     assert isinstance(document, dict)
 
     return {str(name): value for name, value in document.items()}  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType] -- a decoded document

@@ -54,5 +54,5 @@ async def ask_for_consent(event: AuthorizationRequestResolveEvent) -> None:
 
         return
     page = Response(200).with_header("content-type", "text/html")
-    _ = page.get_body().write(CONSENT_PAGE.encode())
+    _ = await page.get_body().write(CONSENT_PAGE.encode())
     _ = event.set_response(page)

@@ -154,7 +154,7 @@ class AuthorizationController:
             redirect_uri = error.get_redirect_uri() or ""
 
             return served(
-                error.generate_http_response(response, use_fragment="#" in redirect_uri),
+                await error.generate_http_response(response, use_fragment="#" in redirect_uri),
             )
 
         return answered

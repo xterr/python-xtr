@@ -92,7 +92,7 @@ class MetadataController:
             "content-type",
             "application/json",
         )
-        _ = answer.get_body().write(json.dumps(dict(published.to_dict())).encode())
+        _ = await answer.get_body().write(json.dumps(dict(published.to_dict())).encode())
 
         return answer
 

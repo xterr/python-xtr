@@ -56,7 +56,7 @@ class JwksController:
             "content-type",
             "application/jwk-set+json",
         )
-        _ = answer.get_body().write(json.dumps(published).encode())
+        _ = await answer.get_body().write(json.dumps(published).encode())
 
         return answer
 

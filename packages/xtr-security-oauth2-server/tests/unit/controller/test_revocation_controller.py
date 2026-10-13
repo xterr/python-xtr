@@ -45,7 +45,7 @@ async def test_a_request_naming_no_client_is_refused() -> None:
         Response(200),
     )
 
-    document = document_of(answered)
+    document = await document_of(answered)
     assert isinstance(document, dict)
     assert document["error"] == "invalid_request"
 

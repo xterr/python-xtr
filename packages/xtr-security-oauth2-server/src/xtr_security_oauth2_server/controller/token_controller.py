@@ -62,7 +62,7 @@ class TokenController:
         try:
             answered = await self._server.respond_to_access_token_request(request, response)
         except OAuthServerError as error:
-            answered = error.generate_http_response(response)
+            answered = await error.generate_http_response(response)
         event = TokenRequestResolveEvent(answered)
         _ = await self._dispatcher.dispatch(event, OAuth2Events.TOKEN_REQUEST_RESOLVE)
 

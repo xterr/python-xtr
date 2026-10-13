@@ -48,7 +48,7 @@ async def test_a_refusal_from_the_server_is_answered_as_the_refusal_it_is() -> N
     )
 
     assert answered.get_status_code() != _NOT_FOUND
-    document = document_of(answered)
+    document = await document_of(answered)
     assert isinstance(document, dict)
     assert document["error"] == "unsupported_grant_type"
 

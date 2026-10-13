@@ -60,7 +60,7 @@ class IntrospectionController:
                 response,
             )
         except OAuthServerError as error:
-            answered = error.generate_http_response(response)
+            answered = await error.generate_http_response(response)
 
         return served(answered)
 

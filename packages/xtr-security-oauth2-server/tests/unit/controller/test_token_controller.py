@@ -36,7 +36,7 @@ async def test_a_grant_type_no_enabled_flow_answers_is_refused() -> None:
         Response(200),
     )
 
-    document = document_of(answered)
+    document = await document_of(answered)
     assert isinstance(document, dict)
     assert document["error"] == "unsupported_grant_type"
 

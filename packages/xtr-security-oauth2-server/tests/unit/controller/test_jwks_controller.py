@@ -39,7 +39,7 @@ async def test_every_published_key_carries_the_id_a_token_names_it_by() -> None:
         Response(200),
     )
 
-    published = document_of(answered)
+    published = await document_of(answered)
     assert isinstance(published, dict)
     keys = cast("object", published["keys"])
     assert isinstance(keys, list)
