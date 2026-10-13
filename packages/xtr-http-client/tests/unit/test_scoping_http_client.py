@@ -105,6 +105,26 @@ async def test_a_header_the_request_set_wins_over_the_scope_and_comes_first() ->
         ]
 
 
+async def test_a_header_the_request_set_hides_the_scope_one_whatever_its_case() -> None:
+    scopes = _scopes(
+        **{".*": {"headers": {"Accept": "application/json", "Content-Type": "text/html"}}}
+    )
+    client = ScopingHttpClient(_inner(), scopes)
+
+    answer = await client.request(
+        "GET",
+        "http://example.com/",
+        headers={"accept": "text/plain"},
+    )
+    async with _scripted(answer) as response:
+        headers = cast("Mapping[str, str]", response.get_request_options()["headers"])
+
+        assert list(headers.items()) == [
+            ("accept", "text/plain"),
+            ("Content-Type", "text/html"),
+        ]
+
+
 async def test_an_option_the_request_named_wins_whole() -> None:
     client = ScopingHttpClient(_inner(), _scopes(**{".*": {"user_data": "scoped"}}))
 

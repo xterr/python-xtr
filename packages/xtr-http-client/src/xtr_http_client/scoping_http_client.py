@@ -274,8 +274,13 @@ def _under(given: dict[str, object], defaults: Mapping[str, object]) -> dict[str
     if headers is not None and scoped is not None:
         # Name by name rather than whole, so a request setting one header
         # still sends the scope's others; the request's come first, as they
-        # are the ones that were asked for here.
-        merged["headers"] = {**headers, **{n: v for n, v in scoped.items() if n not in headers}}
+        # are the ones that were asked for here. Names are case-insensitive
+        # on the wire, so ``accept`` from the request hides a scope's ``Accept``.
+        taken = {name.lower() for name in headers}
+        merged["headers"] = {
+            **headers,
+            **{n: v for n, v in scoped.items() if n.lower() not in taken},
+        }
 
     return merged
 

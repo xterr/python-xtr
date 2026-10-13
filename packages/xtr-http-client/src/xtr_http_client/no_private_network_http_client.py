@@ -166,17 +166,21 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
             **options: The defaults of the wrapped client of the copy.
 
         Returns:
-            A new client, guarding the same networks and knowing no host yet.
+            A new client, guarding the same networks and sharing this one's
+            address cache, so a host resolved through either is known to both.
 
         Raises:
             InvalidArgumentError: When an option is invalid.
         """
-        return type(self)(
+        narrowed = type(self)(
             self._client.with_options(**options),
             self._subnets,
             self._allow_list,
             self._resolver,
         )
+        narrowed._dns_cache = self._dns_cache  # noqa: SLF001 — same class, same cache by design
+
+        return narrowed
 
     @override
     def reset(self) -> None:

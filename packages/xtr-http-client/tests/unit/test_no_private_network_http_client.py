@@ -457,3 +457,24 @@ async def test_with_options_wraps_a_narrowed_client_and_keeps_the_guard() -> Non
 
     with pytest.raises(TransportError, match=_blocked('IP "104.26.14.7"')):
         _ = await narrowed.request("GET", "http://104.26.14.7/")
+
+
+async def test_with_options_shares_the_address_cache_with_the_original() -> None:
+    asked: list[str] = []
+
+    async def resolve(host: str, port: int) -> Sequence[str]:
+        del port
+        asked.append(host)
+
+        return ["93.184.216.34"]
+
+    inner = MockHttpClient([MockResponse(b"one"), MockResponse(b"two")])
+    client = NoPrivateNetworkHttpClient(inner, resolver=resolve)
+    narrowed = client.with_options(auth_bearer="t0ken")
+
+    async with await client.request("GET", "http://receiver.test/a"):
+        pass
+    async with await narrowed.request("GET", "http://receiver.test/b"):
+        pass
+
+    assert asked == ["receiver.test"]
