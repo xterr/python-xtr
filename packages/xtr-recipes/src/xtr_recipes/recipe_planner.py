@@ -33,12 +33,9 @@ __all__ = ["RecipePlanner"]
 
 _ENV = ".env"
 _GITIGNORE = ".gitignore"
-_CONFIG_PREFIX = "config/"
-_CONFIG_INIT = "config/__init__.py"
-_CONFIG_INIT_BODY = (
-    '"""Configuration modules."""\n\nfrom __future__ import annotations\n\n'
-    "__all__: list[str] = []\n"
-)
+_CONFIG_DIR = "config"
+_INIT = "__init__.py"
+_INIT_BODY = '"""{title}"""\n\nfrom __future__ import annotations\n\n__all__: list[str] = []\n'
 _SCRIPT = "<script>"
 # Appended to a file set aside on unconfigure: no import resolves to it.
 _REMOVED = ".removed"
@@ -63,19 +60,19 @@ class RecipePlanner:
     whether a shared block would come out any different. Nothing is applied
     here, so a plan can be printed and thrown away.
 
-    One planner serves one plan run: it remembers whether the application's
-    ``config`` package has already been accounted for, so two recipes writing
-    into it do not both claim to create its ``__init__.py``. Build a fresh one
+    One planner serves one plan run: it remembers which of the application's
+    ``config`` packages have already been accounted for, so two recipes writing
+    into one do not both claim to create its ``__init__.py``. Build a fresh one
     per run.
     """
 
-    __slots__ = ("_config_init_planned", "_editor", "_project")
+    __slots__ = ("_config_packages_planned", "_editor", "_project")
 
     def __init__(self, project: Project, editor: MarkedBlockEditor) -> None:
         """Plan for ``project``, reading its shared blocks through ``editor``."""
         self._project = project
         self._editor = editor
-        self._config_init_planned = False
+        self._config_packages_planned: set[str] = set()
 
     def configure(self, recipe: Recipe) -> PlannedRecipe:
         """Plan a recipe the lock has never recorded.
@@ -209,19 +206,29 @@ class RecipePlanner:
         return tuple(steps)
 
     def _config_init(self, destination: str) -> tuple[OperationInterface, ...]:
-        """Plan the application's ``config`` package, once, before the first file in it.
+        """Plan every ``config`` package a destination sits in, once each, before the file.
 
-        A destination under ``config/`` needs the package to import from. It is
-        created when missing and adopted when present, never locked and never
-        deleted: several recipes write into it, and it outlives all of them.
+        A destination under ``config/`` needs each package between ``config``
+        and itself — ``config/routes/`` for a routes file — to be importable,
+        and the kernel scans only packages. Each is created when missing and
+        adopted when present, never locked and never deleted: several recipes
+        write into it, and it outlives all of them.
         """
-        if self._config_init_planned or not destination.startswith(_CONFIG_PREFIX):
+        directories = destination.split("/")[:-1]
+        if not directories or directories[0] != _CONFIG_DIR:
             return ()
-        self._config_init_planned = True
-        path = self._project.package_dir / _CONFIG_INIT
-        if path.is_file():
-            return ()
-        return (WriteFile(path, self._display(path), _CONFIG_INIT_BODY),)
+        operations: list[OperationInterface] = []
+        for depth in range(1, len(directories) + 1):
+            package = "/".join(directories[:depth])
+            if package in self._config_packages_planned:
+                continue
+            self._config_packages_planned.add(package)
+            path = self._project.package_dir / package / _INIT
+            if path.is_file():
+                continue
+            title = "Configuration modules." if depth == 1 else f"Configuration modules: {package}."
+            operations.append(WriteFile(path, self._display(path), _INIT_BODY.format(title=title)))
+        return tuple(operations)
 
     def _finish(
         self,

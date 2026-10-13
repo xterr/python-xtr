@@ -167,8 +167,9 @@ run   = ["<script> messenger:consume <transport>"]
 - The three note lists stay apart because they are acted on differently: `steps` are changes to
   application code a declarative recipe cannot make, `check` shows the package working, `run` puts
   it to work. Notes are printed after a recipe is applied and never written to disk.
-- A destination under `config/` also ensures `<app>/config/__init__.py` exists (a docstring and
-  `__all__: list[str] = []`), created if missing, adopted if present, never deleted.
+- A destination under `config/` also ensures every package between `config` and the file exists
+  — `<app>/config/__init__.py`, and `<app>/config/routes/__init__.py` for a routes file — each a
+  docstring and `__all__: list[str] = []`, created if missing, adopted if present, never deleted.
 
 Recipes are discovered through the `xtr_recipes` entry-point group, named after the bundle, the
 same way bundles are found through `xtr_dependency_injection.bundles`:

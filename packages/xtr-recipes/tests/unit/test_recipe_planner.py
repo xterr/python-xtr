@@ -123,6 +123,28 @@ def test_a_destination_outside_config_needs_no_config_package(planner: RecipePla
     assert [step.render() for step in planned.operations] == [("  write src/app/settings.py",)]
 
 
+def test_a_destination_deeper_in_config_creates_every_package_on_the_way(
+    planner: RecipePlanner,
+) -> None:
+    planned = planner.configure(_recipe(files={"config/routes/books.py": _TEMPLATE}))
+
+    assert [step.render() for step in planned.operations] == [
+        (f"  write {_CONFIG_INIT}",),
+        ("  write src/app/config/routes/__init__.py",),
+        ("  write src/app/config/routes/books.py",),
+    ]
+    assert "src/app/config/routes/__init__.py" not in planned.files
+
+
+def test_a_nested_config_package_is_created_once_per_run(planner: RecipePlanner) -> None:
+    _ = planner.configure(_recipe(files={"config/routes/books.py": _TEMPLATE}))
+    second = planner.configure(_recipe(files={"config/routes/shop.py": _TEMPLATE}))
+
+    assert [step.render() for step in second.operations] == [
+        ("  write src/app/config/routes/shop.py",),
+    ]
+
+
 def test_configure_adopts_a_file_the_project_already_has(
     planner: RecipePlanner,
     project: Project,
