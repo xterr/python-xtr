@@ -11,4 +11,8 @@ is read when the caller asks for it, as a whole or chunk by chunk.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .http_client_mixin import HttpClientMixin
+from .proxy_config import ProxyConfig
+from .url_parts import UrlParts
+
+__all__ = ["HttpClientMixin", "ProxyConfig", "UrlParts"]
