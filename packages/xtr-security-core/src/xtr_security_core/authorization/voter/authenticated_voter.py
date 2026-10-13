@@ -1,11 +1,13 @@
-"""A voter that grants by how strongly the token is authenticated."""
+"""A voter that grants by how strongly, and how recently, the token is authenticated."""
 
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import TYPE_CHECKING, ClassVar, assert_never, final
+from typing import TYPE_CHECKING, Final
 
 from typing_extensions import override
+
+from xtr_security_core.authentication.token.offline_token_interface import OfflineTokenInterface
+from xtr_security_core.exception import InvalidArgumentError
 
 from .access import Access
 from .cacheable_voter_interface import CacheableVoterInterface
@@ -23,93 +25,167 @@ if TYPE_CHECKING:
 __all__ = ["AuthenticatedVoter"]
 
 
-class _Attribute(StrEnum):
-    """The three attributes this voter answers, as a closed set to match on."""
-
-    PUBLIC_ACCESS = "PUBLIC_ACCESS"
-    IS_AUTHENTICATED = "IS_AUTHENTICATED"
-    IS_AUTHENTICATED_FULLY = "IS_AUTHENTICATED_FULLY"
-
-
-@final
 class AuthenticatedVoter(CacheableVoterInterface):
-    """Grants access by the strength of a token's authentication.
+    """Votes on the authentication attributes, most restrictive to least restrictive.
 
-    Reads three attributes and nothing else:
+    ``IS_AUTHENTICATED_VERY_RECENTLY``, ``IS_AUTHENTICATED_RECENTLY``,
+    ``IS_AUTHENTICATED_FULLY``, ``IS_AUTHENTICATED_REMEMBERED`` and
+    ``IS_AUTHENTICATED`` read how strongly — and how recently — the token was
+    authenticated; ``IS_REMEMBERED`` and ``IS_IMPERSONATOR`` how it came to be;
+    ``PUBLIC_ACCESS``, asked alone, is always granted. It defers every question
+    of strength to a trust resolver, so it need not know how a token was made.
 
-    - ``PUBLIC_ACCESS`` — always granted, the way a rule marks a resource open
-      to everyone.
-    - ``IS_AUTHENTICATED`` — granted when the token carries any user.
-    - ``IS_AUTHENTICATED_FULLY`` — granted when the token was fully
-      authenticated this unit of work.
-
-    It defers the questions of strength to a trust resolver, so it need not
-    know how a token was made.
+    No impersonation token exists in this library yet, so ``IS_IMPERSONATOR`` is
+    always denied.
     """
 
-    IS_AUTHENTICATED: ClassVar[str] = _Attribute.IS_AUTHENTICATED
-    IS_AUTHENTICATED_FULLY: ClassVar[str] = _Attribute.IS_AUTHENTICATED_FULLY
-    PUBLIC_ACCESS: ClassVar[str] = _Attribute.PUBLIC_ACCESS
+    IS_AUTHENTICATED_VERY_RECENTLY: Final[str] = "IS_AUTHENTICATED_VERY_RECENTLY"
+    IS_AUTHENTICATED_RECENTLY: Final[str] = "IS_AUTHENTICATED_RECENTLY"
+    IS_AUTHENTICATED_FULLY: Final[str] = "IS_AUTHENTICATED_FULLY"
+    IS_AUTHENTICATED_REMEMBERED: Final[str] = "IS_AUTHENTICATED_REMEMBERED"
+    IS_AUTHENTICATED: Final[str] = "IS_AUTHENTICATED"
+    IS_IMPERSONATOR: Final[str] = "IS_IMPERSONATOR"
+    IS_REMEMBERED: Final[str] = "IS_REMEMBERED"
+    PUBLIC_ACCESS: Final[str] = "PUBLIC_ACCESS"
 
-    __slots__ = ("_trust_resolver",)
+    #: Most restrictive first: only the reason of the strictest attribute that
+    #: failed is reported.
+    _DENIAL_REASONS: Final[tuple[tuple[str, str], ...]] = (
+        (IS_AUTHENTICATED_VERY_RECENTLY, "The user did not authenticate very recently."),
+        (IS_AUTHENTICATED_RECENTLY, "The user is not authenticated recently enough."),
+        (IS_AUTHENTICATED_FULLY, "The user is not fully authenticated."),
+        (IS_AUTHENTICATED_REMEMBERED, "The user is neither fully authenticated nor remembered."),
+        (IS_AUTHENTICATED, "The user is not authenticated."),
+        (IS_IMPERSONATOR, "The user is not impersonating another user."),
+        (IS_REMEMBERED, "The user is not remembered."),
+    )
 
-    def __init__(self, trust_resolver: AuthenticationTrustResolverInterface) -> None:
+    __slots__: tuple[str, ...] = ("_authentication_trust_resolver",)
+
+    _authentication_trust_resolver: AuthenticationTrustResolverInterface
+
+    def __init__(self, authentication_trust_resolver: AuthenticationTrustResolverInterface) -> None:
         """Record the resolver that reads a token's authentication strength."""
-        self._trust_resolver = trust_resolver
+        self._authentication_trust_resolver = authentication_trust_resolver
 
     @override
-    async def vote(
+    async def vote(  # noqa: C901, PLR0911, PLR0912 -- one branch per attribute, kept in one place
         self,
         token: TokenInterface,
         subject: object,
         attributes: Sequence[object],
         vote: Vote | None = None,
     ) -> Access:
-        """Grant when a recognised attribute holds for ``token``, else deny or abstain."""
+        """Grant when a recognised attribute holds for ``token``, else deny or abstain.
+
+        Raises:
+            InvalidArgumentError: When asked about authentication for an
+                offline token that carries a user — how that user
+                authenticated is unknown.
+        """
         del subject
+        if (
+            len(attributes) == 1
+            and isinstance(attributes[0], str)
+            and attributes[0] == self.PUBLIC_ACCESS
+        ):
+            if vote is not None:
+                vote.add_reason("Access is public.")
+            return Access.GRANTED
+
+        resolver = self._authentication_trust_resolver
         result = Access.ABSTAIN
         for attribute in attributes:
-            known = _recognise(attribute)
-            if known is None:
+            if not isinstance(attribute, str) or attribute not in _AUTHENTICATION_ATTRIBUTES:
                 continue
+
+            # A guest is never authenticated, while how an offline user
+            # authenticated is unknown.
+            if OfflineTokenInterface in type(token).__mro__ and token.get_user() is not None:
+                raise InvalidArgumentError(
+                    "Cannot decide on authentication attributes when an offline token is used.",
+                )
+
             result = Access.DENIED
-            if self._grants(known, token):
+
+            # Being full fledged is an invariant of the attribute, not part of
+            # the strategy: a remembered login is precisely not proof that the
+            # user still holds the credentials, so no custom trust resolver
+            # gets to grant on one.
+            if (
+                attribute in (self.IS_AUTHENTICATED_RECENTLY, self.IS_AUTHENTICATED_VERY_RECENTLY)
+                and resolver.is_full_fledged(token)
+                and self._is_authenticated_recently(token, attribute)
+            ):
+                if vote is not None:
+                    vote.add_reason(
+                        "The user authenticated recently."
+                        if attribute == self.IS_AUTHENTICATED_RECENTLY
+                        else "The user authenticated very recently.",
+                    )
                 return Access.GRANTED
-            if vote is not None:
-                vote.add_reason(f'The token does not satisfy "{attribute}".')
+
+            if attribute in (
+                self.IS_AUTHENTICATED_FULLY,
+                self.IS_AUTHENTICATED_REMEMBERED,
+            ) and resolver.is_full_fledged(token):
+                if vote is not None:
+                    vote.add_reason("The user is fully authenticated.")
+                return Access.GRANTED
+
+            if attribute == self.IS_AUTHENTICATED_REMEMBERED and resolver.is_remember_me(token):
+                if vote is not None:
+                    vote.add_reason("The user is remembered.")
+                return Access.GRANTED
+
+            if attribute == self.IS_AUTHENTICATED and resolver.is_authenticated(token):
+                if vote is not None:
+                    vote.add_reason("The user is authenticated.")
+                return Access.GRANTED
+
+            if attribute == self.IS_REMEMBERED and resolver.is_remember_me(token):
+                if vote is not None:
+                    vote.add_reason("The user is remembered.")
+                return Access.GRANTED
+
+        if result is Access.DENIED and vote is not None:
+            for denied_attribute, reason in self._DENIAL_REASONS:
+                if denied_attribute in attributes:
+                    vote.add_reason(reason)
+                    break
+
+            for attribute in (self.IS_AUTHENTICATED_VERY_RECENTLY, self.IS_AUTHENTICATED_RECENTLY):
+                if attribute in attributes:
+                    vote.request_re_authentication(attribute)
+                    break
+
         return result
+
+    def _is_authenticated_recently(self, token: TokenInterface, attribute: str) -> bool:
+        """Ask the resolver the recency question ``attribute`` stands for."""
+        if attribute == self.IS_AUTHENTICATED_RECENTLY:
+            return self._authentication_trust_resolver.is_authenticated_recently(token)
+        return self._authentication_trust_resolver.is_authenticated_very_recently(token)
 
     @override
     def supports_attribute(self, attribute: str) -> bool:
-        """Tell whether ``attribute`` is one of the three this voter reads."""
-        return attribute in (self.PUBLIC_ACCESS, self.IS_AUTHENTICATED, self.IS_AUTHENTICATED_FULLY)
+        """Tell whether ``attribute`` is one this voter reads."""
+        return attribute in (*_AUTHENTICATION_ATTRIBUTES, self.PUBLIC_ACCESS)
 
     @override
     def supports_type(self, subject_type: str) -> bool:
-        """Vote on any subject: authentication strength is read from the token alone."""
+        """Vote on any subject: authentication is read from the token alone."""
         del subject_type
         return True
 
-    def _grants(self, attribute: _Attribute, token: TokenInterface) -> bool:
-        """Decide the one recognised attribute against the token."""
-        match attribute:
-            case _Attribute.PUBLIC_ACCESS:
-                return True
-            case _Attribute.IS_AUTHENTICATED:
-                return self._trust_resolver.is_authenticated(token)
-            case _Attribute.IS_AUTHENTICATED_FULLY:
-                return self._trust_resolver.is_full_fledged(token)
-            case _:
-                assert_never(attribute)
 
-
-def _recognise(attribute: object) -> _Attribute | None:
-    """Return the attribute as one this voter reads, or ``None`` for any other."""
-    if isinstance(attribute, _Attribute):
-        return attribute
-    if isinstance(attribute, str):
-        try:
-            return _Attribute(attribute)
-        except ValueError:
-            return None
-    return None
+#: The attributes voted on in the loop; ``PUBLIC_ACCESS`` is answered only alone.
+_AUTHENTICATION_ATTRIBUTES: Final = (
+    AuthenticatedVoter.IS_AUTHENTICATED_VERY_RECENTLY,
+    AuthenticatedVoter.IS_AUTHENTICATED_RECENTLY,
+    AuthenticatedVoter.IS_AUTHENTICATED_FULLY,
+    AuthenticatedVoter.IS_AUTHENTICATED_REMEMBERED,
+    AuthenticatedVoter.IS_AUTHENTICATED,
+    AuthenticatedVoter.IS_IMPERSONATOR,
+    AuthenticatedVoter.IS_REMEMBERED,
+)

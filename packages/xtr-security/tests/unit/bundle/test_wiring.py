@@ -13,26 +13,38 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
+from typing_extensions import override
 from xtr_password_hasher import PasswordHasherFactoryInterface, UserPasswordHasherInterface
-from xtr_security_core import RoleHierarchyInterface
+from xtr_security_core import MissingUserProvider, RoleHierarchyInterface, UserProviderInterface
+from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_http import AccessMap, AuthenticatorManager, ExposeSecurityLevel
 
-from xtr_security.bundle import AutoHasherConfig, NativeHasherConfig, SecurityConfig
+from xtr_security.bundle import (
+    AutoHasherConfig,
+    InMemoryUserProviderConfig,
+    NativeHasherConfig,
+    SecurityConfig,
+)
 from xtr_security.bundle._wiring import (
     DUMMY_PASSWORD_HASHER_QUALIFIER,
     VOTER_TAG,
     _default_hasher_config,
+    _register_authenticators,
     _register_context_factory,
     register_hashers,
     register_voters,
 )
 from xtr_security.bundle.firewall_context import FirewallContext
+from xtr_security.factory import (
+    AuthenticatorFactoryInterface,
+    StatelessAuthenticatorFactoryInterface,
+)
 from xtr_security.firewall_config import FirewallConfig
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Hashable
+    from collections.abc import Awaitable, Callable, Hashable, Sequence
 
-    from xtr_dependency_injection import ServiceConfigurator
+    from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator, ServiceKey
     from xtr_password_hasher import PasswordHasherInterface
 
 pytestmark = pytest.mark.anyio
@@ -184,3 +196,111 @@ def test_the_registered_dummy_hasher_falls_back_to_the_secure_default() -> None:
     )
 
     assert factory().hash("secret").startswith("$")
+
+
+@final
+class _NeedyConfig:
+    """The configuration of an authenticator that needs a user provider."""
+
+
+@final
+class _StatelessConfig:
+    """The configuration of an authenticator that can do without one."""
+
+
+class _RecordingFactory(AuthenticatorFactoryInterface):
+    """An authenticator factory recording the user provider it was handed."""
+
+    _config_type: type
+    user_providers: list[ServiceKey | None]
+
+    def __init__(self, config_type: type) -> None:
+        self._config_type = config_type
+        self.user_providers = []
+
+    @property
+    @override
+    def key(self) -> str:
+        return self._config_type.__name__
+
+    @property
+    @override
+    def priority(self) -> int:
+        return 0
+
+    @property
+    @override
+    def config_type(self) -> type:
+        return self._config_type
+
+    @override
+    def create_authenticator(
+        self,
+        services: ServiceConfigurator,
+        builder: ContainerBuilder,
+        firewall_name: str,
+        config: object,
+        user_provider: ServiceKey | None,
+    ) -> Sequence[ServiceKey]:
+        del services, builder, firewall_name, config
+        self.user_providers.append(user_provider)
+        return ()
+
+
+@final
+class _StatelessRecordingFactory(_RecordingFactory, StatelessAuthenticatorFactoryInterface):
+    """A stateless recording factory: its authenticator can do without a provider."""
+
+
+def _register(
+    config: SecurityConfig, firewall: FirewallConfig
+) -> tuple[_RecordingConfigurator, _RecordingFactory, _RecordingFactory]:
+    needy = _RecordingFactory(_NeedyConfig)
+    stateless = _StatelessRecordingFactory(_StatelessConfig)
+    services = _RecordingConfigurator()
+    configured = SecurityConfig(
+        providers=config.providers,
+        authenticator_factories=(needy, stateless),
+    )
+    _ = _register_authenticators(
+        cast("ServiceConfigurator", cast("object", services)),
+        configured,
+        "api",
+        firewall,
+        firewall.provider,
+    )
+    return services, needy, stateless
+
+
+def test_with_no_provider_anywhere_a_needy_authenticator_gets_the_missing_provider() -> None:
+    firewall = FirewallConfig(authenticators=(_NeedyConfig(), _StatelessConfig()))
+
+    services, needy, stateless = _register(SecurityConfig(), firewall)
+
+    qualifier = "security.user.provider.missing.api"
+    assert needy.user_providers == [(UserProviderInterface, qualifier)]
+    assert stateless.user_providers == [None]
+    factory = cast("Callable[[], MissingUserProvider]", services.by_qualifier[qualifier])
+    with pytest.raises(InvalidArgumentError, match='"api" firewall requires a user provider'):
+        _ = factory()
+
+
+def test_with_a_provider_configured_elsewhere_no_missing_provider_is_registered() -> None:
+    config = SecurityConfig(providers={"users": InMemoryUserProviderConfig()})
+    firewall = FirewallConfig(authenticators=(_NeedyConfig(),))
+
+    services, needy, _ = _register(config, firewall)
+
+    assert needy.user_providers == [None]
+    assert MissingUserProvider not in services.aliases
+    assert "security.user.provider.missing.api" not in services.by_qualifier
+
+
+def test_the_firewall_provider_is_handed_to_every_authenticator() -> None:
+    config = SecurityConfig(providers={"users": InMemoryUserProviderConfig()})
+    firewall = FirewallConfig(provider="users", authenticators=(_NeedyConfig(), _StatelessConfig()))
+
+    _, needy, stateless = _register(config, firewall)
+
+    assert needy.user_providers == [(UserProviderInterface, "users")]
+    assert stateless.user_providers == [(UserProviderInterface, "users")]

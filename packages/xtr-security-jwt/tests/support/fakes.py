@@ -107,6 +107,11 @@ class PlainUserProvider(UserProviderInterface):
         return self._user
 
     @override
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        """Return ``user`` unchanged."""
+        return user
+
+    @override
     def supports_class(self, user_class: type) -> bool:
         """Support the in-memory user class."""
         return issubclass(user_class, InMemoryUser)
@@ -170,6 +175,11 @@ class AttributesRecordingProvider(AttributesBasedUserProviderInterface):
         del identifier
         self.attributes.append(attributes)
         return self._user
+
+    @override
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        """Return ``user`` unchanged."""
+        return user
 
     @override
     def supports_class(self, user_class: type) -> bool:

@@ -24,7 +24,11 @@ from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user import InMemoryUser
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Sequence
+
+    from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.authorization.is_granted_context import IsGrantedContext
+    from xtr_security_core.authorization.voter import Vote
 
 
 def _token(*roles: str) -> UsernamePasswordToken:
@@ -126,7 +130,7 @@ async def test_a_passed_decision_is_filled() -> None:
 
 
 @pytest.mark.anyio
-async def test_a_nested_decision_reuses_the_outer_record() -> None:
+async def test_a_closure_check_is_decided_on_its_own_and_reported_on_the_closure_vote() -> None:
     closure_voter = ClosureVoter()
     manager = AccessDecisionManager([RoleVoter(), closure_voter])
 
@@ -137,7 +141,34 @@ async def test_a_nested_decision_reuses_the_outer_record() -> None:
     decision = AccessDecision()
     _ = await manager.decide(_token("ROLE_USER"), [closure], access_decision=decision)
 
-    assert len(decision.votes) == 3
+    assert len(decision.votes) == 2
+    closure_vote = decision.votes[1]
+    assert closure_vote.voter is closure_voter
+    assert closure_vote.reasons == ["The user has ROLE_USER.", "Closure closure returned true."]
+
+
+@pytest.mark.anyio
+async def test_a_decision_asked_while_one_is_in_progress_joins_its_record() -> None:
+    inner = AccessDecisionManager([RoleVoter()])
+
+    class _Asking:
+        async def vote(
+            self,
+            token: TokenInterface,
+            subject: object,
+            attributes: Sequence[object],
+            vote: Vote | None = None,
+        ) -> Access:
+            del subject, attributes, vote
+            _ = await inner.decide(token, ["ROLE_USER"])
+            return Access.ABSTAIN
+
+    outer = AccessDecision()
+    _ = await AccessDecisionManager([_Asking()]).decide(
+        _token("ROLE_USER"), ["ANY"], access_decision=outer
+    )
+
+    assert len(outer.votes) == 2
 
 
 @pytest.mark.anyio
@@ -180,7 +211,26 @@ async def test_a_passed_decision_gets_the_strategy_name() -> None:
 
     _ = await manager.decide(_token("ROLE_USER"), ["ROLE_USER"], access_decision=decision)
 
-    assert decision.strategy == "AffirmativeStrategy"
+    assert decision.strategy == "affirmative"
+
+
+@pytest.mark.anyio
+async def test_a_strategy_without_a_name_is_recorded_by_its_type() -> None:
+    class _Nameless:
+        async def decide(
+            self, results: AsyncIterator[Access], access_decision: object = None
+        ) -> bool:
+            del access_decision
+            async for _ in results:
+                pass
+            return True
+
+    manager = AccessDecisionManager([RoleVoter()], _Nameless())
+    decision = AccessDecision()
+
+    _ = await manager.decide(_token("ROLE_USER"), ["ROLE_USER"], access_decision=decision)
+
+    assert decision.strategy == f"{__name__}.{_Nameless.__qualname__}"
 
 
 @pytest.mark.anyio

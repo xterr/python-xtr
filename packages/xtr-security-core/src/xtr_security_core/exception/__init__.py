@@ -16,6 +16,7 @@ from .authentication_credentials_not_found_error import AuthenticationCredential
 from .authentication_error import AuthenticationError
 from .authentication_service_error import AuthenticationServiceError
 from .bad_credentials_error import BadCredentialsError
+from .bad_method_call_error import BadMethodCallError
 from .credentials_expired_error import CredentialsExpiredError
 from .custom_user_message_account_status_error import CustomUserMessageAccountStatusError
 from .custom_user_message_authentication_error import CustomUserMessageAuthenticationError
@@ -35,6 +36,7 @@ __all__ = [
     "AuthenticationError",
     "AuthenticationServiceError",
     "BadCredentialsError",
+    "BadMethodCallError",
     "CredentialsExpiredError",
     "CustomUserMessageAccountStatusError",
     "CustomUserMessageAuthenticationError",

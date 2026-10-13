@@ -23,6 +23,7 @@ dependencies = [
     "xtr-security-core>=4.0,<5",
     "xtr-security-http>=4.0,<5",
     "xtr-password-hasher>=4.0,<5",
+    "xtr-clock>=4.0,<5",
     "xtr-dependency-injection>=4.0,<5",
     "xtr-event-dispatcher>=4.0,<5",
     "xtr-http-kernel>=4.0,<5",

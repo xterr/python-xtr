@@ -23,7 +23,7 @@ from xtr_security_http.access_token.access_token_extractor_interface import (  #
 from xtr_security.bundle.authenticator_configs import AccessTokenConfig, ExtractorName
 from xtr_security.exception import InvalidConfigurationError
 
-from .authenticator_factory_interface import AuthenticatorFactoryInterface
+from .stateless_authenticator_factory_interface import StatelessAuthenticatorFactoryInterface
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -44,7 +44,7 @@ _EXTRACTOR_PRIORITY = 100
 
 
 @final
-class AccessTokenFactory(AuthenticatorFactoryInterface):
+class AccessTokenFactory(StatelessAuthenticatorFactoryInterface):
     """Builds an :class:`~xtr_security_http.AccessTokenAuthenticator` from configuration.
 
     The token handler is built through the token-handler factory registry the
@@ -53,7 +53,8 @@ class AccessTokenFactory(AuthenticatorFactoryInterface):
     named extractors become the extractor the authenticator reads tokens with,
     chained when more than one. The authenticator is registered as a factory so
     it can pull the handler, the extractor and the firewall's user provider from
-    the container.
+    the container. The user provider is optional — a token handler may build
+    the user itself — so the factory is a stateless one.
     """
 
     __slots__ = ("_token_handler_factories",)

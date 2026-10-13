@@ -286,7 +286,8 @@ async def test_without_a_provider_the_claims_become_an_oidc_user() -> None:
     user = await badge.get_user()
 
     assert isinstance(user, OidcUser)
-    assert user.claims["name"] == "Alice"
+    assert user.get_user_identifier() == "alice"
+    assert user.get_name() == "Alice"
 
 
 @pytest.mark.anyio
@@ -298,6 +299,10 @@ async def test_a_plain_provider_loads_the_user_by_identifier() -> None:
         @override
         async def load_user_by_identifier(self, identifier: str) -> UserInterface:
             return InMemoryUser(identifier, roles=["ROLE_STAFF"])
+
+        @override
+        async def refresh_user(self, user: UserInterface) -> UserInterface:
+            return user
 
         @override
         def supports_class(self, user_class: type) -> bool:
@@ -327,6 +332,10 @@ async def test_an_attributes_based_provider_receives_the_claims() -> None:
         ) -> UserInterface:
             seen.update(attributes or {})
             return InMemoryUser(identifier, roles=["ROLE_USER"])
+
+        @override
+        async def refresh_user(self, user: UserInterface) -> UserInterface:
+            return user
 
         @override
         def supports_class(self, user_class: type) -> bool:

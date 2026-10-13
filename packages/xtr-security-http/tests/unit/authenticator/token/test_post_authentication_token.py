@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
 from xtr_security_core.authentication.token.token_interface import TokenInterface
+from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user import InMemoryUser
 
 from xtr_security_http.authenticator.token import PostAuthenticationToken
@@ -10,6 +12,11 @@ from xtr_security_http.authenticator.token import PostAuthenticationToken
 
 def test_it_inherits_the_token_interface() -> None:
     assert TokenInterface in PostAuthenticationToken.__mro__
+
+
+def test_an_empty_firewall_name_is_refused() -> None:
+    with pytest.raises(InvalidArgumentError, match="firewall_name"):
+        _ = PostAuthenticationToken(InMemoryUser("alice"), "", ["ROLE_USER"])
 
 
 def test_it_keeps_the_firewall_user_and_roles() -> None:

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
 
+from xtr_security_core.exception import InvalidArgumentError
+
 from .abstract_token import AbstractToken
 
 if TYPE_CHECKING:
@@ -37,9 +39,16 @@ class UsernamePasswordToken(AbstractToken):
         firewall_name: str,
         roles: Sequence[str] = (),
     ) -> None:
-        """Record the user, the firewall that authenticated them, and their roles."""
-        super().__init__(user=user, roles=roles)
+        """Record the user, the firewall that authenticated them, and their roles.
+
+        Raises:
+            InvalidArgumentError: When ``firewall_name`` is empty.
+        """
+        super().__init__(roles)
+        if firewall_name == "":
+            raise InvalidArgumentError('The "firewall_name" must not be empty.')
         self._firewall_name = firewall_name
+        self.set_user(user)
 
     def get_firewall_name(self) -> str:
         """Return the firewall (or unit of work) that authenticated the user."""

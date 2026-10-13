@@ -43,3 +43,7 @@ async def test_it_stops_pulling_at_the_first_opinion() -> None:
 
     assert result is True
     assert pulled == [ABSTAIN, GRANTED]
+
+
+def test_it_is_named_priority() -> None:
+    assert str(PriorityStrategy()) == "priority"

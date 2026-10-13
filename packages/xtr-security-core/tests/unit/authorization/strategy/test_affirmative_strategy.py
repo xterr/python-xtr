@@ -45,3 +45,7 @@ async def test_it_stops_pulling_at_the_first_grant() -> None:
 
     assert result is True
     assert pulled == [GRANTED]
+
+
+def test_it_is_named_affirmative() -> None:
+    assert str(AffirmativeStrategy()) == "affirmative"

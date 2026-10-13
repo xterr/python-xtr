@@ -17,6 +17,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
+from xtr_clock import ClockInterface  # noqa: TC002 -- a factory signature the container reads
 from xtr_dependency_injection import (
     Bundle,
     PassStage,
@@ -42,7 +43,9 @@ from xtr_security_core import (
     RoleHierarchyInterface,
     TokenStorage,
     TokenStorageInterface,
+    TraceableAccessDecisionManager,
     TraceableVoter,
+    UserAuthorizationCheckerInterface,
     VoterInterface,
 )
 from xtr_security_http import (
@@ -92,6 +95,7 @@ _SCHEME_MIDDLEWARE_PRIORITY = -4096
 @final
 @required_bundle(EventDispatcherBundle)
 @required_bundle(HttpKernelBundle)
+@required_bundle("xtr_clock.bundle:ClockBundle", ignore_on_invalid=True)
 @required_bundle("xtr_logging.bundle:LoggingBundle", ignore_on_invalid=True)
 @required_bundle("xtr_console.bundle:ConsoleBundle", ignore_on_invalid=True)
 @as_bundle("security", config=SecurityConfig)
@@ -146,19 +150,30 @@ class SecurityBundle(Bundle[SecurityConfig]):
 
         _ = services.instance(RoleHierarchy(config.role_hierarchy))
         services.alias(RoleHierarchyInterface, RoleHierarchy)
-        _ = services.instance(AuthenticationTrustResolver())
+        if bundle_active(builder, "clock"):
+            _ = services.set(_authentication_trust_resolver)
+        else:
+            _ = services.instance(AuthenticationTrustResolver())
         services.alias(AuthenticationTrustResolverInterface, AuthenticationTrustResolver)
 
         register_voters(services)
         _ = services.set(
             _access_decision_manager_factory(self._strategy, trace_votes=self._trace_votes)
         ).set_argument("voter_qualifiers", ())
-        services.alias(AccessDecisionManagerInterface, AccessDecisionManager)
+        if self._trace_votes:
+            _ = services.set(_traceable_access_decision_manager, lifetime="scoped").add_tag(
+                "kernel.reset", method="reset"
+            )
+            services.alias(AccessDecisionManagerInterface, TraceableAccessDecisionManager)
+            services.load("xtr_security.event_listener.vote_listener")
+        else:
+            services.alias(AccessDecisionManagerInterface, AccessDecisionManager)
 
         _ = services.set(TokenStorage, lifetime="scoped").add_tag("kernel.reset", method="reset")
         services.alias(TokenStorageInterface, TokenStorage)
         _ = services.set(_authorization_checker, lifetime="scoped")
         services.alias(AuthorizationCheckerInterface, AuthorizationChecker)
+        services.alias(UserAuthorizationCheckerInterface, AuthorizationChecker)
         services.alias(GuestAuthorizationCheckerInterface, AuthorizationChecker)
         _ = services.set(_security_facade, lifetime="scoped")
 
@@ -339,6 +354,18 @@ def _authorization_checker(
 ) -> AuthorizationChecker:
     """Build the authorization checker over the request's storage and the manager."""
     return AuthorizationChecker(token_storage, access_decision_manager)
+
+
+def _authentication_trust_resolver(clock: ClockInterface) -> AuthenticationTrustResolver:
+    """Build the trust resolver reading recency from the application's clock."""
+    return AuthenticationTrustResolver(clock=clock)
+
+
+def _traceable_access_decision_manager(
+    manager: AccessDecisionManager,
+) -> TraceableAccessDecisionManager:
+    """Build the request's traceable decision manager over the shared one."""
+    return TraceableAccessDecisionManager(manager)
 
 
 def _security_facade(

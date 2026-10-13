@@ -107,9 +107,35 @@ async def test_the_user_password_hasher_is_wired(container: ContainerInterface) 
     assert hasher.is_password_valid(InMemoryUser("bob", password=stored), "s3cret")
 
 
-async def test_tracing_dispatches_a_vote_event(container: ContainerInterface) -> None:
+async def test_tracing_logs_each_decision_and_its_votes(container: ContainerInterface) -> None:
+    from xtr_security_core import Access, AuthenticatedVoter, TraceableAccessDecisionManager
+
     async with unit_of_work(container) as unit:
         await _run(unit, _request("good"), ("books:read",))
+        manager = await unit.get(AccessDecisionManagerInterface)
+        assert isinstance(manager, TraceableAccessDecisionManager)
+        log = manager.get_decision_log()
+
+    assert len(log) == 2
+    assert log[0]["attributes"] == ("IS_AUTHENTICATED",)
+    assert all(entry["result"] is True for entry in log)
+    first_votes = cast("list[dict[str, object]]", log[0]["voter_details"])
+    (detail,) = first_votes
+    assert isinstance(detail["voter"], AuthenticatedVoter)
+    assert detail["vote"] is Access.GRANTED
+    assert detail["reasons"] == ("The user is authenticated.",)
+    assert manager.get_strategy() == "affirmative"
+
+
+async def test_each_unit_of_work_gets_its_own_decision_log(container: ContainerInterface) -> None:
+    async with unit_of_work(container) as unit:
+        await _run(unit, _request("good"))
+        first = await unit.get(AccessDecisionManagerInterface)
+
+    async with unit_of_work(container) as unit:
+        second = await unit.get(AccessDecisionManagerInterface)
+
+    assert first is not second
 
 
 async def test_the_credentials_check_is_wired_with_a_dummy_hasher(

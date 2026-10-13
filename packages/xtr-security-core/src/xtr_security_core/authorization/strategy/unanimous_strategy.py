@@ -52,3 +52,8 @@ class UnanimousStrategy(AccessDecisionStrategyInterface):
         if granted > 0:
             return True
         return self.allow_if_all_abstain
+
+    @override
+    def __str__(self) -> str:
+        """Name the strategy as a decision records it."""
+        return "unanimous"

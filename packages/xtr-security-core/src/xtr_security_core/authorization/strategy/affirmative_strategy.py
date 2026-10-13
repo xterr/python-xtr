@@ -43,12 +43,20 @@ class AffirmativeStrategy(AccessDecisionStrategyInterface):
     ) -> bool:
         """Grant on the first grant, pulling no further; else deny or the abstain rule."""
         del access_decision
-        denied = False
+        deny = 0
         async for result in results:
             if result is Access.GRANTED:
                 return True
+
             if result is Access.DENIED:
-                denied = True
-        if denied:
+                deny += 1
+
+        if deny > 0:
             return False
+
         return self.allow_if_all_abstain
+
+    @override
+    def __str__(self) -> str:
+        """Name the strategy as a decision records it."""
+        return "affirmative"

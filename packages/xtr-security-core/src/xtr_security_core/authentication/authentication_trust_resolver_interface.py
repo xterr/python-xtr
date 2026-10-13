@@ -12,19 +12,34 @@ __all__ = ["AuthenticationTrustResolverInterface"]
 
 @runtime_checkable
 class AuthenticationTrustResolverInterface(Protocol):
-    """Reads the strength of an authentication from a token.
+    """Resolves the authentication status of a given token.
 
     A voter granting ``IS_AUTHENTICATED`` asks only whether anyone is behind
-    the token; one granting ``IS_AUTHENTICATED_FULLY`` asks whether they
-    authenticated this unit of work rather than being carried over. This
-    contract answers both without any voter having to know how a token was
-    made.
+    the token; one granting ``IS_AUTHENTICATED_FULLY`` asks whether they proved
+    their credentials rather than being remembered; one granting
+    ``IS_AUTHENTICATED_RECENTLY`` asks how long ago they did. This contract
+    answers each without any voter having to know how a token was made.
     """
 
-    def is_authenticated(self, token: TokenInterface | None) -> bool:
-        """Tell whether ``token`` carries an authenticated user at all."""
+    def is_authenticated(self, token: TokenInterface | None = None) -> bool:
+        """Resolve whether ``token`` is authenticated."""
         ...
 
-    def is_full_fledged(self, token: TokenInterface | None) -> bool:
-        """Tell whether ``token`` was fully authenticated this unit of work."""
+    def is_remember_me(self, token: TokenInterface | None = None) -> bool:
+        """Resolve whether ``token`` is authenticated using remember-me capabilities."""
+        ...
+
+    def is_full_fledged(self, token: TokenInterface | None = None) -> bool:
+        """Resolve whether ``token`` is fully authenticated."""
+        ...
+
+    def is_authenticated_recently(self, token: TokenInterface | None = None) -> bool:
+        """Resolve whether the user authenticated recently enough for a sensitive action."""
+        ...
+
+    def is_authenticated_very_recently(self, token: TokenInterface | None = None) -> bool:
+        """Resolve whether the user authenticated recently enough for the most sensitive actions.
+
+        A stricter bar than :meth:`is_authenticated_recently`.
+        """
         ...

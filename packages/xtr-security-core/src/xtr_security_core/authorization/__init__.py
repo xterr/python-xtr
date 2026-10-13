@@ -16,6 +16,8 @@ from .strategy import (
     PriorityStrategy,
     UnanimousStrategy,
 )
+from .traceable_access_decision_manager import TraceableAccessDecisionManager
+from .user_authorization_checker_interface import UserAuthorizationCheckerInterface
 from .voter import (
     Access,
     AuthenticatedVoter,
@@ -47,8 +49,10 @@ __all__ = [
     "PriorityStrategy",
     "RoleHierarchyVoter",
     "RoleVoter",
+    "TraceableAccessDecisionManager",
     "TraceableVoter",
     "UnanimousStrategy",
+    "UserAuthorizationCheckerInterface",
     "Vote",
     "Voter",
     "VoterInterface",

@@ -131,3 +131,49 @@ def test_a_re_asked_role_set_outlives_a_newer_one(monkeypatch: pytest.MonkeyPatc
         _ = hierarchy.get_reachable_role_names([role])
 
     assert list(hierarchy._memo) == [frozenset({"ROLE_FIRST"}), frozenset({"ROLE_THIRD"})]
+
+
+def test_parent_roles_include_the_role_and_every_role_reaching_it() -> None:
+    hierarchy = RoleHierarchy(
+        {
+            "ROLE_ADMIN": ["ROLE_EDITOR"],
+            "ROLE_EDITOR": ["ROLE_USER"],
+            "ROLE_AUDITOR": ["ROLE_USER"],
+            "ROLE_OTHER": ["ROLE_GUEST"],
+        },
+    )
+
+    assert hierarchy.get_parent_role_names(["ROLE_USER"]) == [
+        "ROLE_USER",
+        "ROLE_ADMIN",
+        "ROLE_EDITOR",
+        "ROLE_AUDITOR",
+    ]
+
+
+def test_a_role_nobody_reaches_is_its_own_only_parent() -> None:
+    hierarchy = RoleHierarchy({"ROLE_ADMIN": ["ROLE_USER"]})
+
+    assert hierarchy.get_parent_role_names(["ROLE_ADMIN"]) == ["ROLE_ADMIN"]
+
+
+def test_parent_roles_of_several_roles_are_merged_without_duplicates() -> None:
+    hierarchy = RoleHierarchy({"ROLE_ADMIN": ["ROLE_A", "ROLE_B"]})
+
+    assert hierarchy.get_parent_role_names(["ROLE_A", "ROLE_B"]) == [
+        "ROLE_A",
+        "ROLE_ADMIN",
+        "ROLE_B",
+    ]
+
+
+def test_a_wildcard_key_is_never_a_parent() -> None:
+    hierarchy = RoleHierarchy({"ROLE_TENANT_*_ADMIN": ["ROLE_TENANT_*_USER"]})
+
+    assert hierarchy.get_parent_role_names(["ROLE_TENANT_42_USER"]) == ["ROLE_TENANT_42_USER"]
+
+
+def test_parent_roles_survive_a_cycle() -> None:
+    hierarchy = RoleHierarchy({"ROLE_A": ["ROLE_B"], "ROLE_B": ["ROLE_A"]})
+
+    assert hierarchy.get_parent_role_names(["ROLE_A"]) == ["ROLE_A", "ROLE_B"]

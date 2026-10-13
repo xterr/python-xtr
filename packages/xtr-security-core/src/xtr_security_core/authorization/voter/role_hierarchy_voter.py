@@ -18,13 +18,15 @@ __all__ = ["RoleHierarchyVoter"]
 
 
 class RoleHierarchyVoter(RoleVoter):
-    """Grants roles the token reaches, not only those it holds directly.
+    """Uses a role hierarchy to determine the roles granted to the user before voting.
 
     The same as :class:`~xtr_security_core.authorization.voter.role_voter.RoleVoter`,
-    except the token's roles are first expanded through a role hierarchy — so a
+    except the token's roles are first expanded through the hierarchy — so a
     token holding ``ROLE_ADMIN`` is granted ``ROLE_USER`` when the hierarchy
     says the one reaches the other.
     """
+
+    __slots__: tuple[str, ...] = ("_role_hierarchy",)
 
     _role_hierarchy: RoleHierarchyInterface
 
@@ -34,6 +36,6 @@ class RoleHierarchyVoter(RoleVoter):
         self._role_hierarchy = role_hierarchy
 
     @override
-    def _extract_role_names(self, token: TokenInterface) -> Sequence[str]:
+    def _extract_roles(self, token: TokenInterface) -> Sequence[str]:
         """Return the token's roles and every role they reach through the hierarchy."""
-        return self._role_hierarchy.get_reachable_role_names(list(token.get_role_names()))
+        return self._role_hierarchy.get_reachable_role_names(token.get_role_names())

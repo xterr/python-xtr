@@ -73,6 +73,37 @@ class ChainUserProvider(AttributesBasedUserProviderInterface, PasswordUpgraderIn
         return any(provider.supports_class(user_class) for provider in self._providers)
 
     @override
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        """Refresh ``user`` with the first provider supporting its class that has it.
+
+        A provider turning the user away, or no longer finding it, is skipped.
+
+        Raises:
+            UserNotFoundError: When a provider supported the user but none found it.
+            UnsupportedUserError: When no provider supports the user's class.
+        """
+        supported_user_found = False
+        for provider in self._providers:
+            try:
+                if not provider.supports_class(type(user)):
+                    continue
+                return await provider.refresh_user(user)
+            except UnsupportedUserError:
+                continue
+            except UserNotFoundError:
+                supported_user_found = True
+
+        if supported_user_found:
+            identifier = user.get_user_identifier()
+            raise UserNotFoundError(identifier, f'There is no user with name "{identifier}".')
+
+        raise UnsupportedUserError(
+            f'There is no user provider for user "{type(user).__qualname__}". '
+            'Shouldn\'t the "supports_class()" method of your user provider return true '
+            "for this class?",
+        )
+
+    @override
     async def upgrade_password(
         self,
         user: PasswordAuthenticatedUserInterface,

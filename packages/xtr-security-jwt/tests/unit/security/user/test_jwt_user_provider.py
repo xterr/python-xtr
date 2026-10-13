@@ -19,6 +19,12 @@ def test_it_implements_the_attributes_based_provider() -> None:
     assert AttributesBasedUserProviderInterface in JwtUserProvider.__mro__
 
 
+async def test_refresh_user_returns_the_user_unchanged() -> None:
+    user = await JwtUserProvider().load_user_by_identifier("alice", {"roles": ["ROLE_USER"]})
+
+    assert await JwtUserProvider().refresh_user(user) is user
+
+
 async def test_it_builds_a_user_from_the_payload() -> None:
     provider = JwtUserProvider()
 

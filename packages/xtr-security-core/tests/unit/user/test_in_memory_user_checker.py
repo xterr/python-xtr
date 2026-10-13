@@ -30,7 +30,7 @@ async def test_it_refuses_a_disabled_user() -> None:
 
 @pytest.mark.anyio
 async def test_it_leaves_a_user_without_the_enabled_flag_alone() -> None:
-    await InMemoryUserChecker().check_pre_auth(OidcUser({"sub": "alice"}))
+    await InMemoryUserChecker().check_pre_auth(OidcUser(sub="alice"))
 
 
 @pytest.mark.anyio

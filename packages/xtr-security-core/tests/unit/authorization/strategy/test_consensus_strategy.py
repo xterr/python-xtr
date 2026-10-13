@@ -55,3 +55,7 @@ async def test_it_consumes_every_vote() -> None:
 
     assert result is True
     assert pulled == [GRANTED, GRANTED, DENIED]
+
+
+def test_it_is_named_consensus() -> None:
+    assert str(ConsensusStrategy()) == "consensus"

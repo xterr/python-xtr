@@ -269,4 +269,4 @@ class _PlainToken(AbstractToken):
     """A security token of another kind: it keeps no compact token at all."""
 
     def __init__(self) -> None:
-        super().__init__(user=None, roles=())
+        super().__init__(roles=())

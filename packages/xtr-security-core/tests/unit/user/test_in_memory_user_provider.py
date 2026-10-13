@@ -4,8 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from xtr_security_core.exception import InvalidArgumentError, UserNotFoundError
-from xtr_security_core.user import InMemoryUser, InMemoryUserProvider, UserProviderInterface
+from xtr_security_core.exception import (
+    InvalidArgumentError,
+    UnsupportedUserError,
+    UserNotFoundError,
+)
+from xtr_security_core.user import (
+    InMemoryUser,
+    InMemoryUserProvider,
+    OidcUser,
+    UserProviderInterface,
+)
 
 
 def test_it_inherits_the_user_provider_interface() -> None:
@@ -88,3 +97,28 @@ async def test_add_user_extends_the_set() -> None:
     provider.add_user(InMemoryUser("late"))
 
     assert (await provider.load_user_by_identifier("late")).get_user_identifier() == "late"
+
+
+@pytest.mark.anyio
+async def test_refresh_user_returns_a_fresh_copy_of_the_stored_user() -> None:
+    stored = InMemoryUser("alice", password="hash", roles=["ROLE_NEW"], enabled=False)  # noqa: S106 — a dummy hash fixture, not a secret
+    provider = InMemoryUserProvider({"alice": stored})
+
+    refreshed = await provider.refresh_user(InMemoryUser("alice", roles=["ROLE_OLD"]))
+
+    assert refreshed == stored
+    assert refreshed is not stored
+
+
+@pytest.mark.anyio
+async def test_refresh_user_refuses_a_user_of_another_class() -> None:
+    provider = InMemoryUserProvider({"alice": InMemoryUser("alice")})
+
+    with pytest.raises(UnsupportedUserError, match='Instances of "OidcUser" are not supported'):
+        _ = await provider.refresh_user(OidcUser(sub="alice"))
+
+
+@pytest.mark.anyio
+async def test_refresh_user_of_a_user_no_longer_held_is_not_found() -> None:
+    with pytest.raises(UserNotFoundError):
+        _ = await InMemoryUserProvider().refresh_user(InMemoryUser("alice"))

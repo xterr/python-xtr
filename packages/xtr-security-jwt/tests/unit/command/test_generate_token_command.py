@@ -119,6 +119,10 @@ class _MissingProvider(UserProviderInterface):
         raise UserNotFoundError(identifier)
 
     @override
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        raise UserNotFoundError(user.get_user_identifier())
+
+    @override
     def supports_class(self, user_class: type) -> bool:
         return issubclass(user_class, InMemoryUser)
 

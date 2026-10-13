@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
+from typing_extensions import override
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
@@ -20,11 +22,13 @@ class TokenInterface(Protocol):
     roles are fixed when the token is created, decoupled from whatever the
     live user object may report later, so a decision reads a stable snapshot.
     Attributes carry extra data an authenticator or a listener attached — the
-    scopes of a bearer token, the client it was issued to.
+    scopes of a bearer token, the client it was issued to. The authentication
+    proofs record which methods the user proved, and when.
     """
 
-    def get_user(self) -> UserInterface | None:
-        """Return the authenticated user, or ``None`` for nobody."""
+    @override
+    def __str__(self) -> str:
+        """Return a representation of the token, for debugging only."""
         ...
 
     def get_user_identifier(self) -> str:
@@ -35,8 +39,28 @@ class TokenInterface(Protocol):
         """Return the roles fixed on this token at creation."""
         ...
 
+    def get_user(self) -> UserInterface | None:
+        """Return the authenticated user, or ``None`` for nobody."""
+        ...
+
+    def set_user(self, user: UserInterface) -> None:
+        """Set the authenticated user on this token.
+
+        Raises:
+            BadMethodCallError: When this token accepts no user.
+        """
+        ...
+
     def get_attributes(self) -> Mapping[str, object]:
         """Return every attribute attached to this token, read-only."""
+        ...
+
+    def set_attributes(self, attributes: Mapping[str, object]) -> None:
+        """Replace every attribute attached to this token with ``attributes``."""
+        ...
+
+    def has_attribute(self, name: str) -> bool:
+        """Tell whether an attribute is attached under ``name``."""
         ...
 
     def get_attribute(self, name: str) -> object:
@@ -47,10 +71,24 @@ class TokenInterface(Protocol):
         """
         ...
 
-    def has_attribute(self, name: str) -> bool:
-        """Tell whether an attribute is attached under ``name``."""
-        ...
-
     def set_attribute(self, name: str, value: object) -> None:
         """Attach ``value`` under ``name``, replacing any attribute there."""
+        ...
+
+    def get_authentication_proofs(self) -> Mapping[str, int]:
+        """Return the authentication methods the user proved.
+
+        Each key is an
+        :class:`~xtr_security_core.authentication.authentication_method.AuthenticationMethod`
+        value, mapped to the Unix timestamp of the last proof of that method.
+        """
+        ...
+
+    def set_authentication_proofs(self, proofs: Mapping[str, int]) -> None:
+        """Record the authentication methods the user proved.
+
+        Each key is an
+        :class:`~xtr_security_core.authentication.authentication_method.AuthenticationMethod`
+        value, mapped to the Unix timestamp of the last proof of that method.
+        """
         ...

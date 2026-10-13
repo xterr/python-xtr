@@ -5,9 +5,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
+from xtr_clock import ClockInterface
+from xtr_clock.bundle import ClockBundle
 from xtr_dependency_injection import Kernel, unit_of_work
 from xtr_dependency_injection.testing import assert_zero_config, boot_for_test
-from xtr_security_core import AccessDecisionManagerInterface, TokenStorageInterface
+from xtr_security_core import (
+    AccessDecisionManagerInterface,
+    AuthenticationTrustResolver,
+    AuthenticationTrustResolverInterface,
+    AuthorizationChecker,
+    TokenStorageInterface,
+    UserAuthorizationCheckerInterface,
+)
 from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
 from xtr_security.bundle import OidcTokenHandlerFactory, SecurityBundle, SecurityConfig
@@ -31,6 +40,32 @@ async def test_the_core_services_are_registered_unconfigured() -> None:
     async with await boot_for_test(kernel) as booted:
         assert booted.container.has(AccessDecisionManagerInterface)
         assert booted.container.has(TokenStorageInterface)
+
+
+async def test_the_user_authorization_checker_is_the_authorization_checker() -> None:
+    kernel = Kernel(
+        "tests.fixtures.security_app",
+        env="test",
+        bundles={SecurityBundle: {"all": True}},
+    )
+    async with await boot_for_test(kernel) as booted, unit_of_work(booted.container) as unit:
+        checker = await unit.get(UserAuthorizationCheckerInterface)
+
+    assert isinstance(checker, AuthorizationChecker)
+
+
+async def test_the_trust_resolver_reads_the_application_clock_when_one_is_active() -> None:
+    kernel = Kernel(
+        "tests.fixtures.security_app",
+        env="test",
+        bundles={SecurityBundle: {"all": True}, ClockBundle: {"all": True}},
+    )
+    async with await boot_for_test(kernel) as booted:
+        resolver = await booted.container.get(AuthenticationTrustResolverInterface)
+        clock = await booted.container.get(ClockInterface)
+
+    assert isinstance(resolver, AuthenticationTrustResolver)
+    assert resolver._clock is clock
 
 
 async def test_the_firewall_map_is_empty_when_no_firewall_is_configured() -> None:

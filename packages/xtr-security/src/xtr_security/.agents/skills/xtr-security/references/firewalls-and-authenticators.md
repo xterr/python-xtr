@@ -14,7 +14,7 @@ from `xtr_security.bundle`.
 | `access_control` | `()` | The access-control rules, tried in order |
 | `access_decision_manager` | affirmative | `AccessDecisionManagerConfig` — how the votes become one decision |
 | `expose_security_errors` | `ExposeSecurityLevel.NONE` | How much of an authentication failure reaches the client |
-| `trace_votes` | `None` | Announce every vote as an event; `None` follows the kernel's debug flag |
+| `trace_votes` | `None` | Announce every vote as an event and log every decision; `None` follows the kernel's debug flag |
 | `authenticator_factories` | built-ins | The factories that build firewalls' authenticators |
 | `token_handler_factories` | built-ins | The factories that build access-token handlers |
 | `user_provider_factories` | built-ins | The factories that build user providers |
@@ -32,7 +32,7 @@ A firewall naming a `provider` that is not declared fails the build with
 | `request_matcher` | `None` | A callable `(Request) -> bool`, tried last |
 | `security` | `True` | `False` lets every request the firewall claims through untouched |
 | `stateless` | `True` | Only `True` is accepted; `False` raises `InvalidConfigurationError` |
-| `provider` | `None` | The name of the user provider the firewall loads users from |
+| `provider` | `None` | The name of the user provider the firewall loads users from; with none here and none configured, an authenticator needing one gets a `MissingUserProvider` that fails, naming the firewall, when first used |
 | `user_checker` | `None` | A user-checker service type, or the default in-memory checker |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
 | `access_denied_handler` | `None` | A handler service type for a denied, fully-authenticated caller |
@@ -57,8 +57,9 @@ a rule needing two conditions is two rules, or one closure attribute.
 | `ServiceUserProviderConfig(service=MyUserProvider, qualifier=None)` | a provider the container provides |
 
 Write your own by implementing `UserProviderInterface` from `xtr_security_core`:
-`load_user_by_identifier(identifier)` (raising `UserNotFoundError`) and
-`supports_class(user_class)`. Register it `@as_service` and name it with
+`load_user_by_identifier(identifier)` (raising `UserNotFoundError`), `refresh_user(user)`
+(reloading a user held from an earlier request; raising `UnsupportedUserError` for a class it
+does not load) and `supports_class(user_class)`. Register it `@as_service` and name it with
 `ServiceUserProviderConfig`. Implement `PasswordUpgraderInterface` as well and the password
 migrating listener re-stores a rehashed password for you after a successful sign-in.
 
@@ -161,5 +162,8 @@ becomes `403`, or the entry-point challenge when the caller is not fully authent
 Only a library shipping its own bundle needs this. Implement `AuthenticatorFactoryInterface`
 (a `key`, a `priority`, a `config_type` and `create_authenticator(...)`) and prepend it onto the
 security configuration from the bundle's `prepend_extension` hook with `add_authenticator_factory`.
+A factory whose authenticator can do without a user provider inherits
+`StatelessAuthenticatorFactoryInterface`: it is handed no provider, rather than a
+`MissingUserProvider`, when the application configures none.
 `add_token_handler_factory` and `add_user_provider_factory` are the same seam for the other two
 registries. An application configures what those factories accept; it does not write factories.

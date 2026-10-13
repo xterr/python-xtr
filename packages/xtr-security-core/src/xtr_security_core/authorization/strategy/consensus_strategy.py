@@ -59,3 +59,8 @@ class ConsensusStrategy(AccessDecisionStrategyInterface):
         if granted > 0:
             return self.allow_if_equal_granted_denied
         return self.allow_if_all_abstain
+
+    @override
+    def __str__(self) -> str:
+        """Name the strategy as a decision records it."""
+        return "consensus"

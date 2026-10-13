@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from xtr_security_core.authentication.token import AbstractToken, UsernamePasswordToken
+from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user import InMemoryUser
 
 
@@ -25,3 +28,8 @@ def test_its_roles_default_to_empty() -> None:
 
     assert token.get_role_names() == ()
     assert token.get_firewall_name() == "worker"
+
+
+def test_an_empty_firewall_name_is_refused() -> None:
+    with pytest.raises(InvalidArgumentError, match="firewall_name"):
+        _ = UsernamePasswordToken(InMemoryUser("alice"), "")

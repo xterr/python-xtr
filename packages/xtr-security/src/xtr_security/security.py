@@ -68,12 +68,12 @@ class Security(AuthorizationCheckerInterface, GuestAuthorizationCheckerInterface
     @override
     async def is_granted_for_user(
         self,
-        user: UserInterface,
+        user: UserInterface | None,
         attribute: object,
         subject: object = None,
         access_decision: AccessDecision | None = None,
     ) -> bool:
-        """Tell whether ``user`` may have ``attribute`` over ``subject``.
+        """Tell whether ``user`` — or a guest, for ``None`` — may have ``attribute``.
 
         Raises:
             UnsupportedUserError: When the checker cannot decide for a given

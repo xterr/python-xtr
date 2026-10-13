@@ -25,27 +25,43 @@ def _token(*roles: str) -> UsernamePasswordToken:
 
 
 @pytest.mark.anyio
-async def test_grants_a_held_role() -> None:
-    result = await RoleVoter().vote(_token("ROLE_USER"), None, ["ROLE_USER"])
+async def test_grants_a_held_role_and_says_so() -> None:
+    vote = Vote()
+
+    result = await RoleVoter().vote(_token("ROLE_USER"), None, ["ROLE_USER"], vote)
 
     assert result is Access.GRANTED
+    assert vote.reasons == ["The user has ROLE_USER."]
 
 
 @pytest.mark.anyio
-async def test_denies_a_role_not_held() -> None:
+async def test_denies_a_role_not_held_and_names_it() -> None:
     vote = Vote()
 
     result = await RoleVoter().vote(_token("ROLE_USER"), None, ["ROLE_ADMIN"], vote)
 
     assert result is Access.DENIED
-    assert vote.reasons
+    assert vote.reasons == ["The user doesn't have ROLE_ADMIN."]
+
+
+@pytest.mark.anyio
+async def test_denies_several_roles_not_held_in_one_reason() -> None:
+    vote = Vote()
+
+    result = await RoleVoter().vote(_token("ROLE_USER"), None, ["ROLE_A", "OTHER", "ROLE_B"], vote)
+
+    assert result is Access.DENIED
+    assert vote.reasons == ["The user doesn't have any of ROLE_A, ROLE_B."]
 
 
 @pytest.mark.anyio
 async def test_abstains_on_a_non_role_attribute() -> None:
-    result = await RoleVoter().vote(_token("ROLE_USER"), None, ["OTHER"])
+    vote = Vote()
+
+    result = await RoleVoter().vote(_token("ROLE_USER"), None, ["OTHER", 42], vote)
 
     assert result is Access.ABSTAIN
+    assert vote.reasons == []
 
 
 def test_supports_by_prefix() -> None:

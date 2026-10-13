@@ -73,6 +73,9 @@ async def test_upgrade_password_fans_out_to_capable_providers() -> None:
         async def load_user_by_identifier(self, identifier: str) -> UserInterface:
             return InMemoryUser(identifier)
 
+        async def refresh_user(self, user: UserInterface) -> UserInterface:
+            return user
+
         def supports_class(self, user_class: type) -> bool:
             return issubclass(user_class, InMemoryUser)
 
@@ -100,6 +103,9 @@ async def test_upgrade_password_swallows_a_provider_that_turns_the_user_away() -
         async def load_user_by_identifier(self, identifier: str) -> UserInterface:
             return InMemoryUser(identifier)
 
+        async def refresh_user(self, user: UserInterface) -> UserInterface:
+            return user
+
         def supports_class(self, user_class: type) -> bool:
             return issubclass(user_class, InMemoryUser)
 
@@ -115,6 +121,9 @@ async def test_upgrade_password_swallows_a_provider_that_turns_the_user_away() -
     class Accepting:
         async def load_user_by_identifier(self, identifier: str) -> UserInterface:
             return InMemoryUser(identifier)
+
+        async def refresh_user(self, user: UserInterface) -> UserInterface:
+            return user
 
         def supports_class(self, user_class: type) -> bool:
             return issubclass(user_class, InMemoryUser)
@@ -150,6 +159,10 @@ async def test_attributes_are_forwarded_to_an_attributes_based_provider() -> Non
             return InMemoryUser(identifier)
 
         @override
+        async def refresh_user(self, user: UserInterface) -> UserInterface:
+            return user
+
+        @override
         def supports_class(self, user_class: type) -> bool:
             return issubclass(user_class, InMemoryUser)
 
@@ -167,3 +180,62 @@ async def test_a_plain_provider_is_not_handed_attributes() -> None:
     user = await chain.load_user_by_identifier("alice", {"scope": "read"})
 
     assert user.get_user_identifier() == "alice"
+
+
+@final
+class _Turning(UserProviderInterface):
+    """Supports the in-memory user, and turns it away or does not find it on refresh."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    @override
+    async def load_user_by_identifier(self, identifier: str) -> UserInterface:
+        raise UserNotFoundError(identifier)
+
+    @override
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        raise self._error
+
+    @override
+    def supports_class(self, user_class: type) -> bool:
+        return issubclass(user_class, InMemoryUser)
+
+
+@pytest.mark.anyio
+async def test_refresh_user_uses_the_first_provider_that_has_the_user() -> None:
+    first = InMemoryUserProvider()
+    second = InMemoryUserProvider({"alice": InMemoryUser("alice", roles=["ROLE_NEW"])})
+    chain = ChainUserProvider([first, second])
+
+    refreshed = await chain.refresh_user(InMemoryUser("alice", roles=["ROLE_OLD"]))
+
+    assert refreshed.get_roles() == ("ROLE_NEW",)
+
+
+@pytest.mark.anyio
+async def test_refresh_user_skips_a_provider_that_turns_the_user_away() -> None:
+    second = InMemoryUserProvider({"alice": InMemoryUser("alice")})
+    chain = ChainUserProvider([_Turning(UnsupportedUserError("no")), second])
+
+    refreshed = await chain.refresh_user(InMemoryUser("alice"))
+
+    assert refreshed.get_user_identifier() == "alice"
+
+
+@pytest.mark.anyio
+async def test_refresh_user_reports_not_found_when_a_supporting_provider_lost_the_user() -> None:
+    chain = ChainUserProvider([_Turning(UnsupportedUserError("no")), InMemoryUserProvider()])
+
+    with pytest.raises(UserNotFoundError, match='There is no user with name "alice"'):
+        _ = await chain.refresh_user(InMemoryUser("alice"))
+
+
+@pytest.mark.anyio
+async def test_refresh_user_reports_unsupported_when_no_provider_supports_the_user() -> None:
+    chain = ChainUserProvider([_Turning(UnsupportedUserError("no"))])
+
+    with pytest.raises(
+        UnsupportedUserError, match='There is no user provider for user "InMemoryUser"'
+    ):
+        _ = await chain.refresh_user(InMemoryUser("alice"))

@@ -105,4 +105,4 @@ async def test_deny_access_unless_granted_raises_with_the_decision() -> None:
     assert error.attributes == ("ROLE_ADMIN",)
     assert error.access_decision is not None
     assert error.access_decision.is_granted is False
-    assert error.access_decision.strategy == "AffirmativeStrategy"
+    assert error.access_decision.strategy == "affirmative"

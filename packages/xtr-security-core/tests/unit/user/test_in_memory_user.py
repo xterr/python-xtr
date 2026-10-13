@@ -86,7 +86,7 @@ def test_is_not_equal_on_different_roles() -> None:
 
 
 def test_is_not_equal_to_another_user_kind() -> None:
-    assert InMemoryUser("alice").is_equal_to(OidcUser({"sub": "alice"})) is False
+    assert InMemoryUser("alice").is_equal_to(OidcUser(sub="alice")) is False
 
 
 def test_two_users_without_a_password_are_equal() -> None:

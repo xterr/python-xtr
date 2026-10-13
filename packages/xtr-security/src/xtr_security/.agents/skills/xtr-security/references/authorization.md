@@ -64,12 +64,18 @@ voter's `supports` must be narrow.
 | --- | --- |
 | `RoleHierarchyVoter(hierarchy)` | a role the token's roles *reach* through the hierarchy |
 | `RoleVoter()` | a role the token holds outright |
-| `AuthenticatedVoter(trust_resolver)` | `IS_AUTHENTICATED`, `IS_AUTHENTICATED_FULLY`, `PUBLIC_ACCESS` |
+| `AuthenticatedVoter(trust_resolver)` | `IS_AUTHENTICATED_VERY_RECENTLY`, `IS_AUTHENTICATED_RECENTLY`, `IS_AUTHENTICATED_FULLY`, `IS_AUTHENTICATED_REMEMBERED`, `IS_AUTHENTICATED`, `IS_REMEMBERED`, `IS_IMPERSONATOR` (never, as yet), `PUBLIC_ACCESS` asked alone |
 | `OAuth2ScopeVoter()` | an `OAUTH2_SCOPE(...)` attribute every scope of which the token holds |
 | `ClosureVoter()` | a callable attribute `(IsGrantedContext, subject) -> bool` returning `True` |
 
 The bundle registers all five and adds yours. `PUBLIC_ACCESS` is how an access-control rule says
 "open": it grants whether or not anybody is authenticated.
+
+The recency attributes read the token's authentication proofs —
+`token.set_authentication_proofs({AuthenticationMethod.PASSWORD: timestamp})` — against the trust
+resolver's windows (two hours, five minutes); a denied one requests a re-authentication on its
+vote. Asking an authentication attribute through `is_granted_for_user` raises
+`InvalidArgumentError`: how that user authenticated is unknown.
 
 ## Your voter
 
@@ -105,7 +111,10 @@ async def can_publish(context: IsGrantedContext, subject: object) -> bool:
 async def publish(isbn: str) -> None: ...
 ```
 
-`IsGrantedContext` carries the `token`, its `user`, and `is_granted(...)` for a nested question.
+`IsGrantedContext` carries the `token`, its `user`, `is_granted(...)` for a nested question —
+decided for the same token, its reasons reported on the closure's vote — and the
+`is_authenticated()`, `is_authenticated_fully()`, `is_authenticated_recently()`,
+`is_authenticated_very_recently()` and `is_impersonator()` shortcuts.
 
 ## The role hierarchy
 
@@ -116,6 +125,7 @@ captures a segment and substitutes it into the values, so
 `ROLE_TENANT_42_USER`.
 
 Standalone, `RoleHierarchy(mapping).get_reachable_role_names(roles)` is the same expansion.
+`get_parent_role_names(roles)` asks the inverse: every declared role that reaches one of them.
 
 ## OAuth2 scopes
 
@@ -143,6 +153,8 @@ schema. An access-token authenticator copies the badge's granted `scope` onto th
 
 `is_granted(attribute, subject=None, access_decision=None)` fills an `AccessDecision` when given
 one: every `Vote` cast, each with its `voter`, `result` and `reasons`, the deciding strategy's
-name and a `message`. `deny_access_unless_granted(...)` attaches one to the `AccessDeniedError` it
+name (`"affirmative"`, …) and a `message`. `deny_access_unless_granted(...)` attaches one to the `AccessDeniedError` it
 raises, which is how a handler can tell a caller *why*. With `trace_votes` on (the default in
-debug) each vote is also announced as a `VoteEvent` a listener can log.
+debug) each vote is also announced as a `VoteEvent` a listener can log, and the request's
+`AccessDecisionManagerInterface` is a `TraceableAccessDecisionManager` whose
+`get_decision_log()` lists every decision with its votes.

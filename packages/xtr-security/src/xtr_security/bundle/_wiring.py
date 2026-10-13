@@ -42,6 +42,7 @@ from xtr_security_core import (
     RoleHierarchyVoter,
     TokenStorageInterface,
 )
+from xtr_security_core.user.missing_user_provider import MissingUserProvider
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 from xtr_security_http import (
     AccessListener,
@@ -69,6 +70,9 @@ from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 from xtr_security.bundle.password_hasher_configs import AutoHasherConfig, ServiceHasherConfig
 from xtr_security.exception import InvalidConfigurationError
+from xtr_security.factory.stateless_authenticator_factory_interface import (
+    StatelessAuthenticatorFactoryInterface,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
@@ -504,16 +508,25 @@ def _register_authenticators(
     user_provider = (
         (UserProviderInterface, provider_qualifier) if provider_qualifier is not None else None
     )
+    # With no provider named by the firewall nor configured at all, every
+    # authenticator but a stateless one gets a placeholder that fails, naming
+    # the firewall, the first time it is used.
+    missing_user_provider = (
+        _register_missing_user_provider(services, name)
+        if user_provider is None and not config.providers
+        else None
+    )
     keys: list[tuple[int, ServiceKey]] = []
     for authenticator_config in firewall.authenticators:
         factory = _match_authenticator_factory(factories, authenticator_config, name)
         prepared = _prepare_factory(factory, token_handler_factories)
+        stateless = StatelessAuthenticatorFactoryInterface in type(prepared).__mro__
         created = prepared.create_authenticator(
             services,
             _NO_BUILDER,
             name,
             authenticator_config,
-            user_provider,
+            user_provider if stateless or missing_user_provider is None else missing_user_provider,
         )
         keys.extend((prepared.priority, key) for key in created)
     keys.sort(key=lambda entry: -entry[0])
@@ -531,6 +544,30 @@ def _register_authenticators(
         qualifiers.append(qualifier)
     entry_point_qualifier = _resolve_entry_point(config, name, firewall, ordered, qualifiers)
     return tuple(qualifiers), entry_point_qualifier
+
+
+def _register_missing_user_provider(services: ServiceConfigurator, name: str) -> ServiceKey:
+    """Register the placeholder provider of the firewall ``name``, and return its key.
+
+    It is a factory, so nothing is built — and nothing raises — until an
+    authenticator asks for it.
+    """
+    qualifier = f"security.user.provider.missing.{name}"
+
+    def missing_user_provider() -> MissingUserProvider:
+        return MissingUserProvider(name)
+
+    _ = services.set(
+        named_factory(missing_user_provider, f"missing_user_provider_{name}"),
+        qualifier=qualifier,
+    )
+    services.alias(
+        UserProviderInterface,
+        MissingUserProvider,
+        alias_qualifier=qualifier,
+        target_qualifier=qualifier,
+    )
+    return (UserProviderInterface, qualifier)
 
 
 def _prepare_factory(

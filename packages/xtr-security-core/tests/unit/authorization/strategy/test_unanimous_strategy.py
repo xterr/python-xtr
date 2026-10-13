@@ -43,3 +43,7 @@ async def test_it_stops_pulling_at_the_first_denial() -> None:
 
     assert result is False
     assert pulled == [DENIED]
+
+
+def test_it_is_named_unanimous() -> None:
+    assert str(UnanimousStrategy()) == "unanimous"

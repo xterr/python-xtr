@@ -42,8 +42,9 @@ request concern.
 uv add xtr-security-core
 ```
 
-Requires Python 3.11+. One sibling comes with it,
-[xtr-password-hasher](../xtr-password-hasher), for the password-authenticated user interface.
+Requires Python 3.11+. Two siblings come with it:
+[xtr-password-hasher](../xtr-password-hasher), for the password-authenticated user interface, and
+[xtr-clock](../xtr-clock), the clock the trust resolver measures recent authentication with.
 
 ## Quick start
 
@@ -150,13 +151,24 @@ A **`UserInterface`** is the smallest useful account: `get_user_identifier()` na
 `get_roles()` returns the roles it carries. `InMemoryUser(identifier, password=None, roles=(),
 enabled=True)` is one for tests and small deployments; it also answers `get_password()` (it is a
 [password-authenticated user](../xtr-password-hasher)), `is_enabled()` and `is_equal_to(other)`.
-`OidcUser(claims, identifier_claim="sub", roles=("ROLE_USER",))` is a user built from a verified
-token's own claims, for a deployment that keeps no user store.
+`OidcUser(user_identifier=None, roles=("ROLE_USER",), sub=..., name=..., email=..., ...)` carries
+the OpenID Connect standard claims, each read back with its getter (`get_sub()`, `get_email()`,
+…), and keeps every other keyword as an additional claim (`get_additional_claims()`); it is
+identified by `user_identifier` when given, by the required `sub` otherwise.
+`OidcUser.from_claims(claims)` builds one from a provider's claims — every claim is mapped, so
+only pass claims you trust. `OAuth2User(roles=("ROLE_USER",), scope=..., client_id=..., sub=...,
+username=..., ...)` carries a token introspection response, identified by its `sub`, else its
+`username`.
 
 A **`UserProviderInterface`** loads a user by identifier — `load_user_by_identifier(identifier)`,
-raising `UserNotFoundError` when none matches — and `supports_class(user_class)` tells which
-class it loads. `InMemoryUserProvider` holds a map of identifier to user; `ChainUserProvider`
-tries several in order and forwards a `upgrade_password` to whichever can.
+raising `UserNotFoundError` when none matches — reloads one held from an earlier unit of work —
+`refresh_user(user)`, raising `UnsupportedUserError` for a user of a class it does not load —
+and `supports_class(user_class)` tells which class it loads. `InMemoryUserProvider` holds a map
+of identifier to user; `ChainUserProvider` tries several in order, refreshes with the first that
+supports the user, and forwards a `upgrade_password` to whichever can. `OidcUserProvider` builds
+an `OidcUser` from the claims authentication collected — which can neither grant roles nor change
+the identifier — and returns it as-is on refresh. `MissingUserProvider(firewall)` stands for the
+provider of a firewall that needs one and has none: building it raises, naming the firewall.
 `AttributesBasedUserProviderInterface` adds an `attributes` mapping to the load, for a provider
 that reads a verified token's claims. `PasswordUpgraderInterface` is the one method a provider
 implements to store a freshly rehashed password, and `EquatableInterface.is_equal_to` lets two
@@ -169,17 +181,30 @@ refuses a disabled account with `DisabledError`; `ChainUserChecker` runs several
 ### Tokens and storage
 
 A **`TokenInterface`** carries the authenticated user (`get_user()`, `get_user_identifier()`),
-the roles fixed on it (`get_role_names()`), and a bag of attributes (`get_attribute`,
-`set_attribute`, `has_attribute`, `get_attributes`). `AbstractToken` is the base;
-`NullToken` is the anonymous caller, with no user and no roles; `UsernamePasswordToken(user,
-firewall_name, roles=())` adds the firewall (or unit of work) that authenticated the user,
-read back with `get_firewall_name()`.
+set with `set_user(user)`, the roles fixed on it (`get_role_names()`), a bag of attributes
+(`get_attribute`, `set_attribute`, `set_attributes`, `has_attribute`, `get_attributes`), and the
+authentication proofs — `get_authentication_proofs()` / `set_authentication_proofs(proofs)`, each
+**`AuthenticationMethod`** value (`PASSWORD`, `ONE_TIME_PASSWORD`, … as RFC 8176 names them)
+mapped to the Unix timestamp of its last proof. `AbstractToken(roles=())` is the base: the user is
+set afterwards, and setting it leaves the roles untouched. `NullToken` is the anonymous caller —
+no user, no roles, no attributes — and refuses a user, an attribute or a proof with
+`BadMethodCallError`. `UsernamePasswordToken(user, firewall_name, roles=())` adds the firewall
+(or unit of work) that authenticated the user, read back with `get_firewall_name()`.
+`OfflineTokenInterface` marks the token `is_granted_for_user` decides with; it is read from a
+token's class hierarchy, not structurally.
 
 **`TokenStorage`** holds the current token for one unit of work — `get_token()` /
-`set_token(token)` — and `reset()` forgets it so the next one starts clean. The
-**`AuthenticationTrustResolver`** reads a token's standing: `is_authenticated(token)` tells
-whether anyone is behind it, `is_full_fledged(token)` whether it was fully authenticated this
-unit of work.
+`set_token(token)` — and `reset()` forgets it so the next one starts clean.
+`set_initializer(callable)` defers producing the token: the callable runs once, the first time
+the token is read or just before one is stored.
+
+The **`AuthenticationTrustResolver(recent_lifetime=7200, very_recent_lifetime=300, clock=None)`**
+reads a token's standing: `is_authenticated(token)` tells whether a user is behind it,
+`is_remember_me(token)` whether it was remembered rather than proven (never, here: no remembered
+token exists), `is_full_fledged(token)` whether it is authenticated and not remembered, and
+`is_authenticated_recently(token)` / `is_authenticated_very_recently(token)` whether its last
+authentication proof falls within the two windows, read from the clock — the system clock when
+none is given.
 
 ### Voters, strategies and the decision
 
@@ -201,9 +226,11 @@ The **`AccessDecisionManager(voters, strategy)`** gathers the votes and folds th
 
 Each takes `allow_if_all_abstain` (and `ConsensusStrategy` a tie-breaker). `decide(token,
 attributes, subject=None, access_decision=None)` reports one `bool`, filling an optional
-**`AccessDecision`** with every `Vote` cast, the deciding strategy's name, and a `message`
-accounting for the outcome. Each `Vote` carries its `voter`, its `result`, and the `reasons` the
-voter added with `add_reason(...)`.
+**`AccessDecision`** with every `Vote` cast, the deciding strategy's name — its `str()`:
+`affirmative`, `consensus`, `unanimous`, `priority` — and a `message` accounting for the
+outcome. Each `Vote` carries its `voter`, its `result`, the `reasons` the voter added with
+`add_reason(...)`, any `extra_data`, and the `re_authentication_attribute` a voter set with
+`request_re_authentication(attribute)` when a fresh authentication could grant what it denied.
 
 The built-in voters:
 
@@ -211,21 +238,36 @@ The built-in voters:
 |---|---|---|
 | `RoleVoter(prefix="ROLE_")` | a role the token holds | the token's roles |
 | `RoleHierarchyVoter(hierarchy, prefix="ROLE_")` | a role the token's roles *reach* | the token's roles, expanded |
-| `AuthenticatedVoter(trust_resolver)` | `IS_AUTHENTICATED`, `IS_AUTHENTICATED_FULLY`, `PUBLIC_ACCESS` | the token's standing |
+| `AuthenticatedVoter(trust_resolver)` | `IS_AUTHENTICATED_VERY_RECENTLY`, `IS_AUTHENTICATED_RECENTLY`, `IS_AUTHENTICATED_FULLY`, `IS_AUTHENTICATED_REMEMBERED`, `IS_AUTHENTICATED`, `IS_REMEMBERED`, `IS_IMPERSONATOR` (never, as yet), and `PUBLIC_ACCESS` asked alone | the token's standing |
 | `ClosureVoter()` | a callable attribute returning `True` | a fresh `IsGrantedContext` |
 
+A denied recency attribute requests a re-authentication on its vote, and only the reason of the
+strictest attribute that failed is reported. Asking an authentication attribute about an offline
+token that carries a user raises `InvalidArgumentError`: how that user authenticated is unknown.
+
 A **`ClosureVoter`** runs a callable attribute `(IsGrantedContext, subject) -> bool`, so a
-one-off rule needs no class; the context it passes can defer to the manager again with
-`await context.is_granted(...)`.
+one-off rule needs no class. Each question the closure asks through its context is decided for
+the same token in a decision of its own; the voter reports the reasons those checks gave
+(`Closure <name> returned true.` / `… returned false.`), and forwards a re-authentication one of
+them requested.
 
 ### The authorization checker
 
 **`AuthorizationChecker(token_storage, access_decision_manager)`** is the one call the rest of
 an application makes: `is_granted(attribute, subject=None)` decides for the token currently in
-storage, and `is_granted_for_user(user, attribute, subject=None)` decides for a given user
-(`GuestAuthorizationCheckerInterface`) without touching storage. **`IsGrantedContext`** is the
-value a closure voter is handed — the `token`, its `user`, and `is_granted(...)` for a nested
-question.
+storage — the anonymous `NullToken` when none is set, or when the one set carries no user — and
+`is_granted_for_user(user, attribute, subject=None)` decides for a given user, or for a guest
+with `None` (`UserAuthorizationCheckerInterface`, `GuestAuthorizationCheckerInterface`), against
+an offline token built from the user's roles; a voter asking this checker while that decision
+runs is answered for the same offline token. **`IsGrantedContext`** is the value a closure voter
+is handed — the `token`, its `user`, `is_granted(...)` for a nested question, and the
+`is_authenticated()`, `is_authenticated_fully()`, `is_authenticated_recently()`,
+`is_authenticated_very_recently()` and `is_impersonator()` shortcuts.
+
+**`TraceableAccessDecisionManager(manager)`** decorates a decision manager to log every decision:
+its attributes, subject, result, and the votes fed to it through `add_voter_vote(...)`; read them
+back with `get_decision_log()`, `get_voters()` and `get_strategy()`, and `reset()` between units
+of work.
 
 ### Role hierarchy and wildcards
 
@@ -234,7 +276,8 @@ the input roles plus every role they reach transitively, with no duplicates and 
 cycles. A `*` in a key captures a segment of a
 matching role and substitutes it into the values, so
 `{"ROLE_TENANT_*_ADMIN": ["ROLE_TENANT_*_USER"]}` makes `ROLE_TENANT_42_ADMIN` reach
-`ROLE_TENANT_42_USER`.
+`ROLE_TENANT_42_USER`. `get_parent_role_names(roles)` asks the inverse question: the input roles
+plus every declared role that reaches one of them — a wildcard key is a pattern, never a parent.
 
 ### Tracing votes and events
 
@@ -244,7 +287,8 @@ decision can be read after the fact; `get_decorated_voter()` returns the voter i
 dispatcher keys on an event's qualified class name, so a listener names the class it listens
 to: `AuthenticationSuccessEvent` (once a token is created for an authenticated user) and
 `VoteEvent` (announced by a `TraceableVoter`). An `AuthenticationEvent` carries the `token` it
-settled on.
+settled on. `AuthenticationEvents.AUTHENTICATION_SUCCESS` names the success event for a listener
+registered by name.
 
 ## Errors
 
@@ -269,20 +313,24 @@ typed attributes rather than only a message.
 | `UserNotFoundError` | `AuthenticationError`, `LookupError` | no user matched the identifier |
 | `InvalidArgumentError` | `ValueError` | a declaration, configuration or call was malformed |
 | `UnsupportedUserError` | `TypeError` | a user of the wrong class reached a provider, checker or resolver |
+| `BadMethodCallError` | — | a method was called on an object that refuses it by design — setting anything on a `NullToken` |
 
 ## Layout
 
 ```
 xtr_security_core/
-├── user/                     UserInterface, InMemoryUser(Provider/Checker), chains, OidcUser
+├── authentication_events.py  AuthenticationEvents, the authentication event names
+├── user/                     UserInterface, InMemoryUser(Provider/Checker), chains, OidcUser(Provider), OAuth2User
 ├── authentication/
-│   ├── token/                TokenInterface, AbstractToken, NullToken, OfflineToken, UsernamePasswordToken
+│   ├── authentication_method.py  AuthenticationMethod, the methods a proof names
+│   ├── token/                TokenInterface, AbstractToken, NullToken, OfflineTokenInterface, UsernamePasswordToken
 │   │   └── storage/          TokenStorage, the current token per unit of work
 │   └── authentication_trust_resolver.py  is a token authenticated, and how fully
 ├── authorization/
 │   ├── access_decision_manager.py  gathers voters and decides with a strategy
 │   ├── authorization_checker.py    is_granted — the one call the application makes
 │   ├── is_granted_context.py       what a closure voter is handed
+│   ├── traceable_access_decision_manager.py  logs every decision and its votes
 │   ├── strategy/             affirmative, consensus, unanimous, priority
 │   └── voter/                VoterInterface, Voter, Access, Vote, the built-in voters
 ├── role/                     RoleHierarchy, incl. wildcards

@@ -37,6 +37,11 @@ class FixtureUserProvider(UserProviderInterface):
         return InMemoryUser(identifier, roles=roles)
 
     @override
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        """Return ``user`` unchanged: the fixture's users never change."""
+        return user
+
+    @override
     def supports_class(self, user_class: type) -> bool:
         """Support the in-memory user this provider builds."""
         return issubclass(user_class, InMemoryUser)

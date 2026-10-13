@@ -50,7 +50,8 @@ class OidcTokenHandler:
 
     The identifier is read from ``claim`` (``sub`` by default). With no provider
     the claims are the user — an
-    :class:`~xtr_security_core.user.oidc_user.OidcUser`; with one, its
+    :class:`~xtr_security_core.user.oidc_user.OidcUser` built from every claim,
+    so a ``roles`` claim grants the roles it holds; with one, its
     identifier loads the user, the claims handed alongside to a provider that
     reads them. The badge carries the granted ``scope`` (from the ``scope``
     string or the ``scp`` list), the ``client_id``, the ``jti`` and every claim.
@@ -192,12 +193,11 @@ class OidcTokenHandler:
         the claims travel to it; with a plain one only the identifier does.
         """
         provider = self._user_provider
-        claim = self._claim
         if provider is None:
 
             def load_from_claims(identifier: str) -> UserInterface:
                 del identifier
-                return OidcUser(claims, identifier_claim=claim)
+                return OidcUser.from_claims(claims)
 
             return load_from_claims
         if AttributesBasedUserProviderInterface in type(provider).__mro__:

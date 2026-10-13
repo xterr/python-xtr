@@ -109,9 +109,8 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
                 access_decision = stack[-1]
                 owns_record = False
             else:
-                access_decision = AccessDecision(strategy=type(self._strategy).__name__)
-        elif access_decision.strategy is None:
-            access_decision.strategy = type(self._strategy).__name__
+                access_decision = AccessDecision()
+        access_decision.strategy = _strategy_name(self._strategy)
         reset_token = _decision_stack.set((*stack, access_decision))
         try:
             results = self._collect(token, attribute, attribute_list, subject, access_decision)
@@ -173,6 +172,14 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
         else:
             self._type_cache.move_to_end(type_key)
         return supported_type
+
+
+def _strategy_name(strategy: AccessDecisionStrategyInterface) -> str:
+    """Name ``strategy`` as a decision records it: its own name, else its type."""
+    if type(strategy).__str__ is not object.__str__:
+        return str(strategy)
+    strategy_type = type(strategy)
+    return f"{strategy_type.__module__}.{strategy_type.__qualname__}"
 
 
 def _type_name(subject: object) -> str:

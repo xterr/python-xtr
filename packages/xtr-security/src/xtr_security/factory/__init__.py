@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from .access_token_factory import AccessTokenFactory
 from .authenticator_factory_interface import AuthenticatorFactoryInterface
+from .stateless_authenticator_factory_interface import StatelessAuthenticatorFactoryInterface
 
 __all__ = [
     "AccessTokenFactory",
     "AuthenticatorFactoryInterface",
+    "StatelessAuthenticatorFactoryInterface",
 ]

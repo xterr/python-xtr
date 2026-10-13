@@ -11,6 +11,8 @@ def test_defaults() -> None:
     assert vote.voter is None
     assert vote.result is Access.ABSTAIN
     assert vote.reasons == []
+    assert vote.extra_data == {}
+    assert vote.re_authentication_attribute is None
 
 
 def test_add_reason_accumulates() -> None:
@@ -20,3 +22,11 @@ def test_add_reason_accumulates() -> None:
     vote.add_reason("second")
 
     assert vote.reasons == ["first", "second"]
+
+
+def test_request_re_authentication_records_the_attribute() -> None:
+    vote = Vote()
+
+    vote.request_re_authentication("IS_AUTHENTICATED_RECENTLY")
+
+    assert vote.re_authentication_attribute == "IS_AUTHENTICATED_RECENTLY"

@@ -147,7 +147,8 @@ class PublishBook:
 ```
 
 `Security` answers `get_token()`, `get_user()`, `is_granted(attribute, subject=None)`,
-`is_granted_for_user(user, attribute, subject=None)` and `deny_access_unless_granted(...)`, and is
+`is_granted_for_user(user, attribute, subject=None)` — `None` for a guest — and
+`deny_access_unless_granted(...)`, and is
 scoped to the request — a singleton cannot depend on it, so take it as a method argument or make
 the service scoped too.
 
@@ -249,14 +250,16 @@ steps below a recipe can do; the `concurrent_scoped_access`, `setup(app, kernel)
    from `xtr_security.bundle`. Call `setup(app, kernel)` where the application is built, and
    build the kernel with `concurrent_scoped_access=True` so concurrent requests keep their own
    token storage.
-3. **Brings along** — the event-dispatcher and http-kernel bundles always; the logging and
+3. **Brings along** — the event-dispatcher and http-kernel bundles always; the clock bundle,
+   installed with the security core, whose clock the trust resolver reads; the logging and
    console bundles whenever those packages are installed.
 4. **Configure** — optional: unconfigured there are no firewalls and the affirmative strategy.
    `<app>/config/security.py`, a `@configure` function returning a `SecurityConfig`, changes it.
 5. **Environment** — nothing of its own; read your secrets with `env(...)` in the configuration.
 6. **Ignore** — nothing.
-7. **Check** — `debug:bundles` shows `security` as `listed` and `active`, `event_dispatcher` and
-   `http_kernel` as `required`; `debug:firewall [name]` lists or describes the firewalls.
+7. **Check** — `debug:bundles` shows `security` as `listed` and `active`, `event_dispatcher`,
+   `http_kernel` and `clock` as `required`; `debug:firewall [name]` lists or describes the
+   firewalls.
 8. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/security.py`, then
    `uv remove xtr-security`.
 

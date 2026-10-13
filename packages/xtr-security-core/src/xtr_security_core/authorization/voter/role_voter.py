@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 
 from typing_extensions import override
 
-from .voter import Voter
+from .access import Access
+from .cacheable_voter_interface import CacheableVoterInterface
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -18,13 +19,14 @@ if TYPE_CHECKING:
 __all__ = ["RoleVoter"]
 
 
-class RoleVoter(Voter):
-    """Grants an attribute when the token holds it as a role.
+class RoleVoter(CacheableVoterInterface):
+    """Votes if any attribute starts with a given prefix — ``ROLE_`` by default.
 
-    Votes only on attributes that start with a prefix — ``ROLE_`` by default —
-    and grants one when it is among the token's roles. The prefix keeps it out
-    of the way of voters that read other kinds of attribute.
+    Grants one when it is among the token's roles. The prefix keeps it out of
+    the way of voters that read other kinds of attribute.
     """
+
+    __slots__: tuple[str, ...] = ("_prefix",)
 
     _prefix: str
 
@@ -33,26 +35,37 @@ class RoleVoter(Voter):
         self._prefix = prefix
 
     @override
-    def supports(self, attribute: object, subject: object) -> bool:
-        """Tell whether ``attribute`` is a role name this voter reads."""
-        del subject
-        return isinstance(attribute, str) and attribute.startswith(self._prefix)
-
-    @override
-    async def vote_on_attribute(
+    async def vote(
         self,
-        attribute: object,
-        subject: object,
         token: TokenInterface,
-        vote: Vote | None,
-    ) -> bool:
-        """Grant ``attribute`` when it is among the token's (expanded) roles."""
+        subject: object,
+        attributes: Sequence[object],
+        vote: Vote | None = None,
+    ) -> Access:
+        """Grant on the first prefixed attribute among the token's roles; else deny or abstain."""
         del subject
-        roles = self._extract_role_names(token)
-        granted = attribute in roles
-        if not granted and vote is not None:
-            vote.add_reason(f'The token does not have the "{attribute}" role.')
-        return granted
+        result = Access.ABSTAIN
+        roles = self._extract_roles(token)
+        missing_roles: list[str] = []
+
+        for attribute in attributes:
+            if not isinstance(attribute, str) or not attribute.startswith(self._prefix):
+                continue
+
+            result = Access.DENIED
+
+            if attribute in roles:
+                if vote is not None:
+                    vote.add_reason(f"The user has {attribute}.")
+                return Access.GRANTED
+
+            missing_roles.append(attribute)
+
+        if result is Access.DENIED and vote is not None:
+            any_of = " any of" if len(missing_roles) > 1 else ""
+            vote.add_reason(f"The user doesn't have{any_of} {', '.join(missing_roles)}.")
+
+        return result
 
     @override
     def supports_attribute(self, attribute: str) -> bool:
@@ -65,6 +78,6 @@ class RoleVoter(Voter):
         del subject_type
         return True
 
-    def _extract_role_names(self, token: TokenInterface) -> Sequence[str]:
+    def _extract_roles(self, token: TokenInterface) -> Sequence[str]:
         """Return the roles this voter checks against — the token's own, here."""
         return token.get_role_names()

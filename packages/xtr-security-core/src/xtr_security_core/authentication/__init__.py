@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from .authentication_method import AuthenticationMethod
 from .authentication_trust_resolver import AuthenticationTrustResolver
 from .authentication_trust_resolver_interface import AuthenticationTrustResolverInterface
 
 __all__ = [
+    "AuthenticationMethod",
     "AuthenticationTrustResolver",
     "AuthenticationTrustResolverInterface",
 ]

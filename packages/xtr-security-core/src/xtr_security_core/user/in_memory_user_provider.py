@@ -6,13 +6,19 @@ from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
 
-from xtr_security_core.exception import InvalidArgumentError, UserNotFoundError
+from xtr_security_core.exception import (
+    InvalidArgumentError,
+    UnsupportedUserError,
+    UserNotFoundError,
+)
 
 from .in_memory_user import InMemoryUser
 from .user_provider_interface import UserProviderInterface
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
+
+    from .user_interface import UserInterface
 
 __all__ = ["InMemoryUserProvider"]
 
@@ -58,6 +64,26 @@ class InMemoryUserProvider(UserProviderInterface):
         if user is None:
             raise UserNotFoundError(identifier)
         return user
+
+    @override
+    async def refresh_user(self, user: UserInterface) -> InMemoryUser:
+        """Reload ``user`` from the set, as a fresh copy of the stored one.
+
+        Raises:
+            UnsupportedUserError: When ``user`` is not an in-memory user.
+            UserNotFoundError: When the set no longer holds the user.
+        """
+        if not isinstance(user, InMemoryUser):
+            raise UnsupportedUserError(
+                f'Instances of "{type(user).__qualname__}" are not supported.',
+            )
+        stored = await self.load_user_by_identifier(user.get_user_identifier())
+        return InMemoryUser(
+            identifier=stored.get_user_identifier(),
+            password=stored.get_password(),
+            roles=stored.get_roles(),
+            enabled=stored.is_enabled(),
+        )
 
     @override
     def supports_class(self, user_class: type) -> bool:

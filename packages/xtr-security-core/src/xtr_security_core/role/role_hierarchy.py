@@ -110,6 +110,33 @@ class RoleHierarchy(RoleHierarchyInterface):
         self._memo[key] = tuple(reachable)
         return reachable
 
+    def get_parent_role_names(self, roles: Sequence[str]) -> list[str]:
+        """Return ``roles`` and every role of the hierarchy that reaches one of them.
+
+        The inverse question of :meth:`get_reachable_role_names`: which roles,
+        when held, grant one of ``roles``. Only the declared roles are
+        considered — a wildcard key is a pattern, not a role anyone can hold.
+        """
+        parents: dict[str, None] = {}
+        for role in roles:
+            parents[role] = None
+            for key in self._exact:
+                if role in self._exact_descendants(key):
+                    parents[key] = None
+        return list(parents)
+
+    def _exact_descendants(self, key: str) -> set[str]:
+        """Return every role ``key`` reaches through the declared, non-wildcard entries."""
+        descendants: set[str] = set()
+        pending: deque[str] = deque(self._exact.get(key, ()))
+        while pending:
+            role = pending.popleft()
+            if role in descendants:
+                continue
+            descendants.add(role)
+            pending.extend(self._exact.get(role, ()))
+        return descendants
+
     def _parents_of(self, role: str) -> list[str]:
         """Return the direct parents of ``role``, wildcard patterns expanded."""
         parents: list[str] = list(self._exact.get(role, ()))

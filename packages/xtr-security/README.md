@@ -164,7 +164,7 @@ so the zero-config path is no firewalls and the affirmative decision strategy.
 | `access_control` | `()` | The access-control rules, tried in order |
 | `access_decision_manager` | affirmative | How the voters' answers become one decision |
 | `expose_security_errors` | `NONE` | How much of an authentication failure reaches the client |
-| `trace_votes` | `None` | Announce every vote as an event; `None` follows `kernel.debug` |
+| `trace_votes` | `None` | Announce every vote as an event and log every decision; `None` follows `kernel.debug` |
 | `authenticator_factories` | built-ins | The factories that build firewalls' authenticators |
 | `token_handler_factories` | built-ins | The factories that build access-token handlers |
 | `user_provider_factories` | built-ins | The factories that build user providers |
@@ -181,7 +181,7 @@ so the zero-config path is no firewalls and the affirmative decision strategy.
 | `request_matcher` | `None` | A callable deciding the match, tried last |
 | `security` | `True` | `False` lets every request the firewall claims through untouched |
 | `stateless` | `True` | Only `True` is accepted in this version |
-| `provider` | `None` | The user provider the firewall loads users from |
+| `provider` | `None` | The user provider the firewall loads users from; with none here and none configured at all, an authenticator that needs one gets a `MissingUserProvider` that fails, naming the firewall, when first used |
 | `user_checker` | `None` | A user-checker service type, or the default in-memory checker |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
 | `access_denied_handler` | `None` | A handler for a denied, fully-authenticated caller |
@@ -218,7 +218,10 @@ tried in order, so a narrow `^/api/admin` rule comes before the broad `^/api`.
 The decision manager gathers every voter: the built-in role-hierarchy, authenticated, OAuth2
 scope and closure voters, and every application voter — a class implementing
 `VoterInterface`, autoconfigured with the `security.voter` tag. When `trace_votes` is on, each is
-wrapped so its answer is announced as a `VoteEvent`.
+wrapped so its answer is announced as a `VoteEvent`, and `AccessDecisionManagerInterface` is a
+`TraceableAccessDecisionManager` built per request: it logs every decision, with the votes the
+bundle's `VoteEvent` listener feeds it, readable from `get_decision_log()` until the request
+ends.
 
 ## Extending
 
@@ -246,6 +249,9 @@ An `AuthenticatorFactoryInterface` carries a `key`, a `priority`, a `config_type
 `create_authenticator(...)`; a firewall lists an instance of the factory's `config_type` under
 its `authenticators`, and the bundle matches it to the factory. `TokenHandlerFactoryInterface`
 and `UserProviderFactoryInterface` are the same shape for the other two registries.
+A factory whose authenticator can settle on a user without a provider — as the access-token one
+can, its handler building the user — inherits `StatelessAuthenticatorFactoryInterface`, and is
+handed no provider rather than a `MissingUserProvider` when the application configures none.
 
 ## Use in an application
 
@@ -265,8 +271,10 @@ removing it undoes.
   token storage.
 - **Brings along** — the [event dispatcher](../xtr-event-dispatcher) and
   [http-kernel](../xtr-http-kernel) bundles always, because the firewalls dispatch through the
-  one and answer on the other's exception event; the [logging](../xtr-logging) and
-  [console](../xtr-console) bundles whenever those packages are installed.
+  one and answer on the other's exception event; the [clock](../xtr-clock) bundle, installed
+  with the security core, whose clock the trust resolver measures recent authentication with;
+  the [logging](../xtr-logging) and [console](../xtr-console) bundles whenever those packages
+  are installed.
 - **Configure** — the zero-config path gives no firewalls and the affirmative strategy. A
   `<app>/config/security.py` `@configure` function returning a `SecurityConfig` changes that —
   see [Configure](#configure) and [Kernel / bundle](#kernel--bundle).
@@ -275,8 +283,8 @@ removing it undoes.
 - **Ignore** — nothing.
 - **Remove** — drop the `BUNDLES` entry, delete `<app>/config/security.py`, then
   `uv remove xtr-security`.
-- **Check** — `debug:bundles` shows `security` as `listed` and `active`, `event_dispatcher` and
-  `http_kernel` as `required`; `debug:firewall` lists the configured firewalls.
+- **Check** — `debug:bundles` shows `security` as `listed` and `active`, `event_dispatcher`,
+  `http_kernel` and `clock` as `required`; `debug:firewall` lists the configured firewalls.
 
 ## Kernel / bundle
 
@@ -287,9 +295,11 @@ from xtr_security.bundle import SecurityBundle
 BUNDLES = {SecurityBundle: {"all": True}}
 ```
 
-`SecurityBundle` registers the token storage (scoped), the trust resolver, the role hierarchy,
-the voters and the decision manager, the authorization checker and the `Security` facade (both
-scoped), the password hasher factory and the user hasher, the user providers, and — per
+`SecurityBundle` registers the token storage (scoped), the trust resolver over the clock bundle's
+clock, the role hierarchy, the voters and the decision manager (traceable per request when
+`trace_votes` is on), the authorization checker — also under `UserAuthorizationCheckerInterface`
+and `GuestAuthorizationCheckerInterface` — and the `Security` facade (both scoped), the password
+hasher factory and the user hasher, the user providers, and — per
 firewall — its own event dispatcher with the login listeners, its authenticators, its access
 map, its entry point and its OpenAPI scheme, gathered into a `FirewallMap`. The exception
 listener turns a security error into a response on the http-kernel lifecycle. Its zero-config

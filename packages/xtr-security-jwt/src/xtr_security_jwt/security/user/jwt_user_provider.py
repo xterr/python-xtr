@@ -50,6 +50,11 @@ class JwtUserProvider(AttributesBasedUserProviderInterface):
         return self._user_class.create_from_payload(identifier, payload)
 
     @override
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        """Return ``user`` unchanged: a user built from a token's claims has nothing to reload."""
+        return user
+
+    @override
     def supports_class(self, user_class: type) -> bool:
         """Tell whether this provider builds users of ``user_class``.
 

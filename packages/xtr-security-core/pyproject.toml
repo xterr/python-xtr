@@ -21,6 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "xtr-password-hasher>=4.0,<5",
+    "xtr-clock>=4.0,<5",
     "xtr-event-dispatcher-contracts>=4.0,<5",
     "xtr-service-contracts>=4.0,<5",
     "typing-extensions>=4.12",

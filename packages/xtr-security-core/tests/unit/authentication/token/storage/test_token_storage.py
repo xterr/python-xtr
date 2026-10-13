@@ -45,3 +45,65 @@ def test_can_be_referred_to_weakly() -> None:
     reference = weakref.ref(storage)
 
     assert reference() is storage
+
+
+def test_an_initializer_runs_once_on_first_read() -> None:
+    storage = TokenStorage()
+    token = NullToken()
+    calls: list[None] = []
+
+    def initialize() -> None:
+        calls.append(None)
+        storage.set_token(token)
+
+    storage.set_initializer(initialize)
+
+    assert calls == []
+    assert storage.get_token() is token
+    assert storage.get_token() is token
+    assert len(calls) == 1
+
+
+def test_storing_a_token_runs_the_pending_initializer_first() -> None:
+    storage = TokenStorage()
+    stored = NullToken()
+    calls: list[None] = []
+    storage.set_initializer(lambda: calls.append(None))
+
+    storage.set_token(stored)
+
+    assert calls == [None]
+    assert storage.get_token() is stored
+
+
+def test_clearing_the_token_drops_the_pending_initializer_unrun() -> None:
+    storage = TokenStorage()
+    calls: list[None] = []
+    storage.set_initializer(lambda: calls.append(None))
+
+    storage.set_token(None)
+
+    assert storage.get_token() is None
+    assert calls == []
+
+
+def test_a_cleared_initializer_never_runs() -> None:
+    storage = TokenStorage()
+    calls: list[None] = []
+    storage.set_initializer(lambda: calls.append(None))
+
+    storage.set_initializer(None)
+
+    assert storage.get_token() is None
+    assert calls == []
+
+
+def test_reset_drops_the_pending_initializer() -> None:
+    storage = TokenStorage()
+    calls: list[None] = []
+    storage.set_initializer(lambda: calls.append(None))
+
+    storage.reset()
+
+    assert storage.get_token() is None
+    assert calls == []
