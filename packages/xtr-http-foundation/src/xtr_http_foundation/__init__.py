@@ -11,4 +11,6 @@ network, and whether it is one only this network can reach.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .ip_utils import IpUtils
+
+__all__ = ["IpUtils"]

@@ -112,6 +112,7 @@ unfixable = []
     "PLR2004", # magic numbers in test data
     "SLF001",  # tests reach into privates
     "D",       # test names are the docs
+    "S104",    # "0.0.0.0" is an address the tests place in a network, never one to bind
 ]
 
 [tool.ruff.lint.pydocstyle]
