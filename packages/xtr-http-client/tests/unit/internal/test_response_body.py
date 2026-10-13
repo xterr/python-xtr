@@ -41,16 +41,16 @@ class SilentTransfer:
 class Bodies:
     """Makes bodies and lets go of every one of them when the test is over.
 
-    A kept body holds a temporary file, so a test that leaves one behind
-    leaves the file behind too; closing them all here is what the response
-    that owns a body does.
+    A body holds a temporary file, so a test that leaves one behind leaves the
+    file behind too; closing them all here is what the response that owns a
+    body does.
     """
 
     def __init__(self) -> None:
         self._made: list[ResponseBody] = []
 
-    def over(self, source: AsyncIterator[bytes], buffered: bool = True) -> ResponseBody:
-        body = ResponseBody(source, buffered=buffered)
+    def over(self, source: AsyncIterator[bytes]) -> ResponseBody:
+        body = ResponseBody(source)
         self._made.append(body)
         return body
 
@@ -67,7 +67,7 @@ async def bodies() -> AsyncIterator[Bodies]:
 
 
 def test_it_is_a_message_body() -> None:
-    body: StreamInterface = ResponseBody(arriving(), buffered=True)
+    body: StreamInterface = ResponseBody(arriving())
     assert isinstance(body, StreamInterface)
 
 
@@ -106,47 +106,30 @@ async def test_the_contents_are_the_whole_body(bodies: Bodies) -> None:
     assert body.complete is True
 
 
-async def test_a_kept_body_reads_the_same_the_second_time(bodies: Bodies) -> None:
+async def test_it_reads_the_same_the_second_time(bodies: Bodies) -> None:
     body = bodies.over(arriving(b"abc", b"def"))
 
     assert await body.get_contents() == b"abcdef"
     assert await body.get_contents() == b"abcdef"
 
 
-async def test_a_kept_body_is_held_in_a_message_stream(bodies: Bodies) -> None:
+async def test_it_is_held_in_a_message_stream(bodies: Bodies) -> None:
     body = bodies.over(arriving(b"abc"))
     _ = await body.get_contents()
 
     assert isinstance(body._kept, StreamInterface)
 
 
-async def test_a_body_that_is_not_kept_is_gone_after_one_read(bodies: Bodies) -> None:
-    body = bodies.over(arriving(b"abc", b"def"), buffered=False)
-
-    assert await body.get_contents() == b"abcdef"
-    assert await body.get_contents() == b""
-
-
-async def test_a_body_that_is_not_kept_keeps_no_history(bodies: Bodies) -> None:
-    body = bodies.over(arriving(b"abc", b"def"), buffered=False)
-
-    _ = await body.get_contents()
-
-    assert body._pending == b""
-    assert body._kept is None
-
-
 async def test_an_empty_body_can_always_be_read_again(bodies: Bodies) -> None:
-    body = bodies.over(arriving(), buffered=False)
+    body = bodies.over(arriving())
 
     assert await body.get_contents() == b""
-    assert body.buffered is True
     assert await body.get_contents() == b""
     assert body.get_size() == 0
 
 
 async def test_an_empty_body_rewinds_to_where_it_already_was(bodies: Bodies) -> None:
-    body = bodies.over(arriving(), buffered=False)
+    body = bodies.over(arriving())
     _ = await body.get_contents()
 
     await body.rewind()
@@ -162,14 +145,7 @@ async def test_a_body_still_arriving_cannot_be_rewound(bodies: Bodies) -> None:
         await body.rewind()
 
 
-async def test_a_body_that_is_not_kept_cannot_be_rewound_once_complete(bodies: Bodies) -> None:
-    body = bodies.over(arriving(b"abc"), buffered=False)
-    _ = await body.get_contents()
-
-    assert body.is_seekable() is False
-
-
-async def test_a_kept_and_complete_body_seeks_from_anywhere(bodies: Bodies) -> None:
+async def test_a_complete_body_seeks_from_anywhere(bodies: Bodies) -> None:
     body = bodies.over(arriving(b"abc", b"def"))
     _ = await body.get_contents()
 
@@ -198,7 +174,7 @@ async def test_it_refuses_a_whence_it_does_not_know(bodies: Bodies) -> None:
         await body.seek(0, 99)
 
 
-async def test_reading_past_the_end_of_a_kept_body_gives_nothing(bodies: Bodies) -> None:
+async def test_reading_past_the_end_gives_nothing(bodies: Bodies) -> None:
     body = bodies.over(arriving(b"abc"))
     _ = await body.get_contents()
 
@@ -208,7 +184,7 @@ async def test_reading_past_the_end_of_a_kept_body_gives_nothing(bodies: Bodies)
     assert body.eof() is True
 
 
-async def test_a_kept_body_past_the_spill_point_still_reads_again(bodies: Bodies) -> None:
+async def test_a_body_past_the_spill_point_still_reads_again(bodies: Bodies) -> None:
     pieces = [bytes([index]) * MEBIBYTE for index in range(1, 4)]
     body = bodies.over(arriving(*pieces))
     whole = b"".join(pieces)
@@ -270,19 +246,12 @@ async def test_closing_a_body_whose_transfer_has_nothing_to_close_is_enough(
     assert body.is_readable() is False
 
 
-async def test_it_knows_its_size_once_it_is_complete_and_kept(bodies: Bodies) -> None:
+async def test_it_knows_its_size_once_it_is_complete(bodies: Bodies) -> None:
     body = bodies.over(arriving(b"abc", b"def"))
 
     assert body.get_size() is None
     _ = await body.get_contents()
     assert body.get_size() == 6
-
-
-async def test_a_body_that_is_not_kept_never_knows_its_size(bodies: Bodies) -> None:
-    body = bodies.over(arriving(b"abc"), buffered=False)
-    _ = await body.get_contents()
-
-    assert body.get_size() is None
 
 
 async def test_the_cursor_is_at_the_end_only_once_the_body_is_complete(bodies: Bodies) -> None:
@@ -306,78 +275,12 @@ async def test_what_broke_the_transfer_reaches_the_reader_unchanged(bodies: Bodi
 
 
 def test_it_wraps_no_file_object() -> None:
-    assert ResponseBody(arriving(), buffered=True).detach() is None
+    assert ResponseBody(arriving()).detach() is None
 
 
 def test_it_describes_itself() -> None:
-    body = ResponseBody(arriving(b"abc"), buffered=True)
+    body = ResponseBody(arriving(b"abc"))
 
     assert body.get_metadata() == {"mode": "rb", "seekable": False, "eof": False}
     assert body.get_metadata("mode") == "rb"
     assert body.get_metadata("nothing-of-the-sort") is None
-
-
-async def test_a_piece_another_reader_took_is_kept_when_the_body_is(bodies: Bodies) -> None:
-    body = bodies.over(arriving(b"def"))
-
-    await body.feed(b"abc")
-    await body.receive_all()
-
-    assert await body.get_contents() == b"abcdef"
-
-
-async def test_a_piece_another_reader_took_is_not_handed_over_again_when_not_kept(
-    bodies: Bodies,
-) -> None:
-    body = bodies.over(arriving(b"def"), buffered=False)
-
-    await body.feed(b"abc")
-
-    assert await body.get_contents() == b"def"
-    assert body.received == 6
-
-
-async def test_another_reader_can_say_the_body_is_complete(bodies: Bodies) -> None:
-    body = bodies.over(arriving(b"never read"), buffered=False)
-    await body.feed(b"abc")
-
-    body.end()
-
-    assert body.complete
-    assert await body.read(64) == b""
-
-
-async def test_an_empty_body_another_reader_completed_is_kept(bodies: Bodies) -> None:
-    body = bodies.over(arriving(), buffered=False)
-
-    body.end()
-
-    assert body.buffered
-
-
-async def test_receiving_the_rest_leaves_the_cursor_where_it_was(bodies: Bodies) -> None:
-    body = bodies.over(arriving(b"abc", b"def"))
-    _ = await body.read(2)
-
-    await body.receive_all()
-
-    assert body.complete
-    assert body.tell() == 2
-    assert await body.read(64) == b"cdef"
-
-
-async def test_a_closed_body_receives_nothing_more(bodies: Bodies) -> None:
-    body = bodies.over(arriving(b"abc"))
-    await body.close()
-
-    with pytest.raises(RuntimeError, match="closed"):
-        await body.receive_all()
-
-
-async def test_a_closed_body_ignores_what_another_reader_took(bodies: Bodies) -> None:
-    body = bodies.over(arriving())
-    await body.close()
-
-    await body.feed(b"abc")
-
-    assert body.received == 0

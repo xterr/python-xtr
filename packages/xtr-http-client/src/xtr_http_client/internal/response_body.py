@@ -18,9 +18,9 @@ __all__ = ["ResponseBody"]
 
 _READ_SIZE: Final = 65536
 
-# Where a kept body stops being held in memory and starts being held in a
-# file: enough that an ordinary response never reaches the disk, little enough
-# that a download nobody sized cannot exhaust what is left of memory.
+# Where a body stops being held in memory and starts being held in a file:
+# enough that an ordinary response never reaches the disk, little enough that
+# a download nobody sized cannot exhaust what is left of memory.
 _SPILL_AT: Final = 2 * 1024 * 1024
 
 
@@ -44,21 +44,18 @@ class ResponseBody:
     that nobody asked for, which is what makes a body the caller never reads
     cost nothing.
 
-    Whether the bytes are *kept* is the other half. A body being kept writes
-    everything that arrives into a stream of its own, so it can be read again
-    — and is then seekable, once complete, because only then is there a whole
-    body to seek in. That stream holds the first two mebibytes in memory and
-    spills the rest to a file, so a large download is re-readable without
-    being resident. A body not being kept holds only what has arrived and not
-    yet been read, so a large download costs one piece rather than all of it,
-    and reading it twice gives nothing the second time.
+    Everything that arrives is written into a stream of its own, so the body
+    can be read again — and is then seekable, once complete, because only then
+    is there a whole body to seek in. That stream holds the first two
+    mebibytes in memory and spills the rest to a file, so a large download is
+    re-readable without being resident.
 
     Writing is not part of it: the bytes come from the far end.
     """
 
-    __slots__ = ("_buffered", "_closed", "_complete", "_kept", "_pending", "_received", "_source")
+    __slots__ = ("_closed", "_complete", "_kept", "_received", "_source")
 
-    def __init__(self, source: AsyncIterator[bytes], buffered: bool) -> None:
+    def __init__(self, source: AsyncIterator[bytes]) -> None:
         """Hold onto the transfer this body comes out of.
 
         Args:
@@ -66,20 +63,12 @@ class ResponseBody:
                 is how it says the transfer is complete. Whatever else it
                 raises is left alone: what a broken transfer means for a
                 response is the response's to decide, not the body's.
-            buffered: Whether to keep what arrived for a second read.
         """
         self._source = source
-        self._buffered = buffered
         self._kept: StreamInterface | None = None
-        self._pending = b""
         self._received = 0
         self._complete = False
         self._closed = False
-
-    @property
-    def buffered(self) -> bool:
-        """Whether what arrived is being kept for a second read."""
-        return self._buffered
 
     @property
     def complete(self) -> bool:
@@ -92,7 +81,7 @@ class ResponseBody:
         return self._received
 
     async def close(self) -> None:
-        """Let go of the body, the transfer behind it, and anything it was kept in.
+        """Let go of the body, the transfer behind it, and what it was kept in.
 
         Nothing can be read from it afterwards.
         """
@@ -109,8 +98,8 @@ class ResponseBody:
         return None
 
     def get_size(self) -> int | None:
-        """Return the size of the body, which is known once it is complete and kept."""
-        if not (self._complete and self._buffered):
+        """Return the size of the body, which is known once it is complete."""
+        if not self._complete:
             return None
         if self._kept is None:
             return self._received
@@ -118,9 +107,9 @@ class ResponseBody:
 
     def tell(self) -> int:
         """Return how far into the body reading has got."""
-        if self._kept is not None:
-            return self._kept.tell()
-        return self._received - len(self._pending)
+        if self._kept is None:
+            return 0
+        return self._kept.tell()
 
     def eof(self) -> bool:
         """Tell whether reading has reached the end of a body that has all arrived."""
@@ -129,10 +118,10 @@ class ResponseBody:
     def is_seekable(self) -> bool:
         """Tell whether the cursor can be moved.
 
-        Only a body that is kept and has all arrived: anything else has no
-        whole body to move about in.
+        Only once the whole body has arrived: before that there is no whole
+        body to move about in.
         """
-        return not self._closed and self._buffered and self._complete
+        return not self._closed and self._complete
 
     async def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
         """Move the cursor to a position in the body.
@@ -207,19 +196,12 @@ class ResponseBody:
         while self._waiting() == 0 and not self._complete:
             await self._receive()
 
-        if self._kept is not None:
-            return await self._kept.read(length)
-
-        taken = self._pending[:length]
-        self._pending = self._pending[len(taken) :]
-        return taken
+        if self._kept is None:
+            return b""
+        return await self._kept.read(length)
 
     async def get_contents(self) -> bytes:
         """Read the whole of the body, rewinding first when that is possible.
-
-        On a body that cannot be rewound this reads from wherever the cursor
-        sits, so a second call gives nothing: the bytes were handed over once
-        and not kept.
 
         Returns:
             Every byte left in the body.
@@ -248,51 +230,18 @@ class ResponseBody:
             return metadata
         return metadata.get(key)
 
-    async def receive_all(self) -> None:
-        """Take the rest of the body off the transfer, leaving the cursor where it is.
-
-        Raises:
-            RuntimeError: When the body has been closed.
-        """
-        if self._closed:
-            raise RuntimeError("The response body is closed.")
-        while not self._complete:
-            await self._receive()
-
-    async def feed(self, piece: bytes) -> None:
-        """Take in a piece another reader took off the transfer.
-
-        A kept body keeps it, so it can still be read; one not kept counts it
-        as read already, since it was handed over once.
-        """
-        if not self._closed:
-            await self._arrived(piece, read=True)
-
-    def end(self) -> None:
-        """Learn from another reader that the transfer is complete."""
-        self._complete = True
-        # A body that never received anything becomes kept, whatever was
-        # asked for: there is nothing to hold, and an empty body that could
-        # only be read once would make "read twice" fail for the one case
-        # where the answer is not in doubt.
-        self._buffered = self._buffered or self._received == 0
-
     async def _receive(self) -> None:
         """Take the next piece off the transfer, or learn that there is none."""
         try:
             piece = await anext(self._source)
         except StopAsyncIteration:
-            self.end()
+            self._complete = True
             return
-        await self._arrived(piece, read=False)
+        await self._arrived(piece)
 
-    async def _arrived(self, piece: bytes, read: bool) -> None:
-        """Count a piece in, and hold it for a reader who has not had it."""
+    async def _arrived(self, piece: bytes) -> None:
+        """Count a piece in, and keep it where a reader can still reach it."""
         self._received += len(piece)
-        if not self._buffered:
-            if not read:
-                self._pending += piece
-            return
 
         # The kept stream's cursor *is* the read cursor, so an arriving piece
         # is appended at the end and the cursor put back where the reader left
@@ -304,7 +253,7 @@ class ResponseBody:
         await kept.seek(reading_at)
 
     def _keep(self) -> StreamInterface:
-        """Return the stream a kept body is held in, opening it on first use."""
+        """Return the stream the body is held in, opening it on first use."""
         if self._kept is None:
             # Held open past this call on purpose: `close` is what lets go of
             # it. And it is a binary file object in every way a stream uses
@@ -316,6 +265,6 @@ class ResponseBody:
 
     def _waiting(self) -> int:
         """How many bytes have arrived that the cursor has not reached."""
-        if self._kept is not None:
-            return max(0, self._received - self._kept.tell())
-        return len(self._pending)
+        if self._kept is None:
+            return 0
+        return max(0, self._received - self._kept.tell())

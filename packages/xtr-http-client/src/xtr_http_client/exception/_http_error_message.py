@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Final, cast
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from xtr_http_client_contracts import ResponseInterface
+    from xtr_http_client_contracts import HttpResponseInterface
 
 __all__ = ["build_message"]
 
@@ -27,7 +27,7 @@ _PROBLEM: Final = ("title", "detail")
 _JSON_WORD: Final = re.compile(r"\bjson\b", re.IGNORECASE)
 
 
-async def build_message(response: ResponseInterface) -> str:
+async def build_message(response: HttpResponseInterface) -> str:
     """Say what the status means for the request that got it.
 
     The code and the URL are always enough — ``HTTP 404 returned for "..."``.

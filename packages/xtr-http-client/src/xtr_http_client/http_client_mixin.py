@@ -3,48 +3,45 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Self
+import json
+import re
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Final, Self
 
 from typing_extensions import Unpack
 from xtr_http_client_contracts import OPTIONS_DEFAULTS
 
-from xtr_http_client.internal.body import json_encode, normalize_body
-from xtr_http_client.internal.headers import normalize_headers, should_buffer
-from xtr_http_client.internal.option_merge import merge_default_options
-from xtr_http_client.internal.peer_fingerprint import normalize_peer_fingerprint
-from xtr_http_client.internal.proxy import get_proxy
-from xtr_http_client.internal.query import merge_query_string
-from xtr_http_client.internal.request_preparation import prepare_request
-from xtr_http_client.internal.url import parse_url, remove_dot_segments, resolve_url
+from xtr_http_client.exception import InvalidArgumentError
+from xtr_http_client.internal import option_merge
+from xtr_http_client.internal.debug_type import debug_type
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
+    from collections.abc import Mapping
 
-    from xtr_http_client_contracts import QueryValue, RequestOptions
-
-    from xtr_http_client.proxy_config import ProxyConfig
-    from xtr_http_client.url_parts import UrlParts
+    from xtr_http_client_contracts import RequestOptions
 
 __all__ = ["HttpClientMixin"]
 
+_AUTH_BASIC_PARTS: Final = (1, 2)
+_UNPRINTABLE: Final = re.compile(r"[^\x21-\x7E]")
+_NO_BODY: Final = (None, b"", "")
+
 
 class HttpClientMixin:
-    """What a client does to a request before it can be sent.
+    """What a client refuses, and the options it starts every request from.
 
-    Mixed into every client here, so all of them refuse the same requests,
-    resolve the same URLs and send the same headers — which is what lets one
-    be swapped for another without a caller noticing. A client is then only
-    the part that opens connections.
+    Mixed into every client here, so all of them keep their defaults the same
+    way and refuse the same requests — which is what lets one be swapped for
+    another without a caller noticing. A client is then only the part that
+    opens connections.
 
     Its own state is the one thing a client needs from it: the options every
     request starts from. ``__init__`` takes them so a subclass can hand over
-    what it was built with and get back the merged, normalised defaults the
-    preparation steps expect.
+    what it was built with and get back the merged defaults.
 
-    The steps are exposed as they are because a client uses them one at a
-    time: a redirect needs :meth:`resolve_url` without the rest,
-    :meth:`should_buffer` is asked once the response head arrives, and
-    :meth:`get_proxy` is asked per connection rather than per request.
+    The checks are exposed one by one because a client makes them one at a
+    time: the method is known before the options are read, and a client
+    preparing its own defaults has no method to check at all.
     """
 
     __slots__: tuple[str, ...] = ("_default_options",)
@@ -52,12 +49,14 @@ class HttpClientMixin:
     _default_options: dict[str, object]
 
     def __init__(self, default_options: RequestOptions | None = None) -> None:
-        """Start from the contract's defaults, with ``default_options`` over them."""
+        """Start from the contract's defaults, with ``default_options`` over them.
+
+        Raises:
+            InvalidArgumentError: When an option is not one this client knows.
+        """
         self._default_options = dict(OPTIONS_DEFAULTS)
         if default_options:
-            _, self._default_options = self.prepare_request(
-                None,
-                None,
+            self._default_options = self.merge_default_options(
                 default_options,
                 self._default_options,
             )
@@ -83,29 +82,6 @@ class HttpClientMixin:
         return clone
 
     @classmethod
-    def prepare_request(
-        cls,
-        method: str | None,
-        url: str | None,
-        options: Mapping[str, object],
-        default_options: Mapping[str, object] | None = None,
-        *,
-        allow_extra_options: bool = False,
-    ) -> tuple[UrlParts | None, dict[str, object]]:
-        """Validate a request, merge it with the defaults, and resolve its URL.
-
-        See :func:`xtr_http_client.internal.request_preparation.prepare_request`.
-        """
-        return prepare_request(
-            cls.__qualname__,
-            method,
-            url,
-            options,
-            default_options,
-            allow_extra_options=allow_extra_options,
-        )
-
-    @classmethod
     def merge_default_options(
         cls,
         options: Mapping[str, object],
@@ -117,103 +93,87 @@ class HttpClientMixin:
 
         See :func:`xtr_http_client.internal.option_merge.merge_default_options`.
         """
-        return merge_default_options(
+        return option_merge.merge_default_options(
             cls.__qualname__,
             options,
             default_options,
             allow_extra_options=allow_extra_options,
         )
 
-    @staticmethod
-    def normalize_headers(
-        headers: Mapping[str, str | Sequence[str]] | Sequence[str],
-    ) -> dict[str, list[str]]:
-        """Turn whatever a caller wrote into lines, keyed by the lowered name.
+    def validate_options(self, options: Mapping[str, object]) -> None:
+        """Refuse an option this client does not know, naming the closest it does.
 
-        See :func:`xtr_http_client.internal.headers.normalize_headers`.
+        See :func:`xtr_http_client.internal.option_merge.validate_options`.
         """
-        return normalize_headers(headers)
+        option_merge.validate_options(type(self).__qualname__, options, self._default_options)
 
     @staticmethod
-    def normalize_body(
-        body: object,
-        normalized_headers: dict[str, list[str]] | None = None,
-    ) -> bytes | Iterable[bytes] | AsyncIterable[bytes]:
-        """Turn a body into bytes, or leave it as the stream of bytes it is.
+    def validate_method(method: str) -> None:
+        """Refuse a method no server would read as the one that was meant.
 
-        See :func:`xtr_http_client.internal.body.normalize_body`.
+        Raises:
+            InvalidArgumentError: When the method is empty, or is anything
+                other than uppercase ASCII letters.
         """
-        return normalize_body(body, normalized_headers)
+        if method == "":
+            raise InvalidArgumentError("The HTTP method cannot be empty.")
+        if not (method.isascii() and method.isalpha() and method.isupper()):
+            raise InvalidArgumentError(
+                f'Invalid HTTP method "{method}", only uppercase letters are accepted.'
+            )
 
     @staticmethod
-    def json_encode(value: object) -> bytes:
-        """Encode a value as the JSON body of a request.
+    def validate_auth(options: Mapping[str, object]) -> None:
+        """Refuse credentials this client cannot send, or two sets of them.
 
-        See :func:`xtr_http_client.internal.body.json_encode`.
+        Raises:
+            InvalidArgumentError: When ``auth_basic`` or ``auth_bearer`` is
+                not of a shape credentials can be read from, or both are set.
         """
-        return json_encode(value)
+        basic = options.get("auth_basic")
+        if isinstance(basic, Sequence) and not isinstance(basic, str):
+            if len(basic) not in _AUTH_BASIC_PARTS:
+                raise InvalidArgumentError(
+                    f'Option "auth_basic" must contain 1 or 2 elements, "{len(basic)}" given.'
+                )
+        elif basic is not None and not isinstance(basic, str):
+            raise InvalidArgumentError(
+                f'Option "auth_basic" must be a string or a tuple, "{debug_type(basic)}" given.'
+            )
+
+        bearer = options.get("auth_bearer")
+        if bearer is not None:
+            HttpClientMixin._validate_bearer(bearer)
+        if basic is not None and bearer is not None:
+            raise InvalidArgumentError(
+                'Define either the "auth_basic" or the "auth_bearer" option, '
+                "setting both is not supported."
+            )
 
     @staticmethod
-    def parse_url(url: str, query: Mapping[str, QueryValue] | None = None) -> UrlParts:
-        """Read a URL apart, fixing its spelling on the way.
+    def validate_body(options: Mapping[str, object]) -> None:
+        """Refuse a request that says what to send twice.
 
-        See :func:`xtr_http_client.internal.url.parse_url`.
+        A JSON document and a body are both the whole body, so a request
+        carrying each has not said which one to send.
+
+        Raises:
+            InvalidArgumentError: When ``json`` and ``body`` are both set.
         """
-        return parse_url(url, query)
+        if options.get("json") is None:
+            return
+        if options.get("body") not in _NO_BODY:
+            raise InvalidArgumentError(
+                'Define either the "json" or the "body" option, setting both is not supported.'
+            )
 
     @staticmethod
-    def resolve_url(
-        url: UrlParts,
-        base: UrlParts | None,
-        query_defaults: Mapping[str, QueryValue] | None = None,
-    ) -> UrlParts:
-        """Resolve a URL against a base one.
-
-        See :func:`xtr_http_client.internal.url.resolve_url`.
-        """
-        return resolve_url(url, base, query_defaults)
-
-    @staticmethod
-    def remove_dot_segments(path: str) -> str:
-        """Take the ``.`` and ``..`` segments out of a path.
-
-        See :func:`xtr_http_client.internal.url.remove_dot_segments`.
-        """
-        return remove_dot_segments(path)
-
-    @staticmethod
-    def merge_query_string(
-        query_string: str | None,
-        query_array: Mapping[str, QueryValue],
-        *,
-        replace: bool,
-    ) -> str | None:
-        """Merge parameters into the query string a URL already carries.
-
-        See :func:`xtr_http_client.internal.query.merge_query_string`.
-        """
-        return merge_query_string(query_string, query_array, replace=replace)
-
-    @staticmethod
-    def normalize_peer_fingerprint(fingerprint: object) -> dict[str, str | tuple[str, ...]]:
-        """Read a fingerprint into digests keyed by the algorithm that made them.
-
-        See :func:`xtr_http_client.internal.peer_fingerprint.normalize_peer_fingerprint`.
-        """
-        return normalize_peer_fingerprint(fingerprint)
-
-    @staticmethod
-    def get_proxy(proxy: str | None, url: UrlParts, no_proxy: str | None) -> ProxyConfig | None:
-        """Work out what a request should go through, if anything.
-
-        See :func:`xtr_http_client.internal.proxy.get_proxy`.
-        """
-        return get_proxy(proxy, url, no_proxy)
-
-    @staticmethod
-    def should_buffer(headers: Mapping[str, Sequence[str]]) -> bool:
-        """Tell whether a response of this kind is worth keeping once read.
-
-        See :func:`xtr_http_client.internal.headers.should_buffer`.
-        """
-        return should_buffer(headers)
+    def _validate_bearer(bearer: object) -> None:
+        if not isinstance(bearer, str):
+            raise InvalidArgumentError(
+                f'Option "auth_bearer" must be a string, "{debug_type(bearer)}" given.'
+            )
+        if _UNPRINTABLE.search(bearer):
+            raise InvalidArgumentError(
+                f'Invalid character found in option "auth_bearer": {json.dumps(bearer)}.'
+            )

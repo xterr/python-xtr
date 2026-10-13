@@ -4,7 +4,7 @@ import pytest
 from xtr_http_client_contracts import (
     ClientError,
     DecodingError,
-    ResponseInterface,
+    HttpResponseInterface,
     ServerError,
 )
 from xtr_http_message_contracts import ResponseInterface as MessageResponseInterface
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.anyio
 def test_it_is_a_client_response_and_a_message_response() -> None:
     response = FakeResponse()
 
-    assert isinstance(response, ResponseInterface)
+    assert isinstance(response, HttpResponseInterface)
     assert isinstance(response, MessageResponseInterface)
 
 

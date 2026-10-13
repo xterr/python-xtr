@@ -3,82 +3,29 @@ from __future__ import annotations
 import pytest
 
 from xtr_http_client.exception import InvalidArgumentError
-from xtr_http_client.internal.option_merge import merge_default_options
+from xtr_http_client.internal.option_merge import merge_default_options, validate_options
 
 _CLIENT = "FakeClient"
 
 
-def _defaults(**overrides: object) -> dict[str, object]:
-    """Defaults that know about every option a merge always sets."""
-    return {"headers": {}, "query": {}, **overrides}
-
-
-def test_a_header_the_request_did_not_name_is_taken_from_the_defaults() -> None:
-    merged = merge_default_options(
-        _CLIENT,
-        {"headers": {"Accept": "text/plain"}},
-        _defaults(headers={"Accept": "*/*", "X-Trace": "abc"}),
-    )
-
-    assert merged["normalized_headers"] == {
-        "accept": ["Accept: text/plain"],
-        "x-trace": ["X-Trace: abc"],
-    }
-    assert merged["headers"] == ["Accept: text/plain", "X-Trace: abc"]
-
-
 def test_an_option_the_request_did_not_name_is_taken_from_the_defaults() -> None:
-    merged = merge_default_options(
-        _CLIENT,
-        {"timeout": 1.0},
-        _defaults(timeout=2.0, max_duration=3.0),
-    )
+    merged = merge_default_options(_CLIENT, {"timeout": 1.0}, {"timeout": 2.0, "max_duration": 3.0})
 
     assert merged["timeout"] == 1.0
     assert merged["max_duration"] == 3.0
 
 
-def test_a_query_is_never_inherited_from_the_defaults() -> None:
-    merged = merge_default_options(_CLIENT, {}, _defaults(query={"a": 1}))
-
-    assert merged["query"] == {}
-
-
 def test_the_extra_entries_of_the_defaults_fill_in_the_ones_not_given() -> None:
-    merged = merge_default_options(
-        _CLIENT,
-        {"extra": {"a": 1}},
-        _defaults(extra={"a": 2, "b": 3}),
-    )
+    merged = merge_default_options(_CLIENT, {"extra": {"a": 1}}, {"extra": {"a": 2, "b": 3}})
 
     assert merged["extra"] == {"a": 1, "b": 3}
-
-
-@pytest.mark.parametrize(
-    ("host", "address", "expected_host", "expected_address"),
-    [
-        ("Example.COM", "127.0.0.1", "example.com", "127.0.0.1"),
-        ("example.com:8080", "127.0.0.1", "example.com:8080", "127.0.0.1"),
-        ("example.com", "[::1]", "example.com", "::1"),
-        ("example.com", "", "example.com", None),
-    ],
-)
-def test_a_pinned_address_is_keyed_by_the_host_as_a_url_would_name_it(
-    host: str,
-    address: str,
-    expected_host: str,
-    expected_address: str | None,
-) -> None:
-    merged = merge_default_options(_CLIENT, {"resolve": {host: address}}, _defaults(resolve={}))
-
-    assert merged["resolve"] == {expected_host: expected_address}
 
 
 def test_an_address_pinned_by_the_defaults_fills_in_a_host_the_request_did_not_pin() -> None:
     merged = merge_default_options(
         _CLIENT,
         {"resolve": {"a.example.com": "127.0.0.1"}},
-        _defaults(resolve={"a.example.com": "127.0.0.2", "B.example.com": "127.0.0.3"}),
+        {"resolve": {"a.example.com": "127.0.0.2", "b.example.com": "127.0.0.3"}},
     )
 
     assert merged["resolve"] == {
@@ -129,3 +76,7 @@ def test_nothing_is_refused_when_there_are_no_defaults_to_compare_with() -> None
     merged = merge_default_options(_CLIENT, {"nonsense": 1}, {})
 
     assert merged["nonsense"] == 1
+
+
+def test_every_option_a_client_knows_passes_validation() -> None:
+    validate_options(_CLIENT, {"timeout": 1.0}, {"timeout": 2.0, "query": {}})
