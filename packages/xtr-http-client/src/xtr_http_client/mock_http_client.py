@@ -60,7 +60,8 @@ class MockHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
 
     - nothing, and every request is answered with an empty 200;
     - one :class:`MockResponse <xtr_http_client.response.mock_response.MockResponse>`,
-      which answers every request;
+      which answers one request, and a second request is a mistake, reported
+      as the script running out;
     - an iterable of them, one per request, in order — a request past the end
       of it is a mistake and is reported as one, since a test that makes more
       requests than it wrote answers for is no longer testing what it says;
@@ -78,7 +79,7 @@ class MockHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
 
     __slots__ = ("_factory", "_requests_count")
 
-    _factory: MockResponse | ScriptedFactory | Iterator[MockResponse | ScriptedFactory] | None
+    _factory: ScriptedFactory | Iterator[MockResponse | ScriptedFactory] | None
 
     def __init__(
         self,
@@ -106,7 +107,10 @@ class MockHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
         Args:
             response_factory: Where the answers come from.
         """
-        if isinstance(response_factory, Iterable):
+        if isinstance(response_factory, MockResponse):
+            # A single answer is one item of a script, so it answers one request.
+            self._factory = iter([response_factory])
+        elif isinstance(response_factory, Iterable):
             # Taken one at a time from here on, so a generator is not drawn
             # on until the request its answer is for.
             self._factory = iter(response_factory)
@@ -194,8 +198,6 @@ class MockHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
 
         if factory is None:
             return MockResponse()
-        if isinstance(factory, MockResponse):
-            return factory
         if callable(factory):
             return await _called(factory, method, url, options)
 

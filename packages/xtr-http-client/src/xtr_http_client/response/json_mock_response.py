@@ -46,8 +46,10 @@ class JsonMockResponse(MockResponse):
         """Write out an answer carrying ``body`` as JSON.
 
         Args:
-            body: Any value JSON can be made of. It is encoded as it stands,
-                so ``None`` is the document ``null``.
+            body: Any value JSON can be made of, encoded as it stands. ``None``,
+                the default, is not encoded: it answers an empty list, so an
+                answer nobody wrote out is still a document. To send ``null``,
+                write the bytes with :class:`MockResponse` instead.
             info: What the transfer is to claim about itself, as
                 :class:`MockResponse` takes it. A ``content-type`` among its
                 ``response_headers`` is left alone; one is added when there is
@@ -56,7 +58,7 @@ class JsonMockResponse(MockResponse):
         Raises:
             InvalidArgumentError: When the value cannot be encoded as JSON.
         """
-        super().__init__(_encoded(body), _labelled(info))
+        super().__init__(_encoded([] if body is None else body), _labelled(info))
 
     @classmethod
     def from_file(

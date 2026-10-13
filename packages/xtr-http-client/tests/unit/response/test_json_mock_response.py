@@ -17,9 +17,9 @@ pytestmark = pytest.mark.anyio
 URL = "https://example.com/orders"
 
 
-async def test_a_document_nobody_wrote_is_the_document_null() -> None:
+async def test_a_document_nobody_wrote_is_an_empty_list() -> None:
     async with JsonMockResponse().issue("GET", URL, {}) as response:
-        assert await response.get_content() == b"null"
+        assert await response.get_content() == b"[]"
         assert response.get_header("content-type") == ["application/json"]
 
 

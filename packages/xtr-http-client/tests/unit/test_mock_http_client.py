@@ -86,12 +86,20 @@ async def test_every_shape_a_script_can_be_written_in_answers(
     assert client.get_requests_count() == 2
 
 
-async def test_one_written_answer_answers_every_request() -> None:
-    client = MockHttpClient(MockResponse(b"the same again"))
+async def test_one_written_answer_answers_one_request_and_a_second_request_is_refused() -> None:
+    client = MockHttpClient(MockResponse(b"the only one"))
 
     async with await client.request("GET", URL) as response:
-        assert await response.get_content() == b"the same again"
+        assert await response.get_content() == b"the only one"
 
+    with pytest.raises(
+        TransportError,
+        match=re.escape(
+            "No more response left in the response factory iterator passed to "
+            "MockHttpClient: the number of requests exceeds the number of responses."
+        ),
+    ):
+        _ = await client.request("GET", URL)
     assert client.get_requests_count() == 1
 
 
