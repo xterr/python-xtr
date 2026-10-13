@@ -55,7 +55,7 @@ class _OrderRequestParser(AbstractRequestParser):
         secret: str,
     ) -> RemoteEvent | list[RemoteEvent]:
         del secret
-        payload = self.read_json(request)
+        payload = await self.read_json(request)
         batched = payload.get("events")
         if batched is None:
             return _event(payload)

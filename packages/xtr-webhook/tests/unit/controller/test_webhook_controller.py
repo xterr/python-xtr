@@ -91,7 +91,9 @@ async def test_it_answers_a_type_no_parser_speaks_for_with_404() -> None:
     answered = await WebhookController({}, {}, bus).index_action("acme", _arrived(), Response())
 
     assert answered.get_status_code() == 404
-    assert bytes(answered.get_body()) == b"No webhook parser found for the type given in the URL."
+    assert await answered.get_body().get_contents() == (
+        b"No webhook parser found for the type given in the URL."
+    )
     assert answered.get_header_line("Content-Type") == _PLAIN_TEXT
     assert bus.messages == []
 
@@ -107,7 +109,7 @@ async def test_it_refuses_a_webhook_the_parser_read_nothing_out_of(
     answered = await _controller(parser, bus).index_action("acme", _arrived(), Response())
 
     assert answered.get_status_code() == 406
-    assert bytes(answered.get_body()) == b"Unable to parse the webhook payload."
+    assert await answered.get_body().get_contents() == b"Unable to parse the webhook payload."
     assert bus.messages == []
 
 
@@ -142,7 +144,7 @@ async def test_it_answers_a_read_webhook_with_202_and_nothing_else() -> None:
     )
 
     assert answered.get_status_code() == 202
-    assert bytes(answered.get_body()) == b""
+    assert await answered.get_body().get_contents() == b""
 
 
 @pytest.mark.anyio
@@ -168,7 +170,7 @@ async def test_it_dispatches_one_message_per_event_a_webhook_carried() -> None:
     )
 
     assert answered.get_status_code() == 202
-    assert bytes(answered.get_body()) == b""
+    assert await answered.get_body().get_contents() == b""
     assert bus.messages == [
         ConsumeRemoteEventMessage("acme", first),
         ConsumeRemoteEventMessage("acme", second),
@@ -185,7 +187,7 @@ async def test_it_answers_a_refused_webhook_with_what_the_refusal_carries() -> N
     )
 
     assert answered.get_status_code() == 401
-    assert bytes(answered.get_body()) == b"Signature is wrong."
+    assert await answered.get_body().get_contents() == b"Signature is wrong."
     assert answered.get_header_line("Content-Type") == _PLAIN_TEXT
     assert answered.get_header_line("WWW-Authenticate") == "Signature"
     assert bus.messages == []

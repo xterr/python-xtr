@@ -142,7 +142,7 @@ class RequestParser(AbstractRequestParser):
         if not secret:
             raise InvalidArgumentError("A non-empty secret is required.")
 
-        body = self.read_body(request)
+        body = await self.read_body(request)
 
         required = [self._signature_header_name, self._id_header_name]
         if self._signature_format is SignatureFormat.LEGACY:

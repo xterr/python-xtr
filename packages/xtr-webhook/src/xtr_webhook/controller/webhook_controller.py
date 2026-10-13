@@ -30,7 +30,7 @@ _NO_PARSER: Final = "No webhook parser found for the type given in the URL."
 _UNPARSABLE: Final = "Unable to parse the webhook payload."
 
 
-def _as_plain_text(
+async def _as_plain_text(
     response: R,
     status_code: int,
     reason: str,
@@ -45,7 +45,7 @@ def _as_plain_text(
     answered = response.with_status(status_code).with_header("Content-Type", _PLAIN_TEXT)
     for name, value in headers.items():
         answered = answered.with_header(name, value)
-    _ = answered.get_body().write(reason.encode())
+    _ = await answered.get_body().write(reason.encode())
 
     return answered
 
@@ -120,19 +120,21 @@ class WebhookController:
             ``response`` with the answer on it.
         """
         if not self._parsers.has(event_type):
-            return _as_plain_text(response, _NOT_FOUND, _NO_PARSER, {})
+            return await _as_plain_text(response, _NOT_FOUND, _NO_PARSER, {})
 
         parser = await self._parsers.get(event_type)
 
         try:
             events = await parser.parse(request, self._secrets.get(event_type, ""))
         except RejectWebhookError as refused:
-            return _as_plain_text(response, refused.status_code, str(refused), refused.headers)
+            return await _as_plain_text(
+                response, refused.status_code, str(refused), refused.headers
+            )
 
         if not events:
-            return parser.create_rejected_response(_UNPARSABLE, request, response)
+            return await parser.create_rejected_response(_UNPARSABLE, request, response)
 
         for event in [events] if isinstance(events, RemoteEvent) else events:
             _ = await self._bus.dispatch(ConsumeRemoteEventMessage(event_type, event))
 
-        return parser.create_successful_response(request, response)
+        return await parser.create_successful_response(request, response)

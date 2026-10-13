@@ -31,7 +31,7 @@ class _TextRequestParser(AbstractRequestParser):
 
     @override
     async def do_parse(self, request: ServerRequestInterface, secret: str) -> RemoteEvent | None:
-        return RemoteEvent("text", "the-id", {"body": self.read_body(request).decode()})
+        return RemoteEvent("text", "the-id", {"body": (await self.read_body(request)).decode()})
 
 
 class _Unseekable(io.BytesIO):
@@ -102,47 +102,53 @@ async def test_the_refusal_keeps_what_gave_it_away_to_itself() -> None:
     assert isinstance(refused.value.__cause__, Exception)
 
 
-def test_it_reads_a_body_another_reader_already_ran_through() -> None:
+@pytest.mark.anyio
+async def test_it_reads_a_body_another_reader_already_ran_through() -> None:
     request = _arrived()
-    _ = request.get_body().get_contents()
+    _ = await request.get_body().get_contents()
 
-    assert SecretHeaderRequestParser().read_body(request) == b'{"hello": "world"}'
+    assert await SecretHeaderRequestParser().read_body(request) == b'{"hello": "world"}'
 
 
-def test_it_reads_a_body_that_cannot_be_rewound_from_where_it_stands() -> None:
+@pytest.mark.anyio
+async def test_it_reads_a_body_that_cannot_be_rewound_from_where_it_stands() -> None:
     request = ServerRequest(
         "POST", "/webhook", {"Content-Type": "application/json"}, _Unseekable(b'{"hi": 1}')
     )
-    _ = request.get_body().read(1)
+    _ = await request.get_body().read(1)
 
-    assert SecretHeaderRequestParser().read_body(request) == b'"hi": 1}'
-
-
-def test_it_reads_a_json_object_out_of_the_body() -> None:
-    assert SecretHeaderRequestParser().read_json(_arrived()) == {"hello": "world"}
+    assert await SecretHeaderRequestParser().read_body(request) == b'"hi": 1}'
 
 
-def test_it_answers_a_parsed_webhook_with_202() -> None:
-    answered = SecretHeaderRequestParser().create_successful_response(_arrived(), Response())
+@pytest.mark.anyio
+async def test_it_reads_a_json_object_out_of_the_body() -> None:
+    assert await SecretHeaderRequestParser().read_json(_arrived()) == {"hello": "world"}
+
+
+@pytest.mark.anyio
+async def test_it_answers_a_parsed_webhook_with_202() -> None:
+    answered = await SecretHeaderRequestParser().create_successful_response(_arrived(), Response())
 
     assert answered.get_status_code() == 202
-    assert bytes(answered.get_body()) == b""
+    assert await answered.get_body().get_contents() == b""
 
 
-def test_it_answers_a_refused_webhook_with_406_and_the_reason() -> None:
-    answered = SecretHeaderRequestParser().create_rejected_response(
+@pytest.mark.anyio
+async def test_it_answers_a_refused_webhook_with_406_and_the_reason() -> None:
+    answered = await SecretHeaderRequestParser().create_rejected_response(
         "Request does not match.", _arrived(), Response()
     )
 
     assert answered.get_status_code() == 406
-    assert bytes(answered.get_body()) == b"Request does not match."
+    assert await answered.get_body().get_contents() == b"Request does not match."
     assert answered.get_header_line("Content-Type") == "text/plain; charset=utf-8"
 
 
-def test_it_leaves_the_response_it_was_handed_as_it_was() -> None:
+@pytest.mark.anyio
+async def test_it_leaves_the_response_it_was_handed_as_it_was() -> None:
     handed = Response()
 
-    _ = SecretHeaderRequestParser().create_rejected_response("Nope.", _arrived(), handed)
+    _ = await SecretHeaderRequestParser().create_rejected_response("Nope.", _arrived(), handed)
 
     assert handed.get_status_code() == 200
     assert handed.has_header("Content-Type") is False

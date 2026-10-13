@@ -56,7 +56,7 @@ class RequestParserInterface(Protocol):
         """
         ...
 
-    def create_successful_response(self, request: ServerRequestInterface, response: R) -> R:
+    async def create_successful_response(self, request: ServerRequestInterface, response: R) -> R:
         """Fill in the answer to a webhook that was read.
 
         Args:
@@ -69,7 +69,7 @@ class RequestParserInterface(Protocol):
         """
         ...
 
-    def create_rejected_response(
+    async def create_rejected_response(
         self,
         reason: str,
         request: ServerRequestInterface,

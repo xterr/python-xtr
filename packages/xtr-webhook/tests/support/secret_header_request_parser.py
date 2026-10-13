@@ -49,4 +49,4 @@ class SecretHeaderRequestParser(AbstractRequestParser):
         if secret != request.get_header_line("X-Secret"):
             raise RejectWebhookError(406, "Invalid secret.")
 
-        return RemoteEvent("parsed", "the-id", self.read_json(request))
+        return RemoteEvent("parsed", "the-id", await self.read_json(request))

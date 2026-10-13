@@ -48,7 +48,7 @@ class AbstractRequestParser(RequestParserInterface, ABC):
             return ChainRequestMatcher([MethodRequestMatcher("POST"), IsJsonRequestMatcher()])
 
         async def do_parse(self, request, secret):
-            payload = self.read_json(request)
+            payload = await self.read_json(request)
             return RemoteEvent("acme", str(payload["id"]), payload)
     ```
     """
@@ -86,7 +86,7 @@ class AbstractRequestParser(RequestParserInterface, ABC):
             raise RejectWebhookError(_UNACCEPTABLE, _MALFORMED) from unreadable
 
     @override
-    def create_successful_response(self, request: ServerRequestInterface, response: R) -> R:
+    async def create_successful_response(self, request: ServerRequestInterface, response: R) -> R:
         """Answer a webhook that was read with 202 and nothing else.
 
         The sender is told the webhook was taken, not what became of it: the
@@ -106,7 +106,7 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         return response.with_status(_ACCEPTED)
 
     @override
-    def create_rejected_response(
+    async def create_rejected_response(
         self,
         reason: str,
         request: ServerRequestInterface,
@@ -131,7 +131,7 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         del request
 
         refused = response.with_status(_UNACCEPTABLE).with_header("Content-Type", _PLAIN_TEXT)
-        _ = refused.get_body().write(reason.encode())
+        _ = await refused.get_body().write(reason.encode())
 
         return refused
 
@@ -180,13 +180,14 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         if not self.get_request_matcher().matches(request):
             raise RejectWebhookError(_UNACCEPTABLE, "Request does not match.")
 
-    def read_body(self, request: ServerRequestInterface) -> bytes:
+    async def read_body(self, request: ServerRequestInterface) -> bytes:
         """Return the body of the request, whole, from its first byte.
 
         A signature is made over exactly the bytes that arrived, and whatever
         read the body before this — a framework logging it, a matcher looking
-        at it — left the cursor wherever it stopped. So the stream is rewound
-        first, where it can be.
+        at it — left the cursor wherever it stopped. Reading the whole of a
+        stream rewinds it first, where it can be rewound, so that is all this
+        has to ask for.
 
         Args:
             request: The request that arrived.
@@ -194,13 +195,9 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         Returns:
             Every byte of the body.
         """
-        body = request.get_body()
-        if body.is_seekable():
-            body.rewind()
+        return await request.get_body().get_contents()
 
-        return body.get_contents()
-
-    def read_json(self, request: ServerRequestInterface) -> dict[str, object]:
+    async def read_json(self, request: ServerRequestInterface) -> dict[str, object]:
         """Return the body of the request read as a JSON object.
 
         Args:
@@ -216,7 +213,7 @@ class AbstractRequestParser(RequestParserInterface, ABC):
                 rather than refused here, so that :meth:`parse` turns it into
                 the same refusal wherever in a subclass it came from.
         """
-        return self._decode_json(self.read_body(request))
+        return self._decode_json(await self.read_body(request))
 
     def _decode_json(self, body: bytes) -> dict[str, object]:
         """Return bytes already read from the body, as a JSON object.
