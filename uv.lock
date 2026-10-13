@@ -19,6 +19,9 @@ members = [
     "xtr-dotenv",
     "xtr-event-dispatcher",
     "xtr-event-dispatcher-contracts",
+    "xtr-http-client",
+    "xtr-http-client-contracts",
+    "xtr-http-foundation",
     "xtr-http-kernel",
     "xtr-http-message",
     "xtr-http-message-contracts",
@@ -4431,6 +4434,143 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+]
+
+[[package]]
+name = "xtr-http-client"
+version = "4.0.0"
+source = { editable = "packages/xtr-http-client" }
+dependencies = [
+    { name = "anyio" },
+    { name = "httpx" },
+    { name = "typing-extensions" },
+    { name = "xtr-http-client-contracts" },
+    { name = "xtr-http-foundation" },
+    { name = "xtr-http-message" },
+    { name = "xtr-http-message-contracts" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.optional-dependencies]
+di = [
+    { name = "xtr-dependency-injection" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-dependency-injection" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
+    { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
+    { name = "xtr-http-message", editable = "packages/xtr-http-message" },
+    { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+provides-extras = ["di"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+]
+
+[[package]]
+name = "xtr-http-client-contracts"
+version = "4.0.0"
+source = { editable = "packages/xtr-http-client-contracts" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-message-contracts" },
+]
+
+[package.optional-dependencies]
+testing = [
+    { name = "anyio" },
+    { name = "pytest" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", marker = "extra == 'testing'", specifier = ">=4.0" },
+    { name = "pytest", marker = "extra == 'testing'", specifier = ">=8" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
+]
+provides-extras = ["testing"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+]
+
+[[package]]
+name = "xtr-http-foundation"
+version = "4.0.0"
+source = { editable = "packages/xtr-http-foundation" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-message-contracts" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-http-message" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 
 [[package]]

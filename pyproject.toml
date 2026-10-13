@@ -21,6 +21,9 @@ xtr-dependency-injection = { workspace = true }
 xtr-dotenv               = { workspace = true }
 xtr-event-dispatcher     = { workspace = true }
 xtr-event-dispatcher-contracts = { workspace = true }
+xtr-http-client          = { workspace = true }
+xtr-http-client-contracts = { workspace = true }
+xtr-http-foundation      = { workspace = true }
 xtr-http-kernel          = { workspace = true }
 xtr-http-message         = { workspace = true }
 xtr-http-message-contracts = { workspace = true }
