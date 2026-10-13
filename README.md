@@ -164,7 +164,7 @@ graph LR
     webhook --> clock
     webhook --> httpmsgcon
     webhook --> svccon
-    webhook -. http extra .-> httpkernel
+    webhook --> httpkernel
     webhook -. di extra .-> di
     webhook -. testing extra .-> httpmsg
     remoteevent -. di extra .-> di

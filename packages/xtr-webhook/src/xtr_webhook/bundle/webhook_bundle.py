@@ -1,8 +1,8 @@
 """The xtr-webhook bundle: the receiving endpoint and the signing sender, from one config.
 
-An application listing :class:`WebhookBundle` — which brings the remote-event
-and messenger bundles with it, and the HTTP kernel's when that package is
-installed — gets the controller behind ``routes()``, a configured
+An application listing :class:`WebhookBundle` — which brings the remote-event,
+messenger and HTTP kernel bundles with it — gets the endpoint webhooks arrive
+at, which ``setup`` mounts, and its controller, a configured
 :class:`~xtr_webhook.client.RequestParser` under the ``webhook`` qualifier,
 and — when the httpx client library is installed — the transport that delivers
 a ``SendWebhookMessage`` and the handler that listens for one. The handler is
@@ -26,37 +26,38 @@ from xtr_dependency_injection import (
     named_factory,
     required_bundle,
 )
+from xtr_http_kernel.bundle import HttpKernelBundle
 from xtr_messenger import MessageBusInterface
 from xtr_remote_event.bundle import RemoteEventBundle
 
 from xtr_webhook.client.request_parser import RequestParser
 from xtr_webhook.client.request_parser_interface import RequestParserInterface
 from xtr_webhook.controller.webhook_controller import WebhookController
-from xtr_webhook.exception import LogicError
 from xtr_webhook.server.header_signature_configurator import HeaderSignatureConfigurator
 from xtr_webhook.server.headers_configurator import HeadersConfigurator
 from xtr_webhook.server.json_body_configurator import JsonBodyConfigurator
 from xtr_webhook.server.json_payload_serializer import JsonPayloadSerializer
 from xtr_webhook.server.signature_format import SignatureFormat
 
+from ._routed_parsers import ROUTE_QUALIFIER, RoutedParsers
 from .webhook_config import WebhookConfig
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine
+    from collections.abc import Callable
 
 __all__ = ["WebhookBundle"]
 
 _WEBHOOK: Final = "webhook"
 """The qualifier of the bundle's own parser and its own client."""
 
-_NO_CONTAINER: Final = "the webhook bundle has no container; it is used before it booted"
-
 _SEND_HANDLER_MODULE: Final = "xtr_webhook.messenger.send_webhook_handler"
+
+_ROUTING_MODULE: Final = "xtr_webhook.routing"
 
 
 @final
 @required_bundle(RemoteEventBundle)
-@required_bundle("xtr_http_kernel.bundle:HttpKernelBundle", ignore_on_invalid=True)
+@required_bundle(HttpKernelBundle)
 @as_bundle("webhook", config=WebhookConfig)
 class WebhookBundle(Bundle[WebhookConfig]):
     """Wires the endpoint's controller and the sender's chain to the container."""
@@ -91,8 +92,20 @@ class WebhookBundle(Bundle[WebhookConfig]):
         )
         for parser in _custom_parsers(config):
             _ = services.set(parser)
+        # Each configured type's parser, under a qualifier of its own: the
+        # controller reaches them through a locator the container injects.
+        for name, route in config.routing.items():
+            services.alias(
+                RequestParserInterface,
+                route.parser if route.parser is not None else RequestParser,
+                alias_qualifier=ROUTE_QUALIFIER.format(type=name),
+                target_qualifier=None if route.parser is not None else _WEBHOOK,
+            )
 
-        _ = services.set(named_factory(_webhook_controller(self), "webhook_controller"))
+        _ = services.set(named_factory(_webhook_controller, "webhook_controller"))
+        # The route loader: scanned so the http kernel builds the endpoint into
+        # the application's table, which setup() mounts.
+        services.load(_ROUTING_MODULE)
 
         if find_spec("httpx") is not None:
             # Imported only now: httpx sits at the top of that module, and is
@@ -180,30 +193,16 @@ def _request_parser(fmt: SignatureFormat) -> Callable[[WebhookConfig], RequestPa
 
 
 def _webhook_controller(
-    bundle: WebhookBundle,
-) -> Callable[[WebhookConfig, MessageBusInterface], Coroutine[None, None, WebhookController]]:
-    """Return the factory serving the endpoint's controller over the routed parsers.
+    config: WebhookConfig,
+    bus: MessageBusInterface,
+    parsers: ServiceLocator[RequestParserInterface],
+) -> WebhookController:
+    """Build the endpoint's controller over the parsers the routing names.
 
-    The parsers go in as a :class:`ServiceLocator`, so the controller never
-    holds the container and a route's parser is built — with its
-    dependencies — only when the first webhook for it arrives. A route naming
-    no parser falls back to the bundle's own, under its ``webhook`` qualifier.
+    The container injects a locator over every parser; only the routed types
+    are handed on, each under the qualifier its route was aliased with, so a
+    route's parser is built — with its dependencies — the first time a webhook
+    for it arrives. A route naming no parser reads with the bundle's own.
     """
-
-    async def build(config: WebhookConfig, bus: MessageBusInterface) -> WebhookController:
-        container = bundle.container
-        if container is None:
-            raise LogicError(_NO_CONTAINER)
-        parsers = ServiceLocator[RequestParserInterface](
-            container,
-            {
-                name: (route.parser, None)
-                if route.parser is not None
-                else (RequestParser, _WEBHOOK)
-                for name, route in config.routing.items()
-            },
-        )
-        secrets = {name: route.secret for name, route in config.routing.items()}
-        return WebhookController(parsers, secrets, bus)
-
-    return build
+    secrets = {name: route.secret for name, route in config.routing.items()}
+    return WebhookController(RoutedParsers(parsers, tuple(config.routing)), secrets, bus)

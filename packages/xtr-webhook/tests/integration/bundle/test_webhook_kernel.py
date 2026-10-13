@@ -17,7 +17,6 @@ from tests.support.serving import serving
 from xtr_webhook.client.request_parser import RequestParser
 from xtr_webhook.exception import PrivateNetworkError
 from xtr_webhook.messenger import SendWebhookMessage
-from xtr_webhook.routes import routes
 from xtr_webhook.subscriber import Subscriber
 
 pytestmark = pytest.mark.anyio
@@ -37,7 +36,6 @@ def _clear_recordings() -> None:
 
 def _application() -> FastAPI:
     app = FastAPI()
-    app.include_router(routes())
     setup(app, Kernel(APP, env="test"))
     return app
 

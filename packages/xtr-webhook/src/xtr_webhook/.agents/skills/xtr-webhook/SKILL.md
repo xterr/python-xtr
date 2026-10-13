@@ -13,8 +13,9 @@ sees HTTP. Sending is the same problem from the other side.
 
 ## Quick reference
 
-- Receive — `routes()` from `xtr_webhook.routes` serves `POST /webhook/{type}`; the type picks
-  the parser and the secret. `WebhookController(parsers, secrets, bus)` is what answers.
+- Receive — `setup(app, kernel)` adds `POST /webhook/{type}` (route resource `webhook`, movable
+  in `<app>/config/routes/webhook.py`); the type picks the parser and the secret.
+  `WebhookController(parsers, secrets, bus)` is what answers.
 - Parse — subclass `AbstractRequestParser` and fill in `get_request_matcher()` and
   `async do_parse(request, secret)`. `RequestParser` is the built-in one.
 - Send — `await bus.dispatch(SendWebhookMessage(Subscriber(url, secret), event))`. Needs the
@@ -30,17 +31,14 @@ sees HTTP. Sending is the same problem from the other side.
 
 ## Receive a webhook
 
-With `xtr-webhook[http,di]`, mount the router and route each sender's type:
+With `xtr-webhook[di]`, call `setup` — it adds the endpoint — and route each sender's type:
 
 ```python
 from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
 from xtr_http_kernel import setup
 
-from xtr_webhook.routes import routes
-
 app = FastAPI()
-app.include_router(routes())
 setup(app, Kernel("app"))
 ```
 
@@ -260,31 +258,31 @@ async def test_the_parser_reads_every_recorded_payload(case: ParserCase) -> None
 ## Use in an application
 
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
-`WebhookBundle`, writes a starting `<app>/config/webhook.py` with one route, and `WEBHOOK_SECRET`
-(commented out) in `.env`. It prints the steps it cannot make — mounting `routes()` and naming
-your own types.
+`WebhookBundle`, writes a starting `<app>/config/webhook.py` with one route,
+`<app>/config/routes/webhook.py`, and `WEBHOOK_SECRET` (commented out) in `.env`. It prints the
+steps it cannot make — calling `setup` and naming your own types.
 
-1. **Install** — `uv add "xtr-webhook[client,http]"`; add `di` for the bundle. `client` sends,
-   `http` receives.
+1. **Install** — `uv add "xtr-webhook[client]"`; add `di` for the bundle. The endpoint comes
+   with the package; `client` sends.
 2. **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`
    (`from xtr_webhook.bundle import WebhookBundle`).
-3. **Brings along** — the remote-event bundle, and the messenger bundle through it, always; the
-   HTTP kernel's bundle when xtr-http-kernel is installed.
+3. **Brings along** — the remote-event bundle, the messenger bundle through it, and the HTTP
+   kernel's bundle, always.
 4. **Configure** — needed to receive anything: with no routing the endpoint knows no type and
    answers every webhook `404`. `<app>/config/webhook.py`, a `@configure` function returning
    `WebhookConfig` — `routing`, `signature_format`, `timestamp_tolerance`, `signing_algorithm`,
    the four header names, `http_client`, `no_private_network`.
 5. **Environment** — `WEBHOOK_SECRET`, the secret the written route verifies against, read when
    the endpoint is built; one per sender in practice. **Ignore** — nothing.
-6. **Load** — mount the endpoint: `app.include_router(routes())`, which serves
-   `POST /webhook/{type}`.
+6. **Load** — call `setup(app, kernel)`; it adds `POST /webhook/{type}`, arranged by
+   `<app>/config/routes/webhook.py` (`routes.import_("webhook").prefix("/hooks")` moves it).
 7. **Use** — declare a consumer for each type with
    `@as_remote_event_consumer("<type>")`, and inject the bundle's parser where you need it with
    `Annotated[RequestParserInterface, Target("webhook")]`.
 8. **Check** — `debug:bundles` shows `webhook` and `remote_event` as `listed` and `active`;
    `debug:config webhook` shows the resolved routing, header names and signature format.
-9. **Remove** — drop the `BUNDLES` entry and the `include_router` call, delete
-   `<app>/config/webhook.py`, then `uv remove xtr-webhook`.
+9. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/webhook.py` and
+   `<app>/config/routes/webhook.py`, then `uv remove xtr-webhook`.
 
 ## Errors
 

@@ -4,9 +4,10 @@ import pytest
 from xtr_dependency_injection import Kernel
 from xtr_dependency_injection.testing import assert_zero_config
 
-from tests.support.recording_message_bus import RecordingMessageBus
-from xtr_webhook.bundle import WebhookBundle, WebhookConfig
-from xtr_webhook.bundle.webhook_bundle import _webhook_controller
+from tests.fixtures.app_webhook.config import PARSED_TYPE, PLAIN_TYPE
+from tests.support.secret_header_request_parser import SecretHeaderRequestParser
+from xtr_webhook.bundle import WebhookBundle
+from xtr_webhook.client import RequestParser
 from xtr_webhook.controller.webhook_controller import WebhookController
 from xtr_webhook.exception import LogicError
 from xtr_webhook.server.transport_interface import TransportInterface
@@ -18,11 +19,30 @@ async def test_it_builds_and_boots_with_no_configuration() -> None:
     await assert_zero_config(WebhookBundle)
 
 
-async def test_the_controller_factory_is_refused_before_the_bundle_booted() -> None:
-    build = _webhook_controller(WebhookBundle())
+async def test_the_controller_serves_the_routed_types_and_no_other() -> None:
+    kernel = Kernel("tests.fixtures.app_webhook", env="test")
 
-    with pytest.raises(LogicError, match="has no container"):
-        _ = await build(WebhookConfig(), RecordingMessageBus())
+    async with await kernel.boot() as booted:
+        parsers = (await booted.container.get(WebhookController))._parsers
+        parsed = await parsers.get(PARSED_TYPE)
+        plain = await parsers.get(PLAIN_TYPE)
+
+    assert parsers.has(PARSED_TYPE)
+    assert parsers.has(PLAIN_TYPE)
+    assert not parsers.has("webhook")
+    assert isinstance(parsed, SecretHeaderRequestParser)
+    assert isinstance(plain, RequestParser)
+    assert set(parsers.provided_services()) == {PARSED_TYPE, PLAIN_TYPE}
+
+
+async def test_asking_for_a_type_the_routing_does_not_name_is_a_logic_error() -> None:
+    kernel = Kernel("tests.fixtures.app_webhook", env="test")
+
+    async with await kernel.boot() as booted:
+        parsers = (await booted.container.get(WebhookController))._parsers
+
+        with pytest.raises(LogicError, match='"stranger"'):
+            _ = await parsers.get("stranger")
 
 
 def _finds_nothing(name: str) -> None:

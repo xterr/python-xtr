@@ -29,9 +29,8 @@ This package does both ends, and turns what arrives into an
 ## Install
 
 ```sh
-uv add xtr-webhook              # signatures, parsers, the events a webhook becomes
+uv add xtr-webhook              # signatures, parsers, the endpoint, the events a webhook becomes
 uv add "xtr-webhook[client]"    # + sending signed webhooks
-uv add "xtr-webhook[http]"      # + the endpoint that receives them
 uv add "xtr-webhook[di]"        # + the bundle
 ```
 
@@ -103,22 +102,21 @@ In an application the endpoint and the controller are the bundle's — see
 
 ## Receiving
 
-Mount the endpoint where you want it, with `xtr-webhook[http]` installed:
+`setup(app, kernel)` adds the endpoint — no `include_router` of your own:
 
 ```python
 from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
 from xtr_http_kernel import setup
 
-from xtr_webhook.routes import routes
-
 app = FastAPI()
-app.include_router(routes())
 setup(app, Kernel("app"))
 ```
 
-That serves `POST /webhook/{type}`. `routes("/hooks")` moves it to `/hooks/webhook/{type}`, for
-an application keeping everything a stranger may call under one path. Whichever it is, build the
+That serves `POST /webhook/{type}`, contributed as the route resource `webhook`. A routes file in
+`<app>/config/routes/` — `routes.import_("webhook").prefix("/hooks")` — moves it to
+`/hooks/webhook/{type}`, for an application keeping everything a stranger may call under one
+path. Whichever it is, build the
 URL you hand a sender from the route's name, `"webhook"` — a sender that was told a URL keeps
 sending to it long after the deploy that changed the path.
 
@@ -480,30 +478,33 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add "xtr-webhook[client,http]"`; add `di` for the bundle. `client` is what
-  sends (the HTTP client and the guard), `http` is what receives (the endpoint). Without
-  `client`, no transport and no send handler are registered, and dispatching
+- **Install** — `uv add "xtr-webhook[client]"`; add `di` for the bundle. The endpoint that
+  receives comes with the package; `client` is what sends (the HTTP client and the guard).
+  Without `client`, no transport and no send handler are registered, and dispatching
   `SendWebhookMessage` fails with the bus's no-handler error.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure* and
   *Environment* steps below: it lists `WebhookBundle`, writes a starting
-  `<app>/config/webhook.py` with one route, and `WEBHOOK_SECRET` (commented out) in `.env`.
-  There is no ignore line to write. It prints the steps to mount `routes()` and to name your own
-  types, neither of which a recipe can make for you.
+  `<app>/config/webhook.py` with one route, `<app>/config/routes/webhook.py` serving the
+  endpoint at its default path, and `WEBHOOK_SECRET` (commented out) in `.env`. There is no
+  ignore line to write. It prints the steps to call `setup` and to name your own types, neither
+  of which a recipe can make for you.
 - **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_webhook.bundle`.
-- **Brings along** — the remote-event bundle, and the messenger bundle through it, always; the
-  HTTP kernel's bundle when xtr-http-kernel is installed.
+- **Brings along** — the remote-event bundle, the messenger bundle through it, and the HTTP
+  kernel's bundle, always.
 - **Configure** — needed to receive anything: with no routing the endpoint knows no type and
   answers every webhook `404`. Routing, header names, the signature format and the guard go in
   `<app>/config/webhook.py`, a `@configure` function returning `WebhookConfig` — see
   [Kernel / bundle](#kernel--bundle).
+  `<app>/config/routes/webhook.py` imports the `webhook` route resource; move it under a prefix
+  there.
 - **Environment** — `WEBHOOK_SECRET`, the secret the written route verifies against, read when
   the endpoint is built; one per sender in practice.
 - **Ignore** — nothing.
-- **Load** — mount the endpoint: `app.include_router(routes())` with `routes` from
-  `xtr_webhook.routes`, which serves `POST /webhook/{type}`.
-- **Remove** — drop the `BUNDLES` entry, drop the `include_router` call, delete
-  `<app>/config/webhook.py`, then `uv remove xtr-webhook`.
+- **Load** — call `setup(app, kernel)` where the application is built; it adds the endpoint,
+  `POST /webhook/{type}`.
+- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/webhook.py` and
+  `<app>/config/routes/webhook.py`, then `uv remove xtr-webhook`.
 - **Check** — `debug:bundles` shows `webhook` and `remote_event` as `listed` and `active`;
   `debug:config webhook` shows the resolved routing, header names and signature format.
 
@@ -559,7 +560,7 @@ instance.
 
 The bundle registers the configurator chain, its own parser under the `webhook` qualifier — so
 `Annotated[RequestParserInterface, Target("webhook")]` resolves to it — every custom parser the
-routing names, and the controller behind `routes()`. The controller gets its parsers as a
+routing names, the endpoint's route loader, and the controller behind it. The controller gets its parsers as a
 service locator, so it never holds the container and a route's parser is built only when the
 first webhook for it arrives.
 

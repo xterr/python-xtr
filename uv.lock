@@ -5637,9 +5637,11 @@ name = "xtr-webhook"
 version = "3.0.0"
 source = { editable = "packages/xtr-webhook" }
 dependencies = [
+    { name = "fastapi" },
     { name = "msgspec" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
+    { name = "xtr-http-kernel" },
     { name = "xtr-http-message-contracts" },
     { name = "xtr-messenger" },
     { name = "xtr-remote-event" },
@@ -5653,10 +5655,6 @@ client = [
 ]
 di = [
     { name = "xtr-dependency-injection" },
-]
-http = [
-    { name = "fastapi" },
-    { name = "xtr-http-kernel" },
 ]
 testing = [
     { name = "xtr-http-message" },
@@ -5680,20 +5678,20 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anyio", marker = "extra == 'client'", specifier = ">=4.0" },
-    { name = "fastapi", marker = "extra == 'http'", specifier = ">=0.121.3" },
+    { name = "fastapi", specifier = ">=0.121.3" },
     { name = "httpx", marker = "extra == 'client'", specifier = ">=0.27" },
     { name = "msgspec", specifier = ">=0.18" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
-    { name = "xtr-http-kernel", marker = "extra == 'http'", editable = "packages/xtr-http-kernel" },
+    { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-http-message", marker = "extra == 'testing'", editable = "packages/xtr-http-message" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
     { name = "xtr-remote-event", editable = "packages/xtr-remote-event" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
-provides-extras = ["client", "http", "di", "testing"]
+provides-extras = ["client", "di", "testing"]
 
 [package.metadata.requires-dev]
 dev = [

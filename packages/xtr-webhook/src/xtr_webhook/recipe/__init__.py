@@ -6,8 +6,8 @@ environment variable the written module reads. An application applies it with
 ``xtr-recipes recipes:sync``, which finds this module through the
 ``xtr_recipes`` entry point.
 
-Mounting the endpoint is the one step left to a person: where ``routes()`` is
-included is the application's own router layout, which no recipe can read.
+The endpoint needs no step of its own: ``setup`` adds it, and the routes file
+this recipe writes says where. Naming each sender's type is left to a person.
 
 Nothing is importable from here. The manifest and the template are read as
 files, so a recipe is the same from a wheel as from a working tree.
