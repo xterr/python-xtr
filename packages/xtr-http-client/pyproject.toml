@@ -150,14 +150,7 @@ include = ["src", "tests"]
 minversion = "8.0"
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-config", "--strict-markers"]
-filterwarnings = [
-    "error",
-    # A response nobody closed is collected with the temporary file its body was
-    # kept in still open. The conformance suite abandons transfers on purpose —
-    # that is what it means to leave a body unread — so this says nothing about
-    # the code under test.
-    "ignore::ResourceWarning",
-]
+filterwarnings = ["error"]
 
 [tool.coverage.run]
 source = ["src"]

@@ -147,9 +147,8 @@ async def test_a_body_is_handed_over_decoded() -> None:
         request=_REQUEST,
     )
 
-    response = await to_http_response(answer, [], "GET", 0.0, None)
-
-    assert await response.get_content() == b"orders"
+    async with await to_http_response(answer, [], "GET", 0.0, None) as response:
+        assert await response.get_content() == b"orders"
 
 
 async def test_a_body_whose_encoding_was_asked_for_is_handed_over_as_it_arrived() -> None:
@@ -161,9 +160,8 @@ async def test_a_body_whose_encoding_was_asked_for_is_handed_over_as_it_arrived(
         request=_REQUEST,
     )
 
-    response = await to_http_response(answer, [], "GET", 0.0, None, decode=False)
-
-    assert await response.get_content() == compressed
+    async with await to_http_response(answer, [], "GET", 0.0, None, decode=False) as response:
+        assert await response.get_content() == compressed
 
 
 async def test_the_address_the_answer_came_from_is_recorded_when_it_is_known() -> None:
