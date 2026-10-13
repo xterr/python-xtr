@@ -19,6 +19,8 @@ from .client_error import ClientError
 from .decoding_error import DecodingError
 from .http_client_error import HttpClientError
 from .http_error import HttpError
+from .invalid_argument_error import InvalidArgumentError
+from .json_error import JsonError
 from .redirection_error import RedirectionError
 from .server_error import ServerError
 from .transport_error import TransportError
@@ -29,6 +31,8 @@ __all__ = [
     "DecodingError",
     "HttpClientError",
     "HttpError",
+    "InvalidArgumentError",
+    "JsonError",
     "RedirectionError",
     "ServerError",
     "TransportError",

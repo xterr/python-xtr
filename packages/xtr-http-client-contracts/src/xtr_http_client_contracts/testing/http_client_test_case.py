@@ -119,6 +119,7 @@ from xtr_http_message import Request
 
 from xtr_http_client_contracts.exception import (
     ClientError,
+    InvalidArgumentError,
     RedirectionError,
     TransportError,
     TransportTimeoutError,
@@ -987,7 +988,7 @@ class HttpClientTestCase:
         client = self.create_client()
         request = Request("POST", f"{_BASE_URI}/post", body=b"foo=bar")
 
-        with pytest.raises(TransportError, match=re.escape(_BOTH_BODIES)):
+        with pytest.raises(InvalidArgumentError, match=re.escape(_BOTH_BODIES)):
             _ = await client.send_request(request, body={"foo": "baz"})
 
     async def test_request_is_send_request_of_the_same_request(self) -> None:

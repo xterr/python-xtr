@@ -31,8 +31,8 @@ class HttpClientInterface(Protocol):
     Several requests run at once by being made from tasks of one task group.
 
     An option name the contract does not list is refused with
-    :class:`TransportError
-    <xtr_http_client_contracts.exception.transport_error.TransportError>`:
+    :class:`InvalidArgumentError
+    <xtr_http_client_contracts.exception.invalid_argument_error.InvalidArgumentError>`:
     ``Unsupported option "foo" passed to "<client class>", did you mean "..."?``.
     An option that was spelled wrong cannot pass for one that was obeyed.
     """
@@ -63,8 +63,9 @@ class HttpClientInterface(Protocol):
 
         Raises:
             TransportTimeoutError: When no answer came in time.
-            TransportError: When no answer came, and for an invalid method,
-                URL or option.
+            InvalidArgumentError: For an invalid method, URL or option, before
+                anything is sent.
+            TransportError: When no answer came.
         """
         ...
 
@@ -100,8 +101,10 @@ class HttpClientInterface(Protocol):
 
         Raises:
             TransportTimeoutError: When no answer came in time.
-            TransportError: When no answer came, and for an invalid method,
-                URL or option.
+            InvalidArgumentError: For an invalid method, URL or option, and for
+                a body given both with the request and as an option, before
+                anything is sent.
+            TransportError: When no answer came.
         """
         ...
 
@@ -116,6 +119,6 @@ class HttpClientInterface(Protocol):
             A new client; this one is left as it was.
 
         Raises:
-            TransportError: When an option is invalid, as in :meth:`request`.
+            InvalidArgumentError: When an option is invalid, as in :meth:`request`.
         """
         ...

@@ -113,8 +113,8 @@ class HttpResponseInterface(ResponseInterface, Protocol):
             What the body decoded to.
 
         Raises:
-            DecodingError: When the body is empty, is not JSON, or is JSON
-                that is not an object.
+            DecodingError: When the body is empty or is not JSON.
+            JsonError: When the body is JSON but not an object.
             TransportError: When the transfer failed or was cancelled.
             RedirectionError: On a 3xx once ``max_redirects`` was reached,
                 when ``throw``.
