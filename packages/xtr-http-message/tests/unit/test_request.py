@@ -8,6 +8,8 @@ from xtr_http_message.factory.http_factory import HttpFactory
 from xtr_http_message.request import Request
 from xtr_http_message.uri import Uri
 
+pytestmark = pytest.mark.anyio
+
 
 def _names_a_header_cannot_carry() -> list[str]:
     """Return a name for every character a header name may not carry.
@@ -56,26 +58,32 @@ def test_a_uri_that_cannot_be_read_is_refused() -> None:
         _ = Request("GET", "http://")
 
 
-def test_a_body_given_to_the_constructor_is_the_body() -> None:
+async def test_a_body_given_to_the_constructor_is_the_body() -> None:
     request = Request("GET", "/", None, b"baz")
 
-    assert (isinstance(request.get_body(), StreamInterface), bytes(request.get_body())) == (
+    assert (
+        isinstance(request.get_body(), StreamInterface),
+        await request.get_body().get_contents(),
+    ) == (
         True,
         b"baz",
     )
 
 
-def test_no_body_given_to_the_constructor_is_an_empty_body() -> None:
+async def test_no_body_given_to_the_constructor_is_an_empty_body() -> None:
     request = Request("GET", "/", None, None)
 
-    assert (isinstance(request.get_body(), StreamInterface), bytes(request.get_body())) == (
+    assert (
+        isinstance(request.get_body(), StreamInterface),
+        await request.get_body().get_contents(),
+    ) == (
         True,
         b"",
     )
 
 
-def test_a_body_of_one_zero_is_still_a_body() -> None:
-    assert bytes(Request("GET", "/", None, b"0").get_body()) == b"0"
+async def test_a_body_of_one_zero_is_still_a_body() -> None:
+    assert await Request("GET", "/", None, b"0").get_body().get_contents() == b"0"
 
 
 def test_the_constructor_does_not_read_the_body_it_is_given() -> None:

@@ -59,14 +59,9 @@ class EndlessStream(StreamInterface):
         return False
 
     @override
-    def __bytes__(self) -> bytes:
-        """Return everything the stream holds."""
-        return bytes(self._inner)
-
-    @override
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the stream underneath."""
-        self._inner.close()
+        await self._inner.close()
 
     @override
     def detach(self) -> BinaryIO | None:
@@ -84,7 +79,7 @@ class EndlessStream(StreamInterface):
         return self._inner.tell()
 
     @override
-    def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
+    async def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
         """Refuse to move the cursor.
 
         Args:
@@ -98,13 +93,13 @@ class EndlessStream(StreamInterface):
         raise RuntimeError(message)
 
     @override
-    def rewind(self) -> None:
+    async def rewind(self) -> None:
         """Refuse to move the cursor back.
 
         Raises:
             RuntimeError: Always: this stream does not seek.
         """
-        self.seek(0)
+        await self.seek(0)
 
     @override
     def is_writable(self) -> bool:
@@ -112,9 +107,9 @@ class EndlessStream(StreamInterface):
         return self._inner.is_writable()
 
     @override
-    def write(self, data: bytes) -> int:
+    async def write(self, data: bytes) -> int:
         """Write to the stream underneath."""
-        return self._inner.write(data)
+        return await self._inner.write(data)
 
     @override
     def is_readable(self) -> bool:
@@ -122,14 +117,14 @@ class EndlessStream(StreamInterface):
         return self._inner.is_readable()
 
     @override
-    def read(self, length: int) -> bytes:
+    async def read(self, length: int) -> bytes:
         """Read from the stream underneath."""
-        return self._inner.read(length)
+        return await self._inner.read(length)
 
     @override
-    def get_contents(self) -> bytes:
-        """Read the rest of the stream underneath."""
-        return self._inner.get_contents()
+    async def get_contents(self) -> bytes:
+        """Read the whole of the stream underneath."""
+        return await self._inner.get_contents()
 
     @override
     def get_metadata(self, key: str | None = None) -> object:

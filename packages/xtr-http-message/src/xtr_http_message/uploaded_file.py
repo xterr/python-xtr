@@ -36,10 +36,12 @@ class UploadedFile(UploadedFileInterface):
     nobody looks at opens none of them.
 
     ```python
+    import asyncio
+
     from xtr_http_message import Stream, UploadedFile
 
     upload = UploadedFile(Stream.create(b"hello"), 5, 0, "greeting.txt", "text/plain")
-    assert bytes(upload.get_stream()) == b"hello"
+    assert asyncio.run(upload.get_stream().get_contents()) == b"hello"
     ```
 
     An upload that did not go through carries nothing: the error says why, and
@@ -131,7 +133,7 @@ class UploadedFile(UploadedFileInterface):
         return Stream.create(_open(source, "rb"))
 
     @override
-    def move_to(self, target_path: str) -> None:
+    async def move_to(self, target_path: str) -> None:
         """Move the file to ``target_path``, consuming it.
 
         A file on disk is moved as it is. One that arrived as a stream is
@@ -153,12 +155,16 @@ class UploadedFile(UploadedFileInterface):
 
         if isinstance(source, str):
             try:
-                _ = Path(source).replace(target_path)
+                # One rename call, and the file system has no awaitable form
+                # here: the move is awaited so that a stream-backed upload can
+                # be copied chunk by chunk, not so that a path is reached
+                # through a thread.
+                _ = Path(source).replace(target_path)  # noqa: ASYNC240
             except OSError as failure:
                 message = f'Uploaded file could not be moved to "{target_path}": {failure}'
                 raise UploadedFileError(message) from failure
         else:
-            _copy_into(source, target_path)
+            await _copy_into(source, target_path)
 
         self._moved = True
 
@@ -244,7 +250,7 @@ def _open(path: str, mode: Literal["rb", "wb"]) -> BinaryIO:
         raise UploadedFileError(message) from failure
 
 
-def _copy_into(source: StreamInterface, target_path: str) -> None:
+async def _copy_into(source: StreamInterface, target_path: str) -> None:
     """Copy a stream into a file, a mebibyte at a time.
 
     Args:
@@ -255,10 +261,10 @@ def _copy_into(source: StreamInterface, target_path: str) -> None:
         UploadedFileError: When the target path cannot be opened.
     """
     if source.is_seekable():
-        source.rewind()
+        await source.rewind()
 
     with _open(target_path, "wb") as file:
         destination = Stream(file)
         while not source.eof():
-            if destination.write(source.read(_CHUNK)) == 0:
+            if await destination.write(await source.read(_CHUNK)) == 0:
                 break

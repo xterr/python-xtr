@@ -73,8 +73,13 @@ class Stream(StreamInterface):
     bytes, an open file object, or a stream that is already one of these.
 
     The payload is bytes throughout. A body may be an image or a compressed
-    archive, so there is no encoding to guess at, and ``bytes(stream)`` rather
-    than ``str(stream)`` is what reads the whole of one.
+    archive, so there is no encoding to guess at, and
+    ``await stream.get_contents()`` is what reads the whole of one.
+
+    Moving bytes is awaited: :meth:`read`, :meth:`write`,
+    :meth:`get_contents`, :meth:`seek`, :meth:`rewind` and :meth:`close` do
+    input and output. The methods that only report what the stream already
+    holds cost no ``await``.
 
     Unlike the messages that carry it, a stream is not immutable: reading,
     writing and seeking all move its cursor in place.
@@ -113,25 +118,7 @@ class Stream(StreamInterface):
         return cls(body)
 
     @override
-    def __bytes__(self) -> bytes:
-        """Return everything in the stream, rewinding first when it can be rewound.
-
-        Never raises: a stream that is detached, closed or write-only reads as
-        empty bytes, so that taking the whole of a message body is always
-        safe.
-
-        Returns:
-            Every byte in the stream, or empty bytes when it cannot be read.
-        """
-        try:
-            if self.is_seekable():
-                self.seek(0)
-            return self.get_contents()
-        except (StreamError, OSError, ValueError):
-            return b""
-
-    @override
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the file object and let go of it."""
         if self._stream is not None:
             self._stream.close()
@@ -223,7 +210,7 @@ class Stream(StreamInterface):
         return stream is not None and not stream.closed and stream.seekable()
 
     @override
-    def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
+    async def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
         """Move the cursor to a position in the stream.
 
         Args:
@@ -248,13 +235,13 @@ class Stream(StreamInterface):
         self._at_end = False
 
     @override
-    def rewind(self) -> None:
+    async def rewind(self) -> None:
         """Move the cursor back to the beginning of the stream.
 
         Raises:
             StreamError: When the stream is detached or not seekable.
         """
-        self.seek(0)
+        await self.seek(0)
 
     @override
     def is_writable(self) -> bool:
@@ -269,7 +256,7 @@ class Stream(StreamInterface):
         return stream is not None and not stream.closed and stream.writable()
 
     @override
-    def write(self, data: bytes) -> int:
+    async def write(self, data: bytes) -> int:
         """Write bytes at the cursor.
 
         Args:
@@ -308,7 +295,7 @@ class Stream(StreamInterface):
         return stream is not None and not stream.closed and stream.readable()
 
     @override
-    def read(self, length: int) -> bytes:
+    async def read(self, length: int) -> bytes:
         """Read up to ``length`` bytes from the cursor.
 
         Args:
@@ -343,16 +330,27 @@ class Stream(StreamInterface):
         return chunk
 
     @override
-    def get_contents(self) -> bytes:
-        """Read the rest of the stream, from the cursor to the end.
+    async def get_contents(self) -> bytes:
+        """Read the whole of the stream, from the first byte to the last.
+
+        Rewinds first when the cursor can be moved, then reads to the end. A
+        stream that cannot be rewound has nothing to rewind to, so that one is
+        read from wherever its cursor sits; :meth:`read` is the way to take a
+        measured amount from the current position instead.
 
         Returns:
-            Every byte between the cursor and the end of the stream.
+            Every byte in the stream.
 
         Raises:
-            StreamError: When the stream is detached, or reading fails.
+            StreamError: When the stream is detached, cannot be rewound after
+                saying it can, or cannot be read. An unreadable body is
+                reported rather than answered with empty bytes, which would be
+                indistinguishable from an empty one.
         """
         stream = self._require_stream()
+        if self.is_seekable():
+            await self.seek(0)
+
         try:
             contents = stream.read()
         except (OSError, ValueError) as error:

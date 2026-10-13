@@ -37,8 +37,8 @@ Every message is immutable: a ``with_*`` method leaves the instance it was
 called on alone and returns one carrying the change — and hands the same
 instance back when the change would change nothing. A stream is the one thing
 that is not: reading, writing and seeking move its cursor in place. Its
-payload is bytes throughout, so ``bytes(stream)`` is how the whole of a body
-is read; ``str(stream)`` is not the body.
+payload is bytes throughout, so ``await stream.get_contents()`` is how the
+whole of a body is read; there is no encoding to guess at.
 
 Bridging a message to the web framework an application runs on belongs with
 that framework's integration, not here.

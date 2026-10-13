@@ -13,6 +13,8 @@ from tests.support.endless_stream import EndlessStream
 from tests.support.unreadable_file import UnreadableFile
 from tests.support.unseekable_file import UnseekableFile
 
+pytestmark = pytest.mark.anyio
+
 
 def test_the_unseekable_file_does_not_seek() -> None:
     with UnseekableFile(b"data") as file:
@@ -34,10 +36,10 @@ def test_the_unreadable_file_still_takes_what_is_written_to_it() -> None:
         assert file.write(b"data") == 4
 
 
-def test_the_endless_stream_never_reaches_its_end() -> None:
+async def test_the_endless_stream_never_reaches_its_end() -> None:
     stream = EndlessStream(b"data")
 
-    _ = stream.get_contents()
+    _ = await stream.get_contents()
 
     assert stream.eof() is False
 
@@ -46,24 +48,24 @@ def test_the_endless_stream_does_not_seek() -> None:
     assert EndlessStream(b"data").is_seekable() is False
 
 
-def test_the_endless_stream_refuses_to_move_its_cursor() -> None:
+async def test_the_endless_stream_refuses_to_move_its_cursor() -> None:
     with pytest.raises(RuntimeError, match="not seekable"):
-        EndlessStream(b"data").seek(0)
+        await EndlessStream(b"data").seek(0)
 
 
-def test_the_endless_stream_refuses_to_rewind() -> None:
+async def test_the_endless_stream_refuses_to_rewind() -> None:
     with pytest.raises(RuntimeError, match="not seekable"):
-        EndlessStream(b"data").rewind()
+        await EndlessStream(b"data").rewind()
 
 
-def test_the_endless_stream_reads_what_it_holds_once() -> None:
+async def test_the_endless_stream_reads_what_it_holds_once() -> None:
     stream = EndlessStream(b"data")
 
-    assert (stream.read(4), stream.read(4)) == (b"data", b"")
+    assert (await stream.read(4), await stream.read(4)) == (b"data", b"")
 
 
-def test_the_endless_stream_reads_the_whole_of_what_it_holds() -> None:
-    assert bytes(EndlessStream(b"data")) == b"data"
+async def test_the_endless_stream_reads_the_whole_of_what_it_holds() -> None:
+    assert await EndlessStream(b"data").get_contents() == b"data"
 
 
 def test_the_endless_stream_reports_the_size_of_what_it_holds() -> None:
@@ -80,10 +82,10 @@ def test_the_endless_stream_reads_and_writes() -> None:
     assert (stream.is_readable(), stream.is_writable()) == (True, True)
 
 
-def test_the_endless_stream_takes_what_is_written_to_it() -> None:
+async def test_the_endless_stream_takes_what_is_written_to_it() -> None:
     stream = EndlessStream(b"")
 
-    assert stream.write(b"more") == 4
+    assert await stream.write(b"more") == 4
 
 
 def test_the_endless_stream_knows_what_it_is_over() -> None:
@@ -99,10 +101,10 @@ def test_the_endless_stream_can_be_detached() -> None:
     detached.close()
 
 
-def test_the_endless_stream_can_be_closed() -> None:
+async def test_the_endless_stream_can_be_closed() -> None:
     stream = EndlessStream(b"data")
 
-    stream.close()
+    await stream.close()
 
     assert stream.get_size() is None
 

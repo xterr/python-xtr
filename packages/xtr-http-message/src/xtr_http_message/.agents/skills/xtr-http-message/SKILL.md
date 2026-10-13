@@ -48,16 +48,22 @@ A header the message does not carry reads as `[]` from `get_header` and `""` fro
 ## Read and write a body
 
 ```python
+import asyncio
+
 from xtr_http_message import Response
 
-response = Response(200, None, b'{"id": 7}')
 
-assert bytes(response.get_body()) == b'{"id": 7}'  # rewinds, reads all, never raises
-assert response.get_body().get_contents() == b""  # already at the end
+async def main() -> None:
+    response = Response(200, None, b'{"id": 7}')
 
-body = response.get_body()
-body.seek(0)
-assert body.read(4) == b'{"id'
+    assert await response.get_body().get_contents() == b'{"id": 7}'  # rewinds, then reads all
+
+    body = response.get_body()
+    await body.seek(0)
+    assert await body.read(4) == b'{"id'
+
+
+asyncio.run(main())
 ```
 
 A message built with no body opens nothing until `get_body()` is asked for. A body is the one
@@ -65,11 +71,18 @@ thing here that is *not* immutable: writing to `get_body()` changes the message'
 which is how an injected response is filled in.
 
 ```python
+import asyncio
+
 from xtr_http_message import Response
 
-response = Response()
-_ = response.get_body().write(b"hello")
-assert bytes(response.get_body()) == b"hello"
+
+async def main() -> None:
+    response = Response()
+    _ = await response.get_body().write(b"hello")
+    assert await response.get_body().get_contents() == b"hello"
+
+
+asyncio.run(main())
 ```
 
 ## Take a URI apart and put one together
@@ -123,13 +136,20 @@ assert refusal == 'Unable to parse URI: "http://exa mple.com"'
 ## Handle an uploaded file
 
 ```python
+import asyncio
+
 from xtr_http_message import Stream, UploadedFile
 from xtr_http_message_contracts import UploadError
 
-upload = UploadedFile(Stream.create(b"hello"), 5, UploadError.OK, "greeting.txt", "text/plain")
-assert bytes(upload.get_stream()) == b"hello"
 
-upload.move_to("greeting.txt")  # consumes it; a second move is refused
+async def main() -> None:
+    upload = UploadedFile(Stream.create(b"hello"), 5, UploadError.OK, "greeting.txt", "text/plain")
+    assert await upload.get_stream().get_contents() == b"hello"
+
+    await upload.move_to("greeting.txt")  # consumes it; a second move is refused
+
+
+asyncio.run(main())
 ```
 
 Given a path instead of a stream, the file is opened only when it is read, and `move_to` moves it

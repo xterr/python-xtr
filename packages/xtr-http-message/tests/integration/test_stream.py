@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import BinaryIO
 
+pytestmark = pytest.mark.anyio
+
 
 def _written(data: bytes) -> io.BytesIO:
     """Return a buffer holding ``data``, with the cursor left after it.
@@ -39,25 +41,25 @@ def read_only_file() -> Iterator[BinaryIO]:
         yield file
 
 
-def test_a_stream_that_cannot_be_written_to_still_reads_whole(
+async def test_a_stream_that_cannot_be_written_to_still_reads_whole(
     read_only_file: BinaryIO,
 ) -> None:
-    assert bytes(Stream.create(read_only_file)) != b""
+    assert await Stream.create(read_only_file).get_contents() != b""
 
 
-def test_a_stream_is_rewound_before_it_is_read_whole() -> None:
+async def test_a_stream_is_rewound_before_it_is_read_whole() -> None:
     buffer = _written(b"abcdef")
     _ = buffer.seek(3)
 
-    assert bytes(Stream.create(buffer)) == b"abcdef"
+    assert await Stream.create(buffer).get_contents() == b"abcdef"
 
 
-def test_closing_a_stream_closes_the_file_it_wraps() -> None:
+async def test_closing_a_stream_closes_the_file_it_wraps() -> None:
     buffer = _written(b"abcdef")
     stream = Stream.create(buffer)
 
     assert buffer.closed is False
-    stream.close()
+    await stream.close()
     assert buffer.closed is True
 
 
@@ -76,21 +78,21 @@ def test_the_cursor_sits_after_what_was_written() -> None:
 
 
 @pytest.mark.parametrize("offset", [0, 3, 6])
-def test_the_cursor_is_reported_where_it_was_moved_to(offset: int) -> None:
+async def test_the_cursor_is_reported_where_it_was_moved_to(offset: int) -> None:
     stream = Stream.create(_written(b"abcdef"))
 
-    stream.seek(offset)
+    await stream.seek(offset)
 
     assert stream.tell() == offset
 
 
-def test_the_end_is_reached_once_reading_has_run_out() -> None:
+async def test_the_end_is_reached_once_reading_has_run_out() -> None:
     stream = Stream.create(_written(b"abcdef"))
-    stream.seek(0)
+    await stream.seek(0)
 
     assert stream.eof() is False
-    _ = stream.read(20)
-    _ = stream.read(10)
+    _ = await stream.read(20)
+    _ = await stream.read(10)
     assert stream.eof() is True
 
 
@@ -131,52 +133,52 @@ def test_a_stream_that_cannot_be_read_reports_so() -> None:
     assert Stream.create(UnreadableFile()).is_readable() is False
 
 
-def test_seeking_a_stream_moves_the_file_it_wraps() -> None:
+async def test_seeking_a_stream_moves_the_file_it_wraps() -> None:
     buffer = _written(b"abcdef")
 
-    Stream.create(buffer).seek(3)
+    await Stream.create(buffer).seek(3)
 
     assert buffer.read(3) == b"def"
 
 
-def test_rewinding_a_stream_moves_the_file_it_wraps_back() -> None:
+async def test_rewinding_a_stream_moves_the_file_it_wraps_back() -> None:
     buffer = _written(b"abcdef")
 
-    Stream.create(buffer).rewind()
+    await Stream.create(buffer).rewind()
 
     assert buffer.read(6) == b"abcdef"
 
 
-def test_a_stream_that_does_not_seek_cannot_be_rewound() -> None:
+async def test_a_stream_that_does_not_seek_cannot_be_rewound() -> None:
     """The harness reaches for a remote URL; the fake stands in for one."""
     with pytest.raises(StreamError):
-        Stream.create(UnseekableFile(b"abcdef")).rewind()
+        await Stream.create(UnseekableFile(b"abcdef")).rewind()
 
 
-def test_writing_reports_how_much_was_written() -> None:
+async def test_writing_reports_how_much_was_written() -> None:
     stream = Stream.create(_written(b"abc"))
 
-    assert stream.write(b"def") == 3
-    assert bytes(stream) == b"abcdef"
+    assert await stream.write(b"def") == 3
+    assert await stream.get_contents() == b"abcdef"
 
 
-def test_reading_takes_what_is_asked_for_and_then_what_is_left() -> None:
+async def test_reading_takes_what_is_asked_for_and_then_what_is_left() -> None:
     stream = Stream.create(_written(b"abcdef"))
-    stream.rewind()
+    await stream.rewind()
 
-    assert stream.read(3) == b"abc"
-    assert stream.read(10) == b"def"
+    assert await stream.read(3) == b"abc"
+    assert await stream.read(10) == b"def"
 
 
-def test_the_rest_of_a_stream_is_read_once_and_then_empty() -> None:
+async def test_the_whole_of_a_stream_is_read_however_often_it_is_asked_for() -> None:
     stream = Stream.create(_written(b"abcdef"))
-    stream.seek(3)
+    await stream.seek(3)
 
-    assert stream.get_contents() == b"def"
-    assert stream.get_contents() == b""
+    assert await stream.get_contents() == b"abcdef"
+    assert await stream.get_contents() == b"abcdef"
 
 
-def test_reading_the_rest_of_a_stream_whose_file_was_closed_fails() -> None:
+async def test_reading_the_whole_of_a_stream_whose_file_was_closed_fails() -> None:
     buffer = _written(b"abcdef")
     _ = buffer.seek(0)
     stream = Stream.create(buffer)
@@ -184,4 +186,4 @@ def test_reading_the_rest_of_a_stream_whose_file_was_closed_fails() -> None:
     buffer.close()
 
     with pytest.raises(StreamError):
-        _ = stream.get_contents()
+        _ = await stream.get_contents()

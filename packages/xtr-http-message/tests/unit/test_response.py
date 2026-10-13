@@ -7,12 +7,14 @@ from xtr_http_message.exception import InvalidArgumentError
 from xtr_http_message.factory.http_factory import HttpFactory
 from xtr_http_message.response import Response
 
+pytestmark = pytest.mark.anyio
+
 
 def test_response_is_a_response() -> None:
     assert ResponseInterface in Response.__mro__
 
 
-def test_a_response_built_with_nothing_is_an_empty_two_hundred() -> None:
+async def test_a_response_built_with_nothing_is_an_empty_two_hundred() -> None:
     response = Response()
 
     assert (
@@ -20,7 +22,7 @@ def test_a_response_built_with_nothing_is_an_empty_two_hundred() -> None:
         response.get_protocol_version(),
         response.get_reason_phrase(),
         response.get_headers(),
-        bytes(response.get_body()),
+        await response.get_body().get_contents(),
     ) == (200, "1.1", "OK", {}, b"")
 
 
@@ -28,8 +30,8 @@ def test_the_body_of_a_response_built_with_nothing_is_still_a_stream() -> None:
     assert isinstance(Response().get_body(), StreamInterface)
 
 
-def test_a_body_given_to_the_constructor_is_read_from_its_beginning() -> None:
-    assert Response(200, None, b"Hello").get_body().get_contents() == b"Hello"
+async def test_a_body_given_to_the_constructor_is_read_from_its_beginning() -> None:
+    assert await Response(200, None, b"Hello").get_body().get_contents() == b"Hello"
 
 
 def test_a_status_code_brings_its_recommended_phrase_with_it() -> None:
@@ -78,16 +80,16 @@ def test_a_header_given_as_several_values_is_recorded_as_several() -> None:
     ) == ({"Foo": ["baz", "bar"]}, "baz, bar", ["baz", "bar"])
 
 
-def test_a_body_given_to_the_constructor_is_the_body() -> None:
-    assert bytes(Response(200, None, b"baz").get_body()) == b"baz"
+async def test_a_body_given_to_the_constructor_is_the_body() -> None:
+    assert await Response(200, None, b"baz").get_body().get_contents() == b"baz"
 
 
-def test_no_body_given_to_the_constructor_is_an_empty_body() -> None:
-    assert bytes(Response(200, None, None).get_body()) == b""
+async def test_no_body_given_to_the_constructor_is_an_empty_body() -> None:
+    assert await Response(200, None, None).get_body().get_contents() == b""
 
 
-def test_a_body_of_one_zero_is_still_a_body() -> None:
-    assert bytes(Response(200, None, b"0").get_body()) == b"0"
+async def test_a_body_of_one_zero_is_still_a_body() -> None:
+    assert await Response(200, None, b"0").get_body().get_contents() == b"0"
 
 
 def test_a_reason_phrase_given_to_the_constructor_is_the_phrase() -> None:
@@ -145,10 +147,10 @@ def test_setting_the_protocol_version_it_already_has_hands_the_same_response_bac
     assert response.with_protocol_version("1.1") is response
 
 
-def test_a_body_set_afterwards_is_the_body() -> None:
+async def test_a_body_set_afterwards_is_the_body() -> None:
     body = HttpFactory().create_stream(b"0")
 
-    assert bytes(Response().with_body(body).get_body()) == b"0"
+    assert await Response().with_body(body).get_body().get_contents() == b"0"
 
 
 def test_setting_the_body_it_already_reads_hands_the_same_response_back() -> None:

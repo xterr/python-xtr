@@ -9,6 +9,8 @@ from xtr_http_message.exception import InvalidArgumentError
 from xtr_http_message.server_request import ServerRequest
 from xtr_http_message.uploaded_file import UploadedFile
 
+pytestmark = pytest.mark.anyio
+
 
 def test_server_request_is_a_server_request() -> None:
     assert ServerRequestInterface in ServerRequest.__mro__
@@ -222,8 +224,8 @@ def test_a_server_request_keeps_a_host_header_given_with_it() -> None:
     assert request.get_header_line("host") == "a.com"
 
 
-def test_a_body_given_to_a_server_request_is_its_body() -> None:
-    assert bytes(ServerRequest("GET", "/", None, b"baz").get_body()) == b"baz"
+async def test_a_body_given_to_a_server_request_is_its_body() -> None:
+    assert await ServerRequest("GET", "/", None, b"baz").get_body().get_contents() == b"baz"
 
 
 def test_environment_parameters_nothing_can_change_are_held_as_they_were_given() -> None:

@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
     from xtr_http_message_contracts import MessageInterface
 
+pytestmark = pytest.mark.anyio
+
 _BOTH_TYPES = re.compile("text/html, ?text/plain")
 
 # The harness checks that a header name or value of the wrong type is refused.
@@ -211,11 +213,11 @@ def test_removing_a_header_removes_it_whatever_the_case(message: MessageInterfac
     assert "Age" not in without.get_headers()
 
 
-def test_the_body_can_be_replaced(message: MessageInterface) -> None:
+async def test_the_body_can_be_replaced(message: MessageInterface) -> None:
     body = Stream.create(b"foo")
 
     carrying = message.with_body(body)
 
     assert carrying is not message
-    assert bytes(message.get_body()) == b""
+    assert await message.get_body().get_contents() == b""
     assert carrying.get_body() is body

@@ -16,6 +16,8 @@ from xtr_http_message.uploaded_file import UploadedFile
 if TYPE_CHECKING:
     from pathlib import Path
 
+pytestmark = pytest.mark.anyio
+
 _FAILED = [
     pytest.param(error, id=error.name) for error in UploadError if error is not UploadError.OK
 ]
@@ -52,19 +54,22 @@ def test_a_file_that_arrived_as_a_file_object_reads_back_over_it() -> None:
         assert upload.get_stream().detach() is file
 
 
-def test_a_file_that_arrived_as_a_path_is_opened_when_it_is_read(tmp_path: Path) -> None:
+async def test_a_file_that_arrived_as_a_path_is_opened_when_it_is_read(tmp_path: Path) -> None:
     path = tmp_path / "foo.txt"
     _ = path.write_bytes(b"Foobar\n")
 
     stream = UploadedFile(str(path), 7, UploadError.OK).get_stream()
 
     try:
-        assert (isinstance(stream, StreamInterface), bytes(stream)) == (True, b"Foobar\n")
+        assert (isinstance(stream, StreamInterface), await stream.get_contents()) == (
+            True,
+            b"Foobar\n",
+        )
     finally:
-        stream.close()
+        await stream.close()
 
 
-def test_a_file_that_arrived_as_a_path_is_opened_afresh_every_time(tmp_path: Path) -> None:
+async def test_a_file_that_arrived_as_a_path_is_opened_afresh_every_time(tmp_path: Path) -> None:
     path = tmp_path / "foo.txt"
     _ = path.write_bytes(b"Foobar\n")
     upload = UploadedFile(str(path), 7, UploadError.OK)
@@ -74,8 +79,8 @@ def test_a_file_that_arrived_as_a_path_is_opened_afresh_every_time(tmp_path: Pat
     try:
         assert first is not second
     finally:
-        first.close()
-        second.close()
+        await first.close()
+        await second.close()
 
 
 def test_a_path_that_cannot_be_opened_is_reported_with_the_path(tmp_path: Path) -> None:
@@ -111,58 +116,58 @@ def test_a_file_the_client_named_nothing_has_no_name() -> None:
     assert (upload.get_client_filename(), upload.get_client_media_type()) == (None, None)
 
 
-def test_moving_a_file_that_arrived_as_a_stream_writes_it_where_it_was_told(
+async def test_moving_a_file_that_arrived_as_a_stream_writes_it_where_it_was_told(
     tmp_path: Path,
 ) -> None:
     stream = Stream.create(b"Foo bar!")
     upload = UploadedFile(stream, stream.get_size(), UploadError.OK, "filename.txt", "text/plain")
     target = tmp_path / "moved.txt"
 
-    upload.move_to(str(target))
+    await upload.move_to(str(target))
 
     assert target.read_bytes() == b"Foo bar!"
 
 
-def test_moving_a_file_larger_than_one_chunk_writes_all_of_it(tmp_path: Path) -> None:
+async def test_moving_a_file_larger_than_one_chunk_writes_all_of_it(tmp_path: Path) -> None:
     content = b"x" * (1_048_576 + 7)
     upload = UploadedFile(Stream.create(content), len(content), UploadError.OK)
     target = tmp_path / "moved.bin"
 
-    upload.move_to(str(target))
+    await upload.move_to(str(target))
 
     assert target.read_bytes() == content
 
 
-def test_moving_a_file_finishes_against_a_stream_that_never_reaches_its_end(
+async def test_moving_a_file_finishes_against_a_stream_that_never_reaches_its_end(
     tmp_path: Path,
 ) -> None:
     upload = UploadedFile(EndlessStream(b"Foo bar!"), 8, UploadError.OK)
     target = tmp_path / "moved.txt"
 
-    upload.move_to(str(target))
+    await upload.move_to(str(target))
 
     assert target.read_bytes() == b"Foo bar!"
 
 
-def test_moving_a_file_rewinds_a_stream_already_read(tmp_path: Path) -> None:
+async def test_moving_a_file_rewinds_a_stream_already_read(tmp_path: Path) -> None:
     stream = Stream.create(b"Foo bar!")
-    _ = stream.get_contents()
+    _ = await stream.get_contents()
     upload = UploadedFile(stream, 8, UploadError.OK)
     target = tmp_path / "moved.txt"
 
-    upload.move_to(str(target))
+    await upload.move_to(str(target))
 
     assert target.read_bytes() == b"Foo bar!"
 
 
-def test_moving_a_file_to_an_empty_path_is_refused() -> None:
+async def test_moving_a_file_to_an_empty_path_is_refused() -> None:
     upload = UploadedFile(HttpFactory().create_stream(b"Foo bar!"), 0, UploadError.OK)
 
     with pytest.raises(InvalidArgumentError, match="path"):
-        upload.move_to("")
+        await upload.move_to("")
 
 
-def test_moving_a_file_to_a_path_that_cannot_be_opened_is_reported(tmp_path: Path) -> None:
+async def test_moving_a_file_to_a_path_that_cannot_be_opened_is_reported(tmp_path: Path) -> None:
     upload = UploadedFile(HttpFactory().create_stream(b"Foo bar!"), 8, UploadError.OK)
     target = str(tmp_path / "missing" / "moved.txt")
 
@@ -170,22 +175,22 @@ def test_moving_a_file_to_a_path_that_cannot_be_opened_is_reported(tmp_path: Pat
         UploadedFileError,
         match=re.escape(f'The file "{target}" cannot be opened'),
     ):
-        upload.move_to(target)
+        await upload.move_to(target)
 
 
-def test_a_file_cannot_be_moved_twice(tmp_path: Path) -> None:
+async def test_a_file_cannot_be_moved_twice(tmp_path: Path) -> None:
     upload = UploadedFile(HttpFactory().create_stream(b"Foo bar!"), 8, UploadError.OK)
     target = tmp_path / "moved.txt"
-    upload.move_to(str(target))
+    await upload.move_to(str(target))
 
     with pytest.raises(UploadedFileError, match="moved"):
-        upload.move_to(str(target))
+        await upload.move_to(str(target))
 
 
-def test_a_file_cannot_be_read_once_it_has_been_moved(tmp_path: Path) -> None:
+async def test_a_file_cannot_be_read_once_it_has_been_moved(tmp_path: Path) -> None:
     upload = UploadedFile(HttpFactory().create_stream(b"Foo bar!"), 8, UploadError.OK)
     target = tmp_path / "moved.txt"
-    upload.move_to(str(target))
+    await upload.move_to(str(target))
 
     with pytest.raises(UploadedFileError, match="moved"):
         _ = upload.get_stream()
@@ -199,14 +204,14 @@ def test_an_upload_that_did_not_go_through_keeps_nothing_but_its_outcome(
 
 
 @pytest.mark.parametrize("error", _FAILED)
-def test_an_upload_that_did_not_go_through_cannot_be_moved(
+async def test_an_upload_that_did_not_go_through_cannot_be_moved(
     error: UploadError,
     tmp_path: Path,
 ) -> None:
     upload = UploadedFile("not ok", 0, error)
 
     with pytest.raises(UploadedFileError, match="upload error"):
-        upload.move_to(str(tmp_path / "moved.txt"))
+        await upload.move_to(str(tmp_path / "moved.txt"))
 
 
 @pytest.mark.parametrize("error", _FAILED)
@@ -215,17 +220,19 @@ def test_an_upload_that_did_not_go_through_cannot_be_read(error: UploadError) ->
         _ = UploadedFile("not ok", 0, error).get_stream()
 
 
-def test_moving_a_file_that_arrived_as_a_path_moves_the_file(tmp_path: Path) -> None:
+async def test_moving_a_file_that_arrived_as_a_path_moves_the_file(tmp_path: Path) -> None:
     source = tmp_path / "from.txt"
     _ = source.write_bytes(b"Foo bar!")
     target = tmp_path / "to.txt"
 
-    UploadedFile(str(source), 8, UploadError.OK, source.name, "text/plain").move_to(str(target))
+    await UploadedFile(str(source), 8, UploadError.OK, source.name, "text/plain").move_to(
+        str(target)
+    )
 
     assert (target.read_bytes(), source.exists()) == (b"Foo bar!", False)
 
 
-def test_moving_a_file_that_is_not_where_it_says_it_is_is_reported(tmp_path: Path) -> None:
+async def test_moving_a_file_that_is_not_where_it_says_it_is_is_reported(tmp_path: Path) -> None:
     missing = str(tmp_path / "gone.txt")
     target = str(tmp_path / "to.txt")
 
@@ -233,4 +240,4 @@ def test_moving_a_file_that_is_not_where_it_says_it_is_is_reported(tmp_path: Pat
         UploadedFileError,
         match=re.escape(f'Uploaded file could not be moved to "{target}"'),
     ):
-        UploadedFile(missing, 0, UploadError.OK).move_to(target)
+        await UploadedFile(missing, 0, UploadError.OK).move_to(target)

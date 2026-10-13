@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
     from xtr_http_message_contracts import UploadedFileInterface
 
+pytestmark = pytest.mark.anyio
+
 
 def test_the_contents_of_an_upload_are_read_as_a_stream(
     uploaded_file: UploadedFileInterface,
@@ -21,28 +23,28 @@ def test_the_contents_of_an_upload_are_read_as_a_stream(
     assert isinstance(uploaded_file.get_stream(), StreamInterface)
 
 
-def test_the_contents_cannot_be_read_once_the_file_has_been_moved(
+async def test_the_contents_cannot_be_read_once_the_file_has_been_moved(
     uploaded_file: UploadedFileInterface,
     tmp_path: Path,
 ) -> None:
-    uploaded_file.move_to(str(tmp_path / "foo"))
+    await uploaded_file.move_to(str(tmp_path / "foo"))
 
     with pytest.raises(UploadedFileError):
         _ = uploaded_file.get_stream()
 
 
-def test_an_upload_is_moved_to_an_absolute_path(
+async def test_an_upload_is_moved_to_an_absolute_path(
     uploaded_file: UploadedFileInterface,
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "foo"
 
     assert target.is_file() is False
-    uploaded_file.move_to(str(target))
+    await uploaded_file.move_to(str(target))
     assert target.is_file() is True
 
 
-def test_an_upload_is_moved_to_a_relative_path(
+async def test_an_upload_is_moved_to_a_relative_path(
     uploaded_file: UploadedFileInterface,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -54,19 +56,19 @@ def test_an_upload_is_moved_to_a_relative_path(
     """
     monkeypatch.chdir(tmp_path)
 
-    uploaded_file.move_to("foo")
+    await uploaded_file.move_to("foo")
 
     assert (tmp_path / "foo").is_file() is True
 
 
-def test_an_upload_cannot_be_moved_twice(
+async def test_an_upload_cannot_be_moved_twice(
     uploaded_file: UploadedFileInterface,
     tmp_path: Path,
 ) -> None:
-    uploaded_file.move_to(str(tmp_path / "foo"))
+    await uploaded_file.move_to(str(tmp_path / "foo"))
 
     with pytest.raises(UploadedFileError):
-        uploaded_file.move_to(str(tmp_path / "bar"))
+        await uploaded_file.move_to(str(tmp_path / "bar"))
 
 
 def test_the_size_of_an_upload_is_counted(uploaded_file: UploadedFileInterface) -> None:

@@ -30,6 +30,8 @@ from xtr_http_message.uri import Uri
 if TYPE_CHECKING:
     from pathlib import Path
 
+pytestmark = pytest.mark.anyio
+
 
 @pytest.mark.parametrize(
     "interface",
@@ -122,37 +124,37 @@ def test_a_server_request_is_seeded_with_the_environment_parameters_it_was_given
     assert request.get_server_params() == params
 
 
-def test_a_stream_is_built_over_the_bytes_it_was_asked_for() -> None:
+async def test_a_stream_is_built_over_the_bytes_it_was_asked_for() -> None:
     stream = HttpFactory().create_stream(b"Hello")
 
-    assert (isinstance(stream, StreamInterface), bytes(stream)) == (True, b"Hello")
+    assert (isinstance(stream, StreamInterface), await stream.get_contents()) == (True, b"Hello")
 
 
-def test_a_stream_asked_for_with_nothing_is_empty() -> None:
-    assert bytes(HttpFactory().create_stream()) == b""
+async def test_a_stream_asked_for_with_nothing_is_empty() -> None:
+    assert await HttpFactory().create_stream().get_contents() == b""
 
 
-def test_a_stream_is_built_over_the_file_it_was_asked_for(tmp_path: Path) -> None:
+async def test_a_stream_is_built_over_the_file_it_was_asked_for(tmp_path: Path) -> None:
     path = tmp_path / "body.txt"
     _ = path.write_bytes(b"Hello")
 
     stream = HttpFactory().create_stream_from_file(str(path))
 
     try:
-        assert bytes(stream) == b"Hello"
+        assert await stream.get_contents() == b"Hello"
     finally:
-        stream.close()
+        await stream.close()
 
 
-def test_a_stream_over_a_file_opened_to_write_can_be_written_to(tmp_path: Path) -> None:
+async def test_a_stream_over_a_file_opened_to_write_can_be_written_to(tmp_path: Path) -> None:
     path = tmp_path / "body.txt"
 
     stream = HttpFactory().create_stream_from_file(str(path), "w")
 
     try:
-        assert stream.write(b"Hello") == 5
+        assert await stream.write(b"Hello") == 5
     finally:
-        stream.close()
+        await stream.close()
 
     assert path.read_bytes() == b"Hello"
 
@@ -177,19 +179,22 @@ def test_a_stream_asked_for_in_a_mode_that_is_not_one_is_refused(tmp_path: Path)
         _ = HttpFactory().create_stream_from_file(str(path), "q")
 
 
-def test_a_stream_is_built_over_the_file_object_it_was_asked_for() -> None:
+async def test_a_stream_is_built_over_the_file_object_it_was_asked_for() -> None:
     with io.BytesIO(b"Hello") as file:
         stream = HttpFactory().create_stream_from_resource(file)
 
-        assert (bytes(stream), stream.detach() is file) == (b"Hello", True)
+        assert (await stream.get_contents(), stream.detach() is file) == (b"Hello", True)
 
 
-def test_an_uploaded_file_is_built_over_the_stream_it_was_asked_for() -> None:
+async def test_an_uploaded_file_is_built_over_the_stream_it_was_asked_for() -> None:
     factory = HttpFactory()
 
     upload = factory.create_uploaded_file(factory.create_stream(b"Hello"))
 
-    assert (isinstance(upload, UploadedFileInterface), bytes(upload.get_stream())) == (
+    assert (
+        isinstance(upload, UploadedFileInterface),
+        await upload.get_stream().get_contents(),
+    ) == (
         True,
         b"Hello",
     )

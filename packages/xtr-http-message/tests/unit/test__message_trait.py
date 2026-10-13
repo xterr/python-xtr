@@ -19,6 +19,8 @@ from xtr_http_message.response import Response
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+pytestmark = pytest.mark.anyio
+
 # A character `str.lower` folds onto an ASCII letter: the Kelvin sign onto
 # `k`. A header name is ASCII by its own grammar, so it may not match one.
 _KELVIN = "\u212a"
@@ -106,23 +108,23 @@ def test_a_message_copied_for_a_change_keeps_reading_the_same_body() -> None:
     assert response.with_header("Foo", "Bar").get_body() is response.get_body()
 
 
-def test_a_body_written_to_after_the_message_was_copied_is_seen_by_both() -> None:
+async def test_a_body_written_to_after_the_message_was_copied_is_seen_by_both() -> None:
     response = Response(200, None, b"Hello")
     copied = response.with_header("Foo", "Bar")
 
-    response.get_body().seek(0, 2)
-    _ = response.get_body().write(b" there")
+    await response.get_body().seek(0, 2)
+    _ = await response.get_body().write(b" there")
 
-    assert bytes(copied.get_body()) == b"Hello there"
+    assert await copied.get_body().get_contents() == b"Hello there"
 
 
-def test_a_message_copied_before_its_body_was_opened_opens_its_own() -> None:
+async def test_a_message_copied_before_its_body_was_opened_opens_its_own() -> None:
     response = Response()
     copied = response.with_header("Foo", "Bar")
 
-    _ = response.get_body().write(b"Hello")
+    _ = await response.get_body().write(b"Hello")
 
-    assert bytes(copied.get_body()) == b""
+    assert await copied.get_body().get_contents() == b""
 
 
 def test_a_name_matching_only_once_lowercased_outside_ascii_is_not_the_header() -> None:
