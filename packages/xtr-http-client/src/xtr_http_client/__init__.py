@@ -12,5 +12,6 @@ is read when the caller asks for it, as a whole or chunk by chunk.
 from __future__ import annotations
 
 from .http_client_mixin import HttpClientMixin
+from .response import HttpResponse
 
-__all__ = ["HttpClientMixin"]
+__all__ = ["HttpClientMixin", "HttpResponse"]
