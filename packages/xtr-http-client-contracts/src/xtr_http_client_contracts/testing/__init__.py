@@ -6,6 +6,7 @@ application that only depends on the interfaces never pays for it.
 
 from __future__ import annotations
 
+from .http_client_test_case import HttpClientTestCase
 from .test_http_server import TestHttpServer
 
-__all__ = ["TestHttpServer"]
+__all__ = ["HttpClientTestCase", "TestHttpServer"]

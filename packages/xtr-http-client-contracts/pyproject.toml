@@ -124,6 +124,14 @@ fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
+# A conformance suite is tests that happen to ship in `src`: it asserts, the status codes and
+# durations it asserts on are its subject matter, and the `pytest.raises` blocks that wrap an
+# `async for` cannot be one statement.
+"src/xtr_http_client_contracts/testing/http_client_test_case.py" = [
+    "S101",    # assert is the point of a test
+    "PLR2004", # a status code in an assertion is the assertion
+    "PT012",   # streaming inside `pytest.raises` takes a loop
+]
 "tests/**/*.py" = [
     "S101",    # assert is the point of pytest
     "ARG",     # fixtures look unused
@@ -159,6 +167,12 @@ filterwarnings = ["error"]
 [tool.coverage.run]
 source = ["src"]
 branch = true
+omit = [
+    # The conformance suite runs against a client, and this package ships none: its bodies
+    # are exercised where a client implementation subclasses it, not here. Its shape is
+    # checked by `tests/unit/testing/test_http_client_test_case.py`.
+    "*/xtr_http_client_contracts/testing/http_client_test_case.py",
+]
 
 [tool.coverage.report]
 # CI runs the tests with --cov; a change taking coverage below this fails there.
