@@ -99,8 +99,13 @@ registration both work without a plugin registry in between.
   would change nothing, so a chain of `with_*` calls costs nothing where it does nothing.
 - **A stream is the one thing that is not.** Reading, writing and seeking move its cursor in
   place.
-- **The payload is bytes throughout.** `bytes(stream)` rewinds and reads the whole of a body and
-  never raises; `str(stream)` is *not* the body — there is no encoding to guess at.
+- **The payload is bytes throughout.** `await stream.get_contents()` rewinds and reads the whole
+  of a body, and raises when the body cannot be read; `str(stream)` is *not* the body — there is
+  no encoding to guess at.
+- **Reading, writing, seeking and closing a body are awaited.** A body may come off the network,
+  so the methods that move bytes — `read`, `write`, `get_contents`, `seek`, `rewind`, `close` —
+  are `async`. The ones that only report what the stream already knows — `get_size`, `tell`,
+  `eof`, `is_seekable`, `is_readable`, `is_writable`, `get_metadata`, `detach` — are not.
 - **Header names are matched without regard to case** and reported in the case they were first
   given in. A header the message does not carry reads as an empty list and an empty line, never
   as an error. Names and values are checked against the grammar, so no value can inject a
@@ -190,8 +195,8 @@ assert (local.get_scheme(), local.get_host(), local.get_path()) == ("file", "", 
 
 Two kinds arrive. One is already a stream and comes back as that same stream. The other is a
 path on disk, opened only when the file is read — so a request carrying twenty files nobody
-looks at opens none of them. `move_to()` is what consumes a file: a path is moved, a stream is
-copied a mebibyte at a time, and a second move is refused.
+looks at opens none of them. `await move_to()` is what consumes a file: a path is moved, a stream
+is copied a mebibyte at a time, and a second move is refused.
 
 ## Use in an application
 

@@ -191,7 +191,7 @@ class AcmeRequestParser(AbstractRequestParser):
     async def do_parse(self, request: ServerRequestInterface, secret: str) -> RemoteEvent:
         if request.get_header_line("X-Acme-Token") != secret:
             raise RejectWebhookError(406, "Signature is wrong.")
-        payload = self.read_json(request)
+        payload = await self.read_json(request)
         return RemoteEvent("acme", str(payload["id"]), payload)
 ```
 
@@ -199,16 +199,18 @@ The base class does what every parser would otherwise write again, and get wrong
 way: the shape check runs before the body is touched, a body that will not decode comes back as
 a `406` rather than as a `500`, and the two answers are the ones the sender's side waits for.
 
-- `self.read_body(request)` returns every byte of the body from its first one, rewinding the
-  stream where it can — a signature covers exactly the bytes that arrived.
-- `self.read_json(request)` decodes the body as a JSON object. An array or a bare value is
+- `await self.read_body(request)` returns every byte of the body from its first one, rewinding
+  the stream where it can — a signature covers exactly the bytes that arrived. Reading a body is
+  awaited, so a request whose body is still arriving is read as it comes.
+- `await self.read_json(request)` decodes the body as a JSON object. An array or a bare value is
   refused; bytes that are not JSON at all raise, and `parse()` turns that into the same `406`.
 - `do_parse` returns one event, a sequence of them, or `None` for a webhook to accept and
   ignore — a keep-alive, an event kind this parser does not speak for. `None` and an empty
   sequence are both answered as unparsable rather than accepted and dropped.
-- Override `create_successful_response` for a sender that wants something of its own echoed
-  back. The response is handed in and given back modified, because an HTTP message is immutable
-  and the endpoint owns the response.
+- Override `create_successful_response` — an `async def`, so it can write a body — for a sender
+  that wants something of its own echoed back. `create_rejected_response` is the same for a
+  refusal. The response is handed in and given back modified, because an HTTP message is
+  immutable and the endpoint owns the response.
 - Compare secrets with `hmac.compare_digest`, never `==`.
 
 Matchers are small and compose: `MethodRequestMatcher("POST", "PUT")` (case-insensitive),

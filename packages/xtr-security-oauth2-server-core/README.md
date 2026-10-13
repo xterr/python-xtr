@@ -205,7 +205,7 @@ async def main() -> None:
         },
     )
     answer = await server.respond_to_access_token_request(request, Response())
-    issued = json.loads(bytes(answer.get_body()))
+    issued = json.loads(await answer.get_body().get_contents())
     print(answer.get_status_code(), issued["token_type"], issued["expires_in"])
 
     # The API: the resource server reads the bearer token back.
@@ -231,7 +231,8 @@ billing ['invoices:read']
 ```
 
 - A refusal is an `OAuthServerError`: catch it around a server call and answer with
-  `error.generate_http_response(response)`.
+  `await error.generate_http_response(response)`. Every answer here writes a body, so every
+  `generate_http_response` is awaited.
 - The entities compose traits with the interface **last** among the bases: an interface listed
   first would shadow the traits' accessors with its own empty stubs.
 - `encryption_key_type` is `"key"` (the base64url of 32 random bytes) or `"plain"` (a password of
@@ -312,7 +313,7 @@ Everything the library raises derives from `OAuth2Error`
 
 | Error | Base | Raised when |
 |---|---|---|
-| `OAuthServerError` | `OAuth2Error` | A request the protocol has a refusal for. Built by named constructors — `invalid_request`, `invalid_client`, `invalid_grant`, `invalid_scope`, `access_denied`, `unsupported_grant_type`, `slow_down`, … — and answered with `generate_http_response(response, use_fragment=False)` |
+| `OAuthServerError` | `OAuth2Error` | A request the protocol has a refusal for. Built by named constructors — `invalid_request`, `invalid_client`, `invalid_grant`, `invalid_scope`, `access_denied`, `unsupported_grant_type`, `slow_down`, … — and answered with `await generate_http_response(response, use_fragment=False)` |
 | `UniqueTokenIdentifierConstraintViolationError` | `OAuthServerError` | A store met an identifier already taken; a grant retries ten times before it lets this out as a `500` |
 | `InvalidArgumentError` | `OAuth2Error`, `ValueError` | One of the library's objects used wrongly — a reserved extra claim, an unreadable encryption key, a grant asked to work before it was enabled |
 

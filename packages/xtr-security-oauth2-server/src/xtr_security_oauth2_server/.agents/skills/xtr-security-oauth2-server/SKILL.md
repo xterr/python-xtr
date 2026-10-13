@@ -170,7 +170,7 @@ async def ask_for_consent(event: AuthorizationRequestResolveEvent) -> None:
         _ = event.resolve_authorization(AuthorizationRequestResolveEvent.APPROVED)
         return
     page = Response(200).with_header("content-type", "text/html")
-    _ = page.get_body().write(b"<form method='post'>Allow this client?</form>")
+    _ = await page.get_body().write(b"<form method='post'>Allow this client?</form>")
     _ = event.set_response(page)
 ```
 
@@ -351,7 +351,7 @@ All derive from `OAuth2Error`.
 
 | Error | Raised when |
 | --- | --- |
-| `OAuthServerError` | A protocol refusal; the endpoints answer it. By hand, `error.generate_http_response(response)` |
+| `OAuthServerError` | A protocol refusal; the endpoints answer it. By hand, `await error.generate_http_response(response)` |
 | `InvalidConfigurationError` (`xtr_security_oauth2_server.exception`) | A setting unusable or missing where a service needs it — named, with `<app>/config/oauth2_server.py` |
 | `ClientAlreadyRegisteredError` | Registering an identifier already taken |
 | `OAuth2AuthenticationFailedError` (`xtr_security_oauth2_server.security.exception`) | The API's firewall refused a token: `401`, `invalid_token` |

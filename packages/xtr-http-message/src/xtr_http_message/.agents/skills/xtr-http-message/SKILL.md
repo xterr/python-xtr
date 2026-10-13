@@ -21,8 +21,12 @@ application, a test or a client installs to have something that actually is a me
 - `Uri(text)` — read as RFC 3986 defines a URI reference;
   `UploadedFile(stream_or_file, size, error, client_filename=None, client_media_type=None)`.
 - `HttpFactory()` is all six factory interfaces at once; it holds no state.
-- **`bytes(stream)` is the body. `str(stream)` is not** — it is the object's repr, because a body
-  may be binary and there is no encoding to guess at.
+- **`await stream.get_contents()` is the body. `str(stream)` is not** — it is the object's repr,
+  because a body may be binary and there is no encoding to guess at.
+- **A body is awaited.** `read`, `write`, `get_contents`, `seek`, `rewind` and `close` are
+  `async`, as is `UploadedFile.move_to`; `get_size`, `tell`, `eof`, `is_seekable`,
+  `is_readable`, `is_writable`, `get_metadata` and `detach` only report what the stream already
+  knows, and are not.
 - Every `with_*` returns a new message and hands *the same one* back when nothing would change.
 - `headers` maps a name to one value or to a sequence of them: `{"Accept": "text/html"}`,
   `{"X-Tag": ["a", "b"]}`.
@@ -206,21 +210,28 @@ Use `tmp_path` for anything that touches disk, and close a stream your test open
 `Stream` closes the file object it was given when you close the stream, but not when the stream is
 merely dropped.
 
+A test that reads or writes a body is an async test — `pytestmark = pytest.mark.anyio` with an
+`anyio_backend` fixture, the way this package's own suite runs.
+
 ```python
 from pathlib import Path
 
+import pytest
+
 from xtr_http_message import HttpFactory
 
+pytestmark = pytest.mark.anyio
 
-def test_a_body_can_be_read_from_a_file(tmp_path: Path) -> None:
+
+async def test_a_body_can_be_read_from_a_file(tmp_path: Path) -> None:
     path = tmp_path / "body.txt"
     _ = path.write_bytes(b"hello")
 
     stream = HttpFactory().create_stream_from_file(str(path))
     try:
-        assert bytes(stream) == b"hello"
+        assert await stream.get_contents() == b"hello"
     finally:
-        stream.close()
+        await stream.close()
 ```
 
 ## Use in an application
@@ -258,7 +269,8 @@ implementation can catch `HttpMessageError` and get only its failures.
 
 ## Do not
 
-- Do not call `str(stream)` for a body — it is the object's repr. Use `bytes(stream)`.
+- Do not call `str(stream)` for a body — it is the object's repr. Use
+  `await stream.get_contents()`.
 - Do not pass a `str` to `Stream.create`; encode it first. A body is bytes, and guessing an
   encoding is how a binary body gets corrupted.
 - Do not expect a `with_*` method to change the message it was called on: it returns a new one,
@@ -272,9 +284,13 @@ implementation can catch `HttpMessageError` and get only its failures.
 - Do not build a `Response` or an `HttpFactory` in code that is serving a request — a route, a
   listener, a per-request service. Take the registered `ResponseFactoryInterface`, or the
   injected `ResponseInterface`, and return what it gives you.
-- Do not re-read `get_body().get_contents()` and wonder why it is empty the second time: it reads
-  from the cursor onwards. `bytes(stream)` rewinds first.
-- Do not call `move_to` twice on an uploaded file, or read it afterwards: moving consumes it.
+- Do not leave a body call unawaited: `response.get_body().write(b"...")` on its own writes
+  nothing, it builds a coroutine. Await it.
+- Do not read a body with `await stream.read(n)` and wonder why it starts where it does: `read`
+  reads from the cursor onwards, while `get_contents()` rewinds a seekable stream first and
+  raises when the stream cannot be read at all.
+- Do not call `move_to` twice on an uploaded file, or read it afterwards: moving consumes it,
+  and it is awaited — `await upload.move_to(path)`.
 - Do not expect a URI to be cleaned up for you: a blank, a tab or a control character is encoded
   rather than stripped, and a host carrying one is refused rather than patched — by `Uri(...)` and
   by `with_host` alike. Hand `Uri` a string a sender wrote, and catch `InvalidArgumentError`.

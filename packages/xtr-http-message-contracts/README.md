@@ -35,8 +35,11 @@ thirteen protocols and an enumeration, built from the standard library, with one
 from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
 
 
-def whoami(request: ServerRequestInterface, response: ResponseInterface) -> ResponseInterface:
-    _ = response.get_body().write(request.get_header_line("user-agent").encode())
+async def whoami(
+    request: ServerRequestInterface,
+    response: ResponseInterface,
+) -> ResponseInterface:
+    _ = await response.get_body().write(request.get_header_line("user-agent").encode())
     return response.with_header("content-type", "text/plain")
 ```
 
@@ -68,7 +71,7 @@ it.
 | `RequestInterface` | A message going out: a method and a URI on top. |
 | `ServerRequestInterface` | A request that arrived, with everything the server learned alongside it. |
 | `ResponseInterface` | A message coming back: a status code and a reason phrase on top. |
-| `StreamInterface` | A message body: read, write, seek, and the whole of it in one call. |
+| `StreamInterface` | A message body: read, write, seek, and the whole of it in one awaited call. |
 | `UriInterface` | A URI as a value, every component readable. |
 | `UploadedFileInterface` | One file that came in with a request, movable once. |
 
@@ -89,8 +92,13 @@ The rules that hold across all of them:
 - **A component the URI has not got reads as an empty string**, and `get_port` reads as `None`
   when there is no port worth reporting.
 - **A stream is the one thing that is not immutable**: reading, writing and seeking move its
-  cursor in place. Its payload is `bytes`, since a body may be binary; `bytes(stream)` rewinds
-  and reads the whole of it, and never raises.
+  cursor in place. Its payload is `bytes`, since a body may be binary;
+  `await stream.get_contents()` rewinds and reads the whole of it, and raises when the body
+  cannot be read.
+- **A body is awaited.** `read`, `write`, `get_contents`, `seek`, `rewind` and `close` are
+  `async`, so a body can come off the network as it is asked for; `move_to` on an uploaded file
+  is too. The methods that only report what the stream already knows — `get_size`, `tell`,
+  `eof`, `is_seekable`, `is_readable`, `is_writable`, `get_metadata`, `detach` — are not.
 - **`with_uri` decides the `Host` header.** By default it follows the new URI, and a `Host`
   header already there carries over only when the URI has no host; `preserve_host=True` keeps a
   non-empty one exactly as it is.

@@ -99,10 +99,11 @@ class AcmeRequestParser(AbstractRequestParser):
         return ChainRequestMatcher([MethodRequestMatcher("POST"), IsJsonRequestMatcher()])
 
     async def do_parse(self, request: ServerRequestInterface, secret: str) -> RemoteEvent:
-        expected = hmac.new(secret.encode(), self.read_body(request), "sha256").hexdigest()
+        body = await self.read_body(request)
+        expected = hmac.new(secret.encode(), body, "sha256").hexdigest()
         if not hmac.compare_digest(expected, request.get_header_line("X-Acme-Signature")):
             raise RejectWebhookError(406, "Signature is wrong.")
-        payload = self.read_json(request)
+        payload = await self.read_json(request)
         return RemoteEvent("acme", str(payload["id"]), payload)
 ```
 
@@ -110,16 +111,17 @@ The base class already does what every parser would otherwise rewrite: the match
 the body is touched, a body that will not decode comes back as a `406` rather than a `500`, and
 both answers are the ones the sender's side waits for.
 
-- `self.read_body(request)` returns every byte from the first one, rewinding the stream where it
-  can — a signature covers exactly what arrived.
-- `self.read_json(request)` decodes a JSON object. An array or a bare value is refused; bytes
-  that are not JSON raise, and `parse()` turns that into the same `406`.
+- `await self.read_body(request)` returns every byte from the first one, rewinding the stream
+  where it can — a signature covers exactly what arrived. Reading a body is awaited.
+- `await self.read_json(request)` decodes a JSON object. An array or a bare value is refused;
+  bytes that are not JSON raise, and `parse()` turns that into the same `406`.
 - Return one event, a sequence, or `None` for a webhook to accept and ignore. `None` and an
   empty sequence are answered as unparsable, not accepted.
 - `RejectWebhookError(status_code=406, message="", headers=None)` carries the whole answer. The
   message reaches the sender as plain text, so name the check that refused and nothing more.
-- Override `create_successful_response` for a sender that wants something echoed back. The
-  response is handed in and given back modified; an HTTP message is immutable.
+- Override `create_successful_response` — an `async def`, so it can write a body — for a sender
+  that wants something echoed back; `create_rejected_response` is its counterpart for a refusal.
+  The response is handed in and given back modified; an HTTP message is immutable.
 - Matchers — `MethodRequestMatcher(*methods)` is case-insensitive, `IsJsonRequestMatcher()`
   accepts `application/json` or a `+json` suffix with parameters ignored, `ChainRequestMatcher`
   requires all of them.
