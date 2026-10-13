@@ -160,6 +160,10 @@ _CHAIN_FIELDS = ("HTTP", "Location:", "Content-Type:")
 
 _PROXIED_URI = re.compile(r"^http://(localhost|127\.0\.0\.1):8057/$")
 
+# The echo entry no two connections agree on: the port the client's end of the connection
+# was given, which the operating system picks afresh every time.
+_CLIENT_PORT = "REMOTE_PORT"
+
 # Matched word for word, because the contract quotes this refusal rather than describing it.
 _BOTH_BODIES = (
     'Define either the request body or the "body" or "json" option, setting both is not supported.'
@@ -190,6 +194,15 @@ def _decode_object(content: bytes) -> Mapping[str, object]:
     it keeps that looseness to one place.
     """
     return cast("Mapping[str, object]", cast("object", json.loads(content)))
+
+
+def _without_client_port(echo: Mapping[str, object]) -> Mapping[str, object]:
+    """``echo`` without the port the request came from.
+
+    Every connection is given a port of its own, so two echoes of the same request differ
+    there and nowhere else; dropping it is what leaves the rest comparable.
+    """
+    return {name: value for name, value in echo.items() if name != _CLIENT_PORT}
 
 
 def _expect(value: object, kind: type[_T]) -> _T:
@@ -998,7 +1011,7 @@ class HttpClientTestCase:
         direct = await (await client.request("GET", f"{_BASE_URI}/")).to_array()
         sent = await (await client.send_request(Request("GET", f"{_BASE_URI}/"))).to_array()
 
-        assert sent == direct
+        assert _without_client_port(sent) == _without_client_port(direct)
 
     @staticmethod
     async def _expect_timeout(client: HttpClientInterface, port: int) -> None:
