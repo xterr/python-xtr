@@ -25,12 +25,14 @@ What is here is only what appears in that contract:
 Every message is immutable: a ``with_*`` method leaves the instance it was
 called on alone and returns one carrying the change.
 
+A body moves bytes, so reading and writing one is awaited.
+
 ```python
 from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
 
 
-def whoami(request: ServerRequestInterface, response: ResponseInterface) -> ResponseInterface:
-    _ = response.get_body().write(request.get_header_line("user-agent").encode())
+async def whoami(request: ServerRequestInterface, response: ResponseInterface) -> ResponseInterface:
+    _ = await response.get_body().write(request.get_header_line("user-agent").encode())
     return response.with_header("content-type", "text/plain")
 ```
 

@@ -15,13 +15,12 @@ class FakeStream:
     """Answers every question on the stream contract, over an empty body.
 
     Nothing here does any work: these tests ask whether the contract is
-    satisfied, not whether a stream behaves.
+    satisfied, not whether a stream behaves. The methods that do input or
+    output are declared ``async`` all the same, because that is the shape the
+    contract asks for.
     """
 
-    def __bytes__(self) -> bytes:
-        return b""
-
-    def close(self) -> None: ...
+    async def close(self) -> None: ...
 
     def detach(self) -> BinaryIO | None:
         return None
@@ -38,25 +37,25 @@ class FakeStream:
     def is_seekable(self) -> bool:
         return True
 
-    def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
+    async def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
         del offset, whence
 
-    def rewind(self) -> None: ...
+    async def rewind(self) -> None: ...
 
     def is_writable(self) -> bool:
         return True
 
-    def write(self, data: bytes) -> int:
+    async def write(self, data: bytes) -> int:
         return len(data)
 
     def is_readable(self) -> bool:
         return True
 
-    def read(self, length: int) -> bytes:
+    async def read(self, length: int) -> bytes:
         del length
         return b""
 
-    def get_contents(self) -> bytes:
+    async def get_contents(self) -> bytes:
         return b""
 
     def get_metadata(self, key: str | None = None) -> object:

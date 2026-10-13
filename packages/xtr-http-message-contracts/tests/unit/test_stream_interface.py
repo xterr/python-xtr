@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import os
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,44 @@ def test_a_fake_missing_a_member_is_not_a_stream(missing: str) -> None:
 
 def test_a_plain_object_is_not_a_stream() -> None:
     assert not isinstance(object(), StreamInterface)
+
+
+def test_the_contract_declares_no_whole_body_shortcut() -> None:
+    assert not hasattr(StreamInterface, "__bytes__")
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        StreamInterface.close,
+        StreamInterface.get_contents,
+        StreamInterface.read,
+        StreamInterface.rewind,
+        StreamInterface.seek,
+        StreamInterface.write,
+    ],
+)
+def test_a_method_that_moves_bytes_is_awaited(method: Callable[..., object]) -> None:
+    assert inspect.iscoroutinefunction(method)
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        StreamInterface.detach,
+        StreamInterface.eof,
+        StreamInterface.get_metadata,
+        StreamInterface.get_size,
+        StreamInterface.is_readable,
+        StreamInterface.is_seekable,
+        StreamInterface.is_writable,
+        StreamInterface.tell,
+    ],
+)
+def test_a_method_that_only_reports_what_the_stream_holds_is_not_awaited(
+    method: Callable[..., object],
+) -> None:
+    assert not inspect.iscoroutinefunction(method)
 
 
 @pytest.mark.parametrize(

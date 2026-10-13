@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from tests.support.fake_uploaded_file import FakeUploadedFile
@@ -20,3 +22,7 @@ def test_a_fake_missing_a_member_is_not_an_uploaded_file(missing: str) -> None:
 
 def test_a_plain_object_is_not_an_uploaded_file() -> None:
     assert not isinstance(object(), UploadedFileInterface)
+
+
+def test_moving_the_file_away_is_awaited() -> None:
+    assert inspect.iscoroutinefunction(UploadedFileInterface.move_to)

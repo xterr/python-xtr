@@ -17,29 +17,19 @@ class StreamInterface(Protocol):
 
     This is the body of every message: a cursor over bytes, with the questions
     worth asking before moving it — is it seekable, is it readable, is it
-    writable — and one shortcut that reads the whole of it at once.
+    writable.
+
+    Moving the cursor is awaited. :meth:`read`, :meth:`write`,
+    :meth:`get_contents`, :meth:`seek`, :meth:`rewind` and :meth:`close` do
+    input and output, so a body can be fed by a socket as readily as by a
+    file, without blocking whoever is waiting on it. The questions above only
+    report what the stream already holds, so they cost no ``await``.
 
     Unlike the messages that carry it, a stream is *not* immutable: reading,
     writing and seeking all move the cursor in place.
     """
 
-    def __bytes__(self) -> bytes:
-        """Return everything in the stream, from the first byte to the last.
-
-        Seeks to the beginning before reading, then reads until the end.
-
-        Beware: this may pull a very large amount of data into memory.
-
-        It must never raise. A stream that cannot be rewound or read returns
-        empty bytes rather than failing, so that taking the whole of a message
-        body is always safe.
-
-        Returns:
-            Every byte in the stream, or empty bytes when it cannot be read.
-        """
-        ...
-
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the stream and release whatever it was holding open."""
         ...
 
@@ -90,7 +80,7 @@ class StreamInterface(Protocol):
         """
         ...
 
-    def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
+    async def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
         """Move the cursor to a position in the stream.
 
         Args:
@@ -104,10 +94,10 @@ class StreamInterface(Protocol):
         """
         ...
 
-    def rewind(self) -> None:
+    async def rewind(self) -> None:
         """Move the cursor back to the beginning of the stream.
 
-        Equivalent to ``seek(0)`` on a seekable stream.
+        Equivalent to ``await seek(0)`` on a seekable stream.
 
         Raises:
             RuntimeError: When the stream is not seekable, or the cursor
@@ -123,7 +113,7 @@ class StreamInterface(Protocol):
         """
         ...
 
-    def write(self, data: bytes) -> int:
+    async def write(self, data: bytes) -> int:
         """Write bytes at the cursor.
 
         Args:
@@ -146,7 +136,7 @@ class StreamInterface(Protocol):
         """
         ...
 
-    def read(self, length: int) -> bytes:
+    async def read(self, length: int) -> bytes:
         """Read up to ``length`` bytes from the cursor.
 
         Fewer than ``length`` bytes may come back, whenever the underlying
@@ -163,15 +153,24 @@ class StreamInterface(Protocol):
         """
         ...
 
-    def get_contents(self) -> bytes:
-        """Read the rest of the stream, from the cursor to the end.
+    async def get_contents(self) -> bytes:
+        """Read the whole of the stream, from the first byte to the last.
+
+        Rewinds first when the stream is seekable, then reads to the end. On a
+        stream that cannot be rewound there is nothing to rewind to, so this
+        reads from wherever the cursor sits; :meth:`read` is the way to take a
+        measured amount from the current position instead.
+
+        Beware: this may pull a very large amount of data into memory.
 
         Returns:
-            Every byte between the cursor and the end of the stream.
+            Every byte in the stream.
 
         Raises:
             RuntimeError: When the stream cannot be read, or reading fails
-                part way.
+                part way. An unreadable body is reported rather than answered
+                with empty bytes, which would be indistinguishable from an
+                empty one.
         """
         ...
 

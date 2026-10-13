@@ -16,7 +16,8 @@ class UploadedFileInterface(Protocol):
 
     Instances are immutable — nothing here returns a changed copy, and nothing
     changes the file in place except :meth:`move_to`, which is the one
-    operation that consumes it.
+    operation that consumes it and, because it does input and output, the one
+    that is awaited.
     """
 
     def get_stream(self) -> StreamInterface:
@@ -34,14 +35,14 @@ class UploadedFileInterface(Protocol):
         """
         ...
 
-    def move_to(self, target_path: str) -> None:
+    async def move_to(self, target_path: str) -> None:
         """Move the file to ``target_path``, consuming it.
 
         The path may be absolute or relative; a relative one is resolved the
         way the file system calls of the host resolve one.
 
-        Whatever held the file is gone once this returns, which is why calling
-        it a second time is an error rather than a second move.
+        Whatever held the file is gone once the move completes, which is why
+        calling it a second time is an error rather than a second move.
 
         To put the file somewhere a path cannot name, read :meth:`get_stream`
         and write that where it needs to go.

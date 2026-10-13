@@ -19,7 +19,7 @@ class FakeUploadedFile:
     def get_stream(self) -> StreamInterface:
         return FakeStream()
 
-    def move_to(self, target_path: str) -> None:
+    async def move_to(self, target_path: str) -> None:
         del target_path
 
     def get_size(self) -> int | None:

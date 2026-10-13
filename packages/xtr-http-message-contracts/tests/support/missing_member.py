@@ -1,10 +1,10 @@
 """Take one member off a fake, so that every member can be shown to be required.
 
 Dropping a member by hand would mean writing out a near-copy of each fake once
-per member it carries. The thirteen interfaces declare seventy-eight members
+per member it carries. The thirteen interfaces declare seventy-seven members
 between them, and inheritance compounds that — a server request fake carries
 thirty, its own thirteen on top of the six a request and the eleven a message
-bring — so the near-copies would come to a hundred and sixteen. This builds
+bring — so the near-copies would come to a hundred and fifteen. This builds
 each one instead, from the fake's own members minus the one named.
 """
 
@@ -30,9 +30,8 @@ _PLUMBING = frozenset(vars(_Bare))
 
 # A name ``object`` itself answers to proves nothing: every object has it, so a
 # protocol asking for it is satisfied whether the fake declares it or not.
-# ``UriInterface.__str__`` is the only such member across the interfaces;
-# ``StreamInterface.__bytes__`` is not one, so its absence is observable and
-# the parametrization covers it.
+# ``UriInterface.__str__`` is the only such member across the interfaces, so it
+# is the only one the parametrization has to pass over.
 _ALWAYS_THERE = frozenset(dir(object))
 
 
