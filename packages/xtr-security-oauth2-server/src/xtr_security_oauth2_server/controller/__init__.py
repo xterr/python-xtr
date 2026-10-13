@@ -3,8 +3,8 @@
 Each is a service the bundle builds from the deployment's configuration, and
 each takes the request being served and the response to answer with as HTTP
 messages — so what reads a request and fills in a response knows nothing of the
-web framework underneath. :func:`~xtr_security_oauth2_server.routes.routes`
-mounts them.
+web framework underneath. The route loaders in
+:mod:`xtr_security_oauth2_server.routing` contribute the endpoints calling them.
 """
 
 from __future__ import annotations

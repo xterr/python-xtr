@@ -88,8 +88,8 @@ class AuthorizationController:
 
     Nobody being authenticated is one of those refusals, and the commonest
     cause of it is a deployment that put no firewall in front of this
-    endpoint: the router this package ships carries no dependency of its own,
-    so an application mounts one — see the package's *Use in an application*
+    endpoint: the routes this package contributes carry no dependency of their
+    own, so an application puts one in front — see the package's *Use in an application*
     section. The client is told only that there was nobody to ask; what the
     deployment has to do about it is written to the log, where a deployment
     reads it and a client never does.

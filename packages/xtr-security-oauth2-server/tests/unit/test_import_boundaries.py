@@ -46,7 +46,7 @@ ALLOWED = (
     "factory",
     "manager/orm",
     "persistence",
-    "routes.py",
+    "routing",
     "security",
     "service/credentials_revoker",
 )
@@ -111,7 +111,7 @@ def test_the_library_modules_are_found() -> None:
 
 
 def test_an_edge_is_left_out_of_the_walk() -> None:
-    assert _is_edge("routes.py")
+    assert _is_edge("routing/_endpoints.py")
     assert _is_edge("manager/orm/access_token_manager.py")
     assert _is_edge("command/create_client_command.py")
     assert not _is_edge("manager/access_token_manager_interface.py")

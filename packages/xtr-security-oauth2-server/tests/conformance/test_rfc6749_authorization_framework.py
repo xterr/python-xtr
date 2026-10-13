@@ -60,8 +60,8 @@ ERROR_CHARACTERS: Final = frozenset(
 def _application() -> FastAPI:
     """Return a deployment running the redirect flow and the flows beside it.
 
-    The firewall goes on the application rather than on the router this package
-    ships, which is what establishes the resource owner on the authorization
+    The firewall goes on the application rather than on the routes this package
+    contributes, which is what establishes the resource owner on the authorization
     endpoint; the token endpoint stays outside it, because authenticating the
     *client* there is this server's own job.
     """

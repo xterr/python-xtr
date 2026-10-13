@@ -19,11 +19,11 @@ USERINFO_PATH: Final[str] = "/userinfo"
 def extension_routes() -> APIRouter:
     """Return the router the add-on's own endpoint lives on.
 
-    An add-on ships its routes the way this package does — a router an
-    application includes — and which firewall stands in front of them is the
-    application's to decide. Here it is the application's own firewall, which
-    reads exactly the access tokens this server issues, so the endpoint
-    challenges a request carrying none.
+    Here the application includes the add-on's router itself; an add-on could
+    as well contribute it through a route loader, as this package does. Which
+    firewall stands in front of it is the application's to decide: here it is
+    the application's own firewall, which reads exactly the access tokens this
+    server issues, so the endpoint challenges a request carrying none.
     """
     router = APIRouter()
 

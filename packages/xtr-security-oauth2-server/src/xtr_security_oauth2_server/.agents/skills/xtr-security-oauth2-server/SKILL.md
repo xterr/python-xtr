@@ -20,8 +20,9 @@ It is an add-on of the security family: firewalls, voters and user providers are
 - List `OAuth2ServerBundle` in `<app>/bundles.py`; write `<app>/config/oauth2_server.py` with an
   `OAuth2ServerConfig` naming `issuer`, `private_key`, `encryption_key`, `scopes.available` and
   `persistence`. Each missing one is reported by the first service needing it.
-- `app.include_router(routes())` from `xtr_security_oauth2_server.routes`, at the root; put an
-  unbound `Firewall()` on the application — the router carries no dependency of its own.
+- `setup(app, kernel)` adds every endpoint (resources `oauth2_server` and the fixed
+  `oauth2_server_well_known`); move them or leave some out in `<app>/config/routes/oauth2_server.py`.
+  Put an unbound `Firewall()` on the application — the endpoints carry no dependency of their own.
 - Three firewalls: one claiming `^/authorize` that signs the end user in, none on `/token`,
   `/revoke`, `/introspect`, `/device-code` and `/.well-known/*`, and `OAuth2AuthenticatorConfig()`
   on the API's.
@@ -65,7 +66,7 @@ def oauth2_server() -> OAuth2ServerConfig:
 ```
 
 - `issuer` is an origin only: the description lives at `/.well-known/oauth-authorization-server`
-  under it, so the router goes under no prefix.
+  under it, which is why `oauth2_server_well_known` cannot take a prefix.
 - The device flow is on by default and needs `device_code_verification_uri` — name the page, or
   turn the flow off as above.
 - `InMemoryPersistenceConfig()` forgets everything at exit; `OrmPersistenceConfig()` keeps it in
@@ -74,7 +75,7 @@ def oauth2_server() -> OAuth2ServerConfig:
 Every field and default: [references/configuration.md](references/configuration.md). Stores, the
 tables and an application-owned client class: [references/persistence.md](references/persistence.md).
 
-## Write the firewalls and serve the router
+## Write the firewalls and serve the endpoints
 
 ```python
 # app/config/security.py
@@ -133,10 +134,8 @@ from xtr_dependency_injection import Kernel
 from xtr_http_kernel import setup
 from xtr_security_core.user.user_interface import UserInterface
 from xtr_security_http import CurrentUser, Firewall
-from xtr_security_oauth2_server.routes import routes
 
 app = FastAPI(dependencies=[Firewall()])
-app.include_router(routes())
 
 
 @app.get("/api/invoices", dependencies=[Firewall("api").scoped("invoices:read")])
@@ -325,13 +324,13 @@ async def test_a_service_is_issued_a_token(tmp_path, monkeypatch) -> None:
    for the commands.
 2. **Recipe** — `uv run xtr-recipes recipes:sync` lists `OAuth2ServerBundle`, writes
    `<app>/config/oauth2_server.py`, `OAUTH2_SERVER_PRIVATE_KEY_PATH` and a commented-out
-   `OAUTH2_SERVER_ENCRYPTION_KEY` in `.env`, and adds `/secrets/*.pem` to `.gitignore`. It prints
-   the rest: the keys, the issuer, the router, the three firewalls, the consent listener, a
-   client, the scheduled sweep, the revision.
+   `OAUTH2_SERVER_ENCRYPTION_KEY` in `.env`, adds `/secrets/*.pem` to `.gitignore`, and writes
+   `<app>/config/routes/oauth2_server.py`. It prints the rest: the keys, the issuer, `setup`, the
+   three firewalls, the consent listener, a client, the scheduled sweep, the revision.
 3. **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` (and `JwtBundle` when the end
-   user signs in with a self-issued token); `app.include_router(routes())` at the root, an unbound
-   `Firewall()` on the application, `Kernel(..., concurrent_scoped_access=True)` and
-   `setup(app, kernel)`.
+   user signs in with a self-issued token); an unbound `Firewall()` on the application,
+   `Kernel(..., concurrent_scoped_access=True)` and `setup(app, kernel)`, which adds the
+   endpoints.
 4. **Brings along** — the security, clock, event-dispatcher and HTTP-kernel bundles always; the
    logging and console bundles when installed.
 5. **Configure** — `issuer`, `private_key`, `encryption_key`, `scopes.available`, `persistence` in
@@ -360,7 +359,9 @@ All derive from `OAuth2Error`.
 
 ## Do not
 
-- Do not mount `routes()` under a prefix, or name an issuer with a path.
+- Do not name an issuer with a path, or try to prefix `oauth2_server_well_known` (refused):
+  RFC 8414 places the description under the issuer. Prefix `oauth2_server` instead.
+- Do not `app.include_router(...)` these endpoints yourself: `setup` adds them.
 - Do not put a firewall in front of `/token`, `/revoke`, `/introspect` or `/device-code`: the
   server authenticates the client there.
 - Do not approve every authorization request in a listener for third-party clients; show a page

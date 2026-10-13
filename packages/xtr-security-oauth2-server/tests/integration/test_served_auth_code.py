@@ -65,8 +65,8 @@ DEACTIVATE_PATH: Final = "/deactivate-client"
 def _application() -> FastAPI:
     """Return the served application of the redirect-flow deployment.
 
-    The firewall goes on the application, not on the router this package
-    ships: that router carries no dependency of its own, so an unbound
+    The firewall goes on the application, not on the routes this package
+    contributes: they carry no dependency of their own, so an unbound
     ``Firewall()`` here is what establishes the resource owner before the
     authorization endpoint asks anybody to approve. Which requests it claims
     is the firewall pattern's to decide, which is why the token endpoint stays

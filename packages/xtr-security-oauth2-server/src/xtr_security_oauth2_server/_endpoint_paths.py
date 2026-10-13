@@ -1,9 +1,10 @@
-"""Where each endpoint of this server lives, and what its route is called.
+"""Where each endpoint of this server lives by default, and what its route is called.
 
-Two things read these: the router, which mounts each path, and the bundle,
-which builds the discovery document's absolute URLs out of the issuer and the
-same paths. They live here so the two cannot drift — a document naming a path
-nothing serves is worse than no document at all.
+Two things read these: the route loaders, which contribute each route at its
+default path under its name, and the bundle, which builds the discovery
+document's URLs out of the issuer and the path each named route has in the
+application's table. Keyed by name, a document cannot drift from what is
+served — a document naming a path nothing serves is worse than no document.
 """
 
 from __future__ import annotations
@@ -64,15 +65,18 @@ ROUTE_NAMES: Final[Mapping[str, str]] = MappingProxyType(
     },
 )
 
-#: Which field of the discovery document names each path. The metadata endpoint
+#: Which field of the discovery document names each route, by its default name.
+#: The URL published is the issuer and the path the route has in the
+#: application's route table — found by the endpoint it calls, so one a routes
+#: file moved or renamed is published where it now is. The metadata endpoint
 #: itself is absent: a client has already found it to be reading the document.
 METADATA_FIELDS: Final[Mapping[str, str]] = MappingProxyType(
     {
-        "authorization_endpoint": AUTHORIZE_PATH,
-        "token_endpoint": TOKEN_PATH,
-        "jwks_uri": JWKS_PATH,
-        "revocation_endpoint": REVOKE_PATH,
-        "introspection_endpoint": INTROSPECT_PATH,
-        "device_authorization_endpoint": DEVICE_CODE_PATH,
+        "authorization_endpoint": ROUTE_NAMES[AUTHORIZE_PATH],
+        "token_endpoint": ROUTE_NAMES[TOKEN_PATH],
+        "jwks_uri": ROUTE_NAMES[JWKS_PATH],
+        "revocation_endpoint": ROUTE_NAMES[REVOKE_PATH],
+        "introspection_endpoint": ROUTE_NAMES[INTROSPECT_PATH],
+        "device_authorization_endpoint": ROUTE_NAMES[DEVICE_CODE_PATH],
     },
 )

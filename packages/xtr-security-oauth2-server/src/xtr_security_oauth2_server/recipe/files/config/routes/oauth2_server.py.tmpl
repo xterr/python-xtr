@@ -1,0 +1,27 @@
+"""Where this application serves the OAuth 2.0 authorization server's endpoints.
+
+Every endpoint is contributed; one turned off in config/oauth2_server.py
+answers 404. The discovery document publishes each endpoint wherever this file
+puts it, and leaves out the ones it excludes. The /.well-known/ documents stay
+where RFC 8414 puts them: they cannot take a prefix.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from xtr_http_kernel.routing.decorator import as_routes
+
+if TYPE_CHECKING:
+    from xtr_http_kernel.routing.loader.configurator import RoutingConfigurator
+
+__all__ = ["oauth2_server"]
+
+
+@as_routes
+def oauth2_server(routes: RoutingConfigurator) -> None:
+    """Serve the endpoints at their default paths."""
+    _ = routes.import_("oauth2_server")
+    # Move them, or leave out the ones this deployment turned off:
+    # _ = routes.import_("oauth2_server").prefix("/auth").exclude("oauth2_introspect")
+    _ = routes.import_("oauth2_server_well_known")

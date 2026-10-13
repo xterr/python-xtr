@@ -4,8 +4,9 @@ The recipe is what *Use in an application* in the README lists, written as
 data: the bundle to list, the configuration module naming the issuer, the key
 material and the store, the environment variables that key material is read
 from, the key files to keep out of the repository, and the steps only a person
-can take — minting the key pair, putting a firewall in front of the
-authorization endpoint and including the router among them. An application
+can take — minting the key pair and putting a firewall in front of the
+authorization endpoint among them — plus the routes file the endpoints are
+arranged in. An application
 applies it with ``xtr-recipes recipes:sync``, which finds this module through
 the ``xtr_recipes`` entry point.
 

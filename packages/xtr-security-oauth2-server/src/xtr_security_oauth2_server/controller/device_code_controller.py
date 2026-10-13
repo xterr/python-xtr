@@ -30,10 +30,10 @@ class DeviceCodeController:
     owner to type somewhere else, and how long to wait between polls.
 
     It answers ``404`` when the deployment has not enabled the device flow.
-    The route exists either way, because the router is built when the package
-    is imported and cannot know a deployment's configuration; so "this server
-    does not do that" is said in the answer rather than by the path being
-    absent.
+    The route exists either way, because the route loader contributing it is
+    built before any configuration is read; so "this server does not do that"
+    is said in the answer rather than by the path being absent — unless the
+    application's routes file leaves the route out.
     """
 
     __slots__ = ("_enabled", "_server")

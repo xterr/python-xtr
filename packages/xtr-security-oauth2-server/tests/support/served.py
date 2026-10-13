@@ -1,7 +1,7 @@
 """Driving this package's endpoints through a real served application.
 
-Nothing here is a double: a kernel builds the container, the router this package
-ships is mounted on a real application, and a client drives it over ASGI. What a
+Nothing here is a double: a kernel builds the container, ``setup`` mounts the
+routes this package contributes on a real application, and a client drives it over ASGI. What a
 test asserts on is what a client would receive.
 
 The readers return settled types rather than whatever the wire decoded, so that
@@ -25,7 +25,6 @@ from xtr_password_hasher import PasswordHasherInterface
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
 from xtr_security_oauth2_server.model.client import Client
-from xtr_security_oauth2_server.routes import routes
 from xtr_security_oauth2_server.value_object.grant import Grant
 from xtr_security_oauth2_server.value_object.redirect_uri import RedirectUri
 from xtr_security_oauth2_server.value_object.scope import Scope
@@ -100,14 +99,14 @@ def served_application(
     has started.
 
     ``dependencies`` go on the application itself, which is how a firewall
-    reaches *this package's* endpoints: the router shipped here carries none, so
-    an unbound ``Firewall()`` here is what establishes the resource owner on the
-    authorization endpoint. Which requests it claims is the firewall pattern's
-    to decide, so the token endpoint — where authenticating the *client* is the
-    authorization server's own job — stays outside it.
+    reaches *this package's* endpoints: the routes it contributes, which
+    ``setup`` mounts, carry none, so an unbound ``Firewall()`` here is what
+    establishes the resource owner on the authorization endpoint. Which requests
+    it claims is the firewall pattern's to decide, so the token endpoint — where
+    authenticating the *client* is the authorization server's own job — stays
+    outside it.
     """
     app = FastAPI(dependencies=list(dependencies) if dependencies is not None else None)
-    app.include_router(routes())
 
     @app.post(SEED_PATH)
     async def seed_client(

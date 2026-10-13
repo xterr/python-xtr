@@ -5,7 +5,7 @@ names the section it answers for in a comment above its assertions, so a reader
 can go from a requirement to the test and back.
 
 Where a standard says what a client receives, the test drives a real served
-application — the router this package ships, mounted on an application whose
+application — the routes this package contributes, mounted on an application whose
 container the kernel built — and asserts on the answer. Where a standard fixes
 a *value* rather than an exchange, the test reads that value directly: the
 derivation of a proof key, the claims a token carries, the alphabet a user code

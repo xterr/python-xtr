@@ -27,8 +27,9 @@ the protocol library, and ships everything around it an application would otherw
 - 🔑 **The flows** — client credentials, authorization code with proof key (required of a client
   holding no secret), refresh token with rotation, and the device flow; password and implicit
   ship off.
-- 🌐 **The endpoints** — a router carrying `/authorize`, `/token`, `/device-code`, `/revoke`
-  (RFC 7009), `/introspect` (RFC 7662), the RFC 8414 description and the published key set.
+- 🌐 **The endpoints** — `/authorize`, `/token`, `/device-code`, `/revoke` (RFC 7009),
+  `/introspect` (RFC 7662), the RFC 8414 description and the published key set, added by
+  `setup(app, kernel)` and arranged in a routes file.
 - 🔥 **A firewall key `oauth2`** — `OAuth2AuthenticatorConfig()` on a firewall accepts the access
   tokens (RFC 9068) this server signs; their scopes become roles and `Firewall.scoped()` checks.
 - 🗄️ **Stores** — in memory, in a database through [xtr-orm](../xtr-orm) (the mapping ships, the
@@ -40,7 +41,7 @@ the protocol library, and ships everything around it an application would otherw
 ## Install
 
 ```sh
-uv add xtr-security-oauth2-server              # the server, its bundle and its router
+uv add xtr-security-oauth2-server              # the server, its bundle and its endpoints
 uv add "xtr-security-oauth2-server[orm]"       # + clients and credentials in a database
 uv add "xtr-security-oauth2-server[console]"   # + the oauth2-server:* commands
 ```
@@ -223,10 +224,8 @@ from xtr_security_core.user.in_memory_user import InMemoryUser
 from xtr_security_core.user.user_interface import UserInterface
 from xtr_security_http import CurrentUser, Firewall
 from xtr_security_jwt import JwtTokenManagerInterface
-from xtr_security_oauth2_server.routes import routes
 
 app = FastAPI(dependencies=[Firewall()])
-app.include_router(routes())
 
 
 @app.post("/login")
@@ -246,10 +245,10 @@ kernel = Kernel("app", concurrent_scoped_access=True)
 setup(app, kernel)
 ```
 
-The unbound `Firewall()` on the application is what runs the firewalls in front of the router,
-which carries no dependency of its own: without it `/authorize` is reached with nobody signed in
-and answers `access_denied`. The router goes at the root, under no prefix — the description lives
-at a fixed path under the issuer.
+The unbound `Firewall()` on the application is what runs the firewalls in front of the endpoints
+`setup` adds, which carry no dependency of their own: without it `/authorize` is reached with
+nobody signed in and answers `access_denied`. The description and the key set stay at the fixed
+paths RFC 8414 puts under the issuer; the other endpoints can move — see [Endpoints](#endpoints).
 
 ```console
 $ curl -s -u billing:s3cret -d grant_type=client_credentials -d scope=invoices:read \
@@ -363,8 +362,13 @@ not-null column instead. One client class per process.
 
 ## Endpoints
 
-`routes()` from `xtr_security_oauth2_server.routes` returns the router; every path is always
-declared, and an endpoint a deployment turned off answers `404`.
+`setup(app, kernel)` adds every endpoint, contributed by two route loaders: resource
+`oauth2_server` (authorize, token, device-code, revoke, introspect) and resource
+`oauth2_server_well_known` (the description and the key set, which RFC 8414 places under the
+issuer, so they cannot take a prefix). An endpoint a deployment turned off answers `404`. A
+routes file in `<app>/config/routes/` moves them or leaves some out —
+`routes.import_("oauth2_server").prefix("/auth").exclude("oauth2_introspect")` — and the
+description publishes each endpoint wherever it ends up, leaving out the ones excluded:
 
 | Method | Path | Route name | Answers when |
 |---|---|---|---|
@@ -469,18 +473,17 @@ removing it undoes.
   and *Ignore* steps below, and no other: it lists `OAuth2ServerBundle`, writes a starting
   `<app>/config/oauth2_server.py`, `OAUTH2_SERVER_PRIVATE_KEY_PATH=%kernel.project_dir%/secrets/oauth2.pem`
   and a commented-out `OAUTH2_SERVER_ENCRYPTION_KEY` in `.env`, and adds `/secrets/*.pem` to
-  `.gitignore`. It prints what a recipe cannot make for you: minting the key pair and the
-  encryption key, naming this deployment's issuer, including the router, the three firewalls,
+  `.gitignore`, and writes `<app>/config/routes/oauth2_server.py` serving every endpoint at its
+  default path. It prints what a recipe cannot make for you: minting the key pair and the
+  encryption key, naming this deployment's issuer, calling `setup`, the three firewalls,
   the listener that answers the consent question, registering a client, scheduling the sweep of
   what has expired, and the revision a database store takes.
 - **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_security_oauth2_server.bundle` — and `JwtBundle` beside it when the end user signs in
-  with a self-issued token. Then include the router where the application is served —
-  `app.include_router(routes())`, at the root and under no prefix, because the description of
-  this server lives at a fixed path under its issuer — build the kernel with
-  `concurrent_scoped_access=True` and call `setup(app, kernel)`, as the security family requires.
-  Put an unbound `Firewall()` on the application itself: the router shipped here carries no
-  dependency of its own, so that is what establishes the resource owner on `/authorize`.
+  with a self-issued token. Then build the kernel with `concurrent_scoped_access=True` and call
+  `setup(app, kernel)`, as the security family requires: it adds this server's endpoints. Put an
+  unbound `Firewall()` on the application itself: the endpoints carry no dependency of their
+  own, so that is what establishes the resource owner on `/authorize`.
 - **Brings along** — the [security bundle](../xtr-security), the [clock](../xtr-clock), the
   [event dispatcher](../xtr-event-dispatcher) and the [HTTP kernel](../xtr-http-kernel) always,
   because this bundle requires them; the [logging](../xtr-logging) bundle when xtr-logging is
@@ -500,6 +503,8 @@ removing it undoes.
   `OAuth2AuthenticatorConfig()` under the `authenticators` of the one in front of the API. A
   listener on `OAuth2Events.AUTHORIZATION_REQUEST_RESOLVE` answers the consent question — see
   [Configure](#configure) and [Kernel / bundle](#kernel--bundle).
+  `<app>/config/routes/oauth2_server.py` imports both route resources; move them or leave
+  endpoints out there — see [Endpoints](#endpoints).
 - **Environment** — `OAUTH2_SERVER_PRIVATE_KEY_PATH`, the file the written
   `config/oauth2_server.py` reads the signing key from with
   `env("resolve:OAUTH2_SERVER_PRIVATE_KEY_PATH")`; and `OAUTH2_SERVER_ENCRYPTION_KEY`, the
@@ -510,7 +515,7 @@ removing it undoes.
   `/secrets/*.pem`, which covers the private key and the public half
   `oauth2-server:generate-keypair` writes beside it when a deployment names a file for one.
 - **Remove** — `uv run xtr-recipes recipes:remove xtr-security-oauth2-server`, then undo the steps
-  it printed: the router, the firewalls, the consent listener and the client registrations are the
+  it printed: the firewalls, the consent listener and the client registrations are the
   application's own.
 - **Check** — `debug:bundles` lists `oauth2_server` as active; `debug:config oauth2_server` shows
   the resolved issuer, lifetimes, flows and store; and `GET
@@ -583,7 +588,7 @@ the family's `AccessDeniedError`, answered `403`.
 
 ```
 xtr_security_oauth2_server/
-├── routes.py                   routes(): the router an application includes
+├── routing/                    the two route loaders setup() mounts the endpoints from
 ├── oauth2_events.py            OAuth2Events, the six names
 ├── authorization_server_metadata.py, metadata_contributor_interface.py
 ├── controller/                 one controller per endpoint

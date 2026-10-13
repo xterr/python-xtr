@@ -40,7 +40,7 @@ dependencies = [
     # the framework can send — and the authenticator turns the request being
     # served into a message through the kernel's bridge.
     "xtr-http-kernel>=3.0,<4",
-    # `routes()` hands back a router the application includes.
+    # The endpoints are framework routes, contributed to the application's table.
     "fastapi>=0.123",
     "joserfc>=1.7",
     "typing-extensions>=4.12",

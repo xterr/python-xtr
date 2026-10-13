@@ -14,6 +14,9 @@
 # deployment says who this server is, what it signs and seals with, which
 # scopes it knows and where its clients live: this module says all four.
 "config/oauth2_server.py" = "files/config/oauth2_server.py.tmpl"
+# Where the endpoints are served: every one at its default path, with the line
+# that moves them or leaves some out written beside it.
+"config/routes/oauth2_server.py" = "files/config/routes/oauth2_server.py.tmpl"
 
 [env]
 # The file the written configuration reads the signing key from. A deployment
@@ -35,8 +38,8 @@ steps = [
   "Mint the signing key pair where OAUTH2_SERVER_PRIVATE_KEY_PATH points: '<script> oauth2-server:generate-keypair' writes it there, at the configured algorithm, and refuses to replace a key already in place unless '--overwrite' says so. Mount the deployment's own key in production; a key is never minted on its behalf.",
   "Set OAUTH2_SERVER_ENCRYPTION_KEY to the base64url of 32 random bytes, which is what the written configuration's encryption_key_type='key' reads: python -c \"import base64, secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip('='))\".",
   "Change the issuer in config/oauth2_server.py to the origin clients reach this server at: every token claims it, and the description published under it names the endpoints.",
-  "Include the router where the application is served — app.include_router(routes()) from xtr_security_oauth2_server.routes, at the root and under no prefix — and build the kernel with concurrent_scoped_access=True, calling setup(app, kernel), as the security family requires.",
-  "Write the three firewalls in config/security.py, and put an unbound Firewall() on the application itself so they run in front of the router, which carries none: one claiming ^/authorize that signs the end user in — a JwtAuthenticatorConfig() reading a cookie, say — so the consent question has somebody to ask, since without it /authorize answers access_denied; none claiming /token, /revoke, /introspect, /device-code or the .well-known paths, because authenticating the client there is this server's own job; and one in front of the API listing OAuth2AuthenticatorConfig(), so the tokens this server issues are accepted there.",
+  "Build the kernel with concurrent_scoped_access=True and call setup(app, kernel), as the security family requires: setup adds this server's endpoints, arranged by the written config/routes/oauth2_server.py — move them under a prefix or leave out the ones this deployment turned off there.",
+  "Write the three firewalls in config/security.py, and put an unbound Firewall() on the application itself so they run in front of the endpoints, which carry none: one claiming ^/authorize that signs the end user in — a JwtAuthenticatorConfig() reading a cookie, say — so the consent question has somebody to ask, since without it /authorize answers access_denied; none claiming /token, /revoke, /introspect, /device-code or the .well-known paths, because authenticating the client there is this server's own job; and one in front of the API listing OAuth2AuthenticatorConfig(), so the tokens this server issues are accepted there.",
   "Answer the consent question: a listener on OAuth2Events.AUTHORIZATION_REQUEST_RESOLVE either resolves the request or answers the browser with a page of its own, and binds the form it shows to the person it is shown to.",
   "Register a client before any flow can run: '<script> oauth2-server:create-client \"A client\" my-client --grant-type client_credentials', which prints the plaintext secret once and stores only its hash. 'oauth2-server:list-clients', 'update-client' and 'delete-client' administer them afterwards. The in-memory store the written configuration starts with forgets a client when the command exits, so register through ClientManagerInterface from the application itself until the store is a database's.",
   "Run '<script> oauth2-server:clear-expired-tokens' on a schedule, so the credentials this server issues do not outstay their lifetime in the store.",

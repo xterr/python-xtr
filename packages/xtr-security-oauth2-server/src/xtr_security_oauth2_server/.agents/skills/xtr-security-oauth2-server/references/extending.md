@@ -183,9 +183,11 @@ contributors publish). A contribution never replaces a field the server publishe
 
 ### A route of its own
 
-Ship a `routes()`-style function returning an `APIRouter`; the application includes it, and its
-firewall decides who reaches it — `OAuth2AuthenticatorConfig()` on that path accepts this
-server's access tokens.
+Ship a route loader — a class with `load_routes()` declared `@as_route_loader("my_addon")` from
+`xtr_http_kernel.routing.decorator`, scanned by the add-on's bundle with `services.load(...)`.
+`setup` mounts it, the application's routes files arrange it, and the application's firewall
+decides who reaches it — `OAuth2AuthenticatorConfig()` on that path accepts this server's access
+tokens.
 
 ## The core by hand
 
