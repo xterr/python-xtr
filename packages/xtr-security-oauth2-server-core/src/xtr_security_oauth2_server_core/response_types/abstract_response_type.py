@@ -64,7 +64,7 @@ class AbstractResponseType(CryptTrait, ResponseTypeInterface, ABC):
 
     @abstractmethod
     @override
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Build the answer this response type has to make, on top of ``response``."""
         ...
 

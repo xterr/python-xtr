@@ -224,7 +224,7 @@ class AuthorizationServer:
             )
         answered = await grant_type.complete_authorization_request(request, authorization_request)
 
-        return answered.generate_http_response(response)
+        return await answered.generate_http_response(response)
 
     async def respond_to_device_authorization_request(
         self,
@@ -241,7 +241,7 @@ class AuthorizationServer:
             if grant_type.can_respond_to_device_authorization_request(request):
                 answered = await grant_type.respond_to_device_authorization_request(request)
 
-                return answered.generate_http_response(response)
+                return await answered.generate_http_response(response)
 
         raise OAuthServerError.unsupported_grant_type()
 
@@ -298,7 +298,7 @@ class AuthorizationServer:
                 self._grant_type_access_token_ttl[grant_type.get_identifier()],
             )
 
-            return answered.generate_http_response(response)
+            return await answered.generate_http_response(response)
 
         raise OAuthServerError.unsupported_grant_type()
 

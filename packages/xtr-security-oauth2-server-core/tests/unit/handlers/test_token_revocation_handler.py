@@ -203,7 +203,7 @@ async def test_the_answer_says_nothing_at_all_and_may_not_be_cached() -> None:
 
     answer = await handler.respond_to_request(_request(token="token-1"), Response())
 
-    assert body_of(answer) == ""
+    assert await body_of(answer) == ""
     assert answer.get_header_line("cache-control") == "no-store"
 
 

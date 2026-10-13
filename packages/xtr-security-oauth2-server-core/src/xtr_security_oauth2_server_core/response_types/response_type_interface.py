@@ -56,7 +56,7 @@ class ResponseTypeInterface(Protocol):
         """
         ...
 
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Build the answer this response type has to make, on top of ``response``.
 
         The status and the headers are set with the ``with_*`` methods, each of

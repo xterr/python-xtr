@@ -64,7 +64,7 @@ class _RecordingHandler:
         """Keep the request, and answer a response nothing else would produce."""
         self.asked.append(request)
         answer = response.with_status(299)
-        _ = answer.get_body().write(b"answered")
+        _ = await answer.get_body().write(b"answered")
 
         return answer
 
@@ -139,8 +139,8 @@ def _installed_question() -> _AppIntrospectionHandler:
     return _AppIntrospectionHandler(RecordingEventDispatcher(), make_clock())
 
 
-def _body(answer: ResponseInterface) -> Mapping[str, object]:
-    return cast("Mapping[str, object]", document_of(answer))
+async def _body(answer: ResponseInterface) -> Mapping[str, object]:
+    return cast("Mapping[str, object]", await document_of(answer))
 
 
 def test_the_recording_handler_satisfies_the_handler_contract() -> None:
@@ -155,7 +155,7 @@ async def test_a_revocation_request_is_answered_without_a_word() -> None:
     )
 
     assert answer.get_status_code() == 200
-    assert body_of(answer) == ""
+    assert await body_of(answer) == ""
     assert answer.get_header_line("cache-control") == "no-store"
 
 
@@ -168,7 +168,7 @@ async def test_an_introspection_request_about_an_unknown_token_says_nothing_is_l
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -193,7 +193,7 @@ async def test_the_revocation_handler_it_was_given_is_the_one_that_answers() -> 
     answer = await server.respond_to_token_revocation_request(request, Response())
 
     assert answer.get_status_code() == 299
-    assert body_of(answer) == "answered"
+    assert await body_of(answer) == "answered"
     assert handler.asked == [request]
 
 
@@ -207,7 +207,7 @@ async def test_the_introspection_handler_it_was_given_is_the_one_that_answers() 
     answer = await server.respond_to_token_introspection_request(request, Response())
 
     assert answer.get_status_code() == 299
-    assert body_of(answer) == "answered"
+    assert await body_of(answer) == "answered"
     assert handler.asked == [request]
 
 
@@ -264,7 +264,7 @@ async def test_a_refresh_token_is_answered_for_through_the_server() -> None:
         Response(),
     )
 
-    body = _body(answer)
+    body = await _body(answer)
     assert body["active"] is True
     assert body["jti"] == "refresh-1"
 
@@ -279,7 +279,7 @@ async def test_a_question_a_deployment_installed_answers_for_a_live_token() -> N
         Response(),
     )
 
-    body = _body(answer)
+    body = await _body(answer)
     assert body["active"] is True
     assert body["jti"] == "access-1"
 
@@ -303,7 +303,7 @@ async def test_a_withdrawal_a_deployment_installed_leaves_nothing_for_the_questi
 
     assert withdrawn.get_status_code() == 200
     assert await storage.access_tokens.is_access_token_revoked("access-1")
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -318,7 +318,7 @@ async def test_each_endpoint_keeps_its_own_handler() -> None:
     )
 
     assert revocation.asked == []
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 def test_its_reading_names_what_it_answers_for_and_never_the_keys() -> None:

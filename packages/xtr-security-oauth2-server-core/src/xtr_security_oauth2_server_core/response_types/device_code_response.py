@@ -78,7 +78,7 @@ class DeviceCodeResponse(AbstractResponseType):
         return {}
 
     @override
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Answer the two codes, where to go, and how long they last.
 
         Raises:
@@ -107,7 +107,7 @@ class DeviceCodeResponse(AbstractResponseType):
             .with_header("cache-control", "no-store")
             .with_header("content-type", "application/json; charset=UTF-8")
         )
-        _ = answer.get_body().write(json.dumps(params).encode())
+        _ = await answer.get_body().write(json.dumps(params).encode())
 
         return answer
 

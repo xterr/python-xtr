@@ -72,7 +72,7 @@ class TokenIntrospectionHandler(AbstractTokenHandler):
             response_type.set_token_type(token.token_type)
             response_type.set_token_data(token.token_data)
 
-        return response_type.generate_http_response(response)
+        return await response_type.generate_http_response(response)
 
     def _response_type_for_request(self) -> IntrospectionResponseTypeInterface:
         """Return a document for this request alone, nobody else's to write to."""

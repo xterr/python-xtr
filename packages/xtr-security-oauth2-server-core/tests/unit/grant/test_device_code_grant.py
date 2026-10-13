@@ -74,7 +74,7 @@ async def _issued(grant: DeviceCodeGrant, **body: str) -> Mapping[str, object]:
 
     return cast(
         "Mapping[str, object]",
-        document_of(response_type.generate_http_response(Response())),
+        await document_of(await response_type.generate_http_response(Response())),
     )
 
 
@@ -194,7 +194,9 @@ async def test_a_device_may_name_its_client_in_the_authorization_header() -> Non
 
     response_type = await grant.respond_to_device_authorization_request(request)
 
-    assert response_type.generate_http_response(Response()).get_status_code() == 200
+    answer = await response_type.generate_http_response(Response())
+
+    assert answer.get_status_code() == 200
 
 
 @pytest.mark.anyio

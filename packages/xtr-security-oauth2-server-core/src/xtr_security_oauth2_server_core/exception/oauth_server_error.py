@@ -300,7 +300,7 @@ class OAuthServerError(OAuth2Error):
 
         return headers
 
-    def generate_http_response(
+    async def generate_http_response(
         self,
         response: ResponseInterface,
         use_fragment: bool = False,
@@ -331,6 +331,6 @@ class OAuthServerError(OAuth2Error):
         for name, value in self.get_http_headers().items():
             answer = answer.with_header(name, value)
         answer = answer.with_status(self._http_status_code)
-        _ = answer.get_body().write(json.dumps(payload).encode())
+        _ = await answer.get_body().write(json.dumps(payload).encode())
 
         return answer

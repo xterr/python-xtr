@@ -73,7 +73,7 @@ class BearerTokenResponse(AbstractResponseType):
         return {}
 
     @override
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Answer the token, the scheme, the lifetime and the refresh token.
 
         The scope granted is named whenever the token carries one. RFC 6749
@@ -126,6 +126,6 @@ class BearerTokenResponse(AbstractResponseType):
             .with_header("cache-control", "no-store")
             .with_header("content-type", "application/json; charset=UTF-8")
         )
-        _ = answer.get_body().write(json.dumps(params).encode())
+        _ = await answer.get_body().write(json.dumps(params).encode())
 
         return answer

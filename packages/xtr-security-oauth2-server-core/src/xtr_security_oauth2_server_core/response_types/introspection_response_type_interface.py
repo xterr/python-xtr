@@ -39,6 +39,6 @@ class IntrospectionResponseTypeInterface(Protocol):
         """Say what the token carries, as the kind of token it is records it."""
         ...
 
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Answer the document on top of ``response``."""
         ...

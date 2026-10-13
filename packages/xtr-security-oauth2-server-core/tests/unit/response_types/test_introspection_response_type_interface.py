@@ -27,7 +27,7 @@ class _BareDocument:
     def set_token_data(self, token_data: Mapping[str, object]) -> None:
         del token_data
 
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         return response.with_status(200)
 
 
@@ -35,7 +35,7 @@ class _BareDocument:
 class _NotADocument:
     """Something that produces a response, but is told none of what a document is."""
 
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         return response
 
 

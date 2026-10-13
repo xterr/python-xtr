@@ -79,7 +79,7 @@ class _RecordingResponseType:
         """Record what the token carries."""
         self.told.append(("token_data", dict(token_data)))
 
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Answer the response it was handed, untouched."""
         self.told.append(("response", response))
         self.built.append(self)
@@ -116,8 +116,8 @@ def _handler(storage: Storage) -> TokenIntrospectionHandler:
     return handler
 
 
-def _body(answer: ResponseInterface) -> Mapping[str, object]:
-    return cast("Mapping[str, object]", document_of(answer))
+async def _body(answer: ResponseInterface) -> Mapping[str, object]:
+    return cast("Mapping[str, object]", await document_of(answer))
 
 
 @pytest.mark.anyio
@@ -129,7 +129,7 @@ async def test_an_access_token_is_answered_as_what_it_claims() -> None:
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
-    assert _body(answer) == {
+    assert await _body(answer) == {
         "active": True,
         "scope": "",
         "token_type": "Bearer",
@@ -147,7 +147,7 @@ async def test_a_refresh_token_is_answered_as_the_payload_it_was_sealed_from() -
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
-    assert _body(answer) == {"active": True, "scope": "", "jti": "refresh-1"}
+    assert await _body(answer) == {"active": True, "scope": "", "jti": "refresh-1"}
 
 
 @pytest.mark.anyio
@@ -158,7 +158,7 @@ async def test_a_token_this_server_will_not_speak_for_says_nothing_is_live() -> 
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -226,7 +226,7 @@ async def test_a_real_live_access_token_is_answered_with_what_it_says() -> None:
         Response(),
     )
 
-    body = _body(answer)
+    body = await _body(answer)
     assert body["active"] is True
     assert body["client_id"] == "client-1"
     assert body["sub"] == "user-1"
@@ -248,7 +248,7 @@ async def test_a_real_revoked_access_token_says_nothing_is_live() -> None:
         Response(),
     )
 
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -258,7 +258,7 @@ async def test_a_real_expired_access_token_says_nothing_is_live() -> None:
 
     answer = await handler.respond_to_request(_request(token=token), Response())
 
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -268,7 +268,7 @@ async def test_another_clients_real_access_token_is_answered_for_what_it_says() 
 
     answer = await handler.respond_to_request(_request(token=token), Response())
 
-    body = _body(answer)
+    body = await _body(answer)
     assert body["active"] is True
     assert body["client_id"] == "client-2"
 
@@ -280,7 +280,7 @@ async def test_a_real_token_from_another_authorization_server_says_nothing_is_li
 
     answer = await handler.respond_to_request(_request(token=token), Response())
 
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -289,7 +289,7 @@ async def test_something_that_is_not_a_token_says_nothing_is_live() -> None:
 
     answer = await handler.respond_to_request(_request(token="whatever"), Response())
 
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -301,7 +301,7 @@ async def test_a_real_live_refresh_token_is_answered_with_what_it_knows() -> Non
         Response(),
     )
 
-    body = _body(answer)
+    body = await _body(answer)
     assert body["active"] is True
     assert body["client_id"] == "client-1"
     assert body["sub"] == "user-1"
@@ -321,7 +321,7 @@ async def test_a_real_revoked_refresh_token_says_nothing_is_live() -> None:
         Response(),
     )
 
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -331,7 +331,7 @@ async def test_a_real_expired_refresh_token_says_nothing_is_live() -> None:
 
     answer = await handler.respond_to_request(_request(token=token), Response())
 
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
 @pytest.mark.anyio
@@ -341,4 +341,4 @@ async def test_a_kind_of_token_this_server_knows_nothing_about_is_only_a_guess()
 
     answer = await handler.respond_to_request(request, Response())
 
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}

@@ -19,28 +19,31 @@ def test_it_satisfies_the_response_type_contract() -> None:
     assert isinstance(RedirectResponse(), ResponseTypeInterface)
 
 
-def test_it_answers_a_redirect_to_the_uri_it_was_given() -> None:
+@pytest.mark.anyio
+async def test_it_answers_a_redirect_to_the_uri_it_was_given() -> None:
     response_type = RedirectResponse()
     response_type.set_redirect_uri(_TARGET)
 
-    answer = response_type.generate_http_response(Response())
+    answer = await response_type.generate_http_response(Response())
 
     assert answer.get_status_code() == 302
     assert answer.get_header_line("location") == _TARGET
 
 
-def test_it_carries_nothing_but_the_redirect() -> None:
+@pytest.mark.anyio
+async def test_it_carries_nothing_but_the_redirect() -> None:
     response_type = RedirectResponse()
     response_type.set_redirect_uri(_TARGET)
 
-    answer = response_type.generate_http_response(Response())
+    answer = await response_type.generate_http_response(Response())
 
-    assert body_of(answer) == ""
+    assert await body_of(answer) == ""
     assert set(answer.get_headers()) == {"Location"}
 
 
-def test_answering_before_a_uri_is_set_names_the_setter() -> None:
+@pytest.mark.anyio
+async def test_answering_before_a_uri_is_set_names_the_setter() -> None:
     response_type = RedirectResponse()
 
     with pytest.raises(InvalidArgumentError, match="set_redirect_uri"):
-        _ = response_type.generate_http_response(Response())
+        _ = await response_type.generate_http_response(Response())

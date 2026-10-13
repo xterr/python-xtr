@@ -49,6 +49,6 @@ class RecordingResponseType:
         """Keep the key this response type would seal its payloads with."""
         self.encryption_key = (key, key_type)
 
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Answer 200, leaving the shape of a token document to the real thing."""
         return response.with_status(200)

@@ -117,7 +117,7 @@ class IntrospectionResponse(IntrospectionResponseTypeInterface):
         self._token_data = token_data
 
     @override
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Answer the document on top of ``response``.
 
         Nothing may cache it: whether a token is live is true only at the
@@ -134,7 +134,7 @@ class IntrospectionResponse(IntrospectionResponseTypeInterface):
             .with_header("cache-control", "no-store")
             .with_header("content-type", "application/json; charset=UTF-8")
         )
-        _ = answer.get_body().write(json.dumps(params).encode())
+        _ = await answer.get_body().write(json.dumps(params).encode())
 
         return answer
 

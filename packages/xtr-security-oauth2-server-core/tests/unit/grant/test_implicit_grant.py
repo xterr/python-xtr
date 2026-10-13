@@ -55,7 +55,9 @@ async def _approved(grant: ImplicitGrant, **query: str) -> str:
         authorization_request,
     )
 
-    return answered.generate_http_response(Response()).get_header_line("location")
+    answer = await answered.generate_http_response(Response())
+
+    return answer.get_header_line("location")
 
 
 def test_it_is_asked_for_by_name() -> None:

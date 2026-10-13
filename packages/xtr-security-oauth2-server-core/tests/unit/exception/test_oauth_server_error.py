@@ -226,12 +226,13 @@ def test_set_payload_replaces_what_the_answer_carries() -> None:
     }
 
 
-def test_the_answer_is_json_carrying_the_payload() -> None:
+@pytest.mark.anyio
+async def test_the_answer_is_json_carrying_the_payload() -> None:
     error = OAuthServerError.unsupported_grant_type()
 
-    answer = error.generate_http_response(Response())
+    answer = await error.generate_http_response(Response())
 
-    assert document_of(answer) == {
+    assert await document_of(answer) == {
         "error": "unsupported_grant_type",
         "error_description": (
             "The authorization grant type is not supported by the authorization server."
@@ -240,39 +241,43 @@ def test_the_answer_is_json_carrying_the_payload() -> None:
     }
 
 
-def test_the_answer_carries_the_status_and_the_content_type() -> None:
+@pytest.mark.anyio
+async def test_the_answer_carries_the_status_and_the_content_type() -> None:
     error = OAuthServerError.invalid_credentials()
 
-    answer = error.generate_http_response(Response())
+    answer = await error.generate_http_response(Response())
 
     assert answer.get_status_code() == 400
     assert answer.get_header_line("content-type") == "application/json"
 
 
-def test_the_payload_is_written_into_the_body_as_bytes() -> None:
+@pytest.mark.anyio
+async def test_the_payload_is_written_into_the_body_as_bytes() -> None:
     error = OAuthServerError.invalid_credentials()
 
-    answer = error.generate_http_response(Response())
+    answer = await error.generate_http_response(Response())
 
-    written = bytes(answer.get_body())
+    written = await answer.get_body().get_contents()
 
     assert isinstance(written, bytes)
     assert b'"invalid_grant"' in written
 
 
-def test_the_answer_overrides_the_payload_set_on_the_error() -> None:
+@pytest.mark.anyio
+async def test_the_answer_overrides_the_payload_set_on_the_error() -> None:
     error = OAuthServerError.invalid_grant()
     error.set_payload({"error": "invalid_grant"})
 
-    answer = error.generate_http_response(Response())
+    answer = await error.generate_http_response(Response())
 
-    assert document_of(answer) == {"error": "invalid_grant"}
+    assert await document_of(answer) == {"error": "invalid_grant"}
 
 
-def test_a_redirecting_error_answers_a_302_with_the_payload_in_the_query() -> None:
+@pytest.mark.anyio
+async def test_a_redirecting_error_answers_a_302_with_the_payload_in_the_query() -> None:
     error = OAuthServerError.invalid_scope("read", "https://app.test/cb")
 
-    answer = error.generate_http_response(Response())
+    answer = await error.generate_http_response(Response())
 
     location = answer.get_header_line("location")
     assert answer.get_status_code() == 302
@@ -284,10 +289,11 @@ def test_a_redirecting_error_answers_a_302_with_the_payload_in_the_query() -> No
     }
 
 
-def test_the_query_joins_on_with_an_ampersand_when_the_redirect_already_has_one() -> None:
+@pytest.mark.anyio
+async def test_the_query_joins_on_with_an_ampersand_when_the_redirect_already_has_one() -> None:
     error = OAuthServerError.access_denied(None, "https://app.test/cb?state=xyz")
 
-    answer = error.generate_http_response(Response())
+    answer = await error.generate_http_response(Response())
 
     location = answer.get_header_line("location")
     assert location.startswith("https://app.test/cb?state=xyz&")
@@ -295,42 +301,46 @@ def test_the_query_joins_on_with_an_ampersand_when_the_redirect_already_has_one(
     assert parse_qs(urlsplit(location).query)["error"] == ["access_denied"]
 
 
-def test_a_redirecting_error_can_answer_with_the_payload_in_the_fragment() -> None:
+@pytest.mark.anyio
+async def test_a_redirecting_error_can_answer_with_the_payload_in_the_fragment() -> None:
     error = OAuthServerError.access_denied(None, "https://app.test/cb")
 
-    answer = error.generate_http_response(Response(), use_fragment=True)
+    answer = await error.generate_http_response(Response(), use_fragment=True)
 
     location = answer.get_header_line("location")
     assert location.startswith("https://app.test/cb#")
     assert parse_qs(urlsplit(location).fragment)["error"] == ["access_denied"]
 
 
-def test_the_fragment_joins_on_with_an_ampersand_when_the_redirect_already_has_one() -> None:
+@pytest.mark.anyio
+async def test_the_fragment_joins_on_with_an_ampersand_when_the_redirect_already_has_one() -> None:
     error = OAuthServerError.access_denied(None, "https://app.test/cb#state=xyz")
 
-    answer = error.generate_http_response(Response(), use_fragment=True)
+    answer = await error.generate_http_response(Response(), use_fragment=True)
 
     location = answer.get_header_line("location")
     assert location.startswith("https://app.test/cb#state=xyz&")
     assert parse_qs(urlsplit(location).fragment)["state"] == ["xyz"]
 
 
-def test_a_redirecting_answer_carries_nothing_but_the_location() -> None:
+@pytest.mark.anyio
+async def test_a_redirecting_answer_carries_nothing_but_the_location() -> None:
     # The browser follows the redirect; a JSON content type on a 302 would only
     # describe a body that is not there.
     error = OAuthServerError.access_denied(None, "https://app.test/cb")
 
-    answer = error.generate_http_response(Response())
+    answer = await error.generate_http_response(Response())
 
     assert tuple(answer.get_headers()) == ("Location",)
-    assert body_of(answer) == ""
+    assert await body_of(answer) == ""
 
 
-def test_asking_for_the_answer_twice_yields_the_same_redirect() -> None:
+@pytest.mark.anyio
+async def test_asking_for_the_answer_twice_yields_the_same_redirect() -> None:
     error = OAuthServerError.access_denied(None, "https://app.test/cb")
 
-    first = error.generate_http_response(Response())
-    second = error.generate_http_response(Response())
+    first = await error.generate_http_response(Response())
+    second = await error.generate_http_response(Response())
 
     assert first.get_header_line("location") == second.get_header_line("location")
     assert error.get_redirect_uri() == "https://app.test/cb"
@@ -363,10 +373,11 @@ def test_invalid_client_reads_an_empty_authorization_header_as_no_attempt() -> N
     assert "www-authenticate" not in error.get_http_headers()
 
 
-def test_the_answer_to_invalid_client_carries_the_scheme_it_asks_for() -> None:
+@pytest.mark.anyio
+async def test_the_answer_to_invalid_client_carries_the_scheme_it_asks_for() -> None:
     error = OAuthServerError.invalid_client(_token_request("Basic YXBwOnMzY3IzdA=="))
 
-    answer = error.generate_http_response(Response())
+    answer = await error.generate_http_response(Response())
 
     assert answer.get_status_code() == 401
     assert answer.get_header_line("www-authenticate") == 'Basic realm="OAuth"'

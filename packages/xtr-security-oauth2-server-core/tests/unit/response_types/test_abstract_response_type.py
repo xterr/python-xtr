@@ -35,8 +35,8 @@ class _NamingResponseType(AbstractResponseType):
     """Answers with the identifier of whatever it was handed."""
 
     @override
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
-        _ = response.get_body().write(self._access_token_or_fail().get_identifier().encode())
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+        _ = await response.get_body().write(self._access_token_or_fail().get_identifier().encode())
 
         return response
 
@@ -100,11 +100,12 @@ def test_it_seals_and_reads_back_a_payload_with_the_key_it_was_given() -> None:
     assert response_type.decrypt(sealed) == {"refresh_token_id": "token-1"}
 
 
-def test_the_answer_is_built_on_the_response_it_was_handed() -> None:
+@pytest.mark.anyio
+async def test_the_answer_is_built_on_the_response_it_was_handed() -> None:
     response_type = _NamingResponseType()
     response_type.set_access_token(_access_token("token-9"))
 
-    answer = response_type.generate_http_response(Response().with_header("x-trace", "1"))
+    answer = await response_type.generate_http_response(Response().with_header("x-trace", "1"))
 
-    assert body_of(answer) == "token-9"
+    assert await body_of(answer) == "token-9"
     assert answer.get_header_line("x-trace") == "1"

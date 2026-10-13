@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from xtr_http_message import Response
 
 from tests.support.entities import AccessToken, RefreshToken, make_client
@@ -50,5 +51,8 @@ def test_it_keeps_the_encryption_key_it_was_given() -> None:
     assert response_type.encryption_key == ("a" * 44, "key")
 
 
-def test_it_answers_two_hundred() -> None:
-    assert RecordingResponseType().generate_http_response(Response()).get_status_code() == 200
+@pytest.mark.anyio
+async def test_it_answers_two_hundred() -> None:
+    answer = await RecordingResponseType().generate_http_response(Response())
+
+    assert answer.get_status_code() == 200

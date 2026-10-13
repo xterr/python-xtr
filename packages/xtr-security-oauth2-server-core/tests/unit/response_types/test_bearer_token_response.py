@@ -63,10 +63,10 @@ def _response(access_token: AccessTokenEntityInterface | None = None) -> BearerT
     return response_type
 
 
-def _answered(response_type: BearerTokenResponse) -> Mapping[str, object]:
+async def _answered(response_type: BearerTokenResponse) -> Mapping[str, object]:
     return cast(
         "Mapping[str, object]",
-        document_of(response_type.generate_http_response(Response())),
+        await document_of(await response_type.generate_http_response(Response())),
     )
 
 
@@ -90,33 +90,43 @@ def test_it_is_a_response_type() -> None:
     assert isinstance(_response(), ResponseTypeInterface)
 
 
-def test_it_names_the_token_type_the_bearer_scheme() -> None:
-    assert _answered(_response(_access_token()))["token_type"] == "Bearer"
+@pytest.mark.anyio
+async def test_it_names_the_token_type_the_bearer_scheme() -> None:
+    assert (await _answered(_response(_access_token())))["token_type"] == "Bearer"
 
 
-def test_it_says_how_many_seconds_the_token_has_left() -> None:
-    assert _answered(_response(_access_token()))["expires_in"] == int(_AN_HOUR.total_seconds())
+@pytest.mark.anyio
+async def test_it_says_how_many_seconds_the_token_has_left() -> None:
+    answered = await _answered(_response(_access_token()))
+
+    assert answered["expires_in"] == int(_AN_HOUR.total_seconds())
 
 
-def test_it_carries_the_signed_access_token() -> None:
+@pytest.mark.anyio
+async def test_it_carries_the_signed_access_token() -> None:
     access_token = _access_token()
 
-    assert _answered(_response(access_token))["access_token"] == access_token.to_string()
+    answered = await _answered(_response(access_token))
+
+    assert answered["access_token"] == access_token.to_string()
 
 
-def test_it_carries_no_refresh_token_when_none_was_issued() -> None:
-    assert "refresh_token" not in _answered(_response(_access_token()))
+@pytest.mark.anyio
+async def test_it_carries_no_refresh_token_when_none_was_issued() -> None:
+    assert "refresh_token" not in await _answered(_response(_access_token()))
 
 
-def test_it_names_the_scope_the_token_was_granted() -> None:
+@pytest.mark.anyio
+async def test_it_names_the_scope_the_token_was_granted() -> None:
     # "If the issued access token scope is different from the one requested by
     # the client, the authorization server MUST include the "scope" response
     # parameter" (RFC 6749 section 3.3); section 5.1 leaves it optional only
     # while the two are identical, so it is reported whenever there is one.
-    assert _answered(_response(_access_token()))["scope"] == "read write"
+    assert (await _answered(_response(_access_token())))["scope"] == "read write"
 
 
-def test_a_token_carrying_no_scope_names_none() -> None:
+@pytest.mark.anyio
+async def test_a_token_carrying_no_scope_names_none() -> None:
     # An empty ``scope`` is not a scope the standard can parse — a scope is one
     # name or more — so a token granted nothing leaves the field out.
     access_token = AccessToken()
@@ -125,15 +135,16 @@ def test_a_token_carrying_no_scope_names_none() -> None:
     access_token.set_expiry_date_time(FROZEN_NOW + _AN_HOUR)
     access_token.set_private_key(make_signer())
 
-    assert "scope" not in _answered(_response(access_token))
+    assert "scope" not in await _answered(_response(access_token))
 
 
-def test_the_refresh_token_is_a_sealed_payload_naming_the_pair() -> None:
+@pytest.mark.anyio
+async def test_the_refresh_token_is_a_sealed_payload_naming_the_pair() -> None:
     access_token = _access_token()
     response_type = _response(access_token)
     response_type.set_refresh_token(_refresh_token(access_token))
 
-    sealed = _answered(response_type)["refresh_token"]
+    sealed = (await _answered(response_type))["refresh_token"]
 
     assert unseal(str(sealed)) == {
         "client_id": "client-1",
@@ -145,18 +156,20 @@ def test_the_refresh_token_is_a_sealed_payload_naming_the_pair() -> None:
     }
 
 
-def test_a_token_issued_to_a_client_acting_for_itself_names_no_user() -> None:
+@pytest.mark.anyio
+async def test_a_token_issued_to_a_client_acting_for_itself_names_no_user() -> None:
     access_token = _access_token(None)
     response_type = _response(access_token)
     response_type.set_refresh_token(_refresh_token(access_token))
 
-    sealed = _answered(response_type)["refresh_token"]
+    sealed = (await _answered(response_type))["refresh_token"]
 
     assert unseal(str(sealed))["user_id"] is None
 
 
-def test_it_answers_json_that_nothing_may_cache() -> None:
-    answer = _response(_access_token()).generate_http_response(Response())
+@pytest.mark.anyio
+async def test_it_answers_json_that_nothing_may_cache() -> None:
+    answer = await _response(_access_token()).generate_http_response(Response())
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("pragma") == "no-cache"
@@ -164,34 +177,38 @@ def test_it_answers_json_that_nothing_may_cache() -> None:
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
 
 
-def test_the_document_is_written_into_the_body_as_bytes() -> None:
-    answer = _response(_access_token()).generate_http_response(Response())
+@pytest.mark.anyio
+async def test_the_document_is_written_into_the_body_as_bytes() -> None:
+    answer = await _response(_access_token()).generate_http_response(Response())
 
-    written = bytes(answer.get_body())
+    written = await answer.get_body().get_contents()
 
     assert isinstance(written, bytes)
     assert json.loads(written.decode())["token_type"] == "Bearer"
 
 
-def test_a_subclass_adds_fields_of_its_own() -> None:
+@pytest.mark.anyio
+async def test_a_subclass_adds_fields_of_its_own() -> None:
     response_type = _ResponseWithAnExtraField(make_clock())
     response_type.set_encryption_key(ENCRYPTION_KEY, "key")
     response_type.set_access_token(_access_token())
 
-    assert _answered(response_type)["issued_to"] == "client-1"
+    assert (await _answered(response_type))["issued_to"] == "client-1"
 
 
-def test_it_preserves_flow_fields_when_extras_try_to_override_them() -> None:
+@pytest.mark.anyio
+async def test_it_preserves_flow_fields_when_extras_try_to_override_them() -> None:
     response_type = _ResponseWithShadowingExtras(make_clock())
     response_type.set_encryption_key(ENCRYPTION_KEY, "key")
     response_type.set_access_token(_access_token())
 
-    body = _answered(response_type)
+    body = await _answered(response_type)
 
     assert body["token_type"] == "Bearer"
     assert body["extra"] == 1
 
 
-def test_answering_before_an_access_token_is_set_names_the_setter() -> None:
+@pytest.mark.anyio
+async def test_answering_before_an_access_token_is_set_names_the_setter() -> None:
     with pytest.raises(InvalidArgumentError, match="set_access_token"):
-        _ = _response().generate_http_response(Response())
+        _ = await _response().generate_http_response(Response())

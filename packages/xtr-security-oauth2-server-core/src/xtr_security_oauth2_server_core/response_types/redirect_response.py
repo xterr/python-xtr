@@ -43,7 +43,7 @@ class RedirectResponse(AbstractResponseType):
         self._redirect_uri = redirect_uri
 
     @override
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         """Answer a redirect to the URI this response was given.
 
         Raises:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast, final
 
+import pytest
 from typing_extensions import override
 from xtr_http_message import Response
 
@@ -41,15 +42,16 @@ def _moment(timestamp: int) -> datetime:
     return datetime.fromtimestamp(timestamp, tz=UTC)
 
 
-def _body(answer: ResponseInterface) -> Mapping[str, object]:
-    return cast("Mapping[str, object]", document_of(answer))
+async def _body(answer: ResponseInterface) -> Mapping[str, object]:
+    return cast("Mapping[str, object]", await document_of(answer))
 
 
 def test_it_declares_the_contract_a_question_is_answered_through() -> None:
     assert IntrospectionResponseTypeInterface in IntrospectionResponse.__mro__
 
 
-def test_an_access_token_is_published_claim_by_claim() -> None:
+@pytest.mark.anyio
+async def test_an_access_token_is_published_claim_by_claim() -> None:
     response_type = IntrospectionResponse()
     response_type.set_active(True)
     response_type.set_token_type("access_token")
@@ -67,12 +69,12 @@ def test_an_access_token_is_published_claim_by_claim() -> None:
         },
     )
 
-    answer = response_type.generate_http_response(Response())
+    answer = await response_type.generate_http_response(Response())
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("cache-control") == "no-store"
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
-    assert _body(answer) == {
+    assert await _body(answer) == {
         "active": True,
         "scope": "scope1 scope2",
         "client_id": "client1",
@@ -88,7 +90,8 @@ def test_an_access_token_is_published_claim_by_claim() -> None:
     }
 
 
-def test_a_refresh_token_is_published_out_of_its_sealed_payload() -> None:
+@pytest.mark.anyio
+async def test_a_refresh_token_is_published_out_of_its_sealed_payload() -> None:
     response_type = IntrospectionResponse()
     response_type.set_active(True)
     response_type.set_token_type("refresh_token")
@@ -102,12 +105,12 @@ def test_a_refresh_token_is_published_out_of_its_sealed_payload() -> None:
         },
     )
 
-    answer = response_type.generate_http_response(Response())
+    answer = await response_type.generate_http_response(Response())
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("cache-control") == "no-store"
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
-    assert _body(answer) == {
+    assert await _body(answer) == {
         "active": True,
         "scope": "scope1 scope2",
         "client_id": "client1",
@@ -117,21 +120,23 @@ def test_a_refresh_token_is_published_out_of_its_sealed_payload() -> None:
     }
 
 
-def test_a_token_that_is_not_live_is_published_as_nothing_but_that() -> None:
+@pytest.mark.anyio
+async def test_a_token_that_is_not_live_is_published_as_nothing_but_that() -> None:
     response_type = IntrospectionResponse()
     response_type.set_active(False)
     response_type.set_token_type("access_token")
     response_type.set_token_data({"scopes": ["scope1", "scope2"], "client_id": "client1"})
 
-    answer = response_type.generate_http_response(Response())
+    answer = await response_type.generate_http_response(Response())
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("cache-control") == "no-store"
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
-    assert _body(answer) == {"active": False}
+    assert await _body(answer) == {"active": False}
 
 
-def test_a_deployment_may_publish_fields_of_its_own() -> None:
+@pytest.mark.anyio
+async def test_a_deployment_may_publish_fields_of_its_own() -> None:
     response_type = _IntrospectionResponseWithParams()
     response_type.set_active(True)
     response_type.set_token_type("access_token")
@@ -144,12 +149,12 @@ def test_a_deployment_may_publish_fields_of_its_own() -> None:
         },
     )
 
-    answer = response_type.generate_http_response(Response())
+    answer = await response_type.generate_http_response(Response())
 
     assert answer.get_status_code() == 200
     assert answer.get_header_line("cache-control") == "no-store"
     assert answer.get_header_line("content-type") == "application/json; charset=UTF-8"
-    assert _body(answer) == {
+    assert await _body(answer) == {
         "active": True,
         "scope": "scope1 scope2",
         "client_id": "client1",
@@ -159,24 +164,28 @@ def test_a_deployment_may_publish_fields_of_its_own() -> None:
     }
 
 
-def test_a_kind_of_token_it_knows_nothing_about_is_published_as_live_and_no_more() -> None:
+@pytest.mark.anyio
+async def test_a_kind_of_token_it_knows_nothing_about_is_published_as_live_and_no_more() -> None:
     response_type = IntrospectionResponse()
     response_type.set_active(True)
     response_type.set_token_type("saml2_token")
     response_type.set_token_data({"jti": "token1"})
 
-    answer = response_type.generate_http_response(Response())
+    answer = await response_type.generate_http_response(Response())
 
-    assert _body(answer) == {"active": True}
+    assert await _body(answer) == {"active": True}
 
 
-def test_an_instant_it_cannot_read_leaves_its_field_out() -> None:
+@pytest.mark.anyio
+async def test_an_instant_it_cannot_read_leaves_its_field_out() -> None:
     response_type = IntrospectionResponse()
     response_type.set_active(True)
     response_type.set_token_type("access_token")
     response_type.set_token_data({"jti": "token1", "exp": "whenever"})
 
-    assert "exp" not in _body(response_type.generate_http_response(Response()))
+    answer = await response_type.generate_http_response(Response())
+
+    assert "exp" not in await _body(answer)
 
 
 def test_its_reading_says_whether_the_token_is_live_and_never_what_it_says() -> None:

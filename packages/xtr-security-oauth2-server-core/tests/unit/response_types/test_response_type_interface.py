@@ -27,7 +27,7 @@ class _WithoutRefreshToken:
     def set_encryption_key(self, key: str, key_type: Literal["plain", "key"]) -> None:
         del key, key_type
 
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         return response
 
 

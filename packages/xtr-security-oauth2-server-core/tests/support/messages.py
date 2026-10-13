@@ -103,11 +103,11 @@ def server_request(
     return request
 
 
-def body_of(response: ResponseInterface) -> str:
+async def body_of(response: ResponseInterface) -> str:
     """Return the body of ``response`` as the text it was written as."""
-    return bytes(response.get_body()).decode()
+    return (await response.get_body().get_contents()).decode()
 
 
-def document_of(response: ResponseInterface) -> object:
+async def document_of(response: ResponseInterface) -> object:
     """Return the JSON document ``response`` carries, read back."""
-    return cast("object", json.loads(body_of(response)))
+    return cast("object", json.loads(await body_of(response)))

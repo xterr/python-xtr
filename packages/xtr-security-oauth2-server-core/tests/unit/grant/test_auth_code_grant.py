@@ -114,7 +114,7 @@ async def _approved_code(grant: AuthCodeGrant, **query: str) -> str:
         authorization_request,
     )
 
-    return _code_in(answered.generate_http_response(Response()))
+    return _code_in(await answered.generate_http_response(Response()))
 
 
 def test_it_is_asked_for_by_name() -> None:
@@ -400,7 +400,8 @@ async def test_the_state_is_handed_back_unchanged() -> None:
         _authorize_request(),
         authorization_request,
     )
-    location = answered.generate_http_response(Response()).get_header_line("location")
+    answer = await answered.generate_http_response(Response())
+    location = answer.get_header_line("location")
 
     assert parse_qs(urlsplit(location).query)["state"] == ["xyz"]
 

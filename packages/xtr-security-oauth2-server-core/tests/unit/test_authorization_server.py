@@ -65,7 +65,7 @@ class _LocationResponseType:
     def set_encryption_key(self, key: str, key_type: Literal["plain", "key"]) -> None:
         del key, key_type
 
-    def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
+    async def generate_http_response(self, response: ResponseInterface) -> ResponseInterface:
         return response.with_status(302).with_header("Location", f"{_CALLBACK}?code=abc")
 
 
@@ -238,8 +238,8 @@ def _registered(storage: Storage) -> Storage:
     return storage
 
 
-def _body(answer: ResponseInterface) -> Mapping[str, object]:
-    return cast("Mapping[str, object]", document_of(answer))
+async def _body(answer: ResponseInterface) -> Mapping[str, object]:
+    return cast("Mapping[str, object]", await document_of(answer))
 
 
 def _server(
@@ -409,7 +409,7 @@ async def test_two_token_requests_do_not_share_the_token_they_earned() -> None:
     first = await server.respond_to_access_token_request(request, Response())
     second = await server.respond_to_access_token_request(request, Response())
 
-    assert _body(first)["access_token"] != _body(second)["access_token"]
+    assert (await _body(first))["access_token"] != (await _body(second))["access_token"]
 
 
 @pytest.mark.anyio
@@ -445,7 +445,7 @@ async def test_a_server_built_with_no_response_type_hands_out_bearer_tokens() ->
 
     answer = await server.respond_to_access_token_request(request, Response())
 
-    assert _body(answer)["token_type"] == "Bearer"
+    assert (await _body(answer))["token_type"] == "Bearer"
 
 
 @pytest.mark.anyio
@@ -532,7 +532,7 @@ async def test_a_device_authorization_request_is_answered_by_the_device_grant() 
         Response(),
     )
 
-    assert _body(answer)["user_code"] == "BCDFGHJK"
+    assert (await _body(answer))["user_code"] == "BCDFGHJK"
 
 
 @pytest.mark.anyio
