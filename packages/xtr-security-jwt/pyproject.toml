@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-jwt"
-version = "3.0.0"
+version = "4.0.0"
 description = "Self-issued JSON Web Tokens for xtr security: key sets, an encoder and a token manager for a user."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,21 +20,21 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-security-core>=3.0,<4",
-    "xtr-security-http>=3.0,<4",
+    "xtr-security-core>=4.0,<5",
+    "xtr-security-http>=4.0,<5",
     "joserfc>=1.7",
     "starlette>=0.40",
-    "xtr-clock>=3.0,<4",
-    "xtr-event-dispatcher-contracts>=3.0,<4",
-    "xtr-event-dispatcher>=3.0,<4",
+    "xtr-clock>=4.0,<5",
+    "xtr-event-dispatcher-contracts>=4.0,<5",
+    "xtr-event-dispatcher>=4.0,<5",
     "typing-extensions>=4.12",
-    "xtr-dependency-injection>=3.0,<4",
-    "xtr-security>=3.0,<4",
+    "xtr-dependency-injection>=4.0,<5",
+    "xtr-security>=4.0,<5",
 ]
 
 [project.optional-dependencies]
 console = [
-    "xtr-console>=3.0,<4",
+    "xtr-console>=4.0,<5",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -56,8 +56,8 @@ dev = [
     "ty>=0.0.83",
     "httpx>=0.27",
     "fastapi>=0.123",
-    "xtr-http-kernel>=3.0,<4",
-    "xtr-console>=3.0,<4",
+    "xtr-http-kernel>=4.0,<5",
+    "xtr-console>=4.0,<5",
 ]
 
 [build-system]

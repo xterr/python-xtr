@@ -188,13 +188,13 @@ uv add "xtr-scheduler[cron]"
 
 Every package shares one version and is released together, even one that did not change — any
 two `xtr-*` packages at the same version are known to work together. Packages require their
-siblings by major version (`xtr-logging-contracts>=3.0,<4`).
+siblings by major version (`xtr-logging-contracts>=4.0,<5`).
 
 [`scripts/release.py`](scripts/release.py) keeps that consistent:
 
 ```sh
 uv run scripts/release.py check        # every package and this README on one version (CI runs this)
-uv run scripts/release.py bump 3.0.0   # move every package and this README; on a new major, rewrite the ranges
+uv run scripts/release.py bump 4.0.0   # move every package and this README; on a new major, rewrite the ranges
 ```
 
 A package classified `Private :: Do Not Upload` moves with the rest but is never published or
@@ -203,15 +203,15 @@ split.
 ## Releasing
 
 ```sh
-uv run scripts/release.py bump 3.0.0
-git commit -am "bump: 3.0.0" && git push
-git tag 3.0.0 && git push origin 3.0.0
+uv run scripts/release.py bump 4.0.0
+git commit -am "bump: 4.0.0" && git push
+git tag 4.0.0 && git push origin 4.0.0
 ```
 
 The tag starts the [release workflow](.github/workflows/release.yml): it waits for CI to pass on
 the tagged commit's push to `main` — nothing is released otherwise — checks the tag against the
 packages' version, publishes every package to PyPI through trusted publishing, and tags each
-read-only repository `3.0.0`.
+read-only repository `4.0.0`.
 
 ## Repositories
 
@@ -304,7 +304,7 @@ packages/xtr-<name>/
 ```toml
 [project]
 name = "xtr-<name>"
-version = "3.0.0"
+version = "4.0.0"
 description = "<one-line pitch, on this project's own terms>."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -327,7 +327,7 @@ dependencies = []
 
 [project.optional-dependencies]
 di = [
-    "xtr-dependency-injection>=3.0,<4",
+    "xtr-dependency-injection>=4.0,<5",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -343,7 +343,7 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "xtr-dependency-injection>=3.0,<4",
+    "xtr-dependency-injection>=4.0,<5",
 ]
 
 [build-system]

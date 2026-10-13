@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-http"
-version = "3.0.0"
+version = "4.0.0"
 description = "The HTTP edge of xtr security: firewalls, authenticators, bearer access tokens and the request surface."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,13 +20,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-security-core>=3.0,<4",
-    "xtr-http-kernel>=3.0,<4",
-    "xtr-dependency-injection[fastapi]>=3.0,<4",
-    "xtr-event-dispatcher>=3.0,<4",
-    "xtr-event-dispatcher-contracts>=3.0,<4",
-    "xtr-logging-contracts>=3.0,<4",
-    "xtr-password-hasher>=3.0,<4",
+    "xtr-security-core>=4.0,<5",
+    "xtr-http-kernel>=4.0,<5",
+    "xtr-dependency-injection[fastapi]>=4.0,<5",
+    "xtr-event-dispatcher>=4.0,<5",
+    "xtr-event-dispatcher-contracts>=4.0,<5",
+    "xtr-logging-contracts>=4.0,<5",
+    "xtr-password-hasher>=4.0,<5",
     "fastapi>=0.123",
     "starlette>=0.40",
     "anyio>=4.0",

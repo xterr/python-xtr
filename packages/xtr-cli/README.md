@@ -69,8 +69,8 @@ The same, with no question asked:
  Create it? [y/n] (y):
 write pyproject.toml
 …
-run   uv add -- 'xtr-dependency-injection[fastapi]>=3.0,<4' …
-run   uv add --dev -- 'xtr-recipes>=3.0,<4' pytest httpx ruff basedpyright ty
+run   uv add -- 'xtr-dependency-injection[fastapi]>=4.0,<5' …
+run   uv add --dev -- 'xtr-recipes>=4.0,<5' pytest httpx ruff basedpyright ty
 run   uv run xtr-recipes recipes:sync
 run   git init --quiet
 

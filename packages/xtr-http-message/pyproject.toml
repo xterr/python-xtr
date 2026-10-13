@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-message"
-version = "3.0.0"
+version = "4.0.0"
 description = "A strict, framework-free implementation of the HTTP message contract: requests, responses, streams, URIs, uploaded files and one factory for all six."
 readme = "README.md"
 authors = [
@@ -26,7 +26,7 @@ classifiers = [
 # ours sees the string). Everything else the six classes need is in the
 # standard library.
 dependencies = [
-    "xtr-http-message-contracts>=3.0,<4",
+    "xtr-http-message-contracts>=4.0,<5",
     "typing-extensions>=4.4",
     "uritools>=6.1,<7",
 ]

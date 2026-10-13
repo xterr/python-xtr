@@ -1,6 +1,6 @@
 [project]
 name = "xtr-webhook"
-version = "3.0.0"
+version = "4.0.0"
 description = "Receive webhooks — verified, replay-bounded, turned into events — and send them signed, in the legacy or the Standard Webhooks format."
 readme = "README.md"
 authors = [
@@ -23,13 +23,13 @@ classifiers = [
 dependencies = [
     "typing-extensions>=4.4",
     "msgspec>=0.18",
-    "xtr-clock>=3.0,<4",
-    "xtr-http-message-contracts>=3.0,<4",
-    "xtr-messenger>=3.0,<4",
-    "xtr-remote-event>=3.0,<4",
-    "xtr-service-contracts>=3.0,<4",
+    "xtr-clock>=4.0,<5",
+    "xtr-http-message-contracts>=4.0,<5",
+    "xtr-messenger>=4.0,<5",
+    "xtr-remote-event>=4.0,<5",
+    "xtr-service-contracts>=4.0,<5",
     # The endpoint webhooks arrive at, contributed to the application's routes.
-    "xtr-http-kernel>=3.0,<4",
+    "xtr-http-kernel>=4.0,<5",
     "fastapi>=0.121.3",
 ]
 
@@ -41,11 +41,11 @@ client = [
     "anyio>=4.0",
 ]
 di = [
-    "xtr-dependency-injection>=3.0,<4",
+    "xtr-dependency-injection>=4.0,<5",
 ]
 # What xtr_webhook.testing builds its requests with.
 testing = [
-    "xtr-http-message>=3.0,<4",
+    "xtr-http-message>=4.0,<5",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -67,9 +67,9 @@ dev = [
     "ty>=0.0.83",
     "fastapi>=0.121.3",
     "httpx>=0.27",
-    "xtr-dependency-injection>=3.0,<4",
-    "xtr-http-kernel>=3.0,<4",
-    "xtr-http-message>=3.0,<4",
+    "xtr-dependency-injection>=4.0,<5",
+    "xtr-http-kernel>=4.0,<5",
+    "xtr-http-message>=4.0,<5",
 ]
 
 [build-system]
