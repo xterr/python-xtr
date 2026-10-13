@@ -38,6 +38,10 @@ dependencies = [
 di = [
     "xtr-dependency-injection>=4.0,<5",
 ]
+# The HTTP/2 framing, which only a request asking for version "2" needs.
+http2 = [
+    "httpx[http2]>=0.27",
+]
 
 [dependency-groups]
 dev = [
@@ -46,6 +50,7 @@ dev = [
     "pytest>=8",
     "pytest-cov>=5",
     "anyio>=4.0",
+    "h2>=4.0",
     "ty>=0.0.83",
     "xtr-dependency-injection>=4.0,<5",
 ]
@@ -145,7 +150,14 @@ include = ["src", "tests"]
 minversion = "8.0"
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-config", "--strict-markers"]
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # A response nobody closed is collected with the temporary file its body was
+    # kept in still open. The conformance suite abandons transfers on purpose —
+    # that is what it means to leave a body unread — so this says nothing about
+    # the code under test.
+    "ignore::ResourceWarning",
+]
 
 [tool.coverage.run]
 source = ["src"]

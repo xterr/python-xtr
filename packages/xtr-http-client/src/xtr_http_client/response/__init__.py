@@ -3,5 +3,6 @@
 from __future__ import annotations
 
 from .http_response import HttpResponse
+from .httpx_response import to_http_response
 
-__all__ = ["HttpResponse"]
+__all__ = ["HttpResponse", "to_http_response"]
