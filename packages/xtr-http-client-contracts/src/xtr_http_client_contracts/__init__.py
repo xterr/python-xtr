@@ -11,4 +11,37 @@ raises, and a conformance suite an implementation can run against itself.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .chunk_interface import ChunkInterface
+from .exception import (
+    ClientError,
+    DecodingError,
+    HttpClientError,
+    HttpError,
+    RedirectionError,
+    ServerError,
+    TransportError,
+    TransportTimeoutError,
+)
+from .http_client_interface import HttpClientInterface
+from .options_defaults import OPTIONS_DEFAULTS
+from .request_options import QueryValue, RequestOptions
+from .response_interface import ResponseInterface
+from .response_stream_interface import ResponseStreamInterface
+
+__all__ = [
+    "OPTIONS_DEFAULTS",
+    "ChunkInterface",
+    "ClientError",
+    "DecodingError",
+    "HttpClientError",
+    "HttpClientInterface",
+    "HttpError",
+    "QueryValue",
+    "RedirectionError",
+    "RequestOptions",
+    "ResponseInterface",
+    "ResponseStreamInterface",
+    "ServerError",
+    "TransportError",
+    "TransportTimeoutError",
+]
