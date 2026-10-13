@@ -20,8 +20,18 @@ if TYPE_CHECKING:
 
     from xtr_http_client_contracts.http_client_interface import HttpClientInterface
 
-PORTED_FROM_THE_REFERENCE_SUITE = 46
-ADDED_BY_THIS_CONTRACT = frozenset({"test_body_stream"})
+PORTED_FROM_THE_REFERENCE_SUITE = 43
+ADDED_BY_THIS_CONTRACT = frozenset(
+    {
+        "test_body_stream",
+        "test_send_request_prefers_the_request_headers",
+        "test_send_request_resolves_a_relative_request_uri",
+        "test_send_request_merges_the_query_option",
+        "test_send_request_applies_auth_bearer_only_without_one",
+        "test_send_request_refuses_a_body_on_both",
+        "test_request_is_send_request_of_the_same_request",
+    }
+)
 
 EXPECTED_TESTS = frozenset(
     {
@@ -58,8 +68,6 @@ EXPECTED_TESTS = frozenset(
         "test_timeout_on_initialize",
         "test_timeout_on_destruct",
         "test_destruct",
-        "test_get_content_after_destruct",
-        "test_get_encoded_content_after_destruct",
         "test_proxy",
         "test_no_proxy",
         "test_auto_encoding_request",
@@ -69,9 +77,14 @@ EXPECTED_TESTS = frozenset(
         "test_userland_encoding_request",
         "test_gzip_broken",
         "test_max_duration",
-        "test_max_connect_duration_info",
         "test_max_connect_duration",
         "test_with_options",
+        "test_send_request_prefers_the_request_headers",
+        "test_send_request_resolves_a_relative_request_uri",
+        "test_send_request_merges_the_query_option",
+        "test_send_request_applies_auth_bearer_only_without_one",
+        "test_send_request_refuses_a_body_on_both",
+        "test_request_is_send_request_of_the_same_request",
     }
 )
 

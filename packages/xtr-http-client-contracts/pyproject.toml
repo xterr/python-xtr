@@ -30,10 +30,12 @@ dependencies = [
 
 [project.optional-dependencies]
 # What the conformance suite needs to run: an async backend to drive the
-# fixture server, and the runner its base class is written for.
+# fixture server, the runner its base class is written for, and a request
+# implementation, because `send_request` takes a message request to send.
 testing = [
     "anyio>=4.0",
     "pytest>=8",
+    "xtr-http-message>=4.0,<5",
 ]
 
 [dependency-groups]
@@ -44,6 +46,7 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
+    "xtr-http-message>=4.0,<5",
 ]
 
 [build-system]

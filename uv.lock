@@ -4505,6 +4505,7 @@ dependencies = [
 testing = [
     { name = "anyio" },
     { name = "pytest" },
+    { name = "xtr-http-message" },
 ]
 
 [package.dev-dependencies]
@@ -4515,6 +4516,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-http-message" },
 ]
 
 [package.metadata]
@@ -4522,6 +4524,7 @@ requires-dist = [
     { name = "anyio", marker = "extra == 'testing'", specifier = ">=4.0" },
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=8" },
     { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-http-message", marker = "extra == 'testing'", editable = "packages/xtr-http-message" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
 ]
 provides-extras = ["testing"]
@@ -4534,6 +4537,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 
 [[package]]

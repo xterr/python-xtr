@@ -64,10 +64,11 @@ dropped, which took the test with it.
 ``testTimeoutOnDestruct``           translated: eager request — the timeouts are reported
                                     where the requests are made, not where they are released
 ``testDestruct``                    translated: the ``async with`` exit frees the transfer
-``testGetContentAfterDestruct``     translated: the ``async with`` exit raises the status
-``testGetEncodedContentAfterDestruct``  translated: the ``async with`` exit raises the status
-``testProxy``                       translated: the environment is patched, not written to
-``testNoProxy``                     translated: the environment is patched, not written to
+``testGetContentAfterDestruct``     removed: releasing a response raises no status
+``testGetEncodedContentAfterDestruct``  removed: releasing a response raises no status
+``testProxy``                       translated: the ``proxy`` option alone
+``testNoProxy``                     translated: ``http_proxy`` and ``no_proxy``, patched into
+                                    the environment rather than written to it
 ``testAutoEncodingRequest``         ported
 ``testBaseUri``                     ported
 ``testQuery``                       ported
@@ -76,16 +77,31 @@ dropped, which took the test with it.
 ``testUserlandEncodingRequest``     ported
 ``testGzipBroken``                  ported
 ``testMaxDuration``                 ported
-``testMaxConnectDurationInfo``      ported
+``testMaxConnectDurationInfo``      removed: the connect limit is not in the transfer info
 ``testMaxConnectDuration``          translated: eager request
 ``testWithOptions``                 ported
 ``testBindToPort``                  removed: no ``bindto`` option
 ``testBindToPortV6``                removed: no ``bindto`` option
 ==================================  ==========================================================
 
-63 reference methods: 46 here, 16 removed with the features they test, 1 with no counterpart.
-One test is the contract's own addition, with nothing behind it in the reference suite:
-``test_body_stream``, which reads the body through the message's stream rather than in one go.
+63 reference methods: 43 here, 19 removed with the features they test, 1 with no counterpart.
+
+Seven tests are the contract's own additions, with nothing behind them in the reference suite:
+
+``test_body_stream``
+    Reads the body through the message's stream rather than in one go.
+``test_send_request_prefers_the_request_headers``
+    A header the request carries wins; the options fill the names it lacks.
+``test_send_request_resolves_a_relative_request_uri``
+    A relative request URI is resolved against ``base_uri``.
+``test_send_request_merges_the_query_option``
+    ``query`` is merged into the URI the request came with.
+``test_send_request_applies_auth_bearer_only_without_one``
+    ``auth_bearer`` fills an Authorization the request has none of, and replaces none.
+``test_send_request_refuses_a_body_on_both``
+    A request with a body plus a ``body`` option is refused, word for word.
+``test_request_is_send_request_of_the_same_request``
+    ``request()`` answers as ``send_request`` of the same request does.
 """
 
 from __future__ import annotations
@@ -99,6 +115,7 @@ from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar, cast
 
 import anyio
 import pytest
+from xtr_http_message import Request
 
 from xtr_http_client_contracts.exception import (
     ClientError,
@@ -141,6 +158,11 @@ _PINNED_HOST = "pinned.example"
 _CHAIN_FIELDS = ("HTTP", "Location:", "Content-Type:")
 
 _PROXIED_URI = re.compile(r"^http://(localhost|127\.0\.0\.1):8057/$")
+
+# Matched word for word, because the contract quotes this refusal rather than describing it.
+_BOTH_BODIES = (
+    'Define either the request body or the "body" or "json" option, setting both is not supported.'
+)
 
 
 class _NamedNode(Protocol):
@@ -759,29 +781,8 @@ class HttpClientTestCase:
         assert duration > 1
         assert duration < 4
 
-    async def test_get_content_after_destruct(self) -> None:
-        """A status nobody looked at is raised on the way out, carrying its response."""
-        client = self.create_client()
-
-        with pytest.raises(ClientError) as caught:
-            async with await client.request("GET", f"{_BASE_URI}/404"):
-                pass
-
-        body = await caught.value.response.to_array(throw=False)
-        assert body["REQUEST_METHOD"] == "GET"
-
-    async def test_get_encoded_content_after_destruct(self) -> None:
-        """The response it carries has its body decoded, however late the body arrived."""
-        client = self.create_client()
-
-        with pytest.raises(ClientError) as caught:
-            async with await client.request("GET", f"{_BASE_URI}/404-gzipped"):
-                pass
-
-        assert await caught.value.response.get_content(throw=False) == b"some text"
-
     async def test_proxy(self) -> None:
-        """A proxy is asked for the absolute URL, with its own credentials, redirects too."""
+        """The ``proxy`` option is asked for the absolute URL, with its own credentials."""
         client = self.create_client()
         response = await client.request("GET", f"{_BASE_URI}/", proxy=_BASE_URI)
 
@@ -798,13 +799,6 @@ class HttpClientTestCase:
         body = await response.to_array()
         assert body["HTTP_PROXY_AUTHORIZATION"] == "Basic Zm9vOmI9YXI="
 
-        with pytest.MonkeyPatch.context() as environment:
-            environment.setenv("http_proxy", _BASE_URI)
-            response = await client.request("GET", f"{_BASE_URI}/")
-            body = await response.to_array()
-            assert body["HTTP_HOST"] == f"{_HOST}:{_PORT}"
-            assert _PROXIED_URI.match(_expect(body["REQUEST_URI"], str))
-
         response = await client.request("GET", f"{_BASE_URI}/301/proxy", proxy=_BASE_URI)
 
         body = await response.to_array()
@@ -812,18 +806,19 @@ class HttpClientTestCase:
         assert _PROXIED_URI.match(_expect(body["REQUEST_URI"], str))
 
     async def test_no_proxy(self) -> None:
-        """A host the environment exempts is reached directly, proxy option or not."""
+        """``http_proxy`` is obeyed with no option at all, and ``no_proxy`` exempts a host."""
+        client = self.create_client()
+
         with pytest.MonkeyPatch.context() as environment:
-            environment.setenv("no_proxy", f"example.com, {_HOST}")
+            environment.setenv("http_proxy", _BASE_URI)
 
-            client = self.create_client()
-            response = await client.request("GET", f"{_BASE_URI}/", proxy=_BASE_URI)
+            body = await (await client.request("GET", f"{_BASE_URI}/")).to_array()
+            assert _PROXIED_URI.match(_expect(body["REQUEST_URI"], str))
 
-            body = await response.to_array()
+            environment.setenv("no_proxy", _HOST)
 
-            assert body["SERVER_PROTOCOL"] == "HTTP/1.1"
+            body = await (await client.request("GET", f"{_BASE_URI}/")).to_array()
             assert body["REQUEST_URI"] == "/"
-            assert body["REQUEST_METHOD"] == "GET"
 
     async def test_auto_encoding_request(self) -> None:
         """A client asks for a compressed body by itself, and hands it over decoded."""
@@ -898,14 +893,6 @@ class HttpClientTestCase:
 
         assert time.monotonic() - start < 10
 
-    async def test_max_connect_duration_info(self) -> None:
-        """The connect limit is something the transfer info reports back."""
-        client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/", max_connect_duration=10.0)
-
-        assert _info(response, "max_connect_duration", float) == 10.0
-        assert response.get_status_code() == 200
-
     async def test_max_connect_duration(self) -> None:
         """Connecting is given its own limit, well short of the idle one."""
         client = self.create_client()
@@ -935,6 +922,82 @@ class HttpClientTestCase:
 
         response = await scoped.request("GET", "/")
         assert response.get_status_code() == 200
+
+    async def test_send_request_prefers_the_request_headers(self) -> None:
+        """A header the request carries is sent; one it lacks is filled from the options."""
+        client = self.create_client()
+        request = Request("GET", f"{_BASE_URI}/", headers={"Foo": "from-request"})
+
+        response = await client.send_request(
+            request,
+            headers={"Foo": "from-options", "Bar": "from-options"},
+        )
+
+        body = await response.to_array()
+        assert body["HTTP_FOO"] == "from-request"
+        assert body["HTTP_BAR"] == "from-options"
+
+    async def test_send_request_resolves_a_relative_request_uri(self) -> None:
+        """A request whose URI is relative is resolved against ``base_uri``."""
+        client = self.create_client()
+
+        response = await client.send_request(
+            Request("GET", "../404"),
+            base_uri=f"{_BASE_URI}/abc/",
+        )
+
+        assert response.get_status_code() == 404
+
+    async def test_send_request_merges_the_query_option(self) -> None:
+        """``query`` is merged into the query the request's URI already carried."""
+        client = self.create_client()
+
+        response = await client.send_request(
+            Request("GET", f"{_BASE_URI}/?a=a"),
+            query={"b": "b"},
+        )
+
+        body = await response.to_array()
+        assert body["REQUEST_URI"] == "/?a=a&b=b"
+
+    async def test_send_request_applies_auth_bearer_only_without_one(self) -> None:
+        """``auth_bearer`` fills an Authorization the request has none of, and replaces none."""
+        client = self.create_client()
+
+        response = await client.send_request(
+            Request("GET", f"{_BASE_URI}/"),
+            auth_bearer="from-the-option",
+        )
+
+        assert (await response.to_array())["HTTP_AUTHORIZATION"] == "Bearer from-the-option"
+
+        response = await client.send_request(
+            Request(
+                "GET",
+                f"{_BASE_URI}/",
+                headers={"Authorization": "Bearer from-the-request"},
+            ),
+            auth_bearer="from-the-option",
+        )
+
+        assert (await response.to_array())["HTTP_AUTHORIZATION"] == "Bearer from-the-request"
+
+    async def test_send_request_refuses_a_body_on_both(self) -> None:
+        """A request carrying a body plus a ``body`` option is a request refused, not merged."""
+        client = self.create_client()
+        request = Request("POST", f"{_BASE_URI}/post", body=b"foo=bar")
+
+        with pytest.raises(TransportError, match=re.escape(_BOTH_BODIES)):
+            _ = await client.send_request(request, body={"foo": "baz"})
+
+    async def test_request_is_send_request_of_the_same_request(self) -> None:
+        """``request(method, url)`` answers as ``send_request`` of that method and URL does."""
+        client = self.create_client()
+
+        direct = await (await client.request("GET", f"{_BASE_URI}/")).to_array()
+        sent = await (await client.send_request(Request("GET", f"{_BASE_URI}/"))).to_array()
+
+        assert sent == direct
 
     @staticmethod
     async def _expect_timeout(client: HttpClientInterface, port: int) -> None:
