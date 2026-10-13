@@ -11,6 +11,34 @@ network, and whether it is one only this network can reach.
 
 from __future__ import annotations
 
+from .chain_request_matcher import ChainRequestMatcher
 from .ip_utils import IpUtils
+from .request_matcher import (
+    AttributesRequestMatcher,
+    HeaderRequestMatcher,
+    HostRequestMatcher,
+    IpsRequestMatcher,
+    IsJsonRequestMatcher,
+    MethodRequestMatcher,
+    PathRequestMatcher,
+    PortRequestMatcher,
+    QueryParameterRequestMatcher,
+    SchemeRequestMatcher,
+)
+from .request_matcher_interface import RequestMatcherInterface
 
-__all__ = ["IpUtils"]
+__all__ = [
+    "AttributesRequestMatcher",
+    "ChainRequestMatcher",
+    "HeaderRequestMatcher",
+    "HostRequestMatcher",
+    "IpUtils",
+    "IpsRequestMatcher",
+    "IsJsonRequestMatcher",
+    "MethodRequestMatcher",
+    "PathRequestMatcher",
+    "PortRequestMatcher",
+    "QueryParameterRequestMatcher",
+    "RequestMatcherInterface",
+    "SchemeRequestMatcher",
+]
