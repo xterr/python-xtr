@@ -105,7 +105,10 @@ class RequestOptions(TypedDict, total=False):
         capture_peer_cert_chain: Whether to keep the peer's certificate chain
             under the ``peer_certificate_chain`` entry of ``get_info()``.
         crypto_method: The lowest TLS version to accept.
-        extra: Options one client understands and another may ignore.
+        extra: Additional options a client may ignore when it does not
+            support them, unlike the regular options it must refuse.
+            ``use_persistent_connections`` says whether to use persistent
+            connections where supported.
     """
 
     auth_basic: str | tuple[str] | tuple[str, str] | None

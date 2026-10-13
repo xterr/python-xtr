@@ -41,5 +41,5 @@ def test_the_default_of_every_option() -> None:
         "peer_fingerprint": None,
         "capture_peer_cert_chain": False,
         "crypto_method": ssl.TLSVersion.TLSv1_2,
-        "extra": {},
+        "extra": {"use_persistent_connections": False},
     }

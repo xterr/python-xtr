@@ -64,9 +64,10 @@ OPTIONS_DEFAULTS: Final[RequestOptions] = {
     "capture_peer_cert_chain": False,
     # Everything below TLS 1.2 is refused.
     "crypto_method": ssl.TLSVersion.TLSv1_2,
-    # The contract names no extra of its own; each client documents what it
-    # reads here.
-    "extra": {},
+    # Additional options a client may ignore when it does not support them,
+    # unlike the regular options it must refuse; `use_persistent_connections`
+    # says whether to use persistent connections where supported.
+    "extra": {"use_persistent_connections": False},
 }
 """Every option the contract names, mapped to what it means to leave it out.
 
