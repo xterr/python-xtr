@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-oauth2-server"
-version = "4.0.0"
+version = "4.0.1"
 description = "An OAuth 2.0 authorization server and resource-server authenticator for xtr security."
 readme = "README.md"
 requires-python = ">=3.11"

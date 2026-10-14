@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-message-contracts"
-version = "4.0.0"
+version = "4.0.1"
 description = "The HTTP message contract alone: requests, responses, streams, URIs, uploaded files and the six factories that build them."
 readme = "README.md"
 authors = [
