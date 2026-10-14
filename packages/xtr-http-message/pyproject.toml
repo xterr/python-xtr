@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-message"
-version = "4.0.2"
+version = "4.0.3"
 description = "A strict, framework-free implementation of the HTTP message contract: requests, responses, streams, URIs, uploaded files and one factory for all six."
 readme = "README.md"
 authors = [
