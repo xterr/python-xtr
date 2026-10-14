@@ -90,11 +90,11 @@ class AuthorizationServerMetadata:
     """
 
     issuer: str
-    endpoints: Mapping[str, str] = field(default=_NO_ENDPOINTS)
+    endpoints: Mapping[str, str] = field(default_factory=lambda: _NO_ENDPOINTS)
     grants: Sequence[str] = ()
     scopes: Sequence[str] = ()
     code_challenge_methods: Sequence[str] = ()
-    extra: Mapping[str, object] = field(default=_NOTHING_MORE)
+    extra: Mapping[str, object] = field(default_factory=lambda: _NOTHING_MORE)
 
     def __post_init__(self) -> None:
         """Refuse an issuer that is not an origin, or an endpoint with no field.
