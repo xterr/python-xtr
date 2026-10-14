@@ -15,8 +15,11 @@ class DeliveryError(WebhookRuntimeError):
     the message instead of dropping it. A receiver that was merely restarting then
     costs nothing, and one that stays broken leaves a message to look at.
 
+    A delivery nothing answered at all is the client's own ``TransportError``, raised
+    before this one could be, so the status here is always one a receiver sent.
+
     Attributes:
-        status_code: What the receiver answered with, or ``0`` when nothing answered.
+        status_code: What the receiver answered with.
         url: Where the webhook was going.
     """
 
@@ -32,12 +35,4 @@ class DeliveryError(WebhookRuntimeError):
         """
         self.status_code = status_code
         self.url = url
-        super().__init__(self._reason())
-
-    def _reason(self) -> str:
-        """Why the delivery failed, as the message.
-
-        A subclass that refuses the delivery before it leaves has no answer to
-        report, so it says it differently; its own fields are set before this runs.
-        """
-        return f'The webhook to "{self.url}" was answered with HTTP {self.status_code}.'
+        super().__init__(f'The webhook to "{url}" was answered with HTTP {status_code}.')

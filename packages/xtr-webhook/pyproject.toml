@@ -68,6 +68,8 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     "fastapi>=0.121.3",
+    # The tests drive the endpoint over an in-process transport of their own.
+    "httpx>=0.27",
     "xtr-dependency-injection>=4.0,<5",
     "xtr-http-client>=4.0,<5",
     "xtr-http-kernel>=4.0,<5",
