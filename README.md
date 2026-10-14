@@ -122,6 +122,7 @@ graph LR
     securitycore[xtr-security-core] --> passwordhasher
     securitycore --> eventcon
     securitycore --> svccon
+    securitycore --> clock
     securityhttp[xtr-security-http] --> securitycore
     securityhttp --> httpkernel
     securityhttp --> di
@@ -135,6 +136,7 @@ graph LR
     security --> di
     security --> events
     security --> httpkernel
+    security --> clock
     security -. console extra .-> console
     securityjwt[xtr-security-jwt] --> security
     securityjwt --> securitycore
