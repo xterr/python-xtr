@@ -72,8 +72,22 @@ def _echoing(status: int, *headers: tuple[str, str]) -> _Route:
     return route
 
 
+def _redirecting(status: int, host: str, path: str) -> _Route:
+    """An echoing route that sends the client to ``path`` on this same server, under ``host``.
+
+    The port comes from the connection, because the server listens wherever it was given a
+    free port.
+    """
+
+    async def route(request: FixtureRequest, writer: StreamWriter) -> None:
+        location = f"http://{host}:{request.server_port}{path}"
+        await _echoing(status, ("Location", location))(request, writer)
+
+    return route
+
+
 _PLAIN: Final[_Route] = _echoing(200)
-_MOVED: Final[_Route] = _echoing(301, ("Location", "http://127.0.0.1:8057/302"))
+_MOVED: Final[_Route] = _redirecting(301, "127.0.0.1", "/302")
 _TAGGED: Final[_Route] = _echoing(200, _ETAG)
 
 
@@ -129,7 +143,7 @@ async def _found(request: FixtureRequest, writer: StreamWriter) -> None:
         await _PLAIN(request, writer)
         return
     targets = [value for name, value in _parameters(request) if name == "location"]
-    location = targets[-1] if targets else "http://localhost:8057/"
+    location = targets[-1] if targets else f"http://localhost:{request.server_port}/"
     await _echoing(302, ("Location", location))(request, writer)
 
 
@@ -276,12 +290,12 @@ _ROUTES: Final[Mapping[str, _Route]] = {
     "/301": _credentialed_redirect,
     "/301/bad-tld": _echoing(301, ("Location", "http://foo.example.")),
     "/301/invalid": _echoing(301, ("Location", "//?foo=bar")),
-    "/301/proxy": _echoing(301, ("Location", "http://localhost:8057/")),
+    "/301/proxy": _redirecting(301, "localhost", "/"),
     "/302": _found,
     "/302/relative": _echoing(302, ("Location", "..")),
     "/304": _not_modified,
     "/304/etag": _etag_route,
-    "/307": _echoing(307, ("Location", "http://localhost:8057/post")),
+    "/307": _redirecting(307, "localhost", "/post"),
     "/404": _echoing(404),
     "/404-gzipped": _gzipped_not_found,
     "/chunked": _chunked,

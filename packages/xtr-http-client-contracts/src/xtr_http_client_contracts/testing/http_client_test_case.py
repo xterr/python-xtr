@@ -139,15 +139,7 @@ __all__ = ["HttpClientTestCase"]
 _T = TypeVar("_T")
 
 _HOST = "localhost"
-_PORT = 8057
-_BASE_URI = f"http://{_HOST}:{_PORT}"
-
-# The servers a handful of tests start for themselves, because what they provoke is one
-# transfer holding up another, which needs somewhere else to be answered from.
-_SECOND_PORT = 8067
-_THIRD_PORT = 8077
 _IPV6_HOST = "::1"
-_IPV6_PORT = 8087
 
 # A name reserved for documentation, pinned to the fixture server by the `resolve` option.
 _PINNED_HOST = "pinned.example"
@@ -157,8 +149,6 @@ _PINNED_HOST = "pinned.example"
 # echo routes declare a length, so the filter names `Content-Type` rather than any `Cont`
 # header.
 _CHAIN_FIELDS = ("HTTP", "Location:", "Content-Type:")
-
-_PROXIED_URI = re.compile(r"^http://(localhost|127\.0\.0\.1):8057/$")
 
 # The echo entry no two connections agree on: the port the client's end of the connection
 # was given, which the operating system picks afresh every time.
@@ -270,8 +260,10 @@ class HttpClientTestCase:
                 "test_ipv6_resolve": "no IPv6 in this environment",
             }
 
-    The suite starts the fixture server once for the whole session; the few tests that need a
-    second one start and stop it themselves.
+    The suite starts the fixture server once for the whole session, on a free port, and
+    points every test at it through :attr:`base_uri` and :attr:`port`; the few tests that need
+    a second server start and stop one themselves. A subclass adding tests of its own reads
+    the same two attributes.
     """
 
     __test__: ClassVar[bool] = False  # the suite is a base class, not a test case of its own
@@ -281,12 +273,24 @@ class HttpClientTestCase:
     skipped_tests: ClassVar[Mapping[str, str]] = {}
     """Test names to skip, mapped to why. A parametrized test is named without its parameter."""
 
+    port: int = 0
+    """The port the session's fixture server listens on, set before every test."""
+
+    base_uri: str = ""
+    """The origin of the session's fixture server, set before every test."""
+
     @pytest.fixture(scope="session", autouse=True)
     @staticmethod
     def fixture_server() -> Iterator[TestHttpServer]:
         """The server every test points at, listening for the whole session."""
-        with TestHttpServer(port=_PORT) as server:
+        with TestHttpServer() as server:
             yield server
+
+    @pytest.fixture(autouse=True)
+    def _point_at_fixture_server(self, fixture_server: TestHttpServer) -> None:
+        """Aim this test at wherever the session's fixture server was given a port."""
+        self.port = fixture_server.port
+        self.base_uri = f"http://{_HOST}:{self.port}"
 
     @pytest.fixture(autouse=True)
     def _skip_if_unsupported(self, request: pytest.FixtureRequest) -> None:
@@ -311,7 +315,7 @@ class HttpClientTestCase:
         data = object()
         response = await client.request(
             "GET",
-            _BASE_URI,
+            self.base_uri,
             headers={"Foo": "baR"},
             user_data=data,
         )
@@ -324,7 +328,7 @@ class HttpClientTestCase:
         assert info["error"] is None
         assert info["redirect_count"] == 0
         assert _info_lines(response)[0] == "HTTP/1.1 200 OK"
-        assert info["url"] == f"{_BASE_URI}/"
+        assert info["url"] == f"{self.base_uri}/"
 
         assert _header(response, "content-type") == ["application/json"]
 
@@ -334,10 +338,10 @@ class HttpClientTestCase:
         assert body["SERVER_PROTOCOL"] == "HTTP/1.1"
         assert body["REQUEST_URI"] == "/"
         assert body["REQUEST_METHOD"] == "GET"
-        assert body["HTTP_HOST"] == f"{_HOST}:{_PORT}"
+        assert body["HTTP_HOST"] == f"{_HOST}:{self.port}"
         assert body["HTTP_FOO"] == "baR"
 
-        broken = await client.request("GET", f"{_BASE_URI}/length-broken")
+        broken = await client.request("GET", f"{self.base_uri}/length-broken")
 
         with pytest.raises(TransportError):
             _ = await broken.get_content()
@@ -349,7 +353,7 @@ class HttpClientTestCase:
         on the message — so this is the contract's own addition.
         """
         client = self.create_client()
-        response = await client.request("GET", _BASE_URI, headers={"Foo": "baR"})
+        response = await client.request("GET", self.base_uri, headers={"Foo": "baR"})
 
         content = await response.get_content()
         body = response.get_body()
@@ -361,7 +365,7 @@ class HttpClientTestCase:
     async def test_head_request(self) -> None:
         """A HEAD answers headers describing a body it does not send."""
         client = self.create_client()
-        response = await client.request("HEAD", f"{_BASE_URI}/head", headers={"Foo": "baR"})
+        response = await client.request("HEAD", f"{self.base_uri}/head", headers={"Foo": "baR"})
 
         assert _info_lines(response)
         assert response.get_status_code() == 200
@@ -378,12 +382,12 @@ class HttpClientTestCase:
         unknown = cast("RequestOptions", cast("object", {"capture_peer_cert": 1.0}))
 
         with pytest.raises(TransportError):
-            _ = await client.request("GET", _BASE_URI, **unknown)
+            _ = await client.request("GET", self.base_uri, **unknown)
 
     async def test_http_version(self) -> None:
         """Asking for HTTP/1.0 sends HTTP/1.0, which the echo answers with."""
         client = self.create_client()
-        response = await client.request("GET", _BASE_URI, http_version="1.0")
+        response = await client.request("GET", self.base_uri, http_version="1.0")
 
         assert response.get_status_code() == 200
         assert _info_lines(response)[0] == "HTTP/1.0 200 OK"
@@ -397,12 +401,12 @@ class HttpClientTestCase:
     async def test_chunked_encoding(self) -> None:
         """A chunked body is reassembled; framing that stops mid-chunk fails the transfer."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/chunked")
+        response = await client.request("GET", f"{self.base_uri}/chunked")
 
         assert _header(response, "transfer-encoding") == ["chunked"]
         assert await response.get_content() == b"chunked data works!"
 
-        response = await client.request("GET", f"{_BASE_URI}/chunked-broken")
+        response = await client.request("GET", f"{self.base_uri}/chunked-broken")
 
         with pytest.raises(TransportError):
             _ = await response.get_content()
@@ -410,7 +414,7 @@ class HttpClientTestCase:
     async def test_client_error(self) -> None:
         """A 404 is an answer: told about when asked for, readable when not."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/404")
+        response = await client.request("GET", f"{self.base_uri}/404")
 
         assert _info(response, "http_code", int) == 404
 
@@ -424,7 +428,7 @@ class HttpClientTestCase:
     async def test_ignore_errors(self) -> None:
         """Reading the status of a 404 is not being told about it."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/404")
+        response = await client.request("GET", f"{self.base_uri}/404")
 
         assert response.get_status_code() == 404
 
@@ -433,15 +437,15 @@ class HttpClientTestCase:
         client = self.create_client()
 
         with pytest.raises(TransportError):
-            _ = await client.request("GET", f"{_BASE_URI}/301/bad-tld")
+            _ = await client.request("GET", f"{self.base_uri}/301/bad-tld")
 
         with pytest.raises(TransportError):
-            _ = await client.request("GET", f"{_BASE_URI}/301/bad-tld")
+            _ = await client.request("GET", f"{self.base_uri}/301/bad-tld")
 
     async def test_inline_auth(self) -> None:
         """Credentials in the URL are sent as basic credentials, decoded as given."""
         client = self.create_client()
-        response = await client.request("GET", f"http://foo:bar%3Dbar@{_HOST}:{_PORT}")
+        response = await client.request("GET", f"http://foo:bar%3Dbar@{_HOST}:{self.port}")
 
         body = await response.to_array()
 
@@ -453,12 +457,14 @@ class HttpClientTestCase:
         client = self.create_client()
 
         with pytest.raises(TransportError):
-            _ = await client.request("POST", f"{_BASE_URI}/", body=_not_bytes())
+            _ = await client.request("POST", f"{self.base_uri}/", body=_not_bytes())
 
     async def test_304(self) -> None:
         """A 304 carries no body, whatever length it declares."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/304", headers={"If-Match": '"abc"'})
+        response = await client.request(
+            "GET", f"{self.base_uri}/304", headers={"If-Match": '"abc"'}
+        )
 
         assert response.get_status_code() == 304
         assert await response.get_content(throw=False) == b""
@@ -469,7 +475,7 @@ class HttpClientTestCase:
         client = self.create_client()
         response = await client.request(
             "POST",
-            f"{_BASE_URI}/301",
+            f"{self.base_uri}/301",
             auth_basic="foo:bar",
             headers=headers,
             body=_parts(b"foo=bar"),
@@ -478,17 +484,17 @@ class HttpClientTestCase:
         body = await response.to_array()
         assert body["REQUEST_METHOD"] == "GET"
         assert body["HTTP_AUTHORIZATION"] == "Basic Zm9vOmJhcg=="
-        assert _info(response, "url", str) == f"{_BASE_URI}/"
+        assert _info(response, "url", str) == f"{self.base_uri}/"
 
         assert _info(response, "redirect_count", int) == 2
         assert response.get_info("redirect_url") is None
 
         assert _chain(response) == [
             "HTTP/1.1 301 Moved Permanently",
-            "Location: http://127.0.0.1:8057/302",
+            f"Location: http://127.0.0.1:{self.port}/302",
             "Content-Type: application/json",
             "HTTP/1.1 302 Found",
-            f"Location: {_BASE_URI}/",
+            f"Location: {self.base_uri}/",
             "Content-Type: application/json",
             "HTTP/1.1 200 OK",
             "Content-Type: application/json",
@@ -497,7 +503,7 @@ class HttpClientTestCase:
     async def test_invalid_redirect(self) -> None:
         """A Location nothing can be made of is left as the 3xx it came on."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/301/invalid")
+        response = await client.request("GET", f"{self.base_uri}/301/invalid")
 
         assert response.get_status_code() == 301
         assert _header(response, "location") == ["//?foo=bar"]
@@ -510,17 +516,17 @@ class HttpClientTestCase:
     async def test_relative_redirects(self) -> None:
         """A relative Location is resolved; following none leaves it to be read."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/302/relative")
+        response = await client.request("GET", f"{self.base_uri}/302/relative")
 
         body = await response.to_array()
 
         assert body["REQUEST_URI"] == "/"
         assert response.get_info("redirect_url") is None
 
-        response = await client.request("GET", f"{_BASE_URI}/302/relative", max_redirects=0)
+        response = await client.request("GET", f"{self.base_uri}/302/relative", max_redirects=0)
 
         assert response.get_status_code() == 302
-        assert _info(response, "redirect_url", str) == f"{_BASE_URI}/"
+        assert _info(response, "redirect_url", str) == f"{self.base_uri}/"
 
     async def test_redirect_307(self) -> None:
         """A 307 keeps the method and the body, once it is followed."""
@@ -528,14 +534,14 @@ class HttpClientTestCase:
 
         response = await client.request(
             "POST",
-            f"{_BASE_URI}/307",
+            f"{self.base_uri}/307",
             body=_parts(b"foo=bar"),
             max_redirects=0,
         )
 
         assert response.get_status_code() == 307
 
-        response = await client.request("POST", f"{_BASE_URI}/307", body="foo=bar")
+        response = await client.request("POST", f"{self.base_uri}/307", body="foo=bar")
 
         assert await response.to_array() == {"foo": "bar", "REQUEST_METHOD": "POST"}
 
@@ -544,7 +550,7 @@ class HttpClientTestCase:
         client = self.create_client()
         response = await client.request(
             "GET",
-            f"{_BASE_URI}/301",
+            f"{self.base_uri}/301",
             max_redirects=1,
             auth_basic="foo:bar",
         )
@@ -554,14 +560,14 @@ class HttpClientTestCase:
 
         assert response.get_status_code() == 302
         assert _info(response, "redirect_count", int) == 1
-        assert _info(response, "redirect_url", str) == f"{_BASE_URI}/"
+        assert _info(response, "redirect_url", str) == f"{self.base_uri}/"
 
         assert _chain(response) == [
             "HTTP/1.1 301 Moved Permanently",
-            "Location: http://127.0.0.1:8057/302",
+            f"Location: http://127.0.0.1:{self.port}/302",
             "Content-Type: application/json",
             "HTTP/1.1 302 Found",
-            f"Location: {_BASE_URI}/",
+            f"Location: {self.base_uri}/",
             "Content-Type: application/json",
         ]
 
@@ -569,7 +575,7 @@ class HttpClientTestCase:
         """A JSON body is sent as JSON, and says so in its content type."""
         client = self.create_client()
 
-        response = await client.request("POST", f"{_BASE_URI}/post", json={"foo": "bar"})
+        response = await client.request("POST", f"{self.base_uri}/post", json={"foo": "bar"})
 
         body = dict(await response.to_array())
 
@@ -580,7 +586,7 @@ class HttpClientTestCase:
         """A mapping body is sent as a form, which the echo answers field by field."""
         client = self.create_client()
 
-        response = await client.request("POST", f"{_BASE_URI}/post", body={"foo": "bar"})
+        response = await client.request("POST", f"{self.base_uri}/post", body={"foo": "bar"})
 
         assert await response.to_array() == {"foo": "bar", "REQUEST_METHOD": "POST"}
 
@@ -590,7 +596,7 @@ class HttpClientTestCase:
 
         response = await client.request(
             "POST",
-            f"{_BASE_URI}/post",
+            f"{self.base_uri}/post",
             body=_parts(b"foo=0123456789"),
         )
 
@@ -604,7 +610,7 @@ class HttpClientTestCase:
 
         response = await client.request(
             "POST",
-            f"{_BASE_URI}/post",
+            f"{self.base_uri}/post",
             body=_parts(b"foo", b"", b"=", b"0123456789"),
         )
 
@@ -613,7 +619,7 @@ class HttpClientTestCase:
     async def test_cancel(self) -> None:
         """A cancelled transfer has nothing left to read."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/timeout-header")
+        response = await client.request("GET", f"{self.base_uri}/timeout-header")
 
         await response.cancel()
 
@@ -624,7 +630,7 @@ class HttpClientTestCase:
         """Cancelling is something the transfer info records."""
         client = self.create_client()
 
-        response = await client.request("GET", f"{_BASE_URI}/timeout-header")
+        response = await client.request("GET", f"{self.base_uri}/timeout-header")
 
         assert _info(response, "canceled", bool) is False
         await response.cancel()
@@ -635,17 +641,17 @@ class HttpClientTestCase:
         client = self.create_client()
         response = await client.request(
             "GET",
-            f"http://{_PINNED_HOST}:{_PORT}/",
+            f"http://{_PINNED_HOST}:{self.port}/",
             resolve={_PINNED_HOST: "127.0.0.1"},
         )
 
         assert response.get_status_code() == 200
         assert (
-            await client.request("GET", f"http://{_PINNED_HOST}:{_PORT}/")
+            await client.request("GET", f"http://{_PINNED_HOST}:{self.port}/")
         ).get_status_code() == 200
 
         with pytest.raises(TransportError):
-            _ = await client.request("GET", f"http://{_PINNED_HOST}:{_PORT}/", timeout=1)
+            _ = await client.request("GET", f"http://{_PINNED_HOST}:{self.port}/", timeout=1)
 
     async def test_idn_resolve(self) -> None:
         """A very long label and a non-ASCII name both resolve to what they are pinned to."""
@@ -654,7 +660,7 @@ class HttpClientTestCase:
         long_host = "0" + "-" * 61 + "0.com"
         response = await client.request(
             "GET",
-            f"http://{long_host}:{_PORT}/",
+            f"http://{long_host}:{self.port}/",
             resolve={long_host: "127.0.0.1"},
         )
 
@@ -662,7 +668,7 @@ class HttpClientTestCase:
 
         response = await client.request(
             "GET",
-            f"http://Bücher.example:{_PORT}/",
+            f"http://Bücher.example:{self.port}/",
             resolve={"xn--bcher-kva.example": "127.0.0.1"},
         )
 
@@ -670,13 +676,13 @@ class HttpClientTestCase:
 
     async def test_ipv6_resolve(self) -> None:
         """A host pinned to an IPv6 address is reached over IPv6."""
-        server = TestHttpServer(host=_IPV6_HOST, port=_IPV6_PORT)
+        server = TestHttpServer(host=_IPV6_HOST)
         server.start()
         try:
             client = self.create_client()
             response = await client.request(
                 "GET",
-                f"http://{_PINNED_HOST}:{_IPV6_PORT}/",
+                f"http://{_PINNED_HOST}:{server.port}/",
                 resolve={_PINNED_HOST: _IPV6_HOST},
             )
 
@@ -687,7 +693,7 @@ class HttpClientTestCase:
     async def test_not_a_timeout(self) -> None:
         """The timeout is how long a transfer may go quiet for, not how long it may take."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/timeout-header", timeout=0.9)
+        response = await client.request("GET", f"{self.base_uri}/timeout-header", timeout=0.9)
         await anyio.sleep(1)
         assert response.get_status_code() == 200
 
@@ -696,13 +702,13 @@ class HttpClientTestCase:
         client = self.create_client()
 
         with pytest.raises(TransportError):
-            _ = await client.request("GET", f"{_BASE_URI}/timeout-header", timeout=0.1)
+            _ = await client.request("GET", f"{self.base_uri}/timeout-header", timeout=0.1)
 
     async def test_timeout_is_not_a_fatal_error(self) -> None:
         """A transfer that timed out mid-body carries on being read."""
         await anyio.sleep(0.3)  # let the previous test release the server
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/timeout-body", timeout=0.25)
+        response = await client.request("GET", f"{self.base_uri}/timeout-body", timeout=0.25)
 
         with pytest.raises(TransportTimeoutError):
             _ = await response.get_content()
@@ -719,16 +725,16 @@ class HttpClientTestCase:
 
     async def test_timeout_with_active_concurrent_stream(self) -> None:
         """A transfer that keeps arriving does not hold a timeout back."""
-        first = TestHttpServer(port=_SECOND_PORT)
-        second = TestHttpServer(port=_THIRD_PORT)
+        first = TestHttpServer()
+        second = TestHttpServer()
         first.start()
         second.start()
         try:
             client = self.create_client()
-            streaming = await client.request("GET", f"http://{_HOST}:{_SECOND_PORT}/max-duration")
+            streaming = await client.request("GET", f"http://{_HOST}:{first.port}/max-duration")
             blocking = await client.request(
                 "GET",
-                f"http://{_HOST}:{_THIRD_PORT}/timeout-body",
+                f"http://{_HOST}:{second.port}/timeout-body",
                 timeout=0.25,
             )
 
@@ -743,8 +749,8 @@ class HttpClientTestCase:
 
     async def test_timeout_on_initialize(self) -> None:
         """Four heads that never arrive time out alongside each other, not one after another."""
-        first = TestHttpServer(port=_SECOND_PORT)
-        second = TestHttpServer(port=_THIRD_PORT)
+        first = TestHttpServer()
+        second = TestHttpServer()
         first.start()
         second.start()
         try:
@@ -752,7 +758,7 @@ class HttpClientTestCase:
             start = time.monotonic()
 
             async with anyio.create_task_group() as requests:
-                for port in (_SECOND_PORT, _THIRD_PORT, _SECOND_PORT, _THIRD_PORT):
+                for port in (first.port, second.port, first.port, second.port):
                     _ = requests.start_soon(self._expect_timeout, client, port)
 
             assert time.monotonic() - start < 1.0
@@ -762,15 +768,15 @@ class HttpClientTestCase:
 
     async def test_timeout_on_destruct(self) -> None:
         """The same four, each reported where its request was made."""
-        first = TestHttpServer(port=_SECOND_PORT)
-        second = TestHttpServer(port=_THIRD_PORT)
+        first = TestHttpServer()
+        second = TestHttpServer()
         first.start()
         second.start()
         try:
             client = self.create_client()
             start = time.monotonic()
 
-            for port in (_SECOND_PORT, _THIRD_PORT, _SECOND_PORT, _THIRD_PORT):
+            for port in (first.port, second.port, first.port, second.port):
                 with pytest.raises(TransportError):
                     _ = await client.request(
                         "GET",
@@ -788,7 +794,7 @@ class HttpClientTestCase:
         client = self.create_client()
 
         start = time.monotonic()
-        async with await client.request("GET", f"{_BASE_URI}/timeout-long"):
+        async with await client.request("GET", f"{self.base_uri}/timeout-long"):
             pass
         duration = time.monotonic() - start
 
@@ -798,46 +804,46 @@ class HttpClientTestCase:
     async def test_proxy(self) -> None:
         """The ``proxy`` option is asked for the absolute URL, with its own credentials."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/", proxy=_BASE_URI)
+        response = await client.request("GET", f"{self.base_uri}/", proxy=self.base_uri)
 
         body = await response.to_array()
-        assert body["HTTP_HOST"] == f"{_HOST}:{_PORT}"
-        assert _PROXIED_URI.match(_expect(body["REQUEST_URI"], str))
+        assert body["HTTP_HOST"] == f"{_HOST}:{self.port}"
+        assert self._is_proxied(body["REQUEST_URI"])
 
         response = await client.request(
             "GET",
-            f"{_BASE_URI}/",
-            proxy=f"http://foo:b%3Dar@{_HOST}:{_PORT}",
+            f"{self.base_uri}/",
+            proxy=f"http://foo:b%3Dar@{_HOST}:{self.port}",
         )
 
         body = await response.to_array()
         assert body["HTTP_PROXY_AUTHORIZATION"] == "Basic Zm9vOmI9YXI="
 
-        response = await client.request("GET", f"{_BASE_URI}/301/proxy", proxy=_BASE_URI)
+        response = await client.request("GET", f"{self.base_uri}/301/proxy", proxy=self.base_uri)
 
         body = await response.to_array()
-        assert body["HTTP_HOST"] == f"{_HOST}:{_PORT}"
-        assert _PROXIED_URI.match(_expect(body["REQUEST_URI"], str))
+        assert body["HTTP_HOST"] == f"{_HOST}:{self.port}"
+        assert self._is_proxied(body["REQUEST_URI"])
 
     async def test_no_proxy(self) -> None:
         """``http_proxy`` is obeyed with no option at all, and ``no_proxy`` exempts a host."""
         client = self.create_client()
 
         with pytest.MonkeyPatch.context() as environment:
-            environment.setenv("http_proxy", _BASE_URI)
+            environment.setenv("http_proxy", self.base_uri)
 
-            body = await (await client.request("GET", f"{_BASE_URI}/")).to_array()
-            assert _PROXIED_URI.match(_expect(body["REQUEST_URI"], str))
+            body = await (await client.request("GET", f"{self.base_uri}/")).to_array()
+            assert self._is_proxied(body["REQUEST_URI"])
 
             environment.setenv("no_proxy", _HOST)
 
-            body = await (await client.request("GET", f"{_BASE_URI}/")).to_array()
+            body = await (await client.request("GET", f"{self.base_uri}/")).to_array()
             assert body["REQUEST_URI"] == "/"
 
     async def test_auto_encoding_request(self) -> None:
         """A client asks for a compressed body by itself, and hands it over decoded."""
         client = self.create_client()
-        response = await client.request("GET", _BASE_URI)
+        response = await client.request("GET", self.base_uri)
 
         assert response.get_status_code() == 200
 
@@ -851,7 +857,7 @@ class HttpClientTestCase:
     async def test_base_uri(self) -> None:
         """A relative URL is resolved against the base, traversal included."""
         client = self.create_client()
-        response = await client.request("GET", "../404", base_uri=f"{_BASE_URI}/abc/")
+        response = await client.request("GET", "../404", base_uri=f"{self.base_uri}/abc/")
 
         assert response.get_status_code() == 404
         assert _header(response, "content-type") == ["application/json"]
@@ -859,7 +865,7 @@ class HttpClientTestCase:
     async def test_query(self) -> None:
         """Query parameters are merged into the ones the URL already carried."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/?a=a", query={"b": "b"})
+        response = await client.request("GET", f"{self.base_uri}/?a=a", query={"b": "b"})
 
         body = await response.to_array()
         assert body["REQUEST_METHOD"] == "GET"
@@ -868,7 +874,7 @@ class HttpClientTestCase:
     async def test_informational_response(self) -> None:
         """A 1xx ahead of the real status is read past, not answered with."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/103")
+        response = await client.request("GET", f"{self.base_uri}/103")
 
         assert await response.get_content() == b"Here the body"
         assert response.get_status_code() == 200
@@ -876,7 +882,7 @@ class HttpClientTestCase:
     async def test_userland_encoding_request(self) -> None:
         """Asking for an encoding outright hands the body over as it arrived."""
         client = self.create_client()
-        response = await client.request("GET", _BASE_URI, headers={"Accept-Encoding": "gzip"})
+        response = await client.request("GET", self.base_uri, headers={"Accept-Encoding": "gzip"})
 
         assert _header(response, "vary") == ["Accept-Encoding"]
         assert "gzip" in _header(response, "content-encoding")[0]
@@ -890,7 +896,7 @@ class HttpClientTestCase:
     async def test_gzip_broken(self) -> None:
         """A body compressed only in name fails the transfer."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/gzip-broken")
+        response = await client.request("GET", f"{self.base_uri}/gzip-broken")
 
         with pytest.raises(TransportError):
             _ = await response.get_content()
@@ -898,7 +904,7 @@ class HttpClientTestCase:
     async def test_max_duration(self) -> None:
         """A transfer outlasting its whole-request limit ends there, however much arrives."""
         client = self.create_client()
-        response = await client.request("GET", f"{_BASE_URI}/max-duration", max_duration=0.1)
+        response = await client.request("GET", f"{self.base_uri}/max-duration", max_duration=0.1)
 
         start = time.monotonic()
 
@@ -929,7 +935,7 @@ class HttpClientTestCase:
     async def test_with_options(self) -> None:
         """Options become the defaults of a new client, and leave this one as it was."""
         client = self.create_client()
-        scoped = client.with_options(base_uri=f"{_BASE_URI}/")
+        scoped = client.with_options(base_uri=f"{self.base_uri}/")
 
         assert scoped is not client
         assert type(scoped) is type(client)
@@ -940,7 +946,7 @@ class HttpClientTestCase:
     async def test_send_request_prefers_the_request_headers(self) -> None:
         """A header the request carries is sent; one it lacks is filled from the options."""
         client = self.create_client()
-        request = Request("GET", f"{_BASE_URI}/", headers={"Foo": "from-request"})
+        request = Request("GET", f"{self.base_uri}/", headers={"Foo": "from-request"})
 
         response = await client.send_request(
             request,
@@ -957,7 +963,7 @@ class HttpClientTestCase:
 
         response = await client.send_request(
             Request("GET", "../404"),
-            base_uri=f"{_BASE_URI}/abc/",
+            base_uri=f"{self.base_uri}/abc/",
         )
 
         assert response.get_status_code() == 404
@@ -967,7 +973,7 @@ class HttpClientTestCase:
         client = self.create_client()
 
         response = await client.send_request(
-            Request("GET", f"{_BASE_URI}/?a=a"),
+            Request("GET", f"{self.base_uri}/?a=a"),
             query={"b": "b"},
         )
 
@@ -979,7 +985,7 @@ class HttpClientTestCase:
         client = self.create_client()
 
         response = await client.send_request(
-            Request("GET", f"{_BASE_URI}/"),
+            Request("GET", f"{self.base_uri}/"),
             auth_bearer="from-the-option",
         )
 
@@ -988,7 +994,7 @@ class HttpClientTestCase:
         response = await client.send_request(
             Request(
                 "GET",
-                f"{_BASE_URI}/",
+                f"{self.base_uri}/",
                 headers={"Authorization": "Bearer from-the-request"},
             ),
             auth_bearer="from-the-option",
@@ -999,7 +1005,7 @@ class HttpClientTestCase:
     async def test_send_request_refuses_a_body_on_both(self) -> None:
         """A request carrying a body plus a ``body`` option is a request refused, not merged."""
         client = self.create_client()
-        request = Request("POST", f"{_BASE_URI}/post", body=b"foo=bar")
+        request = Request("POST", f"{self.base_uri}/post", body=b"foo=bar")
 
         with pytest.raises(InvalidArgumentError, match=re.escape(_BOTH_BODIES)):
             _ = await client.send_request(request, body={"foo": "baz"})
@@ -1008,10 +1014,15 @@ class HttpClientTestCase:
         """``request(method, url)`` answers as ``send_request`` of that method and URL does."""
         client = self.create_client()
 
-        direct = await (await client.request("GET", f"{_BASE_URI}/")).to_array()
-        sent = await (await client.send_request(Request("GET", f"{_BASE_URI}/"))).to_array()
+        direct = await (await client.request("GET", f"{self.base_uri}/")).to_array()
+        sent = await (await client.send_request(Request("GET", f"{self.base_uri}/"))).to_array()
 
         assert _without_client_port(sent) == _without_client_port(direct)
+
+    def _is_proxied(self, request_uri: object) -> bool:
+        """Whether the server was asked for its own root in absolute form, as a proxy is."""
+        proxied = rf"http://(localhost|127\.0\.0\.1):{self.port}/"
+        return re.fullmatch(proxied, _expect(request_uri, str)) is not None
 
     @staticmethod
     async def _expect_timeout(client: HttpClientInterface, port: int) -> None:

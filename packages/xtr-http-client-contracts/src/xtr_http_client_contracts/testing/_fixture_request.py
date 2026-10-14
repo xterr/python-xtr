@@ -51,13 +51,14 @@ class FixtureRequest:
     body: bytes
     peer: tuple[str, str]
     server_name: str
+    server_port: int
 
     @property
     def path(self) -> str:
         """The target's path, which is what the routes dispatch on.
 
         An absolute target — what a client sends through a proxy — routes on its path too, so
-        ``http://localhost:8057/301/proxy`` reaches the same route as ``/301/proxy``.
+        ``http://localhost:<port>/301/proxy`` reaches the same route as ``/301/proxy``.
         """
         return urlsplit(self.target).path
 
@@ -141,6 +142,7 @@ async def read_request(
         body=await _read_body(reader, headers),
         peer=_peer(writer),
         server_name=server_name,
+        server_port=_local_port(writer),
     )
 
 
@@ -154,6 +156,12 @@ def _peer(writer: asyncio.StreamWriter) -> tuple[str, str]:
     """The address and port the connection came from, as text, which is how they are echoed."""
     address: tuple[object, ...] = writer.get_extra_info("peername")
     return str(address[0]), str(address[1])
+
+
+def _local_port(writer: asyncio.StreamWriter) -> int:
+    """The port the connection reached, which a redirect back to this server must name."""
+    address: tuple[object, ...] = writer.get_extra_info("sockname")
+    return int(str(address[1]))
 
 
 async def _read_body(reader: asyncio.StreamReader, headers: Sequence[tuple[str, str]]) -> bytes:

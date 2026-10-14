@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from typing import TYPE_CHECKING, ClassVar, Final, final
+from typing import TYPE_CHECKING, ClassVar, Final, cast, final
 
 from ._fixture_request import read_request
 from ._fixture_routes import respond
@@ -16,7 +16,9 @@ if TYPE_CHECKING:
 __all__ = ["TestHttpServer"]
 
 _HOST: Final = "127.0.0.1"
-_PORT: Final = 8057
+
+#: Ask the operating system for a free port, so two suites running at once never collide.
+_ANY_FREE_PORT: Final = 0
 
 
 @final
@@ -35,18 +37,32 @@ class TestHttpServer:
             with TestHttpServer() as server:
                 yield server
 
+    Unless a port is named, the server listens on whichever free port the operating system
+    hands out, which :attr:`port` and :attr:`base_uri` report once :meth:`start` has returned.
+    A restarted server may be given a different one.
+
     What each route answers is described in ``_fixture_routes``; what the echoing ones report
     about the request is described in ``_fixture_request``.
     """
 
     __test__: ClassVar[bool] = False  # a library class, not a pytest test case
 
-    __slots__ = ("_failure", "_host", "_loop", "_port", "_ready", "_stop", "_thread")
+    __slots__ = (
+        "_bound_port",
+        "_failure",
+        "_host",
+        "_loop",
+        "_port",
+        "_ready",
+        "_stop",
+        "_thread",
+    )
 
-    def __init__(self, host: str = _HOST, port: int = _PORT) -> None:
+    def __init__(self, host: str = _HOST, port: int = _ANY_FREE_PORT) -> None:
         """Bind nothing yet: the socket is opened by :meth:`start`."""
         self._host = host
         self._port = port
+        self._bound_port: int | None = None
         self._ready = threading.Event()
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -60,13 +76,24 @@ class TestHttpServer:
 
     @property
     def port(self) -> int:
-        """The port the server listens on."""
+        """The port the server listens on.
+
+        Raises:
+            RuntimeError: When the server was asked for any free port and has not been
+                started, so no port has been chosen yet.
+        """
+        if self._bound_port is not None:
+            return self._bound_port
+        if self._port == _ANY_FREE_PORT:
+            raise RuntimeError(
+                "The server listens on a free port chosen by start(); start it first."
+            )
         return self._port
 
     @property
     def base_uri(self) -> str:
         """The origin a client should send its requests to."""
-        return f"http://{self._host}:{self._port}"
+        return f"http://{self._host}:{self.port}"
 
     def start(self) -> None:
         """Listen, and return once the port accepts connections.
@@ -134,6 +161,8 @@ class TestHttpServer:
         stop = asyncio.Event()
         self._stop = stop
         server = await asyncio.start_server(self._handle, self._host, self._port)
+        bound = cast("tuple[object, ...]", server.sockets[0].getsockname())
+        self._bound_port = cast("int", bound[1])
         self._ready.set()
         try:
             _ = await stop.wait()

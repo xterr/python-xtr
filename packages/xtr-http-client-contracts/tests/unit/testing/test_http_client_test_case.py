@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING, ClassVar
 import pytest
 from typing_extensions import override
 
-from xtr_http_client_contracts.testing import HttpClientTestCase, TestHttpServer
+from xtr_http_client_contracts.testing import HttpClientTestCase
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Mapping
 
     from xtr_http_client_contracts.http_client_interface import HttpClientInterface
 
@@ -142,14 +142,6 @@ class TestEverythingSkipped(HttpClientTestCase):
     __test__: ClassVar[bool] = True
 
     skipped_tests: ClassVar[Mapping[str, str]] = dict.fromkeys(EXPECTED_TESTS, "structure check")
-
-    @pytest.fixture(scope="session", autouse=True)
-    @staticmethod
-    def fixture_server() -> Iterator[TestHttpServer]:
-        # Bound to nothing: every test here is skipped, and the fixture server's own tests
-        # assert that port 8057 is free between them. `yield` rather than `return`, which
-        # PT022 would prefer, so the override keeps the signature it is overriding.
-        yield TestHttpServer()  # noqa: PT022
 
     @override
     def create_client(self) -> HttpClientInterface:

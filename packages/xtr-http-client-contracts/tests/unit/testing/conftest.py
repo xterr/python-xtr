@@ -20,8 +20,11 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 HOST = "127.0.0.1"
-PORT = 8057
 READ_SIZE = 65536
+
+# The server the module's `server` fixture is running, which `exchange` talks to when a test
+# names no port: the routes and request tests share one server and only care that it answers.
+_SERVING: list[TestHttpServer] = []
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,16 +74,24 @@ class RawExchange:
         return json.loads(self.body)
 
 
-def exchange(payload: bytes, *, min_bytes: int | None = None, timeout: float = 5.0) -> RawExchange:
+def exchange(
+    payload: bytes,
+    *,
+    port: int | None = None,
+    min_bytes: int | None = None,
+    timeout: float = 5.0,
+) -> RawExchange:
     """Send ``payload`` on a fresh connection and read until the server closes.
 
+    The connection goes to ``port``, or to the server the module's ``server`` fixture started.
     The sending half is closed straight away, so the server never waits for a request that is
     already complete. ``min_bytes`` hangs up as soon as that many bytes have arrived, which is
     how the routes that write forever are read without waiting for an end that never comes.
     """
     chunks: list[bytes] = []
     received = 0
-    with socket.create_connection((HOST, PORT), timeout=timeout) as sock:
+    target = port if port is not None else serving_port()
+    with socket.create_connection((HOST, target), timeout=timeout) as sock:
         local_port: int = sock.getsockname()[1]
         sock.sendall(payload)
         sock.shutdown(socket.SHUT_WR)
@@ -95,17 +106,26 @@ def exchange(payload: bytes, *, min_bytes: int | None = None, timeout: float = 5
     return RawExchange(b"".join(chunks), local_port)
 
 
-def is_listening(*, timeout: float = 0.5) -> bool:
-    """Whether anything answers on the fixture port."""
+def is_listening(port: int, *, timeout: float = 0.5) -> bool:
+    """Whether anything answers on ``port``."""
     try:
-        with socket.create_connection((HOST, PORT), timeout=timeout):
+        with socket.create_connection((HOST, port), timeout=timeout):
             return True
     except OSError:
         return False
+
+
+def serving_port() -> int:
+    """The port of the server the module's ``server`` fixture is running."""
+    return _SERVING[-1].port
 
 
 @pytest.fixture(scope="module")
 def server() -> Iterator[TestHttpServer]:
     """One server for the module, as an application's session-scoped fixture would do."""
     with TestHttpServer() as running:
-        yield running
+        _SERVING.append(running)
+        try:
+            yield running
+        finally:
+            _SERVING.remove(running)

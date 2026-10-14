@@ -195,8 +195,9 @@ class TestMyHttpClient(HttpClientTestCase):
         return MyHttpClient()
 ```
 
-That is the whole of it: the suite starts `TestHttpServer` once for the session, points every
-test at it, and runs the contract as behaviour — the status that is an answer, the body that is
+That is the whole of it: the suite starts `TestHttpServer` once for the session on a free port,
+points every test at it through `self.base_uri` and `self.port`, and runs the contract as
+behaviour — the status that is an answer, the body that is
 kept and can be read twice, the redirect chain that drops credentials when it leaves the host
 and gets them back when it returns, the timeouts, the proxy settings read from the
 environment, the `resolve` pin, the options `send_request` fills in, and the refusals quoted
@@ -219,7 +220,9 @@ class TestMyHttpClient(HttpClientTestCase):
 
 A parametrized test is named there without its parameter. `TestHttpServer(host=..., port=...)`
 is usable on its own — as a context manager, or with `start()` and `stop()` — for a test that
-needs a second server of its own.
+needs a second server of its own. Leave `port` out and it listens on whichever free port the
+operating system gives it, which `server.port` and `server.base_uri` report once it has started;
+two suites running at once never collide.
 
 ## Development
 

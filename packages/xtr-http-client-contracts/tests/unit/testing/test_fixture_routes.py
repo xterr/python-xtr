@@ -5,11 +5,11 @@ import time
 
 import pytest
 
-from .conftest import exchange
+from .conftest import exchange, serving_port
 
 pytestmark = pytest.mark.usefixtures("server")
 
-HOST_HEAD = b"Host: 127.0.0.1:8057\r\n"
+HOST_HEAD = b"Host: 127.0.0.1\r\n"
 SLOW = 0.25
 
 
@@ -32,10 +32,10 @@ def test_the_root_compresses_when_the_request_accepts_gzip() -> None:
 
 
 def test_an_absolute_request_target_routes_on_its_path() -> None:
-    raw = exchange(b"GET http://127.0.0.1:8057/ HTTP/1.1\r\n" + HOST_HEAD + b"\r\n")
+    raw = exchange(b"GET http://127.0.0.1/ HTTP/1.1\r\n" + HOST_HEAD + b"\r\n")
 
     assert raw.status_code == 200
-    assert raw.json_body()["REQUEST_URI"] == "http://127.0.0.1:8057/"
+    assert raw.json_body()["REQUEST_URI"] == "http://127.0.0.1/"
 
 
 def test_head_sends_the_length_of_the_body_it_withholds() -> None:
@@ -102,7 +102,7 @@ def test_the_permanent_redirect_needs_the_expected_credentials() -> None:
     )
 
     assert raw.status_line == "HTTP/1.1 301 Moved Permanently"
-    assert raw.header("location") == "http://127.0.0.1:8057/302"
+    assert raw.header("location") == f"http://127.0.0.1:{serving_port()}/302"
 
 
 def test_the_permanent_redirect_answers_the_variables_without_them() -> None:
@@ -128,20 +128,20 @@ def test_the_invalid_redirect_points_at_an_unparsable_target() -> None:
 
 @pytest.mark.parametrize(
     "target",
-    [b"/301/proxy", b"http://localhost:8057/301/proxy", b"http://127.0.0.1:8057/301/proxy"],
+    [b"/301/proxy", b"http://localhost/301/proxy", b"http://127.0.0.1/301/proxy"],
 )
 def test_the_proxy_redirect_points_at_the_root(target: bytes) -> None:
     raw = exchange(b"GET " + target + b" HTTP/1.1\r\n" + HOST_HEAD + b"\r\n")
 
     assert raw.status_code == 301
-    assert raw.header("location") == "http://localhost:8057/"
+    assert raw.header("location") == f"http://localhost:{serving_port()}/"
 
 
 def test_the_found_redirect_points_at_the_root_by_default() -> None:
     raw = exchange(b"GET /302 HTTP/1.1\r\n" + HOST_HEAD + b"\r\n")
 
     assert raw.status_line == "HTTP/1.1 302 Found"
-    assert raw.header("location") == "http://localhost:8057/"
+    assert raw.header("location") == f"http://localhost:{serving_port()}/"
 
 
 def test_the_found_redirect_takes_its_target_from_the_query() -> None:
@@ -192,7 +192,7 @@ def test_the_temporary_redirect_points_at_the_echo() -> None:
     raw = exchange(b"GET /307 HTTP/1.1\r\n" + HOST_HEAD + b"\r\n")
 
     assert raw.status_line == "HTTP/1.1 307 Temporary Redirect"
-    assert raw.header("location") == "http://localhost:8057/post"
+    assert raw.header("location") == f"http://localhost:{serving_port()}/post"
 
 
 def test_the_broken_length_declares_more_than_it_sends() -> None:

@@ -21,6 +21,7 @@ REQUEST = FixtureRequest(
     body=b"",
     peer=("127.0.0.1", "1234"),
     server_name="127.0.0.1",
+    server_port=8000,
 )
 
 
