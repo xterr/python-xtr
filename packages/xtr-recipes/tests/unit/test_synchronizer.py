@@ -86,20 +86,30 @@ _MESSENGER_BUNDLES = (
     "}\n"
 )
 _OWN_BUNDLES = (
-    f'"""{_DEFAULT_DOCSTRING}"""\n'
-    "\n"
-    "from __future__ import annotations\n"
-    "\n"
-    "from xtr_clock.bundle import ClockBundle\n"
-    "\n"
-    "from shared.bundle import OwnBundle\n"
-    "\n"
-    '__all__ = ["BUNDLES"]\n'
-    "\n"
-    "BUNDLES = {\n"
-    '    OwnBundle: {"all": True},\n'
-    '    ClockBundle: {"all": True},\n'
-    "}\n"
+    (
+        f'"""{_DEFAULT_DOCSTRING}"""\n'
+        "\n"
+        "from __future__ import annotations\n"
+        "\n"
+        "from xtr_clock.bundle import ClockBundle\n"
+        "\n"
+        "from shared.bundle import OwnBundle\n"
+        "\n"
+        '__all__ = ["BUNDLES"]\n'
+        "\n"
+        "BUNDLES = {\n"
+    )
+    # Packages are configured in name order, so the mapping follows it, whatever the names.
+    + "".join(
+        line
+        for _, line in sorted(
+            [
+                ("shared", '    OwnBundle: {"all": True},\n'),
+                (_CLOCK, '    ClockBundle: {"all": True},\n'),
+            ]
+        )
+    )
+    + "}\n"
 )
 
 _MESSENGER_MANIFEST = f"""\
