@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from xtr_service_contracts import ResetInterface
 
 
@@ -7,7 +9,7 @@ class WithReset:
     def __init__(self) -> None:
         self.items: list[str] = ["stale"]
 
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self.items.clear()
 
 
@@ -21,6 +23,15 @@ class WithoutReset:
 
 def test_a_class_with_reset_is_a_reset_interface() -> None:
     assert isinstance(WithReset(), ResetInterface)
+
+
+@pytest.mark.anyio
+async def test_awaiting_reset_clears_the_unit_of_works_state() -> None:
+    service = WithReset()
+
+    await service.reset()
+
+    assert service.items == []
 
 
 class WithNonCallableReset:

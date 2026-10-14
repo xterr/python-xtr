@@ -21,6 +21,13 @@ class ResetInterface(Protocol):
     whatever asks for it between units of work, and neither side has to know
     anything else about the other.
 
+    :meth:`reset` is awaited, because clearing state is not always a local
+    assignment: a rate limiter's count or a cache's entries may live in
+    another process entirely, and reaching them is I/O. A service whose state
+    is its own awaits nothing and returns at once; one whose state lives
+    elsewhere awaits the trip, and the caller — a worker between messages —
+    is already somewhere it can wait.
+
     :meth:`reset` fits a unit of work that runs alone — one message, one
     command — where the service is idle between units and clearing its state
     is the whole story. When units overlap, as with concurrent requests
@@ -41,4 +48,4 @@ class ResetInterface(Protocol):
     matches :func:`isinstance` but the container never sees it.
     """
 
-    def reset(self) -> None: ...  # noqa: D102 — documented by the class docstring
+    async def reset(self) -> None: ...  # noqa: D102 — documented by the class docstring

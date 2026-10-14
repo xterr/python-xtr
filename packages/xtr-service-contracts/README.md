@@ -41,13 +41,18 @@ Requires Python 3.11+.
 ```python
 @runtime_checkable
 class ResetInterface(Protocol):
-    def reset(self) -> None: ...
+    async def reset(self) -> None: ...
 ```
 
 A long-running process — a worker consuming messages, a server answering requests — builds its
 services once and uses them many times. Buffers, caches, accumulated state and generated ids
 belong to one unit of work rather than to the service holding them. `reset()` ends that unit, so
 the next starts clean while configuration survives:
+
+It is awaited, because clearing state is not always a local assignment: a rate limiter's count or
+a cache's entries may live in another process, and reaching them is I/O. A service whose state is
+its own awaits nothing and returns at once; one whose state lives elsewhere awaits the trip, and
+the caller — a worker between messages — is already somewhere it can wait.
 
 `reset()` fits a unit of work that runs alone — one message, one command — where the service sits
 idle between units and clearing its state is the whole story. When units overlap, as when one set
@@ -65,7 +70,7 @@ class Buffer:
         self.capacity = capacity  # configuration — survives
         self.items: list[str] = []  # this unit of work — does not
 
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self.items.clear()
 
 
@@ -80,7 +85,7 @@ plain value passes and then fails when called. Guard the call rather than trust 
 ```python
 for service in container.services:
     if callable(getattr(service, "reset", None)):
-        service.reset()
+        await service.reset()
 ```
 
 A container is the usual caller: it knows what it built, so it can reset whatever asks for it
