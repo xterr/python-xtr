@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
+from xtr_http_foundation import ChainRequestMatcher, RequestMatcherInterface
 from xtr_http_message import Response, ServerRequest
 from xtr_messenger.exception import NoHandlerForMessageError
 from xtr_remote_event import RemoteEvent
 from xtr_remote_event.messenger import ConsumeRemoteEventMessage
 
 from tests.support.recording_message_bus import RecordingMessageBus
-from xtr_webhook.client import ChainRequestMatcher, RequestMatcherInterface
 from xtr_webhook.client.abstract_request_parser import AbstractRequestParser
 from xtr_webhook.controller import WebhookController
 from xtr_webhook.controller._built_parsers import BuiltParsers

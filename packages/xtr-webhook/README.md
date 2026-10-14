@@ -171,16 +171,16 @@ One parser speaks for one sender. Subclass `AbstractRequestParser` and fill in t
 that differ per sender — which requests are that sender's, and how to check and read one:
 
 ```python
-from xtr_http_message_contracts import ServerRequestInterface
-from xtr_remote_event import RemoteEvent
-
-from xtr_webhook.client import (
-    AbstractRequestParser,
+from xtr_http_foundation import (
     ChainRequestMatcher,
     IsJsonRequestMatcher,
     MethodRequestMatcher,
     RequestMatcherInterface,
 )
+from xtr_http_message_contracts import ServerRequestInterface
+from xtr_remote_event import RemoteEvent
+
+from xtr_webhook.client import AbstractRequestParser
 from xtr_webhook.exception import RejectWebhookError
 
 
@@ -196,8 +196,9 @@ class AcmeRequestParser(AbstractRequestParser):
 ```
 
 The base class does what every parser would otherwise write again, and get wrong in the same
-way: the shape check runs before the body is touched, a body that will not decode comes back as
-a `406` rather than as a `500`, and the two answers are the ones the sender's side waits for.
+way: the matcher runs before anything is read out of the request, a body that will not decode
+comes back as a `406` rather than as a `500`, and the two answers are the ones the sender's side
+waits for.
 
 - `await self.read_body(request)` returns every byte of the body from its first one, rewinding
   the stream where it can — a signature covers exactly the bytes that arrived. Reading a body is
@@ -213,9 +214,17 @@ a `406` rather than as a `500`, and the two answers are the ones the sender's si
   immutable and the endpoint owns the response.
 - Compare secrets with `hmac.compare_digest`, never `==`.
 
-Matchers are small and compose: `MethodRequestMatcher("POST", "PUT")` (case-insensitive),
-`IsJsonRequestMatcher()` (a media type of `application/json` or ending in `+json`, parameters
-ignored), `ChainRequestMatcher([...])` (all must match).
+The matchers come from [xtr-http-foundation](../xtr-http-foundation), so a webhook endpoint
+says which requests are its sender's the same way a firewall or a rate limiter does. They are
+small and compose: `MethodRequestMatcher(["POST", "PUT"])`, `IsJsonRequestMatcher()`,
+`ChainRequestMatcher([...])` (all must match), and the rest — the path, the host, the port, the
+scheme, a header, a query parameter, the address it came from. `matches()` is awaited, because
+a rule may be about the body.
+
+`IsJsonRequestMatcher` reads the body, not the `Content-Type` header: a sender that announces
+nothing still sent JSON, and one that announces `application/json` and sent something else did
+not — so that request is refused by the matcher, with `Request does not match.`, before the
+parser is handed anything.
 
 ### Signature formats
 

@@ -17,7 +17,9 @@ sees HTTP. Sending is the same problem from the other side.
   in `<app>/config/routes/webhook.py`); the type picks the parser and the secret.
   `WebhookController(parsers, secrets, bus)` is what answers.
 - Parse — subclass `AbstractRequestParser` and fill in `get_request_matcher()` and
-  `async do_parse(request, secret)`. `RequestParser` is the built-in one.
+  `async do_parse(request, secret)`. `RequestParser` is the built-in one. The matchers are
+  `xtr_http_foundation`'s, and `IsJsonRequestMatcher` reads the body rather than the
+  `Content-Type` header.
 - Send — `await bus.dispatch(SendWebhookMessage(Subscriber(url, secret), event))`. Needs the
   `client` extra.
 - Formats — `SignatureFormat.LEGACY` (default), `STANDARD`, `TRANSITIONAL`. Members are their
@@ -81,16 +83,16 @@ One parser speaks for one sender:
 ```python
 import hmac
 
-from xtr_http_message_contracts import ServerRequestInterface
-from xtr_remote_event import RemoteEvent
-
-from xtr_webhook.client import (
-    AbstractRequestParser,
+from xtr_http_foundation import (
     ChainRequestMatcher,
     IsJsonRequestMatcher,
     MethodRequestMatcher,
     RequestMatcherInterface,
 )
+from xtr_http_message_contracts import ServerRequestInterface
+from xtr_remote_event import RemoteEvent
+
+from xtr_webhook.client import AbstractRequestParser
 from xtr_webhook.exception import RejectWebhookError
 
 
@@ -108,8 +110,8 @@ class AcmeRequestParser(AbstractRequestParser):
 ```
 
 The base class already does what every parser would otherwise rewrite: the matcher runs before
-the body is touched, a body that will not decode comes back as a `406` rather than a `500`, and
-both answers are the ones the sender's side waits for.
+anything is read out of the request, a body that will not decode comes back as a `406` rather
+than a `500`, and both answers are the ones the sender's side waits for.
 
 - `await self.read_body(request)` returns every byte from the first one, rewinding the stream
   where it can — a signature covers exactly what arrived. Reading a body is awaited.
@@ -122,9 +124,13 @@ both answers are the ones the sender's side waits for.
 - Override `create_successful_response` — an `async def`, so it can write a body — for a sender
   that wants something echoed back; `create_rejected_response` is its counterpart for a refusal.
   The response is handed in and given back modified; an HTTP message is immutable.
-- Matchers — `MethodRequestMatcher(*methods)` is case-insensitive, `IsJsonRequestMatcher()`
-  accepts `application/json` or a `+json` suffix with parameters ignored, `ChainRequestMatcher`
-  requires all of them.
+- Matchers come from `xtr_http_foundation`, not from this package: `MethodRequestMatcher(["POST",
+  "PUT"])` (one method or a sequence), `IsJsonRequestMatcher()`, `ChainRequestMatcher([...])`
+  (all must match), plus matchers over the path, host, port, scheme, a header, a query parameter
+  and the address it came from. `matches()` is awaited, so a rule may be about the body.
+- `IsJsonRequestMatcher` reads the body, not the `Content-Type` header: a JSON body carrying no
+  header is claimed, and an `application/json` request whose body is not JSON is refused with
+  `Request does not match.` before the parser sees it.
 
 ## Send a webhook
 

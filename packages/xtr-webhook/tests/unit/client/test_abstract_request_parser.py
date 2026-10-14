@@ -5,11 +5,12 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
+from xtr_http_foundation import ChainRequestMatcher, RequestMatcherInterface
 from xtr_http_message import Response, ServerRequest
 from xtr_remote_event import RemoteEvent
 
 from tests.support.secret_header_request_parser import SecretHeaderRequestParser
-from xtr_webhook.client import AbstractRequestParser, ChainRequestMatcher, RequestMatcherInterface
+from xtr_webhook.client import AbstractRequestParser
 from xtr_webhook.exception import RejectWebhookError
 
 if TYPE_CHECKING:
@@ -32,6 +33,26 @@ class _TextRequestParser(AbstractRequestParser):
     @override
     async def do_parse(self, request: ServerRequestInterface, secret: str) -> RemoteEvent | None:
         return RemoteEvent("text", "the-id", {"body": (await self.read_body(request)).decode()})
+
+
+@final
+class _AnyBodyRequestParser(AbstractRequestParser):
+    """Reads the body as a JSON object whatever it holds, claiming every request.
+
+    Its matcher constrains nothing, so the body reaches :meth:`read_json` even
+    when it is not JSON — which is how the base class can be caught turning a
+    decode failure into a refusal rather than into a 500.
+    """
+
+    __slots__ = ()
+
+    @override
+    def get_request_matcher(self) -> RequestMatcherInterface:
+        return ChainRequestMatcher([])
+
+    @override
+    async def do_parse(self, request: ServerRequestInterface, secret: str) -> RemoteEvent | None:
+        return RemoteEvent("any", "the-id", await self.read_json(request))
 
 
 class _Unseekable(io.BytesIO):
@@ -70,10 +91,30 @@ async def test_it_refuses_a_request_its_matcher_does_not_claim() -> None:
 @pytest.mark.anyio
 async def test_it_refuses_a_body_that_is_not_json() -> None:
     with pytest.raises(RejectWebhookError) as refused:
-        _ = await SecretHeaderRequestParser().parse(_arrived(b"{not json"), _WHSEC)
+        _ = await _AnyBodyRequestParser().parse(_arrived(b"{not json"), _WHSEC)
 
     assert refused.value.status_code == 406
     assert str(refused.value) == "Request body is malformed."
+
+
+@pytest.mark.anyio
+async def test_a_matcher_reading_the_body_turns_a_body_that_is_not_json_away_first() -> None:
+    # The media type announced JSON; what arrived was not, so the matcher
+    # refuses it before the parser is handed anything to decode.
+    with pytest.raises(RejectWebhookError) as refused:
+        _ = await SecretHeaderRequestParser().parse(_arrived(b"{not json"), _WHSEC)
+
+    assert refused.value.status_code == 406
+    assert str(refused.value) == "Request does not match."
+
+
+@pytest.mark.anyio
+async def test_it_claims_a_json_body_that_announces_nothing() -> None:
+    unannounced = ServerRequest("POST", "/webhook", {"X-Secret": _WHSEC}, b'{"hello": "world"}')
+
+    parsed = await SecretHeaderRequestParser().parse(unannounced, _WHSEC)
+
+    assert parsed == RemoteEvent("parsed", "the-id", {"hello": "world"})
 
 
 @pytest.mark.anyio
@@ -97,7 +138,7 @@ async def test_it_refuses_a_body_that_is_not_text() -> None:
 @pytest.mark.anyio
 async def test_the_refusal_keeps_what_gave_it_away_to_itself() -> None:
     with pytest.raises(RejectWebhookError) as refused:
-        _ = await SecretHeaderRequestParser().parse(_arrived(b"{not json"), _WHSEC)
+        _ = await _AnyBodyRequestParser().parse(_arrived(b"{not json"), _WHSEC)
 
     assert isinstance(refused.value.__cause__, Exception)
 

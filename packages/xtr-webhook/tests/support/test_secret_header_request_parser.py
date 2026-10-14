@@ -36,8 +36,9 @@ async def test_it_refuses_a_request_whose_header_says_something_else() -> None:
     assert str(refused.value) == "Invalid secret."
 
 
-def test_its_matcher_claims_a_json_post_and_nothing_else() -> None:
+@pytest.mark.anyio
+async def test_its_matcher_claims_a_json_post_and_nothing_else() -> None:
     matcher = SecretHeaderRequestParser().get_request_matcher()
 
-    assert matcher.matches(_arrived()) is True
-    assert matcher.matches(ServerRequest("GET", "/webhook")) is False
+    assert await matcher.matches(_arrived()) is True
+    assert await matcher.matches(ServerRequest("GET", "/webhook")) is False

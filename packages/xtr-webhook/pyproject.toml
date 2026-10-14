@@ -24,6 +24,8 @@ dependencies = [
     "typing-extensions>=4.4",
     "msgspec>=0.18",
     "xtr-clock>=4.0,<5",
+    # The matchers a parser says which requests are its sender's with.
+    "xtr-http-foundation>=4.0,<5",
     "xtr-http-message-contracts>=4.0,<5",
     "xtr-messenger>=4.0,<5",
     "xtr-remote-event>=4.0,<5",

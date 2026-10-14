@@ -10,15 +10,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-from xtr_remote_event import RemoteEvent
-
-from xtr_webhook.client import (
-    AbstractRequestParser,
+from xtr_http_foundation import (
     ChainRequestMatcher,
     IsJsonRequestMatcher,
     MethodRequestMatcher,
     RequestMatcherInterface,
 )
+from xtr_remote_event import RemoteEvent
+
+from xtr_webhook.client import AbstractRequestParser
 from xtr_webhook.exception import RejectWebhookError
 
 if TYPE_CHECKING:
@@ -31,16 +31,16 @@ __all__ = ["SecretHeaderRequestParser"]
 class SecretHeaderRequestParser(AbstractRequestParser):
     """Accepts a JSON ``POST`` whose ``X-Secret`` header repeats the secret.
 
-    The matcher is a real chain of the two matchers this package ships, so a
-    request the parser was never meant to see — a ``GET``, a form post — is
-    turned away by the base class before :meth:`do_parse` is reached.
+    The matcher is a real chain of two shared matchers, so a request the parser
+    was never meant to see — a ``GET``, a form post — is turned away by the base
+    class before :meth:`do_parse` is reached.
     """
 
     __slots__ = ()
 
     @override
     def get_request_matcher(self) -> RequestMatcherInterface:
-        """Claim only a ``POST`` carrying a JSON body."""
+        """Claim only a ``POST`` whose body reads as JSON."""
         return ChainRequestMatcher([MethodRequestMatcher("POST"), IsJsonRequestMatcher()])
 
     @override

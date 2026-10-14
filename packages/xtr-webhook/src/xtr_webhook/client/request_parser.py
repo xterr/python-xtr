@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_clock import Clock
+from xtr_http_foundation import ChainRequestMatcher, IsJsonRequestMatcher, MethodRequestMatcher
 from xtr_remote_event import RemoteEvent
 
 from xtr_webhook._standard_webhooks_signature import sign
@@ -16,15 +17,11 @@ from xtr_webhook.exception import InvalidArgumentError, RejectWebhookError
 from xtr_webhook.server.signature_format import SignatureFormat
 
 from .abstract_request_parser import AbstractRequestParser
-from .chain_request_matcher import ChainRequestMatcher
-from .is_json_request_matcher import IsJsonRequestMatcher
-from .method_request_matcher import MethodRequestMatcher
 
 if TYPE_CHECKING:
     from xtr_clock import ClockInterface
+    from xtr_http_foundation import RequestMatcherInterface
     from xtr_http_message_contracts import ServerRequestInterface
-
-    from .request_matcher_interface import RequestMatcherInterface
 
 __all__ = ["RequestParser"]
 
@@ -108,7 +105,12 @@ class RequestParser(AbstractRequestParser):
 
     @override
     def get_request_matcher(self) -> RequestMatcherInterface:
-        """Claim only a ``POST`` carrying a JSON body, as the sender's side emits."""
+        """Claim only a ``POST`` whose body reads as JSON, as the sender's side emits.
+
+        The body itself decides, not the ``Content-Type`` header: a sender that
+        announces nothing still sent JSON, and one that announces JSON and sent
+        something else did not.
+        """
         return ChainRequestMatcher([MethodRequestMatcher("POST"), IsJsonRequestMatcher()])
 
     @override

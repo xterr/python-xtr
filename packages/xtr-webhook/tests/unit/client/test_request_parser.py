@@ -85,7 +85,7 @@ async def test_it_refuses_a_json_body_that_is_not_an_object() -> None:
 
 @pytest.mark.anyio
 async def test_a_wrong_signature_is_answered_before_the_body_is_decoded() -> None:
-    body = b"{not json at all"
+    body = b"[1, 2]"
     request = _request(
         body,
         {
@@ -103,7 +103,7 @@ async def test_a_wrong_signature_is_answered_before_the_body_is_decoded() -> Non
 
 @pytest.mark.anyio
 async def test_a_body_that_will_not_decode_is_still_malformed_once_it_is_genuine() -> None:
-    body = b"{not json at all"
+    body = b"[1, 2]"
     request = _request(
         body,
         {
@@ -117,6 +117,43 @@ async def test_a_body_that_will_not_decode_is_still_malformed_once_it_is_genuine
         _ = await _parser().parse(request, _WHSEC)
 
     assert str(refused.value) == "Request body is malformed."
+
+
+@pytest.mark.anyio
+async def test_it_refuses_a_body_that_is_not_json_whatever_the_media_type_says() -> None:
+    body = b"{not json at all"
+    request = _request(
+        body,
+        {
+            "Webhook-Signature": _legacy("event-name", body),
+            "Webhook-Event": "event-name",
+            "Webhook-Id": "event-id",
+        },
+    )
+
+    with pytest.raises(RejectWebhookError) as refused:
+        _ = await _parser().parse(request, _WHSEC)
+
+    assert str(refused.value) == "Request does not match."
+
+
+@pytest.mark.anyio
+async def test_it_claims_a_json_body_that_announces_no_media_type() -> None:
+    body = b'{"foo":"bar"}'
+    request = ServerRequest(
+        "POST",
+        "/",
+        {
+            "Webhook-Signature": _legacy("event-name", body),
+            "Webhook-Event": "event-name",
+            "Webhook-Id": "event-id",
+        },
+        body,
+    )
+
+    parsed = await _parser().parse(request, _WHSEC)
+
+    assert parsed == RemoteEvent("event-name", "event-id", {"foo": "bar"})
 
 
 @pytest.mark.anyio

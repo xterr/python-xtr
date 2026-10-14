@@ -5,16 +5,16 @@ from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from typing_extensions import override
-from xtr_remote_event import RemoteEvent
-
-from tests.support.secret_header_request_parser import SecretHeaderRequestParser
-from xtr_webhook.client import (
-    AbstractRequestParser,
+from xtr_http_foundation import (
     ChainRequestMatcher,
     IsJsonRequestMatcher,
     MethodRequestMatcher,
     RequestMatcherInterface,
 )
+from xtr_remote_event import RemoteEvent
+
+from tests.support.secret_header_request_parser import SecretHeaderRequestParser
+from xtr_webhook.client import AbstractRequestParser
 from xtr_webhook.exception import InvalidArgumentError, RejectWebhookError
 from xtr_webhook.testing import ParserCase, assert_parses, parser_cases
 

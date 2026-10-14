@@ -16,10 +16,9 @@ from .request_parser_interface import RequestParserInterface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from xtr_http_foundation import RequestMatcherInterface
     from xtr_http_message_contracts import ServerRequestInterface
     from xtr_remote_event import RemoteEvent
-
-    from .request_matcher_interface import RequestMatcherInterface
 
 __all__ = ["AbstractRequestParser"]
 
@@ -37,10 +36,13 @@ class AbstractRequestParser(RequestParserInterface, ABC):
     What is left to a subclass is which requests are its sender's
     (:meth:`get_request_matcher`) and how to check and read one
     (:meth:`do_parse`). Everything around those is the same for every sender,
-    and wrong in the same way when each parser writes it again: the shape check
-    has to run before the body is touched, an unreadable body has to come out as
-    a refusal rather than as a 500, and both answers have to be the ones the
-    sender's side is waiting for.
+    and wrong in the same way when each parser writes it again: the matcher has
+    to run before anything is read out of the request, an unreadable body has to
+    come out as a refusal rather than as a 500, and both answers have to be the
+    ones the sender's side is waiting for.
+
+    The matchers a parser says that with come from
+    [xtr-http-foundation](https://pypi.org/project/xtr-http-foundation/):
 
     ```python
     class AcmeRequestParser(AbstractRequestParser):
@@ -78,7 +80,7 @@ class AbstractRequestParser(RequestParserInterface, ABC):
                 claims, when its body will not decode, or when
                 :meth:`do_parse` refuses it.
         """
-        self.validate(request)
+        await self.validate(request)
 
         try:
             return await self.do_parse(request, secret)
@@ -168,8 +170,11 @@ class AbstractRequestParser(RequestParserInterface, ABC):
             RejectWebhookError: On any failure to verify the request.
         """
 
-    def validate(self, request: ServerRequestInterface) -> None:
+    async def validate(self, request: ServerRequestInterface) -> None:
         """Refuse a request this parser's matcher does not claim.
+
+        Awaited because a matcher may be about the body — whether it reads as
+        JSON, above all — which arrives as it is read.
 
         Args:
             request: The request that arrived.
@@ -177,7 +182,7 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         Raises:
             RejectWebhookError: When the matcher does not claim the request.
         """
-        if not self.get_request_matcher().matches(request):
+        if not await self.get_request_matcher().matches(request):
             raise RejectWebhookError(_UNACCEPTABLE, "Request does not match.")
 
     async def read_body(self, request: ServerRequestInterface) -> bytes:
