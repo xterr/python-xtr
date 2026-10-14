@@ -236,6 +236,19 @@ async def test_send_request_takes_the_same_path_as_request() -> None:
         assert response.get_request_options()["headers"] == {"X-Scoped": "yes"}
 
 
+async def test_reset_forwards_to_the_wrapped_client() -> None:
+    inner = _inner()
+    client = ScopingHttpClient.for_base_uri(inner, "http://example.com/foo")
+
+    async with await client.request("GET", "/bar"):
+        pass
+    assert inner.get_requests_count() == 1
+
+    await client.reset()
+
+    assert inner.get_requests_count() == 0
+
+
 async def test_with_options_wraps_a_narrowed_client_and_keeps_the_scopes() -> None:
     client = ScopingHttpClient.for_base_uri(_inner(), "http://example.com/foo")
 

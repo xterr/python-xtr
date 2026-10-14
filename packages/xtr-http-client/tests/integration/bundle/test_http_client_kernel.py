@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import cast
 
 import pytest
-from xtr_dependency_injection import Kernel
+from xtr_dependency_injection import Kernel, ServicesResetter
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_rate_limiter import RateLimiterFactoryInterface
 
@@ -50,6 +50,30 @@ async def test_the_default_client_writes_down_every_request() -> None:
         assert [(trace["method"], trace["url"]) for trace in traced] == [
             ("GET", "https://example.test/orders")
         ]
+
+
+async def test_the_services_resetter_forgets_the_default_clients_traces() -> None:
+    async with await _kernel().boot() as booted:
+        client = await booted.container.get(HttpClientInterface)
+        async with await client.request("GET", "https://example.test/orders"):
+            pass
+
+        await (await booted.container.get(ServicesResetter)).reset()
+
+        assert isinstance(client, TraceableHttpClient)
+        assert client.get_traced_requests() == []
+
+
+async def test_the_services_resetter_forgets_a_scoped_clients_traces() -> None:
+    async with await _kernel().boot() as booted:
+        client = await booted.container.get(HttpClientInterface, "github")
+        async with await client.request("GET", "repos"):
+            pass
+
+        await (await booted.container.get(ServicesResetter)).reset()
+
+        assert isinstance(client, TraceableHttpClient)
+        assert client.get_traced_requests() == []
 
 
 async def test_a_scoped_client_resolves_a_relative_url_against_its_base_uri() -> None:

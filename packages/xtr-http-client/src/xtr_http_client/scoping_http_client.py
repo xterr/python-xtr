@@ -10,6 +10,7 @@ from urllib.parse import urljoin, urlsplit
 from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_message import Uri
+from xtr_service_contracts import ResetInterface
 
 from .exception import InvalidArgumentError
 from .internal.option_merge import as_options
@@ -25,7 +26,7 @@ __all__ = ["ScopingHttpClient"]
 
 
 @final
-class ScopingHttpClient(HttpClientInterface):
+class ScopingHttpClient(HttpClientInterface, ResetInterface):
     r"""Wraps a client and gives each request the options its URL falls under.
 
     One application talks to several services, and each wants its own
@@ -218,6 +219,15 @@ class ScopingHttpClient(HttpClientInterface):
             self._by_regexp,
             self._default_regexp,
         )
+
+    @override
+    async def reset(self) -> None:
+        """Reset the wrapped client, if it holds state between units of work.
+
+        The scopes are configuration, not state, so they are kept.
+        """
+        if isinstance(self._client, ResetInterface):
+            await self._client.reset()
 
     @classmethod
     def _scoped(

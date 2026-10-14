@@ -11,10 +11,11 @@ not need is given as ``None`` rather than asked for.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable, Collection, Sequence
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Protocol
 
 from xtr_dependency_injection import ServiceConfigurator, Target, named_factory
 from xtr_http_client_contracts import HttpClientInterface
+from xtr_service_contracts import ResetInterface
 
 from xtr_http_client.httpx_http_client import HttpxHttpClient
 from xtr_http_client.mock_http_client import MockHttpClient
@@ -38,6 +39,10 @@ if TYPE_CHECKING:
     from .scoped_client_config import ScopedClientConfig
 
 __all__ = ["register_client", "register_transports"]
+
+
+class _ResettableHttpClient(HttpClientInterface, ResetInterface, Protocol):
+    """The client a factory builds: the public interface, plus a reset that drops what it holds."""
 
 
 def register_transports(services: ServiceConfigurator, mocked: Collection[bool]) -> None:
@@ -72,7 +77,7 @@ def register_client(
     annotations: dict[str, object] = {
         "config": HttpClientConfig,
         "transport": MockHttpClient if mocked else HttpxHttpClient,
-        "return": HttpClientInterface,
+        "return": _ResettableHttpClient,
     }
     unused: dict[str, object] = {}
     if options.rate_limiter is None:
@@ -93,6 +98,10 @@ def register_client(
     )
     if unused:
         _ = definition.set_arguments(unused)
+    _ = definition.add_tag("kernel.reset", method="reset")
+    services.alias(
+        HttpClientInterface, _ResettableHttpClient, alias_qualifier=name, target_qualifier=name
+    )
 
 
 async def _httpx_transport(config: HttpClientConfig) -> AsyncIterator[HttpxHttpClient]:
