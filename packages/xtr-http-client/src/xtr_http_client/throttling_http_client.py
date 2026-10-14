@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import Unpack, override
@@ -49,7 +48,7 @@ class ThrottlingHttpClient(HttpClientInterface, ResetInterface):
     not another allowance to make them.
     """
 
-    __slots__ = ("_client", "_forgetting", "_limiter")
+    __slots__ = ("_client", "_limiter")
 
     def __init__(self, client: HttpClientInterface, limiter: LimiterInterface) -> None:
         """Pace what ``client`` sends by ``limiter``.
@@ -63,7 +62,6 @@ class ThrottlingHttpClient(HttpClientInterface, ResetInterface):
         """
         self._client = client
         self._limiter = limiter
-        self._forgetting: set[asyncio.Task[None]] = set()
 
     @override
     async def request(
@@ -131,37 +129,15 @@ class ThrottlingHttpClient(HttpClientInterface, ResetInterface):
         return type(self)(self._client.with_options(**options), self._limiter)
 
     @override
-    def reset(self) -> None:
-        """Forget every request counted against the rate, and reset the wrapped client.
-
-        Resetting a limiter is asynchronous — its count may live in a cache
-        or on a server — while this method is not, because what calls it is a
-        container between units of work. So the limiter is reset on the event
-        loop already running, as a task this client holds until it is done;
-        with no loop to put it on, it is run to completion here instead.
-        """
-        self._forget()
+    async def reset(self) -> None:
+        """Forget every request counted against the rate, and reset the wrapped client."""
+        await self._limiter.reset()
 
         if isinstance(self._client, ResetInterface):
-            self._client.reset()
+            await self._client.reset()
 
     async def _due(self) -> None:
         """Book a token and wait for the moment it may be spent."""
         reservation = await self._limiter.reserve()
 
         await reservation.wait()
-
-    def _forget(self) -> None:
-        """Reset the limiter, wherever there is to run that from."""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            asyncio.run(self._limiter.reset())
-
-            return
-
-        # Held until it is done, since a task nothing refers to is one the
-        # loop may collect before it has run.
-        forgetting = loop.create_task(self._limiter.reset())
-        self._forgetting.add(forgetting)
-        forgetting.add_done_callback(self._forgetting.discard)

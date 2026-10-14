@@ -305,7 +305,7 @@ async def test_the_count_of_requests_is_what_resetting_the_client_forgets() -> N
         pass
     assert client.get_requests_count() == 1
 
-    client.reset()
+    await client.reset()
 
     assert client.get_requests_count() == 0
     assert isinstance(client, ResetInterface)

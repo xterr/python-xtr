@@ -532,7 +532,7 @@ async def test_resetting_reaches_a_wrapped_client_that_can_be_reset() -> None:
 
     async with await client.request("GET", _URL):
         pass
-    client.reset()
+    await client.reset()
 
     assert inner.get_requests_count() == 0
 
@@ -542,7 +542,7 @@ async def test_resetting_leaves_a_wrapped_client_that_cannot_be_reset_able_to_an
 
     async with await client.request("GET", _URL):
         pass
-    client.reset()
+    await client.reset()
 
     async with await client.request("GET", _URL) as response:
         assert response.get_status_code() == 201

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, final
 
 import pytest
@@ -164,16 +163,7 @@ async def test_a_narrowed_client_is_paced_by_the_same_limiter() -> None:
 async def test_resetting_forgets_what_the_limiter_counted() -> None:
     client, limiter = _throttled()
 
-    client.reset()
-    await asyncio.sleep(0)
-
-    assert limiter.resets == 1
-
-
-def test_resetting_with_no_loop_to_run_on_resets_the_limiter_there_and_then() -> None:
-    client, limiter = _throttled()
-
-    client.reset()
+    await client.reset()
 
     assert limiter.resets == 1
 
@@ -184,8 +174,7 @@ async def test_resetting_reaches_a_wrapped_client_that_can_be_reset() -> None:
 
     async with await client.request("GET", _URL):
         pass
-    client.reset()
-    await asyncio.sleep(0)
+    await client.reset()
 
     assert inner.get_requests_count() == 0
     assert limiter.resets == 1
@@ -196,7 +185,6 @@ async def test_resetting_leaves_a_wrapped_client_that_cannot_be_reset_alone() ->
 
     async with await client.request("GET", _URL):
         pass
-    client.reset()
-    await asyncio.sleep(0)
+    await client.reset()
 
     assert limiter.resets == 1

@@ -122,7 +122,7 @@ class MockHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
         return self._requests_count
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Forget how many requests were made, leaving the answers as they are."""
         self._requests_count = 0
 

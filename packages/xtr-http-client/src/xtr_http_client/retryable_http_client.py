@@ -224,7 +224,7 @@ class RetryableHttpClient(HttpClientInterface, ResetInterface):
         return narrowed
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Reset the wrapped client.
 
         Nothing here outlives a request — how many attempts are allowed and
@@ -232,7 +232,7 @@ class RetryableHttpClient(HttpClientInterface, ResetInterface):
         behind to pass this on to.
         """
         if isinstance(self._client, ResetInterface):
-            self._client.reset()
+            await self._client.reset()
 
     async def _attempted(
         self,

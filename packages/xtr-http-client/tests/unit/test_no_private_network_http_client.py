@@ -396,7 +396,7 @@ async def test_reset_forgets_what_every_host_resolved_to() -> None:
 
     async with await client.request("GET", "http://receiver.test/a"):
         pass
-    client.reset()
+    await client.reset()
     async with await client.request("GET", "http://receiver.test/b"):
         pass
 
@@ -409,7 +409,7 @@ async def test_reset_resets_the_wrapped_client_too() -> None:
 
     async with await client.request("GET", "http://104.26.14.6/"):
         pass
-    client.reset()
+    await client.reset()
 
     assert inner.get_requests_count() == 0
 

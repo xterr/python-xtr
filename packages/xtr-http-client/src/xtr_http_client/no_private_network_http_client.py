@@ -183,12 +183,12 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
         return narrowed
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Forget what every host resolved to, and reset the wrapped client."""
         self._dns_cache.clear()
 
         if isinstance(self._client, ResetInterface):
-            self._client.reset()
+            await self._client.reset()
 
     async def _sent(
         self,
