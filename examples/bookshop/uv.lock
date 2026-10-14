@@ -2725,6 +2725,7 @@ version = "4.0.0"
 source = { editable = "../../packages/xtr-security" }
 dependencies = [
     { name = "typing-extensions" },
+    { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-http-kernel" },
@@ -2741,6 +2742,7 @@ console = [
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
@@ -2772,6 +2774,7 @@ version = "4.0.0"
 source = { editable = "../../packages/xtr-security-core" }
 dependencies = [
     { name = "typing-extensions" },
+    { name = "xtr-clock" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-password-hasher" },
     { name = "xtr-service-contracts" },
@@ -2780,6 +2783,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-password-hasher", editable = "../../packages/xtr-password-hasher" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
