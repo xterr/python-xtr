@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 from typing import TYPE_CHECKING, cast
 
 from xtr_http_client.exception import InvalidArgumentError
@@ -88,11 +89,11 @@ def validate_options(
         if name in default_options:
             continue
 
-        alternatives = [
-            known
-            for known in default_options
-            if _levenshtein(name, known) <= len(name) / 3 or name in known
-        ]
+        close = difflib.get_close_matches(
+            name, list(default_options), n=len(default_options), cutoff=0.6
+        )
+        containing = [known for known in default_options if name in known]
+        alternatives = list(dict.fromkeys([*close, *containing]))
         did_you_mean = '", "'.join(alternatives or list(default_options))
         raise InvalidArgumentError(
             f'Unsupported option "{name}" passed to "{client_name}", did you mean "{did_you_mean}"?'
@@ -105,16 +106,3 @@ def _filled(given: object, defaults: object) -> dict[str, object]:
         _ = filled.setdefault(name, value)
 
     return filled
-
-
-def _levenshtein(name: str, known: str) -> int:
-    """How many single-character edits apart two option names are."""
-    previous = list(range(len(known) + 1))
-    for row, character in enumerate(name, start=1):
-        current = [row]
-        for column, other in enumerate(known, start=1):
-            substitution = previous[column - 1] + (character != other)
-            current.append(min(previous[column] + 1, current[column - 1] + 1, substitution))
-        previous = current
-
-    return previous[-1]
