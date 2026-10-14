@@ -171,14 +171,14 @@ class LoggerFactory(ResetInterface):
                 built.set_stream(stream, colors=colors)
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """End a unit of work: reset every handler and processor that holds state."""
         for built in self._owned_handlers():
             if isinstance(built, ResetInterface):
-                built.reset()
+                await built.reset()
         for entry in self._placed:
             if entry.handler is None and isinstance(entry.processor, ResetInterface):
-                entry.processor.reset()
+                await entry.processor.reset()
 
     @property
     def capture(self) -> StdlibCapture | None:

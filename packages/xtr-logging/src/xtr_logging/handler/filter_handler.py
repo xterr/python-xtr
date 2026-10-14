@@ -112,10 +112,10 @@ class FilterHandler(ProcessorStack, LazyHandler, HandlerInterface, ResetInterfac
             self._resolve_handler(accepted[-1]).handle_batch(accepted)
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Reset this handler's processors and the wrapped handler."""
-        self._reset_processors()
-        self._reset_handler()
+        await self._reset_processors()
+        await self._reset_handler()
 
     @override
     def close(self) -> None:

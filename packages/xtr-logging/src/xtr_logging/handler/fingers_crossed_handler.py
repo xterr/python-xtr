@@ -153,11 +153,11 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
         self._close_handler()
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Flush the passthru floor, reset processors, and reset the wrapped handler."""
         self._flush_state(self._state())
-        self._reset_processors()
-        self._reset_handler()
+        await self._reset_processors()
+        await self._reset_handler()
 
     def clear(self) -> None:
         """Drop the buffer without forwarding it, and start buffering afresh."""

@@ -89,10 +89,10 @@ class SamplingHandler(AbstractHandler, ProcessorStack, LazyHandler):
         return not self._bubble
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Reset this handler's processors and the wrapped handler."""
-        self._reset_processors()
-        self._reset_handler()
+        await self._reset_processors()
+        await self._reset_handler()
 
     @override
     def close(self) -> None:

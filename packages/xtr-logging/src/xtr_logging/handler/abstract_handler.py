@@ -77,5 +77,5 @@ class AbstractHandler(HandlerInterface, ResetInterface, ABC):
         """Release nothing; handlers holding resources override this."""
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Forget nothing; handlers holding per-unit-of-work state override this."""

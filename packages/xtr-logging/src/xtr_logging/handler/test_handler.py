@@ -60,9 +60,9 @@ class TestHandler(AbstractProcessingHandler):
         self._formatted.clear()
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Forget every record and reset the handler's processors."""
-        super().reset()
+        await super().reset()
         self.clear()
 
     def has_records(self, level: LevelLike) -> bool:

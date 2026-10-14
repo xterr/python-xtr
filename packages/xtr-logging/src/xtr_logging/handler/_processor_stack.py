@@ -56,8 +56,8 @@ class ProcessorStack(ProcessableHandlerInterface):
             record = processor(record)
         return record
 
-    def _reset_processors(self) -> None:
+    async def _reset_processors(self) -> None:
         """Reset every processor of this handler that holds state."""
         for processor in self._processors:
             if isinstance(processor, ResetInterface):
-                processor.reset()
+                await processor.reset()

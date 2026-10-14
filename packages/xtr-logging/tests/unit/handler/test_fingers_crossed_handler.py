@@ -50,7 +50,7 @@ class Spy(AbstractHandler):
         self.closed += 1
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self.resets += 1
 
 
@@ -158,21 +158,23 @@ def test_the_passthru_floor_is_flushed_on_close() -> None:
     assert [record.message for record in spy.handled] == ["warning"]
 
 
-def test_reset_resets_the_wrapped_handler() -> None:
+@pytest.mark.anyio
+async def test_reset_resets_the_wrapped_handler() -> None:
     spy = Spy()
     handler = FingersCrossedHandler(spy)
     _ = handler.handle(make_record(Level.WARNING, "warning"))
 
-    handler.reset()
+    await handler.reset()
 
     assert spy.resets == 1
 
 
-def test_reset_starts_buffering_again() -> None:
+@pytest.mark.anyio
+async def test_reset_starts_buffering_again() -> None:
     spy = Spy()
     handler = FingersCrossedHandler(spy)
     _ = handler.handle(make_record(Level.WARNING, "warning"))
-    handler.reset()
+    await handler.reset()
     spy.handled.clear()
 
     _ = handler.handle(make_record(Level.INFO, "after reset"))
@@ -260,12 +262,13 @@ def test_a_handler_factory_is_resolved_lazily() -> None:
     assert [record.message for record in spy.handled] == ["info", "warning", "after"]
 
 
-def test_closing_or_resetting_a_quiet_handler_never_builds_the_wrapped_one() -> None:
+@pytest.mark.anyio
+async def test_closing_or_resetting_a_quiet_handler_never_builds_the_wrapped_one() -> None:
     factory = CountingFactory(TestHandler())
     handler = FingersCrossedHandler(factory, Level.ERROR)
     _ = handler.handle(make_record(Level.INFO))
 
-    handler.reset()
+    await handler.reset()
     handler.close()
 
     assert factory.calls == 0

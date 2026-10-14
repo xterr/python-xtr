@@ -48,7 +48,7 @@ class LazyHandler:
         if self._wrapped is not None:
             self._wrapped.close()
 
-    def _reset_handler(self) -> None:
+    async def _reset_handler(self) -> None:
         """Reset the wrapped handler, if it was ever built and holds state."""
         if isinstance(self._wrapped, ResetInterface):
-            self._wrapped.reset()
+            await self._wrapped.reset()

@@ -36,7 +36,7 @@ class Spy(AbstractHandler):
         self.closed += 1
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self.resets += 1
 
 
@@ -84,11 +84,12 @@ def test_close_closes_every_member() -> None:
     assert (first.closed, second.closed) == (1, 1)
 
 
-def test_reset_resets_every_member() -> None:
+@pytest.mark.anyio
+async def test_reset_resets_every_member() -> None:
     first, second = Spy(), Spy()
     group = GroupHandler([first, second])
 
-    group.reset()
+    await group.reset()
 
     assert (first.resets, second.resets) == (1, 1)
 

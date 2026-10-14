@@ -214,12 +214,13 @@ def test_records_left_by_a_worker_that_died_are_still_handled_on_close() -> None
     assert fatal.handled[1:] == ["two", "three"]
 
 
-def test_a_reset_handles_what_is_queued_then_resets_the_wrapped_handler() -> None:
+@pytest.mark.anyio
+async def test_a_reset_handles_what_is_queued_then_resets_the_wrapped_handler() -> None:
     inner = TestHandler()
     handler = QueueHandler(inner)
     _ = handler.handle(make_record(message="queued"))
 
-    handler.reset()
+    await handler.reset()
 
     assert [record.message for record in inner.records] == []
     handler.close()

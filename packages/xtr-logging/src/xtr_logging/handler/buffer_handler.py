@@ -139,10 +139,10 @@ class BufferHandler(AbstractHandler, ProcessorStack):
         self._handler.close()
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Flush the buffer and reset this handler's processors and the wrapped one."""
         self.flush()
-        super().reset()
-        self._reset_processors()
+        await super().reset()
+        await self._reset_processors()
         if isinstance(self._handler, ResetInterface):
-            self._handler.reset()
+            await self._handler.reset()

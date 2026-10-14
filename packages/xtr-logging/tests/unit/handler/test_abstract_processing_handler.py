@@ -24,7 +24,7 @@ class UidProcessor:
     def __call__(self, record: LogRecord, /) -> LogRecord:
         return record.with_extra({"uid": "abc"})
 
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self.resets += 1
 
 
@@ -73,12 +73,13 @@ def test_handle_batch_writes_each_record() -> None:
     assert [r.message for r in handler.records] == ["a", "b"]
 
 
-def test_reset_reaches_processors_implementing_reset_interface() -> None:
+@pytest.mark.anyio
+async def test_reset_reaches_processors_implementing_reset_interface() -> None:
     processor = UidProcessor()
     handler = TestHandler()
     handler.push_processor(processor)
 
-    handler.reset()
+    await handler.reset()
 
     assert processor.resets == 1
 

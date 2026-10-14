@@ -289,12 +289,13 @@ def test_set_console_stream_reaches_console_handlers() -> None:
     assert "boom" in stream.getvalue()
 
 
-def test_reset_ends_a_unit_of_work() -> None:
+@pytest.mark.anyio
+async def test_reset_ends_a_unit_of_work() -> None:
     main = TestHandler()
     factory = _factory(LoggingConfig(handlers={"main": ServiceHandlerConfig(id="main")}), main=main)
     factory.logger().info("x")
 
-    factory.reset()
+    await factory.reset()
 
     assert main.records == ()
 

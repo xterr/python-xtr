@@ -61,7 +61,7 @@ class LifecycleHandler(AbstractHandler):
         self.closed += 1
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self.resets += 1
 
 
@@ -284,12 +284,13 @@ def test_is_handling_asks_the_handlers() -> None:
     assert not logger.is_handling(Level.INFO)
 
 
-def test_close_and_reset_reach_every_handler() -> None:
+@pytest.mark.anyio
+async def test_close_and_reset_reach_every_handler() -> None:
     handlers: Sequence[LifecycleHandler] = [LifecycleHandler(), LifecycleHandler()]
     logger = Logger("app", handlers)
 
     logger.close()
-    logger.reset()
+    await logger.reset()
 
     assert [(h.closed, h.resets) for h in handlers] == [(1, 1), (1, 1)]
 

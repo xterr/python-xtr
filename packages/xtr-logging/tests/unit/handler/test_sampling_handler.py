@@ -98,7 +98,8 @@ def test_a_sampled_record_still_bubbles() -> None:
     assert not handler.handle(make_record())
 
 
-def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler() -> None:
+@pytest.mark.anyio
+async def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler() -> None:
     calls: list[LogRecord | None] = []
 
     def factory(record: LogRecord | None, owner: SamplingHandler, /) -> HandlerInterface:
@@ -108,7 +109,7 @@ def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler
 
     handler = SamplingHandler(factory, 1)
 
-    handler.reset()
+    await handler.reset()
     handler.close()
 
     assert calls == []

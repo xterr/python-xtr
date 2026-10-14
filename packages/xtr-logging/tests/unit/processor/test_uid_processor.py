@@ -4,6 +4,7 @@ import contextlib
 from typing import TYPE_CHECKING
 
 import anyio
+import anyio.from_thread
 import anyio.lowlevel
 import anyio.to_thread
 import pytest
@@ -47,11 +48,12 @@ def test_the_same_uid_rides_every_record_until_reset() -> None:
     assert first.extra["uid"] == second.extra["uid"]
 
 
-def test_reset_mints_a_new_uid() -> None:
+@pytest.mark.anyio
+async def test_reset_mints_a_new_uid() -> None:
     processor = UidProcessor()
     before = processor.uid
 
-    processor.reset()
+    await processor.reset()
 
     assert processor.uid != before
 
@@ -88,13 +90,14 @@ def test_the_instance_uid_returns_outside_the_unit() -> None:
     assert processor.uid == instance_uid
 
 
-def test_reset_inside_a_unit_mints_a_new_uid_for_that_unit_only() -> None:
+@pytest.mark.anyio
+async def test_reset_inside_a_unit_mints_a_new_uid_for_that_unit_only() -> None:
     processor = UidProcessor()
     instance_uid = processor.uid
     begin_unit()
     before = processor.uid
 
-    processor.reset()
+    await processor.reset()
 
     assert processor.uid != before
     end_unit()
@@ -135,7 +138,8 @@ async def test_a_sync_call_in_a_thread_shares_the_unit_uid() -> None:
 
     def read_and_reset() -> str:
         seen = processor.uid
-        processor.reset()
+        # Awaited from this thread, so the reset lands on the unit it shares.
+        anyio.from_thread.run(processor.reset)
         return seen
 
     seen_in_thread = await anyio.to_thread.run_sync(read_and_reset)

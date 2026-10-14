@@ -193,7 +193,7 @@ logger = Logger("app", [FingersCrossedHandler(StreamHandler("var/log/app.log"), 
 ```
 
 `ChannelLevelActivationStrategy` sets a different trigger per channel, `buffer_size` caps the
-buffer, and `passthru_level` keeps records at that level even when nothing triggered. Call
+buffer, and `passthru_level` keeps records at that level even when nothing triggered. Await
 `reset()` between the requests or messages of a long-running process so one unit of work does not
 bleed into the next.
 
@@ -345,7 +345,7 @@ crosses the network unencrypted, so keep it on a trusted segment or a local sock
 `/dev/log`.
 
 The factory builds every handler once, as it is made, and shares each between channels. Files
-open on first write. `reset()` ends a unit of work. `close()` writes whatever is buffered or
+open on first write. `await reset()` ends a unit of work. `close()` writes whatever is buffered or
 queued; use the factory as a context manager, or close it on shutdown. `set_verbosity()` sets
 every console handler at once, from command-line flags:
 
@@ -453,9 +453,10 @@ variable itself.
 
 `QueueHandler` writes on a background thread, and carries each record's logged context across
 with it, so a record buffered under one unit is formatted and written as though still inside it,
-whichever thread does the writing. `reset()` on a `LoggerFactory`, a `FingersCrossedHandler` or
-a `DeduplicationHandler` ends the current unit's accumulation, so one unit does not bleed into
-the next; the kernel calls it between messages through `ServicesResetter`.
+whichever thread does the writing. Awaiting `reset()` on a `LoggerFactory`, a
+`FingersCrossedHandler` or a `DeduplicationHandler` ends the current unit's accumulation, so one
+unit does not bleed into the next; the kernel awaits it between messages through
+`ServicesResetter`.
 
 ## Use in an application
 

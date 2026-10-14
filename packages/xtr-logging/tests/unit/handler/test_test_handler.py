@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+import pytest
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
@@ -62,10 +63,11 @@ def test_has_record_that_passes_applies_a_predicate() -> None:
     assert handler.has_record_that_passes(lambda r: r.context.get("n") == 3, Level.DEBUG)
 
 
-def test_clear_and_reset_forget_everything() -> None:
+@pytest.mark.anyio
+async def test_clear_and_reset_forget_everything() -> None:
     handler = _handler_with(make_record())
 
-    handler.reset()
+    await handler.reset()
 
     assert handler.records == ()
     assert handler.formatted == ()

@@ -69,7 +69,7 @@ class UidProcessor(ProcessorInterface, ResetInterface):
         return record.with_extra({"uid": self.uid})
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Mint a fresh id for the next unit of work.
 
         Inside a unit the id is replaced on the unit's holder in place, so the

@@ -54,7 +54,7 @@ class Spy(AbstractHandler):
         self.closed += 1
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self.resets += 1
 
 
@@ -138,12 +138,13 @@ def test_clear_discards_the_buffer_without_forwarding() -> None:
     assert spy.handled == []
 
 
-def test_reset_flushes_and_resets_the_wrapped_handler() -> None:
+@pytest.mark.anyio
+async def test_reset_flushes_and_resets_the_wrapped_handler() -> None:
     spy = Spy()
     buffer = BufferHandler(spy)
     _ = buffer.handle(make_record(message="a"))
 
-    buffer.reset()
+    await buffer.reset()
 
     assert [record.message for record in spy.handled] == ["a"]
     assert spy.resets == 1

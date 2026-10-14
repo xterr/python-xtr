@@ -153,7 +153,7 @@ class QueueHandler(HandlerInterface, ResetInterface):
                 _ = done.wait(_WORKER_CHECK_INTERVAL)
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Handle every record queued so far, then reset the wrapped handler.
 
         What the wrapped handler buffered for one unit of work — a
@@ -161,7 +161,7 @@ class QueueHandler(HandlerInterface, ResetInterface):
         """
         self.flush()
         if isinstance(self._handler, ResetInterface):
-            self._handler.reset()
+            await self._handler.reset()
 
     @override
     def close(self) -> None:

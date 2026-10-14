@@ -96,8 +96,8 @@ handler raises `UnknownHandlerError`; wrappers in a loop raise `CircularHandlerR
 - Builds every handler once and shares each between channels. Files open on first write.
 - `factory.logger(channel=None)`, `factory.channels`, `factory.handler(name)`,
   `factory.capture`.
-- `reset()` ends a unit of work. `close()` writes whatever is buffered or queued and releases the
-  capture — use the factory as a context manager, or close it on shutdown.
+- `await reset()` ends a unit of work. `close()` writes whatever is buffered or queued and
+  releases the capture — use the factory as a context manager, or close it on shutdown.
 - `set_verbosity(Verbosity.from_count(args.verbose, quiet=args.quiet, silent=args.silent))` sets
   every console handler at once: `--silent` prints nothing, `-q` errors and up, no flag warnings
   and up, `-v` notices, `-vv` info, `-vvv` everything.

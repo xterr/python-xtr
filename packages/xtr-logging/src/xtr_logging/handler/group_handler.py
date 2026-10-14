@@ -57,12 +57,12 @@ class GroupHandler(ProcessorStack, HandlerInterface, ResetInterface):
             handler.handle_batch(processed)
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Reset this handler's processors and every member that holds state."""
-        self._reset_processors()
+        await self._reset_processors()
         for handler in self._handlers:
             if isinstance(handler, ResetInterface):
-                handler.reset()
+                await handler.reset()
 
     @override
     def close(self) -> None:

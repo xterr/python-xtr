@@ -30,7 +30,7 @@ class Spy(AbstractHandler):
         return False
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self.resets += 1
 
 
@@ -130,11 +130,12 @@ def test_its_processors_run_before_forwarding() -> None:
     assert member.records[0].extra["stamped"] is True
 
 
-def test_reset_resets_the_wrapped_handler() -> None:
+@pytest.mark.anyio
+async def test_reset_resets_the_wrapped_handler() -> None:
     spy = Spy()
     handler = FilterHandler(spy)
 
-    handler.reset()
+    await handler.reset()
 
     assert spy.resets == 1
 
@@ -159,11 +160,12 @@ def test_popping_with_no_processors_is_refused() -> None:
         _ = FilterHandler(TestHandler()).pop_processor()
 
 
-def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler() -> None:
+@pytest.mark.anyio
+async def test_closing_or_resetting_before_any_record_never_builds_the_wrapped_handler() -> None:
     factory = CountingFactory(TestHandler())
     handler = FilterHandler(factory)
 
-    handler.reset()
+    await handler.reset()
     handler.close()
 
     assert factory.calls == 0

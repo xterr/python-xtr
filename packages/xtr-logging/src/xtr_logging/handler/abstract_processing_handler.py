@@ -63,10 +63,10 @@ class AbstractProcessingHandler(
         return not self.bubble
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Reset every processor of this handler that holds state."""
-        super().reset()
-        self._reset_processors()
+        await super().reset()
+        await self._reset_processors()
 
     def default_formatter(self) -> FormatterInterface:
         """The formatter used until another is set: one line of text per record."""

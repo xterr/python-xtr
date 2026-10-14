@@ -50,13 +50,14 @@ def _factory(tmp_path: Path) -> LoggerFactory:
     )
 
 
-def test_a_quiet_request_leaves_no_trace_and_a_failed_one_leaves_its_whole_story(
+@pytest.mark.anyio
+async def test_a_quiet_request_leaves_no_trace_and_a_failed_one_leaves_its_whole_story(
     tmp_path: Path,
 ) -> None:
     with _factory(tmp_path) as factory:
         logger = factory.logger()
         logger.info("request {id} started", {"id": 1})
-        factory.reset()
+        await factory.reset()
         with bound_context({"request": 2}):
             logger.info("request {id} started", {"id": 2})
             logger.error("payment failed")

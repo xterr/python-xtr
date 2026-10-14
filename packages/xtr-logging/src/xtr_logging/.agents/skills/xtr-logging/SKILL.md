@@ -110,7 +110,7 @@ enough, so a failed request leaves its whole story and a healthy one leaves noth
 logger = Logger("app", [FingersCrossedHandler(StreamHandler("var/log/app.log"), Level.ERROR)])
 ```
 
-Call `reset()` between the requests or messages of a long-running process, or open each one with
+Await `reset()` between the requests or messages of a long-running process, or open each one with
 `begin_unit()` / `end_unit()`.
 
 ## Processors

@@ -234,7 +234,7 @@ class Logger(AbstractLogger, ResetInterface):
             handler.close()
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """End a unit of work: reset every handler and processor that holds state.
 
         Call it between the messages or requests of a long-running process, so
@@ -243,10 +243,10 @@ class Logger(AbstractLogger, ResetInterface):
         """
         for handler in self._handlers:
             if isinstance(handler, ResetInterface):
-                handler.reset()
+                await handler.reset()
         for processor in self._processors:
             if isinstance(processor, ResetInterface):
-                processor.reset()
+                await processor.reset()
 
     def _dispatch(self, record: LogRecord) -> bool:
         processed: LogRecord | None = None
