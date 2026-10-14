@@ -72,7 +72,7 @@ class CachingBookCatalog(BookCatalogInterface, ResetInterface):
         self._inner.add(book)
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         self._lookups.clear()
         self._hits = 0
 
