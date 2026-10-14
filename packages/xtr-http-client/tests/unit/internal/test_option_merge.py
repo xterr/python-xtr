@@ -61,17 +61,6 @@ def test_an_option_a_longer_one_contains_is_named_as_an_alternative() -> None:
     )
 
 
-def test_an_unknown_option_is_let_through_when_extra_options_are_allowed() -> None:
-    merged = merge_default_options(
-        _CLIENT,
-        {"nonsense": 1},
-        {"timeout": 2.0},
-        allow_extra_options=True,
-    )
-
-    assert merged["nonsense"] == 1
-
-
 def test_nothing_is_refused_when_there_are_no_defaults_to_compare_with() -> None:
     merged = merge_default_options(_CLIENT, {"nonsense": 1}, {})
 

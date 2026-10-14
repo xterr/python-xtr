@@ -29,8 +29,6 @@ def merge_default_options(
     client_name: str,
     options: Mapping[str, object],
     default_options: Mapping[str, object],
-    *,
-    allow_extra_options: bool = False,
 ) -> dict[str, object]:
     """Merge what a request asked for over what its client always asks for.
 
@@ -46,9 +44,6 @@ def merge_default_options(
         options: What the request asked for.
         default_options: What the client always asks for, and the list of what
             it understands at all.
-        allow_extra_options: Accept names the client does not know, for a
-            decorator that passes options on to a client it does not know the
-            shape of.
 
     Returns:
         Every option, the request's over the client's.
@@ -65,7 +60,7 @@ def merge_default_options(
     if default_options.get("resolve"):
         merged["resolve"] = _filled(merged.get("resolve"), default_options["resolve"])
 
-    if not allow_extra_options and default_options:
+    if default_options:
         validate_options(client_name, merged, default_options)
 
     return merged

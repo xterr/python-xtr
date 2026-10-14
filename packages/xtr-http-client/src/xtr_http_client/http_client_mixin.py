@@ -86,8 +86,6 @@ class HttpClientMixin:
         cls,
         options: Mapping[str, object],
         default_options: Mapping[str, object],
-        *,
-        allow_extra_options: bool = False,
     ) -> dict[str, object]:
         """Merge what a request asked for over what the client always asks for.
 
@@ -97,7 +95,6 @@ class HttpClientMixin:
             cls.__qualname__,
             options,
             default_options,
-            allow_extra_options=allow_extra_options,
         )
 
     def validate_options(self, options: Mapping[str, object]) -> None:
