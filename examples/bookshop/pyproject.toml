@@ -1,6 +1,6 @@
 [project]
 name = "bookshop"
-version = "4.0.1"
+version = "4.0.2"
 description = "A complete example application built on every xtr package: kernel, bundles, console, web, messenger, scheduler, database."
 readme = "README.md"
 requires-python = ">=3.11"

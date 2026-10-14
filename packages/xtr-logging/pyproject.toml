@@ -1,6 +1,6 @@
 [project]
 name = "xtr-logging"
-version = "4.0.1"
+version = "4.0.2"
 description = "Channels, handlers, processors and formatters for Python, behind one logger interface."
 readme = "README.md"
 authors = [
