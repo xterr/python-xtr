@@ -71,6 +71,6 @@ class TokenStorage(TokenStorageInterface, ResetInterface):
         self._initializer = initializer
 
     @override
-    def reset(self) -> None:
+    async def reset(self) -> None:
         """Forget the current token, so the next unit of work starts clean."""
         self.set_token(None)

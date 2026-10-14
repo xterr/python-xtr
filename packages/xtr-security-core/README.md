@@ -194,7 +194,7 @@ no user, no roles, no attributes — and refuses a user, an attribute or a proof
 token's class hierarchy, not structurally.
 
 **`TokenStorage`** holds the current token for one unit of work — `get_token()` /
-`set_token(token)` — and `reset()` forgets it so the next one starts clean.
+`set_token(token)` — and `await reset()` forgets it so the next one starts clean.
 `set_initializer(callable)` defers producing the token: the callable runs once, the first time
 the token is read or just before one is stored.
 

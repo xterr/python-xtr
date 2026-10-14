@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import weakref
 
+import pytest
 from xtr_service_contracts import ResetInterface
 
 from xtr_security_core.authentication.token import NullToken
@@ -30,11 +31,12 @@ def test_holds_and_clears_a_token() -> None:
     assert storage.get_token() is None
 
 
-def test_reset_forgets_the_token() -> None:
+@pytest.mark.anyio
+async def test_reset_forgets_the_token() -> None:
     storage = TokenStorage()
     storage.set_token(NullToken())
 
-    storage.reset()
+    await storage.reset()
 
     assert storage.get_token() is None
 
@@ -98,12 +100,13 @@ def test_a_cleared_initializer_never_runs() -> None:
     assert calls == []
 
 
-def test_reset_drops_the_pending_initializer() -> None:
+@pytest.mark.anyio
+async def test_reset_drops_the_pending_initializer() -> None:
     storage = TokenStorage()
     calls: list[None] = []
     storage.set_initializer(lambda: calls.append(None))
 
-    storage.reset()
+    await storage.reset()
 
     assert storage.get_token() is None
     assert calls == []
