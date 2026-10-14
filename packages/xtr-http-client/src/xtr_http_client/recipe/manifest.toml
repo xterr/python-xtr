@@ -1,0 +1,23 @@
+# The recipe for xtr-http-client: what *Use in an application* in the README
+# takes, as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_http_client.bundle:HttpClientBundle" = { all = true }
+
+# No [files]: configuring is optional. With none there is one client sending
+# requests as they are given; an application naming the services it calls
+# writes config/http_client.py itself, which is what [notes] asks for.
+
+# No [env]: nothing is required. A credential an application gives as env(...)
+# is read when the client needing it is built.
+
+[gitignore]
+# Nothing: the bundle writes no file.
+lines = []
+
+[notes]
+steps = [
+  "Name the services the application calls in config/http_client.py — a scoped client per base URI, with its headers and credentials — when one client with no defaults is not enough.",
+]
+check = ["<script> debug:bundles — http_client is listed and active"]

@@ -34,6 +34,110 @@ uv add "xtr-http-client[throttling]"    # + the limiter the throttling client pa
 
 Requires Python 3.11+.
 
+## Use in an application
+
+Everything adding this package to an application on
+[xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
+removing it undoes.
+
+- **Install** — `uv add "xtr-http-client[di]"`; add `throttling` to pace a client with an
+  [xtr-rate-limiter](../xtr-rate-limiter) limiter, `http2` to ask for HTTP/2.
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
+  `HttpClientBundle`. There is no config file, environment or ignore line to write; it prints the
+  step to name the services the application calls in `config/http_client.py`, which a recipe
+  cannot make for you (see [xtr-recipes](../xtr-recipes)).
+- **Activate** — `HttpClientBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`,
+  imported from `xtr_http_client.bundle`.
+- **Brings along** — the rate limiter bundle when xtr-rate-limiter is installed.
+- **Configure** — optional: with no configuration there is one client, an
+  `HttpClientInterface` sending requests as they are given. Default options, a client per
+  service, retries, a pace and a mock for tests go in `<app>/config/http_client.py`, a
+  `@configure` function returning `HttpClientConfig` — see [Kernel / bundle](#kernel--bundle).
+- **Environment** — nothing. A credential given as `env(...)` is read when the client needing
+  it is built.
+- **Ignore** — nothing.
+- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/http_client.py`, then
+  `uv remove xtr-http-client`.
+- **Check** — `debug:bundles` shows `http_client` as `listed` and `active`.
+
+## Kernel / bundle
+
+```python
+# app/bundles.py
+from xtr_http_client.bundle import HttpClientBundle
+
+BUNDLES = {HttpClientBundle: {"all": True}}
+```
+
+```python
+# app/config/http_client.py
+from xtr_dependency_injection import configure, env
+
+from xtr_http_client.bundle import (
+    ClientOptionsConfig,
+    HttpClientConfig,
+    RetryFailedConfig,
+    ScopedClientConfig,
+)
+
+
+@configure
+def http_client() -> HttpClientConfig:
+    return HttpClientConfig(
+        default_options=ClientOptionsConfig(
+            timeout=10, retry_failed=RetryFailedConfig(enabled=True)
+        ),
+        scoped_clients={
+            "github": ScopedClientConfig(
+                base_uri="https://api.github.com/",
+                headers={"Accept": "application/vnd.github+json"},
+                auth_bearer=env("GITHUB_TOKEN"),
+            ),
+        },
+    )
+```
+
+The default client is the unqualified `HttpClientInterface`; each scoped client is the
+`HttpClientInterface` qualified by its name:
+
+```python
+from typing import Annotated
+
+from xtr_dependency_injection import Target, as_service
+from xtr_http_client_contracts import HttpClientInterface
+
+
+@as_service
+class GithubRepositories:
+    def __init__(self, github: Annotated[HttpClientInterface, Target("github")]) -> None:
+        self._github = github
+```
+
+`HttpClientConfig`:
+
+| Field | Default | What it sets |
+|---|---|---|
+| `max_host_connections` | `6` | how many connections one pool may hold |
+| `default_options` | `ClientOptionsConfig()` | what every request starts from, and the default client's layers |
+| `scoped_clients` | `{}` | a client per service, by name |
+| `mock_response_factory` | `False` | answer every request from `MockHttpClient` instead of the network |
+| `tracing` | `False` | wrap every client in a `TraceableHttpClient` |
+
+`ClientOptionsConfig` carries the request options of the same name — `headers`, `timeout`,
+`max_redirects`, `proxy`, `verify_peer` and the rest, `None` leaving each to the client — and
+two layers: `retry_failed`, a `RetryFailedConfig` (`enabled`, `max_retries`, `delay`,
+`multiplier`, `max_delay`, `jitter`, `http_codes`, `base_uris`, or a `retry_strategy` service
+instead of the numbers), and `rate_limiter`, the name of the xtr-rate-limiter limiter requests
+wait their turn from. `ScopedClientConfig` adds `scope` or `base_uri` (one is required),
+`auth_basic`, `auth_bearer`, `query` and its own `mock_response_factory`; the
+`retry_failed` and `rate_limiter` it leaves unset are the default options' own.
+
+Each client is built, from the inside out, as the transport, the pace of its limiter, its
+scope, its retries — outside the scope when they move along `base_uris` — and the trace.
+Every client shares one transport, and so its connections; nothing is opened until a request
+is made, and the connections are closed with the container. With `mock_response_factory`, the
+`MockHttpClient` service is the transport: a test scripts it with `set_response_factory`.
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under
