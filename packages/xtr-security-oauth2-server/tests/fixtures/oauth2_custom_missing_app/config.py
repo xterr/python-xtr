@@ -17,6 +17,7 @@ from tests.support.custom_stores import (
     ApplicationDeviceCodeStore,
     ApplicationRefreshTokenStore,
 )
+from tests.support.encryption import ENCRYPTION_KEY
 from tests.support.signing import ALGORITHM, ISSUER, SIGNING_KEY_PEM
 from xtr_security_oauth2_server.bundle import (
     AuthorizationServerConfig,
@@ -34,7 +35,8 @@ def oauth2_server() -> OAuth2ServerConfig:
     return OAuth2ServerConfig(
         authorization_server=AuthorizationServerConfig(
             private_key=SIGNING_KEY_PEM,
-            encryption_key="a-password-long-enough-to-stretch-into-a-key",
+            encryption_key=ENCRYPTION_KEY,
+            encryption_key_type="key",
             issuer=ISSUER,
             signature_algorithm=ALGORITHM,
             enable_device_code_grant=False,

@@ -10,7 +10,7 @@ import anyio
 import httpx
 import pytest
 from fastapi import APIRouter, FastAPI
-from xtr_dependency_injection import Injected
+from xtr_dependency_injection import Injected, Kernel
 from xtr_security import Security
 from xtr_security_http.firewall.firewall import Firewall
 
@@ -29,6 +29,7 @@ from tests.support.served import (
     text_field,
     text_fields,
 )
+from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 
 pytestmark = pytest.mark.anyio
 
@@ -202,3 +203,35 @@ async def test_the_caller_holds_their_own_roles_beside_the_tokens_scopes() -> No
     granted = text_fields(document, "roles")
     assert "ROLE_OAUTH2_READ" in granted
     assert "ROLE_USER" in granted
+
+
+async def test_a_refresh_token_sealed_with_a_stretched_password_is_opened_again() -> None:
+    # The one served test on the plain kind: the deployment hands over a
+    # password, the bundle stretches it, and the refresh token sealed with the
+    # result has to open with it on the way back.
+    kernel = Kernel(
+        "tests.fixtures.oauth2_plain_key_app",
+        env="test",
+        bundles={OAuth2ServerBundle: {"all": True}},
+        # The password app's listener is what knows the resource owner.
+        resources=(
+            "tests.fixtures.oauth2_plain_key_app",
+            "tests.fixtures.oauth2_password_app.listeners",
+        ),
+        concurrent_scoped_access=True,
+    )
+    async with serving(served_application(kernel)) as client:
+        await seed_any_grant_client(client)
+        first = json_of(await client.post("/token", data=_password_form()))
+        answered = await client.post(
+            "/token",
+            data={
+                "grant_type": "refresh_token",
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "refresh_token": text_field(first, "refresh_token"),
+            },
+        )
+
+    assert answered.status_code == 200
+    assert text_field(json_of(answered), "refresh_token") != text_field(first, "refresh_token")

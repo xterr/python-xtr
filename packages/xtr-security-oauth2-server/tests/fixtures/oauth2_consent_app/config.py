@@ -18,6 +18,7 @@ from xtr_security.bundle import (
     SecurityConfig,
 )
 
+from tests.support.encryption import ENCRYPTION_KEY
 from tests.support.signing import ALGORITHM, ISSUER, SIGNING_KEY_PEM
 from xtr_security_oauth2_server.bundle import (
     AuthorizationServerConfig,
@@ -28,9 +29,6 @@ from xtr_security_oauth2_server.bundle import (
 )
 
 __all__ = ["USER_IDENTIFIER", "USER_PASSWORD", "USER_ROLES", "oauth2_server", "security"]
-
-#: A password long enough to be stretched into a key, as the plain mode wants.
-ENCRYPTION_KEY: Final[str] = "a-password-long-enough-to-stretch-into-a-key"
 
 #: The resource owner who is asked, and the credential that establishes them.
 USER_IDENTIFIER: Final[str] = "hedy"
@@ -48,6 +46,7 @@ def oauth2_server() -> OAuth2ServerConfig:
         authorization_server=AuthorizationServerConfig(
             private_key=SIGNING_KEY_PEM,
             encryption_key=ENCRYPTION_KEY,
+            encryption_key_type="key",
             issuer=ISSUER,
             signature_algorithm=ALGORITHM,
             enable_password_grant=True,

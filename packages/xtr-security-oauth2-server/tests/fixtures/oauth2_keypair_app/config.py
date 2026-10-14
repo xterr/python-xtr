@@ -13,6 +13,7 @@ from typing import Final
 
 from xtr_dependency_injection import configure, env
 
+from tests.support.encryption import ENCRYPTION_KEY
 from xtr_security_oauth2_server.bundle import (
     AuthorizationServerConfig,
     InMemoryPersistenceConfig,
@@ -50,7 +51,8 @@ def oauth2_server() -> OAuth2ServerConfig:
             issuer="https://authorization.example.com",
             private_key=env(f"resolve:{PRIVATE_KEY_VARIABLE}"),
             private_key_passphrase=PASSPHRASE,
-            encryption_key="a-password-long-enough-to-stretch-into-a-key",
+            encryption_key=ENCRYPTION_KEY,
+            encryption_key_type="key",
             signature_algorithm=ALGORITHM,
             enable_device_code_grant=False,
         ),

@@ -19,6 +19,7 @@ from typing import Final
 from xtr_dependency_injection import configure
 from xtr_security_jwt.bundle import EncoderConfig, JwtConfig
 
+from tests.support.encryption import ENCRYPTION_KEY
 from tests.support.signing import ALGORITHM, ISSUER, SIGNING_KEY_PEM
 from xtr_security_oauth2_server.bundle import (
     AuthorizationServerConfig,
@@ -28,9 +29,6 @@ from xtr_security_oauth2_server.bundle import (
 )
 
 __all__ = ["jwt", "oauth2_server"]
-
-#: A password long enough to be stretched into a key, as the plain mode wants.
-ENCRYPTION_KEY: Final[str] = "a-password-long-enough-to-stretch-into-a-key"
 
 #: What the self-issued tokens are signed with: a shared secret, long enough
 #: for the algorithm's floor and nothing like this server's key pair.
@@ -57,6 +55,7 @@ def oauth2_server() -> OAuth2ServerConfig:
         authorization_server=AuthorizationServerConfig(
             private_key=SIGNING_KEY_PEM,
             encryption_key=ENCRYPTION_KEY,
+            encryption_key_type="key",
             issuer=ISSUER,
             signature_algorithm=ALGORITHM,
             enable_client_credentials_grant=True,
