@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from tests.support.fake_http_sender import FakeHttpSender
+from xtr_http_client import MockHttpClient
+
 from tests.support.fake_request_configurator import FakeRequestConfigurator
 from xtr_webhook.server import Transport, TransportInterface
 
 
 def test_the_transport_this_package_ships_satisfies_it() -> None:
     transport = Transport(
-        sender=FakeHttpSender(),
+        client=MockHttpClient(),
         headers=FakeRequestConfigurator(),
         body=FakeRequestConfigurator(),
         signer=FakeRequestConfigurator(),

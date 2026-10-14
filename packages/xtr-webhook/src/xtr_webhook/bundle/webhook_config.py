@@ -27,15 +27,16 @@ class WebhookConfig:
     """Values the bundle builds the endpoint's and the sender's services from.
 
     Buildable with no arguments: the zero-config path routes nothing, signs
-    with the legacy scheme under the default header names, and sends through a
-    client the bundle builds itself.
+    with the legacy scheme under the default header names, and sends through
+    the application's default HTTP client.
 
     Attributes:
-        http_client: The qualifier of an ``httpx.AsyncClient`` the application
-            registered, for the sender to post through. ``None`` means the
-            bundle builds and owns its own.
-        no_private_network: Whether the bundle-built client refuses to deliver
-            into a private network, and what counts as one.
+        http_client: The qualifier of the
+            :class:`~xtr_http_client_contracts.HttpClientInterface` webhooks are
+            sent through — a scoped client of the HTTP client configuration.
+            ``None`` means the default, unqualified one.
+        no_private_network: Whether that client is wrapped in a guard refusing
+            to deliver into a private network, and what counts as one.
         event_header_name: The header the event's name travels in, where the
             signature scheme sends one.
         id_header_name: The header the event's id travels in.
@@ -66,16 +67,9 @@ class WebhookConfig:
     def __post_init__(self) -> None:
         """Refuse values no service built from them could honour.
 
-        The guard cannot be combined with a client the application registered:
-        wrapping one would need the client library's private internals and
-        would still leave its mounts unguarded, so the combination is refused
-        rather than half-honoured — leave ``http_client`` unset, or build the
-        client with :class:`~xtr_webhook.bridge.httpx.NoPrivateNetworkTransport`.
-
         Raises:
             InvalidArgumentError: When the tolerance is negative, the
-                algorithm is not available, the format names no scheme, or
-                ``http_client`` is combined with the guard.
+                algorithm is not available, or the format names no scheme.
         """
         if self.timestamp_tolerance < 0:
             raise InvalidArgumentError("timestamp_tolerance must be greater than or equal to 0.")
@@ -84,8 +78,3 @@ class WebhookConfig:
                 f'The signing algorithm "{self.signing_algorithm}" is not available.',
             )
         _ = SignatureFormat.parse(self.signature_format)
-        if self.http_client is not None and self.no_private_network.enabled:
-            raise InvalidArgumentError(
-                "no_private_network cannot guard an httpx client you registered; leave "
-                "http_client unset, or build your client with NoPrivateNetworkTransport.",
-            )

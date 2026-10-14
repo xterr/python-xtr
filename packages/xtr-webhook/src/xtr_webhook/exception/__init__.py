@@ -11,7 +11,6 @@ from __future__ import annotations
 from .delivery_error import DeliveryError
 from .invalid_argument_error import InvalidArgumentError
 from .logic_error import LogicError
-from .private_network_error import PrivateNetworkError
 from .reject_webhook_error import RejectWebhookError
 from .webhook_error import WebhookError
 from .webhook_runtime_error import WebhookRuntimeError
@@ -20,7 +19,6 @@ __all__ = [
     "DeliveryError",
     "InvalidArgumentError",
     "LogicError",
-    "PrivateNetworkError",
     "RejectWebhookError",
     "WebhookError",
     "WebhookRuntimeError",

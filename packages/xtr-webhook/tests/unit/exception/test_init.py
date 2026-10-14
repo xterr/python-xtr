@@ -7,7 +7,6 @@ _EXPORTED: tuple[type[WebhookError], ...] = (
     exception.DeliveryError,
     exception.InvalidArgumentError,
     exception.LogicError,
-    exception.PrivateNetworkError,
     exception.RejectWebhookError,
     exception.WebhookError,
     exception.WebhookRuntimeError,

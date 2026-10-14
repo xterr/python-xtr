@@ -1,11 +1,12 @@
 """The xtr-webhook bundle: the receiving endpoint and the signing sender, from one config.
 
 An application listing :class:`WebhookBundle` — which brings the remote-event,
-messenger and HTTP kernel bundles with it — gets the endpoint webhooks arrive
-at, which ``setup`` mounts, and its controller, a configured
+messenger and HTTP kernel bundles with it, and the HTTP client bundle when
+xtr-http-client is installed — gets the endpoint webhooks arrive at, which
+``setup`` mounts, and its controller, a configured
 :class:`~xtr_webhook.client.RequestParser` under the ``webhook`` qualifier,
-and — when the httpx client library is installed — the transport that delivers
-a ``SendWebhookMessage`` and the handler that listens for one. The handler is
+and — with xtr-http-client — the transport that delivers a
+``SendWebhookMessage`` and the handler that listens for one. The handler is
 registered only alongside the transport it needs, so a container never holds a
 handler it cannot build; without the ``client`` extra, dispatching a
 ``SendWebhookMessage`` fails with the bus's no-handler error.
@@ -14,7 +15,7 @@ handler it cannot build; without the ``client`` extra, dispatching a
 from __future__ import annotations
 
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Annotated, Final, final
 
 from typing_extensions import override
 from xtr_dependency_injection import (
@@ -22,10 +23,12 @@ from xtr_dependency_injection import (
     ContainerBuilder,
     ServiceConfigurator,
     ServiceLocator,
+    Target,
     as_bundle,
     named_factory,
     required_bundle,
 )
+from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_kernel.bundle import HttpKernelBundle
 from xtr_messenger import MessageBusInterface
 from xtr_remote_event.bundle import RemoteEventBundle
@@ -33,11 +36,14 @@ from xtr_remote_event.bundle import RemoteEventBundle
 from xtr_webhook.client.request_parser import RequestParser
 from xtr_webhook.client.request_parser_interface import RequestParserInterface
 from xtr_webhook.controller.webhook_controller import WebhookController
+from xtr_webhook.exception import LogicError
 from xtr_webhook.server.header_signature_configurator import HeaderSignatureConfigurator
 from xtr_webhook.server.headers_configurator import HeadersConfigurator
 from xtr_webhook.server.json_body_configurator import JsonBodyConfigurator
 from xtr_webhook.server.json_payload_serializer import JsonPayloadSerializer
 from xtr_webhook.server.signature_format import SignatureFormat
+from xtr_webhook.server.transport import Transport
+from xtr_webhook.server.transport_interface import TransportInterface
 
 from ._routed_parsers import ROUTE_QUALIFIER, RoutedParsers
 from .webhook_config import WebhookConfig
@@ -48,7 +54,7 @@ if TYPE_CHECKING:
 __all__ = ["WebhookBundle"]
 
 _WEBHOOK: Final = "webhook"
-"""The qualifier of the bundle's own parser and its own client."""
+"""The qualifier of the bundle's own parser."""
 
 _SEND_HANDLER_MODULE: Final = "xtr_webhook.messenger.send_webhook_handler"
 
@@ -58,6 +64,7 @@ _ROUTING_MODULE: Final = "xtr_webhook.routing"
 @final
 @required_bundle(RemoteEventBundle)
 @required_bundle(HttpKernelBundle)
+@required_bundle("xtr_http_client.bundle:HttpClientBundle", ignore_on_invalid=True)
 @as_bundle("webhook", config=WebhookConfig)
 class WebhookBundle(Bundle[WebhookConfig]):
     """Wires the endpoint's controller and the sender's chain to the container."""
@@ -69,10 +76,14 @@ class WebhookBundle(Bundle[WebhookConfig]):
         services: ServiceConfigurator,
         builder: ContainerBuilder,
     ) -> None:
-        """Register the configurators, the parser, the controller and the httpx side.
+        """Register the configurators, the parser, the controller and the sending side.
 
         The format is converted once, here: the configurators and the parser
         take a member, and every factory below is handed the same one.
+
+        Raises:
+            LogicError: When the private-network guard is turned on while
+                xtr-http-client, whose client it wraps, is not installed.
         """
         del builder
         fmt = SignatureFormat.parse(config.signature_format)
@@ -107,18 +118,18 @@ class WebhookBundle(Bundle[WebhookConfig]):
         # the application's table, which setup() mounts.
         services.load(_ROUTING_MODULE)
 
-        if find_spec("httpx") is not None:
-            # Imported only now: httpx sits at the top of that module, and is
-            # only installed with the client extra.
-            from xtr_webhook.bundle._http_client import (  # noqa: PLC0415 -- guarded behind the client extra
-                register,
-            )
-
-            register(config, services)
+        if find_spec("xtr_http_client") is not None:
+            _ = services.set(named_factory(_transport(config.http_client), "webhook_transport"))
+            services.alias(TransportInterface, Transport)
             # The handler needs the transport registered just above, so it is
             # registered with the bus only here: a container must never hold a
             # handler it cannot build.
             services.load(_SEND_HANDLER_MODULE)
+        elif config.no_private_network.enabled:
+            raise LogicError(
+                'Configuring "no_private_network" requires xtr-http-client; '
+                'install it with uv add "xtr-webhook[client]".'
+            )
 
 
 def _custom_parsers(config: WebhookConfig) -> tuple[type[RequestParserInterface], ...]:
@@ -172,6 +183,49 @@ def _signer(fmt: SignatureFormat) -> Callable[[WebhookConfig], HeaderSignatureCo
             timestamp_header_name=config.timestamp_header_name,
         )
 
+    return build
+
+
+def _transport(qualifier: str | None) -> Callable[..., Transport]:
+    """Return the factory of the delivery, over the client ``qualifier`` names.
+
+    The qualifier is configuration, so the client's annotation is written onto
+    the factory at runtime rather than in its signature; ``None`` asks for the
+    default client. The guard is read from the injected configuration, and
+    wraps whichever client that is.
+    """
+
+    def build(
+        config: WebhookConfig,
+        client: HttpClientInterface,
+        headers: HeadersConfigurator,
+        body: JsonBodyConfigurator,
+        signer: HeaderSignatureConfigurator,
+    ) -> Transport:
+        guard = config.no_private_network
+        if guard.enabled:
+            # Imported only now: the factory is registered only once
+            # xtr-http-client was found, and the guard is that package's.
+            from xtr_http_client import (  # noqa: PLC0415 -- guarded behind the client extra
+                NoPrivateNetworkHttpClient,
+            )
+
+            client = NoPrivateNetworkHttpClient(client, guard.subnets, guard.allow_list)
+
+        return Transport(client, headers, body, signer)
+
+    build.__annotations__ = {
+        "config": WebhookConfig,
+        "client": (
+            HttpClientInterface
+            if qualifier is None
+            else Annotated[HttpClientInterface, Target(qualifier)]
+        ),
+        "headers": HeadersConfigurator,
+        "body": JsonBodyConfigurator,
+        "signer": HeaderSignatureConfigurator,
+        "return": Transport,
+    }
     return build
 
 

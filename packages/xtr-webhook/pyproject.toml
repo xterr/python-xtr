@@ -24,6 +24,8 @@ dependencies = [
     "typing-extensions>=4.4",
     "msgspec>=0.18",
     "xtr-clock>=4.0,<5",
+    # The client interface a webhook is sent through; the client is the `client` extra.
+    "xtr-http-client-contracts>=4.0,<5",
     # The matchers a parser says which requests are its sender's with.
     "xtr-http-foundation>=4.0,<5",
     "xtr-http-message-contracts>=4.0,<5",
@@ -36,11 +38,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# anyio is imported directly, by the guard that resolves a host before a
-# webhook leaves, so it is declared here rather than relied on through xtr-clock.
+# The HTTP client webhooks are sent through, its private-network guard, and its bundle.
 client = [
-    "httpx>=0.27",
-    "anyio>=4.0",
+    "xtr-http-client>=4.0,<5",
 ]
 di = [
     "xtr-dependency-injection>=4.0,<5",
@@ -68,8 +68,8 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     "fastapi>=0.121.3",
-    "httpx>=0.27",
     "xtr-dependency-injection>=4.0,<5",
+    "xtr-http-client>=4.0,<5",
     "xtr-http-kernel>=4.0,<5",
     "xtr-http-message>=4.0,<5",
 ]

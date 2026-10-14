@@ -30,7 +30,7 @@ This package does both ends, and turns what arrives into an
 
 ```sh
 uv add xtr-webhook              # signatures, parsers, the endpoint, the events a webhook becomes
-uv add "xtr-webhook[client]"    # + sending signed webhooks
+uv add "xtr-webhook[client]"    # + sending signed webhooks, through xtr-http-client
 uv add "xtr-webhook[di]"        # + the bundle
 ```
 
@@ -315,6 +315,13 @@ payload as the body, `HeaderSignatureConfigurator` the signature over what the o
 It runs last, because it signs their output. They are separate because receivers disagree about
 all three, so an unusual one means adding or replacing a step rather than the sender.
 
+`Transport` runs the chain and posts what it built through an `HttpClientInterface` — the
+contract from [xtr-http-client-contracts](../xtr-http-client-contracts), so whatever stands
+behind it does: the client the bundle is told to use, a scoped one, a client wrapped in the guard
+below, or a `MockHttpClient` in a test. It asks the client for the request alone, with no
+redirect followed; everything else — how long a delivery may take, above all — is the client's
+configuration.
+
 Under `LEGACY`, `RemoteEvent("order.paid", "evt_1", {"total": 4200})`:
 
 ```http
@@ -375,9 +382,15 @@ are spent, keep the message instead of dropping it. Swallowing it would turn eve
 webhook into one silently never sent. How many attempts, and how long between them, is the
 messenger transport's — see [xtr-messenger](../xtr-messenger).
 
-A redirect counts as refused. Redirects are never followed, whatever the client was built with:
-following one would carry a signed body to an address nobody registered, and would hollow out the
-guard below.
+A delivery nothing answered — a connection refused, a receiver that never replied in time —
+raises the client's own `TransportError` (`TransportTimeoutError` for time), and is retried the
+same way. How long is too long is set on the client: `default_options.timeout` in the HTTP client
+configuration, or a scoped client of its own that `http_client` names — see
+[Kernel / bundle](#kernel--bundle).
+
+A redirect counts as refused. Redirects are never followed, whatever the client was built with —
+the transport asks for none: following one would carry a signed body to an address nobody
+registered, and would hollow out the guard below.
 
 ## Private network guard
 
@@ -386,32 +399,47 @@ it — so without a guard a webhook is a way to ask this process to fetch an add
 process can see: another service on the same network, an admin port, a cloud provider's metadata
 endpoint handing out credentials.
 
+The guard is xtr-http-client's `NoPrivateNetworkHttpClient`, a client wrapping another one —
+whichever the transport is given:
+
 ```python
-import httpx
+from xtr_http_client import HttpClient, NoPrivateNetworkHttpClient
 
-from xtr_webhook.bridge.httpx import HttpxSender, NoPrivateNetworkTransport
+from xtr_webhook.server import (
+    HeadersConfigurator,
+    HeaderSignatureConfigurator,
+    JsonBodyConfigurator,
+    JsonPayloadSerializer,
+    Transport,
+)
 
-client = httpx.AsyncClient(transport=NoPrivateNetworkTransport(httpx.AsyncHTTPTransport()))
-sender = HttpxSender(client)
+transport = Transport(
+    NoPrivateNetworkHttpClient(HttpClient.create()),
+    HeadersConfigurator(),
+    JsonBodyConfigurator(JsonPayloadSerializer()),
+    HeaderSignatureConfigurator(),
+)
 ```
 
 The check runs on what the host *resolves to*, not on how it is written, so neither a name
 pointing inwards nor an address spelled unusually gets through. One refused address refuses the
 whole delivery. The request is then pinned to the address that was checked, so a name whose
 records change between the check and the connection — a rebinding attack — connects to what was
-vetted or not at all; certificate verification still checks the original host name.
+vetted or not at all.
 
-A refusal is `PrivateNetworkError`, carrying `.host` and `.address`. It is a `DeliveryError`, so
-one `except` covers "it did not arrive" — though a retry will not arrive either, since nothing
-about the network changes by trying again.
+A refusal is the client's `TransportError`, raised before anything is sent:
+`Host "<host>" is blocked for "<url>".`, or `IP "<ip>" is blocked for "<url>".` for an address
+written out. A retry will not get through either, since nothing about the network changes by
+trying again.
 
-With no `subnets` it refuses every address that is not globally routable: loopback, private,
+With no `subnets` it refuses the networks only this one can reach — loopback, private,
 link-local, carrier-grade NAT, unique-local, multicast, reserved and unspecified alike. Give
 `subnets` to replace that set, and `allow_list` to open one receiver without opening the network
 it sits in. Both take IP networks or single addresses, never hostnames — the check runs on
 resolved addresses, and a name could point anywhere by the time it is used.
 
-In the bundle it is `no_private_network`, and it guards only the client the bundle builds:
+In the bundle it is `no_private_network`, and it wraps the client `http_client` names — the
+default one when that is unset:
 
 ```python
 WebhookConfig(
@@ -420,10 +448,9 @@ WebhookConfig(
 ```
 
 Naming `subnets` or an `allow_list` while `enabled` is `False` is refused rather than silently
-ignored — a configuration that looks like protection and is not. Combining the guard with
-`http_client` is refused too: wrapping a client you registered would need the client library's
-private internals and would still leave its own mounts unguarded. Leave `http_client` unset, or
-build your client with `NoPrivateNetworkTransport` yourself.
+ignored — a configuration that looks like protection and is not. Turning it on without
+xtr-http-client installed is refused too, with `LogicError`, when the container is built: there
+is no client for it to wrap.
 
 ## Testing your parsers
 
@@ -490,9 +517,11 @@ Everything adding this package to an application on
 removing it undoes.
 
 - **Install** — `uv add "xtr-webhook[client]"`; add `di` for the bundle. The endpoint that
-  receives comes with the package; `client` is what sends (the HTTP client and the guard).
-  Without `client`, no transport and no send handler are registered, and dispatching
-  `SendWebhookMessage` fails with the bus's no-handler error.
+  receives comes with the package; `client` is what sends: it brings
+  [xtr-http-client](../xtr-http-client) — the client, the guard and the client's bundle.
+  Without `client`, no transport and no send handler are registered, dispatching
+  `SendWebhookMessage` fails with the bus's no-handler error, and turning `no_private_network`
+  on is refused with `LogicError`.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure* and
   *Environment* steps below: it lists `WebhookBundle`, writes a starting
   `<app>/config/webhook.py` with one route, `<app>/config/routes/webhook.py` serving the
@@ -502,13 +531,14 @@ removing it undoes.
 - **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_webhook.bundle`.
 - **Brings along** — the remote-event bundle, the messenger bundle through it, and the HTTP
-  kernel's bundle, always.
+  kernel's bundle, always; the HTTP client bundle, `http_client`, when xtr-http-client is
+  installed.
 - **Configure** — needed to receive anything: with no routing the endpoint knows no type and
-  answers every webhook `404`. Routing, header names, the signature format and the guard go in
-  `<app>/config/webhook.py`, a `@configure` function returning `WebhookConfig` — see
-  [Kernel / bundle](#kernel--bundle).
+  answers every webhook `404`. Routing, header names, the signature format, the client webhooks
+  are sent through and the guard go in `<app>/config/webhook.py`, a `@configure` function
+  returning `WebhookConfig` — see [Kernel / bundle](#kernel--bundle).
   `<app>/config/routes/webhook.py` imports the `webhook` route resource; move it under a prefix
-  there.
+  there. A delivery's timeout is the client's, set in `<app>/config/http_client.py`.
 - **Environment** — `WEBHOOK_SECRET`, the secret the written route verifies against, read when
   the endpoint is built; one per sender in practice.
 - **Ignore** — nothing.
@@ -516,8 +546,9 @@ removing it undoes.
   `POST /webhook/{type}`.
 - **Remove** — drop the `BUNDLES` entry, delete `<app>/config/webhook.py` and
   `<app>/config/routes/webhook.py`, then `uv remove xtr-webhook`.
-- **Check** — `debug:bundles` shows `webhook` and `remote_event` as `listed` and `active`;
-  `debug:config webhook` shows the resolved routing, header names and signature format.
+- **Check** — `debug:bundles` shows `webhook` and `remote_event` as `listed` and `active`, and
+  `http_client` with the `client` extra; `debug:config webhook` shows the resolved routing,
+  header names and signature format.
 
 ## Kernel / bundle
 
@@ -541,11 +572,29 @@ def webhook() -> WebhookConfig:
     return WebhookConfig(
         signature_format=SignatureFormat.STANDARD,
         timestamp_tolerance=300,
+        http_client="webhook",
         no_private_network=NoPrivateNetworkConfig(enabled=True),
         routing={
             "acme": RouteConfig(secret=env("WEBHOOK_SECRET")),
             "stripe": RouteConfig(parser=StripeRequestParser, secret=env("STRIPE_SECRET")),
         },
+    )
+```
+
+`http_client` names a client of the HTTP client configuration; this one gives webhooks a
+timeout of their own. Leave `http_client` unset to send through the default client, whose
+timeout is `default_options.timeout` — see [xtr-http-client](../xtr-http-client#kernel--bundle).
+
+```python
+# app/config/http_client.py
+from xtr_dependency_injection import configure
+from xtr_http_client.bundle import HttpClientConfig, ScopedClientConfig
+
+
+@configure
+def http_client() -> HttpClientConfig:
+    return HttpClientConfig(
+        scoped_clients={"webhook": ScopedClientConfig(scope="https?://", timeout=10)},
     )
 ```
 
@@ -561,8 +610,8 @@ def webhook() -> WebhookConfig:
 | `id_header_name` | `"Webhook-Id"` | where the event's id travels |
 | `timestamp_header_name` | `"Webhook-Timestamp"` | where the send time travels |
 | `signature_header_name` | `"Webhook-Signature"` | where the signature entries travel |
-| `http_client` | `None` | the qualifier of an `httpx.AsyncClient` you registered; `None` means the bundle builds and owns one |
-| `no_private_network` | `NoPrivateNetworkConfig()` | whether the bundle-built client refuses to deliver inwards, and what counts as inwards |
+| `http_client` | `None` | the qualifier of the `HttpClientInterface` webhooks are sent through — a scoped client's name; `None` means the default client |
+| `no_private_network` | `NoPrivateNetworkConfig()` | whether that client is wrapped in the guard refusing to deliver inwards, and what counts as inwards |
 
 `RouteConfig(parser=None, secret="")`: `parser` is the class reading that type's webhooks, built
 by the container with its dependencies on the first webhook for it; `None` means the bundle's
@@ -575,10 +624,12 @@ routing names, the endpoint's route loader, and the controller behind it. The co
 service locator, so it never holds the container and a route's parser is built only when the
 first webhook for it arrives.
 
-The sending side is registered only when httpx is installed: the client (the bundle's own,
-closed with the container, or the one `http_client` names), the sender over it, the transport,
-and `SendWebhookHandler` with it. The handler is registered beside the transport it needs, so a
-container never holds a handler it cannot build.
+The sending side is registered only when xtr-http-client is installed: the transport, over the
+client `http_client` names — wrapped in `NoPrivateNetworkHttpClient` when `no_private_network` is
+on — and `SendWebhookHandler` with it. The handler is registered beside the transport it needs,
+so a container never holds a handler it cannot build. The client belongs to the HTTP client
+bundle, which builds it, opens its connections when a delivery first needs one, and closes them
+with the container.
 
 The zero-config path routes nothing, signs with the legacy scheme under the default header names,
 and does no I/O at build or boot.
@@ -595,7 +646,10 @@ attributes rather than forcing a message to be parsed. None of them repeats a se
 | `RejectWebhookError` | an incoming webhook is refused; it carries the answer the sender gets | `.status_code`, `.headers` |
 | `WebhookRuntimeError` | something a webhook depends on failed while it was handled; also a `RuntimeError` | — |
 | `DeliveryError` | a receiver answered an outgoing webhook outside 200-299 | `.status_code`, `.url` |
-| `PrivateNetworkError` | a host an outgoing webhook named resolves into a refused network; a `DeliveryError` with `.status_code` `0` | `.host`, `.address` |
+
+An outgoing webhook nothing answered raises the client's own error instead, unwrapped:
+`TransportError` from xtr-http-client-contracts, or its `TransportTimeoutError`. The
+private-network guard refuses with a `TransportError` too.
 
 ## Development
 

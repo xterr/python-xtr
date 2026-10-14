@@ -5,7 +5,6 @@ from xtr_webhook import server
 _EXPORTED = [
     "HeaderSignatureConfigurator",
     "HeadersConfigurator",
-    "HttpSenderInterface",
     "JsonBodyConfigurator",
     "JsonPayloadSerializer",
     "OutgoingRequest",

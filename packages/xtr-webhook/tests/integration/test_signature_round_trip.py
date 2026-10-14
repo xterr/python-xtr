@@ -16,14 +16,14 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from xtr_clock import MockClock
+from xtr_http_client import MockHttpClient, MockResponse
 from xtr_http_message import ServerRequest
 from xtr_remote_event import RemoteEvent
 
-from tests.support.fake_http_sender import FakeHttpSender
 from xtr_webhook.client import RequestParser
 from xtr_webhook.exception import RejectWebhookError
 from xtr_webhook.server import (
@@ -80,9 +80,9 @@ async def _send(
     The chain is the one an application gets by default, with only the clock
     pinned, so a change to any configurator's defaults shows up here.
     """
-    sender = FakeHttpSender()
+    answer = MockResponse()
     transport = Transport(
-        sender,
+        MockHttpClient(answer),
         HeadersConfigurator(clock=clock, signature_format=signature_format),
         JsonBodyConfigurator(JsonPayloadSerializer(), signature_format),
         HeaderSignatureConfigurator(signature_format=signature_format),
@@ -90,9 +90,10 @@ async def _send(
 
     await transport.send(Subscriber(_URL, _WHSEC), event)
 
-    url, headers, body = sender.posts[0]
+    sent = answer.get_request_options()
+    headers = cast("Mapping[str, str]", sent["headers"])
 
-    return url, dict(headers), body
+    return answer.get_request_url(), dict(headers), cast("bytes", sent["body"])
 
 
 async def _parse(

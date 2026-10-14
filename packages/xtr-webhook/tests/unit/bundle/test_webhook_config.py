@@ -62,18 +62,13 @@ def test_an_unknown_signing_algorithm_is_refused() -> None:
     assert str(caught.value) == 'The signing algorithm "nope" is not available.'
 
 
-def test_an_application_client_cannot_be_combined_with_the_guard() -> None:
-    with pytest.raises(InvalidArgumentError) as caught:
-        _ = WebhookConfig(
-            http_client="app_client",
-            no_private_network=NoPrivateNetworkConfig(enabled=True),
-        )
-
-    assert str(caught.value) == (
-        "no_private_network cannot guard an httpx client you registered; leave http_client "
-        "unset, or build your client with NoPrivateNetworkTransport."
-    )
-
-
-def test_an_application_client_without_the_guard_is_accepted() -> None:
+def test_a_named_client_is_accepted() -> None:
     assert WebhookConfig(http_client="app_client").http_client == "app_client"
+
+
+def test_a_named_client_can_be_guarded() -> None:
+    guard = NoPrivateNetworkConfig(enabled=True)
+
+    config = WebhookConfig(http_client="app_client", no_private_network=guard)
+
+    assert config.no_private_network is guard

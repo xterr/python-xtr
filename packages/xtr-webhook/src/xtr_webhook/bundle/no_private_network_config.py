@@ -14,12 +14,12 @@ __all__ = ["NoPrivateNetworkConfig"]
 @final
 @dataclass(frozen=True, slots=True)
 class NoPrivateNetworkConfig:
-    """Whether the bundle-built client refuses to deliver into a private network.
+    """Whether the client webhooks are sent through refuses to deliver into a private network.
 
     Off by default: a receiver on this network is a legitimate setup until the
-    application says otherwise. Turned on, it wraps the bundle's own client in
-    :class:`~xtr_webhook.bridge.httpx.NoPrivateNetworkTransport`, which checks
-    what every destination *resolves to* before anything is sent.
+    application says otherwise. Turned on, it wraps that client in
+    :class:`~xtr_http_client.NoPrivateNetworkHttpClient`, which checks what
+    every destination *resolves to* before anything is sent.
 
     Attributes:
         enabled: Whether outgoing webhooks are vetted at all.

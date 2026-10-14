@@ -3,21 +3,26 @@
 from __future__ import annotations
 
 import hmac
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
+from xtr_http_client import MockHttpClient, MockResponse
+from xtr_http_client_contracts import TransportError
 from xtr_http_kernel import setup
 from xtr_messenger import HandlersFailedError, MessageBusInterface
 from xtr_remote_event import RemoteEvent
 
 from tests.fixtures.app_webhook import services
-from tests.fixtures.app_webhook.config import PLAIN_SECRET
+from tests.fixtures.app_webhook.config import APP_CLIENT, PLAIN_SECRET
 from tests.support.serving import serving
 from xtr_webhook.client.request_parser import RequestParser
-from xtr_webhook.exception import PrivateNetworkError
 from xtr_webhook.messenger import SendWebhookMessage
 from xtr_webhook.subscriber import Subscriber
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 pytestmark = pytest.mark.anyio
 
@@ -30,7 +35,6 @@ JSON_HEADERS = {"Content-Type": "application/json"}
 
 @pytest.fixture(autouse=True)
 def _clear_recordings() -> None:
-    services.CAPTURED.clear()
     services.CONSUMED.clear()
 
 
@@ -100,7 +104,10 @@ async def test_a_route_without_a_parser_uses_the_bundles_own_request_parser() ->
 
 
 async def test_outgoing_webhooks_are_posted_with_signed_headers() -> None:
+    answer = MockResponse()
+
     async with await Kernel(APP, env="test").boot() as booted:
+        (await booted.container.get(MockHttpClient)).set_response_factory(answer)
         bus = await booted.container.get(MessageBusInterface)
         _ = await bus.dispatch(
             SendWebhookMessage(
@@ -109,15 +116,34 @@ async def test_outgoing_webhooks_are_posted_with_signed_headers() -> None:
             )
         )
 
-    (request,) = services.CAPTURED
-    assert str(request.url) == "https://example.com/hook"
-    assert request.content == BODY
-    assert request.headers["Webhook-Event"] == "the-event"
-    assert request.headers["Webhook-Id"] == "the-id"
-    assert "Webhook-Timestamp" in request.headers
-    assert request.headers["Webhook-Signature"] == _legacy_signature(
+    sent = answer.get_request_options()
+    headers = cast("Mapping[str, str]", sent["headers"])
+    assert answer.get_request_method() == "POST"
+    assert answer.get_request_url() == "https://example.com/hook"
+    assert sent["body"] == BODY
+    assert headers["Webhook-Event"] == "the-event"
+    assert headers["Webhook-Id"] == "the-id"
+    assert "Webhook-Timestamp" in headers
+    assert headers["Webhook-Signature"] == _legacy_signature(
         b"the-secret", b"the-event", b"the-id", BODY
     )
+
+
+async def test_outgoing_webhooks_go_through_the_client_the_configuration_names() -> None:
+    answer = MockResponse()
+
+    async with await Kernel(APP, env="test").boot() as booted:
+        (await booted.container.get(MockHttpClient)).set_response_factory(answer)
+        bus = await booted.container.get(MessageBusInterface)
+        _ = await bus.dispatch(
+            SendWebhookMessage(
+                Subscriber("https://example.com/hook", "the-secret"),
+                RemoteEvent("the-event", "the-id", {"foo": "bar"}),
+            )
+        )
+
+    headers = cast("Mapping[str, str]", answer.get_request_options()["headers"])
+    assert headers["X-Client"] == APP_CLIENT
 
 
 async def test_the_request_parser_answers_the_webhook_target() -> None:
@@ -130,6 +156,7 @@ async def test_the_request_parser_answers_the_webhook_target() -> None:
 async def test_the_guarded_client_refuses_a_private_address() -> None:
     async with await Kernel(GUARDED_APP, env="test").boot() as booted:
         bus = await booted.container.get(MessageBusInterface)
+        mock = await booted.container.get(MockHttpClient)
 
         with pytest.raises(HandlersFailedError) as caught:
             _ = await bus.dispatch(
@@ -139,8 +166,8 @@ async def test_the_guarded_client_refuses_a_private_address() -> None:
                 )
             )
 
+        assert mock.get_requests_count() == 0
+
     (failure,) = caught.value.errors.values()
-    assert isinstance(failure, PrivateNetworkError)
-    assert str(failure) == (
-        'The host "127.0.0.1" resolves to "127.0.0.1", which is in a private network.'
-    )
+    assert isinstance(failure, TransportError)
+    assert str(failure) == 'IP "127.0.0.1" is blocked for "http://127.0.0.1/".'
