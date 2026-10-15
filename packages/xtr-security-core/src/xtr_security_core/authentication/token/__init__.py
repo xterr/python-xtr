@@ -5,6 +5,9 @@ from __future__ import annotations
 from .abstract_token import AbstractToken
 from .null_token import NullToken
 from .offline_token_interface import OfflineTokenInterface
+from .pre_authenticated_token import PreAuthenticatedToken
+from .remember_me_token import RememberMeToken
+from .switch_user_token import SwitchUserToken
 from .token_interface import TokenInterface
 from .username_password_token import UsernamePasswordToken
 
@@ -12,6 +15,9 @@ __all__ = [
     "AbstractToken",
     "NullToken",
     "OfflineTokenInterface",
+    "PreAuthenticatedToken",
+    "RememberMeToken",
+    "SwitchUserToken",
     "TokenInterface",
     "UsernamePasswordToken",
 ]

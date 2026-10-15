@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING
 
 from xtr_security_core.exception import InvalidArgumentError
 
@@ -16,14 +16,15 @@ if TYPE_CHECKING:
 __all__ = ["UsernamePasswordToken"]
 
 
-@final
 class UsernamePasswordToken(AbstractToken):
     """A user proven by a password, the firewall that did it, and the roles.
 
     The token an authentication settles on when a user answered with a
     password. It carries the user, the firewall (or unit of work) that
-    authenticated them, and the roles fixed at that moment — decoupled from the
-    live user's roles, as every token in this library is.
+    authenticated them, and the roles fixed at that moment — decoupled from
+    the live user's roles, as every token in this library is. Open for
+    subclassing, because a token can be a password token with something
+    added — the switch-user token is one.
 
     Attributes:
         firewall_name: The firewall (or unit of work) that authenticated.

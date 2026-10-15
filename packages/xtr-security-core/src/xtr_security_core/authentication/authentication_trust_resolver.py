@@ -21,10 +21,10 @@ class AuthenticationTrustResolver(AuthenticationTrustResolverInterface):
     """Reads authentication strength from a token.
 
     A token is authenticated when it carries a user, and fully authenticated
-    when it is also not a remembered one. This library ships no remember-me
-    token, so :meth:`is_remember_me` is false here and every authenticated
-    token is fully authenticated; a resolver that knows a remembered token
-    overrides it.
+    when it is also not a remembered one. The base resolver recognizes no
+    remembered token of its own, so :meth:`is_remember_me` is false here and
+    every authenticated token is fully authenticated; a resolver that knows a
+    remembered token overrides it.
 
     Recency is answered on time alone, counted from whichever method was proven
     last in the token's authentication proofs.

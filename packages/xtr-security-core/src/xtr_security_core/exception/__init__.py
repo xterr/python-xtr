@@ -17,14 +17,18 @@ from .authentication_error import AuthenticationError
 from .authentication_service_error import AuthenticationServiceError
 from .bad_credentials_error import BadCredentialsError
 from .bad_method_call_error import BadMethodCallError
+from .cookie_theft_error import CookieTheftError
 from .credentials_expired_error import CredentialsExpiredError
 from .custom_user_message_account_status_error import CustomUserMessageAccountStatusError
 from .custom_user_message_authentication_error import CustomUserMessageAuthenticationError
 from .disabled_error import DisabledError
+from .expired_signature_error import ExpiredSignatureError
 from .insufficient_authentication_error import InsufficientAuthenticationError
 from .invalid_argument_error import InvalidArgumentError
+from .invalid_signature_error import InvalidSignatureError
 from .locked_error import LockedError
 from .security_error import SecurityError
+from .too_many_login_attempts_authentication_error import TooManyLoginAttemptsAuthenticationError
 from .unsupported_user_error import UnsupportedUserError
 from .user_not_found_error import UserNotFoundError
 
@@ -37,14 +41,18 @@ __all__ = [
     "AuthenticationServiceError",
     "BadCredentialsError",
     "BadMethodCallError",
+    "CookieTheftError",
     "CredentialsExpiredError",
     "CustomUserMessageAccountStatusError",
     "CustomUserMessageAuthenticationError",
     "DisabledError",
+    "ExpiredSignatureError",
     "InsufficientAuthenticationError",
     "InvalidArgumentError",
+    "InvalidSignatureError",
     "LockedError",
     "SecurityError",
+    "TooManyLoginAttemptsAuthenticationError",
     "UnsupportedUserError",
     "UserNotFoundError",
 ]
