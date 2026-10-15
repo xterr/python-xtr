@@ -55,7 +55,7 @@ $ uvx xtr-cli new shop
  …
  Add-ons, comma-separated (empty for none): orm, messenger
  Database drivers for orm — sqlite, postgres, mysql, joined with + (sqlite): sqlite+postgres
- Transports and serializers for messenger — amqp, taskiq, pydantic, joined with +:
+ Transports and serializers for messenger — amqp, pydantic, joined with +:
 
 shop — the webapp template
 --------------------------
@@ -69,7 +69,7 @@ The same, with no question asked:
  Create it? [y/n] (y):
 write pyproject.toml
 …
-run   uv add -- 'xtr-dependency-injection[fastapi]>=4.0,<5' …
+run   uv add -- 'xtr-dependency-injection>=4.0,<5' …
 run   uv add --dev -- 'xtr-recipes>=4.0,<5' pytest httpx ruff basedpyright ty
 run   uv run xtr-recipes recipes:sync
 run   git init --quiet
@@ -167,8 +167,8 @@ application's shutdown hooks run.
 
 | Template | Packages | Scripts |
 |---|---|---|
-| `cli` | `xtr-dependency-injection`, `xtr-console[di]`, `xtr-dotenv[di,console]`, `xtr-logging[di]` | `<name>` |
-| `webapp` | the same, `xtr-dependency-injection[fastapi]`, `xtr-http-kernel[logging,console]`, `fastapi`, `uvicorn` | `<name>`, `<name>-web` |
+| `cli` | `xtr-dependency-injection`, `xtr-console`, `xtr-dotenv`, `xtr-logging` | `<name>` |
+| `webapp` | the same, `xtr-http-kernel`, `fastapi`, `uvicorn` | `<name>`, `<name>-web` |
 
 Both write `pyproject.toml` (with ruff, basedpyright, ty and pytest configured), `.python-version`,
 `.gitignore`, `README.md`, `src/<app>/kernel.py`, `src/<app>/__main__.py`, an example
@@ -184,7 +184,7 @@ a test that requests the home page.
 summary = "What it makes, in one line."
 
 [dependencies]
-packages = ["xtr-console[di]"]     # uv add
+packages = ["xtr-console"]         # uv add
 dev = ["xtr-recipes", "pytest"]    # uv add --dev; with xtr-recipes, the recipes are applied
 
 [files]
@@ -208,20 +208,28 @@ way it would for a package added later with `xtr-recipes recipes:add`.
 
 | Add-on | Installs | Variants |
 |---|---|---|
-| `orm` | `xtr-orm[di,console]` | `sqlite` (default), `postgres`, `mysql` |
-| `messenger` | `xtr-messenger[di,console]` | `amqp`, `taskiq`, `pydantic` |
-| `scheduler` | `xtr-scheduler[di,console,cron]` | |
-| `event-dispatcher` | `xtr-event-dispatcher[di,console]` | |
-| `cache` | `xtr-cache[di,console]` | `redis` |
-| `lock` | `xtr-lock[di]` | `redis` |
-| `rate-limiter` | `xtr-rate-limiter[di,cache,lock]` | `redis` |
-| `storage` | `xtr-storage[di]` | `s3`, `gcs` |
-| `security` | `xtr-security[console]` — `webapp` only | |
-| `jwt` | `xtr-security-jwt[console]` — `webapp` only; brings `security` | |
+| `orm` | `xtr-orm` | `sqlite` (default), `postgres`, `mysql` |
+| `messenger` | `xtr-messenger` | `amqp`, `pydantic` |
+| `scheduler` | `xtr-scheduler[cron]` | |
+| `event-dispatcher` | `xtr-event-dispatcher` | |
+| `cache` | `xtr-cache` | `redis` |
+| `lock` | `xtr-lock` | `redis` |
+| `rate-limiter` | `xtr-rate-limiter` | `redis` |
+| `storage` | `xtr-storage` | `s3`, `gcs` |
+| `http-client` | `xtr-http-client` | `http2` |
+| `security` | `xtr-security` — `webapp` only | |
+| `jwt` | `xtr-security-jwt` — `webapp` only; brings `security` | |
+| `oauth2` | `xtr-security-oauth2-server` — `webapp` only; brings `security` and `jwt` | |
+| `webhook` | `xtr-webhook` — `webapp` only; brings `messenger` | |
+
+Variants only pick third-party backends. Integrations between xtr packages turn on when both are
+installed: choose `orm` beside `oauth2` to keep its clients in a database, `http-client` beside
+`webhook` to send webhooks, `rate-limiter` beside `http-client` to pace requests.
 
 `jwt` boots without a key and signs nothing until one is there: run
 `uv run <name> jwt:generate-keypair --kid jwt --output-dir secrets` for development, and mount
 the deployment's own key in production. No key is ever minted for you.
+`oauth2` likewise issues nothing until its key pair, encryption key and issuer are configured.
 
 Variants follow the name after `:`, joined with `+`: `orm:sqlite+postgres`. A name alone takes
 the defaults; `messenger:` picks none. Asked interactively, an add-on with variants is followed by
@@ -273,7 +281,7 @@ Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, und
 `packages/xtr-cli`; run the commands below from there.
 
 ```sh
-uv sync --all-extras
+uv sync
 uv run ruff check && uv run ruff format --check && uv run basedpyright && uv run ty check && uv run pytest
 ```
 

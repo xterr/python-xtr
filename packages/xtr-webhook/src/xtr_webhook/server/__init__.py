@@ -8,8 +8,8 @@ a step rather than the sender.
 
 The :class:`Transport` runs that chain and posts the result through an
 :class:`~xtr_http_client_contracts.HttpClientInterface` — the contract alone, so
-everything here imports with no HTTP client installed; xtr-http-client, the ``client``
-extra, is the client.
+everything here imports with no HTTP client installed; xtr-http-client, installed
+beside this package, is the client.
 """
 
 from __future__ import annotations

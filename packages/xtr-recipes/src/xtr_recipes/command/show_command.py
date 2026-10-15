@@ -24,6 +24,7 @@ _LOCKED = "locked"
 _NOT_CONFIGURED = "not configured"
 _OUTDATED = "outdated"
 _REMOVED = "removed"
+_SKIPPED = "skipped: the bundle class does not load"
 _ARROW = "←"
 
 
@@ -136,17 +137,17 @@ def _detail_from_lock(io: ConsoleStyle, package: str, entry: LockEntry) -> None:
 def _states(survey: RecipeSurvey) -> dict[str, str]:
     """Map every package the project has something to say about to its standing.
 
-    A package installed without the extra that ships its bundle class is also
-    a locked package that is no longer applicable, so it would read as
-    *removed*; it is overwritten last because naming the extra is the answer
-    that gets it configured again.
+    A package whose bundle class does not load is also a locked package that
+    is no longer applicable, so it would read as *removed*; it is overwritten
+    last because the bundle that does not load, not a removal, is what stands
+    between it and being configured again.
     """
     selection = survey.selection
     states = dict.fromkeys(selection.unchanged, _LOCKED)
     states.update(dict.fromkeys(selection.configure, _NOT_CONFIGURED))
     states.update(dict.fromkeys(selection.update, _OUTDATED))
     states.update(dict.fromkeys(selection.unconfigure, _REMOVED))
-    states.update({name: f"skipped: install {name}[di]" for name in survey.skipped})
+    states.update(dict.fromkeys(survey.skipped, _SKIPPED))
     return dict(sorted(states.items()))
 
 

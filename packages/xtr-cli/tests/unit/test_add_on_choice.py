@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from xtr_cli import AddOn, AddOnChoice
 
-_ORM = AddOn("orm", "Databases.", "xtr-orm", ("di",), ("sqlite", "postgres"), ("sqlite",))
+_ORM = AddOn("orm", "Databases.", "xtr-orm", ("pool",), ("sqlite", "postgres"), ("sqlite",))
 
 
 def test_the_choice_spells_its_variants_the_way_with_reads_them() -> None:
@@ -22,4 +22,4 @@ def test_an_add_on_without_variants_is_spelled_by_its_name() -> None:
 
 
 def test_the_requirement_is_the_add_ons_with_the_variants_picked() -> None:
-    assert AddOnChoice(_ORM, ("postgres",)).requirement == "xtr-orm[di,postgres]"
+    assert AddOnChoice(_ORM, ("postgres",)).requirement == "xtr-orm[pool,postgres]"

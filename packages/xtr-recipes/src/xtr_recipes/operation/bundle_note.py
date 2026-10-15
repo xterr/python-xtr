@@ -16,8 +16,8 @@ class BundleNote:
     The list itself is written once for the whole plan, so a per-package step
     cannot be the one doing it. This says what happened to a single bundle —
     newly listed, already there, left out because another bundle requires it,
-    removed, or skipped for want of the extra that ships its class — and
-    writes nothing.
+    removed, or skipped because its class does not load — and writes
+    nothing.
 
     Attributes:
         class_name: The bundle class as the list spells it.

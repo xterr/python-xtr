@@ -109,9 +109,9 @@ def report(io: ConsoleStyle, plan: Plan) -> None:
 def write(io: ConsoleStyle, lines: Sequence[str]) -> None:
     """Print lines a recipe composed, with nothing in them read as markup.
 
-    A recipe's own text reaches these lines — a note, an ignore pattern, the
-    extra named by ``install <package>[di]`` — and a bracketed word is markup
-    to the console, which would print that one as ``install xtr-security``.
+    A recipe's own text reaches these lines — a note, an ignore pattern — and
+    a bracketed word is markup to the console, which would drop the
+    ``[project.scripts]`` a note names and print the rest around the gap.
     """
     for line in lines:
         io.text(escape(line))

@@ -24,7 +24,8 @@ dependencies = [
     "typing-extensions>=4.4",
     "msgspec>=0.18",
     "xtr-clock>=4.0,<5",
-    # The client interface a webhook is sent through; the client is the `client` extra.
+    # The client interface a webhook is sent through; the client itself is installed by the
+    # application that sends webhooks.
     "xtr-http-client-contracts>=4.0,<5",
     # The matchers a parser says which requests are its sender's with.
     "xtr-http-foundation>=4.0,<5",
@@ -34,19 +35,7 @@ dependencies = [
     "xtr-service-contracts>=4.0,<5",
     # The endpoint webhooks arrive at, contributed to the application's routes.
     "xtr-http-kernel>=4.0,<5",
-    "fastapi>=0.121.3",
-]
-
-[project.optional-dependencies]
-# The HTTP client webhooks are sent through, its private-network guard, and its bundle.
-client = [
-    "xtr-http-client>=4.0,<5",
-]
-di = [
-    "xtr-dependency-injection>=4.0,<5",
-]
-# What xtr_webhook.testing builds its requests with.
-testing = [
+    # What xtr_webhook.testing builds its requests with.
     "xtr-http-message>=4.0,<5",
 ]
 
@@ -67,7 +56,6 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "fastapi>=0.121.3",
     # The tests drive the endpoint over an in-process transport of their own.
     "httpx>=0.27",
     "xtr-dependency-injection>=4.0,<5",

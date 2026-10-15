@@ -42,12 +42,13 @@ the protocol library, and ships everything around it an application would otherw
 
 ```sh
 uv add xtr-security-oauth2-server              # the server, its bundle and its endpoints
-uv add "xtr-security-oauth2-server[orm]"       # + clients and credentials in a database
-uv add "xtr-security-oauth2-server[console]"   # + the oauth2-server:* commands
+uv add xtr-orm                                 # beside it: clients and credentials in a database
+uv add xtr-console                             # beside it: the oauth2-server:* commands
 ```
 
 Requires Python 3.11+. It brings the protocol library, the security family, xtr-security-jwt's
 key layer, the password hasher, the clock, the event dispatcher and the HTTP kernel with it.
+xtr-orm and xtr-console are not among them: each is used when installed beside it.
 
 ## Quick start
 
@@ -325,7 +326,7 @@ deployment owning its client table.
 | Config | What it registers |
 |---|---|
 | `InMemoryPersistenceConfig()` | Stores in this process, forgotten when it ends. Tests and demonstrations; a refresh token's single use holds only within one process |
-| `OrmPersistenceConfig(connection="default", table_prefix="oauth2_")` | The managers on an [xtr-orm](../xtr-orm) connection, and the tables joining that connection's definitions: `oauth2_authorization_code` and `oauth2_refresh_token` always, `oauth2_access_token` while access tokens are persisted, `oauth2_device_code` while the device flow is on, `oauth2_client` unless the application owns its client class. Needs the `orm` extra and `OrmBundle` listed; the application writes the revision with `orm:migrations:diff` |
+| `OrmPersistenceConfig(connection="default", table_prefix="oauth2_")` | The managers on an [xtr-orm](../xtr-orm) connection, and the tables joining that connection's definitions: `oauth2_authorization_code` and `oauth2_refresh_token` always, `oauth2_access_token` while access tokens are persisted, `oauth2_device_code` while the device flow is on, `oauth2_client` unless the application owns its client class. Needs xtr-orm installed and `OrmBundle` listed; the application writes the revision with `orm:migrations:diff` |
 | `CustomPersistenceConfig(access_token_manager=…, authorization_code_manager=…, client_manager=…, refresh_token_manager=…, device_code_manager=…, credentials_revoker=…)` | Nothing of its own: each manager interface is aliased to the application's service named here. All six are required, and each must be a registered service |
 
 An application owning its client class writes it on its own declarative base with
@@ -442,7 +443,7 @@ The protocol library announces five more, under `RequestEvent`'s names:
 
 ## Commands
 
-With the `console` extra and the console bundle active:
+With xtr-console installed beside this package, which makes the console bundle active:
 
 | Command | Does |
 |---|---|
@@ -467,8 +468,8 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add xtr-security-oauth2-server`; add `[orm]` to keep clients and credentials
-  in a database, `[console]` for the commands.
+- **Install** — `uv add xtr-security-oauth2-server`; install [xtr-orm](../xtr-orm) beside it to
+  keep clients and credentials in a database, [xtr-console](../xtr-console) for the commands.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
   and *Ignore* steps below, and no other: it lists `OAuth2ServerBundle`, writes a starting
   `<app>/config/oauth2_server.py`, `OAUTH2_SERVER_PRIVATE_KEY_PATH=%kernel.project_dir%/secrets/oauth2.pem`

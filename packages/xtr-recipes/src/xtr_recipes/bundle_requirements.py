@@ -50,9 +50,8 @@ class BundleRequirements:
         bundle under its own distribution's import package: a manifest naming
         ``os:system`` or another package's module would otherwise make a sync
         import whatever it points at. A target outside the package, or one the
-        installation cannot load — a package installed without the extra that
-        brings its container integration — is reported as not loadable, so a
-        sync skips the recipe and retries next time.
+        installation cannot load, is reported as not loadable, so a sync skips
+        the recipe and retries next time.
         """
         return _under(target, distribution) and self._loader(target) is not None
 
@@ -135,10 +134,10 @@ def _under(target: str, distribution: str) -> bool:
 def _import_bundle(target: str) -> type[AnyBundle] | None:
     """Return the bundle class ``"module:Class"`` names, or ``None``.
 
-    A target that does not load — a package installed without its container
-    integration, or a name that turns out not to be a bundle — is reported as
-    absent rather than raised over: a sync skips it and says which extra to
-    install, and a requirement walk treats it as requiring nothing.
+    A target that does not load — a module that cannot be imported, such as
+    an optional peer's that is not installed, or a name that turns out not to
+    be a bundle — is reported as absent rather than raised over: a sync skips
+    it and says so, and a requirement walk treats it as requiring nothing.
     """
     module_name, _, class_name = target.partition(":")
     if not module_name or not class_name:

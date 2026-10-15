@@ -40,8 +40,8 @@ class RecipeSurvey:
     Attributes:
         installed: Each recipe of a direct dependency whose bundles all load,
             keyed by distribution.
-        skipped: Each package left out for want of the extra that ships its
-            bundle class, mapped to the targets that could not be loaded.
+        skipped: Each package left out because its bundle class does not
+            load, mapped to the targets that could not be loaded.
         selection: Where each of them stands — never configured, configured
             and current, configured and since changed, or locked and no
             longer installed.

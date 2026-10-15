@@ -23,7 +23,8 @@ class AddOn:
         name: What ``--with`` calls it.
         summary: One line on what it brings, shown when the add-ons are offered.
         distribution: The package it installs.
-        extras: The extras always installed with it — its bundle's among them.
+        extras: The extras always installed with it, such as a backend every
+            project taking it needs.
         variants: The further extras a project picks between, such as database
             drivers; written after the name as ``orm:sqlite+postgres``.
         default_variants: The variants chosen when the name is given alone.

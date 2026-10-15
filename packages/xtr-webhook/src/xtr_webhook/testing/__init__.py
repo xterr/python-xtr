@@ -6,8 +6,8 @@ the events it must become turns adding a case into adding two files — nothing
 to register, nothing to write in the test — and leaves the payloads readable as
 what they are, byte for byte, which is what a signature is made over.
 
-The helpers build their requests with xtr-http-message, so they need the
-``testing`` extra: ``uv add --dev "xtr-webhook[testing]"``.
+The helpers build their requests with xtr-http-message, which comes with this
+package, so there is nothing more to install.
 """
 
 from __future__ import annotations

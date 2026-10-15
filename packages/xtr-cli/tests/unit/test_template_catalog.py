@@ -38,7 +38,7 @@ def test_the_web_template_keeps_the_console() -> None:
     template = TemplateCatalog.default().load("webapp")
     pyproject = dict(template.render(_VALUES))["pyproject.toml"]
 
-    assert "xtr-console[di]" in template.dependencies
+    assert "xtr-console" in template.dependencies
     assert 'web-shop = "web_shop.__main__:main"' in pyproject
     assert 'web-shop-web = "web_shop.web.__main__:main"' in pyproject
 

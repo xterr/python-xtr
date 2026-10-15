@@ -13,7 +13,7 @@ def catalog() -> AddOnCatalog:
 def test_a_name_alone_takes_the_default_variants(catalog: AddOnCatalog) -> None:
     (orm,) = catalog.parse("orm", "cli")
 
-    assert orm.requirement == "xtr-orm[di,console,sqlite]"
+    assert orm.requirement == "xtr-orm[sqlite]"
 
 
 def test_variants_are_kept_in_the_order_the_add_on_lists_them(catalog: AddOnCatalog) -> None:
@@ -48,10 +48,27 @@ def test_an_add_on_the_template_cannot_take_is_refused(catalog: AddOnCatalog) ->
         _ = catalog.parse("security", "cli")
 
 
-@pytest.mark.parametrize("name", ["security", "jwt"])
-def test_only_the_web_template_takes_the_security_add_ons(catalog: AddOnCatalog, name: str) -> None:
+@pytest.mark.parametrize("name", ["security", "jwt", "oauth2", "webhook"])
+def test_only_the_web_template_takes_the_web_add_ons(catalog: AddOnCatalog, name: str) -> None:
     assert name in [add_on.name for add_on in catalog.available("webapp")]
     assert name not in [add_on.name for add_on in catalog.available("cli")]
+
+
+@pytest.mark.parametrize(
+    ("text", "requirement"),
+    [
+        ("http-client", "xtr-http-client"),
+        ("http-client:http2", "xtr-http-client[http2]"),
+        ("oauth2", "xtr-security-oauth2-server"),
+        ("webhook", "xtr-webhook"),
+    ],
+)
+def test_an_add_on_installs_its_package_with_the_variants_picked(
+    catalog: AddOnCatalog, text: str, requirement: str
+) -> None:
+    (choice,) = catalog.parse(text, "webapp")
+
+    assert choice.requirement == requirement
 
 
 def test_an_add_on_chosen_twice_is_refused(catalog: AddOnCatalog) -> None:

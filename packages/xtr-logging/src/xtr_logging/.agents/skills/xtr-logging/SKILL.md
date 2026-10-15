@@ -23,8 +23,10 @@ apart and a library never installs handlers it does not use.
   `ContextVarsProcessor`.
 - Tests: `TestHandler()` and its `has_record_*` questions. Freeze record times with
   `Clock.using(MockClock(...))`.
-- In an application: activate `LoggingBundle`, inject `LoggerInterface` for the default channel
-  and `Annotated[LoggerInterface, Target("<channel>")]` for any other.
+- In an application, with xtr-dependency-injection installed beside the package (it is not a
+  dependency): activate `LoggingBundle`, inject `LoggerInterface` for the default channel and
+  `Annotated[LoggerInterface, Target("<channel>")]` for any other. Without the container, build
+  the loggers yourself; only `xtr_logging.bundle` needs it.
 - Catalogues: [handlers, processors, formatters](references/handlers.md).
   Configuration as data, the standard-library capture and units of work:
   [configuration](references/configuration.md).
@@ -175,11 +177,12 @@ with Clock.using(MockClock("2026-09-24 12:00:00")):
 `LoggingBundle` and writes a starting `config/logging.py`. That is the steps below a recipe can do;
 the handlers it prints for you to add.
 
-1. **Install** — `uv add "xtr-logging[di]"`.
+1. **Install** — `uv add xtr-logging xtr-dependency-injection`: the bundle needs the container
+   installed beside it, never as an extra.
 2. **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
    from `xtr_logging.bundle`.
-3. **Brings along** — the clock bundle, when installed, so records read the same instant as an
-   injected clock.
+3. **Brings along** — the clock bundle: xtr-clock is a dependency, so it is always installed,
+   and records read the same instant as an injected clock.
 4. **Configure** — required to see anything: with no configuration there are no handlers, so
    records go nowhere. Put channels and handlers in `<app>/config/logging.py`:
 

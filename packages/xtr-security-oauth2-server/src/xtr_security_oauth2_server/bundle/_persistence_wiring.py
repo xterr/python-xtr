@@ -124,7 +124,7 @@ class PersistenceWiring:
         driver can be handed over once there is one.
         """
         try:
-            from xtr_orm.bundle import (  # noqa: PLC0415 -- an optional extra, probed where it is needed
+            from xtr_orm.bundle import (  # noqa: PLC0415 -- xtr-orm is optional, probed where it is needed
                 OrmMappingsPass,
             )
         except ImportError:

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import re
+import sys
 from typing import TYPE_CHECKING, NoReturn
 
 import pytest
 from xtr_http_message import Request
 
 from xtr_http_client import MockHttpClient, MockResponse, NoPrivateNetworkHttpClient
-from xtr_http_client.exception import InvalidArgumentError, TransportError
+from xtr_http_client.exception import InvalidArgumentError, LogicError, TransportError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -15,6 +16,15 @@ if TYPE_CHECKING:
     from xtr_http_client_contracts import HttpResponseInterface, RequestOptions
 
 pytestmark = pytest.mark.anyio
+
+
+def test_the_guard_is_refused_without_the_package_holding_the_networks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "xtr_http_foundation", None)
+
+    with pytest.raises(LogicError, match="uv add xtr-http-foundation"):
+        _ = NoPrivateNetworkHttpClient(MockHttpClient())
 
 
 def _resolving_to(*addresses: str) -> Callable[[str, int], Awaitable[Sequence[str]]]:

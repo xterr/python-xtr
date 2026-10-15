@@ -28,12 +28,18 @@ calls out sees one type however much is layered under it.
 
 ```sh
 uv add xtr-http-client
-uv add "xtr-http-client[di]"            # + the bundle
-uv add "xtr-http-client[throttling]"    # + the limiter the throttling client paces by
-uv add "xtr-http-client[http2]"         # + the framing a request asking for version "2" needs
+uv add "xtr-http-client[http2]"                   # + the framing a request asking for version "2" needs
+uv add xtr-http-client xtr-dependency-injection   # + the container, for the HttpClientBundle
+uv add xtr-rate-limiter                           # beside it: the limiter the throttling client paces by
+uv add xtr-http-foundation                        # beside it: the networks the private-network guard refuses
 ```
 
-Requires Python 3.11+.
+Requires Python 3.11+. `http2` is the only extra, and the container is not a dependency: the
+bundle is used when [xtr-dependency-injection](../xtr-dependency-injection) is installed beside the
+package, never as an extra, and every client works without it, built by hand as below. Installed
+beside it too, [xtr-rate-limiter](../xtr-rate-limiter) supplies the limiter `ThrottlingHttpClient`
+paces by, and [xtr-http-foundation](../xtr-http-foundation) the networks
+`NoPrivateNetworkHttpClient` refuses.
 
 ## Quick start
 
@@ -214,9 +220,9 @@ from xtr_http_client import ThrottlingHttpClient
 client = ThrottlingHttpClient(inner, limiter)
 ```
 
-`limiter` is an [xtr-rate-limiter](../xtr-rate-limiter) `LimiterInterface`, from the
-`throttling` extra. A token is booked before each request and the request waits for the moment
-that booking is due; booking first and waiting after is what makes the pace hold under
+`limiter` is an [xtr-rate-limiter](../xtr-rate-limiter) `LimiterInterface`, from that package
+installed beside this one. A token is booked before each request and the request waits for the
+moment that booking is due; booking first and waiting after is what makes the pace hold under
 concurrency, since requests then leave in the order they were asked for rather than all at
 once. Which requests share a pace is decided by which of them are given the same limiter — one
 per host, one per account, one for the whole application — and a copy made by `with_options()`
@@ -271,6 +277,10 @@ private, link-local, carrier-grade NAT, unique-local, multicast, reserved and un
 alike. `subnets` replaces that set and `allow_list` opens one receiver without opening the
 network it sits in; both take addresses or CIDR networks, never host names. What a host
 resolved to is remembered for the client's life, and `reset()` forgets it.
+
+xtr-http-foundation is not a dependency: install it beside this package (`uv add
+xtr-http-foundation`) to use the guard. Without it, building `NoPrivateNetworkHttpClient`
+raises `LogicError`, so nothing goes out unchecked.
 
 ### `MockHttpClient` — answer from a script
 
@@ -334,8 +344,9 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add "xtr-http-client[di]"`; add `throttling` to pace a client with an
-  [xtr-rate-limiter](../xtr-rate-limiter) limiter, `http2` to ask for HTTP/2.
+- **Install** — `uv add xtr-http-client xtr-dependency-injection`: the bundle needs the container
+  installed beside it, never as an extra. Add `http2` to ask for HTTP/2, and install
+  [xtr-rate-limiter](../xtr-rate-limiter) beside it to pace a client with one of its limiters.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
   `HttpClientBundle`. There is no config file, environment or ignore line to write; it prints the
   step to name the services the application calls in `config/http_client.py`, which a recipe
@@ -355,6 +366,10 @@ removing it undoes.
 - **Check** — `debug:bundles` shows `http_client` as `listed` and `active`.
 
 ## Kernel / bundle
+
+With [xtr-dependency-injection](../xtr-dependency-injection) installed beside the package — it is
+not a dependency, and nothing outside `xtr_http_client.bundle` needs it — list the bundle, then
+configure the clients:
 
 ```python
 # app/bundles.py

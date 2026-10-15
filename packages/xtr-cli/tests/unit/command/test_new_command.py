@@ -54,7 +54,7 @@ async def test_the_questions_fill_in_what_was_left_out(
     assert "--template=webapp --with=orm:postgres,security --python=3.13 --no-git -n" in (
         tester.display
     )
-    assert "xtr-orm[di,console,postgres]>=3.0,<4" in runner.calls[0][0]
+    assert "xtr-orm[postgres]>=3.0,<4" in runner.calls[0][0]
     assert (target / "src" / "web_shop" / "web" / "app.py").is_file()
 
 

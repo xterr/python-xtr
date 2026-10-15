@@ -99,8 +99,9 @@ def test_the_library_imports_with_no_test_framework_present() -> None:
 
 
 def test_the_library_imports_with_nothing_but_the_standard_library_and_anyio() -> None:
-    # anyio is the one declared dependency, and sniffio is anyio's own; anything
-    # else in the graph is a dependency that arrived without being declared.
+    # anyio is the one dependency the library itself imports, and sniffio is anyio's
+    # own; typing-extensions and the container are imported only by the bundle, so
+    # anything else in the graph arrived without being asked for.
     result = subprocess.run(
         [
             sys.executable,

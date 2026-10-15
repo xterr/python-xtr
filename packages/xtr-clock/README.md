@@ -5,7 +5,7 @@
 **A clock an application can be handed, instead of the one it is standing on.**
 
 <img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: anyio" src="https://img.shields.io/badge/core%20deps-anyio-3FB950">
+<img alt="core dependencies: 2" src="https://img.shields.io/badge/core%20deps-2-3FB950">
 <img alt="statements 100%" src="https://img.shields.io/badge/statements-100%25-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -24,8 +24,9 @@ Take a **clock** as a constructor argument and the choice becomes configuration:
 clock in production, a frozen one in a test. What comes back is a **`DatePoint`** — a
 `datetime`, so nothing downstream has to change.
 
-- 🪶 **One dependency.** `anyio`, so an awaitable wait is not tied to one async backend.
-  `zoneinfo`, `contextvars` and `datetime` are already there.
+- 🪶 **Two dependencies.** `anyio`, so an awaitable wait is not tied to one async backend, and
+  `typing-extensions`, which only the bundle imports. `zoneinfo`, `contextvars` and `datetime`
+  are already there, and the container the bundle plugs into is not a dependency at all.
 - 🕐 **A `DatePoint` is a `datetime`.** It drops into an ORM column, a serializer, a comparison,
   an existing signature. Adopting this library changes no type you already have.
 - 🧭 **Always timezone-aware.** There is no such thing here as an instant whose offset is
@@ -47,16 +48,19 @@ Whether that is the real hour or an instant one in a test is a constructor argum
 ## Install
 
 ```sh
-uv add xtr-clock                 # everything
-uv add "xtr-clock[tzdata]"       # + a timezone database, where the system has none
+uv add xtr-clock                           # everything
+uv add "xtr-clock[tzdata]"                 # + a timezone database, where the system has none
+uv add xtr-clock xtr-dependency-injection  # + the container, for the ClockBundle
 ```
 
 | Extra | Brings | For |
 | --- | --- | --- |
-| *(none)* | `anyio` | The whole library |
+| *(none)* | `anyio`, `typing-extensions` | The whole library |
 | `tzdata` | `tzdata` | Windows, and slim containers that ship no zone database |
 
-Requires Python 3.11+.
+Requires Python 3.11+. The container is not a dependency: the bundle is used when
+[xtr-dependency-injection](../xtr-dependency-injection) is installed beside the package, never as
+an extra, and the clocks work without it.
 
 ## Quick start
 
@@ -352,7 +356,8 @@ zone — a frozen test should not change its answer because of where the laptop 
 Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what removing it undoes.
 
-- **Install** — `uv add "xtr-clock[di]"`; add `tzdata` on Windows or a slim container.
+- **Install** — `uv add xtr-clock xtr-dependency-injection`: the bundle needs the container
+  installed beside it, never as an extra. Add `tzdata` on Windows or a slim container.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
   `ClockBundle`, or leaves it out when another bundle requires it (the logging bundle does). There
   is no config file, environment or ignore line to write.
@@ -371,14 +376,15 @@ Everything adding this package to an application on
 
 ## Kernel / bundle
 
-An application using [xtr-dependency-injection](../xtr-dependency-injection) lists
+With [xtr-dependency-injection](../xtr-dependency-injection) installed beside the package — it is
+not a dependency, and nothing outside `xtr_clock.bundle` needs it — an application lists
 `ClockBundle` in its `app/bundles.py` and configures it with `@configure`; nothing else changes.
 The bundle registers a `Clock` under `ClockInterface` and installs it as the clock in force for
 the lifetime of the kernel, so an injected class and a helper reached through
 `xtr_clock.now()` read the same instant.
 
 ```sh
-uv add "xtr-clock[di]"
+uv add xtr-clock xtr-dependency-injection
 ```
 
 ```python

@@ -26,9 +26,14 @@ message so the work happens on a worker rather than in the request that received
 ## Install
 
 ```sh
-uv add xtr-remote-event          # the event, the consumer contract, the decorator
-uv add "xtr-remote-event[di]"    # + the bundle
+uv add xtr-remote-event                            # the event, the consumer contract, the decorator
+uv add xtr-remote-event xtr-dependency-injection   # + the container, for the RemoteEventBundle
 ```
+
+The container is not a dependency: the bundle is used when
+[xtr-dependency-injection](../xtr-dependency-injection) is installed beside the package, never as
+an extra, and the event, the consumers and the message work without it, as the
+[Quick start](#quick-start) shows.
 
 ## Quick start
 
@@ -154,7 +159,8 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add "xtr-remote-event[di]"`. There are no other extras.
+- **Install** — `uv add xtr-remote-event xtr-dependency-injection`: the bundle needs the
+  container installed beside it, never as an extra. There are no extras.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
   `RemoteEventBundle`. There is nothing else for it to write — no configuration module, no
   environment variable, no ignore line. It prints the steps to declare your consumers and to
@@ -173,6 +179,9 @@ removing it undoes.
 - **Check** — `debug:bundles` shows `remote_event` as `listed` and `active`.
 
 ## Kernel / bundle
+
+With [xtr-dependency-injection](../xtr-dependency-injection) installed beside the package — it is
+not a dependency, and nothing outside `xtr_remote_event.bundle` needs it — list the bundle:
 
 ```python
 # app/bundles.py

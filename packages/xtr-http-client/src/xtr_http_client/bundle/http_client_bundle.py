@@ -81,5 +81,5 @@ def _check_pace(owner: str, rate_limiter: str | None, pacing: bool) -> None:
     if rate_limiter is not None and not pacing:
         raise InvalidArgumentError(
             f'{owner} is paced by the "{rate_limiter}" rate limiter, but the rate limiter '
-            f'bundle is not active: install "xtr-http-client[throttling]".'
+            "bundle is not active: install xtr-rate-limiter."
         )

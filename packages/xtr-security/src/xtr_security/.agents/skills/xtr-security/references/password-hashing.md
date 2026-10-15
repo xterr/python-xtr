@@ -109,7 +109,7 @@ All three derive from `PasswordHasherError`.
 
 ## The command
 
-With a console bundle active and the `console` extra installed:
+With xtr-console installed beside this package, which makes the console bundle active:
 
 ```sh
 security:hash-password [PASSWORD] [USER-CLASS] [--empty-salt]

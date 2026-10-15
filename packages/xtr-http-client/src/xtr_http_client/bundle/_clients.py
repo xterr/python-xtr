@@ -124,7 +124,7 @@ def _mock_transport() -> MockHttpClient:
 
 def _limiters(rate_limiter: str) -> object:
     """Return the annotation asking for the limiter factory ``rate_limiter`` names."""
-    # The throttling extra is optional: a client is only paced while the rate
+    # xtr-rate-limiter is optional: a client is only paced while the rate
     # limiter bundle is active, which proves it installed.
     from xtr_rate_limiter import RateLimiterFactoryInterface  # noqa: PLC0415
 

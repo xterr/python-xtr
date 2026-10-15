@@ -38,16 +38,16 @@ This package is the one bundle of the family. An application lists `SecurityBund
 
 ```sh
 uv add xtr-security                    # the bundle, wiring core, http and the password hasher
-uv add "xtr-security[console]"         # + debug:firewall and security:hash-password
+uv add xtr-console                     # beside it: debug:firewall and security:hash-password
 uv add "xtr-security-http[oidc]"       # + verifying third-party OIDC issuers' tokens
 ```
 
 Requires Python 3.11+. The core, http-edge and password-hasher libraries come with the package;
-`console` adds the commands. The `oidc` extra of [xtr-security-http](../xtr-security-http) adds
-joserfc and httpx and the OIDC token handler; the bundle registers its factory only when that
-extra is installed. Self-issued JSON Web Tokens are a separate package,
-[xtr-security-jwt](../xtr-security-jwt), which depends on this one and registers itself through
-the [extension points](#extending).
+[xtr-console](../xtr-console), installed beside it, adds the commands. The `oidc` extra of
+[xtr-security-http](../xtr-security-http) adds joserfc and httpx and the OIDC token handler; the
+bundle registers its factory only when that extra is installed. Self-issued JSON Web Tokens are a
+separate package, [xtr-security-jwt](../xtr-security-jwt), which depends on this one and
+registers itself through the [extension points](#extending).
 
 ## Quick start
 
@@ -259,8 +259,8 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add xtr-security`; `console` adds `debug:firewall` and
-  `security:hash-password`.
+- **Install** — `uv add xtr-security`; install [xtr-console](../xtr-console) beside it for
+  `debug:firewall` and `security:hash-password`.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
   `SecurityBundle`, which brings the event dispatcher and http-kernel bundles with it. There is no
   config file, environment or ignore line to write; it prints the `concurrent_scoped_access=True`,

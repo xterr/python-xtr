@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-_MARKUP = "skipped: install xtr-security[di]"
+_MARKUP = "point a [project.scripts] entry at it"
 
 
 @pytest.fixture
@@ -170,8 +170,8 @@ def test_change_dependency_does_not_sync_when_the_change_failed(
 
     monkeypatch.setattr(command_support, "run", record)
 
-    code = command_support.change_dependency(io, project, ("uv", "add", "xtr-clock[di]"))
+    code = command_support.change_dependency(io, project, ("uv", "add", "xtr-clock[tzdata]"))
 
     assert code == ExitCode.FAILURE
-    assert calls == [("uv", "add", "xtr-clock[di]")]
-    assert "uv add xtr-clock[di] failed" in output.getvalue()
+    assert calls == [("uv", "add", "xtr-clock[tzdata]")]
+    assert "uv add xtr-clock[tzdata] failed" in output.getvalue()

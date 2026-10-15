@@ -38,8 +38,11 @@ async def test_with_no_configuration_the_client_is_the_real_transport_alone() ->
 
 
 def test_a_paced_client_needs_the_rate_limiter_bundle(monkeypatch: pytest.MonkeyPatch) -> None:
-    # As without the throttling extra: the rate limiter bundle cannot be imported.
+    # As without xtr-rate-limiter installed: the rate limiter bundle cannot be imported.
     monkeypatch.setitem(sys.modules, "xtr_rate_limiter.bundle", None)
 
-    with pytest.raises(InvalidArgumentError, match="the rate limiter bundle is not active"):
+    with pytest.raises(
+        InvalidArgumentError,
+        match="the rate limiter bundle is not active: install xtr-rate-limiter",
+    ):
         _ = Kernel(_UNPACED_APP, env="test", bundles={HttpClientBundle: {"all": True}}).build()

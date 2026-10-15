@@ -22,6 +22,6 @@ __all__ = ["oauth2_server"]
 def oauth2_server(routes: RoutingConfigurator) -> None:
     """Serve the endpoints at their default paths."""
     _ = routes.import_("oauth2_server")
-    # Move them, or leave out the ones this deployment turned off:
-    # _ = routes.import_("oauth2_server").prefix("/auth").exclude("oauth2_introspect")
+    # To serve them elsewhere, chain `.prefix("/auth")` onto the import; to leave out an
+    # endpoint this deployment turned off, chain `.exclude("oauth2_introspect")`.
     _ = routes.import_("oauth2_server_well_known")

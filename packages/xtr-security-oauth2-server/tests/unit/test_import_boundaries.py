@@ -38,9 +38,9 @@ FORBIDDEN = (
 #: naming a directory covers every module beneath it.
 ALLOWED = (
     "bundle",
-    # A console command is an edge too: it exists only where the optional
-    # console extra is installed, it is wired by the bundle, and it asks the
-    # container for its stores — which is what pulls the container in.
+    # A console command is an edge too: it exists only where xtr-console is
+    # installed, it is wired by the bundle, and it asks the container for its
+    # stores — which is what pulls the container in.
     "command",
     "controller",
     "factory",

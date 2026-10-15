@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from xtr_cli import AddOn
 
-_ORM = AddOn("orm", "Databases.", "xtr-orm", ("di",), ("sqlite", "postgres"), ("sqlite",))
+_ORM = AddOn("orm", "Databases.", "xtr-orm", ("pool",), ("sqlite", "postgres"), ("sqlite",))
 
 
 def test_the_requirement_carries_the_extras_and_the_variants() -> None:
-    assert _ORM.requirement(("postgres",)) == "xtr-orm[di,postgres]"
+    assert _ORM.requirement(("postgres",)) == "xtr-orm[pool,postgres]"
 
 
 def test_an_add_on_without_extras_is_its_distribution() -> None:

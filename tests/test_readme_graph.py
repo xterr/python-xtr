@@ -3,9 +3,10 @@
 The graph is drawn by hand and the manifests are the truth, so every solid edge in it
 is a runtime dependency a package declares on a sibling, and every such dependency is
 an edge. A package added, or a dependency taken on or dropped, then shows up here
-rather than in a reader's out-of-date mental model. The dotted edges are extras: the
-graph names the ones worth knowing about rather than all of them, so they are left out
-of the comparison - the solid edges are the claim this checks.
+rather than in a reader's out-of-date mental model. The dotted edges are optional
+integrations - packages used when the application installs them too, never declared
+as dependencies - so they are left out of the comparison; the solid edges are the
+claim this checks.
 """
 
 from __future__ import annotations

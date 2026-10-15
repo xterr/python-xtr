@@ -234,7 +234,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
             "voter_qualifiers", qualifiers
         )
         if bundle_active(builder, "console"):
-            from xtr_security.command import (  # noqa: PLC0415 -- the console extra
+            from xtr_security.command import (  # noqa: PLC0415 -- only with xtr-console installed
                 UserPasswordHashCommand,
             )
 

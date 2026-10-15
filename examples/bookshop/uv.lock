@@ -385,29 +385,29 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "uvicorn" },
-    { name = "xtr-cache", extra = ["console", "di"] },
+    { name = "xtr-cache" },
     { name = "xtr-cache-contracts" },
-    { name = "xtr-clock", extra = ["di"] },
-    { name = "xtr-console", extra = ["di"] },
-    { name = "xtr-dependency-injection", extra = ["fastapi"] },
-    { name = "xtr-dotenv", extra = ["console", "di"] },
-    { name = "xtr-event-dispatcher", extra = ["di"] },
+    { name = "xtr-clock" },
+    { name = "xtr-console" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-dotenv" },
+    { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
-    { name = "xtr-http-kernel", extra = ["console", "logging", "rate-limiter"] },
-    { name = "xtr-lock", extra = ["di"] },
-    { name = "xtr-logging", extra = ["di"] },
+    { name = "xtr-http-kernel" },
+    { name = "xtr-lock" },
+    { name = "xtr-logging" },
     { name = "xtr-logging-contracts" },
-    { name = "xtr-messenger", extra = ["amqp", "console", "di", "pydantic"] },
-    { name = "xtr-orm", extra = ["console", "di", "messenger", "postgres", "sqlite"] },
+    { name = "xtr-messenger", extra = ["amqp", "pydantic"] },
+    { name = "xtr-orm", extra = ["postgres", "sqlite"] },
     { name = "xtr-password-hasher" },
-    { name = "xtr-rate-limiter", extra = ["cache", "di", "lock", "redis"] },
-    { name = "xtr-scheduler", extra = ["console", "cron", "di"] },
-    { name = "xtr-security", extra = ["console"] },
+    { name = "xtr-rate-limiter", extra = ["redis"] },
+    { name = "xtr-scheduler", extra = ["cron"] },
+    { name = "xtr-security" },
     { name = "xtr-security-core" },
     { name = "xtr-security-http" },
-    { name = "xtr-security-jwt", extra = ["console"] },
+    { name = "xtr-security-jwt" },
     { name = "xtr-service-contracts" },
-    { name = "xtr-storage", extra = ["di"] },
+    { name = "xtr-storage" },
 ]
 
 [package.dev-dependencies]
@@ -423,29 +423,29 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.121.3" },
     { name = "uvicorn", specifier = ">=0.30" },
-    { name = "xtr-cache", extras = ["di", "console"], editable = "../../packages/xtr-cache" },
+    { name = "xtr-cache", editable = "../../packages/xtr-cache" },
     { name = "xtr-cache-contracts", editable = "../../packages/xtr-cache-contracts" },
-    { name = "xtr-clock", extras = ["di"], editable = "../../packages/xtr-clock" },
-    { name = "xtr-console", extras = ["di"], editable = "../../packages/xtr-console" },
-    { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "../../packages/xtr-dependency-injection" },
-    { name = "xtr-dotenv", extras = ["di", "console"], editable = "../../packages/xtr-dotenv" },
-    { name = "xtr-event-dispatcher", extras = ["di"], editable = "../../packages/xtr-event-dispatcher" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
+    { name = "xtr-console", editable = "../../packages/xtr-console" },
+    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-dotenv", editable = "../../packages/xtr-dotenv" },
+    { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
-    { name = "xtr-http-kernel", extras = ["logging", "console", "rate-limiter"], editable = "../../packages/xtr-http-kernel" },
-    { name = "xtr-lock", extras = ["di"], editable = "../../packages/xtr-lock" },
-    { name = "xtr-logging", extras = ["di"], editable = "../../packages/xtr-logging" },
+    { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
+    { name = "xtr-lock", editable = "../../packages/xtr-lock" },
+    { name = "xtr-logging", editable = "../../packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
-    { name = "xtr-messenger", extras = ["di", "console", "pydantic", "amqp"], editable = "../../packages/xtr-messenger" },
-    { name = "xtr-orm", extras = ["di", "console", "messenger", "sqlite", "postgres"], editable = "../../packages/xtr-orm" },
+    { name = "xtr-messenger", extras = ["pydantic", "amqp"], editable = "../../packages/xtr-messenger" },
+    { name = "xtr-orm", extras = ["sqlite", "postgres"], editable = "../../packages/xtr-orm" },
     { name = "xtr-password-hasher", editable = "../../packages/xtr-password-hasher" },
-    { name = "xtr-rate-limiter", extras = ["di", "cache", "lock", "redis"], editable = "../../packages/xtr-rate-limiter" },
-    { name = "xtr-scheduler", extras = ["cron", "di", "console"], editable = "../../packages/xtr-scheduler" },
-    { name = "xtr-security", extras = ["console"], editable = "../../packages/xtr-security" },
+    { name = "xtr-rate-limiter", extras = ["redis"], editable = "../../packages/xtr-rate-limiter" },
+    { name = "xtr-scheduler", extras = ["cron"], editable = "../../packages/xtr-scheduler" },
+    { name = "xtr-security", editable = "../../packages/xtr-security" },
     { name = "xtr-security-core", editable = "../../packages/xtr-security-core" },
     { name = "xtr-security-http", editable = "../../packages/xtr-security-http" },
-    { name = "xtr-security-jwt", extras = ["console"], editable = "../../packages/xtr-security-jwt" },
+    { name = "xtr-security-jwt", editable = "../../packages/xtr-security-jwt" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
-    { name = "xtr-storage", extras = ["di"], editable = "../../packages/xtr-storage" },
+    { name = "xtr-storage", editable = "../../packages/xtr-storage" },
 ]
 
 [package.metadata.requires-dev]
@@ -1924,15 +1924,6 @@ dependencies = [
     { name = "xtr-logging-contracts" },
 ]
 
-[package.optional-dependencies]
-console = [
-    { name = "xtr-console" },
-]
-di = [
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-service-contracts" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "pynacl", marker = "extra == 'sodium'", specifier = ">=1.5" },
@@ -1940,14 +1931,10 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-cache-contracts", editable = "../../packages/xtr-cache-contracts" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-lock", editable = "../../packages/xtr-lock" },
-    { name = "xtr-logging", marker = "extra == 'logging'", editable = "../../packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
-    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["redis", "sodium", "di", "console", "logging"]
+provides-extras = ["redis", "sodium"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1996,22 +1983,16 @@ version = "4.0.4"
 source = { editable = "../../packages/xtr-clock" }
 dependencies = [
     { name = "anyio" },
-]
-
-[package.optional-dependencies]
-di = [
     { name = "typing-extensions" },
-    { name = "xtr-dependency-injection" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "anyio", specifier = ">=4.0" },
-    { name = "typing-extensions", marker = "extra == 'di'", specifier = ">=4.4" },
+    { name = "typing-extensions", specifier = ">=4.4" },
     { name = "tzdata", marker = "extra == 'tzdata'", specifier = ">=2024.1" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
 ]
-provides-extras = ["tzdata", "di"]
+provides-extras = ["tzdata"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2034,23 +2015,14 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 
-[package.optional-dependencies]
-di = [
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-service-contracts" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "cyclopts", specifier = ">=5.0,<6" },
     { name = "cyclopts", extras = ["trio"], marker = "extra == 'trio'", specifier = ">=5.0,<6" },
     { name = "rich", specifier = ">=13.6" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
-    { name = "xtr-logging", marker = "extra == 'logging'", editable = "../../packages/xtr-logging" },
-    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["di", "logging", "trio"]
+provides-extras = ["trio"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2063,6 +2035,7 @@ dev = [
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "../../packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
+    { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
 
 [[package]]
@@ -2073,11 +2046,6 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "wireup" },
     { name = "xtr-service-contracts" },
-]
-
-[package.optional-dependencies]
-fastapi = [
-    { name = "fastapi" },
 ]
 
 [package.metadata]
@@ -2106,32 +2074,19 @@ name = "xtr-dotenv"
 version = "4.0.4"
 source = { editable = "../../packages/xtr-dotenv" }
 dependencies = [
+    { name = "anyio" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "typing-extensions" },
 ]
 
-[package.optional-dependencies]
-console = [
-    { name = "anyio" },
-    { name = "xtr-console" },
-    { name = "xtr-dependency-injection" },
-]
-di = [
-    { name = "xtr-dependency-injection" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "anyio", marker = "extra == 'console'", specifier = ">=4.0" },
+    { name = "anyio", specifier = ">=4.0" },
     { name = "pydantic-settings", specifier = ">=2.4,<3" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
-    { name = "xtr-dependency-injection", marker = "extra == 'console'", editable = "../../packages/xtr-dependency-injection" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
 ]
-provides-extras = ["di", "console"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2155,22 +2110,12 @@ dependencies = [
     { name = "xtr-logging-contracts" },
 ]
 
-[package.optional-dependencies]
-di = [
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-service-contracts" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
-    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["di", "console"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2212,7 +2157,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "starlette" },
     { name = "typing-extensions" },
-    { name = "xtr-dependency-injection", extra = ["fastapi"] },
+    { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-http-message" },
@@ -2221,37 +2166,20 @@ dependencies = [
     { name = "xtr-service-contracts" },
 ]
 
-[package.optional-dependencies]
-console = [
-    { name = "xtr-console" },
-]
-logging = [
-    { name = "xtr-logging" },
-]
-rate-limiter = [
-    { name = "xtr-clock" },
-    { name = "xtr-rate-limiter", extra = ["di"] },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.121.3" },
     { name = "python-multipart", specifier = ">=0.0.18" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-clock", marker = "extra == 'rate-limiter'", editable = "../../packages/xtr-clock" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
-    { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
     { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
-    { name = "xtr-logging", marker = "extra == 'logging'", editable = "../../packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
-    { name = "xtr-rate-limiter", extras = ["di"], marker = "extra == 'rate-limiter'", editable = "../../packages/xtr-rate-limiter" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["logging", "console", "rate-limiter"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2265,7 +2193,7 @@ dev = [
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
     { name = "xtr-logging", editable = "../../packages/xtr-logging" },
-    { name = "xtr-rate-limiter", extras = ["di"], editable = "../../packages/xtr-rate-limiter" },
+    { name = "xtr-rate-limiter", editable = "../../packages/xtr-rate-limiter" },
 ]
 
 [[package]]
@@ -2325,23 +2253,14 @@ dependencies = [
     { name = "xtr-logging-contracts" },
 ]
 
-[package.optional-dependencies]
-di = [
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-service-contracts" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
-    { name = "xtr-logging", marker = "extra == 'logging'", editable = "../../packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
-    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["redis", "di", "logging"]
+provides-extras = ["redis"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2370,21 +2289,14 @@ dependencies = [
     { name = "xtr-service-contracts" },
 ]
 
-[package.optional-dependencies]
-di = [
-    { name = "xtr-dependency-injection" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "msgspec", specifier = ">=0.18" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["di"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2436,13 +2348,6 @@ amqp = [
     { name = "taskiq-aio-pika" },
     { name = "typing-extensions" },
 ]
-console = [
-    { name = "xtr-console" },
-]
-di = [
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-service-contracts" },
-]
 pydantic = [
     { name = "pydantic" },
 ]
@@ -2451,22 +2356,16 @@ pydantic = [
 requires-dist = [
     { name = "aio-pika", marker = "extra == 'amqp'", specifier = ">=9.4" },
     { name = "anyio", marker = "extra == 'amqp'", specifier = ">=4.0" },
-    { name = "anyio", marker = "extra == 'taskiq'", specifier = ">=4.0" },
     { name = "msgspec", specifier = ">=0.18" },
     { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0" },
     { name = "taskiq", marker = "extra == 'amqp'", specifier = ">=0.12.4" },
-    { name = "taskiq", marker = "extra == 'taskiq'", specifier = ">=0.12.4" },
     { name = "taskiq-aio-pika", marker = "extra == 'amqp'", specifier = ">=0.6.0" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "typing-extensions", marker = "extra == 'amqp'", specifier = ">=4.4" },
-    { name = "typing-extensions", marker = "extra == 'taskiq'", specifier = ">=4.4" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
-    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["pydantic", "di", "console", "taskiq", "amqp"]
+provides-extras = ["pydantic", "amqp"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2483,6 +2382,7 @@ dev = [
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-logging", editable = "../../packages/xtr-logging" },
+    { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
     { name = "yarl", specifier = ">=1.9" },
 ]
 
@@ -2499,16 +2399,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-console = [
-    { name = "xtr-console" },
-]
-di = [
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-service-contracts" },
-]
-messenger = [
-    { name = "xtr-messenger" },
-]
 postgres = [
     { name = "asyncpg" },
 ]
@@ -2525,13 +2415,9 @@ requires-dist = [
     { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.29" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.41" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
-    { name = "xtr-messenger", marker = "extra == 'messenger'", editable = "../../packages/xtr-messenger" },
-    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["postgres", "sqlite", "mysql", "di", "console", "messenger"]
+provides-extras = ["postgres", "sqlite", "mysql"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2563,9 +2449,8 @@ requires-dist = [
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3" },
     { name = "pwdlib", extras = ["bcrypt"], marker = "extra == 'bcrypt'", specifier = ">=0.3" },
     { name = "typing-extensions", specifier = ">=4.12" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
 ]
-provides-extras = ["bcrypt", "console"]
+provides-extras = ["bcrypt"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2590,16 +2475,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-cache = [
-    { name = "xtr-cache-contracts" },
-]
-di = [
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-service-contracts" },
-]
-lock = [
-    { name = "xtr-lock" },
-]
 redis = [
     { name = "redis" },
 ]
@@ -2608,14 +2483,10 @@ redis = [
 requires-dist = [
     { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "../../packages/xtr-cache-contracts" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
-    { name = "xtr-lock", marker = "extra == 'lock'", editable = "../../packages/xtr-lock" },
-    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["cache", "lock", "redis", "di"]
+provides-extras = ["redis"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2675,32 +2546,23 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-console = [
-    { name = "xtr-console" },
-]
 cron = [
     { name = "croniter" },
-]
-di = [
-    { name = "xtr-dependency-injection" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "croniter", marker = "extra == 'cron'", specifier = ">=6.2.4,<7" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-cache", marker = "extra == 'cache'", editable = "../../packages/xtr-cache" },
     { name = "xtr-cache-contracts", editable = "../../packages/xtr-cache-contracts" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-lock", editable = "../../packages/xtr-lock" },
     { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["cron", "di", "console", "cache"]
+provides-extras = ["cron"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2734,16 +2596,10 @@ dependencies = [
     { name = "xtr-security-http" },
 ]
 
-[package.optional-dependencies]
-console = [
-    { name = "xtr-console" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
@@ -2751,7 +2607,6 @@ requires-dist = [
     { name = "xtr-security-core", editable = "../../packages/xtr-security-core" },
     { name = "xtr-security-http", editable = "../../packages/xtr-security-http" },
 ]
-provides-extras = ["console"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2808,7 +2663,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "starlette" },
     { name = "typing-extensions" },
-    { name = "xtr-dependency-injection", extra = ["fastapi"] },
+    { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-http-kernel" },
@@ -2825,7 +2680,7 @@ requires-dist = [
     { name = "joserfc", marker = "extra == 'oidc'", specifier = ">=1.7" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
-    { name = "xtr-dependency-injection", extras = ["fastapi"], editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
@@ -2864,18 +2719,12 @@ dependencies = [
     { name = "xtr-security-http" },
 ]
 
-[package.optional-dependencies]
-console = [
-    { name = "xtr-console" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "joserfc", specifier = ">=1.7" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "../../packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
@@ -2883,7 +2732,6 @@ requires-dist = [
     { name = "xtr-security-core", editable = "../../packages/xtr-security-core" },
     { name = "xtr-security-http", editable = "../../packages/xtr-security-http" },
 ]
-provides-extras = ["console"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2925,22 +2773,14 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 
-[package.optional-dependencies]
-di = [
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-service-contracts" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "fsspec", specifier = ">=2026.6" },
     { name = "gcsfs", marker = "extra == 'gcs'", specifier = ">=2026.6" },
     { name = "s3fs", marker = "extra == 's3'", specifier = ">=2026.6" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "../../packages/xtr-dependency-injection" },
-    { name = "xtr-service-contracts", marker = "extra == 'di'", editable = "../../packages/xtr-service-contracts" },
 ]
-provides-extras = ["s3", "gcs", "di"]
+provides-extras = ["s3", "gcs"]
 
 [package.metadata.requires-dev]
 dev = [

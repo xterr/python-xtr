@@ -30,9 +30,13 @@ This package does both ends, and turns what arrives into an
 
 ```sh
 uv add xtr-webhook              # signatures, parsers, the endpoint, the events a webhook becomes
-uv add "xtr-webhook[client]"    # + sending signed webhooks, through xtr-http-client
-uv add "xtr-webhook[di]"        # + the bundle
+uv add xtr-http-client          # beside it: sending signed webhooks
 ```
+
+The bundle, `WebhookBundle`, is this package's own. The container it runs on arrives through
+[xtr-http-kernel](../xtr-http-kernel), which serves the endpoint and depends on it, so there is
+nothing more to install for the bundle. [xtr-http-client](../xtr-http-client) is neither a
+dependency nor an extra: installed beside this package, it is what sends — see [Sending](#sending).
 
 ## Quick start
 
@@ -282,8 +286,9 @@ your own that verifies nothing would otherwise accept every sender.
 
 ## Sending
 
-Install `xtr-webhook[client]`. A webhook goes out as a message, so the delivery is not in the
-request that caused it, and a refusal is retried by the bus:
+Install [xtr-http-client](../xtr-http-client) beside this package to send. A webhook goes out as
+a message, so the delivery is not in the request that caused it, and a refusal is retried by the
+bus:
 
 ```python
 from xtr_remote_event import RemoteEvent
@@ -454,12 +459,8 @@ is no client for it to wrap.
 
 ## Testing your parsers
 
-`xtr_webhook.testing` turns a directory of recorded payloads into tests. Install the helpers
-with the `testing` extra first — they build requests with xtr-http-message:
-
-```sh
-uv add --dev "xtr-webhook[testing]"
-```
+`xtr_webhook.testing` turns a directory of recorded payloads into tests. The helpers come with
+the package — they build requests with xtr-http-message, one of its dependencies.
 
 Each `*.json` fixture has a sibling `*.py` defining a module-level `EXPECTED`, the event — or list
 of events — it must parse to:
@@ -516,12 +517,13 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add "xtr-webhook[client]"`; add `di` for the bundle. The endpoint that
-  receives comes with the package; `client` is what sends: it brings
-  [xtr-http-client](../xtr-http-client) — the client, the guard and the client's bundle.
-  Without `client`, no transport and no send handler are registered, dispatching
-  `SendWebhookMessage` fails with the bus's no-handler error, and turning `no_private_network`
-  on is refused with `LogicError`.
+- **Install** — `uv add xtr-webhook`; install [xtr-http-client](../xtr-http-client) beside it to
+  send. The endpoint that receives and `WebhookBundle` are the package's own, and the container
+  the bundle runs on arrives through [xtr-http-kernel](../xtr-http-kernel), which serves the
+  endpoint. xtr-http-client is what sends — the client, the guard and the client's bundle.
+  Without it, no transport and no send handler are registered, dispatching `SendWebhookMessage`
+  fails with the bus's no-handler error, and turning `no_private_network` on is refused with
+  `LogicError`.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure* and
   *Environment* steps below: it lists `WebhookBundle`, writes a starting
   `<app>/config/webhook.py` with one route, `<app>/config/routes/webhook.py` serving the
@@ -547,8 +549,8 @@ removing it undoes.
 - **Remove** — drop the `BUNDLES` entry, delete `<app>/config/webhook.py` and
   `<app>/config/routes/webhook.py`, then `uv remove xtr-webhook`.
 - **Check** — `debug:bundles` shows `webhook` and `remote_event` as `listed` and `active`, and
-  `http_client` with the `client` extra; `debug:config webhook` shows the resolved routing,
-  header names and signature format.
+  `http_client` when xtr-http-client is installed; `debug:config webhook` shows the resolved
+  routing, header names and signature format.
 
 ## Kernel / bundle
 
@@ -658,7 +660,7 @@ Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, und
 repository is a read-only copy, so send issues and pull requests to the monorepo.
 
 ```sh
-uv sync --all-extras
+uv sync
 uv run ruff check && uv run ruff format --check && uv run basedpyright && uv run ty check && uv run pytest
 ```
 

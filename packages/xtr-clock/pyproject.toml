@@ -22,15 +22,12 @@ classifiers = [
 ]
 dependencies = [
     "anyio>=4.0",
+    "typing-extensions>=4.4",
 ]
 
 [project.optional-dependencies]
 tzdata = [
     "tzdata>=2024.1",
-]
-di = [
-    "typing-extensions>=4.4",
-    "xtr-dependency-injection>=4.0,<5",
 ]
 
 # No `pytest11` entry point on purpose. The `clock` fixture is opted into with

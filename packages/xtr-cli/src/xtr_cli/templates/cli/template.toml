@@ -4,9 +4,9 @@ summary = "A console application: a kernel, its commands, the layered .env files
 [dependencies]
 packages = [
     "xtr-dependency-injection",
-    "xtr-console[di]",
-    "xtr-dotenv[di,console]",
-    "xtr-logging[di]",
+    "xtr-console",
+    "xtr-dotenv",
+    "xtr-logging",
 ]
 dev = ["xtr-recipes", "pytest", "ruff", "basedpyright", "ty"]
 

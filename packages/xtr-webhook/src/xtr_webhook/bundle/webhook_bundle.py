@@ -8,7 +8,7 @@ xtr-http-client is installed — gets the endpoint webhooks arrive at, which
 and — with xtr-http-client — the transport that delivers a
 ``SendWebhookMessage`` and the handler that listens for one. The handler is
 registered only alongside the transport it needs, so a container never holds a
-handler it cannot build; without the ``client`` extra, dispatching a
+handler it cannot build; without xtr-http-client installed, dispatching a
 ``SendWebhookMessage`` fails with the bus's no-handler error.
 """
 
@@ -128,7 +128,7 @@ class WebhookBundle(Bundle[WebhookConfig]):
         elif config.no_private_network.enabled:
             raise LogicError(
                 'Configuring "no_private_network" requires xtr-http-client; '
-                'install it with uv add "xtr-webhook[client]".'
+                "install it with uv add xtr-http-client."
             )
 
 
@@ -206,7 +206,7 @@ def _transport(qualifier: str | None) -> Callable[..., Transport]:
         if guard.enabled:
             # Imported only now: the factory is registered only once
             # xtr-http-client was found, and the guard is that package's.
-            from xtr_http_client import (  # noqa: PLC0415 -- guarded behind the client extra
+            from xtr_http_client import (  # noqa: PLC0415 -- xtr-http-client is optional, found above
                 NoPrivateNetworkHttpClient,
             )
 

@@ -4,11 +4,11 @@ summary = "A web application: FastAPI served from the kernel, with the console b
 
 [dependencies]
 packages = [
-    "xtr-dependency-injection[fastapi]",
-    "xtr-console[di]",
-    "xtr-dotenv[di,console]",
-    "xtr-logging[di]",
-    "xtr-http-kernel[logging,console]",
+    "xtr-dependency-injection",
+    "xtr-console",
+    "xtr-dotenv",
+    "xtr-logging",
+    "xtr-http-kernel",
     "fastapi",
     "uvicorn",
 ]

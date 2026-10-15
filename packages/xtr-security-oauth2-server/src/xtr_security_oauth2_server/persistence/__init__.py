@@ -1,7 +1,7 @@
 """Where a stored deployment's tables are defined, and the column types they use.
 
-Everything here needs the ORM, which the ``orm`` extra brings; the rest of the
-package never imports it. The mapping lives in
+Everything here needs the ORM, xtr-orm, which an application installs beside
+this package; the rest of the package never imports it. The mapping lives in
 :mod:`xtr_security_oauth2_server.persistence.mapping` and the column types it
 builds the tables from in :mod:`xtr_security_oauth2_server.persistence.type`.
 

@@ -21,8 +21,10 @@ sender. This package is that last step and nothing else.
   onto a worker through [xtr-messenger](https://github.com/xterr/python-xtr).
 - `PayloadConverterInterface.convert(payload)` → `RemoteEvent`. Synchronous, takes the payload
   already decoded.
-- In an application: activate `RemoteEventBundle`, declare consumers where they live, route
-  `ConsumeRemoteEventMessage`. There is no configuration module.
+- In an application, with xtr-dependency-injection installed beside the package (it is not a
+  dependency): activate `RemoteEventBundle`, declare consumers where they live, route
+  `ConsumeRemoteEventMessage`. There is no configuration module. Without the container, build the
+  `ConsumerLocator` over your consumers yourself; only `xtr_remote_event.bundle` needs it.
 - Everything derives from `RemoteEventError`.
 
 ## Declare a consumer
@@ -154,7 +156,8 @@ async def test_a_paid_order_is_marked_paid() -> None:
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
 `RemoteEventBundle`. That is all a recipe can do here; it prints the two steps below it cannot.
 
-1. **Install** — `uv add "xtr-remote-event[di]"`. There are no other extras.
+1. **Install** — `uv add xtr-remote-event xtr-dependency-injection`: the bundle needs the
+   container installed beside it, never as an extra. There are no extras.
 2. **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`
    (`from xtr_remote_event.bundle import RemoteEventBundle`). Nothing to do when xtr-webhook's
    bundle is listed, which requires this one.

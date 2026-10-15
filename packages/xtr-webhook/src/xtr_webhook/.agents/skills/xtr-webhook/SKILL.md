@@ -20,8 +20,8 @@ sees HTTP. Sending is the same problem from the other side.
   `async do_parse(request, secret)`. `RequestParser` is the built-in one. The matchers are
   `xtr_http_foundation`'s, and `IsJsonRequestMatcher` reads the body rather than the
   `Content-Type` header.
-- Send — `await bus.dispatch(SendWebhookMessage(Subscriber(url, secret), event))`. Needs the
-  `client` extra, which brings xtr-http-client; `Transport` posts through any
+- Send — `await bus.dispatch(SendWebhookMessage(Subscriber(url, secret), event))`. Needs
+  xtr-http-client installed beside this package; `Transport` posts through any
   `HttpClientInterface`.
 - Formats — `SignatureFormat.LEGACY` (default), `STANDARD`, `TRANSITIONAL`. Members are their
   strings. Only `STANDARD` signs the timestamp, so only it bounds replays.
@@ -34,7 +34,7 @@ sees HTTP. Sending is the same problem from the other side.
 
 ## Receive a webhook
 
-With `xtr-webhook[di]`, call `setup` — it adds the endpoint — and route each sender's type:
+Call `setup` — it adds the endpoint — and route each sender's type:
 
 ```python
 from fastapi import FastAPI
@@ -135,7 +135,7 @@ than a `500`, and both answers are the ones the sender's side waits for.
 
 ## Send a webhook
 
-With `xtr-webhook[client]` installed:
+With xtr-http-client installed beside this package:
 
 ```python
 from xtr_remote_event import RemoteEvent
@@ -163,8 +163,8 @@ _ = await bus.dispatch(
 - Any answer outside 200-299 raises `DeliveryError`. Nothing is caught, so the bus retries and,
   once the attempts are spent, keeps the message. A redirect counts as refused and is never
   followed. A delivery nothing answered raises the client's own `TransportError`, retried alike.
-- Without the `client` extra no transport and no send handler are registered, and the dispatch
-  fails with the bus's no-handler error.
+- Without xtr-http-client installed no transport and no send handler are registered, and the
+  dispatch fails with the bus's no-handler error.
 - The subscriber secret travels inside the queued message body, so the queue storage must be
   trusted. The bus logs the message type, transport, id, handler name and stamps, never the body.
 
@@ -239,9 +239,8 @@ transport = Transport(
 
 ## Testing
 
-`xtr_webhook.testing` turns a directory of recorded payloads into tests. Before using it, install
-the `testing` extra — the helpers build requests with xtr-http-message:
-`uv add --dev "xtr-webhook[testing]"`.
+`xtr_webhook.testing` turns a directory of recorded payloads into tests. It comes with the
+package — the helpers build requests with xtr-http-message, one of its dependencies.
 
 Each `*.json` fixture has a sibling `*.py` defining a module-level `EXPECTED`, the event or list of
 events it must parse to:
@@ -288,8 +287,10 @@ async def test_the_parser_reads_every_recorded_payload(case: ParserCase) -> None
 `<app>/config/routes/webhook.py`, and `WEBHOOK_SECRET` (commented out) in `.env`. It prints the
 steps it cannot make — calling `setup` and naming your own types.
 
-1. **Install** — `uv add "xtr-webhook[client]"`; add `di` for the bundle. The endpoint comes
-   with the package; `client` sends, bringing xtr-http-client and its bundle.
+1. **Install** — `uv add xtr-webhook`; install xtr-http-client beside it to send. The endpoint
+   and `WebhookBundle` are the package's own, and the container the bundle runs on arrives
+   through xtr-http-kernel, which serves the endpoint. xtr-http-client sends, bringing its own
+   bundle.
 2. **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`
    (`from xtr_webhook.bundle import WebhookBundle`).
 3. **Brings along** — the remote-event bundle, the messenger bundle through it, and the HTTP

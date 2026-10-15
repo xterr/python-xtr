@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
-_REQUIREMENT = "xtr-clock[di]"
+_REQUIREMENT = "xtr-clock[tzdata]"
 _UV_FAILED = 2
 _SYNC_CODE = 7
 

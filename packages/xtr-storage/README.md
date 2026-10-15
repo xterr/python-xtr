@@ -34,8 +34,9 @@ once and moved between backends by swapping the adapter it is handed.
   a location starts with (`"uploads://avatars/1.png"`).
 - 🚫 **Honest about limits** — a backend that cannot do a thing raises a clear
   `FeatureNotSupportedError`, never a silent wrong answer.
-- 🧩 **A bundle** — named storages configured in Python and injected anywhere,
-  with a zero-config default that touches no disk until first use.
+- 🧩 **An optional bundle** — named storages configured in Python and injected
+  anywhere once xtr-dependency-injection is installed beside it, with a
+  zero-config default that touches no disk until first use.
 
 ```python
 from xtr_storage import LocalAdapter, Storage
@@ -50,15 +51,19 @@ report = await storage.read("reports/2026.txt")
 
 ```sh
 uv add xtr-storage
-uv add "xtr-storage[s3]"     # S3Adapter, on the s3fs backend
-uv add "xtr-storage[gcs]"    # GcsAdapter, on the gcsfs backend
-uv add "xtr-storage[di]"     # the bundle for xtr-dependency-injection
+uv add "xtr-storage[s3]"                      # S3Adapter, on the s3fs backend
+uv add "xtr-storage[gcs]"                     # GcsAdapter, on the gcsfs backend
+uv add xtr-storage xtr-dependency-injection   # + the container, for the StorageBundle
 ```
 
 Requires Python 3.11+. Every adapter is built on `fsspec`, a required
 dependency; the S3 and Google Cloud backends are the optional extras above. An
 adapter whose extra is missing raises `MissingBackendError` naming the extra to
 install, rather than failing on an obscure import.
+
+The container is not a dependency: the bundle is used when
+[xtr-dependency-injection](../xtr-dependency-injection) is installed beside the
+package, never as an extra, and the storages work without it.
 
 ## Quick start
 
@@ -323,8 +328,9 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read
 backwards, what removing it undoes.
 
-- **Install** — `uv add "xtr-storage[di]"`; add `s3` or `gcs` for the object
-  stores you reach.
+- **Install** — `uv add xtr-storage xtr-dependency-injection`: the bundle needs
+  the container installed beside it, never as an extra. Add `s3` or `gcs` for
+  the object stores you reach.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Ignore*
   steps below: it lists `StorageBundle` and ignores `/var/storage/`. There is no
   config file or environment to write.
@@ -346,8 +352,9 @@ backwards, what removing it undoes.
 
 ## Kernel / bundle
 
-With [xtr-dependency-injection](../xtr-dependency-injection), list the bundle and
-name the storages:
+With [xtr-dependency-injection](../xtr-dependency-injection) installed beside the
+package — it is not a dependency, and nothing outside `xtr_storage.bundle` needs
+it — list the bundle and name the storages:
 
 ```python
 # app/bundles.py

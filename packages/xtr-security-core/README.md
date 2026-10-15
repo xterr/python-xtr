@@ -354,7 +354,7 @@ Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, und
 repository is a read-only copy, so send issues and pull requests to the monorepo.
 
 ```sh
-uv sync --all-extras
+uv sync
 uv run ruff check && uv run ruff format --check && uv run basedpyright && uv run ty check && uv run pytest
 ```
 

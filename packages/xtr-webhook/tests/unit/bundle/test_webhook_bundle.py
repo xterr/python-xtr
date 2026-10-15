@@ -108,5 +108,5 @@ def test_without_the_http_client_the_guard_is_refused(monkeypatch: pytest.Monkey
 
     assert str(caught.value) == (
         'Configuring "no_private_network" requires xtr-http-client; '
-        'install it with uv add "xtr-webhook[client]".'
+        "install it with uv add xtr-http-client."
     )

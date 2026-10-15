@@ -141,7 +141,7 @@ async def test_show_lists_a_package_whose_bundle_class_is_not_there(
 
     _ = await tester.execute(_argv(project_dir))
 
-    assert f"skipped: install {MESSENGER}[di]" in tester.display
+    assert "skipped: the bundle class does not load" in tester.display
 
 
 async def test_show_lists_a_locked_package_that_is_no_longer_installed(

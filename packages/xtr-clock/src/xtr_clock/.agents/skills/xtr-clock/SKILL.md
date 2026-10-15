@@ -17,7 +17,9 @@ anywhere a `datetime` goes.
 - Code that cannot be handed a clock (module helpers, validators): `from xtr_clock import now`.
 - Relative times: `clock.now().modify("+1 hour")`, `now("tomorrow")`, `DatePoint.parse("+1 day UTC")`.
 - Freeze for a block: `from xtr_clock.testing import mock_time`.
-- In an application: activate `ClockBundle`, inject `ClockInterface`.
+- In an application, with xtr-dependency-injection installed beside the package (it is not a
+  dependency): activate `ClockBundle`, inject `ClockInterface`. Without the container, build the
+  clock yourself; only `xtr_clock.bundle` needs it.
 
 ## Inject a clock
 
@@ -117,7 +119,8 @@ def test_helper_code() -> None:
 `ClockBundle`, or leaves it out when another bundle requires it (the logging bundle does). That is
 the steps below a recipe can do; the others it prints for you to make.
 
-1. **Install** — `uv add "xtr-clock[di]"`; add the `tzdata` extra on Windows or slim containers.
+1. **Install** — `uv add xtr-clock xtr-dependency-injection`: the bundle needs the container
+   installed beside it, never as an extra. Add the `tzdata` extra on Windows or slim containers.
 2. **Activate** — usually nothing: the logging bundle requires it. Otherwise add
    `ClockBundle: {"all": True}` to `BUNDLES` in `<app>/bundles.py`
    (`from xtr_clock.bundle import ClockBundle`).

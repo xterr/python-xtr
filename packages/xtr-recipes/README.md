@@ -102,8 +102,8 @@ nothing is left to put in it — so they are the only unindented steps besides t
 
 Writes nothing. Named without a package it lists every recipe the project has something to say
 about, with its standing — `locked`, `not configured`, `outdated`, `removed`, or
-`skipped: install <package>[di]` for a package installed without the extra that ships its bundle
-class. Named with a package it prints that one recipe in full: its bundles, files, env keys,
+`skipped: the bundle class does not load` for a package whose bundle class cannot be imported.
+Named with a package it prints that one recipe in full: its bundles, files, env keys,
 ignore lines and notes, exactly as the recipe ships them.
 
 A package the project no longer installs but the lock still records — removed from the
@@ -229,9 +229,9 @@ hard or soft, through the `@required_bundle` declarations
 bundle recorded as `required` becomes `listed` again once the bundle that required it is removed.
 Only a requirer listed for every environment counts: one limited to `dev` and `test` would leave
 its peers inactive in `prod`, so the recipe's bundle is listed anyway.
-A bundle whose class cannot be imported — the package was installed without the `di` extra — is
-skipped with a message naming the extra; the package is not locked, so the next sync retries once
-the extra is installed. A package already configured whose bundle stops importing is left exactly
+A bundle whose class cannot be imported — a broken installation, a module it needs missing — is
+skipped with a message saying so; the package is not locked, so the next sync retries once the
+bundle loads. A package already configured whose bundle stops importing is left exactly
 as the lock has it — a broken installation is no reason to undo what was applied.
 
 Environment variables and ignore lines are written as marked blocks in the project's `.env` and
@@ -296,7 +296,7 @@ Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, und
 `packages/xtr-recipes`; run the commands below from there.
 
 ```sh
-uv sync --all-extras
+uv sync
 uv run ruff check && uv run ruff format --check && uv run basedpyright && uv run ty check && uv run pytest
 ```
 

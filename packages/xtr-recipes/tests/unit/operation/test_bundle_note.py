@@ -12,7 +12,7 @@ from xtr_recipes.operation.bundle_note import BundleNote
         "already listed",
         "required by another bundle",
         "removed",
-        "skipped: install xtr-messenger[di]",
+        "skipped: the bundle class does not load",
     ],
 )
 def test_it_renders_the_class_and_the_note(note: str) -> None:

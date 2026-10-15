@@ -294,10 +294,10 @@ own, keep every secret out of the repository too.
 | security | `Firewall()` on a router; `CurrentUser()`; `@IsGranted("ROLE_ADMIN")`; `Security.deny_access_unless_granted` in a body | `web/routes.py` |
 | security | a `Voter` subclass granting `ORDER_VIEW` to an order's owner, gathered by the `security.voter` tag | `ordering/order_voter.py` |
 | security | `UserPasswordHasherInterface` verifying a password, with a dummy-hash timing guard | `web/routes.py` |
-| security | `debug:firewall`, `security:hash-password` (the `console` extra) | the bundle registers them |
+| security | `debug:firewall`, `security:hash-password` | the bundle registers them |
 | jwt | `JwtConfig` — the signing key from `env("resolve:...")`, the `issuer` and `audience` every token is checked against, `token_ttl`, `user_id_claim` | `config/jwt.py` |
 | jwt | `JwtAuthenticatorConfig()` in a firewall; `JwtTokenManagerInterface.create(user)` in `/token` | `config/security.py`, `web/routes.py` |
-| jwt | `jwt:generate-keypair`, `jwt:generate-token`, `jwt:check-config` (the `console` extra) | the bundle registers them |
+| jwt | `jwt:generate-keypair`, `jwt:generate-token`, `jwt:check-config` | the bundle registers them |
 
 ## Environment variables
 

@@ -105,12 +105,12 @@ def test_a_bundle_the_list_never_held_is_not_reported_as_removed() -> None:
     assert _lines(draft) == (f"unconfigure {_MESSENGER}",)
 
 
-def test_skipping_reads_as_a_section_naming_the_extra_to_install() -> None:
+def test_skipping_reads_as_a_section_saying_the_bundle_class_does_not_load() -> None:
     draft = SyncDraft(skipped={_MESSENGER: (_TARGET,)})
 
     assert _lines(draft) == (
         f"skip {_MESSENGER}",
-        f"  bundle MessengerBundle skipped: install {_MESSENGER}[di]",
+        "  bundle MessengerBundle skipped: the bundle class does not load",
     )
 
 

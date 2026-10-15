@@ -24,10 +24,10 @@ def test_the_xtr_requirements_are_pinned_to_the_tools_major(tmp_path: Path) -> N
         "add",
         "--",
         "xtr-dependency-injection>=3.0,<4",
-        "xtr-console[di]>=3.0,<4",
-        "xtr-dotenv[di,console]>=3.0,<4",
-        "xtr-logging[di]>=3.0,<4",
-        "xtr-orm[di,console,sqlite]>=3.0,<4",
+        "xtr-console>=3.0,<4",
+        "xtr-dotenv>=3.0,<4",
+        "xtr-logging>=3.0,<4",
+        "xtr-orm[sqlite]>=3.0,<4",
     )
 
 
@@ -46,7 +46,7 @@ def test_the_tools_are_added_as_development_dependencies_then_the_recipes_applie
 def test_a_development_version_pins_nothing(tmp_path: Path) -> None:
     plan = _scaffolder(version="0+unknown").plan(build_settings(tmp_path / "shop"))
 
-    assert "xtr-console[di]" in plan.commands[0]
+    assert "xtr-console" in plan.commands[0]
 
 
 def test_a_template_without_requirements_runs_only_git(tmp_path: Path) -> None:

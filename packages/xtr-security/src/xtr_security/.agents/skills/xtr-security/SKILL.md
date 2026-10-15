@@ -244,8 +244,8 @@ back — rather than writing a token into storage by hand.
 steps below a recipe can do; the `concurrent_scoped_access`, `setup(app, kernel)` and
 `config/security.py` steps it prints for you to make.
 
-1. **Install** — `uv add xtr-security`; `[console]` adds `debug:firewall` and
-   `security:hash-password`, `"xtr-security-http[oidc]"` adds OIDC token verification.
+1. **Install** — `uv add xtr-security`; xtr-console, installed beside it, adds `debug:firewall`
+   and `security:hash-password`; `"xtr-security-http[oidc]"` adds OIDC token verification.
 2. **Activate** — `SecurityBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
    from `xtr_security.bundle`. Call `setup(app, kernel)` where the application is built, and
    build the kernel with `concurrent_scoped_access=True` so concurrent requests keep their own

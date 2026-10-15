@@ -39,7 +39,7 @@ It ships everything for both halves of that loop:
 
 ```sh
 uv add xtr-security-jwt              # the library and its JwtBundle
-uv add "xtr-security-jwt[console]"   # + jwt:generate-keypair, jwt:generate-token, jwt:check-config
+uv add xtr-console                   # beside it: jwt:generate-keypair, jwt:generate-token, jwt:check-config
 ```
 
 Requires Python 3.11+. The package ships a bundle, so it depends on the container and the
@@ -267,7 +267,7 @@ rather than to all three.
 
 ## Commands
 
-With the console extra and a console bundle active:
+With xtr-console installed beside this package, which makes a console bundle active:
 
 | Command | Does |
 |---|---|
@@ -290,7 +290,8 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add xtr-security-jwt`; add `[console]` for the commands.
+- **Install** — `uv add xtr-security-jwt`; install [xtr-console](../xtr-console) beside it for
+  the commands.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
   and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/jwt.py`,
   `JWT_SECRET_KEY_PATH=%kernel.project_dir%/secrets/jwt.pem` in `.env`, and adds `/secrets/*.pem`

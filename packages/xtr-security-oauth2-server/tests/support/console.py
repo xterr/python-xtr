@@ -45,7 +45,7 @@ def console_kernel(
         ConsoleBundle: {"all": True},
     }
     if orm:
-        from xtr_orm.bundle import OrmBundle  # noqa: PLC0415 -- an extra, imported where it is used
+        from xtr_orm.bundle import OrmBundle  # noqa: PLC0415 -- xtr-orm is optional, imported here
 
         bundles[OrmBundle] = {"all": True}
 

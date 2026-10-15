@@ -320,8 +320,8 @@ async def test_a_service_is_issued_a_token(tmp_path, monkeypatch) -> None:
 
 ## Use in an application
 
-1. **Install** — `uv add xtr-security-oauth2-server`; `[orm]` for a database store, `[console]`
-   for the commands.
+1. **Install** — `uv add xtr-security-oauth2-server`. With xtr-orm installed beside it, clients
+   and credentials can live in a database; install xtr-console beside it for the commands.
 2. **Recipe** — `uv run xtr-recipes recipes:sync` lists `OAuth2ServerBundle`, writes
    `<app>/config/oauth2_server.py`, `OAUTH2_SERVER_PRIVATE_KEY_PATH` and a commented-out
    `OAUTH2_SERVER_ENCRYPTION_KEY` in `.env`, adds `/secrets/*.pem` to `.gitignore`, and writes

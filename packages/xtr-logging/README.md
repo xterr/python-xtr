@@ -36,7 +36,7 @@ What you get:
   [xtr-logging-contracts](https://github.com/xterr/python-xtr-logging-contracts), which has one
   dependency, so a library that only logs never installs any of this.
 - 🪶 **Five core dependencies** — `msgspec`, `typing-extensions`, `xtr-clock`,
-  `xtr-logging-contracts` and `xtr-service-contracts`.
+  `xtr-logging-contracts` and `xtr-service-contracts`. The container is not one of them.
 
 ```python
 logger.error("payment {order} failed", {"order": order.id, "exception": error})
@@ -45,11 +45,13 @@ logger.error("payment {order} failed", {"order": order.id, "exception": error})
 ## Install
 
 ```sh
-uv add xtr-logging              # everything but the container integration
-uv add "xtr-logging[di]"        # + a logger per channel from an xtr-dependency-injection kernel
+uv add xtr-logging                           # everything but the container integration
+uv add xtr-logging xtr-dependency-injection  # + the container, for the LoggingBundle
 ```
 
-Requires Python 3.11+.
+Requires Python 3.11+. The container is not a dependency: the bundle is used when
+[xtr-dependency-injection](../xtr-dependency-injection) is installed beside the package, never as
+an extra, and the loggers work without it.
 
 ## Quick start
 
@@ -463,15 +465,16 @@ unit does not bleed into the next; the kernel awaits it between messages through
 Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what removing it undoes.
 
-- **Install** — `uv add "xtr-logging[di]"`.
+- **Install** — `uv add xtr-logging xtr-dependency-injection`: the bundle needs the container
+  installed beside it, never as an extra.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Configure* steps below:
   it lists `LoggingBundle` and writes a starting `<app>/config/logging.py`. There is no environment
   or ignore line to write; it prints the step to add the handlers a deployment needs.
 - **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_logging.bundle`.
-- **Brings along** — nothing required. The clock bundle is an optional peer: when it is also
-  listed, loggers read the boot-time clock from it; without it they read the ambient clock, so a
-  missing clock bundle costs nothing.
+- **Brings along** — the clock bundle. It is an optional peer, but xtr-clock is a dependency, so
+  it is always installed and arrives as `required`: loggers read the boot-time clock from it, the
+  same instant as an injected clock.
 - **Configure** — needed to see anything: with no configuration there are no handlers, so
   records go nowhere. Channels and handlers go in `<app>/config/logging.py`, a `@configure`
   function returning `LoggingConfig` — see [Kernel / bundle](#kernel--bundle) and
@@ -486,13 +489,14 @@ Everything adding this package to an application on
 
 ## Kernel / bundle
 
-An application using [xtr-dependency-injection](../xtr-dependency-injection) lists
+With [xtr-dependency-injection](../xtr-dependency-injection) installed beside the package — it is
+not a dependency, and nothing outside `xtr_logging.bundle` needs it — an application lists
 `LoggingBundle` in its `app/bundles.py` and configures it with `@configure`. A service asks
 for the default channel by the interface, and for any other by qualifying it with the
 channel's name:
 
 ```sh
-uv add "xtr-logging[di]"
+uv add xtr-logging xtr-dependency-injection
 ```
 
 ```python
@@ -557,7 +561,8 @@ A class decorated `@as_processor` — with the kernel scanning the module — be
 decorated function is the processor itself and is attached as it is. `channel=`, `handler=`
 and `priority=` apply to both, and both stay instantly usable outside a kernel too.
 `@required_bundle("xtr_clock.bundle:ClockBundle", ignore_on_invalid=True)` pulls in the clock
-bundle when installed, so records read the same instant as an injected clock.
+bundle — always installed, as xtr-clock is a dependency — so records read the same instant as
+an injected clock.
 
 ## Time
 
@@ -622,7 +627,7 @@ Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, und
 read-only copy, so send issues and pull requests to the monorepo.
 
 ```sh
-uv sync --all-extras
+uv sync
 uv run ruff check . && uv run ruff format --check .
 uv run basedpyright
 uv run ty check

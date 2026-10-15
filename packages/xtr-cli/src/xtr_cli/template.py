@@ -40,8 +40,8 @@ class Template:
         summary = "A console application."
 
         [dependencies]
-        packages = ["xtr-console[di]"]   # installed with `uv add`
-        dev = ["xtr-recipes"]            # installed with `uv add --dev`
+        packages = ["xtr-console"]   # installed with `uv add`
+        dev = ["xtr-recipes"]        # installed with `uv add --dev`
 
         [files]
         # destination in the project = template under this directory

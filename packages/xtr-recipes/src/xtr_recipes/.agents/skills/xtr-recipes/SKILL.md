@@ -14,7 +14,7 @@ It is a developer and CI tool, so install it as a dev dependency.
 ## Quick reference
 
 - Install once: `uv add --dev xtr-recipes`.
-- Add a package and apply its recipe: `uv run xtr-recipes recipes:add "xtr-messenger[di,console]"`.
+- Add a package and apply its recipe: `uv run xtr-recipes recipes:add xtr-messenger`.
 - After a plain `uv add`, catch up with: `uv run xtr-recipes recipes:sync`.
 - Remove a package and undo its recipe: `uv run xtr-recipes recipes:remove xtr-messenger`.
 - See what is configured and what a sync would do: `uv run xtr-recipes recipes:show`.
@@ -30,7 +30,7 @@ It is a developer and CI tool, so install it as a dev dependency.
 
 ```sh
 # add the dependency and apply whatever recipe arrived with it, in one step
-uv run xtr-recipes recipes:add "xtr-messenger[di,console]"
+uv run xtr-recipes recipes:add xtr-messenger
 
 # or, if you already ran `uv add`, bring the project in line
 uv run xtr-recipes recipes:sync
@@ -63,9 +63,10 @@ uv run xtr-recipes recipes:show
 ```
 
 `locked` is applied and current, `not configured` would be configured by a sync, `outdated` has a
-changed recipe, `removed` is locked but no longer depended on, and `skipped: install <package>[di]`
-means the package is installed without the extra that ships its bundle class. Name a package to see
-its bundles, files, env keys, ignore lines and notes as the recipe ships them.
+changed recipe, `removed` is locked but no longer depended on, and
+`skipped: the bundle class does not load` means the package's bundle class cannot be imported.
+Name a package to see its bundles, files, env keys, ignore lines and notes as the recipe ships
+them.
 
 ## When a bundle is not listed
 
@@ -73,8 +74,8 @@ A recipe's bundle is left out of `bundles.py` when another listed bundle already
 depending on `xtr-clock` while `xtr-logging` is active lists no `ClockBundle` — the lock records it
 `required`. This is recomputed every sync, so removing the requiring bundle lists it again. A
 requirer limited to some environments does not count, so its peers are still listed. A bundle
-whose class cannot be imported (installed without the `di` extra) is skipped with the extra
-named, and the package is retried next sync; one already configured is left as the lock has it.
+whose class cannot be imported is skipped, and the package is retried next sync; one already
+configured is left as the lock has it.
 
 ## Files you have edited
 

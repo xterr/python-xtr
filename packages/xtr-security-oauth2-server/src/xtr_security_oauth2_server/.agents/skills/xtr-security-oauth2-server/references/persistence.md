@@ -40,8 +40,8 @@ from xtr_security_oauth2_server.bundle import OrmPersistenceConfig
 persistence = OrmPersistenceConfig()  # connection="default", table_prefix="oauth2_"
 ```
 
-- Install `xtr-security-oauth2-server[orm]` and list `OrmBundle`; a database persistence without
-  it fails the build naming it.
+- Install xtr-orm beside this package and list `OrmBundle`; a database persistence without it
+  fails the build naming it.
 - The package ships the mapping, not revisions: its tables join the connection's definitions as
   the container compiles, and `orm:migrations:diff` then writes them into the application's
   revision. Apply it with the application's other migrations.

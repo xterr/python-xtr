@@ -44,7 +44,7 @@ class ClientOptionsConfig:
         extra: Additional options a client may ignore.
         retry_failed: Whether and how a failed request is made again.
         rate_limiter: The name of the xtr-rate-limiter limiter every request
-            waits its turn from; needs the ``throttling`` extra.
+            waits its turn from; needs xtr-rate-limiter installed.
     """
 
     _NOT_OPTIONS: ClassVar[frozenset[str]] = frozenset({"retry_failed", "rate_limiter"})

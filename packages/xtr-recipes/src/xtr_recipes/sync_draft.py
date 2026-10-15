@@ -153,7 +153,7 @@ class SyncDraft:
         for name, targets in self.skipped.items():
             steps.append(Section("skip", name))
             steps.extend(
-                BundleNote(_class_name(target), f"skipped: install {name}[di]")
+                BundleNote(_class_name(target), "skipped: the bundle class does not load")
                 for target in targets
             )
         return tuple(steps)

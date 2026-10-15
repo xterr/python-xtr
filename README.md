@@ -56,7 +56,8 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-remote-event](packages/xtr-remote-event) | Events received from another system, as one value type, handed to the consumer registered under their source's name. |
 | [xtr-webhook](packages/xtr-webhook) | Webhooks received as events — verified and replay-bounded — and sent signed, in the legacy or the Standard Webhooks format. |
 
-How they depend on each other (runtime dependencies only; extras are dotted):
+How they depend on each other (runtime dependencies; a dotted edge is an optional integration,
+used when the application installs that package too):
 
 ```mermaid
 graph LR
@@ -72,10 +73,10 @@ graph LR
     cache --> lock
     cache --> clock
     cache --> logcon
-    cache -. console extra .-> console
+    cache -. optional .-> console
     events[xtr-event-dispatcher] --> eventcon[xtr-event-dispatcher-contracts]
     events --> logcon
-    messenger -. console extra .-> console[xtr-console]
+    messenger -. optional .-> console[xtr-console]
     scheduler[xtr-scheduler] --> messenger
     scheduler --> clock
     scheduler --> lock
@@ -83,15 +84,15 @@ graph LR
     scheduler --> events
     scheduler --> eventcon
     scheduler --> svccon
-    scheduler -. console extra .-> console
+    scheduler -. optional .-> console
     di[xtr-dependency-injection] --> svccon
     httpkernel[xtr-http-kernel] --> di
     httpkernel --> events
     httpkernel --> eventcon
     httpkernel --> logcon
     httpkernel --> svccon
-    httpkernel -. logging extra .-> logging
-    httpkernel -. console extra .-> console
+    httpkernel -. optional .-> logging
+    httpkernel -. optional .-> console
     httpmsgcon[xtr-http-message-contracts]
     httpmsg[xtr-http-message] --> httpmsgcon
     httpkernel --> httpmsg
@@ -99,26 +100,26 @@ graph LR
     httpfoundation[xtr-http-foundation] --> httpmsgcon
     httpclientcon[xtr-http-client-contracts] --> httpmsgcon
     httpclient[xtr-http-client] --> httpclientcon
-    httpclient --> httpfoundation
+    httpclient -. optional .-> httpfoundation
     httpclient --> httpmsg
     httpclient --> httpmsgcon
     httpclient --> logcon
     httpclient --> svccon
-    httpclient -. di extra .-> di
-    httpclient -. throttling extra .-> ratelimiter
+    httpclient -. optional .-> di
+    httpclient -. optional .-> ratelimiter
     orm[xtr-orm] --> logcon
-    orm -. di extra .-> di
-    orm -. di extra .-> svccon
-    orm -. console extra .-> console
-    orm -. messenger extra .-> messenger
+    orm -. optional .-> di
+    orm -. optional .-> svccon
+    orm -. optional .-> console
+    orm -. optional .-> messenger
     ratelimiter[xtr-rate-limiter] --> clock
     ratelimiter --> eventcon
-    ratelimiter -. cache extra .-> cachecon
-    ratelimiter -. lock extra .-> lock
-    ratelimiter -. di extra .-> di
-    httpkernel -. rate-limiter extra .-> ratelimiter
+    ratelimiter -. optional .-> cachecon
+    ratelimiter -. optional .-> lock
+    ratelimiter -. optional .-> di
+    httpkernel -. optional .-> ratelimiter
     passwordhasher[xtr-password-hasher]
-    passwordhasher -. console extra .-> console
+    passwordhasher -. optional .-> console
     securitycore[xtr-security-core] --> passwordhasher
     securitycore --> eventcon
     securitycore --> svccon
@@ -137,7 +138,7 @@ graph LR
     security --> events
     security --> httpkernel
     security --> clock
-    security -. console extra .-> console
+    security -. optional .-> console
     securityjwt[xtr-security-jwt] --> security
     securityjwt --> securitycore
     securityjwt --> securityhttp
@@ -145,7 +146,7 @@ graph LR
     securityjwt --> clock
     securityjwt --> events
     securityjwt --> eventcon
-    securityjwt -. console extra .-> console
+    securityjwt -. optional .-> console
     oauth2core[xtr-security-oauth2-server-core] --> securitycore
     oauth2core --> securityjwt
     oauth2core --> clock
@@ -164,11 +165,11 @@ graph LR
     oauth2server --> di
     oauth2server --> httpmsgcon
     oauth2server --> httpkernel
-    oauth2server -. orm extra .-> orm
-    oauth2server -. console extra .-> console
-    storage[xtr-storage] -. di extra .-> di
-    dotenv[xtr-dotenv] -. di extra .-> di
-    dotenv -. console extra .-> console
+    oauth2server -. optional .-> orm
+    oauth2server -. optional .-> console
+    storage[xtr-storage] -. optional .-> di
+    dotenv[xtr-dotenv] -. optional .-> di
+    dotenv -. optional .-> console
     recipes[xtr-recipes] --> di
     recipes --> console
     cli[xtr-cli] --> console
@@ -182,10 +183,10 @@ graph LR
     webhook --> httpkernel
     webhook --> httpclientcon
     webhook --> httpfoundation
-    webhook -. di extra .-> di
-    webhook -. client extra .-> httpclient
-    webhook -. testing extra .-> httpmsg
-    remoteevent -. di extra .-> di
+    webhook -. optional .-> di
+    webhook -. optional .-> httpclient
+    webhook --> httpmsg
+    remoteevent -. optional .-> di
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its
@@ -285,7 +286,9 @@ A package contains: a `pyproject.toml` at the current shared version, a
 `src/xtr_<name>/` importable package with `py.typed`, tests under `tests/`, a `README.md`
 starting with the package's one-line pitch, and a `LICENSE`. A package integrates with
 [xtr-dependency-injection](packages/xtr-dependency-injection) through a bundle under
-`src/xtr_<name>/bundle/`.
+`src/xtr_<name>/bundle/`. Neither the container nor any other xtr package it integrates with
+is a dependency: each is in the dev group for the tests, and the integration is used when the
+application installs it. Extras are only for third-party backends.
 
 #### Directory template
 
@@ -342,11 +345,6 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = []
-
-[project.optional-dependencies]
-di = [
-    "xtr-dependency-injection>=4.0,<5",
-]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
 # Advertising activates nothing: an application lists the bundles it wants.
@@ -583,7 +581,9 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add "xtr-<name>[di]"`; the other extras and what each is for.
+- **Install** — `uv add xtr-<name>`; the third-party backends it offers as extras (`[redis]`,
+  `[postgres]`, …), and the xtr packages it works with when installed beside it — never an extra:
+  installing the package is what turns the integration on.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does what *Activate*, *Configure*, *Environment*
   and *Ignore* list, from the recipe shipped beside the bundle; keep `recipe/` true when those
   bullets change (see [xtr-recipes](../xtr-recipes)).

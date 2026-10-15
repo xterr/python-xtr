@@ -12,11 +12,10 @@ from urllib.parse import urljoin
 import anyio
 from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
-from xtr_http_foundation import IpUtils
 from xtr_http_message import Request, Stream, Uri
 from xtr_service_contracts import ResetInterface
 
-from .exception import InvalidArgumentError, TransportError
+from .exception import InvalidArgumentError, LogicError, TransportError
 from .internal.option_merge import as_options
 
 if TYPE_CHECKING:
@@ -24,6 +23,7 @@ if TYPE_CHECKING:
     from typing import Self
 
     from xtr_http_client_contracts import HttpResponseInterface, RequestOptions
+    from xtr_http_foundation import IpUtils
     from xtr_http_message_contracts import RequestInterface
 
 __all__ = ["NoPrivateNetworkHttpClient"]
@@ -64,9 +64,12 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
     What a host resolves to is remembered for as long as this client lives,
     so a chain of hops back to the same host asks the resolver once;
     :meth:`reset` forgets it.
+
+    The networks it refuses come from xtr-http-foundation, which is not a
+    dependency of this package: install it beside it to use this client.
     """
 
-    __slots__ = ("_allow_list", "_client", "_dns_cache", "_resolver", "_subnets")
+    __slots__ = ("_allow_list", "_client", "_dns_cache", "_ip_utils", "_resolver", "_subnets")
 
     def __init__(
         self,
@@ -89,9 +92,14 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
                 have to be resolved, and could point anywhere by then.
             resolver: What every address of a host and port is asked of.
                 ``None`` asks the platform's own resolver.
+
+        Raises:
+            LogicError: When xtr-http-foundation is not installed, since there
+                is then no way to tell which addresses to refuse.
         """
+        self._ip_utils = _ip_utils()
         self._client = client
-        self._subnets = _entries(subnets) if subnets is not None else IpUtils.PRIVATE_SUBNETS
+        self._subnets = _entries(subnets) if subnets is not None else self._ip_utils.PRIVATE_SUBNETS
         self._allow_list = _entries(allow_list)
         self._resolver = resolver if resolver is not None else _getaddrinfo
         self._dns_cache: dict[str, Sequence[str]] = {}
@@ -258,10 +266,29 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
         The allow list is read first, so one internal receiver is opened
         without opening the network it sits in.
         """
-        if self._allow_list and IpUtils.check_ip(address, self._allow_list):
+        if self._allow_list and self._ip_utils.check_ip(address, self._allow_list):
             return False
 
-        return IpUtils.check_ip(address, self._subnets)
+        return self._ip_utils.check_ip(address, self._subnets)
+
+
+def _ip_utils() -> type[IpUtils]:
+    """The address checks, from xtr-http-foundation when it is installed.
+
+    Raises:
+        LogicError: When it is not, so the guard fails where it is built
+            rather than letting through a request it could not check.
+    """
+    try:
+        # Optional package, so imported only when a guard is built (hence PLC0415).
+        from xtr_http_foundation import IpUtils  # noqa: PLC0415
+    except ImportError as error:
+        raise LogicError(
+            'You cannot use "NoPrivateNetworkHttpClient" if xtr-http-foundation is not '
+            'installed. Try running "uv add xtr-http-foundation".'
+        ) from error
+
+    return IpUtils
 
 
 async def _getaddrinfo(host: str, port: int) -> Sequence[str]:

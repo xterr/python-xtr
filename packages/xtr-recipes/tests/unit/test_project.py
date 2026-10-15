@@ -15,7 +15,7 @@ _DEPENDENCIES = """\
 name = "app"
 dependencies = [
   "fastapi>=0.121.3",
-  "xtr-messenger[di,console]",
+  "xtr-messenger[redis,taskiq]",
   "xtr_security_jwt == 2.0 ; python_version >= '3.11'",
   "pkg @ https://example.test/pkg.whl",
   "xtr-messenger",

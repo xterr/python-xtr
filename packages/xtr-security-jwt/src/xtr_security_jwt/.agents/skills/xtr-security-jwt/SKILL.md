@@ -188,7 +188,7 @@ refusals. All seven, with a subscriber to copy and what a listener may do to eac
 
 ## Commands
 
-With the `console` extra and a console bundle active:
+With xtr-console installed beside this package, which makes a console bundle active:
 
 | Command | Does |
 | --- | --- |
@@ -269,7 +269,7 @@ async def test_a_token_names_its_user(tmp_path) -> None:
 Everything adding this package to an application takes — and, read backwards, what removing it
 undoes.
 
-1. **Install** — `uv add xtr-security-jwt`; add `[console]` for the commands.
+1. **Install** — `uv add xtr-security-jwt`; install xtr-console beside it for the commands.
 2. **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
    and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/jwt.py`,
    `JWT_SECRET_KEY_PATH=%kernel.project_dir%/secrets/jwt.pem` in `.env`, and adds

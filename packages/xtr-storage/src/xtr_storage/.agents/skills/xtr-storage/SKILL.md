@@ -20,7 +20,9 @@ the code that stores them. Every call that reaches the backend is awaited.
 - Per-call options lay over the storage's own: `await storage.write(path, data, {"visibility": "public"})`.
 - Close what you build: `async with Storage(adapter) as storage:`, or `await storage.close()`.
 - Several storages behind one: `MountManager({"uploads": ..., "reports": ...})`, paths `uploads://a.png`.
-- In an application: activate `StorageBundle`, inject `StorageOperatorInterface`.
+- In an application, with xtr-dependency-injection installed beside the package (it is not a
+  dependency): activate `StorageBundle`, inject `StorageOperatorInterface`. Without the container,
+  build the `Storage` yourself; only `xtr_storage.bundle` needs it.
 
 ## Read and write
 
@@ -139,7 +141,8 @@ async def test_the_report_is_stored() -> None:
 `StorageBundle` and ignores `/var/storage/`. That is the steps below a recipe can do; the others it
 prints for you to make.
 
-1. **Install** — `uv add "xtr-storage[di]"`; add `s3` or `gcs` for the object stores you reach.
+1. **Install** — `uv add xtr-storage xtr-dependency-injection`: the bundle needs the container
+   installed beside it, never as an extra. Add `s3` or `gcs` for the object stores you reach.
 2. **Activate** — `StorageBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
    `xtr_storage.bundle`.
 3. **Brings along** — nothing; the bundle requires no other.

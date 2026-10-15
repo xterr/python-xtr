@@ -558,7 +558,7 @@ def test_a_recipe_whose_bundle_class_is_absent_is_skipped(tmp_path: Path) -> Non
 
     assert plan.render() == (
         f"skip {_MESSENGER}",
-        f"  bundle MessengerBundle skipped: install {_MESSENGER}[di]",
+        "  bundle MessengerBundle skipped: the bundle class does not load",
     )
     assert not plan.has_changes
     assert not (tmp_path / "xtr.lock").exists()
@@ -571,7 +571,7 @@ def test_naming_a_skipped_package_reports_the_skip(tmp_path: Path) -> None:
 
     assert synchronizer.plan(SyncOptions(only=_MESSENGER)).render() == (
         f"skip {_MESSENGER}",
-        f"  bundle MessengerBundle skipped: install {_MESSENGER}[di]",
+        "  bundle MessengerBundle skipped: the bundle class does not load",
     )
 
 

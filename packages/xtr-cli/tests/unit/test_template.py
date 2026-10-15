@@ -16,7 +16,7 @@ _MANIFEST = """\
 summary = "A test template."
 
 [dependencies]
-packages = ["xtr-console[di]"]
+packages = ["xtr-console"]
 dev = ["pytest"]
 
 [files]
@@ -35,7 +35,7 @@ def test_a_template_is_read_from_its_manifest(tmp_path: Path) -> None:
     template = _load(tmp_path)
 
     assert template.summary == "A test template."
-    assert template.dependencies == ("xtr-console[di]",)
+    assert template.dependencies == ("xtr-console",)
     assert template.dev_dependencies == ("pytest",)
     assert template.next_steps == ("uv run ${name}",)
 

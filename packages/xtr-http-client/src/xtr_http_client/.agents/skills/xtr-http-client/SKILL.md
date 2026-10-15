@@ -28,6 +28,9 @@ client, so the calling code sees one type however deep the stack is.
   `MockHttpClient`.
 - Options are the contract's `RequestOptions`. An option it does not know is refused, never
   ignored.
+- In an application, with xtr-dependency-injection installed beside the package (it is not a
+  dependency): activate `HttpClientBundle` and inject `HttpClientInterface`. Without the
+  container, build the clients yourself; only `xtr_http_client.bundle` needs it.
 
 ## Make a request
 
@@ -109,7 +112,7 @@ client = RetryableHttpClient(inner, GenericRetryStrategy([500, 502, 503]), max_r
 ```python
 from xtr_http_client import NoPrivateNetworkHttpClient, ThrottlingHttpClient, TraceableHttpClient
 
-paced = ThrottlingHttpClient(inner, limiter)  # xtr-rate-limiter LimiterInterface, [throttling]
+paced = ThrottlingHttpClient(inner, limiter)  # a LimiterInterface from xtr-rate-limiter
 traced = TraceableHttpClient(inner)
 guarded = NoPrivateNetworkHttpClient(inner, allow_list=("10.1.2.3",))
 ```
@@ -125,6 +128,8 @@ guarded = NoPrivateNetworkHttpClient(inner, allow_list=("10.1.2.3",))
   Refusal is `TransportError`: `Host "<host>" is blocked for "<url>".`. Without `subnets` it
   refuses `IpUtils.PRIVATE_SUBNETS`; `allow_list` opens one receiver. Addresses and CIDR
   networks only — never host names.
+  It needs xtr-http-foundation installed beside this package (`uv add xtr-http-foundation`);
+  without it, building the guard raises `LogicError`.
 
 ## Use the transport directly
 
@@ -187,8 +192,9 @@ async def test_it_reads_the_created_order() -> None:
 `HttpClientBundle`. There is no config file, environment or ignore line to write; it prints the
 step to name the services the application calls, which a recipe cannot make for you.
 
-1. **Install** — `uv add "xtr-http-client[di]"`; add `throttling` to pace a client with an
-   xtr-rate-limiter limiter, `http2` to ask for HTTP/2.
+1. **Install** — `uv add xtr-http-client xtr-dependency-injection`: the bundle needs the container
+   installed beside it, never as an extra. Add `http2` to ask for HTTP/2, and install
+   xtr-rate-limiter beside it to pace a client with one of its limiters.
 2. **Activate** — `HttpClientBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`
    (`from xtr_http_client.bundle import HttpClientBundle`).
 3. **Brings along** — the rate limiter bundle when xtr-rate-limiter is installed.

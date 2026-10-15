@@ -44,7 +44,7 @@ hasher.verify(stored, "correct horse battery staple")  # True
 ```sh
 uv add xtr-password-hasher                 # argon2id, PBKDF2 and plaintext
 uv add "xtr-password-hasher[bcrypt]"       # + bcrypt, for hashes from other stacks
-uv add "xtr-password-hasher[console]"      # + the security:hash-password command
+uv add xtr-console                         # beside it: + the security:hash-password command
 ```
 
 Requires Python 3.11+.
@@ -196,7 +196,7 @@ from `PasswordHasherAwareInterface.get_password_hasher_name()`.
 
 ## Console command
 
-With the `console` extra, once the `xtr-security` bundle registers it:
+With xtr-console installed beside it, once the `xtr-security` bundle registers it:
 
 | Command | Does |
 |---|---|
