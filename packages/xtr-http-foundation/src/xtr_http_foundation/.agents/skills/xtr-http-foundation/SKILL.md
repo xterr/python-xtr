@@ -1,13 +1,15 @@
 ---
 name: xtr-http-foundation
-description: How to say "is this request one of mine" with xtr-http-foundation — one matcher per question about a request that arrived (method, path, host, port, scheme, a header, a query parameter, an attribute, the address it came from, a JSON body), chained into one, plus the IpUtils helpers that place an IP in a network, name a private one, or anonymize it. Use when a firewall, webhook endpoint, rate limiter, router or middleware has to decide which requests it claims; when replacing a tangle of ifs over the method and path with something testable; when writing a request parser's matcher; and when checking whether an address is inside a subnet, is reachable only from this network, or must be logged without identifying one machine.
+description: How to say "is this request one of mine" with xtr-http-foundation — one matcher per question about a request that arrived (method, path, host, port, scheme, a header, a query parameter, an attribute, the address it came from, a JSON body, or whatever a callable reads), chained into one, plus the IpUtils helpers that place an IP in a network, the request-rate-limiter contracts that count a request under the limits its own content names, and the header values that set or clear a response cookie. Use when a firewall, webhook endpoint, rate limiter, router or middleware has to decide which requests it claims; when replacing a tangle of ifs over the method and path with something testable; when writing a request parser's matcher; when a login form or an endpoint must throttle requests by who sends them; when a response must set or clear a cookie; and when checking whether an address is inside a subnet, is reachable only from this network, or must be logged without identifying one machine.
 ---
 
 # xtr-http-foundation
 
 A matcher answers one question about a request that arrived, and a chain of them answers the
 whole of it — so what a piece of code claims is a value it can be handed rather than a
-condition written into it. Beside them live the address helpers those questions are built on.
+condition written into it. Beside them live the address helpers those questions are built on,
+the contracts that count a request against the limits it names, and the header values that set
+or clear a response cookie.
 
 ## Quick reference
 
@@ -23,6 +25,13 @@ condition written into it. Beside them live the address helpers those questions 
   there — and are *searched for*, never anchored for you.
 - `IpUtils.check_ip`, `check_ip4`, `check_ip6`, `is_private_ip`, `anonymize`,
   `IpUtils.PRIVATE_SUBNETS`. All static; there is nothing to build.
+- The request rate limiters: `RequestRateLimiterInterface` (`await consume(request)` /
+  `await reset(request)`), `PeekableRequestRateLimiterInterface` (+ `await peek(request)`),
+  `AbstractRequestRateLimiter` (subclass it, implement `get_limiters(request)`). The answer is
+  anything carrying `RequestRateLimitInterface`.
+- `cookie_header_value(name, value, ...)` and `cleared_cookie_header_value(name, ...)` build
+  `Set-Cookie` header values — place them with `response.with_header("Set-Cookie", ...)`. No
+  response type comes with them.
 
 ## Claim the requests that are yours
 
@@ -54,6 +63,7 @@ if await ours.matches(request):
 | `IpsRequestMatcher(ips)` | addresses or CIDR networks | that came from one of them |
 | `AttributesRequestMatcher(regexps)` | attribute name → expression | whose every named attribute matches its own |
 | `IsJsonRequestMatcher()` | nothing | whose body reads as JSON |
+| `CallableRequestMatcher(decide)` | a callable reading the request | when the callable says so — the escape hatch where no matcher here expresses the claim |
 | `ChainRequestMatcher(matchers)` | matchers | every one of them claims |
 
 Three behave in a way worth knowing before you rely on them.
@@ -134,6 +144,60 @@ IpUtils.anonymize("2001:db8::1")  # "2001:db8::"
   arrived — bracketed if it was, dotted where it carries an IPv4 one, and never with its zone.
   Fewer than no bytes, or more than the address has, is `InvalidArgumentError`.
 
+## Limit a request
+
+```python
+from typing import final
+
+from typing_extensions import override
+from xtr_http_foundation import AbstractRequestRateLimiter
+
+
+@final
+class PerAddressLimiter(AbstractRequestRateLimiter):
+    def __init__(self, factory) -> None:
+        self._factory = factory
+
+    @override
+    def get_limiters(self, request):
+        address, _port = request.get_server_params().get("client", ("", 0))
+        return [self._factory.create(address)]
+```
+
+- `await limiter.consume(request)` counts the request and answers with the strictest limit it
+  counts under; `await limiter.peek(request)` reports the limit without counting (for counting
+  only failures); `await limiter.reset(request)` forgets the hits.
+- The answer carries `RequestRateLimitInterface` — `is_accepted()`, `remaining_tokens`,
+  `retry_after`, `limit`, `reset_at` — so
+  [xtr-rate-limiter](https://github.com/xterr/python-xtr/tree/main/packages/xtr-rate-limiter)'s
+  `RateLimit` answers as-is, and its factories' limiters satisfy `RateLimiterInterface`
+  without either package importing the other.
+- A request counting under no limiter is unlimited: the answer is accepted, with nothing left
+  to run out of.
+
+## Set or clear a response cookie
+
+```python
+from datetime import UTC, datetime
+
+from xtr_http_foundation import cleared_cookie_header_value, cookie_header_value
+
+response = response.with_header(
+    "Set-Cookie",
+    cookie_header_value("session", token, expires=datetime(2035, 1, 1, tzinfo=UTC), secure=True),
+)
+response = response.with_header("Set-Cookie", cleared_cookie_header_value("session"))
+```
+
+- The value is per cent-encoded; `expires` writes both the `expires` date and the `Max-Age` a
+  client counts down; `path` defaults to the whole site, `httponly` is on and `samesite` is
+  `lax` by default.
+- Clearing repeats the path and the domain the cookie was set with — a browser tells cookies
+  apart by all three — and dates it a year behind.
+- `__Secure-` and `__Host-` names must be built `secure=True`; `__Host-` also asks for no
+  `domain` and the path `/`. A browser silently discards the cookie otherwise; the builder
+  refuses it first.
+
 ## Testing
 
 A matcher is a value, so a test hands it a request it built and asserts the one answer:
@@ -185,7 +249,8 @@ returns one from `get_request_matcher()`, and
 
 Everything derives from `HttpFoundationError`. There is one: `InvalidArgumentError`, also a
 `ValueError`, raised for an expression that does not read as one, and by `is_private_ip` and
-`anonymize` for text that is no address.
+`anonymize` for text that is no address, and by the cookie builder for a name it cannot write,
+a `samesite` that is none of the three, or a `path` or `domain` an attribute cannot carry.
 
 ## Do not
 
@@ -202,3 +267,6 @@ Everything derives from `HttpFoundationError`. There is one: `InvalidArgumentErr
   only read the head.
 - Do not pass an empty matcher expecting it to refuse everything: a matcher naming nothing
   claims every request.
+- Do not build a `Set-Cookie` value by hand: the encoding, the dual `expires`/`Max-Age`, and
+  the prefix rules are what make a browser keep the cookie — `cookie_header_value` carries
+  them.

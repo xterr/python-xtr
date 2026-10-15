@@ -7,6 +7,7 @@ from xtr_http_foundation import request_matcher
 
 _MATCHERS = (
     "AttributesRequestMatcher",
+    "CallableRequestMatcher",
     "HeaderRequestMatcher",
     "HostRequestMatcher",
     "IpsRequestMatcher",

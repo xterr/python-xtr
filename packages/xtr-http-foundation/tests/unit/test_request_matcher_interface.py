@@ -6,6 +6,7 @@ import pytest
 
 from xtr_http_foundation import (
     AttributesRequestMatcher,
+    CallableRequestMatcher,
     ChainRequestMatcher,
     HeaderRequestMatcher,
     HostRequestMatcher,
@@ -29,6 +30,7 @@ def _name(matcher: object) -> str:
     [
         AttributesRequestMatcher({}),
         ChainRequestMatcher([]),
+        CallableRequestMatcher(lambda request: True),
         HeaderRequestMatcher("x-foo"),
         HostRequestMatcher(".*"),
         IpsRequestMatcher("127.0.0.1"),

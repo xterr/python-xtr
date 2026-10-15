@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .attributes_request_matcher import AttributesRequestMatcher
+from .callable_request_matcher import CallableRequestMatcher
 from .header_request_matcher import HeaderRequestMatcher
 from .host_request_matcher import HostRequestMatcher
 from .ips_request_matcher import IpsRequestMatcher
@@ -15,6 +16,7 @@ from .scheme_request_matcher import SchemeRequestMatcher
 
 __all__ = [
     "AttributesRequestMatcher",
+    "CallableRequestMatcher",
     "HeaderRequestMatcher",
     "HostRequestMatcher",
     "IpsRequestMatcher",
