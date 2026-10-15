@@ -1,6 +1,6 @@
 [project]
 name = "xtr-remote-event"
-version = "4.0.4"
+version = "4.1.0"
 description = "Events received from another system, as one value type, handed to the consumer registered under their source's name — directly or through a message bus."
 readme = "README.md"
 authors = [
