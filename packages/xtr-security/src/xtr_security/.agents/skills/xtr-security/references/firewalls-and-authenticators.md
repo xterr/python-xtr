@@ -29,7 +29,7 @@ A firewall naming a `provider` that is not declared fails the build with
 | `pattern` | `None` | A regular expression matched against the request path |
 | `host` | `None` | A regular expression matched against the request host |
 | `methods` | `()` | The HTTP methods claimed; every method when empty |
-| `request_matcher` | `None` | A callable `(Request) -> bool`, tried last |
+| `request_matcher` | `None` | A callable `(ServerRequestInterface) -> bool`, tried last |
 | `security` | `True` | `False` lets every request the firewall claims through untouched |
 | `stateless` | `True` | Only `True` is accepted; `False` raises `InvalidConfigurationError` |
 | `provider` | `None` | The name of the user provider the firewall loads users from; with none here and none configured, an authenticator needing one gets a `MissingUserProvider` that fails, naming the firewall, when first used |
@@ -39,14 +39,19 @@ A firewall naming a `provider` that is not declared fails the build with
 | `authenticators` | `()` | The authenticator configurations the firewall runs |
 | `required_badges` | `()` | Badge types every passport must carry |
 
-A secured firewall with no authenticators is refused. A firewall with no `pattern`, `host`,
-`methods` or `request_matcher` claims every request, so register it last.
+A secured firewall with no authenticators is refused. The matchers those fields build come from
+`xtr-http-foundation` and read the request as a message: `pattern` matches the path below the
+application's mount, with per-cent escapes undone, and `host` is matched without regard to case.
+A firewall with no `pattern`, `host`, `methods` or `request_matcher` claims every request, so
+register it last.
 
 ## `AccessControlConfig`
 
 `AccessControlConfig(path, attribute, host=None, methods=(), ips=(), firewall=None)`. `path` and
-`host` are regular expressions, searched against the request. One attribute per rule, by design:
-a rule needing two conditions is two rules, or one closure attribute.
+`host` are regular expressions, searched against the request — `path` below the application's
+mount with per-cent escapes undone, `host` without regard to case. An `ips` entry is an address
+or a network, written in CIDR or netmask form. One attribute per rule, by design: a rule needing
+two conditions is two rules, or one closure attribute.
 
 ## User providers
 

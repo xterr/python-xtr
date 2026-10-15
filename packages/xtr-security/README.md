@@ -178,7 +178,7 @@ so the zero-config path is no firewalls and the affirmative decision strategy.
 | `pattern` | `None` | A regular expression matched against the request path |
 | `host` | `None` | A regular expression matched against the request host |
 | `methods` | `()` | The HTTP methods claimed; every method when empty |
-| `request_matcher` | `None` | A callable deciding the match, tried last |
+| `request_matcher` | `None` | A callable `(ServerRequestInterface) -> bool`, tried last |
 | `security` | `True` | `False` lets every request the firewall claims through untouched |
 | `stateless` | `True` | Only `True` is accepted in this version |
 | `provider` | `None` | The user provider the firewall loads users from; with none here and none configured at all, an authenticator that needs one gets a `MissingUserProvider` that fails, naming the firewall, when first used |
@@ -187,6 +187,11 @@ so the zero-config path is no firewalls and the affirmative decision strategy.
 | `access_denied_handler` | `None` | A handler for a denied, fully-authenticated caller |
 | `authenticators` | `()` | The authenticator configurations the firewall runs |
 | `required_badges` | `()` | Badge types every passport must carry |
+
+The matchers those fields build come from [xtr-http-foundation](../xtr-http-foundation), and each
+of them — `request_matcher`'s callable included — reads the request as a message.
+`pattern` matches the path below the application's mount, with per-cent escapes undone; `host` is
+matched without regard to case.
 
 A firewall matched per request — `Firewall()` — runs the first firewall whose matcher claims the
 request; a firewall bound by name — `Firewall("api")` — runs that one and shows its exact scheme
@@ -212,6 +217,8 @@ through a factory matched by its type:
 `AccessControlConfig` is a request pattern and the one attribute a matching request must hold —
 a role, `"IS_AUTHENTICATED"`, `"PUBLIC_ACCESS"`, or an `OAUTH2_SCOPE(...)` string. Rules are
 tried in order, so a narrow `^/api/admin` rule comes before the broad `^/api`.
+`path` matches below the application's mount with per-cent escapes undone, `host` without regard
+to case; an `ips` entry is an address or a network, written in CIDR or netmask form.
 
 ### Voters
 

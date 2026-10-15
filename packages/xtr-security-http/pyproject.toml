@@ -22,6 +22,8 @@ classifiers = [
 dependencies = [
     "xtr-security-core>=4.0,<5",
     "xtr-http-kernel>=4.0,<5",
+    "xtr-http-foundation>=4.0,<5",
+    "xtr-http-message-contracts>=4.0,<5",
     "xtr-dependency-injection>=4.0,<5",
     "xtr-event-dispatcher>=4.0,<5",
     "xtr-event-dispatcher-contracts>=4.0,<5",
@@ -49,6 +51,8 @@ dev = [
     "ty>=0.0.83",
     "httpx>=0.27",
     "joserfc>=1.7",
+    # The tests match real requests, so they build the request messages.
+    "xtr-http-message>=4.0,<5",
 ]
 
 [build-system]

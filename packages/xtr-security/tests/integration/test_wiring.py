@@ -24,6 +24,7 @@ from xtr_security_core.user.user_provider_interface import UserProviderInterface
 from xtr_security_http._runner import run_firewall
 from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
+from tests.support.messages import make_message
 from xtr_security.bundle import SecurityBundle
 
 if TYPE_CHECKING:
@@ -39,6 +40,7 @@ async def _run(unit: ContainerInterface, request: Request, scopes: Sequence[str]
     await run_firewall(
         "api",
         request,
+        make_message(path="/api/books"),
         scopes,
         firewall_map=await unit.get(FirewallMapInterface),
         token_storage=await unit.get(TokenStorageInterface),

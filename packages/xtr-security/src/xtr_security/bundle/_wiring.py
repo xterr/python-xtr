@@ -79,6 +79,7 @@ if TYPE_CHECKING:
 
     from fastapi.security.base import SecurityBase
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
+    from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
     from xtr_security_core.user.user_checker_interface import UserCheckerInterface
     from xtr_security_http.access_token.access_token_extractor_interface import (
         AccessTokenExtractorInterface,
@@ -93,7 +94,6 @@ if TYPE_CHECKING:
     from xtr_security_http.entry_point.authentication_entry_point_interface import (
         AuthenticationEntryPointInterface,
     )
-    from xtr_security_http.request_matcher.request_matcher_interface import RequestMatcherInterface
 
     from xtr_security.access_token import TokenHandlerFactoryInterface
     from xtr_security.bundle.password_hasher_configs import HasherConfig

@@ -12,6 +12,7 @@ from fastapi.security.base import SecurityBase
 # behind TYPE_CHECKING.
 from starlette.requests import Request  # noqa: TC002
 from xtr_dependency_injection import Injected  # noqa: TC002
+from xtr_http_message_contracts import ServerRequestInterface  # noqa: TC002
 from xtr_security_core.authentication.token.storage.token_storage_interface import (  # noqa: TC002
     TokenStorageInterface,
 )
@@ -49,18 +50,24 @@ class FirewallScheme(SecurityBase):
         self._name = name
         self._generic = HTTPBearer(auto_error=False, bearerFormat="JWT", scheme_name="firewall")
 
-    async def __call__(
+    async def __call__(  # noqa: PLR0913, PLR0917 -- the request and its message, scopes, three injected services
         self,
         request: Request,
+        message: Injected[ServerRequestInterface],
         security_scopes: SecurityScopes,
         firewall_map: Injected[FirewallMapInterface],
         token_storage: Injected[TokenStorageInterface],
         access_decision_manager: Injected[AccessDecisionManagerInterface],
     ) -> None:
-        """Run the firewall for ``request``, enforcing the accumulated scopes."""
+        """Run the firewall for ``request``, enforcing the accumulated scopes.
+
+        The message is the request as the kernel built it for this request's
+        scope, and it is what the firewall map and the access rules match.
+        """
         await run_firewall(
             self._name,
             request,
+            message,
             tuple(security_scopes.scopes),
             firewall_map=firewall_map,
             token_storage=token_storage,

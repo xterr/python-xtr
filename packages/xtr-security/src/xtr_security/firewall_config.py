@@ -11,20 +11,22 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from xtr_http_foundation import (
+    ChainRequestMatcher,
+    HostRequestMatcher,
+    MethodRequestMatcher,
+    PathRequestMatcher,
+)
 from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_http.request_matcher.callable_request_matcher import CallableRequestMatcher
-from xtr_security_http.request_matcher.chain_request_matcher import ChainRequestMatcher
-from xtr_security_http.request_matcher.host_request_matcher import HostRequestMatcher
-from xtr_security_http.request_matcher.method_request_matcher import MethodRequestMatcher
-from xtr_security_http.request_matcher.path_request_matcher import PathRequestMatcher
 
 from xtr_security.exception import InvalidConfigurationError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from starlette.requests import Request
-    from xtr_security_http.request_matcher.request_matcher_interface import RequestMatcherInterface
+    from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["FirewallConfig"]
 
@@ -38,7 +40,8 @@ class FirewallConfig:
             ``None`` to leave the claim to the other matchers.
         host: A regular expression matched against the request host.
         methods: The HTTP methods the firewall claims; every method when empty.
-        request_matcher: A callable deciding the claim, tried last.
+        request_matcher: A callable deciding the claim against the request
+            message, tried last.
         security: Whether the firewall authenticates at all; ``False`` lets every
             request it claims through untouched.
         stateless: Whether the firewall keeps no session — only ``True`` is
@@ -63,7 +66,7 @@ class FirewallConfig:
     pattern: str | None = None
     host: str | None = None
     methods: tuple[str, ...] = ()
-    request_matcher: Callable[[Request], bool] | None = None
+    request_matcher: Callable[[ServerRequestInterface], bool] | None = None
     security: bool = True
     stateless: bool = True
     provider: str | None = None

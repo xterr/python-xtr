@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
     from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
@@ -39,7 +39,7 @@ class FirewallMapInterface(Protocol):
         """
         ...
 
-    def match(self, request: Request) -> FirewallContextInterface | None:
+    async def match(self, request: ServerRequestInterface) -> FirewallContextInterface | None:
         """Return the first firewall whose matcher claims ``request``, or ``None``."""
         ...
 

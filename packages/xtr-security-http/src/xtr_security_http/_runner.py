@@ -5,9 +5,12 @@ once per firewall per request — memoised on ``request.state`` — while the
 access and scope decisions run on every call, since two schemes in one request
 carry different scope sets.
 
-The firewall map, the token storage and the access-decision manager are handed
-in by the caller — the firewall scheme fills them from the request scope with
-``Injected[...]`` markers — so nothing here reaches into the container.
+The request is matched as a message — the one the kernel builds for the
+request being served — while the framework's own request object is what
+authentication reads and what the memoisation hangs on. The firewall map, the
+token storage and the access-decision manager are handed in by the caller —
+the firewall scheme fills them from the request scope with ``Injected[...]``
+markers — so nothing here reaches into the container.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
     from xtr_security_core.authentication.token.storage.token_storage_interface import (
         TokenStorageInterface,
     )
@@ -44,16 +48,17 @@ if TYPE_CHECKING:
 __all__ = ["run_firewall"]
 
 
-async def run_firewall(  # noqa: PLR0913 -- the firewall's request, scopes and its three injected services
+async def run_firewall(  # noqa: PLR0913 -- the request and its message, scopes, three injected services
     name: str | None,
     request: Request,
+    message: ServerRequestInterface,
     scopes: Sequence[str],
     *,
     firewall_map: FirewallMapInterface,
     token_storage: TokenStorageInterface,
     access_decision_manager: AccessDecisionManagerInterface,
 ) -> None:
-    """Run the firewall ``name`` (or the one matching ``request``) over ``request``.
+    """Run the firewall ``name`` (or the one matching ``message``) over ``request``.
 
     Raises:
         UnknownFirewallError: When ``name`` names no configured firewall.
@@ -61,7 +66,7 @@ async def run_firewall(  # noqa: PLR0913 -- the firewall's request, scopes and i
         AccessDeniedError: When an access rule or a scope is not granted.
         CarriedResponse: When a success or failure handler produced a response.
     """
-    context = _resolve(firewall_map, name, request)
+    context = await _resolve(firewall_map, name, message)
     if context is None or not context.security:
         if scopes:
             raise AccessDeniedError(
@@ -73,18 +78,18 @@ async def run_firewall(  # noqa: PLR0913 -- the firewall's request, scopes and i
     await _authenticate_once(context, request)
     token = token_storage.get_token() or NullToken()
     setattr(request.state, TOKEN_KEY, token)
-    await context.access_listener.check_access(request, token)
+    await context.access_listener.check_access(message, token)
     if scopes:
         await _check_scopes(access_decision_manager, request, token, scopes)
 
 
-def _resolve(
-    firewall_map: FirewallMapInterface, name: str | None, request: Request
+async def _resolve(
+    firewall_map: FirewallMapInterface, name: str | None, message: ServerRequestInterface
 ) -> FirewallContextInterface | None:
     """Return the firewall to run: the one named, or the first that matches."""
     if name is not None:
         return firewall_map.get(name)
-    return firewall_map.match(request)
+    return await firewall_map.match(message)
 
 
 async def _authenticate_once(context: FirewallContextInterface, request: Request) -> None:

@@ -5,17 +5,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from xtr_http_foundation import ChainRequestMatcher, PathRequestMatcher
 from xtr_security_core.exception import InvalidArgumentError
 
 from tests.support.contexts import FakeFirewallContext
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from xtr_security_http.exception import UnknownFirewallError
 from xtr_security_http.firewall_map import FirewallMap
-from xtr_security_http.request_matcher.chain_request_matcher import ChainRequestMatcher
-from xtr_security_http.request_matcher.path_request_matcher import PathRequestMatcher
 
 if TYPE_CHECKING:
     from fastapi.security.base import SecurityBase
+
+pytestmark = pytest.mark.anyio
 
 
 def _context(name: str, *, security: bool = True) -> FakeFirewallContext:
@@ -61,7 +62,7 @@ def test_duplicate_names_are_refused() -> None:
         )
 
 
-def test_it_matches_the_first_firewall_that_claims_the_request() -> None:
+async def test_it_matches_the_first_firewall_that_claims_the_request() -> None:
     admin = _context("admin")
     api = _context("api")
     firewall_map = FirewallMap(
@@ -71,15 +72,13 @@ def test_it_matches_the_first_firewall_that_claims_the_request() -> None:
         ),
     )
 
-    request = make_request()
-    request.scope["path"] = "/api/books"
+    message = make_message(path="/api/books")
 
-    assert firewall_map.match(request) is api
+    assert await firewall_map.match(message) is api
 
 
-def test_no_match_returns_none() -> None:
+async def test_no_match_returns_none() -> None:
     firewall_map = FirewallMap(((PathRequestMatcher(r"^/api"), _context("api")),))
-    request = make_request()
-    request.scope["path"] = "/public"
+    message = make_message(path="/public")
 
-    assert firewall_map.match(request) is None
+    assert await firewall_map.match(message) is None

@@ -20,6 +20,7 @@ from xtr_security_core.authorization.access_decision_manager_interface import (
 from xtr_security_core.exception import AccessDeniedError, BadCredentialsError
 
 from tests.fixtures.security_app.bundle import SecurityFixtureBundle
+from tests.support.messages import make_message
 from tests.support.requests import make_request
 from xtr_security_http._runner import run_firewall
 from xtr_security_http._state import FIREWALL_CONTEXT_KEY, CarriedResponse
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
     from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
     from xtr_service_contracts import ContainerInterface
 
 pytestmark = pytest.mark.anyio
@@ -56,16 +58,22 @@ def _api_request(authorization: str | None = None) -> Request:
     return request
 
 
+def _api_message() -> ServerRequestInterface:
+    return make_message(path="/api/books")
+
+
 async def _run(
     unit: ContainerInterface,
     name: str | None,
     request: Request,
+    message: ServerRequestInterface,
     scopes: Sequence[str] = (),
 ) -> None:
     """Run the firewall with the services the scheme would inject, resolved from ``unit``."""
     await run_firewall(
         name,
         request,
+        message,
         scopes,
         firewall_map=await unit.get(FirewallMap),
         token_storage=await unit.get(TokenStorageInterface),
@@ -79,7 +87,7 @@ async def _listener(unit: ContainerInterface) -> ExceptionListener:
 
 async def test_run_firewall_authenticates_and_grants(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
-        await _run(unit, "api", _api_request("Bearer good"))
+        await _run(unit, "api", _api_request("Bearer good"), _api_message())
         storage = await unit.get(TokenStorageInterface)
         token = storage.get_token()
 
@@ -90,27 +98,27 @@ async def test_run_firewall_authenticates_and_grants(container: ContainerInterfa
 async def test_run_firewall_denies_a_missing_scope(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
         with pytest.raises(AccessDeniedError):
-            await _run(unit, "api", _api_request("Bearer good"), ("reports:write",))
+            await _run(unit, "api", _api_request("Bearer good"), _api_message(), ("reports:write",))
 
 
 async def test_run_firewall_passes_a_scope_the_token_holds(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
-        await _run(unit, "api", _api_request("Bearer good"), ("books:read",))
+        await _run(unit, "api", _api_request("Bearer good"), _api_message(), ("books:read",))
 
 
 async def test_run_firewall_raises_on_a_bad_token(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
         with pytest.raises(InvalidAccessTokenError):
-            await _run(unit, "api", _api_request("Bearer bad"))
+            await _run(unit, "api", _api_request("Bearer bad"), _api_message())
 
 
 async def test_run_firewall_memoises_authentication(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
         request = _api_request("Bearer bad")
         with pytest.raises(InvalidAccessTokenError):
-            await _run(unit, "api", request)
+            await _run(unit, "api", request, _api_message())
         with pytest.raises(InvalidAccessTokenError):
-            await _run(unit, "api", request)
+            await _run(unit, "api", request, _api_message())
 
 
 async def test_exception_listener_challenges_an_authentication_error(
@@ -132,7 +140,7 @@ async def test_exception_listener_forbids_a_full_fledged_denial(
 ) -> None:
     async with unit_of_work(container) as unit:
         request = _api_request("Bearer admin")
-        await _run(unit, "api", request)
+        await _run(unit, "api", request, _api_message())
         error = AccessDeniedError(attributes=("ROLE_SUPERADMIN",))
         event = ExceptionEvent(request, error)
         await (await _listener(unit)).on_exception(event)
@@ -144,7 +152,7 @@ async def test_exception_listener_forbids_a_full_fledged_denial(
 async def test_exception_listener_answers_a_scope_denial(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
         request = _api_request("Bearer admin")
-        await _run(unit, "api", request)
+        await _run(unit, "api", request, _api_message())
         error = AccessDeniedError(attributes=("OAUTH2_SCOPE(reports:write)",))
         event = ExceptionEvent(request, error)
         await (await _listener(unit)).on_exception(event)
@@ -166,7 +174,7 @@ async def test_exception_listener_sends_a_carried_response(container: ContainerI
 
 async def test_is_granted_grants_with_the_current_token(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
-        await _run(unit, "api", _api_request("Bearer admin"))
+        await _run(unit, "api", _api_request("Bearer admin"), _api_message())
         await IsGranted("ROLE_ADMIN")._decide(
             None,
             await unit.get(TokenStorageInterface),
@@ -176,7 +184,7 @@ async def test_is_granted_grants_with_the_current_token(container: ContainerInte
 
 async def test_is_granted_denies_without_the_role(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
-        await _run(unit, "api", _api_request("Bearer good"))
+        await _run(unit, "api", _api_request("Bearer good"), _api_message())
         with pytest.raises(AccessDeniedError):
             await IsGranted("ROLE_ADMIN")._decide(
                 None,
@@ -187,7 +195,7 @@ async def test_is_granted_denies_without_the_role(container: ContainerInterface)
 
 async def test_current_user_resolves_the_authenticated_user(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
-        await _run(unit, "api", _api_request("Bearer good"))
+        await _run(unit, "api", _api_request("Bearer good"), _api_message())
         user = await CurrentUser()._resolve(await unit.get(TokenStorageInterface))
 
     assert user is not None

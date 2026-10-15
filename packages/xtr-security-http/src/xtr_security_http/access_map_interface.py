@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["AccessMapInterface"]
 
@@ -19,6 +19,6 @@ class AccessMapInterface(Protocol):
     and a request no rule claims has none.
     """
 
-    def get_attribute(self, request: Request) -> str | None:
+    async def get_attribute(self, request: ServerRequestInterface) -> str | None:
         """Return the attribute the first matching rule requires, or ``None``."""
         ...

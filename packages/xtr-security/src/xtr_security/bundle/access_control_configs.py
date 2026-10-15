@@ -13,20 +13,34 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from xtr_http_foundation import (
+    ChainRequestMatcher,
+    HostRequestMatcher,
+    IpsRequestMatcher,
+    MethodRequestMatcher,
+    PathRequestMatcher,
+)
 from xtr_security_core.exception import InvalidArgumentError
-from xtr_security_http.request_matcher.chain_request_matcher import ChainRequestMatcher
-from xtr_security_http.request_matcher.host_request_matcher import HostRequestMatcher
-from xtr_security_http.request_matcher.ip_request_matcher import IpRequestMatcher
-from xtr_security_http.request_matcher.method_request_matcher import MethodRequestMatcher
-from xtr_security_http.request_matcher.path_request_matcher import PathRequestMatcher
 
 if TYPE_CHECKING:
-    from xtr_security_http.request_matcher.request_matcher_interface import RequestMatcherInterface
+    from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
 
 __all__ = ["AccessControlConfig"]
 
 _METHOD_TOKEN = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
 """An HTTP method is a token: no space, no separator, never empty."""
+
+
+def _canonical_networks(ips: tuple[str, ...]) -> tuple[str, ...]:
+    """Return every address entry written in the one spelling the matcher reads.
+
+    The check in ``__post_init__`` accepts every spelling the standard library
+    accepts — a netmask among them — while the matcher reads a prefix only as
+    a count of bits, and an entry it cannot read is a rule that claims
+    nothing. Writing each parsed entry back out turns every accepted spelling
+    into a readable one.
+    """
+    return tuple(str(ipaddress.ip_network(entry, strict=False)) for entry in ips)
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +118,9 @@ class AccessControlConfig:
     def to_matcher(self) -> RequestMatcherInterface:
         """Return the request matcher this configuration describes.
 
+        Address entries reach the matcher in the canonical CIDR spelling, the
+        prefix as a count of bits, whichever accepted spelling wrote them.
+
         Raises:
             InvalidArgumentError: When ``path`` or ``host`` is not a valid
                 regular expression.
@@ -114,5 +131,5 @@ class AccessControlConfig:
         if self.methods:
             matchers.append(MethodRequestMatcher(self.methods))
         if self.ips:
-            matchers.append(IpRequestMatcher(self.ips))
+            matchers.append(IpsRequestMatcher(_canonical_networks(self.ips)))
         return ChainRequestMatcher(matchers)

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, final
 from fastapi.security import HTTPBearer
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle
+from xtr_http_foundation import PathRequestMatcher
 from xtr_security_core.authentication.authentication_trust_resolver import (
     AuthenticationTrustResolver,
 )
@@ -36,7 +37,6 @@ from xtr_security_http.authorization.oauth2_scope_voter import OAuth2ScopeVoter
 from xtr_security_http.exception import InvalidAccessTokenError
 from xtr_security_http.firewall.access_listener import AccessListener
 from xtr_security_http.firewall_map import FirewallMap
-from xtr_security_http.request_matcher.path_request_matcher import PathRequestMatcher
 
 if TYPE_CHECKING:
     from starlette.requests import Request

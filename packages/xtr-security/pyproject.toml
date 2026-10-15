@@ -27,6 +27,8 @@ dependencies = [
     "xtr-dependency-injection>=4.0,<5",
     "xtr-event-dispatcher>=4.0,<5",
     "xtr-http-kernel>=4.0,<5",
+    "xtr-http-foundation>=4.0,<5",
+    "xtr-http-message-contracts>=4.0,<5",
     "typing-extensions>=4.12",
 ]
 
@@ -54,6 +56,8 @@ dev = [
     # The hasher wiring is tested against both algorithms, bcrypt included, so its
     # backend has to be installed here even though the library leaves it optional.
     "xtr-password-hasher[bcrypt]>=4.0,<5",
+    # The tests match request messages, so they build the request messages.
+    "xtr-http-message>=4.0,<5",
 ]
 
 [build-system]

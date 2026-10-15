@@ -13,10 +13,10 @@ from .firewall_map_interface import FirewallMapInterface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from starlette.requests import Request
+    from xtr_http_foundation import RequestMatcherInterface
+    from xtr_http_message_contracts import ServerRequestInterface
 
     from .firewall_context_interface import FirewallContextInterface
-    from .request_matcher.request_matcher_interface import RequestMatcherInterface
 
 __all__ = ["FirewallMap"]
 
@@ -31,11 +31,13 @@ class FirewallMap(FirewallMapInterface):
     narrow firewall must be registered before a catch-all it would shadow.
 
     Each firewall is paired with a
-    :class:`~xtr_security_http.request_matcher.request_matcher_interface.RequestMatcherInterface`
-    — a path, host, method or callable matcher, or a chain of them, from the
-    ``request_matcher`` package — so the map matches a request without a notion
-    of matching of its own. A chain of no matchers claims every request, the
-    catch-all a firewall registered last relies on.
+    :class:`~xtr_http_foundation.request_matcher_interface.RequestMatcherInterface`
+    from `xtr-http-foundation` — a path, host, method or address matcher, or a
+    chain of them — or with this package's
+    :class:`~xtr_security_http.request_matcher.callable_request_matcher.CallableRequestMatcher`,
+    so the map matches a request without a notion of matching of its own. A
+    chain of no matchers claims every request, the catch-all a firewall
+    registered last relies on.
 
     The contexts it holds are read through
     :class:`~xtr_security_http.firewall_context_interface.FirewallContextInterface`,
@@ -80,10 +82,10 @@ class FirewallMap(FirewallMapInterface):
             raise UnknownFirewallError(name, tuple(self._by_name)) from error
 
     @override
-    def match(self, request: Request) -> FirewallContextInterface | None:
+    async def match(self, request: ServerRequestInterface) -> FirewallContextInterface | None:
         """Return the first firewall whose matcher claims ``request``, or ``None``."""
         for matcher, context in self._matchers:
-            if matcher.matches(request):
+            if await matcher.matches(request):
                 return context
         return None
 

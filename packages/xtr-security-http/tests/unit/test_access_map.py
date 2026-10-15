@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from tests.support.requests import make_request
+import pytest
+from xtr_http_foundation import PathRequestMatcher
+
+from tests.support.messages import make_message
 from xtr_security_http.access_map import AccessMap
 from xtr_security_http.access_map_interface import AccessMapInterface
-from xtr_security_http.request_matcher.path_request_matcher import PathRequestMatcher
+
+pytestmark = pytest.mark.anyio
 
 
 def _map() -> AccessMap:
@@ -15,32 +19,28 @@ def _map() -> AccessMap:
     return access_map
 
 
-def test_the_first_matching_rule_decides() -> None:
-    request = make_request()
-    request.scope["path"] = "/api/admin/panel"
+async def test_the_first_matching_rule_decides() -> None:
+    message = make_message(path="/api/admin/panel")
 
-    assert _map().get_attribute(request) == "ROLE_ADMIN"
-
-
-def test_a_broader_rule_matches_when_the_narrow_one_does_not() -> None:
-    request = make_request()
-    request.scope["path"] = "/api/books"
-
-    assert _map().get_attribute(request) == "IS_AUTHENTICATED"
+    assert await _map().get_attribute(message) == "ROLE_ADMIN"
 
 
-def test_no_rule_matches_returns_none() -> None:
-    request = make_request()
-    request.scope["path"] = "/public"
+async def test_a_broader_rule_matches_when_the_narrow_one_does_not() -> None:
+    message = make_message(path="/api/books")
 
-    assert _map().get_attribute(request) is None
+    assert await _map().get_attribute(message) == "IS_AUTHENTICATED"
 
 
-def test_an_empty_map_matches_nothing() -> None:
-    request = make_request()
-    request.scope["path"] = "/api"
+async def test_no_rule_matches_returns_none() -> None:
+    message = make_message(path="/public")
 
-    assert AccessMap().get_attribute(request) is None
+    assert await _map().get_attribute(message) is None
+
+
+async def test_an_empty_map_matches_nothing() -> None:
+    message = make_message(path="/api")
+
+    assert await AccessMap().get_attribute(message) is None
 
 
 def test_the_map_satisfies_its_interface() -> None:

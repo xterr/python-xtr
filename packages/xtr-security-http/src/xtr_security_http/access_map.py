@@ -9,9 +9,8 @@ from typing_extensions import override
 from .access_map_interface import AccessMapInterface
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-
-    from .request_matcher.request_matcher_interface import RequestMatcherInterface
+    from xtr_http_foundation import RequestMatcherInterface
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["AccessMap"]
 
@@ -44,9 +43,9 @@ class AccessMap(AccessMapInterface):
         self._rules.append((request_matcher, attribute))
 
     @override
-    def get_attribute(self, request: Request) -> str | None:
+    async def get_attribute(self, request: ServerRequestInterface) -> str | None:
         """Return the attribute the first matching rule requires, or ``None``."""
         for request_matcher, attribute in self._rules:
-            if request_matcher.matches(request):
+            if await request_matcher.matches(request):
                 return attribute
         return None

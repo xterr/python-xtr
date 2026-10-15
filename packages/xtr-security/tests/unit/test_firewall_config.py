@@ -7,6 +7,8 @@ import pytest
 from xtr_security.bundle import AccessTokenConfig, FirewallConfig, ServiceTokenHandlerConfig
 from xtr_security.exception import InvalidConfigurationError
 
+pytestmark = pytest.mark.anyio
+
 
 class _Handler:
     """A stand-in handler class."""
@@ -46,43 +48,35 @@ def test_a_bad_pattern_is_refused() -> None:
         _ = FirewallConfig(pattern=r"[", security=False)
 
 
-def test_to_matcher_claims_requests_on_the_pattern() -> None:
-    from tests.support.requests import make_request
+async def test_to_matcher_claims_requests_on_the_pattern() -> None:
+    from tests.support.messages import make_message
 
     firewall = FirewallConfig(pattern=r"^/api", authenticators=(_access_token(),))
     matcher = firewall.to_matcher()
 
-    on_api = make_request()
-    on_api.scope["path"] = "/api/books"
-    elsewhere = make_request()
-    elsewhere.scope["path"] = "/public"
-
-    assert matcher.matches(on_api) is True
-    assert matcher.matches(elsewhere) is False
+    assert await matcher.matches(make_message(path="/api/books")) is True
+    assert await matcher.matches(make_message(path="/public")) is False
 
 
-def test_to_matcher_with_no_constraints_claims_every_request() -> None:
-    from tests.support.requests import make_request
+async def test_to_matcher_with_no_constraints_claims_every_request() -> None:
+    from tests.support.messages import make_message
 
     firewall = FirewallConfig(security=False)
     matcher = firewall.to_matcher()
 
-    request = make_request()
-    request.scope["path"] = "/anything"
-
-    assert matcher.matches(request) is True
+    assert await matcher.matches(make_message(path="/anything")) is True
 
 
-def test_to_matcher_honours_a_callable() -> None:
-    from starlette.requests import Request
+async def test_to_matcher_honours_a_callable() -> None:
+    from xtr_http_message_contracts import ServerRequestInterface
 
-    from tests.support.requests import make_request
+    from tests.support.messages import make_message
 
-    def wants_header(request: Request) -> bool:
-        return request.headers.get("x-ok") == "1"
+    def asks_for_ok(message: ServerRequestInterface) -> bool:
+        return message.get_query_params().get("ok") == "1"
 
-    firewall = FirewallConfig(request_matcher=wants_header, security=False)
+    firewall = FirewallConfig(request_matcher=asks_for_ok, security=False)
     matcher = firewall.to_matcher()
 
-    assert matcher.matches(make_request(headers={"x-ok": "1"})) is True
-    assert matcher.matches(make_request()) is False
+    assert await matcher.matches(make_message(query="ok=1")) is True
+    assert await matcher.matches(make_message()) is False

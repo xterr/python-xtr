@@ -9,7 +9,7 @@ from xtr_security_core.authorization.voter.authenticated_voter import Authentica
 from xtr_security_core.exception import AccessDeniedError
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.authorization.access_decision_manager_interface import (
         AccessDecisionManagerInterface,
@@ -42,14 +42,14 @@ class AccessListener:
         self._access_map = access_map
         self._access_decision_manager = access_decision_manager
 
-    async def check_access(self, request: Request, token: TokenInterface) -> None:
+    async def check_access(self, request: ServerRequestInterface, token: TokenInterface) -> None:
         """Decide ``token`` against the first rule ``request`` matches.
 
         Raises:
             AccessDeniedError: When a matching rule's attribute is not granted,
                 carrying the decision so a handler can explain or challenge.
         """
-        attribute = self._access_map.get_attribute(request)
+        attribute = await self._access_map.get_attribute(request)
         if attribute is None or attribute == AuthenticatedVoter.PUBLIC_ACCESS:
             return
         decision = AccessDecision()

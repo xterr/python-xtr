@@ -6,11 +6,13 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from fastapi.security import HTTPBearer
+from xtr_http_foundation import ChainRequestMatcher
 from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
 from xtr_security_core.authorization import AccessDecisionManager
 from xtr_security_core.exception import AccessDeniedError
 
 from tests.support.contexts import FakeFirewallContext
+from tests.support.messages import make_message
 from tests.support.requests import make_request
 from xtr_security_http._runner import run_firewall
 from xtr_security_http.access_map import AccessMap
@@ -19,7 +21,6 @@ from xtr_security_http.authentication.authenticator_manager_interface import (
 )
 from xtr_security_http.firewall.access_listener import AccessListener
 from xtr_security_http.firewall_map import FirewallMap
-from xtr_security_http.request_matcher.chain_request_matcher import ChainRequestMatcher
 
 if TYPE_CHECKING:
     from fastapi.security.base import SecurityBase
@@ -81,6 +82,7 @@ async def _run(firewall_map: FirewallMap, request: Request) -> None:
     await run_firewall(
         None,
         request,
+        make_message(),
         (),
         firewall_map=firewall_map,
         token_storage=TokenStorage(),
@@ -92,6 +94,7 @@ async def test_it_does_nothing_when_no_firewall_matches() -> None:
     await run_firewall(
         None,
         make_request(),
+        make_message(),
         (),
         firewall_map=FirewallMap(()),
         token_storage=TokenStorage(),
@@ -104,6 +107,7 @@ async def test_a_scope_on_an_unmatched_request_is_denied() -> None:
         await run_firewall(
             None,
             make_request(),
+            make_message(),
             ("books:write",),
             firewall_map=FirewallMap(()),
             token_storage=TokenStorage(),
@@ -116,6 +120,7 @@ async def test_a_scope_on_an_open_firewall_is_denied() -> None:
         await run_firewall(
             None,
             make_request(),
+            make_message(),
             ("books:write",),
             firewall_map=_open_firewall_map(),
             token_storage=TokenStorage(),

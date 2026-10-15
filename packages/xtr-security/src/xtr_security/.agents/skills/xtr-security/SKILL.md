@@ -87,8 +87,9 @@ def security() -> SecurityConfig:
 ```
 
 - Firewalls are matched in order; the first whose `pattern`, `host`, `methods` or
-  `request_matcher` claims the request wins. A firewall with none of them claims everything, so
-  it goes last.
+  `request_matcher` — a callable `(ServerRequestInterface) -> bool` — claims the request wins.
+  The matchers come from `xtr-http-foundation` and read the request as a message. A firewall with
+  none of them claims everything, so it goes last.
 - `access_control` rules are tried in order too, so the narrow `^/api/admin` rule comes before
   the broad `^/api`. One attribute per rule: a role, `"IS_AUTHENTICATED"`, `"PUBLIC_ACCESS"`, or
   an `OAUTH2_SCOPE(...)` string the `oauth2_scope(...)` helper builds.

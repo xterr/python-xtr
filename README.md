@@ -126,6 +126,8 @@ graph LR
     securitycore --> clock
     securityhttp[xtr-security-http] --> securitycore
     securityhttp --> httpkernel
+    securityhttp --> httpfoundation
+    securityhttp --> httpmsgcon
     securityhttp --> di
     securityhttp --> events
     securityhttp --> eventcon
@@ -137,6 +139,8 @@ graph LR
     security --> di
     security --> events
     security --> httpkernel
+    security --> httpfoundation
+    security --> httpmsgcon
     security --> clock
     security -. optional .-> console
     securityjwt[xtr-security-jwt] --> security

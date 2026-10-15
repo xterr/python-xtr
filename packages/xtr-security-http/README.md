@@ -63,6 +63,8 @@ import asyncio
 
 from starlette.requests import Request
 from xtr_event_dispatcher import EventDispatcher
+from xtr_http_foundation import PathRequestMatcher
+from xtr_http_message import ServerRequest
 from xtr_security_core import InMemoryUser, TokenStorage
 from xtr_security_core.authorization.access_decision_manager import AccessDecisionManager
 from xtr_security_http import (
@@ -78,7 +80,6 @@ from xtr_security_http import (
     oauth2_scope,
 )
 from xtr_security_http.authorization.oauth2_scope_voter import parse_oauth2_scope
-from xtr_security_http.request_matcher import PathRequestMatcher
 
 
 class MyTokenHandler(AccessTokenHandlerInterface):
@@ -93,6 +94,10 @@ def make_request(path: str, headers: dict[str, str]) -> Request:
     return Request(
         {"type": "http", "method": "GET", "path": path, "headers": raw, "query_string": b""}
     )
+
+
+def make_message(path: str) -> ServerRequest:
+    return ServerRequest("GET", f"https://example.com{path}")
 
 
 async def main() -> None:
@@ -116,7 +121,7 @@ async def main() -> None:
     access_map = AccessMap()
     access_map.add(PathRequestMatcher(r"^/api"), "ROLE_USER")
     AccessListener(access_map, AccessDecisionManager())  # decides a token against the rules
-    print("rule attribute:", access_map.get_attribute(make_request("/api/me", {})))
+    print("rule attribute:", await access_map.get_attribute(make_message("/api/me")))
 
     attribute = oauth2_scope("books:read", "books:write")
     print("oauth2_scope:", attribute)
@@ -154,7 +159,7 @@ A **`FirewallContextInterface`** is one firewall's runtime pieces: its `name`, i
 `authenticator_manager`, its `access_listener`, the FastAPI `scheme`
 it shows in OpenAPI, whether it has `security` at all, and the optional `entry_point`,
 `access_denied_handler` and `scope_denied_handler` that answer a failure. A **`FirewallMap`**
-holds those contexts: `match(request)` returns the first whose matcher claims the request,
+holds those contexts: `await match(message)` returns the first whose matcher claims the request message,
 `get(name)` fetches one by name (raising `UnknownFirewallError`), `has(name)` and `names()`
 report what is registered. `FirewallMapInterface` is the protocol the bundle wires a
 container-backed map to.
@@ -236,19 +241,22 @@ listener instance and kept, so no request pays the cost twice.
 ### Access map and request matchers
 
 An **`AccessMap`** is an ordered list of rules: `add(request_matcher, attribute)` appends one,
-`get_attribute(request)` returns the attribute the first matching rule requires. An
+`await get_attribute(message)` returns the attribute the first matching rule requires. An
 **`AccessListener(access_map, access_decision_manager)`** decides a token against that attribute
-with `check_access(request, token)`, raising `AccessDeniedError` when it is not granted. A
-**`RequestMatcherInterface`** answers `matches(request)`:
+with `await check_access(message, token)`, raising `AccessDeniedError` when it is not granted. A
+**`RequestMatcherInterface`** (from [xtr-http-foundation](../xtr-http-foundation)) answers
+`await matches(message)` over the request as a `ServerRequestInterface`:
 
 | Matcher | Claims a request by |
 |---|---|
-| `PathRequestMatcher(pattern)` | its path (searched, not anchored) |
-| `HostRequestMatcher(pattern)` | its host |
-| `MethodRequestMatcher(methods)` | its method |
-| `IpRequestMatcher(ips)` | its client address |
+| `PathRequestMatcher(pattern)` | its path (searched, not anchored; the mount prefix stripped and per-cent escapes undone) |
+| `HostRequestMatcher(pattern)` | its host (matched case-insensitively) |
+| `MethodRequestMatcher(methods)` | its method (empty `methods` claims every request) |
+| `IpsRequestMatcher(ips)` | its client address (empty `ips` claims every request) |
 | `ChainRequestMatcher(matchers)` | all of several matchers (an empty chain claims everything) |
-| `CallableRequestMatcher(decide)` | a callable `(request) -> bool` |
+
+This package keeps the escape hatch: **`CallableRequestMatcher(decide)`** defers the claim to a
+callable `(message) -> bool`, for a rule none of the matchers above express.
 
 ### The exception listener: 401, 403 and RFC 6750
 
@@ -362,7 +370,7 @@ xtr_security_http/
 ├── access_token/               extractors, handler interface, oidc/ (OidcTokenHandler)
 ├── oidc/                       DiscoveryOidcKeySetProvider
 ├── access_map.py               the ordered access-control rules
-├── request_matcher/            path, host, method, ip, chain, callable
+├── request_matcher/            the callable escape hatch (the rest come from xtr-http-foundation)
 ├── authorization/              OAuth2ScopeVoter, oauth2_scope, the scope-denied handler
 ├── decorator/                  IsGranted, CurrentUser, IsGrantedContext
 ├── entry_point/                AuthenticationEntryPointInterface
