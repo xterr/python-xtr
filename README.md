@@ -212,7 +212,7 @@ siblings by major version (`xtr-logging-contracts>=4.0,<5`).
 
 ```sh
 uv run scripts/release.py check        # every package and this README on one version (CI runs this)
-uv run scripts/release.py bump 4.0.3   # move every package and this README; on a new major, rewrite the ranges
+uv run scripts/release.py bump 4.0.4   # move every package and this README; on a new major, rewrite the ranges
 ```
 
 A package classified `Private :: Do Not Upload` moves with the rest but is never published or
@@ -221,15 +221,15 @@ split.
 ## Releasing
 
 ```sh
-uv run scripts/release.py bump 4.0.3
-git commit -am "bump: 4.0.3" && git push
-git tag 4.0.3 && git push origin 4.0.3
+uv run scripts/release.py bump 4.0.4
+git commit -am "bump: 4.0.4" && git push
+git tag 4.0.4 && git push origin 4.0.4
 ```
 
 The tag starts the [release workflow](.github/workflows/release.yml): it waits for CI to pass on
 the tagged commit's push to `main` — nothing is released otherwise — checks the tag against the
 packages' version, publishes every package to PyPI through trusted publishing, and tags each
-read-only repository `4.0.3`.
+read-only repository `4.0.4`.
 
 ## Repositories
 
@@ -322,7 +322,7 @@ packages/xtr-<name>/
 ```toml
 [project]
 name = "xtr-<name>"
-version = "4.0.3"
+version = "4.0.4"
 description = "<one-line pitch, on this project's own terms>."
 readme = "README.md"
 requires-python = ">=3.11"

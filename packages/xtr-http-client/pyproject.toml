@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-client"
-version = "4.0.3"
+version = "4.0.4"
 description = "An async HTTP client behind one interface: typed request options, bodies read on demand, scoped clients, a private-network guard and a mock client for tests."
 readme = "README.md"
 authors = [

@@ -1,6 +1,6 @@
 [project]
 name = "xtr-cache-contracts"
-version = "4.0.3"
+version = "4.0.4"
 description = "The caching contract: compute-once reads, item pools, tags and namespaces, with no backend attached."
 readme = "README.md"
 authors = [

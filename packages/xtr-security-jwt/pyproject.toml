@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-jwt"
-version = "4.0.3"
+version = "4.0.4"
 description = "Self-issued JSON Web Tokens for xtr security: key sets, an encoder and a token manager for a user."
 readme = "README.md"
 requires-python = ">=3.11"
