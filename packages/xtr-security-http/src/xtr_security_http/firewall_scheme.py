@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
 
 from fastapi.security import HTTPBearer, SecurityScopes
 from fastapi.security.base import SecurityBase
@@ -21,11 +21,14 @@ from xtr_security_core.authorization.access_decision_manager_interface import ( 
 )
 
 from ._runner import run_firewall
+from ._security_state import security_state_of
 from .exception.firewall_not_booted_error import FirewallNotBootedError
 from .firewall_map_interface import FirewallMapInterface  # noqa: TC001 -- filled into __call__
 from .firewall_scheme_registry import active_firewall_scheme_registry
 
 if TYPE_CHECKING:
+    from collections.abc import MutableMapping
+
     from fastapi.openapi.models import SecurityBase as SecurityBaseModel
 
 __all__ = ["FirewallScheme"]
@@ -63,12 +66,17 @@ class FirewallScheme(SecurityBase):
 
         The message is the request as the kernel built it for this request's
         scope, and it is what the firewall map and the access rules match.
+        The per-request security state is created from the same bag the
+        framework's request wraps its state on — the one the lifecycle's
+        events carry — so the exception listener reads what this call leaves
+        there.
         """
+        bag = cast("MutableMapping[str, object]", request.scope.setdefault("state", {}))
         await run_firewall(
             self._name,
-            request,
             message,
             tuple(security_scopes.scopes),
+            state=security_state_of(bag),
             firewall_map=firewall_map,
             token_storage=token_storage,
             access_decision_manager=access_decision_manager,

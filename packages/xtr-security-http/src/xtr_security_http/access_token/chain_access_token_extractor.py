@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from fastapi.security.base import SecurityBase
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["ChainAccessTokenExtractor"]
 
@@ -44,7 +44,7 @@ class ChainAccessTokenExtractor(AccessTokenExtractorInterface):
         self._extractors = tuple(extractors)
 
     @override
-    async def extract_access_token(self, request: Request) -> str | None:
+    async def extract_access_token(self, request: ServerRequestInterface) -> str | None:
         """Return the first token any extractor finds, or ``None`` when none do."""
         for extractor in self._extractors:
             token = await extractor.extract_access_token(request)

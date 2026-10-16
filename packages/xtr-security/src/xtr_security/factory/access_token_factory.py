@@ -9,6 +9,7 @@ from typing_extensions import override
 # These annotate factory parameters and returns the container reads at runtime,
 # so the marker, the qualifier helper and the return types stay importable here.
 from xtr_dependency_injection import Target, named_factory
+from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_security_http import (
     AccessTokenAuthenticator,
     ChainAccessTokenExtractor,
@@ -195,11 +196,13 @@ def _authenticator_factory(
     async def access_token_authenticator(
         handler: object,
         extractor: object,
+        responses: ResponseFactoryInterface,
         provider: object | None = None,
     ) -> AccessTokenAuthenticator:
         return AccessTokenAuthenticator(
             cast("AccessTokenHandlerInterface", handler),
             cast("AccessTokenExtractorInterface", extractor),
+            responses,
             user_provider=cast("UserProviderInterface | None", provider),
             realm=realm,
         )
@@ -207,6 +210,7 @@ def _authenticator_factory(
     annotations: dict[str, object] = {
         "handler": _qualified(handler_key),
         "extractor": _qualified(extractor_key),
+        "responses": ResponseFactoryInterface,
         "return": AccessTokenAuthenticator,
     }
     if user_provider is not None:

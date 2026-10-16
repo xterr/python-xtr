@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from starlette.responses import JSONResponse
 from xtr_event_dispatcher_contracts import Event
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.exception import AuthenticationError
 
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from xtr_security_jwt.event.authentication_failure_event import AuthenticationFailureEvent
 
 
@@ -16,8 +16,9 @@ def test_it_is_a_dispatcher_event() -> None:
 
 def test_it_exposes_and_replaces_its_response() -> None:
     error = AuthenticationError("bad")
-    first = JSONResponse({})
-    second = JSONResponse({"replaced": True})
+    responses = ResponseFactory()
+    first = responses.create_response(401)
+    second = responses.create_response(403)
     event = AuthenticationFailureEvent(error, first)
 
     assert event.get_exception() is error
@@ -27,9 +28,12 @@ def test_it_exposes_and_replaces_its_response() -> None:
 
 
 def test_it_carries_and_records_its_request() -> None:
-    event = AuthenticationFailureEvent(AuthenticationError("x"), JSONResponse({}))
+    event = AuthenticationFailureEvent(
+        AuthenticationError("x"),
+        ResponseFactory().create_response(401),
+    )
 
     assert event.get_request() is None
-    request = make_request()
+    request = make_message()
     event.set_request(request)
     assert event.get_request() is request

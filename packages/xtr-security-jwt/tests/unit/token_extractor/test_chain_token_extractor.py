@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from xtr_security_core.exception import InvalidArgumentError
 
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from xtr_security_jwt.token_extractor.authorization_header_token_extractor import (
     AuthorizationHeaderTokenExtractor,
 )
@@ -24,7 +24,7 @@ def test_it_returns_the_first_token_found() -> None:
     chain = ChainTokenExtractor(
         [QueryParameterTokenExtractor(), AuthorizationHeaderTokenExtractor()],
     )
-    request = make_request(headers={"Authorization": "Bearer header-token"})
+    request = make_message(headers={"Authorization": "Bearer header-token"})
 
     assert chain.extract(request) == "header-token"
 
@@ -32,7 +32,7 @@ def test_it_returns_the_first_token_found() -> None:
 def test_it_returns_none_when_none_find_a_token() -> None:
     chain = ChainTokenExtractor([AuthorizationHeaderTokenExtractor()])
 
-    assert chain.extract(make_request()) is None
+    assert chain.extract(make_message()) is None
 
 
 def test_it_refuses_no_extractors() -> None:

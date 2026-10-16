@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from xtr_clock import MockClock
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.authentication.token.abstract_token import AbstractToken
 from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user.in_memory_user import InMemoryUser
@@ -15,7 +16,7 @@ from tests.support.fakes import (
     RejectingDispatcher,
 )
 from tests.support.keys import RSA_PRIVATE_PEM
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from xtr_security_jwt.encoder.default_jwt_encoder import DefaultJwtEncoder
 from xtr_security_jwt.event.jwt_created_event import JwtCreatedEvent
 from xtr_security_jwt.event.jwt_decoded_event import JwtDecodedEvent
@@ -133,11 +134,12 @@ async def test_decode_reads_the_credentials_of_a_settled_security_token() -> Non
         manager,
         RecordingDispatcher(),
         AuthorizationHeaderTokenExtractor(),
+        ResponseFactory(),
         PlainUserProvider(user),
         "api",
     )
     passport = await authenticator.authenticate(
-        make_request(headers={"Authorization": f"Bearer {raw}"}),
+        make_message(headers={"Authorization": f"Bearer {raw}"}),
     )
     _ = await passport.get_user()
     settled = await authenticator.create_token(passport, "api")

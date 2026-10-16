@@ -6,18 +6,24 @@ that exercises one builds it here.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from xtr_http_message import ServerRequest
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 __all__ = ["make_message"]
 
 
-def make_message(
+def make_message(  # noqa: PLR0913 -- a test builder, naming every part of a request it can shape
     *,
     method: str = "GET",
     path: str = "/",
     host: str = "example.com",
     client: tuple[str, int] | None = None,
     query: str = "",
+    headers: Mapping[str, str] | None = None,
 ) -> ServerRequest:
     """Return a request message with the given method, path, host and client.
 
@@ -28,4 +34,4 @@ def make_message(
     asked = f"?{query}" if query else ""
     uri = f"https://{host}{path}{asked}"
     params = None if client is None else {"client": client}
-    return ServerRequest(method, uri, server_params=params)
+    return ServerRequest(method, uri, dict(headers or {}), server_params=params)

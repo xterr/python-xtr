@@ -22,9 +22,8 @@ from .authenticator_manager_interface import AuthenticatorManagerInterface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from starlette.requests import Request
-    from starlette.responses import Response
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_logging_contracts import LoggerInterface
     from xtr_security_core.authentication.token.storage.token_storage_interface import (
         TokenStorageInterface,
@@ -101,7 +100,7 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
         self._required_badges = tuple(required_badges)
 
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         """Tell whether an authenticator handles ``request``: ``True``, ``None`` or ``False``."""
         lazy = False
         for authenticator in self._authenticators:
@@ -113,7 +112,10 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
         return None if lazy else False
 
     @override
-    async def authenticate_request(self, request: Request) -> Response | None:
+    async def authenticate_request(
+        self,
+        request: ServerRequestInterface,
+    ) -> ResponseInterface | None:
         """Authenticate ``request`` through the first supporting authenticator.
 
         A lazy authenticator — one whose :meth:`supports` returned ``None`` —
@@ -130,16 +132,16 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
                 continue
             outcome = await self._authenticate(authenticator, request, lazy=supported is None)
             if outcome is not _ABSTAINED:
-                return cast("Response | None", outcome)
+                return cast("ResponseInterface | None", outcome)
         return None
 
     async def _authenticate(
         self,
         authenticator: AuthenticatorInterface,
-        request: Request,
+        request: ServerRequestInterface,
         *,
         lazy: bool,
-    ) -> Response | object | None:
+    ) -> ResponseInterface | object | None:
         """Carry one authenticator through the sequence, or abstain when it does not apply."""
         passport: Passport | None = None
         try:
@@ -176,10 +178,10 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
     async def _on_success(
         self,
         authenticator: AuthenticatorInterface,
-        request: Request,
+        request: ServerRequestInterface,
         passport: Passport,
         token: TokenInterface,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Store the token, run the success handler, then announce the login."""
         self._token_storage.set_token(token)
         if self._logger is not None:
@@ -206,10 +208,10 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
     async def _on_failure(
         self,
         authenticator: AuthenticatorInterface,
-        request: Request,
+        request: ServerRequestInterface,
         passport: Passport | None,
         error: AuthenticationError,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Mask the error, announce the failure, offer it to the handler, then re-raise.
 
         Raises:

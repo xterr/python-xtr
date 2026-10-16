@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
 
 __all__ = ["AuthenticatorManagerInterface"]
 
@@ -22,7 +21,7 @@ class AuthenticatorManagerInterface(Protocol):
     request goes on with its token set on the storage.
     """
 
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         """Tell whether any authenticator handles ``request``.
 
         ``None`` means no authenticator is sure yet — a lazy one that would try
@@ -30,7 +29,9 @@ class AuthenticatorManagerInterface(Protocol):
         """
         ...
 
-    async def authenticate_request(self, request: Request) -> Response | None:
+    async def authenticate_request(
+        self, request: ServerRequestInterface
+    ) -> ResponseInterface | None:
         """Authenticate ``request``, returning a handler's response if one answered.
 
         Raises:

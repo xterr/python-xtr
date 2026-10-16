@@ -7,8 +7,7 @@ from typing import TYPE_CHECKING, final
 from xtr_event_dispatcher_contracts import Event
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.exception import AuthenticationError
 
     from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
@@ -37,10 +36,10 @@ class LoginFailureEvent(Event):
         self,
         exception: AuthenticationError,
         authenticator: AuthenticatorInterface,
-        request: Request,
+        request: ServerRequestInterface,
         passport: Passport | None,
         firewall_name: str,
-        response: Response | None = None,
+        response: ResponseInterface | None = None,
     ) -> None:
         """Record the error, authenticator, request, passport, firewall and response."""
         self._exception = exception
@@ -58,8 +57,8 @@ class LoginFailureEvent(Event):
         """Return the authenticator that failed to authenticate the request."""
         return self._authenticator
 
-    def get_request(self) -> Request:
-        """Return the request that failed to authenticate."""
+    def get_request(self) -> ServerRequestInterface:
+        """Return the request that failed to authenticate, as a message."""
         return self._request
 
     def get_passport(self) -> Passport | None:
@@ -70,10 +69,10 @@ class LoginFailureEvent(Event):
         """Return the firewall the authentication ran under."""
         return self._firewall_name
 
-    def get_response(self) -> Response | None:
+    def get_response(self) -> ResponseInterface | None:
         """Return the response a listener set to answer the failure, if any."""
         return self._response
 
-    def set_response(self, response: Response | None) -> None:
+    def set_response(self, response: ResponseInterface | None) -> None:
         """Answer the failure with ``response`` instead of the failure handler."""
         self._response = response

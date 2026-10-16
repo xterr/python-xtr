@@ -148,6 +148,7 @@ graph LR
     securityjwt[xtr-security-jwt] --> security
     securityjwt --> securitycore
     securityjwt --> securityhttp
+    securityjwt --> httpmsgcon
     securityjwt --> di
     securityjwt --> clock
     securityjwt --> events

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar, cast, final
 
-from starlette.responses import JSONResponse
 from typing_extensions import override
+from xtr_http_message_contracts.factory import (
+    ResponseFactoryInterface,  # noqa: TC002 -- the container reads this constructor parameter's type at runtime
+)
 from xtr_security_core.exception import AuthenticationError, BadCredentialsError
 
-from xtr_security_http._challenge import no_store_headers, quote_auth_param
+from xtr_security_http._challenge import json_challenge, quote_auth_param
 from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.authorization.oauth2_scope_voter import OAuth2ScopeVoter
 from xtr_security_http.entry_point.authentication_entry_point_interface import (
@@ -21,8 +23,7 @@ from .abstract_authenticator import AbstractAuthenticator
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.user.user_interface import UserInterface
     from xtr_security_core.user.user_provider_interface import UserProviderInterface
@@ -75,6 +76,7 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         "_failure_handler",
         "_handler",
         "_realm",
+        "_responses",
         "_success_handler",
         "_user_provider",
     )
@@ -83,14 +85,28 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         self,
         handler: AccessTokenHandlerInterface,
         extractor: AccessTokenExtractorInterface,
+        responses: ResponseFactoryInterface,
         user_provider: UserProviderInterface | None = None,
         success_handler: AuthenticationSuccessHandlerInterface | None = None,
         failure_handler: AuthenticationFailureHandlerInterface | None = None,
         realm: str | None = None,
     ) -> None:
-        """Record the handler, extractor, optional provider, handlers and realm."""
+        """Record the handler, extractor, response factory, optional peers and realm.
+
+        Args:
+            handler: Validates a token into a user badge.
+            extractor: Reads the token out of a request.
+            responses: Builds the challenge responses the entry point answers
+                with, so the authenticator names no response class.
+            user_provider: Loads the user an identifier names, when the badge
+                the handler returned carries no loader of its own.
+            success_handler: Reacts to a successful authentication, or ``None``.
+            failure_handler: Reacts to a failed authentication, or ``None``.
+            realm: The protection realm named in the challenge, or ``None``.
+        """
         self._handler = handler
         self._extractor = extractor
+        self._responses = responses
         self._user_provider = user_provider
         self._success_handler = success_handler
         self._failure_handler = failure_handler
@@ -102,7 +118,7 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         return self._extractor
 
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         """Handle the request only when it carries a token this extractor reads.
 
         Returns ``None`` — not ``False`` — when no token is present, so the
@@ -113,7 +129,7 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         return None
 
     @override
-    async def authenticate(self, request: Request) -> Passport:
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
         """Read and validate the token, and build a self-validating passport.
 
         Raises:
@@ -149,10 +165,10 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
     @override
     async def on_authentication_success(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         token: TokenInterface,
         firewall_name: str,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Delegate to the success handler, or let the request go on."""
         if self._success_handler is not None:
             return await self._success_handler.on_authentication_success(
@@ -165,16 +181,20 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
     @override
     async def on_authentication_failure(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Delegate to the failure handler, or let the entry point challenge."""
         if self._failure_handler is not None:
             return await self._failure_handler.on_authentication_failure(request, error)
         return None
 
     @override
-    async def start(self, request: Request, error: AuthenticationError | None = None) -> Response:
+    async def start(
+        self,
+        request: ServerRequestInterface,
+        error: AuthenticationError | None = None,
+    ) -> ResponseInterface:
         """Answer an unauthenticated or failed request with an RFC 6750 challenge.
 
         A rejected token — an
@@ -193,10 +213,11 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
             parts.append(f"error_description={quote_auth_param(error.get_message_key())}")
             body = {"error": "invalid_token"}
         challenge = parts[0] + (" " + ", ".join(parts[1:]) if len(parts) > 1 else "")
-        return JSONResponse(
+        return await json_challenge(
+            self._responses,
+            401,
             body,
-            status_code=401,
-            headers=no_store_headers(**{"WWW-Authenticate": challenge}),
+            {"WWW-Authenticate": challenge},
         )
 
     def _normalize_scope(self, scope: object) -> list[str]:

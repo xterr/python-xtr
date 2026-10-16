@@ -11,7 +11,7 @@ from .token_extractor_interface import TokenExtractorInterface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["SplitCookieExtractor"]
 
@@ -32,13 +32,13 @@ class SplitCookieExtractor(TokenExtractorInterface):
         self._cookies = tuple(cookies)
 
     @override
-    def extract(self, request: Request) -> str | None:
+    def extract(self, request: ServerRequestInterface) -> str | None:
         """Return the token rejoined from its cookies, or ``None`` when one is absent."""
         if not self._cookies:
             return None
         parts: list[str] = []
         for name in self._cookies:
-            value = request.cookies.get(name)
+            value = request.get_cookie_params().get(name)
             if not value:
                 return None
             parts.append(value)

@@ -11,8 +11,7 @@ from xtr_security_http.authentication.authentication_success_handler_interface i
 )
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
 
 
@@ -20,10 +19,10 @@ class _Success(AuthenticationSuccessHandlerInterface):
     @override
     async def on_authentication_success(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         token: TokenInterface,
         firewall_name: str,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         del request, token, firewall_name
         return None
 

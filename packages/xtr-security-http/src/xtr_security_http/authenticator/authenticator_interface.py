@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.exception import AuthenticationError
 
@@ -27,7 +26,7 @@ class AuthenticatorInterface(Protocol):
     letting the request go on to its endpoint.
     """
 
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         """Tell whether this authenticator handles ``request``.
 
         ``True`` authenticates it and stops the others; ``False`` skips it;
@@ -37,7 +36,7 @@ class AuthenticatorInterface(Protocol):
         """
         ...
 
-    async def authenticate(self, request: Request) -> Passport:
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
         """Read ``request`` into a passport, before any badge is resolved.
 
         Raises:
@@ -52,17 +51,17 @@ class AuthenticatorInterface(Protocol):
 
     async def on_authentication_success(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         token: TokenInterface,
         firewall_name: str,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """React to a successful authentication, optionally answering the request."""
         ...
 
     async def on_authentication_failure(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """React to a failed authentication, optionally answering the request."""
         ...

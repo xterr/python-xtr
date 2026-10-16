@@ -9,7 +9,7 @@ from typing_extensions import override
 from .token_extractor_interface import TokenExtractorInterface
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["AuthorizationHeaderTokenExtractor"]
 
@@ -32,7 +32,7 @@ class AuthorizationHeaderTokenExtractor(TokenExtractorInterface):
         self._name = name
 
     @override
-    def extract(self, request: Request) -> str | None:
+    def extract(self, request: ServerRequestInterface) -> str | None:
         """Return the token after the prefix in the header, or ``None``.
 
         The header is read with its surrounding whitespace dropped, and the
@@ -42,7 +42,7 @@ class AuthorizationHeaderTokenExtractor(TokenExtractorInterface):
         it is no token at all, rather than an empty one the verifier would refuse
         later.
         """
-        header = request.headers.get(self._name)
+        header = request.get_header_line(self._name)
         if not header:
             return None
         value = header.strip()

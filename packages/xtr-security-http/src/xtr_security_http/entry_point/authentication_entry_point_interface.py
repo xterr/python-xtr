@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.exception import AuthenticationError
 
 __all__ = ["AuthenticationEntryPointInterface"]
@@ -22,7 +21,11 @@ class AuthenticationEntryPointInterface(Protocol):
     error that led here, when there is one, shapes the challenge.
     """
 
-    async def start(self, request: Request, error: AuthenticationError | None = None) -> Response:
+    async def start(
+        self,
+        request: ServerRequestInterface,
+        error: AuthenticationError | None = None,
+    ) -> ResponseInterface:
         """Return the response that asks ``request`` to authenticate.
 
         Args:

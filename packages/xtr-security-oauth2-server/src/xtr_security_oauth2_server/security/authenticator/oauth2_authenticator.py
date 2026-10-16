@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Final, cast, final
 
-from starlette.responses import JSONResponse
 from typing_extensions import override
 from xtr_security_http.authenticator.abstract_authenticator import AbstractAuthenticator
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
@@ -30,9 +30,8 @@ from xtr_security_oauth2_server.security.user.client_credentials_user import Cli
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from starlette.requests import Request
-    from starlette.responses import Response
-    from xtr_http_kernel.bridge import HttpMessageFactoryInterface
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
+    from xtr_http_message_contracts.factory import ResponseFactoryInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.exception import AuthenticationError
     from xtr_security_core.user.user_interface import UserInterface
@@ -85,16 +84,16 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
     """
 
     __slots__ = (
-        "_http_message_factory",
         "_realm",
         "_resource_server",
+        "_responses",
         "_role_prefix",
         "_user_provider",
     )
 
     def __init__(
         self,
-        http_message_factory: HttpMessageFactoryInterface,
+        responses: ResponseFactoryInterface,
         resource_server: ResourceServer,
         user_provider: UserProviderInterface,
         role_prefix: str,
@@ -103,8 +102,8 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
         """Read tokens through ``resource_server``, loading users from ``user_provider``.
 
         Args:
-            http_message_factory: Turns the request being served into the
-                message the resource server reads.
+            responses: Builds the refusal responses the entry point answers
+                with, so the authenticator names no response class.
             resource_server: What reads the access token and says what it
                 carries.
             user_provider: The firewall's own provider, where a resource owner
@@ -114,14 +113,14 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
                 this authenticator was built for, since an application serving
                 two of them protects two different things.
         """
-        self._http_message_factory = http_message_factory
+        self._responses = responses
         self._resource_server = resource_server
         self._user_provider = user_provider
         self._role_prefix = role_prefix
         self._realm = realm
 
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         """Handle the request only when it carries a bearer token.
 
         The scheme is read whatever case it was written in: RFC 6750 section
@@ -129,12 +128,12 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
         framework, whose scheme names are case-insensitive (RFC 9110 section
         11.1). A caller writing ``bearer`` is presenting a bearer token.
         """
-        header = request.headers.get("Authorization", "")
+        header = request.get_header_line("Authorization")
 
         return header[: len(_BEARER_PREFIX)].lower() == _BEARER_PREFIX
 
     @override
-    async def authenticate(self, request: Request) -> SelfValidatingPassport:
+    async def authenticate(self, request: ServerRequestInterface) -> SelfValidatingPassport:
         """Read the token and build a passport for whoever it names.
 
         The passport is self-validating: the signature already proved the
@@ -146,9 +145,8 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
                 accept the token, or when the token names neither a resource
                 owner nor a client, so there is nobody it could be for.
         """
-        message = await self._http_message_factory.create_request(request)
         try:
-            read = await self._resource_server.validate_authenticated_request(message)
+            read = await self._resource_server.validate_authenticated_request(request)
         except OAuthServerError as error:
             raise OAuth2AuthenticationFailedError.create(
                 "The resource server rejected the request.",
@@ -195,9 +193,9 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
     @override
     async def on_authentication_failure(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Answer a refused token with the status and challenge the refusal carries.
 
         Anything that is not one of this package's refusals is left alone, for
@@ -205,16 +203,21 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
         """
         del request
         if isinstance(error, OAuth2AuthenticationError):
-            return _refusal(error.get_message_key(), error.get_status_code(), error.get_headers())
+            return await _refusal(
+                self._responses,
+                error.get_message_key(),
+                error.get_status_code(),
+                error.get_headers(),
+            )
 
         return None
 
     @override
     async def start(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError | None = None,
-    ) -> Response:
+    ) -> ResponseInterface:
         """Answer a request that proved nothing with a ``401`` and a bearer challenge.
 
         The challenge names the realm and nothing else. RFC 6750 section 3 has
@@ -232,7 +235,8 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
             else "An access token is required to call this."
         )
 
-        return _refusal(
+        return await _refusal(
+            self._responses,
             message,
             HTTPStatus.UNAUTHORIZED,
             {"WWW-Authenticate": bearer_challenge("realm", self._realm)},
@@ -244,18 +248,26 @@ class OAuth2Authenticator(AbstractAuthenticator, AuthenticationEntryPointInterfa
         return f"{type(self).__name__}(role_prefix={self._role_prefix!r}, realm={self._realm!r})"
 
 
-def _refusal(message: str, status: int, headers: Mapping[str, str]) -> JSONResponse:
+async def _refusal(
+    responses: ResponseFactoryInterface,
+    message: str,
+    status: int,
+    headers: Mapping[str, str],
+) -> ResponseInterface:
     """Return the answer a caller that did not prove itself gets.
 
     Forbids every cache from keeping it: a proxy answering another caller's
     request with one principal's refusal would be telling the wrong person
     something about the right one.
     """
-    return JSONResponse(
-        {"code": status, "message": message},
-        status_code=status,
-        headers={**headers, "Cache-Control": "no-store", "Pragma": "no-cache"},
+    response = responses.create_response(status)
+    for name, value in {**headers, "Cache-Control": "no-store", "Pragma": "no-cache"}.items():
+        response = response.with_header(name.lower(), value)
+    response = response.with_header("content-type", "application/json")
+    _ = await response.get_body().write(
+        json.dumps({"code": status, "message": message}, separators=(",", ":")).encode(),
     )
+    return response
 
 
 def _text(value: object) -> str:

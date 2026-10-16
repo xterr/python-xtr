@@ -2,8 +2,8 @@
 
 Registers a single :class:`FirewallMap` with an ``api`` firewall, a shared
 token storage, an access-decision manager and a trust resolver, so an
-integration test can drive :func:`run_firewall`, the exception listener and the
-route markers against a real container.
+integration test can drive :func:`run_firewall`, the exception listener and
+the route markers against a real container.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from fastapi.security import HTTPBearer
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle
 from xtr_http_foundation import PathRequestMatcher
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.authentication.authentication_trust_resolver import (
     AuthenticationTrustResolver,
 )
@@ -39,9 +40,8 @@ from xtr_security_http.firewall.access_listener import AccessListener
 from xtr_security_http.firewall_map import FirewallMap
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.exception import AccessDeniedError, AuthenticationError
 
 __all__ = ["SecurityFixtureBundle"]
@@ -54,12 +54,15 @@ class _FakeManager:
     def __init__(self, storage: TokenStorage) -> None:
         self._storage = storage
 
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         del request
         return None
 
-    async def authenticate_request(self, request: Request) -> Response | None:
-        auth = request.headers.get("authorization", "")
+    async def authenticate_request(
+        self,
+        request: ServerRequestInterface,
+    ) -> ResponseInterface | None:
+        auth = request.get_header_line("Authorization")
         if auth == "Bearer good":
             token = UsernamePasswordToken(
                 InMemoryUser("alice", roles=["ROLE_USER"]),
@@ -85,14 +88,18 @@ class _FakeManager:
 class _FakeEntryPoint:
     """Answers an unauthenticated request with a bare bearer challenge."""
 
-    async def start(self, request: Request, error: AuthenticationError | None = None) -> Response:
-        from starlette.responses import JSONResponse  # noqa: PLC0415
+    def __init__(self, responses: ResponseFactory) -> None:
+        self._responses = responses
 
+    async def start(
+        self,
+        request: ServerRequestInterface,
+        error: AuthenticationError | None = None,
+    ) -> ResponseInterface:
         del request, error
-        return JSONResponse(
-            {"error": "unauthorized"},
-            status_code=401,
-            headers={"WWW-Authenticate": 'Bearer realm="api"'},
+        return self._responses.create_response(401).with_header(
+            "www-authenticate",
+            'Bearer realm="api"',
         )
 
 
@@ -100,39 +107,49 @@ class _FakeEntryPoint:
 class _FakeAccessDeniedHandler:
     """Answers a denied, fully-authenticated caller with a 403."""
 
-    async def handle(self, request: Request, error: AccessDeniedError) -> Response | None:
-        from starlette.responses import JSONResponse  # noqa: PLC0415
+    def __init__(self, responses: ResponseFactory) -> None:
+        self._responses = responses
 
+    async def handle(
+        self,
+        request: ServerRequestInterface,
+        error: AccessDeniedError,
+    ) -> ResponseInterface | None:
         del request, error
-        return JSONResponse({"error": "forbidden"}, status_code=403)
+        return self._responses.create_response(403)
 
 
 @final
 class _FakeScopeDeniedHandler:
     """Answers a denied scope with an insufficient-scope challenge."""
 
-    async def handle(self, request: Request, error: AccessDeniedError) -> Response | None:
-        from starlette.responses import JSONResponse  # noqa: PLC0415
+    def __init__(self, responses: ResponseFactory) -> None:
+        self._responses = responses
 
+    async def handle(
+        self,
+        request: ServerRequestInterface,
+        error: AccessDeniedError,
+    ) -> ResponseInterface | None:
         del request, error
-        return JSONResponse(
-            {"error": "insufficient_scope"},
-            status_code=403,
-            headers={"WWW-Authenticate": 'Bearer error="insufficient_scope"'},
+        return self._responses.create_response(403).with_header(
+            "www-authenticate",
+            'Bearer error="insufficient_scope"',
         )
 
 
 def _firewall_map(storage: TokenStorage, manager: AccessDecisionManager) -> FirewallMap:
     access_map = AccessMap()
     access_map.add(PathRequestMatcher(r"^/api"), "ROLE_USER")
+    responses = ResponseFactory()
     context = FakeFirewallContext(
         name="api",
         authenticator_manager=_FakeManager(storage),
         access_listener=AccessListener(access_map, manager),
         scheme=HTTPBearer(auto_error=False),
-        entry_point=_FakeEntryPoint(),
-        access_denied_handler=_FakeAccessDeniedHandler(),
-        scope_denied_handler=_FakeScopeDeniedHandler(),
+        entry_point=_FakeEntryPoint(responses),
+        access_denied_handler=_FakeAccessDeniedHandler(responses),
+        scope_denied_handler=_FakeScopeDeniedHandler(responses),
     )
     return FirewallMap(((PathRequestMatcher(r"^/api"), context),))
 

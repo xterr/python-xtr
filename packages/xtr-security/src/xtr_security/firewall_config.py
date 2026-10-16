@@ -12,13 +12,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from xtr_http_foundation import (
+    CallableRequestMatcher,
     ChainRequestMatcher,
     HostRequestMatcher,
     MethodRequestMatcher,
     PathRequestMatcher,
 )
 from xtr_security_core.exception import InvalidArgumentError
-from xtr_security_http.request_matcher.callable_request_matcher import CallableRequestMatcher
 
 from xtr_security.exception import InvalidConfigurationError
 

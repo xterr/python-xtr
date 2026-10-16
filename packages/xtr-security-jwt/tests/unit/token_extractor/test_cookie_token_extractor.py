@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from xtr_security_jwt.token_extractor.cookie_token_extractor import CookieTokenExtractor
 from xtr_security_jwt.token_extractor.token_extractor_interface import TokenExtractorInterface
 
@@ -12,10 +12,10 @@ def test_it_implements_the_interface() -> None:
 
 
 def test_it_reads_a_cookie() -> None:
-    request = make_request(cookies={"BEARER": "cookie-token"})
+    request = make_message(cookies={"BEARER": "cookie-token"})
 
     assert CookieTokenExtractor().extract(request) == "cookie-token"
 
 
 def test_it_returns_none_without_the_cookie() -> None:
-    assert CookieTokenExtractor().extract(make_request()) is None
+    assert CookieTokenExtractor().extract(make_message()) is None

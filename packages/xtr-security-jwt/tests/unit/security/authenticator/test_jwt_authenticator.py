@@ -6,6 +6,7 @@ from typing import final
 
 import pytest
 from xtr_clock import MockClock
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.user.chain_user_provider import ChainUserProvider
 from xtr_security_core.user.in_memory_user import InMemoryUser
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
@@ -20,7 +21,7 @@ from tests.support.fakes import (
     RecordingDispatcher,
 )
 from tests.support.keys import RSA_PRIVATE_PEM
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from xtr_security_jwt.encoder.default_jwt_encoder import DefaultJwtEncoder
 from xtr_security_jwt.event.jwt_authenticated_event import JwtAuthenticatedEvent
 from xtr_security_jwt.event.jwt_expired_event import JwtExpiredEvent
@@ -72,6 +73,7 @@ def _authenticator(
         _manager(clock, claim=claim),
         the_dispatcher,
         AuthorizationHeaderTokenExtractor(),
+        ResponseFactory(),
         provider,
         "api",
     )
@@ -86,10 +88,10 @@ def test_it_is_an_abstract_authenticator_and_an_entry_point() -> None:
 async def test_supports_true_with_a_token_and_false_without() -> None:
     clock = MockClock("2024-01-01 00:00:00")
     authenticator, _ = _authenticator(clock, PlainUserProvider(InMemoryUser("ada")))
-    with_token = make_request(headers={"Authorization": "Bearer x"})
+    with_token = make_message(headers={"Authorization": "Bearer x"})
 
     assert authenticator.supports(with_token) is True
-    assert authenticator.supports(make_request()) is False
+    assert authenticator.supports(make_message()) is False
 
 
 async def test_authenticate_builds_a_passport_and_loads_the_user() -> None:
@@ -97,7 +99,7 @@ async def test_authenticate_builds_a_passport_and_loads_the_user() -> None:
     provider = AttributesRecordingProvider(InMemoryUser("ada", roles=["ROLE_USER"]))
     authenticator, _ = _authenticator(clock, provider)
     token = await _token(clock)
-    request = make_request(headers={"Authorization": f"Bearer {token}"})
+    request = make_message(headers={"Authorization": f"Bearer {token}"})
 
     passport = await authenticator.authenticate(request)
     user = await passport.get_user()
@@ -112,7 +114,7 @@ async def test_an_attributes_provider_receives_the_payload() -> None:
     authenticator, _ = _authenticator(clock, provider)
     token = await _token(clock)
     passport = await authenticator.authenticate(
-        make_request(headers={"Authorization": f"Bearer {token}"}),
+        make_message(headers={"Authorization": f"Bearer {token}"}),
     )
     _ = await passport.get_user()
 
@@ -127,7 +129,7 @@ async def test_a_plain_provider_is_asked_by_identifier() -> None:
     authenticator, _ = _authenticator(clock, provider)
     token = await _token(clock)
     passport = await authenticator.authenticate(
-        make_request(headers={"Authorization": f"Bearer {token}"}),
+        make_message(headers={"Authorization": f"Bearer {token}"}),
     )
     _ = await passport.get_user()
 
@@ -141,7 +143,7 @@ async def test_a_chain_provider_tries_each_member() -> None:
     authenticator, _ = _authenticator(clock, chain)
     token = await _token(clock)
     passport = await authenticator.authenticate(
-        make_request(headers={"Authorization": f"Bearer {token}"}),
+        make_message(headers={"Authorization": f"Bearer {token}"}),
     )
     user = await passport.get_user()
 
@@ -156,7 +158,7 @@ async def test_an_expired_token_raises_expired() -> None:
 
     with pytest.raises(ExpiredTokenError):
         _ = await authenticator.authenticate(
-            make_request(headers={"Authorization": f"Bearer {token}"}),
+            make_message(headers={"Authorization": f"Bearer {token}"}),
         )
 
 
@@ -166,7 +168,7 @@ async def test_a_bad_token_raises_invalid() -> None:
 
     with pytest.raises(InvalidTokenError):
         _ = await authenticator.authenticate(
-            make_request(headers={"Authorization": "Bearer not.a.token"}),
+            make_message(headers={"Authorization": "Bearer not.a.token"}),
         )
 
 
@@ -182,7 +184,7 @@ async def test_a_missing_id_claim_raises_invalid_payload() -> None:
 
     with pytest.raises(InvalidPayloadError):
         _ = await authenticator.authenticate(
-            make_request(headers={"Authorization": f"Bearer {token}"}),
+            make_message(headers={"Authorization": f"Bearer {token}"}),
         )
 
 
@@ -191,7 +193,7 @@ async def test_create_token_builds_a_jwt_token_and_keeps_the_raw_token() -> None
     authenticator, _ = _authenticator(clock, PlainUserProvider(InMemoryUser("ada")))
     token = await _token(clock)
     passport = await authenticator.authenticate(
-        make_request(headers={"Authorization": f"Bearer {token}"}),
+        make_message(headers={"Authorization": f"Bearer {token}"}),
     )
     _ = await passport.get_user()
 
@@ -207,7 +209,7 @@ async def test_create_token_dispatches_jwt_authenticated() -> None:
     authenticator, dispatcher = _authenticator(clock, PlainUserProvider(InMemoryUser("ada")))
     token = await _token(clock)
     passport = await authenticator.authenticate(
-        make_request(headers={"Authorization": f"Bearer {token}"}),
+        make_message(headers={"Authorization": f"Bearer {token}"}),
     )
     _ = await passport.get_user()
     dispatcher.events.clear()
@@ -222,22 +224,22 @@ async def test_on_success_answers_nothing() -> None:
     authenticator, _ = _authenticator(clock, PlainUserProvider(InMemoryUser("ada")))
     token = await _token(clock)
     passport = await authenticator.authenticate(
-        make_request(headers={"Authorization": f"Bearer {token}"}),
+        make_message(headers={"Authorization": f"Bearer {token}"}),
     )
     _ = await passport.get_user()
     settled = await authenticator.create_token(passport, "api")
 
-    assert await authenticator.on_authentication_success(make_request(), settled, "api") is None
+    assert await authenticator.on_authentication_success(make_message(), settled, "api") is None
 
 
 async def test_on_failure_of_an_expired_token_answers_401_and_dispatches_expired() -> None:
     clock = MockClock("2024-01-01 00:00:00")
     authenticator, dispatcher = _authenticator(clock, PlainUserProvider(InMemoryUser("ada")))
 
-    response = await authenticator.on_authentication_failure(make_request(), ExpiredTokenError())
+    response = await authenticator.on_authentication_failure(make_message(), ExpiredTokenError())
 
     assert response is not None
-    assert response.status_code == 401
+    assert response.get_status_code() == 401
     assert JwtExpiredEvent in dispatcher.types()
 
 
@@ -245,7 +247,7 @@ async def test_on_failure_of_an_invalid_token_dispatches_invalid() -> None:
     clock = MockClock("2024-01-01 00:00:00")
     authenticator, dispatcher = _authenticator(clock, PlainUserProvider(InMemoryUser("ada")))
 
-    response = await authenticator.on_authentication_failure(make_request(), InvalidTokenError())
+    response = await authenticator.on_authentication_failure(make_message(), InvalidTokenError())
 
     assert response is not None
     assert JwtInvalidEvent in dispatcher.types()
@@ -255,10 +257,10 @@ async def test_start_answers_401_not_found_and_dispatches_not_found() -> None:
     clock = MockClock("2024-01-01 00:00:00")
     authenticator, dispatcher = _authenticator(clock, PlainUserProvider(InMemoryUser("ada")))
 
-    response = await authenticator.start(make_request())
+    response = await authenticator.start(make_message())
 
-    assert response.status_code == 401
-    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.get_status_code() == 401
+    assert response.get_header_line("www-authenticate") == "Bearer"
     assert JwtNotFoundEvent in dispatcher.types()
 
 
@@ -267,7 +269,7 @@ async def test_start_keeps_the_given_error_as_the_cause_of_the_not_found() -> No
     authenticator, dispatcher = _authenticator(clock, PlainUserProvider(InMemoryUser("ada")))
     drew_the_challenge = InvalidTokenError("the firewall fell through")
 
-    _ = await authenticator.start(make_request(), drew_the_challenge)
+    _ = await authenticator.start(make_message(), drew_the_challenge)
 
     event = dispatcher.events[-1]
     assert isinstance(event, JwtNotFoundEvent)
@@ -293,10 +295,11 @@ async def test_the_token_is_extracted_once_per_request() -> None:
         _manager(clock),
         RecordingDispatcher(),
         extractor,
+        ResponseFactory(),
         PlainUserProvider(InMemoryUser("ada", roles=["ROLE_USER"])),
         "api",
     )
-    request = make_request(headers={"Authorization": f"Bearer {token}"})
+    request = make_message(headers={"Authorization": f"Bearer {token}"})
 
     assert authenticator.supports(request) is True
     passport = await authenticator.authenticate(request)
@@ -311,9 +314,13 @@ async def test_two_firewalls_sharing_a_request_each_extract_their_own_token() ->
     first = _CountingExtractor(token)
     second = _CountingExtractor(token)
     provider = PlainUserProvider(InMemoryUser("ada", roles=["ROLE_USER"]))
-    api = JwtAuthenticator(_manager(clock), RecordingDispatcher(), first, provider, "api")
-    admin = JwtAuthenticator(_manager(clock), RecordingDispatcher(), second, provider, "admin")
-    request = make_request(headers={"Authorization": f"Bearer {token}"})
+    api = JwtAuthenticator(
+        _manager(clock), RecordingDispatcher(), first, ResponseFactory(), provider, "api"
+    )
+    admin = JwtAuthenticator(
+        _manager(clock), RecordingDispatcher(), second, ResponseFactory(), provider, "admin"
+    )
+    request = make_message(headers={"Authorization": f"Bearer {token}"})
 
     assert (api.supports(request), admin.supports(request)) == (True, True)
     assert api.supports(request) is True

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from starlette.responses import JSONResponse
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.exception import AuthenticationError
 
 from xtr_security_jwt.event.authentication_failure_event import AuthenticationFailureEvent
@@ -17,8 +17,9 @@ def test_it_derives_from_the_failure_base_and_the_interface() -> None:
 
 def test_it_exposes_and_replaces_its_response() -> None:
     error = AuthenticationError("bad")
-    first = JSONResponse({})
-    second = JSONResponse({"replaced": True})
+    responses = ResponseFactory()
+    first = responses.create_response(401)
+    second = responses.create_response(403)
     event = JwtInvalidEvent(error, first)
 
     assert event.get_exception() is error

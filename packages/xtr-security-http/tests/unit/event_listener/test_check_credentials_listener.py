@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 import pytest
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_password_hasher import PlaintextPasswordHasher
 from xtr_security_core.exception import BadCredentialsError
 from xtr_security_core.user.in_memory_user import InMemoryUser
@@ -35,7 +36,9 @@ pytestmark = pytest.mark.anyio
 
 def _event(passport: Passport) -> CheckPassportEvent:
     authenticator = AccessTokenAuthenticator(
-        FakeAccessTokenHandler({}), HeaderAccessTokenExtractor()
+        FakeAccessTokenHandler({}),
+        HeaderAccessTokenExtractor(),
+        ResponseFactory(),
     )
     return CheckPassportEvent(authenticator, passport)
 

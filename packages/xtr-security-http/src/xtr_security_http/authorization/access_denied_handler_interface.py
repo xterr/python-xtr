@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.exception import AccessDeniedError
 
 __all__ = ["AccessDeniedHandlerInterface"]
@@ -22,6 +21,8 @@ class AccessDeniedHandlerInterface(Protocol):
     ``403``.
     """
 
-    async def handle(self, request: Request, error: AccessDeniedError) -> Response | None:
+    async def handle(
+        self, request: ServerRequestInterface, error: AccessDeniedError
+    ) -> ResponseInterface | None:
         """Return the response that refuses ``request``, or ``None`` for a plain refusal."""
         ...

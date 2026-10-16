@@ -22,6 +22,7 @@ from xtr_security_core.authorization.access_decision_manager_interface import (
 )
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 from xtr_security_http._runner import run_firewall
+from xtr_security_http._security_state import security_state_of
 from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
 from tests.support.messages import make_message
@@ -30,18 +31,20 @@ from xtr_security.bundle import SecurityBundle
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
-    from starlette.requests import Request
+    from xtr_http_message import ServerRequest
     from xtr_service_contracts import ContainerInterface
 
 pytestmark = pytest.mark.anyio
 
 
-async def _run(unit: ContainerInterface, request: Request, scopes: Sequence[str] = ()) -> None:
+async def _run(
+    unit: ContainerInterface, message: ServerRequest, scopes: Sequence[str] = ()
+) -> None:
     await run_firewall(
         "api",
-        request,
-        make_message(path="/api/books"),
+        message,
         scopes,
+        state=security_state_of({}),
         firewall_map=await unit.get(FirewallMapInterface),
         token_storage=await unit.get(TokenStorageInterface),
         access_decision_manager=await unit.get(AccessDecisionManagerInterface),
@@ -60,21 +63,9 @@ async def container() -> AsyncIterator[ContainerInterface]:
         yield booted.container
 
 
-def _request(token: str | None = None) -> Request:
-    from starlette.requests import Request
-
-    headers = [(b"authorization", f"Bearer {token}".encode())] if token else []
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": "/api/books",
-        "headers": headers,
-        "query_string": b"",
-        "server": ("test", 80),
-        "scheme": "http",
-        "client": ("1.2.3.4", 1),
-    }
-    return Request(scope)
+def _message(token: str | None = None) -> ServerRequest:
+    headers = {"authorization": f"Bearer {token}"} if token else {}
+    return make_message(path="/api/books", headers=headers)
 
 
 async def test_the_chain_provider_resolves(container: ContainerInterface) -> None:
@@ -95,7 +86,7 @@ async def test_the_in_memory_provider_resolves(container: ContainerInterface) ->
 
 async def test_the_multi_extractor_authenticator_runs(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
-        await _run(unit, _request("good"))
+        await _run(unit, _message("good"))
         token = (await unit.get(TokenStorageInterface)).get_token()
 
     assert token is not None
@@ -113,7 +104,7 @@ async def test_tracing_logs_each_decision_and_its_votes(container: ContainerInte
     from xtr_security_core import Access, AuthenticatedVoter, TraceableAccessDecisionManager
 
     async with unit_of_work(container) as unit:
-        await _run(unit, _request("good"), ("books:read",))
+        await _run(unit, _message("good"), ("books:read",))
         manager = await unit.get(AccessDecisionManagerInterface)
         assert isinstance(manager, TraceableAccessDecisionManager)
         log = manager.get_decision_log()
@@ -131,7 +122,7 @@ async def test_tracing_logs_each_decision_and_its_votes(container: ContainerInte
 
 async def test_each_unit_of_work_gets_its_own_decision_log(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
-        await _run(unit, _request("good"))
+        await _run(unit, _message("good"))
         first = await unit.get(AccessDecisionManagerInterface)
 
     async with unit_of_work(container) as unit:

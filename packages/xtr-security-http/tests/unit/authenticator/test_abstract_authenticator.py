@@ -2,33 +2,34 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
-from starlette.requests import Request
 from typing_extensions import override
 from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.exception import BadCredentialsError
 
+from tests.support.messages import make_message
 from tests.support.users import loader
 from xtr_security_http.authenticator.abstract_authenticator import AbstractAuthenticator
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.authenticator.passport.passport import Passport
 from xtr_security_http.authenticator.token.post_authentication_token import PostAuthenticationToken
 
+if TYPE_CHECKING:
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
+
 pytestmark = pytest.mark.anyio
-
-
-def _request() -> Request:
-    return Request({"type": "http", "method": "GET", "headers": [], "query_string": b""})
 
 
 class _Authenticator(AbstractAuthenticator):
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         del request
         return True
 
     @override
-    async def authenticate(self, request: Request) -> Passport:
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
         return Passport(UserBadge("alice"))
 
@@ -53,8 +54,12 @@ async def test_it_builds_a_post_authentication_token_from_the_loaded_user() -> N
 async def test_the_hooks_answer_nothing() -> None:
     authenticator = _Authenticator()
 
-    success = await authenticator.on_authentication_success(_request(), NullToken(), "api")
-    failure = await authenticator.on_authentication_failure(_request(), BadCredentialsError())
+    success: ResponseInterface | None = await authenticator.on_authentication_success(
+        make_message(), NullToken(), "api"
+    )
+    failure: ResponseInterface | None = await authenticator.on_authentication_failure(
+        make_message(), BadCredentialsError()
+    )
 
     assert success is None
     assert failure is None

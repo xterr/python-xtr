@@ -6,12 +6,13 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_password_hasher import PlaintextPasswordHasher
 from xtr_security_core.user.in_memory_user import InMemoryUser
 from xtr_security_core.user.password_upgrader_interface import PasswordUpgraderInterface
 
 from tests.support.http import FakeAccessTokenHandler
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from xtr_security_http.access_token.header_access_token_extractor import HeaderAccessTokenExtractor
 from xtr_security_http.authenticator.access_token_authenticator import AccessTokenAuthenticator
 from xtr_security_http.authenticator.passport.badge.password_upgrade_badge import (
@@ -63,9 +64,11 @@ class _RecordingUpgrader(PasswordUpgraderInterface):
 
 def _login_success_event(passport: Passport, token: PostAuthenticationToken) -> LoginSuccessEvent:
     authenticator = AccessTokenAuthenticator(
-        FakeAccessTokenHandler({}), HeaderAccessTokenExtractor()
+        FakeAccessTokenHandler({}),
+        HeaderAccessTokenExtractor(),
+        ResponseFactory(),
     )
-    return LoginSuccessEvent(authenticator, passport, token, make_request(), None, "api")
+    return LoginSuccessEvent(authenticator, passport, token, make_message(), None, "api")
 
 
 async def test_it_rehashes_and_stores() -> None:

@@ -12,7 +12,7 @@ from .token_extractor_interface import TokenExtractorInterface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["ChainTokenExtractor"]
 
@@ -39,7 +39,7 @@ class ChainTokenExtractor(TokenExtractorInterface):
         self._extractors = tuple(extractors)
 
     @override
-    def extract(self, request: Request) -> str | None:
+    def extract(self, request: ServerRequestInterface) -> str | None:
         """Return the first token any extractor finds, or ``None`` when none do."""
         for extractor in self._extractors:
             token = extractor.extract(request)

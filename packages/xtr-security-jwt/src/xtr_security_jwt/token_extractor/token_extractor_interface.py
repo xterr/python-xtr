@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["TokenExtractorInterface"]
 
@@ -19,6 +19,6 @@ class TokenExtractorInterface(Protocol):
     request carries none in that place.
     """
 
-    def extract(self, request: Request) -> str | None:
+    def extract(self, request: ServerRequestInterface) -> str | None:
         """Return the token in ``request``, or ``None`` when there is none."""
         ...

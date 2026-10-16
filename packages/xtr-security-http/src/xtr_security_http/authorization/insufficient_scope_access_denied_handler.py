@@ -4,17 +4,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
 
-from starlette.responses import JSONResponse
 from typing_extensions import override
+from xtr_http_message_contracts.factory import (
+    ResponseFactoryInterface,  # noqa: TC002 -- the container reads this constructor parameter's type at runtime
+)
 
-from xtr_security_http._challenge import no_store_headers, quote_auth_param
+from xtr_security_http._challenge import json_challenge, quote_auth_param
 
 from .access_denied_handler_interface import AccessDeniedHandlerInterface
 from .oauth2_scope_voter import parse_oauth2_scope
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.exception import AccessDeniedError
 
 __all__ = ["InsufficientScopeAccessDeniedHandler"]
@@ -34,14 +35,23 @@ class InsufficientScopeAccessDeniedHandler(AccessDeniedHandlerInterface):
         realm: The protection realm named in the challenge, when set.
     """
 
-    __slots__ = ("_realm",)
+    __slots__ = ("_realm", "_responses")
 
-    def __init__(self, realm: str | None = None) -> None:
-        """Record the realm named in the challenge, if any."""
+    def __init__(self, responses: ResponseFactoryInterface, realm: str | None = None) -> None:
+        """Record the response factory and the realm named in the challenge, if any.
+
+        Args:
+            responses: Builds the challenge responses this handler answers
+                with, so it names no response class.
+            realm: The protection realm named in the challenge, or ``None``.
+        """
+        self._responses = responses
         self._realm = realm
 
     @override
-    async def handle(self, request: Request, error: AccessDeniedError) -> Response | None:
+    async def handle(
+        self, request: ServerRequestInterface, error: AccessDeniedError
+    ) -> ResponseInterface | None:
         """Return a ``403`` carrying the RFC 6750 insufficient-scope challenge."""
         del request
         scope = self._required_scope(error)
@@ -56,10 +66,11 @@ class InsufficientScopeAccessDeniedHandler(AccessDeniedHandlerInterface):
         if scope:
             parts.append(f"scope={quote_auth_param(scope)}")
         challenge = parts[0] + " " + ", ".join(parts[1:])
-        return JSONResponse(
+        return await json_challenge(
+            self._responses,
+            403,
             {"error": "insufficient_scope"},
-            status_code=403,
-            headers=no_store_headers(**{"WWW-Authenticate": challenge}),
+            {"WWW-Authenticate": challenge},
         )
 
     def _required_scope(self, error: AccessDeniedError) -> str:

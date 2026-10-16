@@ -2194,8 +2194,10 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "../../packages/xtr-cache-contracts" },
     { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
 ]
+provides-extras = ["cache"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2205,6 +2207,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-cache-contracts", editable = "../../packages/xtr-cache-contracts" },
     { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
 ]
 
@@ -2806,12 +2809,12 @@ version = "4.1.0"
 source = { editable = "../../packages/xtr-security-jwt" }
 dependencies = [
     { name = "joserfc" },
-    { name = "starlette" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-message-contracts" },
     { name = "xtr-security" },
     { name = "xtr-security-core" },
     { name = "xtr-security-http" },
@@ -2820,12 +2823,12 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "joserfc", specifier = ">=1.7" },
-    { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
     { name = "xtr-security", editable = "../../packages/xtr-security" },
     { name = "xtr-security-core", editable = "../../packages/xtr-security-core" },
     { name = "xtr-security-http", editable = "../../packages/xtr-security-http" },
@@ -2843,6 +2846,7 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
     { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
+    { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
 ]
 
 [[package]]

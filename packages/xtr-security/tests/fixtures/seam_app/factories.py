@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
+from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_security_core import InMemoryUser
 from xtr_security_core.user.user_interface import UserInterface
 from xtr_security_http import (
@@ -152,9 +153,11 @@ class FakeOAuth2Factory(AuthenticatorFactoryInterface):
 
         async def fake_authenticator(container: ContainerInterface) -> AccessTokenAuthenticator:
             handler = await container.get(FakeTokenHandler, f"{firewall_name}_fake_handler")
+            responses = await container.get(ResponseFactoryInterface)
             return AccessTokenAuthenticator(
                 handler,
                 HeaderAccessTokenExtractor(),
+                responses,
                 realm=realm,
             )
 

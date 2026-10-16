@@ -11,7 +11,7 @@ from xtr_security_core.event.authentication_success_event import AuthenticationS
 from xtr_security_core.exception import BadCredentialsError, UserNotFoundError
 
 from tests.support.dispatchers import RecordingDispatcher
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from tests.support.users import loader
 from xtr_security_http.authentication.authenticator_manager import AuthenticatorManager
 from xtr_security_http.authentication.expose_security_level import ExposeSecurityLevel
@@ -25,7 +25,7 @@ from xtr_security_http.event.check_passport_event import CheckPassportEvent
 from xtr_security_http.exception import InvalidAccessTokenError
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
     from xtr_security_core.user.in_memory_user import InMemoryUser
 
 pytestmark = pytest.mark.anyio
@@ -38,12 +38,12 @@ class _Authenticator(AbstractAuthenticator):
         self._identifier = identifier
 
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         del request
         return self._supports
 
     @override
-    async def authenticate(self, request: Request) -> Passport:
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
         return Passport(
             UserBadge(self._identifier, user_loader=loader(roles=("ROLE_USER",))),
@@ -53,12 +53,12 @@ class _Authenticator(AbstractAuthenticator):
 @final
 class _NoTokenAuthenticator(AbstractAuthenticator):
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         del request
         return None
 
     @override
-    async def authenticate(self, request: Request) -> Passport:
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
         raise BadCredentialsError("no token")
 
@@ -66,12 +66,12 @@ class _NoTokenAuthenticator(AbstractAuthenticator):
 @final
 class _BadTokenAuthenticator(AbstractAuthenticator):
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         del request
         return None
 
     @override
-    async def authenticate(self, request: Request) -> Passport:
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
         raise InvalidAccessTokenError
 
@@ -80,7 +80,7 @@ async def test_a_successful_authentication_stores_the_token() -> None:
     storage = TokenStorage()
     manager = AuthenticatorManager([_Authenticator()], storage, RecordingDispatcher(), "api")
 
-    response = await manager.authenticate_request(make_request())
+    response = await manager.authenticate_request(make_message())
 
     assert response is None
     token = storage.get_token()
@@ -92,7 +92,7 @@ async def test_the_check_passport_and_success_events_are_dispatched() -> None:
     dispatcher = RecordingDispatcher()
     manager = AuthenticatorManager([_Authenticator()], TokenStorage(), dispatcher, "api")
 
-    _ = await manager.authenticate_request(make_request())
+    _ = await manager.authenticate_request(make_message())
 
     kinds = [type(event) for event in dispatcher.events]
     assert CheckPassportEvent in kinds
@@ -106,16 +106,16 @@ async def test_supports_reports_true_none_or_false() -> None:
     lazy = AuthenticatorManager([_Authenticator(supports=None)], storage, dispatcher, "api")
     none = AuthenticatorManager([_Authenticator(supports=False)], storage, dispatcher, "api")
 
-    assert eager.supports(make_request()) is True
-    assert lazy.supports(make_request()) is None
-    assert none.supports(make_request()) is False
+    assert eager.supports(make_message()) is True
+    assert lazy.supports(make_message()) is None
+    assert none.supports(make_message()) is False
 
 
 async def test_a_lazy_no_token_authenticator_abstains() -> None:
     storage = TokenStorage()
     manager = AuthenticatorManager([_NoTokenAuthenticator()], storage, RecordingDispatcher(), "api")
 
-    response = await manager.authenticate_request(make_request())
+    response = await manager.authenticate_request(make_message())
 
     assert response is None
     assert storage.get_token() is None
@@ -130,7 +130,7 @@ async def test_a_bad_token_propagates() -> None:
     )
 
     with pytest.raises(InvalidAccessTokenError):
-        _ = await manager.authenticate_request(make_request())
+        _ = await manager.authenticate_request(make_message())
 
 
 async def test_a_false_authenticator_is_skipped() -> None:
@@ -142,7 +142,7 @@ async def test_a_false_authenticator_is_skipped() -> None:
         "api",
     )
 
-    _ = await manager.authenticate_request(make_request())
+    _ = await manager.authenticate_request(make_message())
 
     token = storage.get_token()
     assert token is not None
@@ -159,19 +159,19 @@ async def test_a_required_badge_missing_is_bad_credentials() -> None:
     )
 
     with pytest.raises(BadCredentialsError):
-        _ = await manager.authenticate_request(make_request())
+        _ = await manager.authenticate_request(make_message())
 
 
 async def test_a_sensitive_error_is_masked_when_hidden() -> None:
     @final
     class _UnknownUser(AbstractAuthenticator):
         @override
-        def supports(self, request: Request) -> bool | None:
+        def supports(self, request: ServerRequestInterface) -> bool | None:
             del request
             return True
 
         @override
-        async def authenticate(self, request: Request) -> Passport:
+        async def authenticate(self, request: ServerRequestInterface) -> Passport:
             del request
 
             def loader(identifier: str) -> InMemoryUser:
@@ -188,12 +188,12 @@ async def test_a_sensitive_error_is_masked_when_hidden() -> None:
     )
 
     with pytest.raises(BadCredentialsError):
-        _ = await manager.authenticate_request(make_request())
+        _ = await manager.authenticate_request(make_message())
 
 
 async def test_no_authenticator_leaves_the_request_anonymous() -> None:
     storage = TokenStorage()
     manager = AuthenticatorManager([], storage, RecordingDispatcher(), "api")
 
-    assert await manager.authenticate_request(make_request()) is None
+    assert await manager.authenticate_request(make_message()) is None
     assert storage.get_token() is None

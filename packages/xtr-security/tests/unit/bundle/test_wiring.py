@@ -157,6 +157,7 @@ async def test_the_configured_expose_level_reaches_the_manager() -> None:
         dispatcher=object(),
         decision_manager=object(),
         authenticators=_EmptyLocator(),
+        responses=object(),
     )
     manager = cast("AuthenticatorManager", context.authenticator_manager)
 

@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from .jwt_authentication_failure_response import JwtAuthenticationFailureResponse
+from .jwt_authentication_failure_response import jwt_authentication_failure_response
 
-__all__ = ["JwtAuthenticationFailureResponse"]
+__all__ = ["jwt_authentication_failure_response"]

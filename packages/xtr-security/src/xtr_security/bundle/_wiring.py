@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Annotated, Protocol, cast, final, runtime_chec
 from xtr_dependency_injection import ServiceKey, ServiceLocator, Target, named_factory
 from xtr_event_dispatcher.bundle import DISPATCHER_TAG, SUBSCRIBER_TAG, event_dispatcher_factory
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
+from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_password_hasher import (
     PasswordHasherFactory,
     PasswordHasherFactoryInterface,
@@ -631,11 +632,12 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     access_denied = firewall.access_denied_handler
     required_badges = firewall.required_badges
 
-    async def firewall_context(
+    async def firewall_context(  # noqa: PLR0913, PLR0917 -- a wiring factory gathering one firewall's parts
         storage: TokenStorageInterface,
         dispatcher: EventDispatcherInterface,
         decision_manager: AccessDecisionManagerInterface,
         authenticators: ServiceLocator[AuthenticatorInterface],
+        responses: ResponseFactoryInterface,
         denied: object | None = None,
     ) -> FirewallContext:
         available = {
@@ -665,7 +667,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
             scheme=_scheme_from(auths),
             entry_point=entry_point,
             access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
-            scope_denied_handler=InsufficientScopeAccessDeniedHandler(realm),
+            scope_denied_handler=InsufficientScopeAccessDeniedHandler(responses, realm),
         )
 
     annotations: dict[str, object] = {
@@ -673,6 +675,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         "dispatcher": Annotated[EventDispatcherInterface, Target(firewall_dispatcher_name(name))],
         "decision_manager": AccessDecisionManagerInterface,
         "authenticators": ServiceLocator[AuthenticatorInterface],
+        "responses": ResponseFactoryInterface,
         "return": FirewallContext,
     }
     if access_denied is not None:

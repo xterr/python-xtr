@@ -31,8 +31,8 @@ from xtr_security.bundle.security_bundle import SecurityBundle
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from starlette.requests import Request
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator, ServiceKey
+    from xtr_http_message_contracts import ServerRequestInterface
     from xtr_security_http.authenticator.passport.passport import Passport
 
 __all__ = ["AmbiguousBundle", "SecondAuthenticator", "security"]
@@ -58,12 +58,12 @@ class SecondAuthenticator(AbstractAuthenticator):
     __slots__ = ()
 
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         del request
         return False
 
     @override
-    async def authenticate(self, request: Request) -> Passport:
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
         return SelfValidatingPassport(UserBadge("nobody", user_loader=_load))
 

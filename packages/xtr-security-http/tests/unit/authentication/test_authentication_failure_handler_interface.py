@@ -11,8 +11,7 @@ from xtr_security_http.authentication.authentication_failure_handler_interface i
 )
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.exception import AuthenticationError
 
 
@@ -20,9 +19,9 @@ class _Failure(AuthenticationFailureHandlerInterface):
     @override
     async def on_authentication_failure(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         del request, error
         return None
 

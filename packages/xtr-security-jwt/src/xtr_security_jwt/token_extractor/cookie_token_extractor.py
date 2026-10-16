@@ -9,7 +9,7 @@ from typing_extensions import override
 from .token_extractor_interface import TokenExtractorInterface
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["CookieTokenExtractor"]
 
@@ -29,6 +29,6 @@ class CookieTokenExtractor(TokenExtractorInterface):
         self._name = name
 
     @override
-    def extract(self, request: Request) -> str | None:
+    def extract(self, request: ServerRequestInterface) -> str | None:
         """Return the token in the cookie, or ``None`` when it is absent."""
-        return request.cookies.get(self._name) or None
+        return request.get_cookie_params().get(self._name) or None

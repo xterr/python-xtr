@@ -86,9 +86,7 @@ from .firewall_scheme_registry import (
     FirewallSchemeRegistry,
     active_firewall_schemes,
 )
-from .request_matcher import (
-    CallableRequestMatcher,
-)
+from .http_utils import HttpUtils
 
 __all__ = [
     "MAX_USERNAME_LENGTH",
@@ -108,7 +106,6 @@ __all__ = [
     "AuthenticatorManager",
     "AuthenticatorManagerInterface",
     "BadgeInterface",
-    "CallableRequestMatcher",
     "ChainAccessTokenExtractor",
     "CheckCredentialsListener",
     "CheckPassportEvent",
@@ -126,6 +123,7 @@ __all__ = [
     "FirewallSchemeRegistry",
     "FormEncodedBodyExtractor",
     "HeaderAccessTokenExtractor",
+    "HttpUtils",
     "InsufficientScopeAccessDeniedHandler",
     "InvalidAccessTokenError",
     "IsGranted",

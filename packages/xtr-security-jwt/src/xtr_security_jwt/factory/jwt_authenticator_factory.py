@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Annotated, cast, final
 # so the marker, the qualifier helper and the return types stay importable here.
 from xtr_dependency_injection import Target, named_factory
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
+from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 
 from xtr_security_jwt.bundle.jwt_authenticator_config import JwtAuthenticatorConfig
@@ -159,12 +160,14 @@ def _authenticator_factory(
         manager: JwtTokenManagerInterface,
         dispatcher: EventDispatcherInterface,
         extractor: object,
+        responses: ResponseFactoryInterface,
         provider: UserProviderInterface,
     ) -> JwtAuthenticator:
         return JwtAuthenticator(
             manager,
             dispatcher,
             cast("TokenExtractorInterface", extractor),
+            responses,
             provider,
             firewall_name,
         )
@@ -173,6 +176,7 @@ def _authenticator_factory(
         "manager": JwtTokenManagerInterface,
         "dispatcher": EventDispatcherInterface,
         "extractor": _qualified(extractor_key),
+        "responses": ResponseFactoryInterface,
         "provider": _qualified(user_provider)
         if user_provider is not None
         else UserProviderInterface,

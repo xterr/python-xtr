@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tests.support.requests import make_request
+from tests.support.messages import make_message
 from xtr_security_jwt.token_extractor.query_parameter_token_extractor import (
     QueryParameterTokenExtractor,
 )
@@ -14,10 +14,10 @@ def test_it_implements_the_interface() -> None:
 
 
 def test_it_reads_a_parameter() -> None:
-    request = make_request(query={"bearer": "query-token"})
+    request = make_message(query={"bearer": "query-token"})
 
     assert QueryParameterTokenExtractor().extract(request) == "query-token"
 
 
 def test_it_returns_none_without_the_parameter() -> None:
-    assert QueryParameterTokenExtractor().extract(make_request()) is None
+    assert QueryParameterTokenExtractor().extract(make_message()) is None

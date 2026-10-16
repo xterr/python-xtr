@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, final
 
-from starlette.responses import JSONResponse
 from typing_extensions import override
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_http_kernel import ExceptionEvent
+from xtr_http_kernel.bridge import Response as FrameworkResponse
+from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
+from xtr_http_message_contracts.factory import (
+    ResponseFactoryInterface,  # noqa: TC002 -- the container reads this constructor parameter's type at runtime
+)
 from xtr_security_core.authentication.authentication_trust_resolver_interface import (  # noqa: TC002
     AuthenticationTrustResolverInterface,
 )
@@ -17,24 +21,17 @@ from xtr_security_core.exception import (
     InsufficientAuthenticationError,
 )
 
-from xtr_security_http._challenge import no_store_headers
-from xtr_security_http._state import (
-    FIREWALL_CONTEXT_KEY,
-    REQUEST_KEY,
-    TOKEN_KEY,
-    CarriedResponse,
-)
+from xtr_security_http._challenge import json_challenge
+from xtr_security_http._security_state import CarriedResponse, security_state_of
 from xtr_security_http.authorization.oauth2_scope_voter import parse_oauth2_scope
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from starlette.requests import Request
-    from starlette.responses import Response
     from xtr_event_dispatcher import SubscribedEvents
-    from xtr_security_core.authentication.token.token_interface import TokenInterface
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
 
-    from xtr_security_http.firewall_context_interface import FirewallContextInterface
+    from xtr_security_http._security_state import SecurityState
 
 __all__ = ["ExceptionListener"]
 
@@ -58,19 +55,40 @@ class ExceptionListener(EventSubscriberInterface):
 
     Any other exception is left untouched, to whatever else handles it.
 
-    The firewall the request ran under, the token it authenticated and the
-    framework's own request object are read from the state bag the event
-    carries — stashed there by the firewall, on the very mapping the framework's
-    request wraps — so this singleton listener answers a request without
-    reaching into the request scope. The trust resolver is a singleton it is
-    built with.
+    The firewall the request ran under and the token it authenticated are read
+    from the request's security state — parked on the state bag the event
+    carries, the same one the framework's request wraps — so this singleton
+    listener answers a request without reaching into the request scope. The
+    trust resolver, the response factory it builds its bare answers with and
+    the bridge that turns a handler's pure message response into one the
+    lifecycle can send are singletons it is built with.
+
+    A response that already is what the framework sends — the kernel's own
+    dual response, a message and a framework response at once — is set on the
+    event as it is; a pure message is converted through the bridge first,
+    which is the kernel's rule for messages from elsewhere.
     """
 
-    __slots__ = ("_trust_resolver",)
+    __slots__ = ("_bridge", "_responses", "_trust_resolver")
 
-    def __init__(self, trust_resolver: AuthenticationTrustResolverInterface) -> None:
-        """Build the listener over the application's trust resolver."""
+    def __init__(
+        self,
+        trust_resolver: AuthenticationTrustResolverInterface,
+        responses: ResponseFactoryInterface,
+        bridge: StarletteHttpFactoryInterface,
+    ) -> None:
+        """Build the listener over the trust resolver, the response factory and the bridge.
+
+        Args:
+            trust_resolver: Weighs the token the firewall authenticated.
+            responses: Builds the bare ``401``/``403`` answers, so the listener
+                names no response class.
+            bridge: Turns a handler's pure message response into one the
+                lifecycle's event accepts.
+        """
         self._trust_resolver = trust_resolver
+        self._responses = responses
+        self._bridge = bridge
 
     @classmethod
     @override
@@ -82,88 +100,88 @@ class ExceptionListener(EventSubscriberInterface):
         """Answer the request when the exception is one this listener owns."""
         error = event.exception
         if isinstance(error, CarriedResponse):
-            event.set_response(error.response)
+            await self._answer(event, error.response)
             return
         if not isinstance(error, (AuthenticationError, AccessDeniedError)):
             return
-        state = event.state
-        context = _context_of(state)
-        request = _request_of(state)
+        state = security_state_of(event.state)
         if isinstance(error, AuthenticationError):
-            event.set_response(await self._on_authentication_error(context, request, error))
-            return
-        event.set_response(await self._on_access_denied(context, request, _token_of(state), error))
+            answered = await self._on_authentication_error(state, event.request, error)
+        else:
+            answered = await self._on_access_denied(state, event.request, error)
+        await self._answer(event, answered)
 
     async def _on_authentication_error(
         self,
-        context: FirewallContextInterface | None,
-        request: Request | None,
+        state: SecurityState,
+        request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> Response:
+    ) -> ResponseInterface:
         """Answer an authentication error with the entry-point challenge, or a bare 401."""
-        if context is not None and context.entry_point is not None and request is not None:
+        context = state.firewall_context
+        if context is not None and context.entry_point is not None:
             return await context.entry_point.start(request, error)
-        return _bare_challenge()
+        return await self._bare_challenge()
 
     async def _on_access_denied(
         self,
-        context: FirewallContextInterface | None,
-        request: Request | None,
-        token: TokenInterface | None,
+        state: SecurityState,
+        request: ServerRequestInterface,
         error: AccessDeniedError,
-    ) -> Response:
+    ) -> ResponseInterface:
         """Answer a denial: a challenge when not fully authenticated, else a refusal."""
-        if not self._trust_resolver.is_full_fledged(token):
-            if context is not None and context.entry_point is not None and request is not None:
-                return await context.entry_point.start(request, InsufficientAuthenticationError())
-            return _bare_challenge()
+        context = state.firewall_context
+        if not self._trust_resolver.is_full_fledged(state.token):
+            if context is not None and context.entry_point is not None:
+                return await context.entry_point.start(
+                    request,
+                    InsufficientAuthenticationError(),
+                )
+            return await self._bare_challenge()
         if (
-            _is_scope_denial(error)
-            and context is not None
+            context is not None
+            and _is_scope_denial(error)
             and context.scope_denied_handler is not None
-            and request is not None
         ):
             answered = await context.scope_denied_handler.handle(request, error)
             if answered is not None:
                 return answered
-        if (
-            context is not None
-            and context.access_denied_handler is not None
-            and request is not None
-        ):
+        if context is not None and context.access_denied_handler is not None:
             answered = await context.access_denied_handler.handle(request, error)
             if answered is not None:
                 return answered
-        return JSONResponse(
-            {"error": "access_denied"},
-            status_code=403,
-            headers=no_store_headers(),
+        return await self._forbidden()
+
+    async def _bare_challenge(self) -> ResponseInterface:
+        """Return a plain ``401`` carrying a bare bearer challenge."""
+        return await json_challenge(
+            self._responses,
+            401,
+            {"error": "unauthorized"},
+            {"WWW-Authenticate": "Bearer"},
         )
 
+    async def _forbidden(self) -> ResponseInterface:
+        """Return a plain, uncached ``403`` refusing the request."""
+        return await json_challenge(
+            self._responses,
+            403,
+            {"error": "access_denied"},
+            {},
+        )
 
-def _context_of(state: Mapping[str, object]) -> FirewallContextInterface | None:
-    """Return the firewall context the firewall stashed for the request, if any."""
-    context = state.get(FIREWALL_CONTEXT_KEY)
-    return cast("FirewallContextInterface | None", context)
+    async def _answer(self, event: ExceptionEvent, response: ResponseInterface) -> None:
+        """Set ``response`` on ``event`` as what the lifecycle can send.
 
-
-def _token_of(state: Mapping[str, object]) -> TokenInterface | None:
-    """Return the token the firewall stashed for the request, if any."""
-    return cast("TokenInterface | None", state.get(TOKEN_KEY))
-
-
-def _request_of(state: Mapping[str, object]) -> Request | None:
-    """Return the framework's request the firewall stashed, if a firewall ran."""
-    return cast("Request | None", state.get(REQUEST_KEY))
-
-
-def _bare_challenge() -> Response:
-    """Return a plain ``401`` carrying a bare bearer challenge."""
-    return JSONResponse(
-        {"error": "unauthorized"},
-        status_code=401,
-        headers=no_store_headers(**{"WWW-Authenticate": "Bearer"}),
-    )
+        The kernel's own response is both a message and what the framework
+        sends, so it is set as it is; a pure message — a handler built through
+        another factory, a test's own — is converted through the bridge, the
+        kernel's rule for messages from elsewhere.
+        """
+        if isinstance(response, FrameworkResponse):
+            event.set_response(response)
+            return
+        event.set_response(await self._bridge.create_response(response))
 
 
 def _is_scope_denial(error: AccessDeniedError) -> bool:

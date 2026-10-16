@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 import pytest
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, Kernel, as_bundle
+from xtr_http_kernel.bridge import ResponseFactory
+from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_security_http import AccessTokenAuthenticator
 
 from xtr_security.bundle import (
@@ -53,6 +55,8 @@ class _ProbeBundle(Bundle):
             {"id": ServiceTokenHandlerFactory()}
         )
         _ = services.instance(_Handler())
+        _ = services.instance(ResponseFactory())
+        services.alias(ResponseFactoryInterface, ResponseFactory)
         keys = factory.create_authenticator(
             services,
             builder,

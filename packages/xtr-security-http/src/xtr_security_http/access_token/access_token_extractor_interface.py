@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from fastapi.security.base import SecurityBase
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["AccessTokenExtractorInterface"]
 
@@ -22,7 +22,7 @@ class AccessTokenExtractorInterface(Protocol):
     request and describes the scheme in the generated OpenAPI.
     """
 
-    async def extract_access_token(self, request: Request) -> str | None:
+    async def extract_access_token(self, request: ServerRequestInterface) -> str | None:
         """Return the token in ``request``, or ``None`` when there is none."""
         ...
 

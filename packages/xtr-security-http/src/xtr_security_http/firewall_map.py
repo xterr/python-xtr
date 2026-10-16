@@ -32,12 +32,10 @@ class FirewallMap(FirewallMapInterface):
 
     Each firewall is paired with a
     :class:`~xtr_http_foundation.request_matcher_interface.RequestMatcherInterface`
-    from `xtr-http-foundation` — a path, host, method or address matcher, or a
-    chain of them — or with this package's
-    :class:`~xtr_security_http.request_matcher.callable_request_matcher.CallableRequestMatcher`,
-    so the map matches a request without a notion of matching of its own. A
-    chain of no matchers claims every request, the catch-all a firewall
-    registered last relies on.
+    from `xtr-http-foundation` — a path, host, method, address or callable
+    matcher, or a chain of them — so the map matches a request without a
+    notion of matching of its own. A chain of no matchers claims every
+    request, the catch-all a firewall registered last relies on.
 
     The contexts it holds are read through
     :class:`~xtr_security_http.firewall_context_interface.FirewallContextInterface`,
