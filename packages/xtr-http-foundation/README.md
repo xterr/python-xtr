@@ -204,6 +204,76 @@ IpUtils.anonymize("2001:db8::1")  # "2001:db8::"
   just dropped. Asking for fewer than no bytes, or for more than the address has, is
   `InvalidArgumentError`.
 
+## Sessions
+
+A request can be stateful: a session carries attributes under an ID, the ID travels in a cookie,
+and the attributes stay on the server, in whatever storage the application points at.
+
+```python
+from xtr_http_foundation import MemorySessionStorage, Session
+
+storage = MemorySessionStorage()
+session = Session.from_request(request, storage)
+
+await session.set("user", "alice")
+await session.save()
+staged = session.staged_set_cookie()  # the Set-Cookie value, when the ID is new or changed
+```
+
+Nothing is read from the storage until the first attribute is asked for, so a request that never
+touches its session costs nothing — and `save()` on a session that was never started does
+nothing, so the code that saves every response needs no condition of its own. A save of an
+empty session deletes the stored entry rather than writing an empty one: a request that only
+consumed its session leaves none behind.
+
+- **The ID** is 48 lowercase hex characters, made with `secrets.token_hex(24)` — an alphabet
+  every storage accepts as a key. A cookie value that is no readable ID — misspelled, upper
+  case, somebody else's format — is treated as no cookie at all: the stranger's cookie is
+  theirs to misspell, so a new ID is made and nothing is ever stored under the unreadable one.
+- **`migrate(destroy_old=False)`** carries the attributes to a new ID, keeping every one of
+  them; the old entry is deleted only when asked to. `invalidate()` empties the attributes and
+  destroys the old entry. Both stage the cookie again under the new ID — a session cookie is
+  never taken away, only re-issued.
+- **The storage** is a three-member port — `read`, `write`, `delete` — awaited throughout, so
+  one storage is swappable for another and a remote one costs nothing more to call.
+  `MemorySessionStorage` keeps the sessions of one process, for as long as the process lives;
+  an application whose sessions must survive a restart or be shared between servers points
+  the session at a storage of its own.
+- **The cookie** is `SessionCookieConfig`, frozen and buildable with no arguments: name
+  `xtr_session`, path `/`, `httponly` on, `samesite` `lax`, `secure` off, no domain, no
+  lifetime. A `lifetime` of `None` is the browser session; a number is the application's
+  notion of how long a session lives — the cookie is dated by it, and the storage entry is
+  written to live as long, falling back to the storage's own default when none is given.
+- **The response listener** — `await session.save()`, then place `staged_set_cookie()` on the
+  response's `Set-Cookie` when it returns one — is wiring this library does not ship: it lands
+  with the security wiring that owns the response event. The two calls it makes are the two
+  above.
+
+### Keeping sessions in a cache pool
+
+`CachePoolSessionStorage` stores the sessions in any
+[xtr-cache-contracts](../xtr-cache-contracts) pool, behind the `cache` extra:
+
+```sh
+uv add "xtr-http-foundation[cache]"
+```
+
+```python
+from xtr_http_foundation.session.storage.cache_pool_session_storage import (
+    CachePoolSessionStorage,
+)
+
+storage = CachePoolSessionStorage(pool)  # any cache pool; entries live 1440 s by default
+```
+
+The entry lives under `session.<id>`, expiring by the item's own expiry, and an expired entry
+reads as no session. The wire format is JSON and only JSON — a session store is input a
+stranger can influence the shape of, and deserialising such input is code execution, which
+JSON never is; pickle is not an option and will not be. A value that cannot round-trip — a
+set, an object, a tuple — is refused at `save()`, loudly, rather than stored and quietly
+changed. Reaching for the module by name is what turns the extra on: importing
+`xtr_http_foundation` itself pulls in no caching contract.
+
 ## Limiting a request
 
 A matcher says whether a request is one of yours; a request rate limiter says whether one more
@@ -296,11 +366,15 @@ silently discards the cookie otherwise, so the builder refuses it first.
 
 ## Errors
 
-Everything derives from `HttpFoundationError`. There is one: `InvalidArgumentError`, also a
-`ValueError`, raised for an expression that does not read as one, by `is_private_ip` and
-`anonymize` for text that is no address, and by the cookie builder for a name it cannot write —
+Everything derives from `HttpFoundationError`. There are two. `InvalidArgumentError`, also a
+`ValueError`, is raised for an expression that does not read as one, by `is_private_ip` and
+`anonymize` for text that is no address, by the cookie builder for a name it cannot write —
 empty, or carrying a reserved prefix without what the prefix asks for — a `samesite` that is
-none of the three, or a `path` or `domain` carrying characters an attribute cannot.
+none of the three, or a `path` or `domain` carrying characters an attribute cannot, by
+`SessionCookieConfig` for an empty name, a `samesite` that is none of the three or a negative
+lifetime, and by the cache-pool session storage at `save()` for a value JSON cannot give back
+as it was given. `SessionError` is raised when the storage a session persists through fails to
+load, keep or remove an entry.
 
 ## Development
 

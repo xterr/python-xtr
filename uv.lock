@@ -4541,6 +4541,11 @@ dependencies = [
     { name = "xtr-http-message-contracts" },
 ]
 
+[package.optional-dependencies]
+cache = [
+    { name = "xtr-cache-contracts" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "anyio" },
@@ -4549,14 +4554,17 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-cache-contracts" },
     { name = "xtr-http-message" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "packages/xtr-cache-contracts" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
 ]
+provides-extras = ["cache"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4566,6 +4574,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-cache-contracts", editable = "packages/xtr-cache-contracts" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 

@@ -1,6 +1,6 @@
 ---
 name: xtr-http-foundation
-description: How to say "is this request one of mine" with xtr-http-foundation — one matcher per question about a request that arrived (method, path, host, port, scheme, a header, a query parameter, an attribute, the address it came from, a JSON body, or whatever a callable reads), chained into one, plus the IpUtils helpers that place an IP in a network, the request-rate-limiter contracts that count a request under the limits its own content names, and the header values that set or clear a response cookie. Use when a firewall, webhook endpoint, rate limiter, router or middleware has to decide which requests it claims; when replacing a tangle of ifs over the method and path with something testable; when writing a request parser's matcher; when a login form or an endpoint must throttle requests by who sends them; when a response must set or clear a cookie; and when checking whether an address is inside a subnet, is reachable only from this network, or must be logged without identifying one machine.
+description: How to say "is this request one of mine" with xtr-http-foundation — one matcher per question about a request that arrived (method, path, host, port, scheme, header, query, attribute, client address, JSON body, or whatever a callable reads), chained into one, plus the IpUtils address helpers, the request-rate-limiter contracts, the header values that set or clear a response cookie, and the session a stateful request carries — attributes under an ID cookie in whatever storage the application points at. Use when a firewall, webhook endpoint, rate limiter, router or middleware has to decide which requests it claims; when replacing a tangle of ifs with something testable; when writing a request parser's matcher; when a login form or an endpoint must throttle requests by who sends them; when a response must set or clear a cookie; when a request must remember something between requests; and when checking whether an address is inside a subnet, is private, or must be logged without identifying one machine.
 ---
 
 # xtr-http-foundation
@@ -9,7 +9,8 @@ A matcher answers one question about a request that arrived, and a chain of them
 whole of it — so what a piece of code claims is a value it can be handed rather than a
 condition written into it. Beside them live the address helpers those questions are built on,
 the contracts that count a request against the limits it names, and the header values that set
-or clear a response cookie.
+or clear a response cookie. A request can also be stateful: a session carries attributes under
+an ID cookie, kept in whatever storage the application points at.
 
 ## Quick reference
 
@@ -32,6 +33,11 @@ or clear a response cookie.
 - `cookie_header_value(name, value, ...)` and `cleared_cookie_header_value(name, ...)` build
   `Set-Cookie` header values — place them with `response.with_header("Set-Cookie", ...)`. No
   response type comes with them.
+- `Session.from_request(request, storage)` builds the session a request reattaches;
+  `await session.get/set/has/remove/clear(...)`, `await session.migrate(destroy_old=False)`,
+  `await session.invalidate()`, `await session.save()`, `session.get_id()`,
+  `session.staged_set_cookie()`. `SessionCookieConfig()` is the cookie's shape, and
+  `MemorySessionStorage` the storage that needs nothing else.
 
 ## Claim the requests that are yours
 
@@ -198,6 +204,39 @@ response = response.with_header("Set-Cookie", cleared_cookie_header_value("sessi
   `domain` and the path `/`. A browser silently discards the cookie otherwise; the builder
   refuses it first.
 
+## Carry a session
+
+```python
+from xtr_http_foundation import MemorySessionStorage, Session
+
+storage = MemorySessionStorage()
+session = Session.from_request(request, storage)
+
+await session.set("user", "alice")
+await session.get("user")  # "alice"
+await session.remove("user")  # "alice" — clear-on-read in one call
+await session.save()
+staged = session.staged_set_cookie()  # the Set-Cookie value, or None when the ID still stands
+```
+
+- Nothing is read from the storage until the first attribute is asked for; `save()` on a
+  session that was never started does nothing, and a save of an empty session deletes the
+  stored entry.
+- `migrate(destroy_old=True)` carries the attributes to a new ID and deletes the old entry —
+  the rotate-on-login move; `invalidate()` empties the attributes and destroys the old entry.
+  Both stage the cookie again under the new ID.
+- The storage is a three-member port — `read`, `write`, `delete` — awaited throughout, so one
+  storage is swappable for another. `MemorySessionStorage` keeps one process's sessions;
+  `CachePoolSessionStorage` (the `cache` extra, reached by name from
+  `xtr_http_foundation.session.storage.cache_pool_session_storage`) keeps them in any
+  xtr-cache-contracts pool, as JSON, expiring by the item's own expiry.
+- Values must round-trip through the storage's format — JSON for the cache-pool storage: a
+  string, a number, a boolean, `None`, a list or a dictionary of them. Anything else raises
+  at `save()`.
+- The response listener — `await session.save()`, then place `staged_set_cookie()` on the
+  response — is wiring this package does not ship; it lands with the security wiring that owns
+  the response event.
+
 ## Testing
 
 A matcher is a value, so a test hands it a request it built and asserts the one answer:
@@ -231,7 +270,8 @@ async def test_it_claims_a_post_from_inside_the_network() -> None:
 This package **ships no bundle and no recipe**: a matcher is a value built where the rule is
 written, not a service to configure.
 
-1. **Install** — `uv add xtr-http-foundation`. There are no extras.
+1. **Install** — `uv add xtr-http-foundation`; the cache-pool session storage comes with the
+   `cache` extra, `uv add "xtr-http-foundation[cache]"`, which brings xtr-cache-contracts.
 2. **Activate** — nothing to do. Nothing is registered, so nothing is listed in `BUNDLES`.
 3. **Configure** — nothing. Build the matchers where the rule belongs, usually in the class
    that asks the question.
@@ -247,10 +287,14 @@ returns one from `get_request_matcher()`, and
 
 ## Errors
 
-Everything derives from `HttpFoundationError`. There is one: `InvalidArgumentError`, also a
-`ValueError`, raised for an expression that does not read as one, and by `is_private_ip` and
-`anonymize` for text that is no address, and by the cookie builder for a name it cannot write,
-a `samesite` that is none of the three, or a `path` or `domain` an attribute cannot carry.
+Everything derives from `HttpFoundationError`. There are two. `InvalidArgumentError`, also a
+`ValueError`, is raised for an expression that does not read as one, by `is_private_ip` and
+`anonymize` for text that is no address, by the cookie builder for a name it cannot write, a
+`samesite` that is none of the three, or a `path` or `domain` an attribute cannot carry, by
+`SessionCookieConfig` for an empty name, a `samesite` that is none of the three or a negative
+lifetime, and by the cache-pool session storage at `save()` for a value JSON cannot give back
+as it was given. `SessionError` is raised when the storage a session persists through fails to
+load, keep or remove an entry.
 
 ## Do not
 
@@ -270,3 +314,7 @@ a `samesite` that is none of the three, or a `path` or `domain` an attribute can
 - Do not build a `Set-Cookie` value by hand: the encoding, the dual `expires`/`Max-Age`, and
   the prefix rules are what make a browser keep the cookie — `cookie_header_value` carries
   them.
+- Do not store a value the storage cannot round-trip and expect `save()` to keep it — the
+  cache-pool storage refuses it there, loudly; serialise to a JSON type first.
+- Do not call a session's data members without awaiting them — every member that can reach
+  the storage is async.

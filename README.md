@@ -32,7 +32,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-event-dispatcher-contracts](packages/xtr-event-dispatcher-contracts) | The event dispatching interfaces alone, for libraries that emit events without choosing who hears them. |
 | [xtr-http-client](packages/xtr-http-client) | An async HTTP client behind one interface: typed options in, a response read on demand out, with scoped clients, retries, a pace, a trace, a private-network guard and a mock for tests. |
 | [xtr-http-client-contracts](packages/xtr-http-client-contracts) | The async HTTP client interfaces alone: a request call, a response read on demand, typed options, errors, and a conformance suite. |
-| [xtr-http-foundation](packages/xtr-http-foundation) | One question each about a request that arrived, composed into one matcher — and the helpers that place an IP in a network. |
+| [xtr-http-foundation](packages/xtr-http-foundation) | One question each about a request that arrived, composed into one matcher — the helpers that place an IP in a network, and the session a stateful request carries: attributes under an ID cookie, in whatever storage the application points at. |
 | [xtr-http-kernel](packages/xtr-http-kernel) | A request lifecycle for FastAPI applications: requests turned into responses through events, wired by a container. |
 | [xtr-http-message](packages/xtr-http-message) | The HTTP message interfaces implemented: requests, responses, streams, URIs, uploaded files and one factory for all six. |
 | [xtr-http-message-contracts](packages/xtr-http-message-contracts) | The HTTP message interfaces alone: requests, responses, streams, URIs, uploaded files and their factories. |
