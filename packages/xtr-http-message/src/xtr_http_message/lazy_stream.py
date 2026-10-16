@@ -1,11 +1,12 @@
-"""The body of a served request: nothing is read until something reads it.
+"""A body stream that reads its bytes once, on its first read.
 
-A request message must hand out a stream, but a request whose body nobody
-has looked at has no bytes to hand out — reading them off the wire is
-exactly what the lifecycle may not do unasked. This stream stands in for
-the body until the first read, then materialises the whole of it once and
-serves every later read out of the buffer: seekable and rewindable, so a
-matcher that reads to inspect can rewind for whoever reads after it.
+A request built over a connection must hand out a stream, but nobody
+has read that connection's body until something asks to — reading it
+eagerly is exactly what a lazy request may not do. This stream stands
+in for the body until the first read, then materialises the whole of it
+once and serves every later read out of the buffer: seekable and
+rewindable, so a reader that inspects can rewind for whoever reads
+after it.
 """
 
 from __future__ import annotations
@@ -16,32 +17,34 @@ from typing import TYPE_CHECKING, final
 from typing_extensions import override
 from xtr_http_message_contracts import StreamInterface
 
+from .stream import Stream
+
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from typing import BinaryIO
 
-__all__ = ["ServedBody"]
+__all__ = ["LazyStream"]
 
 
 @final
-class ServedBody(StreamInterface):
-    """A body stream that reads the connection once, on its first read.
+class LazyStream(StreamInterface):
+    """A body stream that reads its bytes once, on its first read.
 
-    Built with a coroutine that returns the buffered body — one that reads
-    the connection and parses it per its content type — and holds nothing
-    until the first :meth:`read` or :meth:`get_contents` calls it. From then
-    on it is a plain view over the buffer, and every question the contract
-    asks of an unread stream is answered for the buffer it will be.
+    Built with a coroutine that returns the buffered body — one that
+    reads the connection and parses it per its content type — and holds
+    nothing until the first :meth:`read` or :meth:`get_contents` calls
+    it. From then on it is a plain view over the buffer, and every
+    question the contract asks of an unread stream is answered for the
+    buffer it will be.
     """
 
     __slots__ = ("_buffered", "_materialise")
 
-    def __init__(self, materialise: Callable[[], Awaitable[StreamInterface]]) -> None:
+    def __init__(self, materialise: Callable[[], Awaitable[bytes]]) -> None:
         """Read the body through ``materialise``, when anything first asks to.
 
         Args:
-            materialise: Reads the whole body off the connection and returns
-                it as a stream over the buffered bytes.
+            materialise: Reads the whole body and returns its bytes.
         """
         self._materialise = materialise
         self._buffered: StreamInterface | None = None
@@ -51,28 +54,19 @@ class ServedBody(StreamInterface):
         """Tell whether the body has been read into memory."""
         return self._buffered is not None
 
-    async def contents(self) -> bytes:
-        """Return every byte of the body, materialising it if nothing read it yet.
-
-        The buffer is rewound first, so this leaves the stream where it
-        found it — which is what the replay of a request hands the
-        application: the same bytes, however many times they are asked for.
-        """
-        return await (await self._held()).get_contents()
-
     async def _held(self) -> StreamInterface:
         """Return the buffered body, reading it off the connection if nothing has yet."""
         if self._buffered is None:
-            self._buffered = await self._materialise()
+            self._buffered = Stream.create(await self._materialise())
         return self._buffered
 
     @override
     async def close(self) -> None:
         """Close the buffer, if there is one to close.
 
-        An unread body holds nothing open, so closing one before the first
-        read is not a read: it is a no-op, and the next reader still gets
-        the bytes off the wire.
+        An unread body holds nothing open, so closing one before the
+        first read is not a read: it is a no-op, and the next reader
+        still gets the bytes off the connection.
         """
         if self._buffered is not None:
             await self._buffered.close()
@@ -107,7 +101,7 @@ class ServedBody(StreamInterface):
         """Move the cursor, materialising the body if nothing has read it yet.
 
         Raises:
-            RuntimeError: When the buffer cannot be moved, once there is one.
+            StreamError: When the buffer cannot be moved, once there is one.
         """
         await (await self._held()).seek(offset, whence)
 
@@ -126,7 +120,7 @@ class ServedBody(StreamInterface):
         """Write at the cursor, materialising the body if nothing has read it yet.
 
         Raises:
-            RuntimeError: When the buffer cannot be written to.
+            StreamError: When the buffer cannot be written to.
         """
         return await (await self._held()).write(data)
 
@@ -140,7 +134,7 @@ class ServedBody(StreamInterface):
         """Read up to ``length`` bytes, materialising the body if nothing has read it yet.
 
         Raises:
-            RuntimeError: When the buffer cannot be read.
+            StreamError: When the buffer cannot be read.
         """
         return await (await self._held()).read(length)
 
@@ -149,7 +143,7 @@ class ServedBody(StreamInterface):
         """Return every byte of the body, materialising it if nothing has read it yet.
 
         Raises:
-            RuntimeError: When the buffer cannot be read.
+            StreamError: When the buffer cannot be read.
         """
         return await (await self._held()).get_contents()
 

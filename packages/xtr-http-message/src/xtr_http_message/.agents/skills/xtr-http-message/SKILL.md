@@ -1,13 +1,14 @@
 ---
 name: xtr-http-message
-description: How to build and change requests, responses, streams, URIs and uploaded files with xtr-http-message. Use when code needs a concrete HTTP message rather than the interface - building a request or response in a test or a client, reading or writing a message body, taking a URI apart or putting one together, handling an uploaded file, or taking the factory that builds any of these. Also use when a message body reads as empty, a with_ method seems not to have changed anything, a header is refused, or a URI will not parse - a host, a port or a missing host that RFC 3986 and RFC 9110 refuse.
+description: How to build and change requests, responses, streams, URIs and uploaded files with xtr-http-message. Use when code needs a concrete HTTP message rather than the interface - building a request or response in a test or a client, reading or writing a message body, taking a URI apart or putting one together, handling an uploaded file, building a request over a connection whose body arrives late, or taking the factory that builds any of these. Also use when a message body reads as empty, a with_ method seems not to have changed anything, a header is refused, or a URI will not parse - a host, a port or a missing host that RFC 3986 and RFC 9110 refuse.
 ---
 
 # xtr-http-message
 
-The HTTP message contract, implemented. Six classes and one factory, no web framework. Code that
-only *handles* messages should depend on `xtr-http-message-contracts` instead; this is what an
-application, a test or a client installs to have something that actually is a message.
+The HTTP message contract, implemented. Six classes, one factory, a request that can be born
+connected, no web framework. Code that only *handles* messages should depend on
+`xtr-http-message-contracts` instead; this is what an application, a test or a client installs
+to have something that actually is a message.
 
 ## Quick reference
 
@@ -15,9 +16,13 @@ application, a test or a client installs to have something that actually is a me
   the URI unless you pass one.
 - `ServerRequest(method, uri, headers=None, body=None, version="1.1", server_params=None)` — the
   query parameters are read off the URI as it is built.
+- `ServerRequest.over(method, uri, *, source, ...)` — the same class, born connected over a
+  `RequestSource`: the head passed eagerly, the body side answered late.
 - `Response(status=200, headers=None, body=None, version="1.1", reason=None)` — `reason=None`
   takes the recommended phrase, `reason=""` leaves the response with none.
 - `Stream.create(bytes | BinaryIO | StreamInterface)` — no `str`: a body is bytes.
+- `LazyStream(materialise)` — a body that stands in unread: read once on the first read,
+  buffered after.
 - `Uri(text)` — read as RFC 3986 defines a URI reference;
   `UploadedFile(stream_or_file, size, error, client_filename=None, client_media_type=None)`.
 - `HttpFactory()` is all six factory interfaces at once; it holds no state.
@@ -88,6 +93,47 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+## Build a request born connected
+
+A request that arrived is not always known in full when it becomes a message — a connection
+hands over its head at once, but its body is still on the wire. `ServerRequest.over()` builds
+the one class both ways, over a `RequestSource`:
+
+```python
+from typing import Mapping
+
+from xtr_http_message import RequestSource, ServerRequest
+
+
+class Connection(RequestSource):
+    async def materialise(self) -> bytes:
+        """Read the whole body once, memoised; fill the parsed side as a side effect."""
+
+    def parsed_body(self) -> object | None: ...  # a sync peek; None until materialised
+    def uploaded_files(self) -> Mapping[str, object]: ...  # a sync peek; {} until then
+    def attributes(self) -> Mapping[str, object]: ...  # live; routing fills it late
+
+
+served = ServerRequest.over(
+    "POST",
+    "https://example.com/orders",
+    source=Connection(),
+    headers={"host": "example.com"},
+    cookies={"session": "abc"},
+    query={"page": "2"},
+)
+```
+
+- The head is passed eagerly; the body is one `LazyStream` over `source.materialise`, and the
+  first read materialises the whole body once.
+- `get_parsed_body()` and `get_uploaded_files()` answer what materialisation has yielded so
+  far; `await served.ensure_parsed()` materialises it at the one seam that can still await.
+- `get_attributes()` reads the source live, each time.
+- The `with_*` members detach: plain eager copies — attributes frozen to the snapshot, parsed
+  body and files to the peek, body the one shared lazy stream — that never read the source
+  again.
+- `body=` is refused alongside `source=`: one owner of the body.
 
 ## Take a URI apart and put one together
 
@@ -276,6 +322,9 @@ implementation can catch `HttpMessageError` and get only its failures.
 - Do not expect a `with_*` method to change the message it was called on: it returns a new one,
   and returns the same one when nothing would change. `request.with_header(...)` on its own does
   nothing — keep the result.
+- Do not expect `get_parsed_body()` or `get_uploaded_files()` on a connected request to answer
+  before its body has been read: they answer what materialisation has yielded, and
+  `await served.ensure_parsed()` is the seam that materialises it.
 - Do not change a mapping or list one of the getters handed you and expect the message to follow:
   every one of them hands back a fresh copy.
 - Do not import these classes in a library that only handles messages — depend on

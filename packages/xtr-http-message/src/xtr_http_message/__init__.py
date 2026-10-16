@@ -11,11 +11,16 @@ What is here is one class per interface, and nothing besides:
 - :class:`~xtr_http_message.server_request.ServerRequest` — a request that
   arrived, with the environment parameters, the cookies, the query string
   parsed, the files that came with it, the parsed body and the attributes a
-  handler annotates it with.
+  handler annotates it with. Born complete, or born connected over a
+  :class:`~xtr_http_message.request_source.RequestSource` — a connection whose
+  body side arrives as it is read.
 - :class:`~xtr_http_message.response.Response` — a status code, the reason
   phrase recommended for it, headers and a body.
 - :class:`~xtr_http_message.stream.Stream` — a body, as a cursor over bytes
   behind an open binary file object.
+- :class:`~xtr_http_message.lazy_stream.LazyStream` — a body that stands in
+  unread: the whole of it is read once, on the first read, and buffered
+  after.
 - :class:`~xtr_http_message.uri.Uri` — a URI taken apart into components and
   put back together as text.
 - :class:`~xtr_http_message.uploaded_file.UploadedFile` — one file that came
@@ -55,7 +60,9 @@ from .exception import (
     UploadedFileError,
 )
 from .factory import HttpFactory
+from .lazy_stream import LazyStream
 from .request import Request
+from .request_source import RequestSource
 from .response import Response
 from .server_request import ServerRequest
 from .stream import Stream
@@ -73,7 +80,9 @@ __all__ = [
     "HttpFactory",
     "HttpMessageError",
     "InvalidArgumentError",
+    "LazyStream",
     "Request",
+    "RequestSource",
     "Response",
     "ServerRequest",
     "Stream",

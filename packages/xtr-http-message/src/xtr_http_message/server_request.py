@@ -9,7 +9,7 @@ from urllib.parse import parse_qsl
 from typing_extensions import override
 from xtr_http_message_contracts import ServerRequestInterface
 
-from ._request_trait import RequestTrait
+from ._connected_trait import ConnectedTrait
 from .exception import InvalidArgumentError
 from .uri import Uri
 
@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from typing import BinaryIO
 
     from xtr_http_message_contracts import StreamInterface, UriInterface
+
+    from .request_source import RequestSource
 
 __all__ = ["ServerRequest"]
 
@@ -61,7 +63,7 @@ def _parse_query(query: str) -> dict[str, object]:
 
 
 @final
-class ServerRequest(RequestTrait, ServerRequestInterface):
+class ServerRequest(ConnectedTrait, ServerRequestInterface):
     """An incoming, server-side request.
 
     On top of what every request carries, this one gathers what reached the
@@ -88,6 +90,14 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
     mapping of a kind that answers more than a single value per name reaches
     whoever reads it back as that kind, rather than flattened into a plain
     one.
+
+    A request is also born connected, over a
+    :class:`~xtr_http_message.request_source.RequestSource` — see
+    :meth:`over`. Its head is passed eagerly; its body is one lazy stream
+    that materialises on first read; its parsed body, uploaded files and
+    attributes answer what the source has yielded so far, the attributes
+    live. The ``with_*`` members of such a request detach: plain eager
+    copies, so a change a handler makes never reaches the connection.
     """
 
     __slots__ = (
@@ -145,6 +155,77 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
             self._update_host_from_uri()
 
         self._set_body(body)
+
+    @classmethod
+    def over(
+        cls,
+        method: str,
+        uri: UriInterface | str,
+        *,
+        source: RequestSource,
+        body: bytes | BinaryIO | StreamInterface | None = None,
+        headers: Mapping[str, str | Sequence[str]] | None = None,
+        server_params: Mapping[str, object] | None = None,
+        cookies: Mapping[str, str] | None = None,
+        query: Mapping[str, object] | None = None,
+        protocol_version: str = "1.1",
+    ) -> Self:
+        """Build a server request over ``source``, born connected to it.
+
+        The head is passed eagerly — it costs no input and never changes
+        mid-request — and the body side comes from the source: the body
+        is one lazy stream that materialises on its first read, and the
+        parsed body and the uploaded files answer what materialisation
+        has yielded so far.
+
+        Args:
+            method: The HTTP method, kept exactly as given.
+            uri: The URI of the request. Given as text, it is read into a
+                :class:`~xtr_http_message.uri.Uri`.
+            source: Where the connected request reads its late answers
+                from.
+            body: Refused — the body of a request built over a source is
+                the source's to materialise, and there is one owner of
+                the body. The parameter exists so a caller used to the
+                constructor's shape is told the rule rather than left
+                with an unexpected keyword.
+            headers: Each header name mapped to one value or to several.
+                A header the message grammar refuses is left out rather
+                than refusing the request: a connection let it through,
+                and a message is no place to re-litigate that.
+            server_params: The parameters of the environment the request
+                arrived in, taken exactly as given.
+            cookies: The cookies the client sent; left out, none.
+            query: The query string, parsed into parameters; left out,
+                the URI's own query stands.
+            protocol_version: The HTTP version number alone.
+
+        Returns:
+            The request, connected to ``source``.
+
+        Raises:
+            InvalidArgumentError: When ``body`` is given alongside
+                ``source``.
+        """
+        if body is not None:
+            raise InvalidArgumentError(
+                "One owner of the body: body= and source= cannot both be given"
+            )
+
+        request = cls(method, uri, None, None, protocol_version, server_params)
+        for name, values in (headers or {}).items():
+            try:
+                request = request.with_header(name, values)
+            except ValueError:
+                continue
+
+        if cookies is not None:
+            request = request.with_cookie_params(cookies)
+        if query is not None:
+            request = request.with_query_params(query)
+
+        request._source = source  # noqa: SLF001 — a fresh instance of this very class.
+        return request
 
     @override
     def get_server_params(self) -> Mapping[str, object]:
@@ -225,8 +306,13 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
             A mapping shaped like the names the files were submitted under,
             every leaf of it an uploaded file — the mapping as it was given
             where nothing can change it, otherwise a fresh one. Empty when no
-            file came with the request.
+            file came with the request. A request built over a connection
+            answers what its body's materialisation has gathered so far:
+            empty until the body has been read.
         """
+        if self._source is not None:
+            return self._source.uploaded_files()
+
         return _held(self._uploaded_files)
 
     @override
@@ -251,8 +337,13 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
 
         Returns:
             Whatever parsing the body yielded, or ``None`` when nothing has
-            been parsed into the request.
+            been parsed into the request. A request built over a connection
+            answers what its body's materialisation has yielded so far:
+            ``None`` until the body has been read.
         """
+        if self._source is not None:
+            return self._source.parsed_body()
+
         return self._parsed_body
 
     @override
@@ -287,8 +378,14 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
         """Return what was derived from the request while handling it.
 
         Returns:
-            A fresh mapping of each attribute name to its value.
+            A fresh mapping of each attribute name to its value. A request
+            built over a connection reads them live, off its source: the
+            named parameters the matched route fills in are there as soon
+            as routing has filled them — which is after the request exists.
         """
+        if self._source is not None:
+            return self._source.attributes()
+
         return dict(self._attributes)
 
     @override
@@ -307,6 +404,9 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
         Returns:
             The value under ``name``, or ``default``.
         """
+        if self._source is not None:
+            return self._source.attributes().get(name, default)
+
         if name not in self._attributes:
             return default
 
@@ -324,7 +424,9 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
             A new instance; this one is left as it was.
         """
         new = self._copy()
-        new._attributes = {**self._attributes, name: value}  # noqa: SLF001 — a copy of this class.
+        # Read the copy's bag, not this instance's: a connected request's own
+        # is empty, its attributes living on the source the copy detached from.
+        new._attributes = {**new._attributes, name: value}  # noqa: SLF001 — a copy of this class.
 
         return new
 
@@ -337,8 +439,19 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
 
         Returns:
             A new instance, or this one when the request carries no such
-            attribute.
+            attribute. A connected request always answers a copy: its
+            attributes are live, so the name is looked for in what they
+            answer now, and the copy detaches either way.
         """
+        source = self._source
+        if source is not None:
+            new = self._copy()
+            new._attributes = {  # noqa: SLF001 — a copy of this very class.
+                held: value for held, value in source.attributes().items() if held != name
+            }
+
+            return new
+
         if name not in self._attributes:
             return self
 
@@ -346,5 +459,30 @@ class ServerRequest(RequestTrait, ServerRequestInterface):
         new._attributes = {  # noqa: SLF001 — a copy of this very class.
             held: value for held, value in self._attributes.items() if held != name
         }
+
+        return new
+
+    @override
+    def _copy(self) -> Self:
+        """Return a copy to change, leaving this instance as it is.
+
+        A connected request's copy detaches: it is a plain eager request,
+        carrying the head as it was passed and the live parts frozen to
+        what they answer at this moment — the attributes as a snapshot,
+        the parsed body and the uploaded files as the source's peeks. The
+        body is the one lazy stream, shared: one materialisation serves
+        the request and every copy of it, and the copy never reads the
+        source again.
+        """
+        source = self._source
+        if source is None:
+            return super()._copy()
+
+        new = super()._copy()
+        new._stream = self.get_body()  # noqa: SLF001 — a copy of this very class.
+        new._attributes = dict(source.attributes())  # noqa: SLF001 — a copy of this class.
+        new._parsed_body = source.parsed_body()  # noqa: SLF001 — a copy of this class.
+        new._uploaded_files = source.uploaded_files()  # noqa: SLF001 — a copy of this class.
+        new._source = None  # noqa: SLF001 — a copy of this very class.
 
         return new
