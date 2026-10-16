@@ -1,9 +1,10 @@
 """Where this application serves the OAuth 2.0 authorization server's endpoints.
 
-Every endpoint is contributed; one turned off in config/oauth2_server.py
-answers 404. The discovery document publishes each endpoint wherever this file
-puts it, and leaves out the ones it excludes. The /.well-known/ documents stay
-where RFC 8414 puts them: they cannot take a prefix.
+This file is what registers them: routing is never imported automatically, and
+deleting it takes every endpoint down. Every endpoint is contributed; one
+turned off in config/oauth2_server.py answers 404. The discovery document
+publishes each endpoint wherever this file puts it, and leaves out the ones it
+filters away. The /.well-known/ documents stay where RFC 8414 puts them.
 """
 
 from __future__ import annotations
@@ -13,15 +14,20 @@ from typing import TYPE_CHECKING
 from xtr_http_kernel.routing.decorator import as_routes
 
 if TYPE_CHECKING:
-    from xtr_http_kernel.routing.loader.configurator import RoutingConfigurator
+    from collections.abc import Mapping
+
+    from fastapi import APIRouter, FastAPI
 
 __all__ = ["oauth2_server"]
 
 
 @as_routes
-def oauth2_server(routes: RoutingConfigurator) -> None:
+def oauth2_server(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
     """Serve the endpoints at their default paths."""
-    _ = routes.import_("oauth2_server")
-    # To serve them elsewhere, chain `.prefix("/auth")` onto the import; to leave out an
-    # endpoint this deployment turned off, chain `.exclude("oauth2_introspect")`.
-    _ = routes.import_("oauth2_server_well_known")
+    app.include_router(resources["oauth2_server"])
+    # To serve them elsewhere, include with a prefix instead:
+    # app.include_router(resources["oauth2_server"], prefix="/auth")
+    # To leave out an endpoint this deployment turned off, filter it first:
+    # server = resources["oauth2_server"]
+    # server.routes = [r for r in server.routes if r.name != "oauth2_introspect"]
+    app.include_router(resources["oauth2_server_well_known"])

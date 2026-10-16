@@ -72,13 +72,23 @@ REDIRECT_URI: Final = "https://client.test/callback"
 SEED_PATH: Final = "/seed-client"
 
 
-def oauth2_kernel(app_module: str = "tests.fixtures.oauth2_server_app") -> Kernel:
-    """Return a kernel of ``app_module``, running this package's bundle."""
+def oauth2_kernel(
+    app_module: str = "tests.fixtures.oauth2_server_app",
+    routes_module: str | None = "tests.support.default_routes",
+) -> Kernel:
+    """Return a kernel of ``app_module``, running this package's bundle.
+
+    ``routes_module`` is scanned beside the application and carries the routes
+    file registering this server's endpoints — routing is never imported
+    automatically, so a served application always has one. An application
+    arranging its own passes ``None`` and brings its own routes file.
+    """
     return Kernel(
         app_module,
         env="test",
         bundles={OAuth2ServerBundle: {"all": True}},
         concurrent_scoped_access=True,
+        resources=(app_module,) if routes_module is None else (app_module, routes_module),
     )
 
 

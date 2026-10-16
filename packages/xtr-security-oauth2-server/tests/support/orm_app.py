@@ -57,6 +57,7 @@ def orm_kernel(tmp_path: Path) -> Kernel:
         bundles={OAuth2ServerBundle: {"all": True}, OrmBundle: {"all": True}},
         concurrent_scoped_access=True,
         environ={URL_VARIABLE: stored_url(tmp_path)},
+        resources=(_APP, "tests.support.default_routes"),
     )
 
 

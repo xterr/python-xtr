@@ -363,13 +363,14 @@ not-null column instead. One client class per process.
 
 ## Endpoints
 
-`setup(app, kernel)` adds every endpoint, contributed by two route loaders: resource
-`oauth2_server` (authorize, token, device-code, revoke, introspect) and resource
-`oauth2_server_well_known` (the description and the key set, which RFC 8414 places under the
-issuer, so they cannot take a prefix). An endpoint a deployment turned off answers `404`. A
-routes file in `<app>/config/routes/` moves them or leaves some out —
-`routes.import_("oauth2_server").prefix("/auth").exclude("oauth2_introspect")` — and the
-description publishes each endpoint wherever it ends up, leaving out the ones excluded:
+This package contributes two route resources — `oauth2_server` (authorize, token, device-code,
+revoke, introspect) and `oauth2_server_well_known` (the description and the key set, which
+RFC 8414 places under the issuer) — and the routes file in `<app>/config/routes/`, which the
+recipe writes, is what registers them: routing is never imported automatically. An endpoint a
+deployment turned off answers `404`. The file moves a resource with
+`app.include_router(resources["oauth2_server"], prefix="/auth")` and leaves a route out by
+filtering it off the staged router first — and the description publishes each endpoint
+wherever it ends up, leaving out the ones excluded:
 
 | Method | Path | Route name | Answers when |
 |---|---|---|---|
@@ -589,7 +590,7 @@ the family's `AccessDeniedError`, answered `403`.
 
 ```
 xtr_security_oauth2_server/
-├── routing/                    the two route loaders setup() mounts the endpoints from
+├── routing/                    the endpoints, and the two route resources routes files register
 ├── oauth2_events.py            OAuth2Events, the six names
 ├── authorization_server_metadata.py, metadata_contributor_interface.py
 ├── controller/                 one controller per endpoint

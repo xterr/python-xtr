@@ -117,13 +117,23 @@ app = FastAPI()
 setup(app, Kernel("app"))
 ```
 
-That serves `POST /webhook/{type}`, contributed as the route resource `webhook`. A routes file in
-`<app>/config/routes/` — `routes.import_("webhook").prefix("/hooks")` — moves it to
-`/hooks/webhook/{type}`, for an application keeping everything a stranger may call under one
-path. Whichever it is, build the
-URL you hand a sender from the route's name, `"webhook"` — a sender that was told a URL keeps
-sending to it long after the deploy that changed the path.
+The routes file the recipe writes — `app.include_router(resources["webhook"])` — is what
+registers it: routing is never imported automatically, and deleting the file stops the
+application receiving webhooks. The resource is contributed by `xtr_webhook.routes`, and
+including it with a prefix — `app.include_router(resources["webhook"], prefix="/hooks")` —
+moves it to `/hooks/webhook/{type}`, for an application keeping everything a stranger may
+call under one path. Whichever it is, build the URL you hand a sender from the route's name,
+`"webhook"` — a sender that was told a URL keeps sending to it long after the deploy that
+changed the path.
 
+| Method | Path | Route name | Resource |
+|---|---|---|---|
+| `POST` | `/webhook/{type}` | `webhook` | `webhook` |
+
+The route is the `webhook` resource, which `xtr_webhook.routes` contributes and the routes file
+above registers; its endpoint injects `WebhookController`, the bundle's service, built from the
+configuration below. An application replaces the controller the way it replaces any service:
+its own definition of the type outranks the bundle's.
 One endpoint serves every sender. The `type` segment tells them apart: it picks the parser that
 reads the webhook and the secret it is checked against, both configuration, so a new sender
 needs no new route.

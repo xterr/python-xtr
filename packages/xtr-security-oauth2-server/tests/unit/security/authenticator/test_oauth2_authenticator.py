@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from starlette.responses import Response
+    from xtr_http_kernel.bridge import ServedRequest
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.user.user_interface import UserInterface
 
@@ -87,6 +88,11 @@ class _SameRequest:
         del response
 
         raise AssertionError("the authenticator builds no response message")  # pragma: no cover
+
+    def serve(self, request: Request) -> ServedRequest:
+        del request
+
+        raise AssertionError("the authenticator serves no request")  # pragma: no cover
 
 
 @final

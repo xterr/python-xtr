@@ -24,6 +24,7 @@ from xtr_security_core.exception import AccessDeniedError
 from ._state import (
     AUTHENTICATED_FIREWALLS_KEY,
     FIREWALL_CONTEXT_KEY,
+    REQUEST_KEY,
     TOKEN_KEY,
     CarriedResponse,
 )
@@ -75,6 +76,7 @@ async def run_firewall(  # noqa: PLR0913 -- the request and its message, scopes,
         return
 
     setattr(request.state, FIREWALL_CONTEXT_KEY, context)
+    setattr(request.state, REQUEST_KEY, request)
     await _authenticate_once(context, request)
     token = token_storage.get_token() or NullToken()
     setattr(request.state, TOKEN_KEY, token)

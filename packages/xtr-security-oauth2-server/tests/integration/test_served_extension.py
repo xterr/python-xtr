@@ -86,6 +86,7 @@ def _kernel(env: str = "test") -> Kernel:
         env=env,
         bundles={OAuth2ServerBundle: {"all": True}, ExtensionBundle: {"all": True}},
         concurrent_scoped_access=True,
+        resources=("tests.fixtures.extension_app", "tests.support.default_routes"),
     )
 
 

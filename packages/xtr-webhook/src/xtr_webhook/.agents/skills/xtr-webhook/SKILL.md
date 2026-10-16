@@ -302,8 +302,10 @@ steps it cannot make — calling `setup` and naming your own types.
    the client, in `<app>/config/http_client.py`.
 5. **Environment** — `WEBHOOK_SECRET`, the secret the written route verifies against, read when
    the endpoint is built; one per sender in practice. **Ignore** — nothing.
-6. **Load** — call `setup(app, kernel)`; it adds `POST /webhook/{type}`, arranged by
-   `<app>/config/routes/webhook.py` (`routes.import_("webhook").prefix("/hooks")` moves it).
+6. **Load** — call `setup(app, kernel)`; the written `<app>/config/routes/webhook.py` registers
+   `POST /webhook/{type}` — routing is never imported automatically, and deleting the file
+   stops the endpoint being served (`app.include_router(resources["webhook"], prefix="/hooks")`
+   moves it).
 7. **Use** — declare a consumer for each type with
    `@as_remote_event_consumer("<type>")`, and inject the bundle's parser where you need it with
    `Annotated[RequestParserInterface, Target("webhook")]`.

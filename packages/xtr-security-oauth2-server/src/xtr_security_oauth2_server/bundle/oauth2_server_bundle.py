@@ -158,8 +158,8 @@ class OAuth2ServerBundle(Bundle[OAuth2ServerConfig]):
             OAUTH2_SERVER_CHANNEL if bundle_active(builder, "logging") else None,
         )
         register_listeners(config, services)
-        # The route loaders: scanned so the http kernel builds this server's
-        # routes into the application's table, which setup() mounts.
+        # The route resources: scanned so the http kernel carries them to
+        # setup(), which hands them to the application's routes files.
         services.load("xtr_security_oauth2_server.routing")
         if bundle_active(builder, "console"):
             register_commands(services)

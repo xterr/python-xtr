@@ -58,7 +58,7 @@ _WEBHOOK: Final = "webhook"
 
 _SEND_HANDLER_MODULE: Final = "xtr_webhook.messenger.send_webhook_handler"
 
-_ROUTING_MODULE: Final = "xtr_webhook.routing"
+_ROUTES_MODULE: Final = "xtr_webhook.routes"
 
 
 @final
@@ -114,9 +114,9 @@ class WebhookBundle(Bundle[WebhookConfig]):
             )
 
         _ = services.set(named_factory(_webhook_controller, "webhook_controller"))
-        # The route loader: scanned so the http kernel builds the endpoint into
-        # the application's table, which setup() mounts.
-        services.load(_ROUTING_MODULE)
+        # The route resource: scanned so the http kernel carries it to setup(),
+        # which hands it to the application's routes files to include.
+        services.load(_ROUTES_MODULE)
 
         if find_spec("xtr_http_client") is not None:
             _ = services.set(named_factory(_transport(config.http_client), "webhook_transport"))

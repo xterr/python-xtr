@@ -10,8 +10,8 @@
 # Needed to receive anything: with no routing the endpoint knows no type, and
 # every webhook is answered 404.
 "config/webhook.py" = "files/config/webhook.py.tmpl"
-# Where the endpoint is served: POST /webhook/{type}, with the line that moves
-# it under a prefix written beside it.
+# What registers the endpoint — routing is never imported automatically:
+# POST /webhook/{type}, with the line that moves it under a prefix beside it.
 "config/routes/webhook.py" = "files/config/routes/webhook.py.tmpl"
 
 [env]
@@ -26,7 +26,7 @@ lines = []
 
 [notes]
 steps = [
-  "Call setup(app, kernel) where the application is built: it adds the endpoint, POST /webhook/{type}, arranged by the written config/routes/webhook.py.",
+  "Call setup(app, kernel) where the application is built: the written config/routes/webhook.py registers the endpoint, POST /webhook/{type} — delete the file and it is not served.",
   "Name each sender's type in config/webhook.py and give its subscribers the URL that type is served at.",
 ]
 check = [

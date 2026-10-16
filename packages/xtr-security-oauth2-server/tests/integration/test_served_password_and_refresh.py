@@ -217,6 +217,7 @@ async def test_a_refresh_token_sealed_with_a_stretched_password_is_opened_again(
         resources=(
             "tests.fixtures.oauth2_plain_key_app",
             "tests.fixtures.oauth2_password_app.listeners",
+            "tests.support.default_routes",
         ),
         concurrent_scoped_access=True,
     )

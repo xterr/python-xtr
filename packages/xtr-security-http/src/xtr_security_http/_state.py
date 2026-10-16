@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 __all__ = [
     "AUTHENTICATED_FIREWALLS_KEY",
     "FIREWALL_CONTEXT_KEY",
+    "REQUEST_KEY",
     "TOKEN_KEY",
     "CarriedResponse",
 ]
@@ -36,6 +37,12 @@ FIREWALL_CONTEXT_KEY: Final = f"{_PREFIX}firewall_context"
 #: The token the firewall authenticated for the request, stashed alongside the
 #: context so the exception listener can weigh it without the token storage.
 TOKEN_KEY: Final = f"{_PREFIX}token"
+
+#: The framework's own request object, stashed alongside the context so the
+#: exception listener — which the lifecycle hands the request as a message and
+#: the state bag, never the framework's object — can still give the entry point
+#: and the denial handlers the request they are written against.
+REQUEST_KEY: Final = f"{_PREFIX}request"
 
 
 class CarriedResponse(Exception):  # noqa: N818 -- a control-flow carrier, not an error condition

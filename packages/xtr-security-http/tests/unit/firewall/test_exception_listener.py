@@ -8,8 +8,9 @@ from xtr_security_core.authentication.authentication_trust_resolver import (
 )
 from xtr_security_core.exception import AccessDeniedError, BadCredentialsError
 
+from tests.support.messages import make_message
 from tests.support.requests import make_request
-from xtr_security_http._state import CarriedResponse
+from xtr_security_http._state import REQUEST_KEY, CarriedResponse
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 
 pytestmark = pytest.mark.anyio
@@ -22,7 +23,7 @@ def _listener() -> ExceptionListener:
 async def test_a_non_security_exception_is_left_alone() -> None:
     from xtr_http_kernel import ExceptionEvent  # noqa: PLC0415
 
-    event = ExceptionEvent(make_request(), RuntimeError("boom"))
+    event = ExceptionEvent(make_message(), {}, RuntimeError("boom"))
 
     await _listener().on_exception(event)
 
@@ -34,7 +35,7 @@ async def test_a_carried_response_is_sent() -> None:
     from xtr_http_kernel import ExceptionEvent  # noqa: PLC0415
 
     response = JSONResponse({"ok": True})
-    event = ExceptionEvent(make_request(), CarriedResponse(response))
+    event = ExceptionEvent(make_message(), {}, CarriedResponse(response))
 
     await _listener().on_exception(event)
 
@@ -44,7 +45,7 @@ async def test_a_carried_response_is_sent() -> None:
 async def test_an_authentication_error_without_a_firewall_is_a_bare_challenge() -> None:
     from xtr_http_kernel import ExceptionEvent  # noqa: PLC0415
 
-    event = ExceptionEvent(make_request(), BadCredentialsError())
+    event = ExceptionEvent(make_message(), {}, BadCredentialsError())
 
     await _listener().on_exception(event)
 
@@ -58,7 +59,7 @@ async def test_an_authentication_error_without_a_firewall_is_a_bare_challenge() 
 async def test_an_access_denied_without_a_firewall_challenges() -> None:
     from xtr_http_kernel import ExceptionEvent  # noqa: PLC0415
 
-    event = ExceptionEvent(make_request(), AccessDeniedError(attributes=("ROLE_ADMIN",)))
+    event = ExceptionEvent(make_message(), {}, AccessDeniedError(attributes=("ROLE_ADMIN",)))
 
     await _listener().on_exception(event)
 
@@ -82,13 +83,12 @@ async def test_a_full_fledged_denial_without_a_handler_is_an_uncached_403() -> N
         access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         scheme=HTTPBearer(auto_error=False),
     )
-    setattr(request.state, FIREWALL_CONTEXT_KEY, context)
-    setattr(
-        request.state,
-        TOKEN_KEY,
-        PostAuthenticationToken(InMemoryUser("alice"), "api", ["ROLE_USER"]),
-    )
-    event = ExceptionEvent(request, AccessDeniedError(attributes=("ROLE_ADMIN",)))
+    state: dict[str, object] = {
+        FIREWALL_CONTEXT_KEY: context,
+        TOKEN_KEY: PostAuthenticationToken(InMemoryUser("alice"), "api", ["ROLE_USER"]),
+        REQUEST_KEY: request,
+    }
+    event = ExceptionEvent(make_message(), state, AccessDeniedError(attributes=("ROLE_ADMIN",)))
 
     await _listener().on_exception(event)
 

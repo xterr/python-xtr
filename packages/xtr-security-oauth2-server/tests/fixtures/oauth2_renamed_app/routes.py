@@ -7,9 +7,17 @@ from typing import TYPE_CHECKING
 from xtr_http_kernel.routing.decorator import as_routes
 
 if TYPE_CHECKING:
-    from xtr_http_kernel.routing.loader.configurator import RoutingConfigurator
+    from collections.abc import Mapping
+
+    from fastapi import APIRouter, FastAPI
 
 
 @as_routes
-def oauth2_server(routes: RoutingConfigurator) -> None:
-    _ = routes.import_("oauth2_server").prefix("/auth").name_prefix("auth_")
+def oauth2_server(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
+    """Serve the protocol endpoints under /auth, every name under auth_."""
+    server = resources["oauth2_server"]
+    for route in server.routes:
+        # The framework's base route type does not declare the name every kind carries.
+        route.name = f"auth_{route.name}"  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]  # ty: ignore[unresolved-attribute]
+    app.include_router(server, prefix="/auth")
+    app.include_router(resources["oauth2_server_well_known"])

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from xtr_dependency_injection import Kernel, unit_of_work
@@ -23,7 +23,7 @@ from tests.fixtures.security_app.bundle import SecurityFixtureBundle
 from tests.support.messages import make_message
 from tests.support.requests import make_request
 from xtr_security_http._runner import run_firewall
-from xtr_security_http._state import FIREWALL_CONTEXT_KEY, CarriedResponse
+from xtr_security_http._state import FIREWALL_CONTEXT_KEY, REQUEST_KEY, CarriedResponse
 from xtr_security_http.decorator.current_user import CurrentUser
 from xtr_security_http.decorator.is_granted import IsGranted
 from xtr_security_http.exception import InvalidAccessTokenError
@@ -31,7 +31,7 @@ from xtr_security_http.firewall.exception_listener import ExceptionListener
 from xtr_security_http.firewall_map import FirewallMap
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
+    from collections.abc import AsyncIterator, MutableMapping, Sequence
 
     from starlette.requests import Request
     from xtr_http_message_contracts import ServerRequestInterface
@@ -60,6 +60,11 @@ def _api_request(authorization: str | None = None) -> Request:
 
 def _api_message() -> ServerRequestInterface:
     return make_message(path="/api/books")
+
+
+def _state_of(request: Request) -> MutableMapping[str, object]:
+    """Return the state bag the firewall stashed on — the one the event carries."""
+    return cast("MutableMapping[str, object]", request.scope["state"])
 
 
 async def _run(
@@ -127,8 +132,11 @@ async def test_exception_listener_challenges_an_authentication_error(
     async with unit_of_work(container) as unit:
         request = _api_request()
         firewall_map = await unit.get(FirewallMap)
-        setattr(request.state, FIREWALL_CONTEXT_KEY, firewall_map.get("api"))
-        event = ExceptionEvent(request, BadCredentialsError())
+        state: MutableMapping[str, object] = {
+            FIREWALL_CONTEXT_KEY: firewall_map.get("api"),
+            REQUEST_KEY: request,
+        }
+        event = ExceptionEvent(_api_message(), state, BadCredentialsError())
         await (await _listener(unit)).on_exception(event)
 
     assert event.response is not None
@@ -142,7 +150,7 @@ async def test_exception_listener_forbids_a_full_fledged_denial(
         request = _api_request("Bearer admin")
         await _run(unit, "api", request, _api_message())
         error = AccessDeniedError(attributes=("ROLE_SUPERADMIN",))
-        event = ExceptionEvent(request, error)
+        event = ExceptionEvent(_api_message(), _state_of(request), error)
         await (await _listener(unit)).on_exception(event)
 
     assert event.response is not None
@@ -154,7 +162,7 @@ async def test_exception_listener_answers_a_scope_denial(container: ContainerInt
         request = _api_request("Bearer admin")
         await _run(unit, "api", request, _api_message())
         error = AccessDeniedError(attributes=("OAUTH2_SCOPE(reports:write)",))
-        event = ExceptionEvent(request, error)
+        event = ExceptionEvent(_api_message(), _state_of(request), error)
         await (await _listener(unit)).on_exception(event)
 
     assert event.response is not None
@@ -166,7 +174,7 @@ async def test_exception_listener_sends_a_carried_response(container: ContainerI
 
     async with unit_of_work(container) as unit:
         response = JSONResponse({"ok": True})
-        event = ExceptionEvent(_api_request(), CarriedResponse(response))
+        event = ExceptionEvent(_api_message(), {}, CarriedResponse(response))
         await (await _listener(unit)).on_exception(event)
 
     assert event.response is response

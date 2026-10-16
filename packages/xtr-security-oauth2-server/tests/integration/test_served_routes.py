@@ -12,7 +12,7 @@ pytestmark = pytest.mark.anyio
 _ROUTED = "tests.fixtures.oauth2_routed_app"
 
 
-async def test_with_no_routes_file_every_endpoint_is_served_at_its_default_path() -> None:
+async def test_with_the_default_routes_file_every_endpoint_is_served_at_its_default_path() -> None:
     app = served_application(oauth2_kernel())
 
     async with serving(app) as client:
@@ -24,7 +24,7 @@ async def test_with_no_routes_file_every_endpoint_is_served_at_its_default_path(
 
 
 async def test_a_moved_endpoint_is_served_and_published_where_it_now_is() -> None:
-    app = served_application(oauth2_kernel(_ROUTED))
+    app = served_application(oauth2_kernel(_ROUTED, routes_module=None))
 
     async with serving(app) as client:
         old = await client.post("/token", data={"grant_type": "client_credentials"})
@@ -38,7 +38,7 @@ async def test_a_moved_endpoint_is_served_and_published_where_it_now_is() -> Non
 
 
 async def test_an_endpoint_left_out_is_neither_served_nor_published() -> None:
-    app = served_application(oauth2_kernel(_ROUTED))
+    app = served_application(oauth2_kernel(_ROUTED, routes_module=None))
 
     async with serving(app) as client:
         introspected = await client.post("/auth/introspect", data={"token": "x"})
@@ -49,7 +49,7 @@ async def test_an_endpoint_left_out_is_neither_served_nor_published() -> None:
 
 
 async def test_renamed_endpoints_are_still_published_where_they_are() -> None:
-    app = served_application(oauth2_kernel("tests.fixtures.oauth2_renamed_app"))
+    app = served_application(oauth2_kernel("tests.fixtures.oauth2_renamed_app", routes_module=None))
 
     async with serving(app) as client:
         document = json_of(await client.get("/.well-known/oauth-authorization-server"))

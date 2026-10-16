@@ -18,7 +18,12 @@ from xtr_security_core.exception import (
 )
 
 from xtr_security_http._challenge import no_store_headers
-from xtr_security_http._state import FIREWALL_CONTEXT_KEY, TOKEN_KEY, CarriedResponse
+from xtr_security_http._state import (
+    FIREWALL_CONTEXT_KEY,
+    REQUEST_KEY,
+    TOKEN_KEY,
+    CarriedResponse,
+)
 from xtr_security_http.authorization.oauth2_scope_voter import parse_oauth2_scope
 
 if TYPE_CHECKING:
@@ -53,10 +58,12 @@ class ExceptionListener(EventSubscriberInterface):
 
     Any other exception is left untouched, to whatever else handles it.
 
-    The firewall the request ran under, and the token it authenticated, are read
-    from ``request.state`` — stashed there by the firewall — so this singleton
-    listener answers a request without reaching into the request scope. The
-    trust resolver is a singleton it is built with.
+    The firewall the request ran under, the token it authenticated and the
+    framework's own request object are read from the state bag the event
+    carries — stashed there by the firewall, on the very mapping the framework's
+    request wraps — so this singleton listener answers a request without
+    reaching into the request scope. The trust resolver is a singleton it is
+    built with.
     """
 
     __slots__ = ("_trust_resolver",)
@@ -79,43 +86,51 @@ class ExceptionListener(EventSubscriberInterface):
             return
         if not isinstance(error, (AuthenticationError, AccessDeniedError)):
             return
-        context = _context_of(event.request)
+        state = event.state
+        context = _context_of(state)
+        request = _request_of(state)
         if isinstance(error, AuthenticationError):
-            event.set_response(await self._on_authentication_error(context, event.request, error))
+            event.set_response(await self._on_authentication_error(context, request, error))
             return
-        event.set_response(await self._on_access_denied(context, event.request, error))
+        event.set_response(await self._on_access_denied(context, request, _token_of(state), error))
 
     async def _on_authentication_error(
         self,
         context: FirewallContextInterface | None,
-        request: Request,
+        request: Request | None,
         error: AuthenticationError,
     ) -> Response:
         """Answer an authentication error with the entry-point challenge, or a bare 401."""
-        if context is not None and context.entry_point is not None:
+        if context is not None and context.entry_point is not None and request is not None:
             return await context.entry_point.start(request, error)
         return _bare_challenge()
 
     async def _on_access_denied(
         self,
         context: FirewallContextInterface | None,
-        request: Request,
+        request: Request | None,
+        token: TokenInterface | None,
         error: AccessDeniedError,
     ) -> Response:
         """Answer a denial: a challenge when not fully authenticated, else a refusal."""
-        if not self._is_full_fledged(request):
-            if context is not None and context.entry_point is not None:
+        if not self._trust_resolver.is_full_fledged(token):
+            if context is not None and context.entry_point is not None and request is not None:
                 return await context.entry_point.start(request, InsufficientAuthenticationError())
             return _bare_challenge()
         if (
             _is_scope_denial(error)
             and context is not None
             and context.scope_denied_handler is not None
+            and request is not None
         ):
             answered = await context.scope_denied_handler.handle(request, error)
             if answered is not None:
                 return answered
-        if context is not None and context.access_denied_handler is not None:
+        if (
+            context is not None
+            and context.access_denied_handler is not None
+            and request is not None
+        ):
             answered = await context.access_denied_handler.handle(request, error)
             if answered is not None:
                 return answered
@@ -125,21 +140,21 @@ class ExceptionListener(EventSubscriberInterface):
             headers=no_store_headers(),
         )
 
-    def _is_full_fledged(self, request: Request) -> bool:
-        """Tell whether the request's token is fully authenticated."""
-        token = _token_of(request)
-        return self._trust_resolver.is_full_fledged(token)
 
-
-def _context_of(request: Request) -> FirewallContextInterface | None:
-    """Return the firewall context the firewall stashed for ``request``, if any."""
-    context = getattr(request.state, FIREWALL_CONTEXT_KEY, None)
+def _context_of(state: Mapping[str, object]) -> FirewallContextInterface | None:
+    """Return the firewall context the firewall stashed for the request, if any."""
+    context = state.get(FIREWALL_CONTEXT_KEY)
     return cast("FirewallContextInterface | None", context)
 
 
-def _token_of(request: Request) -> TokenInterface | None:
-    """Return the token the firewall stashed for ``request``, if any."""
-    return cast("TokenInterface | None", getattr(request.state, TOKEN_KEY, None))
+def _token_of(state: Mapping[str, object]) -> TokenInterface | None:
+    """Return the token the firewall stashed for the request, if any."""
+    return cast("TokenInterface | None", state.get(TOKEN_KEY))
+
+
+def _request_of(state: Mapping[str, object]) -> Request | None:
+    """Return the framework's request the firewall stashed, if a firewall ran."""
+    return cast("Request | None", state.get(REQUEST_KEY))
 
 
 def _bare_challenge() -> Response:

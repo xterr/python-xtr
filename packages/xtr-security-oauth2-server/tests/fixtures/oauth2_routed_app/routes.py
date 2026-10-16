@@ -7,10 +7,17 @@ from typing import TYPE_CHECKING
 from xtr_http_kernel.routing.decorator import as_routes
 
 if TYPE_CHECKING:
-    from xtr_http_kernel.routing.loader.configurator import RoutingConfigurator
+    from collections.abc import Mapping
+
+    from fastapi import APIRouter, FastAPI
 
 
 @as_routes
-def oauth2_server(routes: RoutingConfigurator) -> None:
-    _ = routes.import_("oauth2_server").prefix("/auth").exclude("oauth2_introspect")
-    _ = routes.import_("oauth2_server_well_known")
+def oauth2_server(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
+    """Serve the protocol endpoints under /auth, minus introspection, and the documents."""
+    server = resources["oauth2_server"]
+    server.routes = [
+        route for route in server.routes if getattr(route, "name", None) != "oauth2_introspect"
+    ]
+    app.include_router(server, prefix="/auth")
+    app.include_router(resources["oauth2_server_well_known"])
