@@ -51,7 +51,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "054a64aee198e82efc49ebe88c9b79294dbd3827244468b8a061cad68f958680"
+    "recipe": "22692d3b7ce30f3dbe2f839a38e7dac4eb5d7ad7c9ec077b33ce39aa3e7542a4"
   },
   "xtr-lock": {
     "bundles": {
@@ -113,6 +113,15 @@
     "gitignore": [],
     "recipe": "8e79570fc3874a982e1e8da006050e6296885d5893315c8582d3381efb908aec"
   },
+  "xtr-remote-event": {
+    "bundles": {
+      "xtr_remote_event.bundle:RemoteEventBundle": "required"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "4e07c4a96c57da704ca5c60507d445c2e66a99018fae1aa35ec7588306ab9b3f"
+  },
   "xtr-scheduler": {
     "bundles": {
       "xtr_scheduler.bundle:SchedulerBundle": "adopted"
@@ -155,5 +164,25 @@
       "/var/storage/"
     ],
     "recipe": "f67963901bcd3c8a872f5b4c1455120433611e7ac5998784fc5256f4336079e3"
+  },
+  "xtr-webhook": {
+    "bundles": {
+      "xtr_webhook.bundle:WebhookBundle": "listed"
+    },
+    "env": [
+      "WEBHOOK_SECRET"
+    ],
+    "files": {
+      "src/bookshop/config/routes/webhook.py": {
+        "adopted": false,
+        "sha256": "2cfae779248541f7ec70782b2a366c23d7ddd44b9ec9ed32764a7f8f8ae6147f"
+      },
+      "src/bookshop/config/webhook.py": {
+        "adopted": false,
+        "sha256": "ff1623981c0fa86a7f51535d7004a948cffe3d27fa45a01c52cf9de6ee00225c"
+      }
+    },
+    "gitignore": [],
+    "recipe": "22362216719974f131507edd915f5ed3f8e326b23e3b91bb8938b42ee2f3ebca"
   }
 }

@@ -27,6 +27,10 @@ What each entry brings:
   the one it signs with, and signing without it raises ``MissingKeyError``.
 - ``DevToolsBundle`` — development helpers, never active in prod. Its resources are only
   scanned when active.
+- ``WebhookBundle`` — brings ``RemoteEventBundle`` with it: the endpoint webhooks arrive at —
+  a route resource that ``config/routes/webhook.py`` registers, routing never being imported
+  automatically — the parser verifying each sender's signature, and the bus handoff of what
+  a webhook carried to its consumer in ``messaging/handlers.py``.
 
 Not listed, and active anyway:
 
@@ -50,6 +54,7 @@ from xtr_rate_limiter.bundle import RateLimiterBundle
 from xtr_scheduler.bundle import SchedulerBundle
 from xtr_security_jwt.bundle import JwtBundle
 from xtr_storage.bundle import StorageBundle
+from xtr_webhook.bundle import WebhookBundle
 
 from bookshop.dev_tools import DevToolsBundle
 from fulltext.bundle import FulltextBundle
@@ -72,4 +77,5 @@ BUNDLES = {
     JwtBundle: {"all": True},
     DevToolsBundle: {"dev": True, "test": True},
     StorageBundle: {"all": True},
+    WebhookBundle: {"all": True},
 }

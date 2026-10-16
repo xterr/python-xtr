@@ -40,6 +40,11 @@ dependencies = [
     "xtr-security-http",
     "xtr-security-jwt",
     "xtr-password-hasher",
+    # Incoming webhooks: the payments provider posts here. The endpoint is a route
+    # resource — config/routes/webhook.py is what registers it, and the consumer of
+    # what it read runs on the bus, where a sender that times out never waits.
+    "xtr-remote-event",
+    "xtr-webhook",
 ]
 
 [project.scripts]
@@ -80,6 +85,8 @@ xtr-dotenv               = { path = "../../packages/xtr-dotenv", editable = true
 xtr-event-dispatcher     = { path = "../../packages/xtr-event-dispatcher", editable = true }
 xtr-event-dispatcher-contracts = { path = "../../packages/xtr-event-dispatcher-contracts", editable = true }
 xtr-http-kernel          = { path = "../../packages/xtr-http-kernel", editable = true }
+xtr-http-client-contracts = { path = "../../packages/xtr-http-client-contracts", editable = true }
+xtr-http-foundation      = { path = "../../packages/xtr-http-foundation", editable = true }
 xtr-http-message         = { path = "../../packages/xtr-http-message", editable = true }
 xtr-http-message-contracts = { path = "../../packages/xtr-http-message-contracts", editable = true }
 xtr-lock                 = { path = "../../packages/xtr-lock", editable = true }
@@ -89,6 +96,7 @@ xtr-messenger            = { path = "../../packages/xtr-messenger", editable = t
 xtr-orm                  = { path = "../../packages/xtr-orm", editable = true }
 xtr-rate-limiter         = { path = "../../packages/xtr-rate-limiter", editable = true }
 xtr-recipes              = { path = "../../packages/xtr-recipes", editable = true }
+xtr-remote-event         = { path = "../../packages/xtr-remote-event", editable = true }
 xtr-scheduler            = { path = "../../packages/xtr-scheduler", editable = true }
 xtr-service-contracts    = { path = "../../packages/xtr-service-contracts", editable = true }
 xtr-storage              = { path = "../../packages/xtr-storage", editable = true }
@@ -97,6 +105,7 @@ xtr-security-core        = { path = "../../packages/xtr-security-core", editable
 xtr-security-http        = { path = "../../packages/xtr-security-http", editable = true }
 xtr-security-jwt         = { path = "../../packages/xtr-security-jwt", editable = true }
 xtr-password-hasher      = { path = "../../packages/xtr-password-hasher", editable = true }
+xtr-webhook              = { path = "../../packages/xtr-webhook", editable = true }
 
 [tool.basedpyright]
 typeCheckingMode = "all"

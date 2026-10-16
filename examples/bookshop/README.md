@@ -161,6 +161,34 @@ and checks every outcome.
 > `IsGranted(attribute, subject="path_param")` are unaffected; the owner check uses the
 > `Security` facade in the body instead, the form the plan documents.
 
+### Receiving webhooks — registration is a routes file
+
+`WebhookBundle` contributes the endpoint webhooks arrive at as a *route resource*, named
+`webhook` and filled by `xtr_webhook.routes`. Routing is never imported automatically:
+`config/routes/webhook.py`, which the recipe wrote, is what registers it — delete the file
+and the application stops receiving webhooks, nothing else changes.
+
+```python
+# src/bookshop/config/routes/webhook.py
+@as_routes
+def webhook(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
+    app.include_router(resources["webhook"])  # serves POST /webhook/{type}
+    # app.include_router(resources["webhook"], prefix="/hooks")   # moves the whole group
+```
+
+- `config/webhook.py` names each sender's type and its secret — `payments` here, verified
+  against `WEBHOOK_SECRET` — and the type in the URL picks the parser and the secret, so a
+  new sender is configuration, not a new route.
+- A subscriber is given the URL built from the route's *name*,
+  `app.url_path_for("webhook", type="payments")`, rather than a path written out: a sender
+  keeps sending to the URL it was told long after the deploy that moved it.
+- A delivery that is unsigned or wrongly signed is answered `406` with the reason; a type
+  nothing is routed to, `404` — that URL does not exist, from the sender's side.
+- The endpoint answers the sender *now* — `202` — and leaves the payload to the bus:
+  `PaymentWebhookConsumer` (`@as_remote_event_consumer("payments")`, in
+  `messaging/handlers.py`) puts every arrived event on the audit trail, in a worker. A
+  sender waiting on a handler is a sender that times out and sends the webhook again.
+
 ## Layout
 
 ```
@@ -269,6 +297,8 @@ own, keep every secret out of the repository too.
 | http-kernel | `HttpKernelConfig(app=)`, read by `debug:router` and `router:match` | `config/http_kernel.py` |
 | http-kernel | the request lifecycle listed as a bundle: a fresh `X-Request-Id` per request, an uncaught exception on the `request` channel | `bundles.py` |
 | http-kernel | `RateLimited` on a router, as a decorator, in a route's `dependencies`; `TooManyRequestsError` reshaped by an exception handler | `web/routes.py`, `web/app.py` |
+| webhook | registration is a routes file: `config/routes/webhook.py` includes the contributed `webhook` resource — routing is never imported automatically; `WebhookConfig` names each sender's type and secret | `config/routes/webhook.py`, `config/webhook.py` |
+| remote-event | `@as_remote_event_consumer("payments")` hands an arrived webhook's event to the bus, off the request | `messaging/handlers.py` |
 | rate-limiter | every policy — `sliding_window`, `fixed_window` (and on a calendar, `anchor_at`), `token_bucket`, `compound` with a shared key; in-memory, cache-pool and (prod) Redis storage | `config/rate_limiter.py`, `.env.prod` |
 | rate-limiter | a limiter injected by name (`Target`), `consume()` and `ensure_accepted()` in a route, `reserve(max_time=)` and `wait()` in a handler | `web/routes.py`, `messaging/handlers.py` |
 | rate-limiter | `RateLimitExceededEvent` heard by a listener; `RateLimiterBuilder`; `reset()`; every limit checked under `mock_time` | `observability/rate_limit_audit.py`, `dev_tools/rate_limit_demo.py` |
@@ -321,6 +351,8 @@ PostgreSQL in prod; `DATABASE_URL` only shows the env processors.
 key `jwt:generate-keypair` minted under `secrets/`; `config/jwt.py` reads it with `env("resolve:...")` so
 `%kernel.project_dir%` expands, and the JWT bundle's key loader reads the file. `JWT_ISSUER` is
 the `iss` those tokens carry and are checked against, read with `env("JWT_ISSUER")`.
+`WEBHOOK_SECRET` is what `config/webhook.py` verifies the `payments` sender's deliveries
+against — a demo value in `.env`; a real deployment overrides it with the sender's own.
 
 ## Rules this example follows
 

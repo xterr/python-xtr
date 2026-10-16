@@ -401,6 +401,7 @@ dependencies = [
     { name = "xtr-orm", extra = ["postgres", "sqlite"] },
     { name = "xtr-password-hasher" },
     { name = "xtr-rate-limiter", extra = ["redis"] },
+    { name = "xtr-remote-event" },
     { name = "xtr-scheduler", extra = ["cron"] },
     { name = "xtr-security" },
     { name = "xtr-security-core" },
@@ -408,6 +409,7 @@ dependencies = [
     { name = "xtr-security-jwt" },
     { name = "xtr-service-contracts" },
     { name = "xtr-storage" },
+    { name = "xtr-webhook" },
 ]
 
 [package.dev-dependencies]
@@ -439,6 +441,7 @@ requires-dist = [
     { name = "xtr-orm", extras = ["sqlite", "postgres"], editable = "../../packages/xtr-orm" },
     { name = "xtr-password-hasher", editable = "../../packages/xtr-password-hasher" },
     { name = "xtr-rate-limiter", extras = ["redis"], editable = "../../packages/xtr-rate-limiter" },
+    { name = "xtr-remote-event", editable = "../../packages/xtr-remote-event" },
     { name = "xtr-scheduler", extras = ["cron"], editable = "../../packages/xtr-scheduler" },
     { name = "xtr-security", editable = "../../packages/xtr-security" },
     { name = "xtr-security-core", editable = "../../packages/xtr-security-core" },
@@ -446,6 +449,7 @@ requires-dist = [
     { name = "xtr-security-jwt", editable = "../../packages/xtr-security-jwt" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
     { name = "xtr-storage", editable = "../../packages/xtr-storage" },
+    { name = "xtr-webhook", editable = "../../packages/xtr-webhook" },
 ]
 
 [package.metadata.requires-dev]
@@ -2149,6 +2153,62 @@ dev = [
 ]
 
 [[package]]
+name = "xtr-http-client-contracts"
+version = "4.1.0"
+source = { editable = "../../packages/xtr-http-client-contracts" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-message-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", marker = "extra == 'testing'", specifier = ">=4.0" },
+    { name = "pytest", marker = "extra == 'testing'", specifier = ">=8" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-http-message", marker = "extra == 'testing'", editable = "../../packages/xtr-http-message" },
+    { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
+]
+provides-extras = ["testing"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
+]
+
+[[package]]
+name = "xtr-http-foundation"
+version = "4.1.0"
+source = { editable = "../../packages/xtr-http-foundation" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-message-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
+]
+
+[[package]]
 name = "xtr-http-kernel"
 version = "4.1.0"
 source = { editable = "../../packages/xtr-http-kernel" }
@@ -2531,6 +2591,34 @@ dev = [
 ]
 
 [[package]]
+name = "xtr-remote-event"
+version = "4.1.0"
+source = { editable = "../../packages/xtr-remote-event" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-messenger" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
+    { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
+]
+
+[[package]]
 name = "xtr-scheduler"
 version = "4.1.0"
 source = { editable = "../../packages/xtr-scheduler" }
@@ -2590,7 +2678,9 @@ dependencies = [
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
+    { name = "xtr-http-foundation" },
     { name = "xtr-http-kernel" },
+    { name = "xtr-http-message-contracts" },
     { name = "xtr-password-hasher" },
     { name = "xtr-security-core" },
     { name = "xtr-security-http" },
@@ -2602,7 +2692,9 @@ requires-dist = [
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
+    { name = "xtr-http-foundation", editable = "../../packages/xtr-http-foundation" },
     { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
+    { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
     { name = "xtr-password-hasher", editable = "../../packages/xtr-password-hasher" },
     { name = "xtr-security-core", editable = "../../packages/xtr-security-core" },
     { name = "xtr-security-http", editable = "../../packages/xtr-security-http" },
@@ -2620,6 +2712,7 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
+    { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
     { name = "xtr-password-hasher", extras = ["bcrypt"], editable = "../../packages/xtr-password-hasher" },
 ]
 
@@ -2666,7 +2759,9 @@ dependencies = [
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-foundation" },
     { name = "xtr-http-kernel" },
+    { name = "xtr-http-message-contracts" },
     { name = "xtr-logging-contracts" },
     { name = "xtr-password-hasher" },
     { name = "xtr-security-core" },
@@ -2683,7 +2778,9 @@ requires-dist = [
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-foundation", editable = "../../packages/xtr-http-foundation" },
     { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
+    { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
     { name = "xtr-password-hasher", editable = "../../packages/xtr-password-hasher" },
     { name = "xtr-security-core", editable = "../../packages/xtr-security-core" },
@@ -2700,6 +2797,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
 ]
 
 [[package]]
@@ -2795,6 +2893,54 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
+]
+
+[[package]]
+name = "xtr-webhook"
+version = "4.1.0"
+source = { editable = "../../packages/xtr-webhook" }
+dependencies = [
+    { name = "msgspec" },
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-http-client-contracts" },
+    { name = "xtr-http-foundation" },
+    { name = "xtr-http-kernel" },
+    { name = "xtr-http-message" },
+    { name = "xtr-http-message-contracts" },
+    { name = "xtr-messenger" },
+    { name = "xtr-remote-event" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "msgspec", specifier = ">=0.18" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
+    { name = "xtr-http-client-contracts", editable = "../../packages/xtr-http-client-contracts" },
+    { name = "xtr-http-foundation", editable = "../../packages/xtr-http-foundation" },
+    { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
+    { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
+    { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
+    { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
+    { name = "xtr-remote-event", editable = "../../packages/xtr-remote-event" },
+    { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
+    { name = "xtr-http-client", editable = "../../packages/xtr-http-client" },
+    { name = "xtr-http-kernel", editable = "../../packages/xtr-http-kernel" },
+    { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
 ]
 
 [[package]]
