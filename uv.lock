@@ -37,6 +37,7 @@ members = [
     "xtr-scheduler",
     "xtr-security",
     "xtr-security-core",
+    "xtr-security-csrf",
     "xtr-security-http",
     "xtr-security-jwt",
     "xtr-security-oauth2-server",
@@ -5315,6 +5316,41 @@ requires-dist = [
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-password-hasher", editable = "packages/xtr-password-hasher" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+]
+
+[[package]]
+name = "xtr-security-csrf"
+version = "4.1.0"
+source = { editable = "packages/xtr-security-csrf" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-foundation" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
 ]
 
 [package.metadata.requires-dev]

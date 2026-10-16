@@ -42,6 +42,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-orm](packages/xtr-orm) | Engines, sessions and versioned schema migrations for async applications, configured once per connection. |
 | [xtr-password-hasher](packages/xtr-password-hasher) | Password hashing behind one interface: argon2id by default, legacy hashes verified and upgraded. |
 | [xtr-security-core](packages/xtr-security-core) | The security core: users, tokens, roles, voters and the authorization decision. |
+| [xtr-security-csrf](packages/xtr-security-csrf) | Cross-site request forgery protection: a manager that mints and checks tokens by id, and the session storage that keeps them. |
 | [xtr-security-http](packages/xtr-security-http) | The HTTP edge of security: firewalls, authenticators, bearer access tokens and the request surface. |
 | [xtr-security-jwt](packages/xtr-security-jwt) | Self-issued JSON Web Tokens: key sets, an encoder and a token manager for a user. |
 | [xtr-security](packages/xtr-security) | The security bundle: the family facade and the container wiring that configures it. |
@@ -124,6 +125,7 @@ graph LR
     securitycore --> eventcon
     securitycore --> svccon
     securitycore --> clock
+    securitycsrf[xtr-security-csrf] --> httpfoundation
     securityhttp[xtr-security-http] --> securitycore
     securityhttp --> httpkernel
     securityhttp --> httpfoundation

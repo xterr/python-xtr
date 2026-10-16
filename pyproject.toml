@@ -39,6 +39,7 @@ xtr-remote-event         = { workspace = true }
 xtr-scheduler            = { workspace = true }
 xtr-security             = { workspace = true }
 xtr-security-core        = { workspace = true }
+xtr-security-csrf        = { workspace = true }
 xtr-security-http        = { workspace = true }
 xtr-security-jwt         = { workspace = true }
 xtr-security-oauth2-server = { workspace = true }
