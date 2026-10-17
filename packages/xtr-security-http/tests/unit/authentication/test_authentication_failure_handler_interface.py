@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
+from xtr_http_kernel.bridge import ResponseFactory
 
 from xtr_security_http.authentication.authentication_failure_handler_interface import (
     AuthenticationFailureHandlerInterface,
@@ -21,9 +22,9 @@ class _Failure(AuthenticationFailureHandlerInterface):
         self,
         request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> ResponseInterface | None:
+    ) -> ResponseInterface:
         del request, error
-        return None
+        return ResponseFactory().create_response(401)
 
 
 def test_a_conforming_handler_satisfies_the_interface() -> None:

@@ -47,9 +47,8 @@ class _SuccessHandler(AuthenticationSuccessHandlerInterface):
         self,
         request: ServerRequestInterface,
         token: TokenInterface,
-        firewall_name: str,
     ) -> ResponseInterface | None:
-        del request, token, firewall_name
+        del request, token
         return _SUCCESS_RESPONSE
 
 
@@ -59,7 +58,7 @@ class _FailureHandler(AuthenticationFailureHandlerInterface):
         self,
         request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> ResponseInterface | None:
+    ) -> ResponseInterface:
         del request, error
         return _FAILURE_RESPONSE
 

@@ -170,12 +170,9 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         firewall_name: str,
     ) -> ResponseInterface | None:
         """Delegate to the success handler, or let the request go on."""
+        del firewall_name  # the handler answers without it; the hook keeps the upstream shape
         if self._success_handler is not None:
-            return await self._success_handler.on_authentication_success(
-                request,
-                token,
-                firewall_name,
-            )
+            return await self._success_handler.on_authentication_success(request, token)
         return None
 
     @override

@@ -21,9 +21,8 @@ class _Success(AuthenticationSuccessHandlerInterface):
         self,
         request: ServerRequestInterface,
         token: TokenInterface,
-        firewall_name: str,
     ) -> ResponseInterface | None:
-        del request, token, firewall_name
+        del request, token
         return None
 
 

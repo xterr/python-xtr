@@ -24,7 +24,6 @@ class AuthenticationSuccessHandlerInterface(Protocol):
         self,
         request: ServerRequestInterface,
         token: TokenInterface,
-        firewall_name: str,
     ) -> ResponseInterface | None:
         """Answer ``request`` for the authenticated ``token``, or return ``None``."""
         ...

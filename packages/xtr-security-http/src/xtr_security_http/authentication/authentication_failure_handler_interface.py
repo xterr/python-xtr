@@ -13,18 +13,19 @@ __all__ = ["AuthenticationFailureHandlerInterface"]
 
 @runtime_checkable
 class AuthenticationFailureHandlerInterface(Protocol):
-    """Turns a failed authentication into a response, or leaves it to the entry point.
+    """Turns a failed authentication into the response that answers it.
 
-    An authenticator delegates its failure reaction here: a handler may answer
-    the request itself — a challenge, a redirect back to a form — or return
-    ``None`` to let the failure carry on and be turned into a response by the
-    firewall's entry point.
+    An authenticator delegates its failure reaction here: a handler answers
+    the request itself — a challenge, a redirect back to a form — and the
+    response it returns is what the firewall sends. A handler that wants the
+    entry point's challenge instead is not a failure handler: the authenticator
+    answers with ``None`` when it has none.
     """
 
     async def on_authentication_failure(
         self,
         request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> ResponseInterface | None:
-        """Answer ``request`` for the failure ``error``, or return ``None``."""
+    ) -> ResponseInterface:
+        """Answer ``request`` for the failure ``error``."""
         ...
