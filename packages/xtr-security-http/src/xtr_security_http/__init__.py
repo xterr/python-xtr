@@ -87,6 +87,8 @@ from .firewall_scheme_registry import (
     active_firewall_schemes,
 )
 from .http_utils import HttpUtils
+from .security_events import SecurityEvents
+from .security_request_attributes import SecurityRequestAttributes
 
 __all__ = [
     "MAX_USERNAME_LENGTH",
@@ -138,6 +140,8 @@ __all__ = [
     "PostAuthenticationToken",
     "PreAuthenticatedUserBadge",
     "QueryAccessTokenExtractor",
+    "SecurityEvents",
+    "SecurityRequestAttributes",
     "SelfValidatingPassport",
     "UnknownFirewallError",
     "UserBadge",

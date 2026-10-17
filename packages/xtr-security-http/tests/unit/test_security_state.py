@@ -6,11 +6,11 @@ from xtr_http_kernel.bridge import ResponseFactory
 from xtr_http_message_contracts import ResponseInterface
 
 from xtr_security_http._security_state import (
-    SECURITY_STATE_KEY,
     CarriedResponse,
     SecurityState,
     security_state_of,
 )
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 
 def test_the_state_is_parked_under_the_prefixed_key() -> None:
@@ -18,8 +18,8 @@ def test_the_state_is_parked_under_the_prefixed_key() -> None:
 
     state = security_state_of(bag)
 
-    assert bag[SECURITY_STATE_KEY] is state
-    assert SECURITY_STATE_KEY == "_xtr_security_"
+    assert bag[SecurityRequestAttributes.SECURITY_STATE] is state
+    assert SecurityRequestAttributes.SECURITY_STATE == "_xtr_security_"
 
 
 def test_the_state_is_created_once_per_bag() -> None:

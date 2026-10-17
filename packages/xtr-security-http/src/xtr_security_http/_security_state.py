@@ -14,7 +14,9 @@ response out to the exception listener.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, final
+
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
     from collections.abc import MutableMapping
@@ -25,16 +27,10 @@ if TYPE_CHECKING:
     from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
 __all__ = [
-    "SECURITY_STATE_KEY",
     "CarriedResponse",
     "SecurityState",
     "security_state_of",
 ]
-
-#: The one key the security layer parks its state under, on the request's
-#: state bag. Prefixed so it never collides with what an application keeps
-#: on the same bag; the names inside the object follow the same prefix.
-SECURITY_STATE_KEY: Final = "_xtr_security_"
 
 
 @final
@@ -88,12 +84,12 @@ def security_state_of(bag: MutableMapping[str, object]) -> SecurityState:
         The request's security state, parked on ``bag`` if this is the first
         read.
     """
-    state = bag.get(SECURITY_STATE_KEY)
+    state = bag.get(SecurityRequestAttributes.SECURITY_STATE)
     if isinstance(state, SecurityState):
         return state
 
     created = SecurityState()
-    bag[SECURITY_STATE_KEY] = created
+    bag[SecurityRequestAttributes.SECURITY_STATE] = created
     return created
 
 
