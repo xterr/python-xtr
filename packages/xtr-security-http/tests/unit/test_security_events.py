@@ -7,6 +7,7 @@ from xtr_event_dispatcher_contracts import Event, event_name_of
 from xtr_security_http.event import (
     AuthenticationTokenCreatedEvent,
     CheckPassportEvent,
+    InteractiveLoginEvent,
     LoginFailureEvent,
     LoginSuccessEvent,
 )
@@ -24,9 +25,19 @@ def test_every_event_class_maps_to_the_name_it_dispatches_under() -> None:
     assert set(aliases) == {
         AuthenticationTokenCreatedEvent,
         CheckPassportEvent,
+        InteractiveLoginEvent,
         LoginFailureEvent,
         LoginSuccessEvent,
     }
-    for event_class, name in aliases.items():
+    for event_class in aliases:
         assert issubclass(event_class, Event)
-        assert name == event_name_of(event_class)
+    # The class-keyed ones run under the qualified name the dispatcher
+    # derives; the interactive login under the name it carries.
+    for event_class in (
+        AuthenticationTokenCreatedEvent,
+        CheckPassportEvent,
+        LoginFailureEvent,
+        LoginSuccessEvent,
+    ):
+        assert aliases[event_class] == event_name_of(event_class)
+    assert aliases[InteractiveLoginEvent] == SecurityEvents.INTERACTIVE_LOGIN

@@ -17,6 +17,7 @@ from xtr_event_dispatcher_contracts import event_name_of
 
 from .event.authentication_token_created_event import AuthenticationTokenCreatedEvent
 from .event.check_passport_event import CheckPassportEvent
+from .event.interactive_login_event import InteractiveLoginEvent
 from .event.login_failure_event import LoginFailureEvent
 from .event.login_success_event import LoginSuccessEvent
 
@@ -35,15 +36,16 @@ class SecurityEvents:
     The named events — an interactive login, a user switch — are the ones
     an application listens for across the whole flow rather than at one
     authenticator, which is why they carry a name of their own instead of
-    running under their class's qualified name. The machinery that raises
-    them arrives with the interactive-login and switch-user features;
+    running under their class's qualified name. The interactive login's
+    machinery is here; the user switch's arrives with that feature, and
     declaring the names here first means a listener or a docstring never
     waits for a class to exist.
 
     :attr:`ALIASES` is the lookup between the two spellings: every event
     class this package raises today, mapped to the name it runs under. The
     class-keyed ones map to the qualified name the dispatcher derives; the
-    named ones join the mapping as their classes land.
+    named ones join the mapping as their classes land — the interactive
+    login's has, the user switch's is still to come.
     """
 
     INTERACTIVE_LOGIN: Final[str] = "security.interactive_login"
@@ -58,6 +60,7 @@ class SecurityEvents:
     ALIASES: Final[Mapping[type[Event], str]] = {
         AuthenticationTokenCreatedEvent: event_name_of(AuthenticationTokenCreatedEvent),
         CheckPassportEvent: event_name_of(CheckPassportEvent),
+        InteractiveLoginEvent: INTERACTIVE_LOGIN,
         LoginFailureEvent: event_name_of(LoginFailureEvent),
         LoginSuccessEvent: event_name_of(LoginSuccessEvent),
     }

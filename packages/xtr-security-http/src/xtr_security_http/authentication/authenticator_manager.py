@@ -17,14 +17,19 @@ from xtr_security_http.authentication.expose_security_level import ExposeSecurit
 from xtr_security_http.authentication.user_authenticator_interface import UserAuthenticatorInterface
 from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
 from xtr_security_http.authenticator.debug.traceable_authenticator import TraceableAuthenticator
+from xtr_security_http.authenticator.interactive_authenticator_interface import (
+    InteractiveAuthenticatorInterface,
+)
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.event.authentication_token_created_event import (
     AuthenticationTokenCreatedEvent,
 )
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
+from xtr_security_http.event.interactive_login_event import InteractiveLoginEvent
 from xtr_security_http.event.login_failure_event import LoginFailureEvent
 from xtr_security_http.event.login_success_event import LoginSuccessEvent
+from xtr_security_http.security_events import SecurityEvents
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from .authenticator_manager_interface import AuthenticatorManagerInterface
@@ -73,7 +78,10 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
     5. an
         :class:`~xtr_security_core.event.authentication_success_event.AuthenticationSuccessEvent`
         runs the post-authentication account check;
-    6. the token is stored, the authenticator's success handler runs, and a
+    6. the token is stored, the authenticator's success handler runs, an
+        interactive authenticator announces the login through an
+        :class:`~xtr_security_http.event.interactive_login_event.InteractiveLoginEvent`,
+        and a
         :class:`~xtr_security_http.event.login_success_event.LoginSuccessEvent`
         lets a listener migrate a password or replace the response.
 
@@ -364,10 +372,11 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
     ) -> ResponseInterface | None:
         """Store the token, run the success handler, then announce the login.
 
-        The interactive-login announcement — a user actively logging in, as
-        opposed to a token re-establishing one — belongs to the authenticators
-        that know the difference, and lands between the success handler and
-        this event with them.
+        An authenticator that reports itself interactive — one a user actively
+        logs in through, as opposed to a token re-establishing one — announces
+        the login between the success handler and the login-success event,
+        under the name
+        :attr:`~xtr_security_http.security_events.SecurityEvents.INTERACTIVE_LOGIN`.
         """
         self._token_storage.set_token(token)
         response = await authenticator.on_authentication_success(
@@ -375,6 +384,14 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
             token,
             self._firewall_name,
         )
+        if (
+            isinstance(authenticator, InteractiveAuthenticatorInterface)
+            and authenticator.is_interactive()
+        ):
+            _ = await self._event_dispatcher.dispatch(
+                InteractiveLoginEvent(request, token),
+                SecurityEvents.INTERACTIVE_LOGIN,
+            )
         event = LoginSuccessEvent(
             authenticator,
             passport,

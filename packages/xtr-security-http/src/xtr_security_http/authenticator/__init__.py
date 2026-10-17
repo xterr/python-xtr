@@ -6,11 +6,13 @@ from .abstract_authenticator import AbstractAuthenticator
 from .access_token_authenticator import AccessTokenAuthenticator
 from .authenticator_interface import AuthenticatorInterface
 from .debug import TraceableAuthenticator, UnsupportedReasons
+from .interactive_authenticator_interface import InteractiveAuthenticatorInterface
 
 __all__ = [
     "AbstractAuthenticator",
     "AccessTokenAuthenticator",
     "AuthenticatorInterface",
+    "InteractiveAuthenticatorInterface",
     "TraceableAuthenticator",
     "UnsupportedReasons",
 ]

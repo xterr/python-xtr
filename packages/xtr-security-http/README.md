@@ -212,6 +212,12 @@ over the firewall's own dispatcher:
    carrying the token the storage held before the login — lets a listener migrate a password or
    replace the response.
 
+Between the success handler and the login-success event, an authenticator that is an
+**`InteractiveAuthenticatorInterface`** reporting `is_interactive()` announces the login through
+**`InteractiveLoginEvent`** — a user actively logging in, as opposed to a session or a bearer token
+re-establishing one — under the name `SecurityEvents.INTERACTIVE_LOGIN`. No authenticator shipped
+here is interactive; one that is (a form login, a login link) brings the announcement with it.
+
 A lazy authenticator that raises a plain `BadCredentialsError` is read as *no credential
 presented* — it did not apply, so the next authenticator is tried. Any other failure is masked to
 the configured `ExposeSecurityLevel` (`NONE` hides everything as bad credentials,
@@ -343,10 +349,13 @@ answers a denied scope with a `403` carrying the RFC 6750 `insufficient_scope` c
 
 ### Security events
 
-Four events are raised around a request's authentication — `CheckPassportEvent`,
-`AuthenticationTokenCreatedEvent`, `LoginSuccessEvent`, `LoginFailureEvent`. A subscriber listens
-to the event class itself (the dispatcher derives each event's name from its class), so there is no
-separate table of name constants to keep in step.
+Five events are raised around a request's authentication — `CheckPassportEvent`,
+`AuthenticationTokenCreatedEvent`, `InteractiveLoginEvent`, `LoginSuccessEvent`, `LoginFailureEvent`.
+A subscriber listens to the event class itself (the dispatcher derives each event's name from its
+class) — except `InteractiveLoginEvent`, the one event that carries a name of its own,
+`SecurityEvents.INTERACTIVE_LOGIN` (`security.interactive_login`), because an application listens
+for a user's own login across the whole flow rather than at one authenticator.
+`SecurityEvents.ALIASES` maps every event class to the name it is dispatched under.
 
 ## Errors
 
@@ -377,7 +386,7 @@ xtr_security_http/
 ├── authorization/              OAuth2ScopeVoter, oauth2_scope, the scope-denied handler
 ├── decorator/                  IsGranted, CurrentUser, IsGrantedContext
 ├── entry_point/                AuthenticationEntryPointInterface
-├── event/                      the four firewall events
+├── event/                      the firewall events around a login
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)
 └── exception/                  the errors this package adds
 ```

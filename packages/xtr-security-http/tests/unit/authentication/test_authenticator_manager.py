@@ -36,13 +36,16 @@ from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.authenticator.passport.credentials import PasswordCredentials
 from xtr_security_http.authenticator.passport.passport import Passport
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
+from xtr_security_http.event.interactive_login_event import InteractiveLoginEvent
 from xtr_security_http.event.login_failure_event import LoginFailureEvent
 from xtr_security_http.event.login_success_event import LoginSuccessEvent
 from xtr_security_http.exception import InvalidAccessTokenError
+from xtr_security_http.security_events import SecurityEvents
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
+    from xtr_security_core.authentication.token.token_interface import TokenInterface
 
     from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
 
@@ -98,6 +101,29 @@ class _BadTokenAuthenticator(AbstractAuthenticator):
     async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
         raise InvalidAccessTokenError
+
+
+@final
+class _InteractiveAuthenticator(AbstractAuthenticator):
+    """An authenticator a user actively logs in through — or claims to."""
+
+    def __init__(self, *, interactive: bool = True) -> None:
+        self._interactive = interactive
+
+    @override
+    def supports(self, request: ServerRequestInterface) -> bool | None:
+        del request
+        return True
+
+    @override
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
+        del request
+        return Passport(
+            UserBadge("alice", user_loader=loader(roles=("ROLE_USER",))),
+        )
+
+    def is_interactive(self) -> bool:
+        return self._interactive
 
 
 @final
@@ -519,6 +545,124 @@ async def test_the_login_success_event_carries_the_token_the_storage_held() -> N
 
     successes = [event for event in dispatcher.events if isinstance(event, LoginSuccessEvent)]
     assert successes[0].get_previous_token() is previous
+
+
+async def test_an_interactive_authenticator_announces_the_interactive_login() -> None:
+    storage = TokenStorage()
+    dispatcher = RecordingDispatcher()
+    manager = AuthenticatorManager([_InteractiveAuthenticator()], storage, dispatcher, "api")
+    state = SecurityState()
+    message = make_message()
+    _ = manager.supports(message, state)
+
+    _ = await manager.authenticate_request(message, state)
+
+    announcements = [
+        event for event in dispatcher.events if isinstance(event, InteractiveLoginEvent)
+    ]
+    assert len(announcements) == 1
+    assert announcements[0].get_request() is message
+    assert announcements[0].get_authenticated_token() is storage.get_token()
+
+
+async def test_the_interactive_login_is_announced_under_its_name() -> None:
+    @final
+    class _NamingDispatcher:
+        def __init__(self) -> None:
+            self.dispatched: list[tuple[object, str | type | None]] = []
+
+        async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+            self.dispatched.append((event, event_name))
+            return event
+
+    dispatcher = _NamingDispatcher()
+    manager = AuthenticatorManager([_InteractiveAuthenticator()], TokenStorage(), dispatcher, "api")
+
+    _ = await _authenticate(manager)
+
+    announced = [
+        name for event, name in dispatcher.dispatched if isinstance(event, InteractiveLoginEvent)
+    ]
+    assert announced == [SecurityEvents.INTERACTIVE_LOGIN]
+
+
+async def test_a_non_interactive_authenticator_does_not_announce_the_interactive_login() -> None:
+    dispatcher = RecordingDispatcher()
+    manager = AuthenticatorManager(
+        [_InteractiveAuthenticator(interactive=False)],
+        TokenStorage(),
+        dispatcher,
+        "api",
+    )
+
+    _ = await _authenticate(manager)
+
+    announcements = [
+        event for event in dispatcher.events if isinstance(event, InteractiveLoginEvent)
+    ]
+    assert announcements == []
+
+
+async def test_an_authenticator_without_the_interface_does_not_announce_the_interactive_login() -> (
+    None
+):
+    dispatcher = RecordingDispatcher()
+    manager = AuthenticatorManager([_Authenticator()], TokenStorage(), dispatcher, "api")
+
+    _ = await _authenticate(manager)
+
+    announcements = [
+        event for event in dispatcher.events if isinstance(event, InteractiveLoginEvent)
+    ]
+    assert announcements == []
+
+
+async def test_the_interactive_login_is_announced_between_handler_and_login_success() -> None:
+    order: list[str] = []
+
+    @final
+    class _Recording(AbstractAuthenticator):
+        @override
+        def supports(self, request: ServerRequestInterface) -> bool | None:
+            del request
+            return True
+
+        @override
+        async def authenticate(self, request: ServerRequestInterface) -> Passport:
+            del request
+            return Passport(
+                UserBadge("alice", user_loader=loader(roles=("ROLE_USER",))),
+            )
+
+        def is_interactive(self) -> bool:
+            return True
+
+        @override
+        async def on_authentication_success(
+            self,
+            request: ServerRequestInterface,
+            token: TokenInterface,
+            firewall_name: str,
+        ) -> ResponseInterface | None:
+            del request, token, firewall_name
+            order.append("handler")
+            return None
+
+    @final
+    class _RecordingDispatcher:
+        async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+            del event_name
+            if isinstance(event, InteractiveLoginEvent):
+                order.append("interactive")
+            if isinstance(event, LoginSuccessEvent):
+                order.append("success")
+            return event
+
+    manager = AuthenticatorManager([_Recording()], TokenStorage(), _RecordingDispatcher(), "api")
+
+    _ = await _authenticate(manager)
+
+    assert order == ["handler", "interactive", "success"]
 
 
 async def test_authenticate_user_logs_a_known_user_in() -> None:

@@ -35,6 +35,7 @@ from .authenticator import (
     AbstractAuthenticator,
     AccessTokenAuthenticator,
     AuthenticatorInterface,
+    InteractiveAuthenticatorInterface,
     TraceableAuthenticator,
     UnsupportedReasons,
 )
@@ -66,6 +67,7 @@ from .entry_point import AuthenticationEntryPointInterface
 from .event import (
     AuthenticationTokenCreatedEvent,
     CheckPassportEvent,
+    InteractiveLoginEvent,
     LoginFailureEvent,
     LoginSuccessEvent,
 )
@@ -130,6 +132,8 @@ __all__ = [
     "HeaderAccessTokenExtractor",
     "HttpUtils",
     "InsufficientScopeAccessDeniedHandler",
+    "InteractiveAuthenticatorInterface",
+    "InteractiveLoginEvent",
     "InvalidAccessTokenError",
     "IsGranted",
     "IsGrantedContext",
