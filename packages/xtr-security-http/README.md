@@ -177,21 +177,28 @@ token) — reads the request into a `Passport` with `authenticate(request)`, and
 with `create_token(passport, firewall_name)`. `AbstractAuthenticator` is the base that builds a
 `PostAuthenticationToken` carrying the user and roles.
 
-A **`Passport`** gathers a `UserBadge` and other `BadgeInterface` badges, keyed by class
-(`add_badge`, `get_badge`, `has_badge`, `get_user`, attributes). A badge
-`is_resolved()` reports whether it has been handled; `check_if_completely_resolved()` raises
-`BadCredentialsError` if any badge is still open. The badges:
+A **`Passport`** gathers a `UserBadge`, a `CredentialsInterface` to verify for that user, and any
+other `BadgeInterface` badges, keyed by class (`add_badge` — with an explicit key, so a custom badge
+can stand in for a built-in — `get_badge`, `has_badge`, `get_user`, attributes). A badge
+`is_resolved()` reports whether it has been handled; the manager fails a passport whose badges are
+not all resolved once the check is done. The badges:
 
 | Badge | Resolves when | Carries |
 |---|---|---|
-| `UserBadge(identifier, user_loader=None, ...)` | a loader is set | the identifier and how to load the user |
+| `UserBadge(identifier, user_loader=None, ...)` | always | the identifier and how to load the user |
+| `AuthenticationMethodBadge(*methods)` | always | the authentication methods the attempt verified |
+| `CsrfTokenBadge(csrf_token_id, csrf_token)` | the CSRF listener checked the token | the token's identifier and the presented value |
 | `PasswordUpgradeBadge(plaintext, upgrader=None)` | always | a verified plaintext to rehash and store |
+| `RememberMeBadge(parameters=None)` | always | whether a remember-me cookie is wanted (`enable`/`disable`), and what to check |
 | `PreAuthenticatedUserBadge()` | always | nothing — the user is already trusted |
 
 A **`CredentialsInterface`** is a badge to verify: `PasswordCredentials(password)` holds a
-plaintext (`get_password()`, `mark_resolved()`), `CustomCredentials(checker, credentials)` runs
-a callable `verify(user)`. A **`SelfValidatingPassport`** carries a `PreAuthenticatedUserBadge`,
-for an authenticator — like the access-token one — that already trusts the credential.
+plaintext (`get_password()`, `mark_resolved()` — reading it after resolution is refused, the
+credential is consumed), `CustomCredentials(checker, credentials)` runs a callable through
+`execute_custom_checker(user)`, which fails authentication unless it returns strictly `True`. A
+**`SelfValidatingPassport`** carries no credentials, for an authenticator — like the access-token
+one — that already trusts the credential; it attaches no `PreAuthenticatedUserBadge` of its own, so
+the account checks still run.
 
 ### The authenticator manager and its event order
 

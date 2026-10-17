@@ -37,10 +37,10 @@ class AbstractAuthenticator(  # pyright: ignore[reportImplicitAbstractClass]  --
     async def create_token(self, passport: Passport, firewall_name: str) -> TokenInterface:
         """Build a post-authentication token for the passport's user and roles.
 
-        The user is read from the passport's user badge, which the passport
+        The user is read through the passport, which caches what the passport
         check already loaded, so this call does no I/O.
         """
-        user = passport.get_user_badge().get_loaded_user()
+        user = await passport.get_user()
         return PostAuthenticationToken(user, firewall_name, user.get_roles())
 
     @override

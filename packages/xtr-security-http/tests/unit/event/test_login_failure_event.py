@@ -13,7 +13,7 @@ from xtr_security_http.access_token.header_access_token_extractor import HeaderA
 from xtr_security_http.authenticator.access_token_authenticator import AccessTokenAuthenticator
 from xtr_security_http.authenticator.debug.traceable_authenticator import TraceableAuthenticator
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.event.login_failure_event import LoginFailureEvent
 
 
@@ -71,7 +71,7 @@ def test_the_constructor_signature_is_aligned_with_the_upstream_order() -> None:
 
 
 def test_it_carries_the_passport_and_the_handlers_answer() -> None:
-    passport = Passport(UserBadge("alice"))
+    passport = SelfValidatingPassport(UserBadge("alice"))
     response = ResponseFactory().create_response(401)
     event = LoginFailureEvent(
         BadCredentialsError(),

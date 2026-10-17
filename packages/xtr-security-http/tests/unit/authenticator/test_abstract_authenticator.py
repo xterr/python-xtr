@@ -13,11 +13,13 @@ from tests.support.messages import make_message
 from tests.support.users import loader
 from xtr_security_http.authenticator.abstract_authenticator import AbstractAuthenticator
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.authenticator.token.post_authentication_token import PostAuthenticationToken
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
+
+    from xtr_security_http.authenticator.passport.passport import Passport
 
 pytestmark = pytest.mark.anyio
 
@@ -31,11 +33,11 @@ class _Authenticator(AbstractAuthenticator):
     @override
     async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
-        return Passport(UserBadge("alice"))
+        return SelfValidatingPassport(UserBadge("alice"))
 
 
 async def _passport_with_loaded_user() -> Passport:
-    passport = Passport(UserBadge("root", user_loader=loader(roles=("ROLE_ADMIN",))))
+    passport = SelfValidatingPassport(UserBadge("root", user_loader=loader(roles=("ROLE_ADMIN",))))
     _ = await passport.get_user()
     return passport
 

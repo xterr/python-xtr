@@ -19,7 +19,7 @@ from xtr_security_http.authenticator.passport.badge.password_upgrade_badge impor
     PasswordUpgradeBadge,
 )
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.authenticator.token.post_authentication_token import PostAuthenticationToken
 from xtr_security_http.event.login_success_event import LoginSuccessEvent
 from xtr_security_http.event_listener.password_migrating_listener import PasswordMigratingListener
@@ -62,7 +62,9 @@ class _RecordingUpgrader(PasswordUpgraderInterface):
         self.stored = new_hashed_password
 
 
-def _login_success_event(passport: Passport, token: PostAuthenticationToken) -> LoginSuccessEvent:
+def _login_success_event(
+    passport: SelfValidatingPassport, token: PostAuthenticationToken
+) -> LoginSuccessEvent:
     authenticator = AccessTokenAuthenticator(
         FakeAccessTokenHandler({}),
         HeaderAccessTokenExtractor(),
@@ -73,7 +75,7 @@ def _login_success_event(passport: Passport, token: PostAuthenticationToken) -> 
 
 async def test_it_rehashes_and_stores() -> None:
     upgrader = _RecordingUpgrader()
-    passport = Passport(UserBadge("alice"))
+    passport = SelfValidatingPassport(UserBadge("alice"))
     _ = passport.add_badge(PasswordUpgradeBadge("secret", upgrader))
     token = PostAuthenticationToken(InMemoryUser("alice", password="old"), "api", ())  # noqa: S106
     event = _login_success_event(passport, token)
@@ -84,7 +86,7 @@ async def test_it_rehashes_and_stores() -> None:
 
 
 async def test_it_does_nothing_without_a_badge() -> None:
-    passport = Passport(UserBadge("alice"))
+    passport = SelfValidatingPassport(UserBadge("alice"))
     token = PostAuthenticationToken(InMemoryUser("alice"), "api", ())
     event = _login_success_event(passport, token)
 

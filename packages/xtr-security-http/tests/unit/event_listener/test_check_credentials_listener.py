@@ -69,7 +69,7 @@ async def test_it_verifies_a_password() -> None:
     stored = hasher.hash_password(InMemoryUser("alice"), "secret")
     passport = Passport(
         UserBadge("alice", user_loader=loader(password=stored)),
-        [PasswordCredentials("secret")],
+        PasswordCredentials("secret"),
     )
 
     listener = CheckCredentialsListener(hasher, PlaintextPasswordHasher())
@@ -85,7 +85,7 @@ async def test_it_rejects_a_wrong_password() -> None:
     stored = hasher.hash_password(InMemoryUser("alice"), "secret")
     passport = Passport(
         UserBadge("alice", user_loader=loader(password=stored)),
-        [PasswordCredentials("wrong")],
+        PasswordCredentials("wrong"),
     )
 
     with pytest.raises(BadCredentialsError):
@@ -99,7 +99,7 @@ async def test_it_adds_an_upgrade_badge_when_rehash_is_needed() -> None:
     stored = hasher.hash_password(InMemoryUser("alice"), "secret")
     passport = Passport(
         UserBadge("alice", user_loader=loader(password=stored)),
-        [PasswordCredentials("secret")],
+        PasswordCredentials("secret"),
     )
 
     listener = CheckCredentialsListener(hasher, PlaintextPasswordHasher())
@@ -116,7 +116,7 @@ async def test_it_burns_a_dummy_for_an_unknown_user() -> None:
 
     passport = Passport(
         UserBadge("ghost", user_loader=unknown_loader),
-        [PasswordCredentials("secret")],
+        PasswordCredentials("secret"),
     )
     dummy = _SpyHasher()
 
@@ -165,7 +165,7 @@ async def test_it_burns_a_dummy_when_the_user_has_no_password() -> None:
 
     passport = Passport(
         UserBadge("machine", user_loader=load_passwordless),
-        [PasswordCredentials("secret")],
+        PasswordCredentials("secret"),
     )
     dummy = _SpyHasher()
 
@@ -178,7 +178,7 @@ async def test_it_burns_a_dummy_when_the_user_has_no_password() -> None:
 async def test_it_burns_a_dummy_when_the_stored_password_is_none() -> None:
     passport = Passport(
         UserBadge("alice", user_loader=loader(password=None)),
-        [PasswordCredentials("secret")],
+        PasswordCredentials("secret"),
     )
     dummy = _SpyHasher()
 
@@ -191,7 +191,7 @@ async def test_it_burns_a_dummy_when_the_stored_password_is_none() -> None:
 async def test_it_runs_custom_credentials() -> None:
     passport = Passport(
         UserBadge("alice", user_loader=InMemoryUser),
-        [CustomCredentials(accept, "ok")],
+        CustomCredentials(accept, "ok"),
     )
 
     await CheckCredentialsListener(_UserHasher(), PlaintextPasswordHasher()).check_passport(
@@ -206,7 +206,7 @@ async def test_it_runs_custom_credentials() -> None:
 async def test_it_rejects_bad_custom_credentials() -> None:
     passport = Passport(
         UserBadge("alice", user_loader=InMemoryUser),
-        [CustomCredentials(reject, "x")],
+        CustomCredentials(reject, "x"),
     )
 
     with pytest.raises(BadCredentialsError):
@@ -223,7 +223,7 @@ async def test_resolve_user_burns_a_dummy_before_the_account_check() -> None:
 
     passport = Passport(
         UserBadge("ghost", user_loader=unknown_loader),
-        [PasswordCredentials("secret")],
+        PasswordCredentials("secret"),
     )
     dummy = _SpyHasher()
 
@@ -238,7 +238,7 @@ async def test_resolve_user_loads_a_known_user_without_burning() -> None:
     stored = hasher.hash_password(InMemoryUser("alice"), "secret")
     passport = Passport(
         UserBadge("alice", user_loader=loader(password=stored)),
-        [PasswordCredentials("secret")],
+        PasswordCredentials("secret"),
     )
     dummy = _SpyHasher()
 
@@ -253,7 +253,7 @@ async def test_resolve_user_loads_a_known_user_without_burning() -> None:
 async def test_resolve_user_ignores_a_passport_with_no_password() -> None:
     passport = Passport(
         UserBadge("alice", user_loader=InMemoryUser),
-        [CustomCredentials(accept, "ok")],
+        CustomCredentials(accept, "ok"),
     )
     dummy = _SpyHasher()
 

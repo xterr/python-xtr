@@ -23,5 +23,5 @@ def test_resolving_drops_the_plaintext() -> None:
     credentials.mark_resolved()
 
     assert credentials.is_resolved() is True
-    with pytest.raises(InvalidArgumentError):
+    with pytest.raises(InvalidArgumentError, match="erased"):
         _ = credentials.get_password()

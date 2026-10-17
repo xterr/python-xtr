@@ -41,9 +41,12 @@ from .authenticator import (
 )
 from .authenticator.passport import Passport, SelfValidatingPassport
 from .authenticator.passport.badge import (
+    AuthenticationMethodBadge,
     BadgeInterface,
+    CsrfTokenBadge,
     PasswordUpgradeBadge,
     PreAuthenticatedUserBadge,
+    RememberMeBadge,
     UserBadge,
 )
 from .authenticator.passport.badge.user_badge import MAX_USERNAME_LENGTH
@@ -107,6 +110,7 @@ __all__ = [
     "AccessTokenHandlerInterface",
     "AuthenticationEntryPointInterface",
     "AuthenticationFailureHandlerInterface",
+    "AuthenticationMethodBadge",
     "AuthenticationSuccessHandlerInterface",
     "AuthenticationTokenCreatedEvent",
     "AuthenticatorInterface",
@@ -117,6 +121,7 @@ __all__ = [
     "CheckCredentialsListener",
     "CheckPassportEvent",
     "CredentialsInterface",
+    "CsrfTokenBadge",
     "CurrentUser",
     "CustomCredentials",
     "ExceptionListener",
@@ -147,6 +152,7 @@ __all__ = [
     "PostAuthenticationToken",
     "PreAuthenticatedUserBadge",
     "QueryAccessTokenExtractor",
+    "RememberMeBadge",
     "SecurityEvents",
     "SecurityRequestAttributes",
     "SelfValidatingPassport",

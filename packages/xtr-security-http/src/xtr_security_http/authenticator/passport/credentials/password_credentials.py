@@ -37,7 +37,10 @@ class PasswordCredentials(CredentialsInterface):
                 the plaintext has been dropped.
         """
         if self._resolved:
-            raise InvalidArgumentError("The password credentials have already been resolved.")
+            raise InvalidArgumentError(
+                "The credentials are erased as another listener already verified these "
+                "credentials.",
+            )
         return self._password
 
     def mark_resolved(self) -> None:

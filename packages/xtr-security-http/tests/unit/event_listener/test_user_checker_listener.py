@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.event.authentication_success_event import AuthenticationSuccessEvent
@@ -13,11 +15,21 @@ from tests.support.http import FakeAccessTokenHandler
 from tests.support.users import loader
 from xtr_security_http.access_token.header_access_token_extractor import HeaderAccessTokenExtractor
 from xtr_security_http.authenticator.access_token_authenticator import AccessTokenAuthenticator
+from xtr_security_http.authenticator.passport.badge.pre_authenticated_user_badge import (
+    PreAuthenticatedUserBadge,
+)
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.authenticator.token.post_authentication_token import PostAuthenticationToken
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
-from xtr_security_http.event_listener.user_checker_listener import UserCheckerListener
+from xtr_security_http.event_listener.user_checker_listener import (
+    POST_PRIORITY,
+    PRE_PRIORITY,
+    UserCheckerListener,
+)
+
+if TYPE_CHECKING:
+    from xtr_security_http.authenticator.passport.passport import Passport
 
 pytestmark = pytest.mark.anyio
 
@@ -31,9 +43,13 @@ def _event(passport: Passport) -> CheckPassportEvent:
     return CheckPassportEvent(authenticator, passport)
 
 
+def _listener() -> UserCheckerListener:
+    return UserCheckerListener(InMemoryUserChecker())
+
+
 async def test_it_runs_pre_and_post_checks() -> None:
-    listener = UserCheckerListener(InMemoryUserChecker())
-    good = Passport(UserBadge("alice", user_loader=InMemoryUser))
+    listener = _listener()
+    good = SelfValidatingPassport(UserBadge("alice", user_loader=InMemoryUser))
 
     await listener.pre_check_credentials(_event(good))
 
@@ -42,8 +58,42 @@ async def test_it_runs_pre_and_post_checks() -> None:
 
 
 async def test_it_rejects_a_disabled_account() -> None:
-    listener = UserCheckerListener(InMemoryUserChecker())
-    disabled = Passport(UserBadge("alice", user_loader=loader(enabled=False)))
+    listener = _listener()
+    disabled = SelfValidatingPassport(UserBadge("alice", user_loader=loader(enabled=False)))
 
     with pytest.raises(DisabledError):
         await listener.pre_check_credentials(_event(disabled))
+
+
+async def test_a_pre_authenticated_badge_skips_the_pre_check() -> None:
+    # The contract of a self-validating passport: without the badge the
+    # pre-auth account checks run; carrying it — only an authenticator that
+    # pre-authenticated the user itself adds it — they are skipped.
+    listener = _listener()
+    passport = SelfValidatingPassport(
+        UserBadge("alice", user_loader=loader(enabled=False)),
+        [PreAuthenticatedUserBadge()],
+    )
+
+    await listener.pre_check_credentials(_event(passport))
+
+
+async def test_a_non_user_token_skips_the_post_check() -> None:
+    listener = _listener()
+
+    class _NotAUser:
+        def get_user_identifier(self) -> str:
+            return "stringly"
+
+    token = PostAuthenticationToken(_NotAUser(), "api", ())  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  # a token carrying a non-user on purpose
+
+    await listener.post_check_credentials(AuthenticationSuccessEvent(token))
+
+
+def test_the_checks_run_at_the_upstream_priorities() -> None:
+    events = UserCheckerListener.get_subscribed_events()
+
+    assert events[CheckPassportEvent] == ("pre_check_credentials", PRE_PRIORITY)
+    assert events[AuthenticationSuccessEvent] == ("post_check_credentials", POST_PRIORITY)
+    assert PRE_PRIORITY == 256
+    assert POST_PRIORITY == 256

@@ -248,7 +248,7 @@ async def test_an_unknown_user_with_a_password_burns_a_dummy_through_the_dispatc
         dispatcher = await unit.get(EventDispatcherInterface, firewall_dispatcher_name("api"))
         passport = Passport(
             UserBadge("ghost", user_loader=unknown_loader),
-            [PasswordCredentials("secret")],
+            PasswordCredentials("secret"),
         )
         event = CheckPassportEvent(cast("AuthenticatorInterface", cast("object", None)), passport)
 

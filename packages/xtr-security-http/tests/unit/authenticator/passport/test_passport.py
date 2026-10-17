@@ -1,11 +1,12 @@
-"""A passport carries a user badge, keyed badges, and shared attributes."""
+"""A passport carries a user badge, a credential, keyed badges and attributes."""
 
 from __future__ import annotations
 
 import pytest
-from xtr_security_core.exception import BadCredentialsError
+from xtr_security_core.exception import AuthenticationServiceError
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
+from tests.support.users import loader
 from xtr_security_http.authenticator.passport.badge.password_upgrade_badge import (
     PasswordUpgradeBadge,
 )
@@ -21,24 +22,35 @@ from xtr_security_http.authenticator.passport.passport import Passport
 pytestmark = pytest.mark.anyio
 
 
-def test_it_carries_the_user_badge() -> None:
-    badge = UserBadge("alice")
-    passport = Passport(badge)
+def _passport() -> Passport:
+    return Passport(UserBadge("alice", user_loader=InMemoryUser), PasswordCredentials("secret"))
+
+
+def test_it_carries_the_user_badge_and_the_credentials() -> None:
+    badge = UserBadge("alice", user_loader=InMemoryUser)
+    credentials = PasswordCredentials("secret")
+    passport = Passport(badge, credentials)
 
     assert passport.get_user_badge() is badge
     assert passport.has_badge(UserBadge) is True
+    assert passport.get_badge(PasswordCredentials) is credentials
 
 
 def test_badges_are_keyed_by_class() -> None:
-    passport = Passport(UserBadge("alice"), [PreAuthenticatedUserBadge()])
+    passport = _passport()
+    _ = passport.add_badge(PreAuthenticatedUserBadge())
 
     assert passport.has_badge(PreAuthenticatedUserBadge) is True
     assert passport.get_badge(PasswordUpgradeBadge) is None
-    assert set(passport.get_badges()) == {UserBadge, PreAuthenticatedUserBadge}
+    assert set(passport.get_badges()) == {
+        UserBadge,
+        PasswordCredentials,
+        PreAuthenticatedUserBadge,
+    }
 
 
 def test_a_badge_replaces_one_of_its_class() -> None:
-    passport = Passport(UserBadge("alice"))
+    passport = _passport()
     first = PasswordUpgradeBadge("a")
     second = PasswordUpgradeBadge("b")
 
@@ -48,8 +60,18 @@ def test_a_badge_replaces_one_of_its_class() -> None:
     assert passport.get_badge(PasswordUpgradeBadge) is second
 
 
+def test_a_badge_may_be_keyed_under_another_class() -> None:
+    passport = _passport()
+    stand_in = PasswordUpgradeBadge("a")
+
+    _ = passport.add_badge(stand_in, PreAuthenticatedUserBadge)
+
+    assert passport.get_badge(PreAuthenticatedUserBadge) is stand_in
+    assert passport.has_badge(PasswordUpgradeBadge) is False
+
+
 def test_attributes_are_a_shared_scratch_space() -> None:
-    passport = Passport(UserBadge("alice"))
+    passport = _passport()
 
     passport.set_attribute("scope", ["a"])
 
@@ -59,22 +81,33 @@ def test_attributes_are_a_shared_scratch_space() -> None:
 
 
 async def test_it_loads_the_user_through_the_badge() -> None:
-    passport = Passport(UserBadge("alice", user_loader=InMemoryUser))
+    passport = Passport(
+        UserBadge("alice", user_loader=InMemoryUser),
+        PasswordCredentials("secret"),
+    )
 
     user = await passport.get_user()
 
     assert user.get_user_identifier() == "alice"
 
 
-def test_an_unresolved_badge_fails_the_completeness_check() -> None:
-    passport = Passport(UserBadge("alice", user_loader=InMemoryUser))
-    _ = passport.add_badge(PasswordCredentials("secret"))
+async def test_it_loads_the_user_once_and_caches_it() -> None:
+    passport = Passport(
+        UserBadge("alice", user_loader=loader()),
+        PasswordCredentials("secret"),
+    )
 
-    with pytest.raises(BadCredentialsError):
-        passport.check_if_completely_resolved()
+    first = await passport.get_user()
+    second = await passport.get_user()
+
+    assert first is second
 
 
-def test_all_resolved_badges_pass_the_completeness_check() -> None:
-    passport = Passport(UserBadge("alice", user_loader=InMemoryUser))
+async def test_loading_without_a_user_badge_is_a_service_error() -> None:
+    # A passport built by hand could lack the badge its constructor always
+    # adds; asking it for the user is refused rather than crashing.
+    passport = _passport()
+    passport._badges.clear()
 
-    passport.check_if_completely_resolved()
+    with pytest.raises(AuthenticationServiceError):
+        _ = await passport.get_user()

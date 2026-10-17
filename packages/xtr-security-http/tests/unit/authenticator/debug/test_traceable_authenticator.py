@@ -20,11 +20,13 @@ from xtr_security_http.authenticator.authenticator_interface import Authenticato
 from xtr_security_http.authenticator.debug.traceable_authenticator import TraceableAuthenticator
 from xtr_security_http.authenticator.debug.unsupported_reasons import UnsupportedReasons
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
+
+    from xtr_security_http.authenticator.passport.passport import Passport
 
 pytestmark = pytest.mark.anyio
 
@@ -46,7 +48,7 @@ class _Explaining(AbstractAuthenticator):
     @override
     async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
-        return Passport(UserBadge("alice"))
+        return SelfValidatingPassport(UserBadge("alice"))
 
 
 @final
@@ -125,7 +127,7 @@ async def test_it_records_the_outcome_of_both_hooks() -> None:
 async def test_it_passes_the_token_creation_through() -> None:
     traceable = TraceableAuthenticator(_Explaining(supported=True))
     badge = UserBadge("alice", user_loader=loader())
-    passport = Passport(badge)
+    passport = SelfValidatingPassport(badge)
     _ = await badge.get_user()
 
     token = await traceable.create_token(passport, "api")

@@ -15,14 +15,14 @@ from xtr_security_http.access_token.header_access_token_extractor import HeaderA
 from xtr_security_http.authenticator.access_token_authenticator import AccessTokenAuthenticator
 from xtr_security_http.authenticator.debug.traceable_authenticator import TraceableAuthenticator
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.event.login_success_event import LoginSuccessEvent
 
 pytestmark = pytest.mark.anyio
 
 
 def test_it_holds_its_context_and_replaces_the_response() -> None:
-    passport = Passport(UserBadge("alice"))
+    passport = SelfValidatingPassport(UserBadge("alice"))
     token = NullToken()
     request = make_message()
     authenticator = AccessTokenAuthenticator(
@@ -50,7 +50,7 @@ def test_a_listener_may_replace_the_response() -> None:
             HeaderAccessTokenExtractor(),
             ResponseFactory(),
         ),
-        Passport(UserBadge("alice")),
+        SelfValidatingPassport(UserBadge("alice")),
         NullToken(),
         make_message(),
         None,
@@ -85,7 +85,7 @@ def test_it_carries_the_token_the_storage_held_before() -> None:
             HeaderAccessTokenExtractor(),
             ResponseFactory(),
         ),
-        Passport(UserBadge("alice")),
+        SelfValidatingPassport(UserBadge("alice")),
         NullToken(),
         make_message(),
         None,
@@ -105,7 +105,7 @@ async def test_get_user_loads_the_passports_user() -> None:
             HeaderAccessTokenExtractor(),
             ResponseFactory(),
         ),
-        Passport(badge),
+        SelfValidatingPassport(badge),
         NullToken(),
         make_message(),
         None,
@@ -123,7 +123,7 @@ def test_a_traceable_wrapper_is_opened_by_the_authenticator_getter() -> None:
     )
     event = LoginSuccessEvent(
         TraceableAuthenticator(inner),
-        Passport(UserBadge("alice")),
+        SelfValidatingPassport(UserBadge("alice")),
         NullToken(),
         make_message(),
         None,

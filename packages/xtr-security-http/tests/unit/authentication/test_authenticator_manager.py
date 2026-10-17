@@ -34,7 +34,7 @@ from xtr_security_http.authenticator.passport.badge.pre_authenticated_user_badge
 )
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.authenticator.passport.credentials import PasswordCredentials
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
 from xtr_security_http.event.interactive_login_event import InteractiveLoginEvent
 from xtr_security_http.event.login_failure_event import LoginFailureEvent
@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from xtr_security_core.authentication.token.token_interface import TokenInterface
 
     from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
+    from xtr_security_http.authenticator.passport.passport import Passport
 
 pytestmark = pytest.mark.anyio
 
@@ -72,7 +73,7 @@ class _Authenticator(AbstractAuthenticator):
     async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
         self.authentications += 1
-        return Passport(
+        return SelfValidatingPassport(
             UserBadge(self._identifier, user_loader=loader(roles=("ROLE_USER",))),
         )
 
@@ -118,7 +119,7 @@ class _InteractiveAuthenticator(AbstractAuthenticator):
     @override
     async def authenticate(self, request: ServerRequestInterface) -> Passport:
         del request
-        return Passport(
+        return SelfValidatingPassport(
             UserBadge("alice", user_loader=loader(roles=("ROLE_USER",))),
         )
 
@@ -413,7 +414,7 @@ async def test_a_sensitive_error_is_masked_when_hidden() -> None:
             def loader(identifier: str) -> InMemoryUser:
                 raise UserNotFoundError(user_identifier=identifier)
 
-            return Passport(UserBadge("ghost", user_loader=loader))
+            return SelfValidatingPassport(UserBadge("ghost", user_loader=loader))
 
     dispatcher = RecordingDispatcher()
     manager = AuthenticatorManager(
@@ -630,7 +631,7 @@ async def test_the_interactive_login_is_announced_between_handler_and_login_succ
         @override
         async def authenticate(self, request: ServerRequestInterface) -> Passport:
             del request
-            return Passport(
+            return SelfValidatingPassport(
                 UserBadge("alice", user_loader=loader(roles=("ROLE_USER",))),
             )
 

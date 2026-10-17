@@ -11,14 +11,14 @@ from tests.support.http import FakeAccessTokenHandler
 from xtr_security_http.access_token.header_access_token_extractor import HeaderAccessTokenExtractor
 from xtr_security_http.authenticator.access_token_authenticator import AccessTokenAuthenticator
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
 from xtr_security_http.event_listener.user_provider_listener import UserProviderListener
 
 pytestmark = pytest.mark.anyio
 
 
-def _event(passport: Passport) -> CheckPassportEvent:
+def _event(passport: SelfValidatingPassport) -> CheckPassportEvent:
     authenticator = AccessTokenAuthenticator(
         FakeAccessTokenHandler({}),
         HeaderAccessTokenExtractor(),
@@ -29,7 +29,7 @@ def _event(passport: Passport) -> CheckPassportEvent:
 
 async def test_it_sets_the_loader() -> None:
     provider = InMemoryUserProvider({"alice": {"password": None, "roles": [], "enabled": True}})
-    passport = Passport(UserBadge("alice"))
+    passport = SelfValidatingPassport(UserBadge("alice"))
 
     await UserProviderListener(provider).check_passport(_event(passport))
 
@@ -41,7 +41,7 @@ async def test_it_sets_the_loader() -> None:
 async def test_it_leaves_an_existing_loader() -> None:
     provider = InMemoryUserProvider({})
     loader = InMemoryUser
-    passport = Passport(UserBadge("alice", user_loader=loader))
+    passport = SelfValidatingPassport(UserBadge("alice", user_loader=loader))
 
     await UserProviderListener(provider).check_passport(_event(passport))
 

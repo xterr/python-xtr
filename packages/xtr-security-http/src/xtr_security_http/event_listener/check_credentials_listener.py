@@ -117,8 +117,7 @@ class CheckCredentialsListener(EventSubscriberInterface):
         custom_credentials = passport.get_badge(CustomCredentials)
         if custom_credentials is not None and not custom_credentials.is_resolved():
             user = await passport.get_user()
-            if not await custom_credentials.verify(user):
-                raise BadCredentialsError("The presented credentials are invalid.")
+            await custom_credentials.execute_custom_checker(user)
 
     async def _check_password(
         self,

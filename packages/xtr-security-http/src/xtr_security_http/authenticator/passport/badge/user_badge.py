@@ -6,7 +6,7 @@ import inspect
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
-from xtr_security_core.exception import AuthenticationServiceError
+from xtr_security_core.exception import AuthenticationServiceError, BadCredentialsError
 from xtr_security_core.user.user_interface import UserInterface
 
 from .badge_interface import BadgeInterface
@@ -30,8 +30,9 @@ class UserBadge(BadgeInterface):
     carried alongside — a token's claims — are handed to the loader, so an
     attributes-based provider can build the user from more than the identifier.
 
-    The badge resolves as soon as its loader is set; :meth:`get_user` runs the
-    loader once and caches the user. An identifier longer than
+    The badge needs no resolving of its own — a provider listener setting a
+    loader is bookkeeping, not a condition; :meth:`get_user` runs the loader
+    once and caches the user. An identifier longer than
     :data:`MAX_USERNAME_LENGTH` is refused at construction.
     """
 
@@ -56,20 +57,15 @@ class UserBadge(BadgeInterface):
 
         Raises:
             BadCredentialsError: When the identifier is empty.
-            InvalidArgumentError: When the identifier is longer than
+            BadCredentialsError: When the identifier is longer than
                 :data:`MAX_USERNAME_LENGTH`.
         """
-        from xtr_security_core.exception import (  # noqa: PLC0415 -- local: only the constructor validates
-            BadCredentialsError,
-            InvalidArgumentError,
-        )
-
         if identifier_normalizer is not None:
             identifier = identifier_normalizer(identifier)
         if not identifier:
             raise BadCredentialsError("The user identifier must not be empty.")
         if len(identifier) > MAX_USERNAME_LENGTH:
-            raise InvalidArgumentError(
+            raise BadCredentialsError(
                 f"The user identifier is too long, {MAX_USERNAME_LENGTH} characters at most.",
             )
         self._identifier = identifier
@@ -159,5 +155,5 @@ class UserBadge(BadgeInterface):
 
     @override
     def is_resolved(self) -> bool:
-        """Tell whether a loader is set, so the user can be loaded."""
-        return self._user_loader is not None
+        """Report resolved always: the badge is never a condition of the check."""
+        return True
