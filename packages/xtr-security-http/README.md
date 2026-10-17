@@ -61,7 +61,6 @@ from __future__ import annotations
 
 import asyncio
 
-from starlette.requests import Request
 from xtr_event_dispatcher import EventDispatcher
 from xtr_http_foundation import PathRequestMatcher
 from xtr_http_message import ServerRequest
@@ -79,6 +78,7 @@ from xtr_security_http import (
     UserBadge,
     oauth2_scope,
 )
+from xtr_security_http._security_state import SecurityState
 from xtr_security_http.authorization.oauth2_scope_voter import parse_oauth2_scope
 
 
@@ -89,15 +89,8 @@ class MyTokenHandler(AccessTokenHandlerInterface):
         return UserBadge("ada", user_loader=lambda i: InMemoryUser(i, roles=["ROLE_USER"]))
 
 
-def make_request(path: str, headers: dict[str, str]) -> Request:
-    raw = [(k.lower().encode(), v.encode()) for k, v in headers.items()]
-    return Request(
-        {"type": "http", "method": "GET", "path": path, "headers": raw, "query_string": b""}
-    )
-
-
-def make_message(path: str) -> ServerRequest:
-    return ServerRequest("GET", f"https://example.com{path}")
+def make_message(path: str, headers: dict[str, str] | None = None) -> ServerRequest:
+    return ServerRequest("GET", f"https://example.com{path}", dict(headers or {}))
 
 
 async def main() -> None:
@@ -114,7 +107,10 @@ async def main() -> None:
         firewall_name="api",
     )
 
-    await manager.authenticate_request(make_request("/api/me", {"Authorization": "Bearer s3cret"}))
+    message = make_message("/api/me", {"Authorization": "Bearer s3cret"})
+    state = SecurityState()
+    manager.supports(message, state)
+    await manager.authenticate_request(message, state)
     token = storage.get_token()
     print("authenticated:", token is not None and token.get_user_identifier())
 
@@ -200,10 +196,12 @@ for an authenticator — like the access-token one — that already trusts the c
 ### The authenticator manager and its event order
 
 **`AuthenticatorManager(authenticators, token_storage, event_dispatcher, firewall_name, ...)`**
-runs authentication for one firewall. `authenticate_request(request)` drives a fixed order over
-the firewall's own dispatcher:
+runs authentication for one firewall. `supports(request, state)` asks every authenticator,
+parking the supporters and the skipped on the request's security state;
+`authenticate_request(request, state)` reads that handoff back — once — and drives a fixed order
+over the firewall's own dispatcher:
 
-1. the first authenticator whose `supports()` is not `False` reads the request into a passport;
+1. the first supporter that still applies reads the request into a passport;
 2. **`CheckPassportEvent`** — listeners resolve the badges (load the user, verify the password);
 3. every badge must report resolved, and every `required_badges` type must be present, else
    `BadCredentialsError`;

@@ -803,14 +803,14 @@ class _NullManager:
 
     __slots__ = ()
 
-    def supports(self, request: object) -> bool | None:
+    def supports(self, request: object, state: object) -> bool | None:
         """Support nothing: an open firewall authenticates no request."""
-        del request
+        del request, state
         return False
 
-    async def authenticate_request(self, request: object) -> None:
+    async def authenticate_request(self, request: object, state: object) -> None:
         """Do nothing: an open firewall lets every request through."""
-        del request
+        del request, state
 
 
 # A sentinel where a factory's ``builder`` argument is not used: the built-in

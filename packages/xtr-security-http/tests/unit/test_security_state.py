@@ -39,6 +39,12 @@ def test_a_fresh_state_carries_no_firewall_and_no_token() -> None:
     assert state.token is None
 
 
+def test_a_fresh_state_carries_an_empty_attribute_bag() -> None:
+    state = SecurityState()
+
+    assert state.attributes == {}
+
+
 def test_a_carried_response_holds_its_response() -> None:
     response = ResponseFactory().create_response(200)
 

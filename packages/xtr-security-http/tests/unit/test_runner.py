@@ -40,15 +40,16 @@ class CountingAuthenticatorManager:
         self.calls = 0
         self._crash_first = crash_first
 
-    def supports(self, request: ServerRequestInterface) -> bool | None:
-        del request
+    def supports(self, request: ServerRequestInterface, state: SecurityState) -> bool | None:
+        del request, state
         return True
 
     async def authenticate_request(
         self,
         request: ServerRequestInterface,
+        state: SecurityState,
     ) -> ResponseInterface | None:
-        del request
+        del request, state
         self.calls += 1
         if self._crash_first and self.calls == 1:
             message = "The authenticator has a bug."

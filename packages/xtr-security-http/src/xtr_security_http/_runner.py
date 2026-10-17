@@ -94,6 +94,11 @@ async def _authenticate_once(
 ) -> None:
     """Authenticate the request under ``context`` at most once, memoised by name.
 
+    The manager's supports pass runs first, parking what it learned on the
+    request's state; the pass that authenticates consumes it. A supports pass
+    that no authenticator answered is a pass that authenticated — the
+    request goes on anonymous, memoised like one that did.
+
     Only a settled outcome is memoised: ``None`` for a pass that authenticated,
     the exception for one that did not. Recording a crash as a pass would let a
     later call over the same request skip authentication and go on with a null
@@ -118,7 +123,10 @@ async def _authenticate_once(
             raise type(recorded)(str(recorded))
         return
     try:
-        response = await context.authenticator_manager.authenticate_request(message)
+        if context.authenticator_manager.supports(message, state) is False:
+            memo[context.name] = None
+            return
+        response = await context.authenticator_manager.authenticate_request(message, state)
     except BaseException as error:
         memo[context.name] = error
         raise

@@ -6,16 +6,22 @@ from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
 from xtr_security_core.event.authentication_success_event import AuthenticationSuccessEvent
-from xtr_security_core.exception import AuthenticationError, BadCredentialsError
+from xtr_security_core.exception import (
+    AuthenticationError,
+    BadCredentialsError,
+    InvalidArgumentError,
+)
 
 from xtr_security_http.authentication._sensitive import mask
 from xtr_security_http.authentication.expose_security_level import ExposeSecurityLevel
+from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
 from xtr_security_http.event.authentication_token_created_event import (
     AuthenticationTokenCreatedEvent,
 )
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
 from xtr_security_http.event.login_failure_event import LoginFailureEvent
 from xtr_security_http.event.login_success_event import LoginSuccessEvent
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from .authenticator_manager_interface import AuthenticatorManagerInterface
 
@@ -25,12 +31,13 @@ if TYPE_CHECKING:
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_logging_contracts import LoggerInterface
+    from xtr_logging_contracts.context import Context
     from xtr_security_core.authentication.token.storage.token_storage_interface import (
         TokenStorageInterface,
     )
     from xtr_security_core.authentication.token.token_interface import TokenInterface
 
-    from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
+    from xtr_security_http._security_state import SecurityState
     from xtr_security_http.authenticator.passport.badge.badge_interface import BadgeInterface
     from xtr_security_http.authenticator.passport.passport import Passport
 
@@ -46,8 +53,9 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
 
     The order is fixed and is the whole contract of this class:
 
-    1. the first authenticator whose :meth:`supports` is not ``False`` reads
-       the request into a passport;
+    1. a supports pass asks every authenticator, parking the supporters and
+        the skipped on the request's security state; the first supporter
+        that still applies reads the request into a passport;
     2. a :class:`~xtr_security_http.event.check_passport_event.CheckPassportEvent`
        lets listeners resolve the badges — set the user loader, verify a
        password;
@@ -100,23 +108,83 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
         self._required_badges = tuple(required_badges)
 
     @override
-    def supports(self, request: ServerRequestInterface) -> bool | None:
-        """Tell whether an authenticator handles ``request``: ``True``, ``None`` or ``False``."""
-        lazy = False
+    def supports(self, request: ServerRequestInterface, state: SecurityState) -> bool | None:
+        """Tell whether an authenticator handles ``request``: ``True``, ``None`` or ``False``.
+
+        Every authenticator is asked — the pass records the complete picture,
+        parking the supporters and the skipped on ``state`` for the pass that
+        authenticates, so none is asked twice within one pass. ``True`` means
+        an authenticator definitely applies; ``None`` that only lazy ones do,
+        none of them sure a credential is present; ``False`` that none
+        applies.
+
+        Raises:
+            InvalidArgumentError: When one of the authenticators is no
+                :class:`~xtr_security_http.authenticator.authenticator_interface.AuthenticatorInterface`
+                — a wiring mistake, not a request failure.
+        """
+        lazy = True
+        skipped: list[AuthenticatorInterface] = []
+        authenticators: list[AuthenticatorInterface] = []
         for authenticator in self._authenticators:
+            # The sequence is typed, but nothing stops a caller from wiring a
+            # duck-typed impostor in; the pass refuses one here, where the
+            # mistake is about to cost a request.
+            if not isinstance(  # pyright: ignore[reportUnnecessaryIsInstance]
+                authenticator,
+                AuthenticatorInterface,
+            ):
+                raise InvalidArgumentError(
+                    f'The authenticator "{type(authenticator).__name__}" does not implement '
+                    f"AuthenticatorInterface.",
+                )
             supported = authenticator.supports(request)
-            if supported is True:
-                return True
-            if supported is None:
-                lazy = True
-        return None if lazy else False
+            if supported is False:
+                self._debug(
+                    'Authenticator "{authenticator}" does not support the request.',
+                    {
+                        "firewall": self._firewall_name,
+                        "authenticator": type(authenticator).__name__,
+                    },
+                )
+                skipped.append(authenticator)
+            else:
+                self._debug(
+                    'Authenticator "{authenticator}" supports the request.',
+                    {
+                        "firewall": self._firewall_name,
+                        "authenticator": type(authenticator).__name__,
+                    },
+                )
+                authenticators.append(authenticator)
+                lazy = supported is None and lazy
+        state.attributes[SecurityRequestAttributes.SKIPPED_AUTHENTICATORS] = tuple(skipped)
+        state.attributes[SecurityRequestAttributes.AUTHENTICATORS] = tuple(authenticators)
+        if not authenticators:
+            return False
+        self._debug(
+            'Authenticators "{authenticators}" support the request.',
+            {
+                "firewall": self._firewall_name,
+                "authenticators": [
+                    type(authenticator).__name__ for authenticator in authenticators
+                ],
+            },
+        )
+        return None if lazy else True
 
     @override
     async def authenticate_request(
         self,
         request: ServerRequestInterface,
+        state: SecurityState,
     ) -> ResponseInterface | None:
-        """Authenticate ``request`` through the first supporting authenticator.
+        """Authenticate ``request`` through the supporters the supports pass recorded.
+
+        The pass hands its findings over through ``state`` — read and removed
+        here, once — so a second call over the same request finds nothing
+        parked and leaves it anonymous. Nothing parked at all means no
+        supports pass ran: the request stays anonymous too.
 
         A lazy authenticator — one whose :meth:`supports` returned ``None`` —
         that raises a plain
@@ -126,16 +194,57 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
         from it, and every failure from an eager authenticator, is a real
         authentication failure the firewall turns into a challenge.
         """
-        for authenticator in self._authenticators:
+        parked = state.attributes.pop(SecurityRequestAttributes.AUTHENTICATORS, None)
+        _ = state.attributes.pop(SecurityRequestAttributes.SKIPPED_AUTHENTICATORS, None)
+        if not parked:
+            return None
+        return await self.execute_authenticators(
+            cast("tuple[AuthenticatorInterface, ...]", parked),
+            request,
+        )
+
+    async def execute_authenticators(
+        self,
+        authenticators: Sequence[AuthenticatorInterface],
+        request: ServerRequestInterface,
+    ) -> ResponseInterface | None:
+        """Run the handed-off authenticators in order, re-checking each first.
+
+        The re-check is per authenticator — never the full supports pass
+        again — because what the request carries may have changed between
+        the pass and now. A re-check that turned ``False`` skips its
+        authenticator with a note; the first authenticator that applies and
+        settles the request ends the run, whether it answered with a
+        response or left the request to go on.
+        """
+        for authenticator in authenticators:
             supported = authenticator.supports(request)
             if supported is False:
+                self._debug(
+                    'Authenticator "{authenticator}" no longer supports the request.',
+                    {
+                        "firewall": self._firewall_name,
+                        "authenticator": type(authenticator).__name__,
+                    },
+                )
                 continue
-            outcome = await self._authenticate(authenticator, request, lazy=supported is None)
+            outcome = await self.execute_authenticator(
+                authenticator, request, lazy=supported is None
+            )
             if outcome is not _ABSTAINED:
-                return cast("ResponseInterface | None", outcome)
+                response = cast("ResponseInterface | None", outcome)
+                if response is not None:
+                    self._debug(
+                        'Authenticator "{authenticator}" set the response.',
+                        {
+                            "firewall": self._firewall_name,
+                            "authenticator": type(authenticator).__name__,
+                        },
+                    )
+                return response
         return None
 
-    async def _authenticate(
+    async def execute_authenticator(
         self,
         authenticator: AuthenticatorInterface,
         request: ServerRequestInterface,
@@ -161,13 +270,26 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
         return await self._on_success(authenticator, request, passport, token)
 
     def _ensure_resolved(self, passport: Passport) -> None:
-        """Raise when a badge is unresolved or a required badge is absent."""
+        """Raise when a badge is unresolved or a required badge is absent.
+
+        An unresolved badge fails fast, naming the first one the passport
+        check left open. The required badges are gathered first and named
+        together, so a passport missing several reports them all in one
+        failure instead of one failure per badge.
+        """
         passport.check_if_completely_resolved()
-        for badge in self._required_badges:
-            if not passport.has_badge(badge):
-                raise BadCredentialsError(
-                    f"The passport is missing the required badge {badge.__name__}.",
-                )
+        missing = [badge for badge in self._required_badges if not passport.has_badge(badge)]
+        if missing:
+            raise BadCredentialsError(
+                "The passport is missing the required badges: "
+                + ", ".join(badge.__name__ for badge in missing)
+                + ".",
+            )
+
+    def _debug(self, message: str, context: Context) -> None:
+        """Log ``message`` at debug level, when a logger was given."""
+        if self._logger is not None:
+            self._logger.debug(message, context)
 
     async def _token_created(self, token: TokenInterface, passport: Passport) -> TokenInterface:
         """Announce the created token and return whichever token a listener settled on."""

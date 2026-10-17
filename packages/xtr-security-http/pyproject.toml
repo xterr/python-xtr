@@ -75,6 +75,14 @@ reportPrivateUsage = "error"
 # limit puts the break inside the string.
 reportImplicitStringConcatenation = "none"
 
+# The per-request state names the firewall context it records, the context
+# names the manager that authenticates, and the manager interface takes the
+# state its passes hand each other. The imports are TYPE_CHECKING-only, so no
+# cycle exists at runtime — only in the static graph.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_security_http"
+reportImportCycles = "none"
+
 # Tests reach into what a class keeps to itself, for the same reason ruff's
 # SLF001 is off for tests; the extra path lets them import the support package.
 [[tool.basedpyright.executionEnvironments]]

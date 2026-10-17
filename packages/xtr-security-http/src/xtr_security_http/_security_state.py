@@ -45,6 +45,14 @@ class SecurityState:
     it to answer the request's failure.
 
     Attributes:
+        attributes: The values the flow's steps hand each other over one
+            request, keyed by the
+            :class:`~xtr_security_http.security_request_attributes.SecurityRequestAttributes`
+            keys — the authenticators a supports pass chose and the ones it
+            skipped, the attributes an access rule matched, the cookie a
+            handler staged before a response existed. Born empty with the
+            carrier and never outliving the request's bag, so nothing one
+            request parked leaks into the next.
         authenticated_firewalls: Maps a firewall name to the settled outcome
             of authenticating this request under it — the exception
             authentication raised, or ``None`` for a pass that authenticated
@@ -59,10 +67,11 @@ class SecurityState:
             weigh it without the token storage.
     """
 
-    __slots__ = ("authenticated_firewalls", "firewall_context", "token")
+    __slots__ = ("attributes", "authenticated_firewalls", "firewall_context", "token")
 
     def __init__(self) -> None:
         """Start with no firewall run, no token, and an empty memo."""
+        self.attributes: dict[str, object] = {}
         self.authenticated_firewalls: dict[str, BaseException | None] = {}
         self.firewall_context: FirewallContextInterface | None = None
         self.token: TokenInterface | None = None

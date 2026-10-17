@@ -44,6 +44,8 @@ if TYPE_CHECKING:
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.exception import AccessDeniedError, AuthenticationError
 
+    from xtr_security_http._security_state import SecurityState
+
 __all__ = ["SecurityFixtureBundle"]
 
 
@@ -54,14 +56,16 @@ class _FakeManager:
     def __init__(self, storage: TokenStorage) -> None:
         self._storage = storage
 
-    def supports(self, request: ServerRequestInterface) -> bool | None:
-        del request
+    def supports(self, request: ServerRequestInterface, state: SecurityState) -> bool | None:
+        del request, state
         return None
 
     async def authenticate_request(
         self,
         request: ServerRequestInterface,
+        state: SecurityState,
     ) -> ResponseInterface | None:
+        del state
         auth = request.get_header_line("Authorization")
         if auth == "Bearer good":
             token = UsernamePasswordToken(
