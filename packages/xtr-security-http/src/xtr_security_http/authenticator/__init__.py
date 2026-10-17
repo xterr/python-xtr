@@ -5,5 +5,12 @@ from __future__ import annotations
 from .abstract_authenticator import AbstractAuthenticator
 from .access_token_authenticator import AccessTokenAuthenticator
 from .authenticator_interface import AuthenticatorInterface
+from .debug import TraceableAuthenticator, UnsupportedReasons
 
-__all__ = ["AbstractAuthenticator", "AccessTokenAuthenticator", "AuthenticatorInterface"]
+__all__ = [
+    "AbstractAuthenticator",
+    "AccessTokenAuthenticator",
+    "AuthenticatorInterface",
+    "TraceableAuthenticator",
+    "UnsupportedReasons",
+]

@@ -57,9 +57,13 @@ async def run_firewall(  # noqa: PLR0913 -- the message, its scopes, the state a
 
     Raises:
         UnknownFirewallError: When ``name`` names no configured firewall.
-        AuthenticationError: When authentication fails and no handler answered.
         AccessDeniedError: When an access rule or a scope is not granted.
         CarriedResponse: When a success or failure handler produced a response.
+
+    An authentication failure is none of these: the manager answers it
+    without raising, the request goes on with a null token, and it is the
+    access decision that denies — the denial is what the exception listener
+    turns into the entry point's challenge.
     """
     context = await _resolve(firewall_map, name, message)
     if context is None or not context.security:
@@ -99,19 +103,19 @@ async def _authenticate_once(
     that no authenticator answered is a pass that authenticated — the
     request goes on anonymous, memoised like one that did.
 
-    Only a settled outcome is memoised: ``None`` for a pass that authenticated,
-    the exception for one that did not. Recording a crash as a pass would let a
-    later call over the same request skip authentication and go on with a null
-    token, so whatever the authenticators raised — a failure the handlers own or
-    a bug they do not — is recorded and raised again by every later call. A later
-    call raises a fresh instance of the recorded error's type and message rather
-    than the stored instance itself, so re-raising it does not splice this
-    request's traceback onto the one the first call already unwound, nor let a
-    caller that mutates the caught exception change what a later call raises.
+    Only a settled outcome is memoised: ``None`` for a pass that finished, the
+    exception for one that crashed. An authentication failure settles like a
+    pass — the manager answers it without raising and leaves no token — so
+    what is left to record is a crash: a bug the handlers do not own.
+    Recording one as a pass would let a later call over the same request skip
+    authentication and go on with a null token, so whatever crashed is recorded
+    and raised again by every later call. A later call raises a fresh instance
+    of the recorded error's type and message rather than the stored instance
+    itself, so re-raising it does not splice this request's traceback onto the
+    one the first call already unwound, nor let a caller that mutates the
+    caught exception change what a later call raises.
 
     Raises:
-        AuthenticationError: When authentication fails, on this call and every
-            later one this request.
         BaseException: Whatever else authentication raised, re-raised by every
             later call this request rather than passing it off as authenticated.
         CarriedResponse: When a handler produced a response to send.

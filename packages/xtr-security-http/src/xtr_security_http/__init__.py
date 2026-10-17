@@ -27,6 +27,7 @@ from .authentication import (
     AuthenticatorManager,
     AuthenticatorManagerInterface,
     ExposeSecurityLevel,
+    UserAuthenticatorInterface,
     is_sensitive,
     mask,
 )
@@ -34,6 +35,8 @@ from .authenticator import (
     AbstractAuthenticator,
     AccessTokenAuthenticator,
     AuthenticatorInterface,
+    TraceableAuthenticator,
+    UnsupportedReasons,
 )
 from .authenticator.passport import Passport, SelfValidatingPassport
 from .authenticator.passport.badge import (
@@ -143,7 +146,10 @@ __all__ = [
     "SecurityEvents",
     "SecurityRequestAttributes",
     "SelfValidatingPassport",
+    "TraceableAuthenticator",
     "UnknownFirewallError",
+    "UnsupportedReasons",
+    "UserAuthenticatorInterface",
     "UserBadge",
     "UserCheckerListener",
     "UserProviderListener",

@@ -35,7 +35,6 @@ from xtr_security_core.user.in_memory_user import InMemoryUser
 from tests.support.contexts import FakeFirewallContext
 from xtr_security_http.access_map import AccessMap
 from xtr_security_http.authorization.oauth2_scope_voter import OAuth2ScopeVoter
-from xtr_security_http.exception import InvalidAccessTokenError
 from xtr_security_http.firewall.access_listener import AccessListener
 from xtr_security_http.firewall_map import FirewallMap
 
@@ -84,7 +83,9 @@ class _FakeManager:
                 ),
             )
         elif auth == "Bearer bad":
-            raise InvalidAccessTokenError("The token is not known.")
+            # A failed authentication settles anonymous — the manager answers
+            # it without raising, and the access decision is what denies.
+            del auth
         return None
 
 

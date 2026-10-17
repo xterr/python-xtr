@@ -54,9 +54,11 @@ class SecurityState:
             carrier and never outliving the request's bag, so nothing one
             request parked leaks into the next.
         authenticated_firewalls: Maps a firewall name to the settled outcome
-            of authenticating this request under it — the exception
-            authentication raised, or ``None`` for a pass that authenticated
-            — so authentication stays one pass per firewall. A name is absent
+            of authenticating this request under it — ``None`` for a pass
+            that finished, the exception for one that crashed — so
+            authentication stays one pass per firewall. An authentication
+            failure finishes like a pass, leaving no token; only a crash is
+            recorded, and re-raised by every later call. A name is absent
             until an outcome settles, so no unfinished pass reads as
             authenticated.
         firewall_context: The firewall in charge of the request, recorded by

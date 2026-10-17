@@ -26,7 +26,6 @@ from xtr_security_http._runner import run_firewall
 from xtr_security_http._security_state import CarriedResponse, security_state_of
 from xtr_security_http.decorator.current_user import CurrentUser
 from xtr_security_http.decorator.is_granted import IsGranted
-from xtr_security_http.exception import InvalidAccessTokenError
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 from xtr_security_http.firewall_map import FirewallMap
 
@@ -113,19 +112,27 @@ async def test_run_firewall_passes_a_scope_the_token_holds(container: ContainerI
         _ = await _run(unit, "api", _api_message("Bearer good"), ("books:read",))
 
 
-async def test_run_firewall_raises_on_a_bad_token(container: ContainerInterface) -> None:
+async def test_run_firewall_denies_a_bad_token_through_the_access_decision(
+    container: ContainerInterface,
+) -> None:
     async with unit_of_work(container) as unit:
-        with pytest.raises(InvalidAccessTokenError):
+        # The manager answers the failure without raising; the request goes on
+        # anonymous, and it is the access decision that denies.
+        with pytest.raises(AccessDeniedError):
             _ = await _run(unit, "api", _api_message("Bearer bad"))
 
 
 async def test_run_firewall_memoises_authentication(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
         bag = _state_bag()
-        with pytest.raises(InvalidAccessTokenError):
+        with pytest.raises(AccessDeniedError):
             _ = await _run(unit, "api", _api_message("Bearer bad"), bag=bag)
-        with pytest.raises(InvalidAccessTokenError):
+        with pytest.raises(AccessDeniedError):
             _ = await _run(unit, "api", _api_message("Bearer bad"), bag=bag)
+
+        # Both passes found the failure settled: the memo records an
+        # anonymous pass, not an error to re-raise.
+        assert security_state_of(bag).authenticated_firewalls == {"api": None}
 
 
 async def test_exception_listener_challenges_an_authentication_error(

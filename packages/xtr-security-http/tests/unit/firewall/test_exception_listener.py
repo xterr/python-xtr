@@ -20,7 +20,9 @@ from tests.support.contexts import FakeFirewallContext
 from tests.support.messages import make_message
 from xtr_security_http._security_state import CarriedResponse, security_state_of
 from xtr_security_http.authenticator.token import PostAuthenticationToken
+from xtr_security_http.exception import InvalidAccessTokenError
 from xtr_security_http.firewall.exception_listener import ExceptionListener
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
@@ -43,6 +45,23 @@ class _ChallengingEntryPoint:
     ) -> ResponseInterface:
         del request, error
         return self._response
+
+
+@final
+class _RecordingEntryPoint:
+    """Records the error it was started with, answering with a bare 401."""
+
+    def __init__(self) -> None:
+        self.started_with: AuthenticationError | None = None
+
+    async def start(
+        self,
+        request: ServerRequestInterface,
+        error: AuthenticationError | None = None,
+    ) -> ResponseInterface:
+        del request
+        self.started_with = error
+        return ResponseFactory().create_response(401)
 
 
 def _listener() -> ExceptionListener:
@@ -105,6 +124,26 @@ async def test_an_access_denied_without_a_firewall_challenges() -> None:
 
     assert event.response is not None
     assert event.response.status_code == 401
+
+
+async def test_a_denied_anonymous_request_challenges_with_the_parked_error() -> None:
+    bag: dict[str, object] = {}
+    state = security_state_of(bag)
+    parked = InvalidAccessTokenError("The token is not known.")
+    state.attributes[SecurityRequestAttributes.AUTHENTICATION_ERROR] = parked
+    entry_point = _RecordingEntryPoint()
+    state.firewall_context = FakeFirewallContext(
+        name="api",
+        authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        scheme=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        entry_point=entry_point,
+    )
+    event = _event(AccessDeniedError(attributes=("ROLE_USER",)), bag)
+
+    await _listener().on_exception(event)
+
+    assert entry_point.started_with is parked
 
 
 async def test_a_full_fledged_denial_without_a_handler_is_an_uncached_403() -> None:

@@ -24,6 +24,7 @@ from xtr_security_core.exception import (
 from xtr_security_http._challenge import json_challenge
 from xtr_security_http._security_state import CarriedResponse, security_state_of
 from xtr_security_http.authorization.oauth2_scope_voter import parse_oauth2_scope
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -133,9 +134,15 @@ class ExceptionListener(EventSubscriberInterface):
         context = state.firewall_context
         if not self._trust_resolver.is_full_fledged(state.token):
             if context is not None and context.entry_point is not None:
+                # A request the manager answered anonymously — a failed
+                # authentication, not a missing credential — parked its
+                # masked error on the state; the challenge names it when
+                # there is one to name.
+                parked = state.attributes.get(SecurityRequestAttributes.AUTHENTICATION_ERROR)
+                failed = parked if isinstance(parked, AuthenticationError) else None
                 return await context.entry_point.start(
                     request,
-                    InsufficientAuthenticationError(),
+                    failed if failed is not None else InsufficientAuthenticationError(),
                 )
             return await self._bare_challenge()
         if (

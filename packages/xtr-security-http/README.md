@@ -208,16 +208,21 @@ over the firewall's own dispatcher:
 4. a token is created, then **`AuthenticationTokenCreatedEvent`** lets a listener replace it;
 5. **`AuthenticationSuccessEvent`** ([core](../xtr-security-core)) runs the post-authentication
    account check;
-6. the token is stored, the authenticator's success handler runs, and **`LoginSuccessEvent`**
-   lets a listener migrate a password or replace the response.
+6. the token is stored, the authenticator's success handler runs, and **`LoginSuccessEvent`** —
+   carrying the token the storage held before the login — lets a listener migrate a password or
+   replace the response.
 
 A lazy authenticator that raises a plain `BadCredentialsError` is read as *no credential
 presented* — it did not apply, so the next authenticator is tried. Any other failure is masked to
 the configured `ExposeSecurityLevel` (`NONE` hides everything as bad credentials,
-`ACCOUNT_STATUS` reveals disabled/locked/expired, `ALL` reveals the failure), announced as
-**`LoginFailureEvent`**, offered to the authenticator's failure handler, and re-raised for the
-entry point to turn into a challenge. `AuthenticationSuccessHandlerInterface` and
-`AuthenticationFailureHandlerInterface` are the two handler shapes a route may answer with.
+`ACCOUNT_STATUS` reveals disabled/locked/expired, `ALL` reveals the failure), answered by the
+authenticator's failure handler and announced as **`LoginFailureEvent`** — never raised: a
+response from the handler or a listener is returned for the firewall to send, and the lack of one
+lets the request go on anonymous, where the access decision is what turns it into the entry
+point's challenge. `AuthenticationSuccessHandlerInterface` and
+`AuthenticationFailureHandlerInterface` are the two handler shapes a route may answer with, and
+`authenticate_user(user, authenticator, request, badges=(), attributes=())` on the manager logs a
+known user in through one authenticator outside the request-driven flow.
 
 ### Listeners
 

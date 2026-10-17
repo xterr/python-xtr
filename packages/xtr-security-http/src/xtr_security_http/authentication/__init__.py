@@ -12,6 +12,7 @@ from .authentication_success_handler_interface import AuthenticationSuccessHandl
 from .authenticator_manager import AuthenticatorManager
 from .authenticator_manager_interface import AuthenticatorManagerInterface
 from .expose_security_level import ExposeSecurityLevel
+from .user_authenticator_interface import UserAuthenticatorInterface
 
 __all__ = [
     "AuthenticationFailureHandlerInterface",
@@ -19,6 +20,7 @@ __all__ = [
     "AuthenticatorManager",
     "AuthenticatorManagerInterface",
     "ExposeSecurityLevel",
+    "UserAuthenticatorInterface",
     "is_sensitive",
     "mask",
 ]
