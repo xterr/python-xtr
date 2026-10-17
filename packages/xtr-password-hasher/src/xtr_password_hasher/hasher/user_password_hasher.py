@@ -62,9 +62,10 @@ class UserPasswordHasher(UserPasswordHasherInterface):
 
         A user whose stored password is ``None`` returns ``False`` at once,
         without hashing ``plain_password``. The early return is observable in
-        time, so a caller that must not reveal which accounts have a password
-        owns the timing guard — burning a dummy verify for the passwordless
-        user, as the credentials listener does.
+        time, so the timing guard is not this hasher's to keep: the caller
+        that must not reveal which accounts have a password owns it, and the
+        credentials listener is the caller that charges one — burning a
+        dummy verify for the passwordless user.
 
         Raises:
             UnknownPasswordHasherError: When no hasher is configured for the user.

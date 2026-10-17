@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, final
 from typing_extensions import override
 from xtr_event_dispatcher import EventSubscriberInterface
 
+from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
 
 if TYPE_CHECKING:
@@ -17,7 +18,13 @@ if TYPE_CHECKING:
 
 __all__ = ["UserProviderListener"]
 
-#: The priority the provider listener runs at — before every other passport check.
+#: The priority the provider listener runs at — before every other passport
+#: check. What it must beat is the credentials check's early user resolve
+#: (512): that resolve loads the user to burn the timing dummy on an unknown
+#: one, so the loader has to be in place before it runs, or the badge would
+#: fail with a missing-loader error instead of the timing-guarded rejection.
+#: The headroom above 512 keeps this listener first, leaving room for a check
+#: that needs no loader to run even before it.
 PRIORITY = 2048
 
 
@@ -25,13 +32,14 @@ PRIORITY = 2048
 class UserProviderListener(EventSubscriberInterface):
     """Sets a user badge's loader from the firewall's provider, when it has none.
 
-    Runs first on the passport check, so the listeners after it — the account
-    check, the credentials check — can load the user. An authenticator that
-    already gave the badge a loader (a bearer handler that resolved the user
-    from a token's claims) is left alone. The provider's ``load_user_by_identifier``
-    is set as the loader directly, so a badge with attributes reaches an
-    attributes-based provider's two-argument method and a plain provider's
-    one-argument one — the badge chooses by the method's own shape.
+    Runs first on the passport check, so the listeners after it — the early
+    user resolve, the account check, the credentials check — can load the
+    user. An authenticator that already gave the badge a loader (a bearer
+    handler that resolved the user from a token's claims) is left alone. The
+    provider's ``load_user_by_identifier`` is set as the loader directly, so
+    a badge with attributes reaches an attributes-based provider's
+    two-argument method and a plain provider's one-argument one — the badge
+    chooses by the method's own shape.
     """
 
     __slots__ = ("_provider",)
@@ -48,6 +56,9 @@ class UserProviderListener(EventSubscriberInterface):
 
     async def check_passport(self, event: CheckPassportEvent) -> None:
         """Give the badge the provider's loader, unless it already has one."""
-        badge = event.get_passport().get_user_badge()
-        if badge.get_user_loader() is None:
-            badge.set_user_loader(self._provider.load_user_by_identifier)
+        badge = event.get_passport().get_badge(UserBadge)
+        if badge is None:
+            return
+        if badge.get_user_loader() is not None:
+            return
+        badge.set_user_loader(self._provider.load_user_by_identifier)

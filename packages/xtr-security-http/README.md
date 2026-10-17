@@ -247,7 +247,7 @@ the event order:
 | `UserProviderListener` | gives a `UserBadge` its loader from the firewall's user provider, unless it has one |
 | `CheckCredentialsListener` | verifies a password passport's `PasswordCredentials` and `CustomCredentials` |
 | `UserCheckerListener` | runs the account's pre- and post-authentication checks |
-| `PasswordMigratingListener` | rehashes a password flagged by a `PasswordUpgradeBadge`, best-effort |
+| `PasswordMigratingListener` | rehashes a password flagged by a `PasswordUpgradeBadge`, best-effort, storing through the badge's, the listener's, or the user provider's upgrader — a provider implementing `PasswordUpgraderInterface` is derived from the passport's user loader |
 
 **The dummy-hash timing guard.** When a password passport names an *unknown* user,
 `CheckCredentialsListener` still verifies against a dummy hash, so the timing of a bad username

@@ -51,12 +51,14 @@ class CheckCredentialsListener(EventSubscriberInterface):
 
     A ``PasswordCredentials`` is verified against the user's stored hash through
     the user password hasher, run in a worker thread so the argon2 cost never
-    blocks the event loop; a match that used an outdated hash adds a
-    ``PasswordUpgradeBadge`` for the migrating listener. When the user is
-    unknown — or known but carrying no password — a dummy hash is still verified,
-    so the timing of a bad username, a passwordless user and a wrong password all
-    match and none reveals which was wrong. The dummy hash is computed once at
-    construction from the required dummy hasher.
+    blocks the event loop. A match resolves the credentials and adds a
+    ``PasswordUpgradeBadge`` carrying the plaintext — always, not only when
+    the hash is outdated, so the migrating listener owns that judgement and
+    rehashes what needs it. When the user is unknown — or known but carrying
+    no password — a dummy hash is still verified, so the timing of a bad
+    username, a passwordless user and a wrong password all match and none
+    reveals which was wrong. The dummy hash is computed once at construction
+    from the required dummy hasher.
 
     A ``CustomCredentials`` is verified by running its own check against the
     resolved user.
@@ -142,7 +144,7 @@ class CheckCredentialsListener(EventSubscriberInterface):
         if not valid:
             raise BadCredentialsError("The presented credentials are invalid.")
         credentials.mark_resolved()
-        if await anyio.to_thread.run_sync(self._hasher.needs_rehash, user):
+        if not passport.has_badge(PasswordUpgradeBadge):
             _ = passport.add_badge(PasswordUpgradeBadge(plaintext))
 
     async def _burn_dummy(self, plaintext: str) -> None:

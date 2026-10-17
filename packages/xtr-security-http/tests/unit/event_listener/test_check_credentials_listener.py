@@ -45,9 +45,8 @@ def _event(passport: Passport) -> CheckPassportEvent:
 
 @final
 class _UserHasher:
-    def __init__(self, *, needs_rehash: bool = False) -> None:
+    def __init__(self) -> None:
         self._hasher = PlaintextPasswordHasher()
-        self._needs_rehash = needs_rehash
 
     def hash_password(self, user: PasswordAuthenticatedUserInterface, plain_password: str) -> str:
         del user
@@ -61,7 +60,7 @@ class _UserHasher:
 
     def needs_rehash(self, user: PasswordAuthenticatedUserInterface) -> bool:
         del user
-        return self._needs_rehash
+        return False
 
 
 async def test_it_verifies_a_password() -> None:
@@ -94,8 +93,8 @@ async def test_it_rejects_a_wrong_password() -> None:
         )
 
 
-async def test_it_adds_an_upgrade_badge_when_rehash_is_needed() -> None:
-    hasher = _UserHasher(needs_rehash=True)
+async def test_it_adds_an_upgrade_badge_on_every_verified_password() -> None:
+    hasher = _UserHasher()
     stored = hasher.hash_password(InMemoryUser("alice"), "secret")
     passport = Passport(
         UserBadge("alice", user_loader=loader(password=stored)),
@@ -106,6 +105,22 @@ async def test_it_adds_an_upgrade_badge_when_rehash_is_needed() -> None:
     await listener.check_passport(_event(passport))
 
     assert passport.has_badge(PasswordUpgradeBadge) is True
+
+
+async def test_it_leaves_an_existing_upgrade_badge_in_place() -> None:
+    hasher = _UserHasher()
+    stored = hasher.hash_password(InMemoryUser("alice"), "secret")
+    original = PasswordUpgradeBadge("secret")
+    passport = Passport(
+        UserBadge("alice", user_loader=loader(password=stored)),
+        PasswordCredentials("secret"),
+        badges=(original,),
+    )
+
+    listener = CheckCredentialsListener(hasher, PlaintextPasswordHasher())
+    await listener.check_passport(_event(passport))
+
+    assert passport.get_badge(PasswordUpgradeBadge) is original
 
 
 async def test_it_burns_a_dummy_for_an_unknown_user() -> None:
