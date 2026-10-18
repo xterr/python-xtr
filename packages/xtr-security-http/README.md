@@ -324,6 +324,39 @@ the authentication step. A **`RequestMatcherInterface`** (from
 This package keeps the escape hatch: **`CallableRequestMatcher(decide)`** defers the claim to a
 callable `(message) -> bool`, for a rule none of the matchers above express.
 
+### The context listener: a session's token, restored and written back
+
+**`ContextListener(token_storage, user_providers, context_key, session_storage, *, logger=None,
+dispatcher=None, trust_resolver=None)`** is the chain step a *stateful* firewall runs: it reads
+the token the request's session carries — under the key `_security.<context>`, the firewall's
+own name composed onto the prefix every user-facing key of the flow carries — and restores it
+into the token storage, after refreshing the user it carries through the firewall's user
+providers. `supports()` answers `None` always — the lazy join: nothing in a request's head
+commits the listener, but a stateful firewall restores its context on every request. The step
+sits at the default priority `0`, tied with the authentication step and ahead of the access
+step, registered before the manager so the token is restored before anything reads it.
+
+The refresh reloads the user through each provider that supports its class, in order, and
+deauthenticates the token when the reload changed the user: the password changed (with the
+legacy carve-out — a stored eight-character password that is the crc32c checksum of the
+reloaded one is the same password), a role was granted or withdrawn, the identifier names
+someone else, or a user comparing itself says so. Each reload is weighed by the listener's own
+comparison and then announced as **`CheckRefreshedUserEvent`** — seeded with that verdict, for
+a listener to confirm, add its own `AuthenticationError` reason to, or clear. A deauthentication
+is announced as **`TokenDeauthenticatedEvent`** — the original token, the reason, the provider
+classes that contributed, the error a listener gave — and the storage is left empty, so the
+request goes on anonymous. A session holding no token, or something that is not one — a corrupt
+payload, a foreign class — leaves the storage empty the same way, without failing the request.
+
+The response half, **`on_response(response_event)`** — registered beside the chain on the
+kernel's response event — writes the token back: what the request authenticated is stored under
+the same session key, and an anonymous request's key is removed, so a logout does not linger in
+the session. It runs only for the requests the request half marked with its own session key —
+the firewall-run mark — so a response of a request another firewall ran is left to that
+firewall's listener. The token is stored as the object it is: the session storage's own contract
+owns the wire format, and the lazy-object initialisation guard the upstream listener opens with
+has no lazy user to guard on this stack.
+
 ### The exception listener: 401, 403 and RFC 6750
 
 **`ExceptionListener`** is a subscriber on the [xtr-http-kernel](../xtr-http-kernel) exception
@@ -452,13 +485,20 @@ answers a denied scope with a `403` carrying the RFC 6750 `insufficient_scope` c
 
 ### Security events
 
-Five events are raised around a request's authentication — `CheckPassportEvent`,
-`AuthenticationTokenCreatedEvent`, `InteractiveLoginEvent`, `LoginSuccessEvent`, `LoginFailureEvent`.
+Seven events are raised around a request's authentication — `CheckPassportEvent`,
+`AuthenticationTokenCreatedEvent`, `InteractiveLoginEvent`, `LoginSuccessEvent`, `LoginFailureEvent`,
+`CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent`.
 A subscriber listens to the event class itself (the dispatcher derives each event's name from its
 class) — except `InteractiveLoginEvent`, the one event that carries a name of its own,
 `SecurityEvents.INTERACTIVE_LOGIN` (`security.interactive_login`), because an application listens
 for a user's own login across the whole flow rather than at one authenticator.
 `SecurityEvents.ALIASES` maps every event class to the name it is dispatched under.
+
+`CheckRefreshedUserEvent` and `TokenDeauthenticatedEvent` belong to the stateful half: the
+context listener announces the first while refreshing the user a session token carries —
+seeded with the verdict of its own comparison, for a listener to confirm, add a reason to,
+or clear — and the second when the refresh deauthenticates, carrying the original token,
+the reason, the providers that contributed and the error a listener gave.
 
 ## Errors
 
@@ -478,7 +518,8 @@ xtr_security_http/
 ├── firewall_map.py             FirewallMap, matched or fetched by name
 ├── firewall_context_interface.py  one firewall's runtime pieces
 ├── firewall/                   Firewall (the subscriber), AccessListener, ExceptionListener,
-│                              FirewallListenerInterface, AbstractListener
+│                              ContextListener, RefreshUserResult, FirewallListenerInterface,
+│                              AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
 ├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, passport/, token/
 ├── access_token/               extractors, handler interface, oidc/ (OidcTokenHandler)

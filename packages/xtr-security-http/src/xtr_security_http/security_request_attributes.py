@@ -88,6 +88,11 @@ class SecurityRequestAttributes:
     """Marks the requests the firewall actually ran for, so the response pass
     stores the context only for those."""
 
+    SESSION: Final[str] = "_xtr_security_session"
+    """The session the context listener built for the request, handed from the
+    request half that read the token to the response half that stores it, so
+    both halves of one request reach the same session."""
+
     PRE_AUTHENTICATED_USERNAME: Final[str] = "_xtr_security_pre_authenticated_username"
     """The username a pre-authenticated authenticator read from the request,
     handed from its supports pass to its authenticate pass."""

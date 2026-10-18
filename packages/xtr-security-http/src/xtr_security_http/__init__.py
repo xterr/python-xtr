@@ -79,9 +79,11 @@ from .entry_point import AuthenticationEntryPointInterface
 from .event import (
     AuthenticationTokenCreatedEvent,
     CheckPassportEvent,
+    CheckRefreshedUserEvent,
     InteractiveLoginEvent,
     LoginFailureEvent,
     LoginSuccessEvent,
+    TokenDeauthenticatedEvent,
 )
 from .event_listener import (
     CheckCredentialsListener,
@@ -98,9 +100,11 @@ from .firewall import (
     AbstractListener,
     AccessListener,
     AuthenticatorManagerListener,
+    ContextListener,
     ExceptionListener,
     Firewall,
     FirewallListenerInterface,
+    RefreshUserResult,
 )
 from .firewall_context_interface import FirewallContextInterface
 from .firewall_map import FirewallMap
@@ -142,6 +146,8 @@ __all__ = [
     "ChainAccessTokenExtractor",
     "CheckCredentialsListener",
     "CheckPassportEvent",
+    "CheckRefreshedUserEvent",
+    "ContextListener",
     "CredentialsInterface",
     "CsrfTokenBadge",
     "CsrfTokenChecker",
@@ -178,11 +184,13 @@ __all__ = [
     "PostAuthenticationToken",
     "PreAuthenticatedUserBadge",
     "QueryAccessTokenExtractor",
+    "RefreshUserResult",
     "RememberMeBadge",
     "SecurityEvents",
     "SecurityRequestAttributes",
     "SecurityTokenResolver",
     "SelfValidatingPassport",
+    "TokenDeauthenticatedEvent",
     "TraceableAuthenticator",
     "TraceableAuthenticatorManagerListener",
     "UnknownFirewallError",

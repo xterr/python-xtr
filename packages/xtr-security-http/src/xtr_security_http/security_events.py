@@ -17,9 +17,11 @@ from xtr_event_dispatcher_contracts import event_name_of
 
 from .event.authentication_token_created_event import AuthenticationTokenCreatedEvent
 from .event.check_passport_event import CheckPassportEvent
+from .event.check_refreshed_user_event import CheckRefreshedUserEvent
 from .event.interactive_login_event import InteractiveLoginEvent
 from .event.login_failure_event import LoginFailureEvent
 from .event.login_success_event import LoginSuccessEvent
+from .event.token_deauthenticated_event import TokenDeauthenticatedEvent
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -60,9 +62,11 @@ class SecurityEvents:
     ALIASES: Final[Mapping[type[Event], str]] = {
         AuthenticationTokenCreatedEvent: event_name_of(AuthenticationTokenCreatedEvent),
         CheckPassportEvent: event_name_of(CheckPassportEvent),
+        CheckRefreshedUserEvent: event_name_of(CheckRefreshedUserEvent),
         InteractiveLoginEvent: INTERACTIVE_LOGIN,
         LoginFailureEvent: event_name_of(LoginFailureEvent),
         LoginSuccessEvent: event_name_of(LoginSuccessEvent),
+        TokenDeauthenticatedEvent: event_name_of(TokenDeauthenticatedEvent),
     }
     """Every event class this package raises today, mapped to the name it is
     dispatched under."""

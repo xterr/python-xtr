@@ -33,6 +33,7 @@ def test_the_flow_internal_keys_carry_the_prefixed_spelling() -> None:
         == "_xtr_security_access_control_attributes"
     )
     assert SecurityRequestAttributes.FIREWALL_RUN == "_xtr_security_firewall_run"
+    assert SecurityRequestAttributes.SESSION == "_xtr_security_session"
     assert (
         SecurityRequestAttributes.PRE_AUTHENTICATED_USERNAME
         == "_xtr_security_pre_authenticated_username"
@@ -54,9 +55,10 @@ def test_no_two_keys_are_the_same() -> None:
         SecurityRequestAttributes.SKIPPED_AUTHENTICATORS,
         SecurityRequestAttributes.ACCESS_CONTROL_ATTRIBUTES,
         SecurityRequestAttributes.FIREWALL_RUN,
+        SecurityRequestAttributes.SESSION,
         SecurityRequestAttributes.PRE_AUTHENTICATED_USERNAME,
         SecurityRequestAttributes.LOGIN_LINK_PARAMETERS,
         SecurityRequestAttributes.REMEMBER_ME_COOKIE,
     }
 
-    assert len(keys) == 14
+    assert len(keys) == 15
