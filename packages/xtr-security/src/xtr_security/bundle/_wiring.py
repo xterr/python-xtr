@@ -664,10 +664,13 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     parked on the context definition's ``listeners`` argument — the
     P2.1 convention the sorting pass reads — so it is ordered before the
     context resolves it through the locator, in the order the pass left it.
-    The exception-listener slot carries the global
-    :class:`~xtr_security_http.firewall.exception_listener.ExceptionListener`
-    the wiring already builds; the logout slot stays empty until the logout
-    listener lands.
+    The exception listener is built per firewall, from the firewall's own
+    parts — its name, its resolved entry point, its configured denial
+    handler, the scope handler over its realm — so a request's failure is
+    answered by the firewall that ran it. It is stateless, as long as the
+    firewall configuration accepts only stateless firewalls, and carries no
+    logger and no re-authentication entry point until surfaces configure
+    them. The logout slot stays empty until the logout listener lands.
     """
     realm = _realm_of(firewall)
     access_denied = firewall.access_denied_handler
@@ -753,8 +756,10 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         access_listener: Annotated[AccessListener, Target(access_listener_qualifier)],
         authenticators: ServiceLocator[AuthenticatorInterface],
         responses: ResponseFactoryInterface,
+        storage: TokenStorageInterface,
+        trust_resolver: AuthenticationTrustResolverInterface,
+        bridge: StarletteHttpFactoryInterface,
         chain: ServiceLocator[FirewallListenerInterface],
-        exception_listener: ExceptionListener,
         listeners: Sequence[str] = (),
         denied: object | None = None,
     ) -> FirewallContext:
@@ -769,13 +774,24 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
             if entry_point_qualifier is not None
             else None
         )
+        scope_denied_handler = InsufficientScopeAccessDeniedHandler(responses, realm)
+        exception_listener = ExceptionListener(
+            storage,
+            trust_resolver,
+            responses,
+            bridge,
+            name,
+            entry_point=entry_point,
+            access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
+            scope_denied_handler=scope_denied_handler,
+        )
         return FirewallContext(
             name=name,
             authenticator_manager=manager,
             access_listener=access_listener,
             entry_point=entry_point,
             access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
-            scope_denied_handler=InsufficientScopeAccessDeniedHandler(responses, realm),
+            scope_denied_handler=scope_denied_handler,
             listeners=tuple([await chain.get(qualifier) for qualifier in listeners]),
             exception_listener=exception_listener,
         )
@@ -785,8 +801,10 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         "access_listener": Annotated[AccessListener, Target(access_listener_qualifier)],
         "authenticators": ServiceLocator[AuthenticatorInterface],
         "responses": ResponseFactoryInterface,
+        "storage": TokenStorageInterface,
+        "trust_resolver": AuthenticationTrustResolverInterface,
+        "bridge": StarletteHttpFactoryInterface,
         "chain": ServiceLocator[FirewallListenerInterface],
-        "exception_listener": ExceptionListener,
         "return": FirewallContext,
     }
     if access_denied is not None:

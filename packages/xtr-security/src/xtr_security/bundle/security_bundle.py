@@ -3,11 +3,12 @@
 Reads a :class:`SecurityConfig` and puts the whole security machine under the
 container — the token storage and authorization checker scoped to a request, the
 voters and the decision manager, the user providers and password hashers, and,
-per firewall, its own event dispatcher, authenticators, access map and entry
-point, gathered into a :class:`FirewallMap`. The exception listener turns a
-security error into a response on the http-kernel lifecycle, and the firewall —
-a subscriber over the same lifecycle's events — runs the chain of the firewall
-that matched each request, before routing.
+per firewall, its own event dispatcher, authenticators, access map, entry
+point and exception listener, gathered into a :class:`FirewallMap`. The
+exception listener — one per firewall, built from that firewall's parts —
+turns a security error into a response on the http-kernel lifecycle, and the
+firewall — a subscriber over the same lifecycle's events — runs the chain of
+the firewall that matched each request, before routing.
 """
 
 from __future__ import annotations
@@ -30,9 +31,8 @@ from xtr_dependency_injection.decorator.remove_if_missing import (
     markers_of,
 )
 from xtr_dependency_injection.kernel.kernel import BUNDLE_PASS_PRIORITY
-from xtr_event_dispatcher.bundle import LISTENER_TAG, EventDispatcherBundle
+from xtr_event_dispatcher.bundle import EventDispatcherBundle
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
-from xtr_http_kernel import ExceptionEvent
 from xtr_http_kernel.bundle import HttpKernelBundle
 from xtr_security_core import (
     AccessDecisionManager,
@@ -54,7 +54,6 @@ from xtr_security_core import (
 )
 from xtr_security_http import (
     CsrfTokenChecker,
-    ExceptionListener,
     IsGrantedChecker,
     SecurityTokenResolver,
     UserValueResolver,
@@ -215,12 +214,6 @@ class SecurityBundle(Bundle[SecurityConfig]):
         # over the lifecycle's own events; the listeners resolve the map per
         # call, from the request's scope.
         services.load("xtr_security.event_listener.firewall_listener")
-
-        _ = services.set(ExceptionListener).add_tag(
-            LISTENER_TAG,
-            event=ExceptionEvent,
-            method="on_exception",
-        )
 
         if bundle_active(builder, "console"):
             self._user_classes = tuple(

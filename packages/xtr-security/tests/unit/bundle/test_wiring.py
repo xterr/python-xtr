@@ -14,8 +14,12 @@ from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from typing_extensions import override
+from xtr_http_kernel.bridge import ResponseFactory, StarletteHttpFactory
 from xtr_password_hasher import PasswordHasherFactoryInterface, UserPasswordHasherInterface
 from xtr_security_core import MissingUserProvider, RoleHierarchyInterface, UserProviderInterface
+from xtr_security_core.authentication.authentication_trust_resolver import (
+    AuthenticationTrustResolver,
+)
 from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
 from xtr_security_core.authorization import AccessDecisionManager
 from xtr_security_core.exception import InvalidArgumentError
@@ -277,21 +281,74 @@ async def test_the_context_factory_resolves_the_parked_chain_through_the_locator
         expose=ExposeSecurityLevel.ALL,
     )
     factory = cast("Callable[..., Awaitable[FirewallContext]]", services.set_targets[-1])
-    exception_listener = cast("ExceptionListener", object())
 
     context = await factory(
         manager=cast("AuthenticatorManager", object()),
         access_listener=cast("AccessListener", object()),
         authenticators=_EmptyLocator(),
-        responses=object(),
+        responses=ResponseFactory(),
+        storage=TokenStorage(),
+        trust_resolver=AuthenticationTrustResolver(),
+        bridge=StarletteHttpFactory(),
         chain=_ChainLocator(),
-        exception_listener=exception_listener,
         listeners=("early", "late"),
     )
 
     assert context.listeners == ("listener:early", "listener:late")
-    assert context.exception_listener is exception_listener
+    assert isinstance(context.exception_listener, ExceptionListener)
     assert context.logout_listener is None
+
+
+async def test_the_context_factory_builds_each_firewalls_own_exception_listener() -> None:
+    """Two firewalls answer their failures with two listeners, not a shared one."""
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.ALL,
+    )
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "admin",
+        FirewallConfig(security=False),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.ALL,
+    )
+
+    def context_factory_of(firewall: str) -> Callable[..., Awaitable[FirewallContext]]:
+        """Return the context factory registered for ``firewall``."""
+        for target in services.set_targets:
+            if getattr(target, "__name__", None) == f"firewall_context_{firewall}":
+                return cast("Callable[..., Awaitable[FirewallContext]]", target)
+        raise AssertionError(f"no context factory for {firewall!r}")
+
+    api_factory = context_factory_of("api")
+    admin_factory = context_factory_of("admin")
+
+    async def context_of(factory: Callable[..., Awaitable[FirewallContext]]) -> FirewallContext:
+        return await factory(
+            manager=cast("AuthenticatorManager", object()),
+            access_listener=cast("AccessListener", object()),
+            authenticators=_EmptyLocator(),
+            responses=ResponseFactory(),
+            storage=TokenStorage(),
+            trust_resolver=AuthenticationTrustResolver(),
+            bridge=StarletteHttpFactory(),
+            chain=_ChainLocator(),
+        )
+
+    api = await context_of(api_factory)
+    admin = await context_of(admin_factory)
+
+    assert isinstance(api.exception_listener, ExceptionListener)
+    assert isinstance(admin.exception_listener, ExceptionListener)
+    assert api.exception_listener is not admin.exception_listener
 
 
 def test_the_default_hasher_config_is_the_first_configured_one() -> None:

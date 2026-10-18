@@ -382,15 +382,32 @@ rule the bundle builds carries a channel today, so no chain the bundle wires run
 
 ### The exception listener: 401, 403 and RFC 6750
 
-**`ExceptionListener`** is a subscriber on the [xtr-http-kernel](../xtr-http-kernel) exception
-event. It turns a security error raised while handling into the right response:
+**`ExceptionListener`** is one object per firewall, built from that firewall's parts — its
+name, its entry point, its access-denied handler — and parked by the firewall on the
+request's carrier, so a request's failure is answered by the firewall that ran it. It turns a
+security error raised while handling into the right response, walking the failure's chain
+of causes to the first one it owns:
 
 - an **`AuthenticationError`** becomes the firewall's entry-point challenge, or a bare `401`
-  with `WWW-Authenticate: Bearer` when the firewall has no entry point;
+  with `WWW-Authenticate: Bearer` when the firewall has no entry point. The path the request
+  was heading for is kept on the session for the return trip — unless the firewall is
+  stateless, or the entry point only stands in (a
+  `FallbackAuthenticationEntryPointInterface`) — and an account-status error clears the
+  token, so a disabled account cannot loop its own challenge;
 - an **`AccessDeniedError`** from a caller who is not fully authenticated becomes the entry-point
-  challenge for insufficient authentication; from a fully authenticated caller, a scope challenge
-  (when the denied attribute is a scope), the firewall's access-denied handler, or a plain `403`;
+  challenge for insufficient authentication — naming the masked authentication error the
+  manager parked, when one was; from a fully authenticated caller, a fresh proof may be
+  asked through a `ReAuthenticationEntryPointInterface` when a recency vote asked for one
+  (the asked attribute parked under the re-authentication key), else a scope challenge (when
+  the denied attribute is a scope), the firewall's access-denied handler, or a plain `403`;
 - any other exception is left untouched, to whatever else handles it.
+
+The upstream error page — a sub-request rendering a denial — has no local counterpart: this
+kernel has no sub-request mechanism, so the `error_page` parameter is kept for the surface
+that will carry it and a configured page is not rendered; the refusal chain falls through to
+the plain `403`. The target path is kept under `_security.<firewall>.target_path` by the
+`util` helpers `save_target_path`, `get_target_path` and `remove_target_path`, over the
+session and the firewall's name.
 
 `AccessTokenAuthenticator` is itself an `AuthenticationEntryPointInterface`: `start(request,
 error)` answers a request with an RFC 6750 bearer challenge, naming `invalid_token` when a

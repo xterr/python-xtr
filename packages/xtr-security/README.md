@@ -335,11 +335,14 @@ resolving the map per call from the request's scope — so every request the con
 firewalls claim is authenticated before routing. A firewall's
 `listeners` configuration names the qualifiers of its listener chain; the bundle parks them on
 the firewall's context definition, where `SortFirewallListenersPass` orders them, and the
-context carries the ordered chain — with the global exception listener and, while the firewall
-configures none, no logout listener — so `await firewall_map.get_listeners(message)` answers
-the matched firewall's `(chain, exception_listener, logout_listener)`. The exception
-listener turns a security error into a response on the http-kernel lifecycle. Its zero-config
-path builds and boots with no configuration and touches no I/O until a request arrives.
+context carries the ordered chain — with the firewall's own exception listener, built per
+firewall from its name, its entry point and its handlers, and, while the firewall configures
+none, no logout listener — so `await firewall_map.get_listeners(message)` answers the matched
+firewall's `(chain, exception_listener, logout_listener)`. The exception listener turns a
+security error into a response on the http-kernel lifecycle, answering a request's failure
+the way the firewall that ran it would; a request no firewall matched is the kernel's to
+answer. Its zero-config path builds and boots with no configuration and touches no I/O
+until a request arrives.
 
 Each firewall dispatches its security events — `CheckPassportEvent`,
 `AuthenticationTokenCreatedEvent`, `AuthenticationSuccessEvent`, `LoginSuccessEvent`,

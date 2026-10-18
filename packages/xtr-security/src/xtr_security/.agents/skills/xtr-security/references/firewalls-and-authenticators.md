@@ -157,10 +157,16 @@ firewall's listeners.
 
 ## Challenges
 
-The exception listener answers for you: an `AuthenticationError` becomes the firewall's
-entry-point challenge, or a bare `401` with `WWW-Authenticate: Bearer`; an `AccessDeniedError`
-becomes `403`, or the entry-point challenge when the caller is not fully authenticated, or an
-`insufficient_scope` challenge when a scope was the denied attribute.
+The exception listener answers for you — one per firewall, built from that firewall's parts:
+an `AuthenticationError` becomes the firewall's entry-point challenge, or a bare `401` with
+`WWW-Authenticate: Bearer`; an `AccessDeniedError` becomes `403`, or the entry-point
+challenge when the caller is not fully authenticated, or an `insufficient_scope` challenge
+when a scope was the denied attribute. A recency refusal (`IS_AUTHENTICATED_RECENTLY`) from a
+known caller is answered with a re-authentication when a
+`ReAuthenticationEntryPointInterface` is configured — the fresh proof the recency check
+asks for — and the interrupted path is kept on the session for the return trip unless the
+firewall is stateless or the entry point only stands in
+(`FallbackAuthenticationEntryPointInterface`).
 
 ## Adding a kind of authenticator
 

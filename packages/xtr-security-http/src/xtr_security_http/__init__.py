@@ -75,7 +75,11 @@ from .decorator.is_csrf_token_valid import (
 )
 from .decorator.is_granted import IsGranted
 from .decorator.is_granted_context import IsGrantedContext
-from .entry_point import AuthenticationEntryPointInterface
+from .entry_point import (
+    AuthenticationEntryPointInterface,
+    FallbackAuthenticationEntryPointInterface,
+    ReAuthenticationEntryPointInterface,
+)
 from .event import (
     AuthenticationTokenCreatedEvent,
     CheckPassportEvent,
@@ -119,6 +123,7 @@ from .resolver import (
 )
 from .security_events import SecurityEvents
 from .security_request_attributes import SecurityRequestAttributes
+from .util import get_target_path, remove_target_path, save_target_path
 
 __all__ = [
     "MAX_USERNAME_LENGTH",
@@ -158,6 +163,7 @@ __all__ = [
     "CustomCredentials",
     "ExceptionListener",
     "ExposeSecurityLevel",
+    "FallbackAuthenticationEntryPointInterface",
     "Firewall",
     "FirewallContextInterface",
     "FirewallListenerInterface",
@@ -186,6 +192,7 @@ __all__ = [
     "PostAuthenticationToken",
     "PreAuthenticatedUserBadge",
     "QueryAccessTokenExtractor",
+    "ReAuthenticationEntryPointInterface",
     "RefreshUserResult",
     "RememberMeBadge",
     "SecurityEvents",
@@ -204,10 +211,13 @@ __all__ = [
     "UserValueResolver",
     "__version__",
     "firewall_listener_order_of",
+    "get_target_path",
     "is_sensitive",
     "mask",
     "oauth2_scope",
     "parse_oauth2_scope",
+    "remove_target_path",
+    "save_target_path",
 ]
 
 try:

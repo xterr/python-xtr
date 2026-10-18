@@ -52,9 +52,11 @@ pytestmark = pytest.mark.anyio
 def _exception_listener() -> ExceptionListener:
     """Return the listener a secured firewall stores for its requests."""
     return ExceptionListener(
+        TokenStorage(),
         AuthenticationTrustResolver(),
         ResponseFactory(),
         StarletteHttpFactory(),
+        "api",
     )
 
 
@@ -124,9 +126,11 @@ def _secured_firewall(
                     access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
                     listeners=tuple(chain),
                     exception_listener=ExceptionListener(
+                        TokenStorage(),
                         AuthenticationTrustResolver(),
                         ResponseFactory(),
                         StarletteHttpFactory(),
+                        "api",
                     ),
                 ),
             ),

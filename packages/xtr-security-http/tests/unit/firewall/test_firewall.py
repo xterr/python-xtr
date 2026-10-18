@@ -13,6 +13,7 @@ from xtr_http_kernel.bridge import ResponseFactory, StarletteHttpFactory
 from xtr_security_core.authentication.authentication_trust_resolver import (
     AuthenticationTrustResolver,
 )
+from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
 from xtr_security_core.exception import BadCredentialsError
 
 from tests.support.contexts import FakeFirewallContext
@@ -134,7 +135,11 @@ def _firewall(
 def _exception_listener() -> ExceptionListener:
     """Return the listener a secured firewall stores for its requests."""
     return ExceptionListener(
-        AuthenticationTrustResolver(), ResponseFactory(), StarletteHttpFactory()
+        TokenStorage(),
+        AuthenticationTrustResolver(),
+        ResponseFactory(),
+        StarletteHttpFactory(),
+        "api",
     )
 
 
