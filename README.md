@@ -127,6 +127,7 @@ graph LR
     securitycore --> clock
     securitycsrf[xtr-security-csrf] --> httpfoundation
     securityhttp[xtr-security-http] --> securitycore
+    securityhttp --> securitycsrf
     securityhttp --> httpkernel
     securityhttp --> httpfoundation
     securityhttp --> httpmsgcon

@@ -28,6 +28,8 @@ from xtr_security_http.decorator.current_user import CurrentUser
 from xtr_security_http.decorator.is_granted import IsGranted
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 from xtr_security_http.firewall_map import FirewallMap
+from xtr_security_http.resolver.is_granted_checker import IsGrantedChecker
+from xtr_security_http.resolver.user_value_resolver import UserValueResolver
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, MutableMapping, Sequence
@@ -187,10 +189,12 @@ async def test_exception_listener_sends_a_carried_response(container: ContainerI
 async def test_is_granted_grants_with_the_current_token(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
         _ = await _run(unit, "api", _api_message("Bearer admin"))
-        await IsGranted("ROLE_ADMIN")._decide(
-            None,
+        await IsGrantedChecker(
             await unit.get(TokenStorageInterface),
             await unit.get(AccessDecisionManagerInterface),
+        ).check(
+            IsGranted("ROLE_ADMIN"),
+            None,
         )
 
 
@@ -198,17 +202,20 @@ async def test_is_granted_denies_without_the_role(container: ContainerInterface)
     async with unit_of_work(container) as unit:
         _ = await _run(unit, "api", _api_message("Bearer good"))
         with pytest.raises(AccessDeniedError):
-            await IsGranted("ROLE_ADMIN")._decide(
-                None,
+            await IsGrantedChecker(
                 await unit.get(TokenStorageInterface),
                 await unit.get(AccessDecisionManagerInterface),
+            ).check(
+                IsGranted("ROLE_ADMIN"),
+                None,
             )
 
 
 async def test_current_user_resolves_the_authenticated_user(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
         _ = await _run(unit, "api", _api_message("Bearer good"))
-        user = await CurrentUser()._resolve(await unit.get(TokenStorageInterface))
+        resolver = UserValueResolver(await unit.get(TokenStorageInterface))
+        user = await CurrentUser()._resolve(resolver)
 
     assert user is not None
     assert user.get_user_identifier() == "alice"

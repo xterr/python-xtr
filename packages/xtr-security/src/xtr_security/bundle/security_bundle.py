@@ -25,6 +25,10 @@ from xtr_dependency_injection import (
     bundle_active,
     required_bundle,
 )
+from xtr_dependency_injection.decorator.remove_if_missing import (
+    REMOVE_IF_MISSING_TAG,
+    markers_of,
+)
 from xtr_dependency_injection.kernel.kernel import BUNDLE_PASS_PRIORITY
 from xtr_event_dispatcher.bundle import LISTENER_TAG, EventDispatcherBundle
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
@@ -49,8 +53,12 @@ from xtr_security_core import (
     VoterInterface,
 )
 from xtr_security_http import (
+    CsrfTokenChecker,
     ExceptionListener,
     FirewallSchemeRegistry,
+    IsGrantedChecker,
+    SecurityTokenResolver,
+    UserValueResolver,
 )
 from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
@@ -176,6 +184,18 @@ class SecurityBundle(Bundle[SecurityConfig]):
         services.alias(UserAuthorizationCheckerInterface, AuthorizationChecker)
         services.alias(GuestAuthorizationCheckerInterface, AuthorizationChecker)
         _ = services.set(_security_facade, lifetime="scoped")
+
+        # The route markers' enforcement services, over the same request-scoped
+        # storage and decision machinery. The CSRF checker carries its
+        # remove-if-missing marker on the class; the tag the pass reads goes
+        # on the definition, so the checker is dropped unless a token manager
+        # is wired.
+        _ = services.set(UserValueResolver, lifetime="scoped")
+        _ = services.set(SecurityTokenResolver, lifetime="scoped")
+        _ = services.set(IsGrantedChecker, lifetime="scoped")
+        csrf_checker = services.set(CsrfTokenChecker, lifetime="scoped")
+        for attributes in markers_of(CsrfTokenChecker):
+            _ = csrf_checker.add_tag(REMOVE_IF_MISSING_TAG, **attributes)
 
         register_hashers(services, config)
         register_user_providers(services, config)

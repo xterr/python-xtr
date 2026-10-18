@@ -292,20 +292,67 @@ present token was rejected, and the `realm` when one is configured.
 
 ### Decorators
 
-Four markers put the edge on a route, and stay out of the generated schema:
+Six markers put the edge on a route, and stay out of the generated schema:
 
 | Decorator | Does |
 |---|---|
 | `Firewall(name=None, *, scopes=())` | run a firewall (matched or named) before the endpoint |
-| `IsGranted(attribute, subject=None, *, message=None, status_code=None)` | require an attribute, raising `AccessDeniedError` (or answering `status_code`) |
-| `CurrentUser(user_class=None, *, optional=False)` | inject the current user; `optional` yields `None` when anonymous |
+| `IsGranted(attribute, subject=None, *, message=None, status_code=None, exception_code=None, methods=(), consume_security_scopes=False)` | require an attribute, raising `AccessDeniedError` (or answering `status_code`) |
+| `CurrentUser(user_class=None, *, optional=False, disabled=False)` | inject the current user; `optional` yields `None` when anonymous, `disabled` switches the resolution off |
+| `CurrentToken(*, optional=False)` | inject the authenticated token; `optional` yields `None` when anonymous |
+| `IsCsrfTokenValid(token_id, *, token_key="_token", methods=(), token_source=SOURCE_PAYLOAD)` | require the request to present the value minted for `token_id` |
 | `IsGrantedContext` | the context a closure `IsGranted` attribute is handed (from [core](../xtr-security-core)) |
+
+Every marker is pure metadata: the enforcement lives in an injectable service in
+`resolver/` — `UserValueResolver`, `SecurityTokenResolver`, `IsGrantedChecker`,
+`CsrfTokenChecker` — each built by hand from its constructor or filled from a
+container, and each testable without the web framework. The thin dependency a
+route carries delegates to them.
 
 `IsGranted`'s `subject` is `None`, the name of a path parameter, or a callable used as a
 dependency; its `attribute` is a string a voter matches or a callable
-`(IsGrantedContext, subject) -> bool`. `CurrentUser` raises
-`AuthenticationCredentialsNotFoundError` on an anonymous request (a `401`), or
-`UnsupportedUserError` when the user is not the asked-for class.
+`(IsGrantedContext, subject) -> bool`. `methods` limits a check to those methods
+(upper-cased; `GET` extends to `HEAD`); an empty list applies to every method.
+`CurrentUser` raises `AuthenticationCredentialsNotFoundError` on an anonymous
+request (a `401`), or `UnsupportedUserError` when the user is not of the
+asked-for class — or of any of the classes, given a tuple. `CurrentToken` raises
+the same on an anonymous request. `IsCsrfTokenValid` reads the presented value
+from the sources its `token_source` bitmask names — `SOURCE_PAYLOAD` (the JSON
+body, else the parsed form; the default), `SOURCE_QUERY`, `SOURCE_HEADER` — the
+first named source that carries one — and refuses the request with a `403` when
+the token manager does not vouch for it.
+
+**The security scopes a route declares natively are never consumed silently.**
+`IsGranted` ignores the request's accumulated `SecurityScopes` unless the route
+opts in with `consume_security_scopes=True`; opted in, each accumulated scope is
+decided through the voter stack too, as an `oauth2_scope(...)` attribute that
+must be granted.
+Without the opt-in, `Security(..., scopes=[...])` stays what declaring it alone
+ever makes it: documentation.
+
+### Deviations and decisions
+
+- **No controller-arguments events.** The upstream listeners that enforce the
+  route markers run on a controller-arguments event the
+  [kernel](../xtr-http-kernel) deliberately lacks — the web framework resolves
+  arguments. Enforcement here lives in the injectable services in `resolver/`,
+  consumed by thin dependencies on the route: the same split, dispatched where
+  this stack dispatches.
+- **No expression language.** An `IsGranted` attribute or subject written as an
+  expression, and an `IsCsrfTokenValid` id written as one, are not supported:
+  the workspace ships no expression component. Strings and callables land;
+  expression support is deferred until one exists.
+- **`exception_code` is recorded, not applied.** The local error taxonomy
+  carries no exception-code channel, so `IsGranted(exception_code=...)` is
+  metadata a caller reads off the marker; the denial itself carries the
+  attribute, the subject and the decision.
+- **Nullability is stated on the marker.** The web framework does not hand a
+  dependency the annotation of the parameter it fills, so `optional` on
+  `CurrentUser`/`CurrentToken` states what `User | None` would declare, and the
+  upstream argument-default rule translates to that same `optional`.
+- **`IsCsrfTokenValid` answers `403` directly.** A request that fails the token
+  check is refused with a plain `403` — the caller is already identified —
+  rather than routed through the firewall's exception listener.
 
 ### Access tokens
 
@@ -391,7 +438,8 @@ xtr_security_http/
 ├── access_map.py               the ordered access-control rules
 ├── request_matcher/            the callable escape hatch (the rest come from xtr-http-foundation)
 ├── authorization/              OAuth2ScopeVoter, oauth2_scope, the scope-denied handler
-├── decorator/                  IsGranted, CurrentUser, IsGrantedContext
+├── decorator/                  IsGranted, CurrentUser, CurrentToken, IsCsrfTokenValid
+├── resolver/                   the enforcement services behind the markers
 ├── entry_point/                AuthenticationEntryPointInterface
 ├── event/                      the firewall events around a login
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)

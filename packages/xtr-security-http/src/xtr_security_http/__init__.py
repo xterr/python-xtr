@@ -63,7 +63,14 @@ from .authorization import (
     oauth2_scope,
     parse_oauth2_scope,
 )
+from .decorator.current_token import CurrentToken
 from .decorator.current_user import CurrentUser
+from .decorator.is_csrf_token_valid import (
+    SOURCE_HEADER,
+    SOURCE_PAYLOAD,
+    SOURCE_QUERY,
+    IsCsrfTokenValid,
+)
 from .decorator.is_granted import IsGranted
 from .decorator.is_granted_context import IsGrantedContext
 from .entry_point import AuthenticationEntryPointInterface
@@ -95,11 +102,20 @@ from .firewall_scheme_registry import (
     active_firewall_schemes,
 )
 from .http_utils import HttpUtils
+from .resolver import (
+    CsrfTokenChecker,
+    IsGrantedChecker,
+    SecurityTokenResolver,
+    UserValueResolver,
+)
 from .security_events import SecurityEvents
 from .security_request_attributes import SecurityRequestAttributes
 
 __all__ = [
     "MAX_USERNAME_LENGTH",
+    "SOURCE_HEADER",
+    "SOURCE_PAYLOAD",
+    "SOURCE_QUERY",
     "AbstractAuthenticator",
     "AccessDeniedHandlerInterface",
     "AccessListener",
@@ -122,6 +138,8 @@ __all__ = [
     "CheckPassportEvent",
     "CredentialsInterface",
     "CsrfTokenBadge",
+    "CsrfTokenChecker",
+    "CurrentToken",
     "CurrentUser",
     "CustomCredentials",
     "ExceptionListener",
@@ -140,7 +158,9 @@ __all__ = [
     "InteractiveAuthenticatorInterface",
     "InteractiveLoginEvent",
     "InvalidAccessTokenError",
+    "IsCsrfTokenValid",
     "IsGranted",
+    "IsGrantedChecker",
     "IsGrantedContext",
     "LoginFailureEvent",
     "LoginSuccessEvent",
@@ -155,6 +175,7 @@ __all__ = [
     "RememberMeBadge",
     "SecurityEvents",
     "SecurityRequestAttributes",
+    "SecurityTokenResolver",
     "SelfValidatingPassport",
     "TraceableAuthenticator",
     "UnknownFirewallError",
@@ -163,6 +184,7 @@ __all__ = [
     "UserBadge",
     "UserCheckerListener",
     "UserProviderListener",
+    "UserValueResolver",
     "__version__",
     "active_firewall_schemes",
     "is_sensitive",

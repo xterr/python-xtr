@@ -21,6 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "xtr-security-core>=4.0,<5",
+    "xtr-security-csrf>=4.0,<5",
     "xtr-http-kernel>=4.0,<5",
     "xtr-http-foundation>=4.0,<5",
     "xtr-http-message-contracts>=4.0,<5",

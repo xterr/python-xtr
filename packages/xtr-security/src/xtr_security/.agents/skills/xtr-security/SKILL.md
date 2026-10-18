@@ -23,6 +23,8 @@ Write one `SecurityConfig`; the container owns the rest.
 | Require a role on a route | `@IsGranted("ROLE_ADMIN")` under the route decorator |
 | Require it over a subject | `dependencies=[IsGranted("BOOK_EDIT", subject=load_book)]` |
 | The current user in an endpoint | `user: Annotated[UserInterface, CurrentUser()]` |
+| The authenticated token in an endpoint | `token: Annotated[TokenInterface, CurrentToken()]` |
+| Require a form's CSRF token | `dependencies=[IsCsrfTokenValid("delete_book", methods=["POST"])]` |
 | The current user, or a decision, in a service | inject `Security` |
 | Refuse in a service | `await security.deny_access_unless_granted("EDIT", book)` |
 | A rule of your own | a class extending `Voter`, registered `@as_service` |
@@ -31,7 +33,8 @@ Write one `SecurityConfig`; the container owns the rest.
 
 Import from these surfaces, nothing deeper: `xtr_security` (`Security`), `xtr_security.bundle`
 (every `*Config` and `SecurityBundle`), `xtr_security_core` (users, tokens, voters, errors),
-`xtr_security_http` (`Firewall`, `IsGranted`, `CurrentUser`, badges) and `xtr_password_hasher`.
+`xtr_security_http` (`Firewall`, `IsGranted`, `CurrentUser`, `CurrentToken`, `IsCsrfTokenValid`,
+badges) and `xtr_password_hasher`.
 
 Self-issued JSON Web Tokens are an add-on package, `xtr-security-jwt`, with a skill of its own
 (`xtr-security-jwt`); it plugs its authenticator into this bundle.
@@ -132,6 +135,10 @@ async def delete_book(isbn: str) -> None: ...
 - `IsGranted` takes a `subject` in `dependencies=[...]`: a path-parameter name, or a callable
   shared with the endpoint through `Depends`. A denial is `403` for a fully authenticated caller
   and `401` for an anonymous one, or `status_code=` answered directly.
+- `IsGranted` never consumes the scopes a route declared natively with `Security(..., scopes=...)`
+  unless the route opts in with `consume_security_scopes=True`; opted in, each accumulated scope
+  is decided through the voters too. `IsCsrfTokenValid(token_id)` refuses a request whose presented
+  value the token manager does not vouch for, with a `403`.
 
 ## Decide in a service
 

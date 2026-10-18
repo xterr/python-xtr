@@ -6,26 +6,22 @@ import functools
 import inspect
 from typing import TYPE_CHECKING, Annotated, Final, ParamSpec, TypeVar, cast, overload
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.params import Depends as DependsParam
+from fastapi.security import (
+    SecurityScopes,  # noqa: TC002 -- the framework reads this annotation at runtime
+)
 
 # The framework reads the dependency's signature at runtime to fill it from the
-# container, so the injection marker, the request and the service types the
-# resolver receives stay importable here.
-from starlette.requests import Request  # noqa: TC002
+# container, so the injection marker and the checker type stay importable here.
 from xtr_dependency_injection import Injected  # noqa: TC002
-from xtr_security_core.authentication.token.null_token import NullToken
-from xtr_security_core.authentication.token.storage.token_storage_interface import (  # noqa: TC002
-    TokenStorageInterface,
-)
-from xtr_security_core.authorization.access_decision import AccessDecision
-from xtr_security_core.authorization.access_decision_manager_interface import (  # noqa: TC002
-    AccessDecisionManagerInterface,
-)
-from xtr_security_core.exception import AccessDeniedError
+
+from xtr_security_http.resolver.is_granted_checker import IsGrantedChecker  # noqa: TC001
+
+from ._methods import normalized_methods
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Sequence
 
 __all__ = ["IsGranted"]
 
@@ -50,6 +46,12 @@ class IsGranted(DependsParam):
     async def edit(book: Annotated[Book, Depends(load_book)]) -> Book: ...
     ```
 
+    The marker is pure metadata — what must be granted, over what, and how a
+    denial answers — and the deciding happens in the injectable
+    :class:`~xtr_security_http.resolver.is_granted_checker.IsGrantedChecker`
+    the thin dependency delegates to, which runs the attribute through the
+    access-decision machinery.
+
     The attribute is a string a voter matches, or a callable
     ``(IsGrantedContext, subject) -> bool`` the closure voter runs. The subject
     is ``None``, the name of a path parameter, or a callable used as a FastAPI
@@ -60,94 +62,95 @@ class IsGranted(DependsParam):
     with that status directly instead. It requires a firewall to have run;
     without one the check is made against the anonymous token.
 
-    The token storage and the access-decision manager the check reads are
-    container-provided dependencies of the resolver, declared with
-    :data:`~xtr_dependency_injection.Injected` — so the framework fills them from
-    the request scope, never fetched from the container by hand.
+    ``methods`` limits the check to those (upper-cased; ``GET`` extends to
+    ``HEAD``); a marker that names none applies to every method. The security
+    scopes a route declared natively are **ignored** unless
+    ``consume_security_scopes=True``: opted in, the request's accumulated
+    scopes are decided through the voter stack too, each one an attribute that
+    must be granted; without it they stay declaration and documentation, and
+    adding this marker to a chain never silently turns them into enforcement.
 
     Attributes:
         attribute: The attribute required.
         subject: How the subject is obtained, or ``None``.
         message: The denial message.
         status_code: The status a denial answers with directly, or ``None``.
+        exception_code: A code recorded on the marker for the caller that
+            catches the denial.
+        methods: The (upper-cased) methods the check applies to; empty is all.
+        consume_security_scopes: Whether the request's accumulated security
+            scopes are decided too.
     """
 
     attribute: object  # pyright: ignore[reportUninitializedInstanceVariable]
     subject: object  # pyright: ignore[reportUninitializedInstanceVariable]
     message: str | None  # pyright: ignore[reportUninitializedInstanceVariable]
     status_code: int | None  # pyright: ignore[reportUninitializedInstanceVariable]
+    exception_code: int | None  # pyright: ignore[reportUninitializedInstanceVariable]
+    methods: tuple[str, ...]  # pyright: ignore[reportUninitializedInstanceVariable]
+    consume_security_scopes: bool  # pyright: ignore[reportUninitializedInstanceVariable]
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- the marker's metadata surface mirrors the upstream attribute
         self,
         attribute: str | Callable[..., bool | Awaitable[bool]],
         subject: str | Callable[..., object] | None = None,
         *,
         message: str | None = None,
         status_code: int | None = None,
+        exception_code: int | None = None,
+        methods: str | Sequence[str] = (),
+        consume_security_scopes: bool = False,
     ) -> None:
         """Require ``attribute`` over ``subject`` before the endpoint runs."""
         object.__setattr__(self, "attribute", attribute)
         object.__setattr__(self, "subject", subject)
         object.__setattr__(self, "message", message)
         object.__setattr__(self, "status_code", status_code)
+        object.__setattr__(self, "exception_code", exception_code)
+        object.__setattr__(self, "methods", normalized_methods(methods))
+        object.__setattr__(self, "consume_security_scopes", consume_security_scopes)
         super().__init__(dependency=self._build(), use_cache=False)
 
     def _build(self) -> Callable[..., Awaitable[None]]:
-        """Return the dependency function, wired to resolve the subject as FastAPI cares."""
+        """Return the dependency function, wired to resolve the subject as the framework cares."""
         subject = self.subject
         if callable(subject):
             dependency = subject
 
             async def check_with_dependency(
                 resolved: Annotated[object, Depends(dependency)],
-                token_storage: Injected[TokenStorageInterface],
-                access_decision_manager: Injected[AccessDecisionManagerInterface],
+                request: Request,
+                checker: Injected[IsGrantedChecker],
+                security_scopes: SecurityScopes,
             ) -> None:
-                await self._decide(resolved, token_storage, access_decision_manager)
+                await self._check(checker, request, resolved, security_scopes.scopes)
 
             return check_with_dependency
 
         async def check(
             request: Request,
-            token_storage: Injected[TokenStorageInterface],
-            access_decision_manager: Injected[AccessDecisionManagerInterface],
+            checker: Injected[IsGrantedChecker],
+            security_scopes: SecurityScopes,
         ) -> None:
             resolved = request.path_params.get(subject) if isinstance(subject, str) else None
-            await self._decide(resolved, token_storage, access_decision_manager)
+            await self._check(checker, request, resolved, security_scopes.scopes)
 
         return check
 
-    async def _decide(
+    async def _check(
         self,
+        checker: IsGrantedChecker,
+        request: Request,
         subject: object,
-        token_storage: TokenStorageInterface,
-        access_decision_manager: AccessDecisionManagerInterface,
+        security_scopes: Sequence[str],
     ) -> None:
-        """Decide the attribute over ``subject`` for the request's token.
-
-        Raises:
-            AccessDeniedError: When the attribute is not granted and no
-                ``status_code`` was set.
-            HTTPException: When the attribute is not granted and a
-                ``status_code`` was set — answered with that status directly.
-        """
-        token = token_storage.get_token() or NullToken()
-        decision = AccessDecision()
-        granted = await access_decision_manager.decide(token, [self.attribute], subject, decision)
-        if granted:
+        """Decide this marker over ``subject``, on the methods it applies to."""
+        if self.methods and request.method.upper() not in self.methods:
             return
-        if self.status_code is not None:
-            from fastapi import HTTPException  # noqa: PLC0415 -- http-only
-
-            raise HTTPException(
-                status_code=self.status_code,
-                detail=self.message or "Access denied.",
-            )
-        raise AccessDeniedError(
-            self.message or "Access Denied.",
-            attributes=(self.attribute,),
-            subject=subject,
-            access_decision=decision,
+        await checker.check(
+            self,
+            subject,
+            security_scopes=security_scopes if self.consume_security_scopes else (),
         )
 
     @overload

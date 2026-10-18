@@ -21,6 +21,12 @@ from xtr_security_core.authorization.access_decision_manager_interface import (
     AccessDecisionManagerInterface,
 )
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
+from xtr_security_http import (
+    CsrfTokenChecker,
+    IsGrantedChecker,
+    SecurityTokenResolver,
+    UserValueResolver,
+)
 from xtr_security_http._runner import run_firewall
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.firewall_map_interface import FirewallMapInterface
@@ -98,6 +104,23 @@ async def test_the_user_password_hasher_is_wired(container: ContainerInterface) 
     stored = hasher.hash_password(InMemoryUser("bob"), "s3cret")
 
     assert hasher.is_password_valid(InMemoryUser("bob", password=stored), "s3cret")
+
+
+async def test_the_route_marker_services_are_wired(container: ContainerInterface) -> None:
+    """The bundle registers the enforcement services the route markers delegate to."""
+    async with unit_of_work(container) as unit:
+        assert isinstance(await unit.get(UserValueResolver), UserValueResolver)
+        assert isinstance(await unit.get(SecurityTokenResolver), SecurityTokenResolver)
+        assert isinstance(await unit.get(IsGrantedChecker), IsGrantedChecker)
+
+
+async def test_the_csrf_checker_is_absent_without_a_token_manager(
+    container: ContainerInterface,
+) -> None:
+    """No token manager wired means no checker: the definition is dropped, not built broken."""
+    async with unit_of_work(container) as unit:
+        with pytest.raises(LookupError):
+            _ = await unit.get(CsrfTokenChecker)
 
 
 async def test_tracing_logs_each_decision_and_its_votes(container: ContainerInterface) -> None:
