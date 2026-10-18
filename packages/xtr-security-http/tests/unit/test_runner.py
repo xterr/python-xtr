@@ -72,7 +72,7 @@ def _secured_firewall_map(manager: AuthenticatorManagerInterface) -> FirewallMap
     context = FakeFirewallContext(
         name="api",
         authenticator_manager=manager,
-        access_listener=AccessListener(AccessMap(), AccessDecisionManager([])),
+        access_listener=AccessListener(TokenStorage(), AccessDecisionManager([]), AccessMap()),
         scheme=HTTPBearer(auto_error=False),
     )
     return FirewallMap(((ChainRequestMatcher(()), context),))

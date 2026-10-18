@@ -17,8 +17,11 @@ from fastapi.security import APIKeyQuery, HTTPBearer
 from typing_extensions import override
 from xtr_password_hasher import PasswordHasherFactoryInterface, UserPasswordHasherInterface
 from xtr_security_core import MissingUserProvider, RoleHierarchyInterface, UserProviderInterface
+from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
+from xtr_security_core.authorization import AccessDecisionManager
 from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_http import (
+    AccessListener,
     AccessMap,
     AuthenticatorManager,
     ExposeSecurityLevel,
@@ -33,6 +36,7 @@ from xtr_security.bundle import (
     NativeHasherConfig,
     SecurityConfig,
     ServiceTokenHandlerConfig,
+    firewall_access_listener_name,
     firewall_manager_listener_name,
 )
 from xtr_security.bundle._wiring import (
@@ -202,7 +206,46 @@ def test_the_manager_listener_is_registered_and_aliased_into_the_chain() -> None
     )
 
     assert services.by_qualifier[firewall_manager_listener_name("api")] is services.set_targets[1]
-    assert services.aliases == [FirewallListenerInterface]
+    assert services.aliases == [FirewallListenerInterface, FirewallListenerInterface]
+
+
+def test_the_access_listener_is_registered_and_aliased_into_the_chain() -> None:
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.ALL,
+    )
+
+    assert services.by_qualifier[firewall_access_listener_name("api")] is services.set_targets[2]
+
+
+async def test_the_access_listener_is_built_over_the_storage_the_decider_and_the_map() -> None:
+    services = _RecordingConfigurator()
+    access_map = AccessMap()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=access_map,
+        expose=ExposeSecurityLevel.ALL,
+    )
+    factory = cast("Callable[..., Awaitable[AccessListener]]", services.set_targets[2])
+
+    storage = TokenStorage()
+    decision_manager = AccessDecisionManager([])
+    listener = await factory(storage=storage, decision_manager=decision_manager)
+
+    assert isinstance(listener, AccessListener)
+    assert listener._token_storage is storage
+    assert listener._access_decision_manager is decision_manager
+    assert listener._access_map is access_map
 
 
 def test_the_context_factory_parks_the_chain_on_the_listeners_argument() -> None:
@@ -218,7 +261,12 @@ def test_the_context_factory_parks_the_chain_on_the_listeners_argument() -> None
     )
 
     assert services.definitions[-1].arguments == {
-        "listeners": (firewall_manager_listener_name("api"), "late", "early")
+        "listeners": (
+            firewall_manager_listener_name("api"),
+            firewall_access_listener_name("api"),
+            "late",
+            "early",
+        )
     }
 
 
@@ -238,7 +286,7 @@ async def test_the_context_factory_resolves_the_parked_chain_through_the_locator
 
     context = await factory(
         manager=cast("AuthenticatorManager", object()),
-        decision_manager=object(),
+        access_listener=cast("AccessListener", object()),
         authenticators=_EmptyLocator(),
         responses=object(),
         chain=_ChainLocator(),

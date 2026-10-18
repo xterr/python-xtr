@@ -79,6 +79,7 @@ from xtr_security_http.firewall_map import FirewallMap as HttpFirewallMap
 
 from xtr_security.bundle._password_hasher_build import build_hasher
 from xtr_security.bundle.authenticator_configs import AccessTokenConfig
+from xtr_security.bundle.firewall_access_listener_name import firewall_access_listener_name
 from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 from xtr_security.bundle.firewall_manager_listener_name import firewall_manager_listener_name
@@ -413,8 +414,9 @@ def _register_open_context(
             name=name,
             authenticator_manager=cast("AuthenticatorManagerInterface", cast("object", null)),
             access_listener=AccessListener(
-                AccessMap(),
+                cast("TokenStorageInterface", cast("object", null)),
                 cast("AccessDecisionManagerInterface", cast("object", null)),
+                AccessMap(),
             ),
             scheme=HTTPBearer(auto_error=False),
             security=False,
@@ -660,7 +662,11 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     its qualifier parked ahead of the application's own listeners — so every
     secured firewall's chain carries its authentication step without the
     application naming it, and the sorting pass orders it with the rest. The
-    chain is parked on the context definition's ``listeners`` argument — the
+    access step is registered the same way, over the same storage and decision
+    manager the runner decides with and the firewall's own access map: the
+    chain's step and the context's ``access_listener`` are one service, so
+    what the chain would decide is what the runner decides today. The chain is
+    parked on the context definition's ``listeners`` argument — the
     P2.1 convention the sorting pass reads — so it is ordered before the
     context resolves it through the locator, in the order the pass left it.
     The exception-listener slot carries the global
@@ -674,6 +680,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     scheme = _scheme_from(firewall)
     manager_qualifier = f"{name}#authenticator_manager"
     listener_qualifier = firewall_manager_listener_name(name)
+    access_listener_qualifier = firewall_access_listener_name(name)
 
     async def authenticator_manager(
         storage: TokenStorageInterface,
@@ -725,9 +732,31 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         target_qualifier=listener_qualifier,
     )
 
+    async def access_listener(
+        storage: TokenStorageInterface,
+        decision_manager: AccessDecisionManagerInterface,
+    ) -> AccessListener:
+        """Build the chain step that decides the firewall's access rules."""
+        return AccessListener(storage, decision_manager, access_map)
+
+    access_listener.__annotations__ = {
+        "storage": TokenStorageInterface,
+        "decision_manager": AccessDecisionManagerInterface,
+        "return": AccessListener,
+    }
+    access_listener.__name__ = f"access_listener_{name}"
+    access_listener.__qualname__ = access_listener.__name__
+    _ = services.set(access_listener, qualifier=access_listener_qualifier, lifetime="scoped")
+    services.alias(
+        FirewallListenerInterface,
+        AccessListener,
+        alias_qualifier=access_listener_qualifier,
+        target_qualifier=access_listener_qualifier,
+    )
+
     async def firewall_context(  # noqa: PLR0913, PLR0917 -- a wiring factory gathering one firewall's parts
         manager: Annotated[AuthenticatorManager, Target(manager_qualifier)],
-        decision_manager: AccessDecisionManagerInterface,
+        access_listener: Annotated[AccessListener, Target(access_listener_qualifier)],
         authenticators: ServiceLocator[AuthenticatorInterface],
         responses: ResponseFactoryInterface,
         chain: ServiceLocator[FirewallListenerInterface],
@@ -749,7 +778,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         return FirewallContext(
             name=name,
             authenticator_manager=manager,
-            access_listener=AccessListener(access_map, decision_manager),
+            access_listener=access_listener,
             scheme=scheme,
             entry_point=entry_point,
             access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
@@ -760,7 +789,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
 
     annotations: dict[str, object] = {
         "manager": Annotated[AuthenticatorManager, Target(manager_qualifier)],
-        "decision_manager": AccessDecisionManagerInterface,
+        "access_listener": Annotated[AccessListener, Target(access_listener_qualifier)],
         "authenticators": ServiceLocator[AuthenticatorInterface],
         "responses": ResponseFactoryInterface,
         "chain": ServiceLocator[FirewallListenerInterface],
@@ -773,7 +802,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     firewall_context.__name__ = f"firewall_context_{name}"
     firewall_context.__qualname__ = firewall_context.__name__
     _ = services.set(firewall_context, qualifier=name, lifetime="scoped").set_argument(
-        "listeners", (listener_qualifier, *firewall.listeners)
+        "listeners", (listener_qualifier, access_listener_qualifier, *firewall.listeners)
     )
 
 

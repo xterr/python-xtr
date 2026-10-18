@@ -215,6 +215,12 @@ the `listeners` configuration names, so no application names it itself; a
 the event dispatcher bundle traces, `MakeFirewallsManagerListenerTraceablePass` swaps the step
 for the traceable variant, so a traced firewall's chain explains its authentication.
 
+The chain carries the firewall's access step the same way: an `AccessListener` over the
+request's token storage, the decision manager and the firewall's own access map, registered
+under `firewall_access_listener_name(firewall)` and ordered by its `-255` priority after the
+authentication step. It is the same listener the context hands the firewall runner, so what the
+chain would decide is what the runner decides today.
+
 ### Token handlers
 
 An access-token authenticator (`AccessTokenConfig`) names a `token_handler` the bundle builds

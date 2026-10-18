@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from xtr_dependency_injection import Kernel, unit_of_work
 from xtr_security_http import (
+    AccessListener,
     AuthenticatorManagerListener,
     TraceableAuthenticatorManagerListener,
 )
@@ -43,11 +44,17 @@ async def test_in_debug_mode_a_firewalls_manager_listener_is_traced() -> None:
     async with await _kernel(debug=True).boot() as booted:
         chain = await _secured_chain(booted.container)
 
-    assert [type(listener) for listener in chain] == [TraceableAuthenticatorManagerListener]
+    assert [type(listener) for listener in chain] == [
+        TraceableAuthenticatorManagerListener,
+        AccessListener,
+    ]
 
 
 async def test_outside_debug_mode_a_firewalls_manager_listener_is_not_traced() -> None:
     async with await _kernel(debug=False).boot() as booted:
         chain = await _secured_chain(booted.container)
 
-    assert [type(listener) for listener in chain] == [AuthenticatorManagerListener]
+    assert [type(listener) for listener in chain] == [
+        AuthenticatorManagerListener,
+        AccessListener,
+    ]

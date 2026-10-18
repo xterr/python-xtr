@@ -150,7 +150,7 @@ def _firewall_map(storage: TokenStorage, manager: AccessDecisionManager) -> Fire
     context = FakeFirewallContext(
         name="api",
         authenticator_manager=_FakeManager(storage),
-        access_listener=AccessListener(access_map, manager),
+        access_listener=AccessListener(storage, manager, access_map),
         scheme=HTTPBearer(auto_error=False),
         entry_point=_FakeEntryPoint(responses),
         access_denied_handler=_FakeAccessDeniedHandler(responses),

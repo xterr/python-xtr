@@ -30,6 +30,7 @@ from xtr_security.user_provider.add_user_provider_factory import add_user_provid
 from .access_control_configs import AccessControlConfig
 from .access_decision_manager_config import AccessDecisionManagerConfig
 from .authenticator_configs import AccessTokenConfig
+from .firewall_access_listener_name import firewall_access_listener_name
 from .firewall_dispatcher_name import firewall_dispatcher_name
 from .firewall_manager_listener_name import firewall_manager_listener_name
 from .make_firewalls_event_dispatcher_traceable_pass import (
@@ -100,6 +101,7 @@ __all__ = [
     "add_authenticator_factory",
     "add_token_handler_factory",
     "add_user_provider_factory",
+    "firewall_access_listener_name",
     "firewall_dispatcher_name",
     "firewall_manager_listener_name",
 ]

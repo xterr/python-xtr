@@ -116,8 +116,10 @@ async def main() -> None:
 
     access_map = AccessMap()
     access_map.add(PathRequestMatcher(r"^/api"), "ROLE_USER")
-    AccessListener(access_map, AccessDecisionManager())  # decides a token against the rules
-    print("rule attribute:", await access_map.get_attribute(make_message("/api/me")))
+    AccessListener(
+        storage, AccessDecisionManager(), access_map
+    )  # decides a token against the rules
+    print("rule attribute:", (await access_map.get_patterns(make_message("/api/me")))[0])
 
     attribute = oauth2_scope("books:read", "books:write")
     print("oauth2_scope:", attribute)
@@ -197,6 +199,16 @@ both hooks reach the same carrier. **`TraceableAuthenticatorManagerListener`** w
 listener for the tooling: it re-parks the supporters the supports pass chose as traceable
 wrappers, so what each authenticator answered is recorded and read through
 `get_authenticators_info()`.
+
+**`AccessListener`** is the chain's access step, at priority `-255` — after the authentication
+step. `supports` matches the firewall's access map and parks what the matched rule requires on
+the request's security state, answering `True` when there is something to decide and `None` —
+the lazy join — when the match requires nothing or only public access; `authenticate` reads the
+parked attributes back, decides the token from the token storage against them with the request
+itself as the subject, and raises `AccessDeniedError` carrying the attributes, the subject and
+the decision when it is refused. A null token stands in for an anonymous request, so the
+decision — not the listener — is what turns an anonymous request away from a rule that needs
+authentication.
 
 ### Authenticators, passports, badges and credentials
 
@@ -286,10 +298,18 @@ listener instance and kept, so no request pays the cost twice.
 ### Access map and request matchers
 
 An **`AccessMap`** is an ordered list of rules: `add(request_matcher, attribute)` appends one,
-`await get_attribute(message)` returns the attribute the first matching rule requires. An
-**`AccessListener(access_map, access_decision_manager)`** decides a token against that attribute
-with `await check_access(message, token)`, raising `AccessDeniedError` when it is not granted. A
-**`RequestMatcherInterface`** (from [xtr-http-foundation](../xtr-http-foundation)) answers
+`await get_patterns(message)` returns the first matching rule's attribute — as the one member of
+a tuple — beside the channel it demands the request arrive over (`None` while no rule carries
+one). An **`AccessListener(token_storage, access_decision_manager, access_map)`** is the chain
+step that decides them: `supports` parks what the matched rule requires on the request's
+security state and answers whether there is a decision to make, and `authenticate` reads it
+back and decides the token from the token storage against it, with the request itself as the
+subject, raising `AccessDeniedError` — carrying the attributes, the subject and the decision —
+when it is refused. Until the chain runs the request, the same rules are decided the way the
+firewall runner drives: `await check_access(message, token)` takes the token the runner
+authenticated and short-circuits a public-access rule. The step sits at priority `-255`, after
+the authentication step. A **`RequestMatcherInterface`** (from
+[xtr-http-foundation](../xtr-http-foundation)) answers
 `await matches(message)` over the request as a `ServerRequestInterface`:
 
 | Matcher | Claims a request by |

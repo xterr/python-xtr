@@ -102,8 +102,9 @@ async def test_the_map_answers_the_matched_firewalls_sorted_chain(
 async def test_the_map_carries_the_secured_firewalls_exception_listener(
     container: ContainerInterface,
 ) -> None:
-    """A secured firewall answers with its exception listener and its traced manager listener."""
+    """A secured firewall answers with its exception listener and both its own steps."""
     from xtr_security_http import TraceableAuthenticatorManagerListener
+    from xtr_security_http.firewall.access_listener import AccessListener
     from xtr_security_http.firewall.exception_listener import ExceptionListener
 
     async with unit_of_work(container) as unit:
@@ -112,7 +113,10 @@ async def test_the_map_carries_the_secured_firewalls_exception_listener(
             make_message(path="/api/books"),
         )
 
-    assert [type(listener) for listener in chain] == [TraceableAuthenticatorManagerListener]
+    assert [type(listener) for listener in chain] == [
+        TraceableAuthenticatorManagerListener,
+        AccessListener,
+    ]
     assert isinstance(exception_listener, ExceptionListener)
     assert logout_listener is None
 
