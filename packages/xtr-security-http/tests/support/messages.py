@@ -21,6 +21,7 @@ __all__ = ["make_message"]
 def make_message(  # noqa: PLR0913 -- a test builder, naming every part of a request it can shape
     *,
     method: str = "GET",
+    scheme: str = "https",
     path: str = "/",
     host: str = "example.com",
     client: tuple[str, int] | None = None,
@@ -29,7 +30,7 @@ def make_message(  # noqa: PLR0913 -- a test builder, naming every part of a req
     body: bytes | None = None,
     parsed_body: object | None = None,
 ) -> ServerRequest:
-    """Return a request message with the given method, path, host, client and body.
+    """Return a request message with the given method, scheme, path, host, client and body.
 
     The client is the address the server accepted the connection from, as the
     server reports it: the address first, then the port. Extra environment
@@ -40,7 +41,7 @@ def make_message(  # noqa: PLR0913 -- a test builder, naming every part of a req
     sets them here, the same way the kernel's materialisation would.
     """
     asked = f"?{query}" if query else ""
-    uri = f"https://{host}{path}{asked}"
+    uri = f"{scheme}://{host}{path}{asked}"
     params = None if client is None else {"client": client}
     message = ServerRequest(method, uri, dict(headers or {}), body, server_params=params)
     if parsed_body is not None:

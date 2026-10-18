@@ -357,6 +357,29 @@ firewall's listener. The token is stored as the object it is: the session storag
 owns the wire format, and the lazy-object initialisation guard the upstream listener opens with
 has no lazy user to guard on this stack.
 
+### The channel listener: the scheme a rule demands
+
+**`ChannelListener(access_map, responses, bridge, *, logger=None, http_port=80,
+https_port=443)`** is the chain step that moves a request onto the scheme its matched rule
+demands it arrive over. `supports` asks the access map — the same rules the access step
+decides attributes from — and answers `True` when the matched rule demands `https` of a
+request that arrived over plain `http`, or `http` of one that arrived encrypted; every other
+answer — no rule matched, the rule demands no channel, the request already carries the
+demanded one — is `False`, the strict skip: the step parks nothing, so a request with nothing
+to change has nothing to come back for. `authenticate` answers the request with a **301** to
+the same request over the demanded scheme: the host, the whole path and its query string kept,
+the port the *target* scheme is configured to answer on spelled out only when it is not that
+scheme's default (`http_port` for `http`, `https_port` for `https`), and the port the request
+itself arrived on left behind — the target scheme has a port of its own.
+
+The scheme a request is read by is its URI's own — the connection's answer, not a forwarded
+header's claim; this stack has no trusted-proxy machinery to weigh one. A proxy that
+terminates the encryption in front of the server therefore leaves the request reading plain,
+and the redirect this step builds would loop — the step's log names the `X-Forwarded-Proto`
+and `Forwarded` headers when they claim the request was encrypted already. The step sits at
+the default priority `0`, tied with the authentication step and ahead of the access step. No
+rule the bundle builds carries a channel today, so no chain the bundle wires runs it yet.
+
 ### The exception listener: 401, 403 and RFC 6750
 
 **`ExceptionListener`** is a subscriber on the [xtr-http-kernel](../xtr-http-kernel) exception
@@ -517,9 +540,9 @@ Everything this library raises derives from `SecurityError` (from
 xtr_security_http/
 ├── firewall_map.py             FirewallMap, matched or fetched by name
 ├── firewall_context_interface.py  one firewall's runtime pieces
-├── firewall/                   Firewall (the subscriber), AccessListener, ExceptionListener,
-│                              ContextListener, RefreshUserResult, FirewallListenerInterface,
-│                              AbstractListener
+├── firewall/                   Firewall (the subscriber), AccessListener, ChannelListener,
+│                              ContextListener, ExceptionListener, RefreshUserResult,
+│                              FirewallListenerInterface, AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
 ├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, passport/, token/
 ├── access_token/               extractors, handler interface, oidc/ (OidcTokenHandler)
