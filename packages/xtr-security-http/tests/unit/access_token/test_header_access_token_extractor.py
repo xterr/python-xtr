@@ -5,7 +5,6 @@ from __future__ import annotations
 # Test tokens and scheme words are not secrets.
 # ruff: noqa: S105, S106
 import pytest
-from fastapi.security import APIKeyHeader, HTTPBearer
 
 from tests.support.messages import make_message
 from xtr_security_http.access_token.access_token_extractor_interface import (
@@ -28,7 +27,6 @@ async def test_it_reads_a_bearer_token() -> None:
     )
 
     assert token == "t"
-    assert isinstance(extractor.scheme(), HTTPBearer)
 
 
 async def test_it_returns_none_without_a_token() -> None:
@@ -65,7 +63,6 @@ async def test_it_supports_a_custom_header_and_type() -> None:
     token = await extractor.extract_access_token(make_message(headers={"x-api-key": "raw"}))
 
     assert token == "raw"
-    assert isinstance(extractor.scheme(), APIKeyHeader)
 
 
 async def test_it_strips_a_custom_token_type() -> None:

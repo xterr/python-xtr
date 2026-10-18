@@ -19,7 +19,15 @@ map, the qualifiers of its authenticators) and has the container fill the rest.
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
-from typing import TYPE_CHECKING, Annotated, Protocol, cast, final, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Protocol,
+    assert_never,
+    cast,
+    final,
+    runtime_checkable,
+)
 
 # These types annotate factory parameters and returns the container reads at
 # runtime, so they must be importable when it does — never under TYPE_CHECKING.
@@ -82,9 +90,6 @@ if TYPE_CHECKING:
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
     from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
     from xtr_security_core.user.user_checker_interface import UserCheckerInterface
-    from xtr_security_http.access_token.access_token_extractor_interface import (
-        AccessTokenExtractorInterface,
-    )
     from xtr_security_http.authentication.authenticator_manager_interface import (
         AuthenticatorManagerInterface,
     )
@@ -598,16 +603,6 @@ class _TakesTokenHandlerFactories(Protocol):
         ...
 
 
-@runtime_checkable
-class _HasExtractor(Protocol):
-    """An authenticator exposing the extractor whose scheme a firewall shows."""
-
-    @property
-    def extractor(self) -> AccessTokenExtractorInterface:
-        """The extractor that reads a token out of a request."""
-        ...
-
-
 def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one firewall's parts
     services: ServiceConfigurator,
     name: str,
@@ -623,14 +618,16 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     The authenticators are asked of a locator by the qualifiers this firewall's
     authenticators were aliased under, so a firewall builds its own and no other
     firewall's; the manager is built over them and the injected storage and
-    dispatcher; the scheme and the entry point are read off the same
-    authenticators. ``expose`` is the configured
+    dispatcher; the OpenAPI scheme is derived from the firewall's own
+    configuration while the entry point is read off the built authenticators.
+    ``expose`` is the configured
     :class:`~xtr_security_http.ExposeSecurityLevel`, threaded to the manager so a
     non-default level reaches every firewall.
     """
     realm = _realm_of(firewall)
     access_denied = firewall.access_denied_handler
     required_badges = firewall.required_badges
+    scheme = _scheme_from(firewall)
 
     async def firewall_context(  # noqa: PLR0913, PLR0917 -- a wiring factory gathering one firewall's parts
         storage: TokenStorageInterface,
@@ -664,7 +661,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
             name=name,
             authenticator_manager=manager,
             access_listener=AccessListener(access_map, decision_manager),
-            scheme=_scheme_from(auths),
+            scheme=scheme,
             entry_point=entry_point,
             access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
             scope_denied_handler=InsufficientScopeAccessDeniedHandler(responses, realm),
@@ -704,13 +701,36 @@ def _firewall_map_factory(
     return firewall_map
 
 
-def _scheme_from(authenticators: Sequence[AuthenticatorInterface]) -> SecurityBase:
-    """Return the OpenAPI scheme the firewall shows: its entry-point extractor's."""
-    from fastapi.security import HTTPBearer  # noqa: PLC0415 -- http-only
+def _scheme_from(firewall: FirewallConfig) -> SecurityBase:
+    """Return the OpenAPI scheme the firewall shows, read off its configuration.
 
-    for authenticator in authenticators:
-        if isinstance(authenticator, _HasExtractor):
-            return authenticator.extractor.scheme()
+    The first access-token authenticator's first extractor name picks the
+    FastAPI security class — the same object that extractor's removed scheme
+    member used to return — and a firewall reading tokens another way shows the
+    standard bearer scheme.
+
+    TRANSITIONAL: this derivation exists only while the extractor interface
+    carries no scheme member (decision D5). It dies in P2.9b, when the
+    decorator, the scheme registry and the firewall context's scheme field are
+    retired together and per-route security becomes native framework
+    declaration.
+    """
+    from fastapi.security import APIKeyQuery, HTTPBearer  # noqa: PLC0415 -- http-only
+
+    for authenticator_config in firewall.authenticators:
+        if isinstance(authenticator_config, AccessTokenConfig):
+            extractor_name = authenticator_config.token_extractors[0]
+            match extractor_name:
+                case "query":
+                    return APIKeyQuery(
+                        name="access_token",
+                        auto_error=False,
+                        scheme_name="access_token",
+                    )
+                case "header" | "body":
+                    return HTTPBearer(auto_error=False, bearerFormat="JWT", scheme_name="Bearer")
+                case _:  # pragma: no cover -- exhaustive over ExtractorName
+                    assert_never(extractor_name)
     return HTTPBearer(auto_error=False, bearerFormat="JWT")
 
 

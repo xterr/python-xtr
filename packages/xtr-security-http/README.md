@@ -356,10 +356,10 @@ ever makes it: documentation.
 
 ### Access tokens
 
-An **`AccessTokenExtractorInterface`** pulls a bearer token out of a request and names the
-FastAPI `scheme()` it documents by; an **`AccessTokenHandlerInterface`** turns a token string
-into a `UserBadge` with `get_user_badge_from(token)`, raising `InvalidAccessTokenError` when it
-cannot be trusted. The extractors:
+An **`AccessTokenExtractorInterface`** pulls a bearer token out of a request; an
+**`AccessTokenHandlerInterface`** turns a token string into a `UserBadge` with
+`get_user_badge_from(token)`, raising `InvalidAccessTokenError` when it cannot be trusted. The
+extractors:
 
 | Extractor | Reads a token from |
 |---|---|

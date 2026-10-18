@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.security import HTTPBearer
 
 from tests.support.messages import make_message
 from xtr_security_http.access_token.access_token_extractor_interface import (
@@ -30,7 +29,6 @@ async def test_it_reads_a_form_field() -> None:
     )
 
     assert await extractor.extract_access_token(request) == "f"
-    assert isinstance(extractor.scheme(), HTTPBearer)
 
 
 async def test_it_ignores_a_request_that_is_not_a_post() -> None:

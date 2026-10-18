@@ -12,7 +12,6 @@ from .access_token_extractor_interface import AccessTokenExtractorInterface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from fastapi.security.base import SecurityBase
     from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["ChainAccessTokenExtractor"]
@@ -24,8 +23,7 @@ class ChainAccessTokenExtractor(AccessTokenExtractorInterface):
 
     Tries each extractor in turn and returns the first non-``None`` token, so a
     firewall can accept a token from a header or a query parameter without
-    caring which the client used. Its OpenAPI scheme is the first extractor's —
-    the one a client is nudged towards.
+    caring which the client used.
     """
 
     __slots__ = ("_extractors",)
@@ -51,8 +49,3 @@ class ChainAccessTokenExtractor(AccessTokenExtractorInterface):
             if token is not None:
                 return token
         return None
-
-    @override
-    def scheme(self) -> SecurityBase:
-        """Return the first extractor's scheme, the one documented for the firewall."""
-        return self._extractors[0].scheme()

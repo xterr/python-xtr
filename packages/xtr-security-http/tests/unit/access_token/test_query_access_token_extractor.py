@@ -5,7 +5,6 @@ from __future__ import annotations
 # Test token values are not secrets.
 # ruff: noqa: S105
 import pytest
-from fastapi.security import APIKeyQuery
 
 from tests.support.messages import make_message
 from xtr_security_http.access_token.access_token_extractor_interface import (
@@ -26,7 +25,6 @@ async def test_it_reads_the_parameter() -> None:
     token = await extractor.extract_access_token(make_message(query="access_token=q"))
 
     assert token == "q"
-    assert isinstance(extractor.scheme(), APIKeyQuery)
 
 
 async def test_it_returns_none_without_the_parameter() -> None:

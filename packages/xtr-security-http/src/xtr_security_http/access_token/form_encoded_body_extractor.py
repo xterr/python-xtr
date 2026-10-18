@@ -5,13 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, cast, final
 
-from fastapi.security import HTTPBearer
 from typing_extensions import override
 
 from .access_token_extractor_interface import AccessTokenExtractorInterface
 
 if TYPE_CHECKING:
-    from fastapi.security.base import SecurityBase
     from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["FormEncodedBodyExtractor"]
@@ -36,20 +34,17 @@ class FormEncodedBodyExtractor(AccessTokenExtractorInterface):
     ``access_token`` field of one, when the request carries that content type.
     The body is read as the message the request arrived as — the read
     materialises it and its parsed side — and the token is read out of the
-    parsed form, so no form-parsing dependency is needed. There is no
-    dedicated OpenAPI scheme for a body-carried token, so it documents itself
-    as the standard bearer scheme.
+    parsed form, so no form-parsing dependency is needed.
 
     Attributes:
         field_name: The form field the token is read from.
     """
 
-    __slots__ = ("_bearer", "_field_name")
+    __slots__ = ("_field_name",)
 
     def __init__(self, field_name: str = "access_token") -> None:
         """Build the extractor for the ``field_name`` form field."""
         self._field_name = field_name
-        self._bearer = HTTPBearer(auto_error=False, bearerFormat="JWT", scheme_name="Bearer")
 
     @override
     async def extract_access_token(self, request: ServerRequestInterface) -> str | None:
@@ -77,11 +72,6 @@ class FormEncodedBodyExtractor(AccessTokenExtractorInterface):
             return None
         value = cast("Mapping[str, object]", parsed).get(self._field_name)
         return value if isinstance(value, str) else None
-
-    @override
-    def scheme(self) -> SecurityBase:
-        """Return the bearer scheme this extractor documents by."""
-        return self._bearer
 
 
 def _is_form_content_type(content_type: str) -> bool:

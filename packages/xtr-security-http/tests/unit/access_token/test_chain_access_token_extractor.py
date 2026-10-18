@@ -36,13 +36,6 @@ async def test_it_returns_the_first_token_found() -> None:
     assert nothing is None
 
 
-def test_its_scheme_is_the_first_members_scheme() -> None:
-    header = HeaderAccessTokenExtractor()
-    chain = ChainAccessTokenExtractor([header, QueryAccessTokenExtractor()])
-
-    assert chain.scheme() is header.scheme()
-
-
 def test_an_empty_chain_is_refused() -> None:
     with pytest.raises(InvalidArgumentError):
         _ = ChainAccessTokenExtractor([])
