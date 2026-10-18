@@ -169,6 +169,20 @@ route carries, memoised by firewall name. `FirewallScheme` is the `SecurityBase`
 contributes to the schema; `FirewallSchemeRegistry` and `active_firewall_schemes(registry)` let
 the generated schema name each firewall's scheme while the application is built.
 
+### Firewall listeners
+
+A **`FirewallListenerInterface`** is one step of the chain a firewall runs over a request:
+`supports(request)` tells whether the step handles the request — `False` skips it, while `None`
+(lazy) and `True` (eager) both run `authenticate(request_event)`, which does the work and
+typically answers by setting a response on the kernel's request event, which also stops the
+chain. `get_priority()` declares the step's position — the higher, the earlier — and
+**`AbstractListener`** is the template a concrete listener starts from: it fixes the default
+priority `0` and leaves both hooks to the subclass. **`FirewallListenerOrder`** declares the
+neighbours a listener runs `before` or `after` — a constraint that only reorders listeners
+sharing a priority, and one that would cross it fails the build. No concrete listener ships in
+this version; the contract, the template and the ordering are what the family's listeners build
+on, and the [xtr-security](../xtr-security) bundle sorts each firewall's chain by them.
+
 ### Authenticators, passports, badges and credentials
 
 An **`AuthenticatorInterface`** answers `supports(request)` — `True` to handle and stop others,
@@ -430,7 +444,8 @@ xtr_security_http/
 ├── firewall_map.py             FirewallMap, matched or fetched by name
 ├── firewall_context_interface.py  one firewall's runtime pieces
 ├── firewall_scheme.py          the SecurityBase a firewall shows in OpenAPI
-├── firewall/                   Firewall, AccessListener, ExceptionListener
+├── firewall/                   Firewall, AccessListener, ExceptionListener,
+│                              FirewallListenerInterface, AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
 ├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, passport/, token/
 ├── access_token/               extractors, handler interface, oidc/ (OidcTokenHandler)
@@ -438,7 +453,8 @@ xtr_security_http/
 ├── access_map.py               the ordered access-control rules
 ├── request_matcher/            the callable escape hatch (the rest come from xtr-http-foundation)
 ├── authorization/              OAuth2ScopeVoter, oauth2_scope, the scope-denied handler
-├── decorator/                  IsGranted, CurrentUser, CurrentToken, IsCsrfTokenValid
+├── decorator/                  IsGranted, CurrentUser, CurrentToken, IsCsrfTokenValid,
+│                              FirewallListenerOrder
 ├── resolver/                   the enforcement services behind the markers
 ├── entry_point/                AuthenticationEntryPointInterface
 ├── event/                      the firewall events around a login

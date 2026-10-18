@@ -65,6 +65,7 @@ from .authorization import (
 )
 from .decorator.current_token import CurrentToken
 from .decorator.current_user import CurrentUser
+from .decorator.firewall_listener_order import FirewallListenerOrder, firewall_listener_order_of
 from .decorator.is_csrf_token_valid import (
     SOURCE_HEADER,
     SOURCE_PAYLOAD,
@@ -92,7 +93,13 @@ from .exception import (
     InvalidAccessTokenError,
     UnknownFirewallError,
 )
-from .firewall import AccessListener, ExceptionListener, Firewall
+from .firewall import (
+    AbstractListener,
+    AccessListener,
+    ExceptionListener,
+    Firewall,
+    FirewallListenerInterface,
+)
 from .firewall_context_interface import FirewallContextInterface
 from .firewall_map import FirewallMap
 from .firewall_map_interface import FirewallMapInterface
@@ -117,6 +124,7 @@ __all__ = [
     "SOURCE_PAYLOAD",
     "SOURCE_QUERY",
     "AbstractAuthenticator",
+    "AbstractListener",
     "AccessDeniedHandlerInterface",
     "AccessListener",
     "AccessMap",
@@ -146,6 +154,8 @@ __all__ = [
     "ExposeSecurityLevel",
     "Firewall",
     "FirewallContextInterface",
+    "FirewallListenerInterface",
+    "FirewallListenerOrder",
     "FirewallMap",
     "FirewallMapInterface",
     "FirewallNotBootedError",
@@ -187,6 +197,7 @@ __all__ = [
     "UserValueResolver",
     "__version__",
     "active_firewall_schemes",
+    "firewall_listener_order_of",
     "is_sensitive",
     "mask",
     "oauth2_scope",

@@ -45,6 +45,7 @@ from .password_hasher_configs import (
 from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
 from .security_bundle import SecurityBundle
 from .security_config import SecurityConfig
+from .sort_firewall_listeners_pass import SortFirewallListenersPass
 from .token_handler_configs import (
     OidcTokenHandlerConfig,
     ServiceTokenHandlerConfig,
@@ -86,6 +87,7 @@ __all__ = [
     "ServiceTokenHandlerFactory",
     "ServiceUserProviderConfig",
     "ServiceUserProviderFactory",
+    "SortFirewallListenersPass",
     "TokenHandlerConfig",
     "TokenHandlerFactoryInterface",
     "UserProviderConfig",

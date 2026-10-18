@@ -78,6 +78,7 @@ from .make_firewalls_event_dispatcher_traceable_pass import (
     MakeFirewallsEventDispatcherTraceablePass,
 )
 from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
+from .sort_firewall_listeners_pass import SortFirewallListenersPass
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -128,6 +129,9 @@ class SecurityBundle(Bundle[SecurityConfig]):
         The firewalls' dispatchers are traced before the decorations resolve,
         and take the main dispatcher's security listeners once the event
         dispatcher bundle's ``RegisterListenersPass`` has worked both out.
+        The firewalls' listener chains are ordered after every bundle's
+        ``process`` hook, so a listener another bundle adds to one is sorted
+        with the rest.
         """
         _ = builder.register_for_autoconfiguration(VoterInterface).add_tag(VOTER_TAG)
         builder.add_compiler_pass(
@@ -137,6 +141,11 @@ class SecurityBundle(Bundle[SecurityConfig]):
         )
         builder.add_compiler_pass(
             RegisterGlobalSecurityEventListenersPass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=BUNDLE_PASS_PRIORITY - 1,
+        )
+        builder.add_compiler_pass(
+            SortFirewallListenersPass(),
             stage=PassStage.BEFORE_OPTIMIZATION,
             priority=BUNDLE_PASS_PRIORITY - 1,
         )

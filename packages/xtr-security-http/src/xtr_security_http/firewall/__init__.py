@@ -1,15 +1,25 @@
-"""The firewall a request passes, its access listener and its exception listener.
+"""The firewall a request passes, its listeners and its exception listener.
 
 The :class:`Firewall` dependency a route attaches, the
-:class:`AccessListener` that decides a request against a firewall's rules, and
-the :class:`ExceptionListener` that turns a security error into a response, kept
-together in one folder.
+:class:`AccessListener` that decides a request against a firewall's rules, the
+:class:`ExceptionListener` that turns a security error into a response, and the
+:class:`FirewallListenerInterface` every listener of a firewall's chain
+implements — with :class:`AbstractListener` as the template a concrete
+listener starts from — kept together in one folder.
 """
 
 from __future__ import annotations
 
+from .abstract_listener import AbstractListener
 from .access_listener import AccessListener
 from .exception_listener import ExceptionListener
 from .firewall import Firewall
+from .firewall_listener_interface import FirewallListenerInterface
 
-__all__ = ["AccessListener", "ExceptionListener", "Firewall"]
+__all__ = [
+    "AbstractListener",
+    "AccessListener",
+    "ExceptionListener",
+    "Firewall",
+    "FirewallListenerInterface",
+]

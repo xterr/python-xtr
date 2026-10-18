@@ -198,6 +198,16 @@ request; a firewall bound by name — `Firewall("api")` — runs that one and sh
 in OpenAPI. Authentication runs once per request however many firewall dependencies a route
 carries.
 
+### Firewall listeners
+
+A firewall's listener chain — steps implementing the HTTP edge's
+`FirewallListenerInterface`, each declaring its `get_priority()` — is put in running order by the
+bundle's `SortFirewallListenersPass`: higher priority first, the gathering order for listeners
+that share one, and a listener's `@FirewallListenerOrder(before=..., after=...)` declaration
+settling how it stands against its neighbours within a shared priority — a constraint that
+would cross a priority fails the build, naming the firewall. No listener ships in this version;
+the ordering is what the family's listeners build on.
+
 ### Token handlers
 
 An access-token authenticator (`AccessTokenConfig`) names a `token_handler` the bundle builds
@@ -367,6 +377,7 @@ xtr_security/
     ├── security_bundle.py     SecurityBundle
     ├── security_config.py     SecurityConfig
     ├── firewall_context.py    FirewallContext, one firewall's runtime pieces (internal)
+    ├── sort_firewall_listeners_pass.py  orders each firewall's listener chain
     └── *_configs.py           the configs an application writes, incl. password_hasher_configs
 ```
 
