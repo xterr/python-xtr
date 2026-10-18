@@ -74,6 +74,48 @@ def _message(token: str | None = None) -> ServerRequest:
     return make_message(path="/api/books", headers=headers)
 
 
+async def test_the_map_answers_the_matched_firewalls_sorted_chain(
+    container: ContainerInterface,
+) -> None:
+    """The chain the configuration parks comes back sorted, with the firewall's listeners."""
+    from tests.fixtures.wiring_app.listeners import (
+        AheadOfLateListener,
+        EarlyListener,
+        LateListener,
+    )
+
+    async with unit_of_work(container) as unit:
+        firewall_map = await unit.get(FirewallMapInterface)
+        chain, exception_listener, logout_listener = await firewall_map.get_listeners(
+            make_message(path="/open/health"),
+        )
+
+    assert [type(listener) for listener in chain] == [
+        EarlyListener,
+        AheadOfLateListener,
+        LateListener,
+    ]
+    assert exception_listener is None
+    assert logout_listener is None
+
+
+async def test_the_map_carries_the_secured_firewalls_exception_listener(
+    container: ContainerInterface,
+) -> None:
+    """A secured firewall answers with its exception listener and an empty chain."""
+    from xtr_security_http.firewall.exception_listener import ExceptionListener
+
+    async with unit_of_work(container) as unit:
+        firewall_map = await unit.get(FirewallMapInterface)
+        chain, exception_listener, logout_listener = await firewall_map.get_listeners(
+            make_message(path="/api/books"),
+        )
+
+    assert chain == ()
+    assert isinstance(exception_listener, ExceptionListener)
+    assert logout_listener is None
+
+
 async def test_the_chain_provider_resolves(container: ContainerInterface) -> None:
     async with unit_of_work(container) as unit:
         provider = await unit.get(UserProviderInterface, "chain")

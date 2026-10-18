@@ -48,6 +48,14 @@ def test_it_defaults_security_on_and_the_handlers_off() -> None:
     assert context.scope_denied_handler is None
 
 
+def test_it_defaults_the_chain_and_its_listeners_off() -> None:
+    context = _context()
+
+    assert context.listeners == ()
+    assert context.exception_listener is None
+    assert context.logout_listener is None
+
+
 def test_it_is_frozen() -> None:
     context = _context()
 

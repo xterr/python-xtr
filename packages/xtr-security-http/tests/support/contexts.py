@@ -26,6 +26,10 @@ if TYPE_CHECKING:
         AuthenticationEntryPointInterface,
     )
     from xtr_security_http.firewall.access_listener import AccessListener
+    from xtr_security_http.firewall.exception_listener import ExceptionListener
+    from xtr_security_http.firewall.firewall_listener_interface import (
+        FirewallListenerInterface,
+    )
 
 __all__ = ["FakeFirewallContext"]
 
@@ -42,3 +46,6 @@ class FakeFirewallContext(FirewallContextInterface):
     entry_point: AuthenticationEntryPointInterface | None = None
     access_denied_handler: AccessDeniedHandlerInterface | None = None
     scope_denied_handler: AccessDeniedHandlerInterface | None = None
+    listeners: tuple[FirewallListenerInterface, ...] = ()
+    exception_listener: ExceptionListener | None = None
+    logout_listener: FirewallListenerInterface | None = None

@@ -23,6 +23,13 @@ def test_an_open_firewall_needs_no_authenticator() -> None:
 
     assert firewall.security is False
     assert firewall.authenticators == ()
+    assert firewall.listeners == ()
+
+
+def test_a_firewall_keeps_its_listener_chain_qualifiers() -> None:
+    firewall = FirewallConfig(security=False, listeners=("late", "early"))
+
+    assert firewall.listeners == ("late", "early")
 
 
 def test_a_secured_firewall_needs_an_authenticator() -> None:

@@ -318,7 +318,12 @@ clock, the role hierarchy, the voters and the decision manager (traceable per re
 and `GuestAuthorizationCheckerInterface` — and the `Security` facade (both scoped), the password
 hasher factory and the user hasher, the user providers, and — per
 firewall — its own event dispatcher with the login listeners, its authenticators, its access
-map, its entry point and its OpenAPI scheme, gathered into a `FirewallMap`. The exception
+map, its entry point and its OpenAPI scheme, gathered into a `FirewallMap`. A firewall's
+`listeners` configuration names the qualifiers of its listener chain; the bundle parks them on
+the firewall's context definition, where `SortFirewallListenersPass` orders them, and the
+context carries the ordered chain — with the global exception listener and, while the firewall
+configures none, no logout listener — so `await firewall_map.get_listeners(message)` answers
+the matched firewall's `(chain, exception_listener, logout_listener)`. The exception
 listener turns a security error into a response on the http-kernel lifecycle. Its zero-config
 path builds and boots with no configuration and touches no I/O until a request arrives.
 

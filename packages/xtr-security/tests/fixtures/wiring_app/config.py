@@ -49,7 +49,14 @@ def security() -> SecurityConfig:
                         realm="api",
                     ),
                 ),
-            )
+            ),
+            # An open firewall parking a listener chain, so a container test
+            # proves the bundle sorts the chain the configuration gathers.
+            "open": FirewallConfig(
+                pattern=r"^/open",
+                security=False,
+                listeners=("late", "early", "ahead"),
+            ),
         },
         access_control=(AccessControlConfig(path=r"^/api", attribute="IS_AUTHENTICATED"),),
     )

@@ -57,6 +57,12 @@ class FirewallConfig:
         authenticators: The authenticator configurations the firewall runs, each
             an instance a registered factory's ``config_type`` matches.
         required_badges: Badge types every passport must carry to authenticate.
+        listeners: The qualifiers of the firewall's listener chain, each naming
+            a listener aliased under
+            :class:`~xtr_security_http.firewall.firewall_listener_interface.FirewallListenerInterface`.
+            The bundle parks them on the firewall's context definition, where
+            its sorting pass orders them — by priority, highest first — so the
+            chain the context carries runs in that order.
 
     Raises:
         InvalidConfigurationError: When ``stateless`` is ``False``, or a secured
@@ -75,6 +81,7 @@ class FirewallConfig:
     access_denied_handler: type | None = None
     authenticators: tuple[object, ...] = ()
     required_badges: tuple[type, ...] = field(default_factory=tuple)
+    listeners: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         """Refuse a stateful firewall, a secured one with no authenticators, a bad regex.

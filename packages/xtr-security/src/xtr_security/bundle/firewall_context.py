@@ -32,6 +32,10 @@ if TYPE_CHECKING:
         AuthenticationEntryPointInterface,
     )
     from xtr_security_http.firewall.access_listener import AccessListener
+    from xtr_security_http.firewall.exception_listener import ExceptionListener
+    from xtr_security_http.firewall.firewall_listener_interface import (
+        FirewallListenerInterface,
+    )
 
 __all__ = ["FirewallContext"]
 
@@ -42,8 +46,9 @@ class FirewallContext(FirewallContextInterface):
     """The runtime pieces of one firewall, resolved once and shared for its lifetime.
 
     Groups the manager that authenticates a request, the access listener that
-    decides it, the entry point and handlers that answer it, and the OpenAPI
-    scheme it contributes.
+    decides it, the entry point and handlers that answer it, the OpenAPI
+    scheme it contributes, and the listener chain it runs — ordered by the
+    bundle's sorting pass, so the order held here is the order it runs in.
 
     Attributes:
         name: The firewall's name — the key it is looked up by, and the memo
@@ -57,6 +62,11 @@ class FirewallContext(FirewallContextInterface):
         access_denied_handler: Answers a fully-authenticated caller's denial.
         scope_denied_handler: Answers a denied OAuth2 scope with its own
             challenge, ahead of the plain access-denied handler.
+        listeners: The firewall's chain of listeners, in the order they run.
+        exception_listener: The listener that answers a security error the
+            firewall's request raised.
+        logout_listener: The listener that performs a logout the firewall's
+            request asks for, or ``None`` while the firewall has none.
     """
 
     name: str
@@ -67,3 +77,6 @@ class FirewallContext(FirewallContextInterface):
     entry_point: AuthenticationEntryPointInterface | None = None
     access_denied_handler: AccessDeniedHandlerInterface | None = None
     scope_denied_handler: AccessDeniedHandlerInterface | None = None
+    listeners: tuple[FirewallListenerInterface, ...] = ()
+    exception_listener: ExceptionListener | None = None
+    logout_listener: FirewallListenerInterface | None = None

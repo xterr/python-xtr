@@ -2,8 +2,10 @@
 
 The firewall runner asks this for the firewall to run — the one bound by name,
 or the first whose matcher claims the request — and the OpenAPI scheme registry
-and ``debug:firewall`` read the firewalls it holds. The concrete map that pairs
-each firewall with its matcher is built by the bundle; the runtime here depends
+and ``debug:firewall`` read the firewalls it holds. The firewall that runs a
+listener chain asks the same map for the matched firewall's listeners, its
+exception listener and its logout listener. The concrete map that pairs each
+firewall with its matcher is built by the bundle; the runtime here depends
 only on this shape, so a firewall runs without knowing how the map was built.
 """
 
@@ -14,7 +16,12 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
 
-    from xtr_security_http.firewall_context_interface import FirewallContextInterface
+    from xtr_security_http.firewall.exception_listener import ExceptionListener
+    from xtr_security_http.firewall.firewall_listener_interface import (
+        FirewallListenerInterface,
+    )
+
+    from .firewall_context_interface import FirewallContextInterface
 
 __all__ = ["FirewallMapInterface"]
 
@@ -41,6 +48,23 @@ class FirewallMapInterface(Protocol):
 
     async def match(self, request: ServerRequestInterface) -> FirewallContextInterface | None:
         """Return the first firewall whose matcher claims ``request``, or ``None``."""
+        ...
+
+    async def get_listeners(
+        self,
+        request: ServerRequestInterface,
+    ) -> tuple[
+        tuple[FirewallListenerInterface, ...],
+        ExceptionListener | None,
+        FirewallListenerInterface | None,
+    ]:
+        """Return the matched firewall's listener chain, and its exception and logout listeners.
+
+        The chain is the matched firewall's listeners in the order they run —
+        the order the bundle's sorting pass left them in. A request no
+        firewall claims answers an empty chain and no exception or logout
+        listener.
+        """
         ...
 
     def names(self) -> tuple[str, ...]:

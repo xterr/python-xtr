@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from xtr_http_foundation import ChainRequestMatcher, PathRequestMatcher
@@ -15,11 +15,25 @@ from xtr_security_http.firewall_map import FirewallMap
 
 if TYPE_CHECKING:
     from fastapi.security.base import SecurityBase
+    from xtr_http_kernel.event.request_event import RequestEvent
+    from xtr_http_message_contracts import ServerRequestInterface
+
+    from xtr_security_http.firewall.exception_listener import ExceptionListener
+    from xtr_security_http.firewall.firewall_listener_interface import (
+        FirewallListenerInterface,
+    )
 
 pytestmark = pytest.mark.anyio
 
 
-def _context(name: str, *, security: bool = True) -> FakeFirewallContext:
+def _context(
+    name: str,
+    *,
+    security: bool = True,
+    listeners: tuple[FirewallListenerInterface, ...] = (),
+    exception_listener: ExceptionListener | None = None,
+    logout_listener: FirewallListenerInterface | None = None,
+) -> FakeFirewallContext:
     from fastapi.security import HTTPBearer  # noqa: PLC0415
 
     scheme: SecurityBase = HTTPBearer(auto_error=False)
@@ -29,7 +43,28 @@ def _context(name: str, *, security: bool = True) -> FakeFirewallContext:
         access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         scheme=scheme,
         security=security,
+        listeners=listeners,
+        exception_listener=exception_listener,
+        logout_listener=logout_listener,
     )
+
+
+@final
+class _ChainMember:
+    """A chain member whose hooks do nothing: the map only carries it."""
+
+    __slots__ = ()
+
+    async def supports(self, request: ServerRequestInterface) -> bool | None:
+        del request
+        return None
+
+    async def authenticate(self, request_event: RequestEvent) -> None:
+        del request_event
+
+    @staticmethod
+    def get_priority() -> int:
+        return 0
 
 
 def _anything() -> ChainRequestMatcher:
@@ -82,3 +117,28 @@ async def test_no_match_returns_none() -> None:
     message = make_message(path="/public")
 
     assert await firewall_map.match(message) is None
+
+
+async def test_get_listeners_answers_the_matched_firewalls_chain_and_listeners() -> None:
+    first, second = _ChainMember(), _ChainMember()
+    exception_listener = cast("ExceptionListener", object())
+    logout_listener = _ChainMember()
+    api = _context(
+        "api",
+        listeners=(first, second),
+        exception_listener=exception_listener,
+        logout_listener=logout_listener,
+    )
+    firewall_map = FirewallMap(((PathRequestMatcher(r"^/api"), api),))
+
+    answered = await firewall_map.get_listeners(make_message(path="/api/books"))
+
+    assert answered == ((first, second), exception_listener, logout_listener)
+
+
+async def test_get_listeners_for_an_unmatched_request_answers_an_empty_chain() -> None:
+    firewall_map = FirewallMap(((PathRequestMatcher(r"^/api"), _context("api")),))
+
+    answered = await firewall_map.get_listeners(make_message(path="/public"))
+
+    assert answered == ((), None, None)

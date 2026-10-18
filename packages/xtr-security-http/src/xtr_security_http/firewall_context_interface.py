@@ -6,6 +6,11 @@ listener, and the exception listener answers a failure through the entry point
 and handlers. Both read those parts off this contract, so the concrete context
 that gathers them — built by the bundle — lives outside this package while the
 runtime here depends only on the shape.
+
+The firewall's listener chain is read through this contract too: the map's
+``get_listeners`` answers a request with the matched firewall's chain, its
+exception listener and its logout listener, so the firewall that runs the chain
+never depends on how the bundle gathered it.
 """
 
 from __future__ import annotations
@@ -25,6 +30,10 @@ if TYPE_CHECKING:
         AuthenticationEntryPointInterface,
     )
     from xtr_security_http.firewall.access_listener import AccessListener
+    from xtr_security_http.firewall.exception_listener import ExceptionListener
+    from xtr_security_http.firewall.firewall_listener_interface import (
+        FirewallListenerInterface,
+    )
 
 __all__ = ["FirewallContextInterface"]
 
@@ -34,8 +43,10 @@ class FirewallContextInterface(Protocol):
     """The runtime pieces of one firewall, resolved once and shared for its lifetime.
 
     Groups the manager that authenticates a request, the access listener that
-    decides it, the entry point and handlers that answer it, and the OpenAPI
-    scheme it contributes.
+    decides it, the entry point and handlers that answer it, the OpenAPI
+    scheme it contributes, and the listener chain it runs — already ordered
+    by the bundle's sorting pass, so the order it is held in is the order it
+    runs in.
 
     Attributes:
         name: The firewall's name — the key it is looked up by, and the memo
@@ -49,6 +60,11 @@ class FirewallContextInterface(Protocol):
         access_denied_handler: Answers a fully-authenticated caller's denial.
         scope_denied_handler: Answers a denied OAuth2 scope with its own
             challenge, ahead of the plain access-denied handler.
+        listeners: The firewall's chain of listeners, in the order they run.
+        exception_listener: The listener that answers a security error the
+            firewall's request raised.
+        logout_listener: The listener that performs a logout the firewall's
+            request asks for, or ``None`` while the firewall has none.
     """
 
     name: str
@@ -59,3 +75,6 @@ class FirewallContextInterface(Protocol):
     entry_point: AuthenticationEntryPointInterface | None
     access_denied_handler: AccessDeniedHandlerInterface | None
     scope_denied_handler: AccessDeniedHandlerInterface | None
+    listeners: tuple[FirewallListenerInterface, ...]
+    exception_listener: ExceptionListener | None
+    logout_listener: FirewallListenerInterface | None

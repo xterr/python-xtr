@@ -153,12 +153,17 @@ routes. See [xtr-security's Quick start](../xtr-security#quick-start) for the wh
 
 A **`FirewallContextInterface`** is one firewall's runtime pieces: its `name`, its
 `authenticator_manager`, its `access_listener`, the FastAPI `scheme`
-it shows in OpenAPI, whether it has `security` at all, and the optional `entry_point`,
-`access_denied_handler` and `scope_denied_handler` that answer a failure. A **`FirewallMap`**
-holds those contexts: `await match(message)` returns the first whose matcher claims the request message,
-`get(name)` fetches one by name (raising `UnknownFirewallError`), `has(name)` and `names()`
-report what is registered. `FirewallMapInterface` is the protocol the bundle wires a
-container-backed map to.
+it shows in OpenAPI, whether it has `security` at all, the optional `entry_point`,
+`access_denied_handler` and `scope_denied_handler` that answer a failure, and its
+listener chain — `listeners` in the order they run (the order the bundle's sorting
+pass left them in), the `exception_listener` that answers a security error, and the
+optional `logout_listener`. A **`FirewallMap`** holds those contexts: `await match(message)`
+returns the first whose matcher claims the request message, `get(name)` fetches one by
+name (raising `UnknownFirewallError`), `has(name)` and `names()` report what is
+registered, and `await get_listeners(message)` answers the matched firewall's
+`(listeners, exception_listener, logout_listener)` — or an empty chain and no
+listeners when no firewall claims the message. `FirewallMapInterface` is the protocol
+the bundle wires a container-backed map to.
 
 **`Firewall`** is the FastAPI dependency an application puts on a route or router.
 `Firewall()` runs whichever firewall matches the request; `Firewall("api")` runs that one by

@@ -19,6 +19,7 @@ from xtr_password_hasher import PasswordHasherFactoryInterface, UserPasswordHash
 from xtr_security_core import MissingUserProvider, RoleHierarchyInterface, UserProviderInterface
 from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_http import AccessMap, AuthenticatorManager, ExposeSecurityLevel
+from xtr_security_http.firewall.exception_listener import ExceptionListener
 
 from xtr_security.bundle import (
     AccessTokenConfig,
@@ -57,14 +58,19 @@ pytestmark = pytest.mark.anyio
 
 @final
 class _RecordingDefinition:
-    """A stand-in definition recording the tags a helper adds to a service."""
+    """A stand-in definition recording the tags and arguments a helper gives a service."""
 
     def __init__(self, tags: list[str]) -> None:
         self._tags: list[str] = tags
+        self.arguments: dict[str, object] = {}
 
     def add_tag(self, name: str, **attributes: object) -> _RecordingDefinition:
         del attributes
         self._tags.append(name)
+        return self
+
+    def set_argument(self, name: str, value: object, /) -> _RecordingDefinition:
+        self.arguments[name] = value
         return self
 
 
@@ -77,6 +83,7 @@ class _RecordingConfigurator:
         self.by_qualifier: dict[Hashable, object] = {}
         self.aliases: list[type] = []
         self.tags: list[str] = []
+        self.definitions: list[_RecordingDefinition] = []
 
     def set(
         self,
@@ -90,7 +97,9 @@ class _RecordingConfigurator:
         self.set_targets.append(target)
         if qualifier is not None:
             self.by_qualifier[qualifier] = target
-        return _RecordingDefinition(self.tags)
+        definition = _RecordingDefinition(self.tags)
+        self.definitions.append(definition)
+        return definition
 
     def alias(
         self,
@@ -144,6 +153,14 @@ class _EmptyLocator:
         raise AssertionError(name)
 
 
+@final
+class _ChainLocator:
+    """A service locator answering each chain qualifier with a stand-in listener."""
+
+    async def get(self, name: object) -> object:
+        return f"listener:{name}"
+
+
 async def test_the_configured_expose_level_reaches_the_manager() -> None:
     services = _RecordingConfigurator()
     _register_context_factory(
@@ -163,10 +180,57 @@ async def test_the_configured_expose_level_reaches_the_manager() -> None:
         decision_manager=object(),
         authenticators=_EmptyLocator(),
         responses=object(),
+        chain=_ChainLocator(),
+        exception_listener=cast("ExceptionListener", object()),
     )
     manager = cast("AuthenticatorManager", context.authenticator_manager)
 
     assert manager._expose_security_errors is ExposeSecurityLevel.ALL
+
+
+def test_the_context_factory_parks_the_chain_on_the_listeners_argument() -> None:
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False, listeners=("late", "early")),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.ALL,
+    )
+
+    assert services.definitions[-1].arguments == {"listeners": ("late", "early")}
+
+
+async def test_the_context_factory_resolves_the_parked_chain_through_the_locator() -> None:
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False, listeners=("late", "early")),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.ALL,
+    )
+    factory = cast("Callable[..., Awaitable[FirewallContext]]", services.set_targets[-1])
+    exception_listener = cast("ExceptionListener", object())
+
+    context = await factory(
+        storage=object(),
+        dispatcher=object(),
+        decision_manager=object(),
+        authenticators=_EmptyLocator(),
+        responses=object(),
+        chain=_ChainLocator(),
+        exception_listener=exception_listener,
+        listeners=("early", "late"),
+    )
+
+    assert context.listeners == ("listener:early", "listener:late")
+    assert context.exception_listener is exception_listener
+    assert context.logout_listener is None
 
 
 def test_the_default_hasher_config_is_the_first_configured_one() -> None:

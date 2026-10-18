@@ -57,7 +57,9 @@ from xtr_security_http import (
     AccessListener,
     AccessMap,
     AuthenticatorManager,
+    ExceptionListener,
     ExposeSecurityLevel,
+    FirewallListenerInterface,
     FirewallMapInterface,
     InsufficientScopeAccessDeniedHandler,
     OAuth2ScopeVoter,
@@ -361,7 +363,7 @@ def _build_firewall_context(
 ) -> None:
     """Register everything one firewall needs: its dispatcher, authenticators and context."""
     if not firewall.security:
-        _register_open_context(services, name)
+        _register_open_context(services, name, firewall)
     else:
         provider_qualifier = firewall.provider
         _register_dispatcher(services, name, firewall, provider_qualifier)
@@ -383,11 +385,26 @@ def _build_firewall_context(
         )
 
 
-def _register_open_context(services: ServiceConfigurator, name: str) -> None:
-    """Register the context of an open (``security=False``) firewall."""
+def _register_open_context(
+    services: ServiceConfigurator,
+    name: str,
+    firewall: FirewallConfig,
+) -> None:
+    """Register the context of an open (``security=False``) firewall.
+
+    The firewall parks its listener chain on the context definition's
+    ``listeners`` argument — the P2.1 convention the sorting pass reads — so
+    the chain is ordered before the context resolves it through the locator.
+    An open firewall carries no exception listener: it authenticates nothing,
+    so the global exception listener answers its errors the way it answers
+    every request's.
+    """
     from fastapi.security import HTTPBearer  # noqa: PLC0415 -- http-only
 
-    def firewall_context() -> FirewallContext:
+    async def firewall_context(
+        chain: ServiceLocator[FirewallListenerInterface],
+        listeners: Sequence[str] = (),
+    ) -> FirewallContext:
         null = _NullManager()
         return FirewallContext(
             name=name,
@@ -398,11 +415,16 @@ def _register_open_context(services: ServiceConfigurator, name: str) -> None:
             ),
             scheme=HTTPBearer(auto_error=False),
             security=False,
+            listeners=tuple([await chain.get(qualifier) for qualifier in listeners]),
         )
 
+    firewall_context.__annotations__ = {
+        "chain": ServiceLocator[FirewallListenerInterface],
+        "return": FirewallContext,
+    }
     firewall_context.__name__ = f"firewall_context_{name}"
     firewall_context.__qualname__ = firewall_context.__name__
-    _ = services.set(firewall_context, qualifier=name)
+    _ = services.set(firewall_context, qualifier=name).set_argument("listeners", firewall.listeners)
 
 
 def _register_dispatcher(
@@ -623,6 +645,14 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     ``expose`` is the configured
     :class:`~xtr_security_http.ExposeSecurityLevel`, threaded to the manager so a
     non-default level reaches every firewall.
+
+    The firewall's listener chain is parked on the context definition's
+    ``listeners`` argument — the P2.1 convention the sorting pass reads — so
+    the chain is ordered before the context resolves it through the locator,
+    in the order the pass left it. The exception-listener slot carries the
+    global :class:`~xtr_security_http.firewall.exception_listener.ExceptionListener`
+    the wiring already builds; the logout slot stays empty until the logout
+    listener lands.
     """
     realm = _realm_of(firewall)
     access_denied = firewall.access_denied_handler
@@ -635,6 +665,9 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         decision_manager: AccessDecisionManagerInterface,
         authenticators: ServiceLocator[AuthenticatorInterface],
         responses: ResponseFactoryInterface,
+        chain: ServiceLocator[FirewallListenerInterface],
+        exception_listener: ExceptionListener,
+        listeners: Sequence[str] = (),
         denied: object | None = None,
     ) -> FirewallContext:
         available = {
@@ -665,6 +698,8 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
             entry_point=entry_point,
             access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
             scope_denied_handler=InsufficientScopeAccessDeniedHandler(responses, realm),
+            listeners=tuple([await chain.get(qualifier) for qualifier in listeners]),
+            exception_listener=exception_listener,
         )
 
     annotations: dict[str, object] = {
@@ -673,6 +708,8 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         "decision_manager": AccessDecisionManagerInterface,
         "authenticators": ServiceLocator[AuthenticatorInterface],
         "responses": ResponseFactoryInterface,
+        "chain": ServiceLocator[FirewallListenerInterface],
+        "exception_listener": ExceptionListener,
         "return": FirewallContext,
     }
     if access_denied is not None:
@@ -680,7 +717,9 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     firewall_context.__annotations__ = annotations
     firewall_context.__name__ = f"firewall_context_{name}"
     firewall_context.__qualname__ = firewall_context.__name__
-    _ = services.set(firewall_context, qualifier=name, lifetime="scoped")
+    _ = services.set(firewall_context, qualifier=name, lifetime="scoped").set_argument(
+        "listeners", firewall.listeners
+    )
 
 
 def _firewall_map_factory(

@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from xtr_http_foundation import RequestMatcherInterface
     from xtr_http_message_contracts import ServerRequestInterface
 
+    from xtr_security_http.firewall.exception_listener import ExceptionListener
+    from xtr_security_http.firewall.firewall_listener_interface import (
+        FirewallListenerInterface,
+    )
+
     from .firewall_context_interface import FirewallContextInterface
 
 __all__ = ["FirewallMap"]
@@ -39,7 +44,11 @@ class FirewallMap(FirewallMapInterface):
 
     The contexts it holds are read through
     :class:`~xtr_security_http.firewall_context_interface.FirewallContextInterface`,
-    so the map works over whatever concrete context the bundle gathers.
+    so the map works over whatever concrete context the bundle gathers. The
+    listener chain, the exception listener and the logout listener a request's
+    firewall runs are read off that context, so the map answers a request with
+    the parts the firewall that runs them needs, without a notion of how the
+    bundle ordered the chain.
     """
 
     __slots__ = ("_by_name", "_matchers")
@@ -86,6 +95,26 @@ class FirewallMap(FirewallMapInterface):
             if await matcher.matches(request):
                 return context
         return None
+
+    @override
+    async def get_listeners(
+        self,
+        request: ServerRequestInterface,
+    ) -> tuple[
+        tuple[FirewallListenerInterface, ...],
+        ExceptionListener | None,
+        FirewallListenerInterface | None,
+    ]:
+        """Return the matched firewall's chain, exception listener and logout listener.
+
+        A request no firewall claims answers an empty chain and no exception or
+        logout listener — the firewall that runs the chain then has nothing to
+        run, and no listener to answer an error or a logout with.
+        """
+        context = await self.match(request)
+        if context is None:
+            return ((), None, None)
+        return (context.listeners, context.exception_listener, context.logout_listener)
 
     @override
     def names(self) -> tuple[str, ...]:
