@@ -18,7 +18,12 @@ from typing_extensions import override
 from xtr_password_hasher import PasswordHasherFactoryInterface, UserPasswordHasherInterface
 from xtr_security_core import MissingUserProvider, RoleHierarchyInterface, UserProviderInterface
 from xtr_security_core.exception import InvalidArgumentError
-from xtr_security_http import AccessMap, AuthenticatorManager, ExposeSecurityLevel
+from xtr_security_http import (
+    AccessMap,
+    AuthenticatorManager,
+    ExposeSecurityLevel,
+    FirewallListenerInterface,
+)
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 
 from xtr_security.bundle import (
@@ -28,6 +33,7 @@ from xtr_security.bundle import (
     NativeHasherConfig,
     SecurityConfig,
     ServiceTokenHandlerConfig,
+    firewall_manager_listener_name,
 )
 from xtr_security.bundle._wiring import (
     DUMMY_PASSWORD_HASHER_QUALIFIER,
@@ -172,20 +178,31 @@ async def test_the_configured_expose_level_reaches_the_manager() -> None:
         access_map=AccessMap(),
         expose=ExposeSecurityLevel.ALL,
     )
-    factory = cast("Callable[..., Awaitable[FirewallContext]]", services.set_targets[-1])
+    factory = cast("Callable[..., Awaitable[AuthenticatorManager]]", services.set_targets[0])
 
-    context = await factory(
+    manager = await factory(
         storage=object(),
         dispatcher=object(),
-        decision_manager=object(),
         authenticators=_EmptyLocator(),
-        responses=object(),
-        chain=_ChainLocator(),
-        exception_listener=cast("ExceptionListener", object()),
     )
-    manager = cast("AuthenticatorManager", context.authenticator_manager)
 
     assert manager._expose_security_errors is ExposeSecurityLevel.ALL
+
+
+def test_the_manager_listener_is_registered_and_aliased_into_the_chain() -> None:
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.ALL,
+    )
+
+    assert services.by_qualifier[firewall_manager_listener_name("api")] is services.set_targets[1]
+    assert services.aliases == [FirewallListenerInterface]
 
 
 def test_the_context_factory_parks_the_chain_on_the_listeners_argument() -> None:
@@ -200,7 +217,9 @@ def test_the_context_factory_parks_the_chain_on_the_listeners_argument() -> None
         expose=ExposeSecurityLevel.ALL,
     )
 
-    assert services.definitions[-1].arguments == {"listeners": ("late", "early")}
+    assert services.definitions[-1].arguments == {
+        "listeners": (firewall_manager_listener_name("api"), "late", "early")
+    }
 
 
 async def test_the_context_factory_resolves_the_parked_chain_through_the_locator() -> None:
@@ -218,8 +237,7 @@ async def test_the_context_factory_resolves_the_parked_chain_through_the_locator
     exception_listener = cast("ExceptionListener", object())
 
     context = await factory(
-        storage=object(),
-        dispatcher=object(),
+        manager=cast("AuthenticatorManager", object()),
         decision_manager=object(),
         authenticators=_EmptyLocator(),
         responses=object(),

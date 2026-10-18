@@ -205,8 +205,15 @@ A firewall's listener chain — steps implementing the HTTP edge's
 bundle's `SortFirewallListenersPass`: higher priority first, the gathering order for listeners
 that share one, and a listener's `@FirewallListenerOrder(before=..., after=...)` declaration
 settling how it stands against its neighbours within a shared priority — a constraint that
-would cross a priority fails the build, naming the firewall. No listener ships in this version;
-the ordering is what the family's listeners build on.
+would cross a priority fails the build, naming the firewall.
+
+Every secured firewall's chain carries its own authentication step — the
+`AuthenticatorManagerListener` running that firewall's authenticator manager — registered by
+the bundle under `firewall_manager_listener_name(firewall)` and parked ahead of the listeners
+the `listeners` configuration names, so no application names it itself; a
+`@FirewallListenerOrder` constraint addresses it by that qualifier to stand against it. When
+the event dispatcher bundle traces, `MakeFirewallsManagerListenerTraceablePass` swaps the step
+for the traceable variant, so a traced firewall's chain explains its authentication.
 
 ### Token handlers
 
@@ -380,8 +387,10 @@ xtr_security/
 │                              with add_user_provider_factory
 └── bundle/
     ├── security_bundle.py     SecurityBundle
-    ├── security_config.py     SecurityConfig
+    ├── security_config.py      SecurityConfig
     ├── firewall_context.py    FirewallContext, one firewall's runtime pieces (internal)
+    ├── firewall_manager_listener_name.py  the qualifier of a firewall's manager listener
+    ├── make_firewalls_manager_listener_traceable_pass.py  traces the manager listeners
     ├── sort_firewall_listeners_pass.py  orders each firewall's listener chain
     └── *_configs.py           the configs an application writes, incl. password_hasher_configs
 ```

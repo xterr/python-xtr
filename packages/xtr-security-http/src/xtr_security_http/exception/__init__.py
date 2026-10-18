@@ -9,10 +9,12 @@ from __future__ import annotations
 
 from .firewall_not_booted_error import FirewallNotBootedError
 from .invalid_access_token_error import InvalidAccessTokenError
+from .missing_state_bag_error import MissingStateBagError
 from .unknown_firewall_error import UnknownFirewallError
 
 __all__ = [
     "FirewallNotBootedError",
     "InvalidAccessTokenError",
+    "MissingStateBagError",
     "UnknownFirewallError",
 ]

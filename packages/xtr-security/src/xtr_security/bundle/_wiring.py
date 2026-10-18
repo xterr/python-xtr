@@ -34,6 +34,7 @@ from typing import (
 from xtr_dependency_injection import ServiceKey, ServiceLocator, Target, named_factory
 from xtr_event_dispatcher.bundle import DISPATCHER_TAG, SUBSCRIBER_TAG, event_dispatcher_factory
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
+from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_password_hasher import (
     PasswordHasherFactory,
@@ -57,6 +58,7 @@ from xtr_security_http import (
     AccessListener,
     AccessMap,
     AuthenticatorManager,
+    AuthenticatorManagerListener,
     ExceptionListener,
     ExposeSecurityLevel,
     FirewallListenerInterface,
@@ -79,6 +81,7 @@ from xtr_security.bundle._password_hasher_build import build_hasher
 from xtr_security.bundle.authenticator_configs import AccessTokenConfig
 from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
+from xtr_security.bundle.firewall_manager_listener_name import firewall_manager_listener_name
 from xtr_security.bundle.password_hasher_configs import AutoHasherConfig, ServiceHasherConfig
 from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory.stateless_authenticator_factory_interface import (
@@ -424,7 +427,12 @@ def _register_open_context(
     }
     firewall_context.__name__ = f"firewall_context_{name}"
     firewall_context.__qualname__ = firewall_context.__name__
-    _ = services.set(firewall_context, qualifier=name).set_argument("listeners", firewall.listeners)
+    # Scoped like the secured context beside it: the chain locator it reads
+    # covers every firewall listener, and a secured firewall's manager
+    # listener is scoped with the manager it runs.
+    _ = services.set(firewall_context, qualifier=name, lifetime="scoped").set_argument(
+        "listeners", firewall.listeners
+    )
 
 
 def _register_dispatcher(
@@ -639,18 +647,24 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
 
     The authenticators are asked of a locator by the qualifiers this firewall's
     authenticators were aliased under, so a firewall builds its own and no other
-    firewall's; the manager is built over them and the injected storage and
-    dispatcher; the OpenAPI scheme is derived from the firewall's own
+    firewall's; the manager is a service of its own over them and the injected
+    storage and dispatcher, so the chain's listener and the context hand each
+    other the same one; the OpenAPI scheme is derived from the firewall's own
     configuration while the entry point is read off the built authenticators.
     ``expose`` is the configured
     :class:`~xtr_security_http.ExposeSecurityLevel`, threaded to the manager so a
     non-default level reaches every firewall.
 
-    The firewall's listener chain is parked on the context definition's
-    ``listeners`` argument — the P2.1 convention the sorting pass reads — so
-    the chain is ordered before the context resolves it through the locator,
-    in the order the pass left it. The exception-listener slot carries the
-    global :class:`~xtr_security_http.firewall.exception_listener.ExceptionListener`
+    The manager's chain step is registered beside the context and aliased under
+    :class:`~xtr_security_http.firewall.firewall_listener_interface.FirewallListenerInterface`,
+    its qualifier parked ahead of the application's own listeners — so every
+    secured firewall's chain carries its authentication step without the
+    application naming it, and the sorting pass orders it with the rest. The
+    chain is parked on the context definition's ``listeners`` argument — the
+    P2.1 convention the sorting pass reads — so it is ordered before the
+    context resolves it through the locator, in the order the pass left it.
+    The exception-listener slot carries the global
+    :class:`~xtr_security_http.firewall.exception_listener.ExceptionListener`
     the wiring already builds; the logout slot stays empty until the logout
     listener lands.
     """
@@ -658,10 +672,61 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     access_denied = firewall.access_denied_handler
     required_badges = firewall.required_badges
     scheme = _scheme_from(firewall)
+    manager_qualifier = f"{name}#authenticator_manager"
+    listener_qualifier = firewall_manager_listener_name(name)
 
-    async def firewall_context(  # noqa: PLR0913, PLR0917 -- a wiring factory gathering one firewall's parts
+    async def authenticator_manager(
         storage: TokenStorageInterface,
         dispatcher: EventDispatcherInterface,
+        authenticators: ServiceLocator[AuthenticatorInterface],
+    ) -> AuthenticatorManager:
+        """Build the firewall's manager over its own authenticators."""
+        auths = [await authenticators.get(qualifier) for qualifier in auth_qualifiers]
+        return AuthenticatorManager(
+            auths,
+            storage,
+            dispatcher,
+            name,
+            expose_security_errors=expose,
+            required_badges=cast("Sequence[type[BadgeInterface]]", required_badges),
+        )
+
+    authenticator_manager.__annotations__ = {
+        "storage": TokenStorageInterface,
+        "dispatcher": Annotated[EventDispatcherInterface, Target(firewall_dispatcher_name(name))],
+        "authenticators": ServiceLocator[AuthenticatorInterface],
+        "return": AuthenticatorManager,
+    }
+    authenticator_manager.__name__ = f"authenticator_manager_{name}"
+    authenticator_manager.__qualname__ = authenticator_manager.__name__
+    _ = services.set(authenticator_manager, qualifier=manager_qualifier, lifetime="scoped")
+
+    async def authenticator_manager_listener(
+        manager: AuthenticatorManager,
+        bridge: StarletteHttpFactoryInterface,
+    ) -> AuthenticatorManagerListener:
+        """Build the chain step that runs the firewall's manager."""
+        return AuthenticatorManagerListener(manager, bridge)
+
+    authenticator_manager_listener.__annotations__ = {
+        "manager": Annotated[AuthenticatorManager, Target(manager_qualifier)],
+        "bridge": StarletteHttpFactoryInterface,
+        "return": AuthenticatorManagerListener,
+    }
+    authenticator_manager_listener.__name__ = f"authenticator_manager_listener_{name}"
+    authenticator_manager_listener.__qualname__ = authenticator_manager_listener.__name__
+    _ = services.set(
+        authenticator_manager_listener, qualifier=listener_qualifier, lifetime="scoped"
+    )
+    services.alias(
+        FirewallListenerInterface,
+        AuthenticatorManagerListener,
+        alias_qualifier=listener_qualifier,
+        target_qualifier=listener_qualifier,
+    )
+
+    async def firewall_context(  # noqa: PLR0913, PLR0917 -- a wiring factory gathering one firewall's parts
+        manager: Annotated[AuthenticatorManager, Target(manager_qualifier)],
         decision_manager: AccessDecisionManagerInterface,
         authenticators: ServiceLocator[AuthenticatorInterface],
         responses: ResponseFactoryInterface,
@@ -673,15 +738,6 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         available = {
             qualifier: await authenticators.get(qualifier) for qualifier in auth_qualifiers
         }
-        auths = list(available.values())
-        manager = AuthenticatorManager(
-            auths,
-            storage,
-            dispatcher,
-            name,
-            expose_security_errors=expose,
-            required_badges=cast("Sequence[type[BadgeInterface]]", required_badges),
-        )
         entry_point = (
             cast(
                 "AuthenticationEntryPointInterface",
@@ -703,8 +759,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
         )
 
     annotations: dict[str, object] = {
-        "storage": TokenStorageInterface,
-        "dispatcher": Annotated[EventDispatcherInterface, Target(firewall_dispatcher_name(name))],
+        "manager": Annotated[AuthenticatorManager, Target(manager_qualifier)],
         "decision_manager": AccessDecisionManagerInterface,
         "authenticators": ServiceLocator[AuthenticatorInterface],
         "responses": ResponseFactoryInterface,
@@ -718,7 +773,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     firewall_context.__name__ = f"firewall_context_{name}"
     firewall_context.__qualname__ = firewall_context.__name__
     _ = services.set(firewall_context, qualifier=name, lifetime="scoped").set_argument(
-        "listeners", firewall.listeners
+        "listeners", (listener_qualifier, *firewall.listeners)
     )
 
 

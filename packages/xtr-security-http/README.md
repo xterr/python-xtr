@@ -184,9 +184,19 @@ chain. `get_priority()` declares the step's position — the higher, the earlier
 **`AbstractListener`** is the template a concrete listener starts from: it fixes the default
 priority `0` and leaves both hooks to the subclass. **`FirewallListenerOrder`** declares the
 neighbours a listener runs `before` or `after` — a constraint that only reorders listeners
-sharing a priority, and one that would cross it fails the build. No concrete listener ships in
-this version; the contract, the template and the ordering are what the family's listeners build
-on, and the [xtr-security](../xtr-security) bundle sorts each firewall's chain by them.
+sharing a priority, and one that would cross it fails the build. The [xtr-security](../xtr-security)
+bundle sorts each firewall's chain by them.
+
+**`AuthenticatorManagerListener`** is the chain's authentication step: a thin delegation to a
+firewall's authenticator manager — `supports` answers the manager's supports pass,
+`authenticate` runs the pass that authenticates and sets the response a handler produced on the
+event. The manager's two passes hand each other what they learned through the request's security
+state, which rides the kernel event's bag: `authenticate` reads it off the event, while the
+caller running the chain parks that bag on the request it asks `supports` about — the one place
+both hooks reach the same carrier. **`TraceableAuthenticatorManagerListener`** wraps the
+listener for the tooling: it re-parks the supporters the supports pass chose as traceable
+wrappers, so what each authenticator answered is recorded and read through
+`get_authenticators_info()`.
 
 ### Authenticators, passports, badges and credentials
 

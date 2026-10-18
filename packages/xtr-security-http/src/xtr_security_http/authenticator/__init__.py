@@ -5,7 +5,11 @@ from __future__ import annotations
 from .abstract_authenticator import AbstractAuthenticator
 from .access_token_authenticator import AccessTokenAuthenticator
 from .authenticator_interface import AuthenticatorInterface
-from .debug import TraceableAuthenticator, UnsupportedReasons
+from .debug import (
+    TraceableAuthenticator,
+    TraceableAuthenticatorManagerListener,
+    UnsupportedReasons,
+)
 from .interactive_authenticator_interface import InteractiveAuthenticatorInterface
 
 __all__ = [
@@ -14,5 +18,6 @@ __all__ = [
     "AuthenticatorInterface",
     "InteractiveAuthenticatorInterface",
     "TraceableAuthenticator",
+    "TraceableAuthenticatorManagerListener",
     "UnsupportedReasons",
 ]

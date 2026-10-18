@@ -31,8 +31,12 @@ from .access_control_configs import AccessControlConfig
 from .access_decision_manager_config import AccessDecisionManagerConfig
 from .authenticator_configs import AccessTokenConfig
 from .firewall_dispatcher_name import firewall_dispatcher_name
+from .firewall_manager_listener_name import firewall_manager_listener_name
 from .make_firewalls_event_dispatcher_traceable_pass import (
     MakeFirewallsEventDispatcherTraceablePass,
+)
+from .make_firewalls_manager_listener_traceable_pass import (
+    MakeFirewallsManagerListenerTraceablePass,
 )
 from .password_hasher_configs import (
     AutoHasherConfig,
@@ -74,6 +78,7 @@ __all__ = [
     "InMemoryUserProviderFactory",
     "InvalidConfigurationError",
     "MakeFirewallsEventDispatcherTraceablePass",
+    "MakeFirewallsManagerListenerTraceablePass",
     "NativeHasherConfig",
     "OidcTokenHandlerConfig",
     "OidcTokenHandlerFactory",
@@ -96,4 +101,5 @@ __all__ = [
     "add_token_handler_factory",
     "add_user_provider_factory",
     "firewall_dispatcher_name",
+    "firewall_manager_listener_name",
 ]

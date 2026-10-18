@@ -14,14 +14,14 @@ response out to the exception listener.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from collections.abc import MutableMapping
+from typing import TYPE_CHECKING, cast, final
 
+from xtr_security_http.exception import MissingStateBagError
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
-    from collections.abc import MutableMapping
-
-    from xtr_http_message_contracts import ResponseInterface
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
 
     from xtr_security_http.firewall_context_interface import FirewallContextInterface
@@ -30,6 +30,7 @@ __all__ = [
     "CarriedResponse",
     "SecurityState",
     "security_state_of",
+    "state_bag_of",
 ]
 
 
@@ -102,6 +103,38 @@ def security_state_of(bag: MutableMapping[str, object]) -> SecurityState:
     created = SecurityState()
     bag[SecurityRequestAttributes.SECURITY_STATE] = created
     return created
+
+
+def state_bag_of(request: ServerRequestInterface) -> MutableMapping[str, object]:
+    """Return the state bag the chain's caller parked on ``request``.
+
+    A firewall's chain is asked about a request before it is handed the
+    event: ``supports`` sees the request alone, while the state the flow
+    keeps rides the event's bag. The caller that runs the chain parks that
+    bag on the request it asks about — under
+    :attr:`~xtr_security_http.security_request_attributes.SecurityRequestAttributes.STATE_BAG`
+    — so both hooks of a listener reach one carrier per request:
+    ``supports`` reads it here, ``authenticate`` reads the event's own.
+
+    Args:
+        request: The request the chain's caller is asking about.
+
+    Returns:
+        The bag the event carries, as parked on ``request``.
+
+    Raises:
+        MissingStateBagError: When the request carries no state bag — a
+            caller that runs a firewall's chain without parking the event's
+            bag on the request it asks about.
+    """
+    bag = request.get_attribute(SecurityRequestAttributes.STATE_BAG)
+    if not isinstance(bag, MutableMapping):
+        raise MissingStateBagError(
+            "The request carries no state bag: the caller running the firewall's "
+            "chain must park the kernel event's state bag on the request it hands "
+            "to the chain's listeners.",
+        )
+    return cast("MutableMapping[str, object]", bag)
 
 
 class CarriedResponse(Exception):  # noqa: N818 -- a control-flow carrier, not an error condition

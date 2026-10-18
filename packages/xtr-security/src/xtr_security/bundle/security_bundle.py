@@ -77,6 +77,9 @@ from ._wiring import (
 from .make_firewalls_event_dispatcher_traceable_pass import (
     MakeFirewallsEventDispatcherTraceablePass,
 )
+from .make_firewalls_manager_listener_traceable_pass import (
+    MakeFirewallsManagerListenerTraceablePass,
+)
 from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
 from .sort_firewall_listeners_pass import SortFirewallListenersPass
 
@@ -126,16 +129,21 @@ class SecurityBundle(Bundle[SecurityConfig]):
     def build(self, builder: ContainerBuilder) -> None:
         """Autoconfigure every application voter, and register the firewall dispatchers' passes.
 
-        The firewalls' dispatchers are traced before the decorations resolve,
-        and take the main dispatcher's security listeners once the event
-        dispatcher bundle's ``RegisterListenersPass`` has worked both out.
-        The firewalls' listener chains are ordered after every bundle's
-        ``process`` hook, so a listener another bundle adds to one is sorted
-        with the rest.
+        The firewalls' dispatchers and manager listeners are traced before the
+        decorations resolve, and take the main dispatcher's security listeners
+        once the event dispatcher bundle's ``RegisterListenersPass`` has worked
+        both out. The firewalls' listener chains are ordered after every
+        bundle's ``process`` hook, so a listener another bundle adds to one is
+        sorted with the rest.
         """
         _ = builder.register_for_autoconfiguration(VoterInterface).add_tag(VOTER_TAG)
         builder.add_compiler_pass(
             MakeFirewallsEventDispatcherTraceablePass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=_TRACEABLE_PASS_PRIORITY,
+        )
+        builder.add_compiler_pass(
+            MakeFirewallsManagerListenerTraceablePass(),
             stage=PassStage.BEFORE_OPTIMIZATION,
             priority=_TRACEABLE_PASS_PRIORITY,
         )

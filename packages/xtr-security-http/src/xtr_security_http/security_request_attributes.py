@@ -61,6 +61,12 @@ class SecurityRequestAttributes:
     state bag; everything the flow learns about one request gathers under
     this one key."""
 
+    STATE_BAG: Final[str] = "_xtr_security_state_bag"
+    """The kernel event's state bag, parked on the request a firewall chain's
+    caller hands to a listener's ``supports`` — the same bag the event
+    carries, so a listener asked from the request alone and one asked from
+    the event derive one carrier per request."""
+
     AUTHENTICATORS: Final[str] = "_xtr_security_authenticators"
     """The authenticators that supported the request, handed from the pass
     that asks to the pass that authenticates."""

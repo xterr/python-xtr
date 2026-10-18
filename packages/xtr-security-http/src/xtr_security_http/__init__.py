@@ -37,6 +37,7 @@ from .authenticator import (
     AuthenticatorInterface,
     InteractiveAuthenticatorInterface,
     TraceableAuthenticator,
+    TraceableAuthenticatorManagerListener,
     UnsupportedReasons,
 )
 from .authenticator.passport import Passport, SelfValidatingPassport
@@ -91,11 +92,13 @@ from .event_listener import (
 from .exception import (
     FirewallNotBootedError,
     InvalidAccessTokenError,
+    MissingStateBagError,
     UnknownFirewallError,
 )
 from .firewall import (
     AbstractListener,
     AccessListener,
+    AuthenticatorManagerListener,
     ExceptionListener,
     Firewall,
     FirewallListenerInterface,
@@ -140,6 +143,7 @@ __all__ = [
     "AuthenticatorInterface",
     "AuthenticatorManager",
     "AuthenticatorManagerInterface",
+    "AuthenticatorManagerListener",
     "BadgeInterface",
     "ChainAccessTokenExtractor",
     "CheckCredentialsListener",
@@ -174,6 +178,7 @@ __all__ = [
     "IsGrantedContext",
     "LoginFailureEvent",
     "LoginSuccessEvent",
+    "MissingStateBagError",
     "OAuth2ScopeVoter",
     "Passport",
     "PasswordCredentials",
@@ -188,6 +193,7 @@ __all__ = [
     "SecurityTokenResolver",
     "SelfValidatingPassport",
     "TraceableAuthenticator",
+    "TraceableAuthenticatorManagerListener",
     "UnknownFirewallError",
     "UnsupportedReasons",
     "UserAuthenticatorInterface",
