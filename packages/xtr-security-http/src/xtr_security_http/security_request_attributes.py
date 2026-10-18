@@ -67,6 +67,11 @@ class SecurityRequestAttributes:
     carries, so a listener asked from the request alone and one asked from
     the event derive one carrier per request."""
 
+    EXCEPTION_LISTENER: Final[str] = "_xtr_security_exception_listener"
+    """The exception listener of the request's matched firewall, handed from
+    the request phase that ran the chain to the exception phase that answers
+    the request's failure, and put away when the request finishes."""
+
     AUTHENTICATORS: Final[str] = "_xtr_security_authenticators"
     """The authenticators that supported the request, handed from the pass
     that asks to the pass that authenticates."""
