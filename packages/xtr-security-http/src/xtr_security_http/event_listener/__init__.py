@@ -1,4 +1,4 @@
-"""The listeners that resolve a passport, check an account, and migrate a hash.
+"""The listeners that resolve a passport, check an account, migrate a hash, rotate a session.
 
 Each is a plain :class:`~xtr_event_dispatcher.EventSubscriberInterface`: the
 bundle registers one with ``dispatcher.add_subscriber(listener)`` on a
@@ -10,12 +10,14 @@ from __future__ import annotations
 
 from .check_credentials_listener import CheckCredentialsListener
 from .password_migrating_listener import PasswordMigratingListener
+from .session_strategy_listener import SessionStrategyListener
 from .user_checker_listener import UserCheckerListener
 from .user_provider_listener import UserProviderListener
 
 __all__ = [
     "CheckCredentialsListener",
     "PasswordMigratingListener",
+    "SessionStrategyListener",
     "UserCheckerListener",
     "UserProviderListener",
 ]

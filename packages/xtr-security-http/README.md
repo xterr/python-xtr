@@ -290,6 +290,7 @@ the event order:
 | `CheckCredentialsListener` | verifies a password passport's `PasswordCredentials` and `CustomCredentials` |
 | `UserCheckerListener` | runs the account's pre- and post-authentication checks |
 | `PasswordMigratingListener` | rehashes a password flagged by a `PasswordUpgradeBadge`, best-effort, storing through the badge's, the listener's, or the user provider's upgrader — a provider implementing `PasswordUpgraderInterface` is derived from the passport's user loader |
+| `SessionStrategyListener` | nothing on a passport — hands a successful login to the firewall's session strategy, which moves the session the request reattached |
 
 **The dummy-hash timing guard.** When a password passport names an *unknown* user,
 `CheckCredentialsListener` still verifies against a dummy hash, so the timing of a bad username
@@ -356,6 +357,31 @@ the firewall-run mark — so a response of a request another firewall ran is lef
 firewall's listener. The token is stored as the object it is: the session storage's own contract
 owns the wire format, and the lazy-object initialisation guard the upstream listener opens with
 has no lazy user to guard on this stack.
+
+### The session strategy: what a login does to the session it reattached
+
+A login is the moment a session's ID is most worth stealing, and
+**`SessionAuthenticationStrategy(strategy, csrf_token_storage=None)`** is what the login does
+about it, under the strategy the firewall configured — `SessionAuthenticationStrategy.NONE`
+keeps the session as it is, `MIGRATE` carries its attributes to a fresh ID and destroys the
+entry under the old one (`session.migrate(destroy_old=True)`, so a session fixation stops
+answering for the account the login just named) and clears the clearable CSRF token storage
+with it, so a token value stolen before the rotation cannot answer after it, and `INVALIDATE`
+empties the session entirely. An unknown strategy name is refused when the strategy runs —
+`InvalidSessionStrategyError`, carrying the name as configured. The strategy moves the session
+the request's security state carries — the context listener's park — so the ID it rotates is
+the ID the response half writes the token back under; a request whose state holds no session
+is refused with `MissingSessionError` rather than silently rotated around.
+
+**`SessionStrategyListener(session_authentication_strategy)`** hands a successful login to
+that strategy: a subscriber on `LoginSuccessEvent`, on the firewall's own dispatcher, that
+skips a login with no session to move — a stateless firewall, or a request no stateful chain
+ran — and a re-authentication of the same account, where the previous token names the same
+non-empty user identifier and is of the same class as the new one: the session already answers
+for this account, and rotating it would log out the very login it celebrates. The upstream
+guard is the request's *session cookie* — a request that reattached no session is skipped —
+which the local session keeps private; a session made fresh for the request migrates too,
+harmlessly, since its storage entry is empty and nothing stored travels with it.
 
 ### The channel listener: the scheme a rule demands
 
@@ -549,6 +575,8 @@ Everything this library raises derives from `SecurityError` (from
 | Error | Base (besides `SecurityError`) | Raised when |
 |---|---|---|
 | `InvalidAccessTokenError` | `AuthenticationError` | a bearer token was present but could not be trusted — answered with an `invalid_token` challenge |
+| `InvalidSessionStrategyError` | `RuntimeError` | a session strategy was asked to act under a name that is none of its own; carries `strategy` |
+| `MissingSessionError` | `RuntimeError` | a session strategy was asked to move a request whose security state carries no session |
 | `UnknownFirewallError` | `LookupError` | a firewall was asked for by a name none is registered under; carries `name` and `configured` |
 
 ## Layout
@@ -573,6 +601,7 @@ xtr_security_http/
 ├── entry_point/                AuthenticationEntryPointInterface
 ├── event/                      the firewall events around a login
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)
+├── session/                    what a login does to the session it reattached
 └── exception/                  the errors this package adds
 ```
 

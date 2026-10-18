@@ -92,11 +92,14 @@ from .event import (
 from .event_listener import (
     CheckCredentialsListener,
     PasswordMigratingListener,
+    SessionStrategyListener,
     UserCheckerListener,
     UserProviderListener,
 )
 from .exception import (
     InvalidAccessTokenError,
+    InvalidSessionStrategyError,
+    MissingSessionError,
     MissingStateBagError,
     UnknownFirewallError,
 )
@@ -123,6 +126,10 @@ from .resolver import (
 )
 from .security_events import SecurityEvents
 from .security_request_attributes import SecurityRequestAttributes
+from .session import (
+    SessionAuthenticationStrategy,
+    SessionAuthenticationStrategyInterface,
+)
 from .util import get_target_path, remove_target_path, save_target_path
 
 __all__ = [
@@ -177,12 +184,14 @@ __all__ = [
     "InteractiveAuthenticatorInterface",
     "InteractiveLoginEvent",
     "InvalidAccessTokenError",
+    "InvalidSessionStrategyError",
     "IsCsrfTokenValid",
     "IsGranted",
     "IsGrantedChecker",
     "IsGrantedContext",
     "LoginFailureEvent",
     "LoginSuccessEvent",
+    "MissingSessionError",
     "MissingStateBagError",
     "OAuth2ScopeVoter",
     "Passport",
@@ -199,6 +208,9 @@ __all__ = [
     "SecurityRequestAttributes",
     "SecurityTokenResolver",
     "SelfValidatingPassport",
+    "SessionAuthenticationStrategy",
+    "SessionAuthenticationStrategyInterface",
+    "SessionStrategyListener",
     "TokenDeauthenticatedEvent",
     "TraceableAuthenticator",
     "TraceableAuthenticatorManagerListener",

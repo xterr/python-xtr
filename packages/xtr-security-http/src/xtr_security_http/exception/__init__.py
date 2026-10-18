@@ -8,11 +8,15 @@ or :class:`~xtr_security_core.exception.AuthenticationError` — so one
 from __future__ import annotations
 
 from .invalid_access_token_error import InvalidAccessTokenError
+from .invalid_session_strategy_error import InvalidSessionStrategyError
+from .missing_session_error import MissingSessionError
 from .missing_state_bag_error import MissingStateBagError
 from .unknown_firewall_error import UnknownFirewallError
 
 __all__ = [
     "InvalidAccessTokenError",
+    "InvalidSessionStrategyError",
+    "MissingSessionError",
     "MissingStateBagError",
     "UnknownFirewallError",
 ]
