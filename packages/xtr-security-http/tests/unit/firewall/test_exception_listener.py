@@ -18,7 +18,7 @@ from xtr_security_core.user import InMemoryUser
 
 from tests.support.contexts import FakeFirewallContext
 from tests.support.messages import make_message
-from xtr_security_http._security_state import CarriedResponse, security_state_of
+from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authenticator.token import PostAuthenticationToken
 from xtr_security_http.exception import InvalidAccessTokenError
 from xtr_security_http.firewall.exception_listener import ExceptionListener
@@ -81,7 +81,6 @@ def _context(entry_point: ResponseInterface | None = None) -> FakeFirewallContex
         name="api",
         authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        scheme=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         entry_point=_ChallengingEntryPoint(entry_point) if entry_point is not None else None,
     )
 
@@ -92,15 +91,6 @@ async def test_a_non_security_exception_is_left_alone() -> None:
     await _listener().on_exception(event)
 
     assert event.response is None
-
-
-async def test_a_carried_response_is_sent() -> None:
-    response = ResponseFactory().create_response(200)
-    event = _event(CarriedResponse(response))
-
-    await _listener().on_exception(event)
-
-    assert event.response is response
 
 
 async def test_an_authentication_error_without_a_firewall_is_a_bare_challenge() -> None:
@@ -136,7 +126,6 @@ async def test_a_denied_anonymous_request_challenges_with_the_parked_error() -> 
         name="api",
         authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        scheme=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         entry_point=entry_point,
     )
     event = _event(AccessDeniedError(attributes=("ROLE_USER",)), bag)

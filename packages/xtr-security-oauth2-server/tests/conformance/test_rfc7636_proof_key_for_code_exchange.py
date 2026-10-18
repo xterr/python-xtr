@@ -15,7 +15,6 @@ from urllib.parse import parse_qsl, urlsplit
 
 import pytest
 from fastapi import FastAPI
-from xtr_security_http.firewall.firewall import Firewall
 from xtr_security_oauth2_server_core.code_challenge_verifiers.plain_verifier import PlainVerifier
 from xtr_security_oauth2_server_core.code_challenge_verifiers.s256_verifier import S256Verifier
 
@@ -86,7 +85,6 @@ def _application() -> FastAPI:
     """Return a deployment running the redirect flow, proof key required."""
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_auth_code_app"),
-        dependencies=[Firewall()],
     )
 
 

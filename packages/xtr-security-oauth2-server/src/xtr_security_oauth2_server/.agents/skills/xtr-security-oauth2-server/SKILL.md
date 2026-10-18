@@ -22,13 +22,16 @@ It is an add-on of the security family: firewalls, voters and user providers are
   `persistence`. Each missing one is reported by the first service needing it.
 - `setup(app, kernel)` adds every endpoint (resources `oauth2_server` and the fixed
   `oauth2_server_well_known`); move them or leave some out in `<app>/config/routes/oauth2_server.py`.
-  Put an unbound `Firewall()` on the application — the endpoints carry no dependency of their own.
+  The endpoints carry no firewall dependency of their own: the firewalls the configuration
+  matches run as the firewall, a subscriber the security bundle registers over the kernel
+  lifecycle's events.
 - Three firewalls: one claiming `^/authorize` that signs the end user in, none on `/token`,
   `/revoke`, `/introspect`, `/device-code` and `/.well-known/*`, and `OAuth2AuthenticatorConfig()`
   on the API's.
 - A listener on `OAuth2Events.AUTHORIZATION_REQUEST_RESOLVE` approves, denies or shows a consent
   page; a request is denied until one approves it.
-- A scope becomes the role `ROLE_OAUTH2_<SCOPE>`; require one with `Firewall("api").scoped("x")`.
+- A scope becomes the role `ROLE_OAUTH2_<SCOPE>`; require one with an `AccessControlConfig`
+  carrying an `oauth2_scope("x")` attribute.
 - `oauth2-server:generate-keypair` mints the signing pair; the encryption key is 32 random bytes,
   base64url, and no command mints it.
 - Inject `AuthorizationServer`, `TokenServer`, `ResourceServer`, `ClientManagerInterface` and the
@@ -133,12 +136,12 @@ from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
 from xtr_http_kernel import setup
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import CurrentUser, Firewall
+from xtr_security_http import CurrentUser
 
-app = FastAPI(dependencies=[Firewall()])
+app = FastAPI()
 
 
-@app.get("/api/invoices", dependencies=[Firewall("api").scoped("invoices:read")])
+@app.get("/api/invoices")
 async def invoices(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
     return {"caller": user.get_user_identifier()}
 
@@ -328,9 +331,8 @@ async def test_a_service_is_issued_a_token(tmp_path, monkeypatch) -> None:
    `<app>/config/routes/oauth2_server.py`. It prints the rest: the keys, the issuer, `setup`, the
    three firewalls, the consent listener, a client, the scheduled sweep, the revision.
 3. **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` (and `JwtBundle` when the end
-   user signs in with a self-issued token); an unbound `Firewall()` on the application,
-   `Kernel(..., concurrent_scoped_access=True)` and `setup(app, kernel)`, which adds the
-   endpoints.
+   user signs in with a self-issued token); `Kernel(..., concurrent_scoped_access=True)` and
+   `setup(app, kernel)`, which adds the endpoints.
 4. **Brings along** — the security, clock, event-dispatcher and HTTP-kernel bundles always; the
    logging and console bundles when installed.
 5. **Configure** — `issuer`, `private_key`, `encryption_key`, `scopes.available`, `persistence` in

@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Final, cast
 
 import pytest
 from fastapi import APIRouter, FastAPI
-from xtr_security_http.firewall.firewall import Firewall
 from xtr_security_oauth2_server_core.authorization_validators.bearer_token_validator import (
     BearerTokenValidator,
 )
@@ -76,7 +75,7 @@ FIREWALL: Final = "api"
 
 def _api(app: FastAPI) -> None:
     """Mount an API behind the firewall that reads this server's access tokens."""
-    router = APIRouter(prefix="/api", dependencies=[Firewall(FIREWALL)])
+    router = APIRouter(prefix="/api")
 
     @router.get("/me")
     async def me() -> dict[str, str]:

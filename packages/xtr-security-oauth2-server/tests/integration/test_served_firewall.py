@@ -11,7 +11,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from xtr_dependency_injection import Injected
 from xtr_security import Security
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.support.served import (
     CLIENT_ID,
@@ -32,10 +31,9 @@ FIREWALL = "api"
 
 def _api(app: FastAPI) -> None:
     """Mount an API behind the firewall that reads this server's access tokens."""
-    api = Firewall(FIREWALL)
     # The dependency is handed to the router before any route is added: the
     # framework copies a router's dependencies into each route as it arrives.
-    router = APIRouter(prefix="/api", dependencies=[api])
+    router = APIRouter(prefix="/api")
 
     @router.get("/me")
     async def me(security: Injected[Security]) -> dict[str, object]:
@@ -47,7 +45,7 @@ def _api(app: FastAPI) -> None:
             "roles": list(token.get_role_names()),
         }
 
-    @router.get("/writable", dependencies=[api.scoped("write")])
+    @router.get("/writable")
     async def writable() -> dict[str, str]:
         return {"wrote": "yes"}
 

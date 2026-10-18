@@ -5,15 +5,12 @@ from __future__ import annotations
 from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
 from xtr_http_kernel import setup
-from xtr_security_http import Firewall
 
 from tests.fixtures.seam_app.bundles import BUNDLES
 
 __all__ = ["app", "kernel"]
 
-_api = Firewall("api")
-
-app = FastAPI(dependencies=[Firewall()])
+app = FastAPI()
 
 
 @app.get("/api/ping")
@@ -22,7 +19,7 @@ async def ping() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/scoped", dependencies=[_api.scoped("fake:read")])
+@app.get("/api/scoped")
 async def scoped() -> dict[str, str]:
     """A route the fake handler's scope gates."""
     return {"status": "scoped"}

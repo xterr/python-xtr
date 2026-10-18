@@ -266,20 +266,18 @@ async def test_one_check_passport_event_with_app_and_route_firewalls(
     assert listeners.EVENTS.count("check_passport") == 1
 
 
-async def test_the_openapi_schema_lists_the_firewall_schemes_and_scopes(
+async def test_the_openapi_schema_carries_no_security_the_routes_do_not_declare(
     client: httpx.AsyncClient,
 ) -> None:
+    """The firewall contributes no scheme of its own: a route declares security natively or not."""
     schema = cast("Mapping[str, object]", (await client.get("/openapi.json")).json())
 
-    components = cast("Mapping[str, object]", schema["components"])
-    schemes = cast("Mapping[str, object]", components["securitySchemes"])
-    assert "api" in schemes
-    assert cast("Mapping[str, object]", schemes["api"])["scheme"] == "bearer"
+    components = cast("Mapping[str, object]", schema.get("components", {}))
+    assert "securitySchemes" not in components
     paths = cast("Mapping[str, object]", schema["paths"])
-    books_get = cast(
-        "Mapping[str, object]", cast("Mapping[str, object]", paths["/api/books"])["get"]
-    )
-    assert {"api": ["books:read"]} in cast("list[object]", books_get["security"])
+    for operations in paths.values():
+        for operation in cast("Mapping[str, object]", operations).values():
+            assert "security" not in cast("Mapping[str, object]", operation)
 
 
 async def test_concurrent_requests_stay_isolated(client: httpx.AsyncClient) -> None:

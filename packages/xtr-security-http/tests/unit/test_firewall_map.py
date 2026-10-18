@@ -14,7 +14,6 @@ from xtr_security_http.exception import UnknownFirewallError
 from xtr_security_http.firewall_map import FirewallMap
 
 if TYPE_CHECKING:
-    from fastapi.security.base import SecurityBase
     from xtr_http_kernel.event.request_event import RequestEvent
     from xtr_http_message_contracts import ServerRequestInterface
 
@@ -34,14 +33,10 @@ def _context(
     exception_listener: ExceptionListener | None = None,
     logout_listener: FirewallListenerInterface | None = None,
 ) -> FakeFirewallContext:
-    from fastapi.security import HTTPBearer  # noqa: PLC0415
-
-    scheme: SecurityBase = HTTPBearer(auto_error=False)
     return FakeFirewallContext(
         name=name,
         authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        scheme=scheme,
         security=security,
         listeners=listeners,
         exception_listener=exception_listener,

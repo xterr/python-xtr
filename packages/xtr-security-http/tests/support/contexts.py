@@ -14,8 +14,6 @@ from typing import TYPE_CHECKING
 from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
 if TYPE_CHECKING:
-    from fastapi.security.base import SecurityBase
-
     from xtr_security_http.authentication.authenticator_manager_interface import (
         AuthenticatorManagerInterface,
     )
@@ -41,7 +39,6 @@ class FakeFirewallContext(FirewallContextInterface):
     name: str
     authenticator_manager: AuthenticatorManagerInterface
     access_listener: AccessListener
-    scheme: SecurityBase
     security: bool = True
     entry_point: AuthenticationEntryPointInterface | None = None
     access_denied_handler: AccessDeniedHandlerInterface | None = None

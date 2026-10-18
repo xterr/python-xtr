@@ -22,7 +22,7 @@ from xtr_security_core.exception import (
 )
 
 from xtr_security_http._challenge import json_challenge
-from xtr_security_http._security_state import CarriedResponse, security_state_of
+from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authorization.oauth2_scope_voter import parse_oauth2_scope
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
@@ -44,7 +44,6 @@ class ExceptionListener(EventSubscriberInterface):
     Sits on the lifecycle's exception event, alone deciding ``401`` versus
     ``403``:
 
-    - a carried handler response is sent as it is;
     - an :class:`~xtr_security_core.exception.AuthenticationError` becomes the
       firewall's entry-point challenge, or a bare ``401`` bearer challenge when
       the firewall has no entry point;
@@ -100,9 +99,6 @@ class ExceptionListener(EventSubscriberInterface):
     async def on_exception(self, event: ExceptionEvent) -> None:
         """Answer the request when the exception is one this listener owns."""
         error = event.exception
-        if isinstance(error, CarriedResponse):
-            await self._answer(event, error.response)
-            return
         if not isinstance(error, (AuthenticationError, AccessDeniedError)):
             return
         state = security_state_of(event.state)

@@ -166,7 +166,7 @@ async def test_nobody_to_ask_is_logged_with_the_step_the_deployment_is_missing()
 
     warned = logger.messages("warning")
     assert len(warned) == 1
-    assert "Firewall()" in warned[0]
+    assert "firewall claiming the authorization endpoint" in warned[0]
     assert "Use in an application" in warned[0]
 
 

@@ -30,8 +30,9 @@ It builds on [xtr-security-core](../xtr-security-core)'s users, tokens and voter
   badges and credentials; a fixed event order resolves and checks it, then mints a token.
 - 🪙 **Bearer access tokens** — extractors pull a token from a header, query or form; a handler
   turns it into a user. An OIDC handler verifies a third-party issuer's tokens.
-- 🛂 **The FastAPI surface stays FastAPI's** — `Firewall`, `IsGranted` and `CurrentUser` are
-  dependencies and decorators; the generated OpenAPI schema names each firewall's scheme.
+- 🛂 **The FastAPI surface stays FastAPI's** — `IsGranted` and `CurrentUser` are dependencies
+  and decorators; the firewall runs as a subscriber over the request lifecycle, before
+  routing, and a route documents its security with the framework's own params.
 - 🧩 **RFC 6750 challenges** — a `401` with `WWW-Authenticate: Bearer`, an `invalid_token` or
   `insufficient_scope` challenge, written for you.
 
@@ -140,13 +141,13 @@ voter supports: True
 
 ### The full HTTP path needs the bundle
 
-Running an actual firewall *on a FastAPI route* is more than these primitives. The `Firewall`
-dependency resolves the `FirewallMap`, the token storage and the decision manager from the
-container, and the `ExceptionListener` turns a security error into a challenge on the
-[xtr-http-kernel](../xtr-http-kernel) lifecycle. Wiring all of that by hand is exactly what the
-[`xtr-security`](../xtr-security) bundle exists to do: an application lists `SecurityBundle`,
-writes firewalls as configuration, and uses `Firewall`, `IsGranted` and `CurrentUser` on its
-routes. See [xtr-security's Quick start](../xtr-security#quick-start) for the whole loop, and its
+Running an actual firewall over a served request is more than these primitives. The `Firewall`
+subscriber runs the chain of the firewall a request matched over the
+[xtr-http-kernel](../xtr-http-kernel) lifecycle — before routing — and the `ExceptionListener`
+turns a security error into a challenge. Wiring all of that is exactly what the
+[`xtr-security`](../xtr-security) bundle exists to do: an application lists `SecurityBundle`
+and writes firewalls as configuration. See [xtr-security's Quick
+start](../xtr-security#quick-start) for the whole loop, and its
 [Use in an application](../xtr-security#use-in-an-application) for what adding it takes.
 
 ## Concepts
@@ -154,8 +155,8 @@ routes. See [xtr-security's Quick start](../xtr-security#quick-start) for the wh
 ### Firewalls and the map
 
 A **`FirewallContextInterface`** is one firewall's runtime pieces: its `name`, its
-`authenticator_manager`, its `access_listener`, the FastAPI `scheme`
-it shows in OpenAPI, whether it has `security` at all, the optional `entry_point`,
+`authenticator_manager`, its `access_listener`, whether it has `security` at all, the optional
+`entry_point`,
 `access_denied_handler` and `scope_denied_handler` that answer a failure, and its
 listener chain — `listeners` in the order they run (the order the bundle's sorting
 pass left them in), the `exception_listener` that answers a security error, and the
@@ -167,14 +168,14 @@ registered, and `await get_listeners(message)` answers the matched firewall's
 listeners when no firewall claims the message. `FirewallMapInterface` is the protocol
 the bundle wires a container-backed map to.
 
-**`Firewall`** is the FastAPI dependency an application puts on a route or router.
-`Firewall()` runs whichever firewall matches the request; `Firewall("api")` runs that one by
-name and shows its exact scheme in OpenAPI. `firewall.scoped("books:read")` returns a variant
-requiring scopes, and `Firewall` used as a decorator attaches to every route of a router or to a
-single endpoint. Authentication runs **once per request** however many firewall dependencies a
-route carries, memoised by firewall name. `FirewallScheme` is the `SecurityBase` a firewall
-contributes to the schema; `FirewallSchemeRegistry` and `active_firewall_schemes(registry)` let
-the generated schema name each firewall's scheme while the application is built.
+**`Firewall`** is the subscriber that runs the firewalls: a listener over the kernel
+lifecycle's events that the [xtr-security](../xtr-security) bundle registers on the main
+dispatcher. At the request it matches the map, runs the matched firewall's chain — before
+routing, so a request no route would answer is still challenged as a request — and parks the
+matched firewall and its exception listener on the request's security state; a failure the
+chain raises is announced on the exception event and answered by that listener, exactly once;
+the finish of the request puts the stored listener away. A route documents its security with
+the framework's own params; the firewall contributes no OpenAPI scheme of its own.
 
 ### Firewall listeners
 
@@ -333,7 +334,7 @@ event. It turns a security error raised while handling into the right response:
 - an **`AccessDeniedError`** from a caller who is not fully authenticated becomes the entry-point
   challenge for insufficient authentication; from a fully authenticated caller, a scope challenge
   (when the denied attribute is a scope), the firewall's access-denied handler, or a plain `403`;
-- a response an authentication handler produced is carried straight out.
+- any other exception is left untouched, to whatever else handles it.
 
 `AccessTokenAuthenticator` is itself an `AuthenticationEntryPointInterface`: `start(request,
 error)` answers a request with an RFC 6750 bearer challenge, naming `invalid_token` when a
@@ -341,11 +342,10 @@ present token was rejected, and the `realm` when one is configured.
 
 ### Decorators
 
-Six markers put the edge on a route, and stay out of the generated schema:
+Five markers put the edge on a route, and stay out of the generated schema:
 
 | Decorator | Does |
 |---|---|
-| `Firewall(name=None, *, scopes=())` | run a firewall (matched or named) before the endpoint |
 | `IsGranted(attribute, subject=None, *, message=None, status_code=None, exception_code=None, methods=(), consume_security_scopes=False)` | require an attribute, raising `AccessDeniedError` (or answering `status_code`) |
 | `CurrentUser(user_class=None, *, optional=False, disabled=False)` | inject the current user; `optional` yields `None` when anonymous, `disabled` switches the resolution off |
 | `CurrentToken(*, optional=False)` | inject the authenticated token; `optional` yields `None` when anonymous |
@@ -470,7 +470,6 @@ Everything this library raises derives from `SecurityError` (from
 |---|---|---|
 | `InvalidAccessTokenError` | `AuthenticationError` | a bearer token was present but could not be trusted — answered with an `invalid_token` challenge |
 | `UnknownFirewallError` | `LookupError` | a firewall was asked for by a name none is registered under; carries `name` and `configured` |
-| `FirewallNotBootedError` | `RuntimeError` | a firewall's OpenAPI scheme was read before the kernel booted or outside a request |
 
 ## Layout
 
@@ -478,8 +477,7 @@ Everything this library raises derives from `SecurityError` (from
 xtr_security_http/
 ├── firewall_map.py             FirewallMap, matched or fetched by name
 ├── firewall_context_interface.py  one firewall's runtime pieces
-├── firewall_scheme.py          the SecurityBase a firewall shows in OpenAPI
-├── firewall/                   Firewall, AccessListener, ExceptionListener,
+├── firewall/                   Firewall (the subscriber), AccessListener, ExceptionListener,
 │                              FirewallListenerInterface, AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
 ├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, passport/, token/
@@ -501,8 +499,8 @@ xtr_security_http/
 
 This package works on its own and ships no bundle. The
 [`xtr-security`](../xtr-security#use-in-an-application) bundle wires it — the firewalls, the
-authenticators, the access map, the exception listener, the `Firewall`/`IsGranted`/`CurrentUser`
-surface — into an application on [xtr-dependency-injection](../xtr-dependency-injection), with
+authenticators, the access map, the exception listener, the `Firewall` subscriber and the
+`IsGranted`/`CurrentUser` surface — into an application on [xtr-dependency-injection](../xtr-dependency-injection), with
 firewalls written as configuration. See that package's
 [Use in an application](../xtr-security#use-in-an-application).
 

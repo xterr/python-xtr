@@ -14,7 +14,6 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from xtr_dependency_injection import Injected
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.oauth2_auth_code_app.config import USER_IDENTIFIER, USER_PASSWORD
 from tests.fixtures.oauth2_auth_code_app.listeners import ASKED
@@ -65,16 +64,15 @@ DEACTIVATE_PATH: Final = "/deactivate-client"
 def _application() -> FastAPI:
     """Return the served application of the redirect-flow deployment.
 
-    The firewall goes on the application, not on the routes this package
-    contributes: they carry no dependency of their own, so an unbound
-    ``Firewall()`` here is what establishes the resource owner before the
-    authorization endpoint asks anybody to approve. Which requests it claims
-    is the firewall pattern's to decide, which is why the token endpoint stays
-    outside it.
+    The firewalls the configuration matches run as the firewall — a subscriber
+    over the kernel lifecycle's events — so the routes this package contributes
+    carry no dependency of their own: the ``login`` firewall the fixture
+    configures establishes the resource owner before the authorization endpoint
+    asks anybody to approve, and the token endpoint stays outside it, because
+    authenticating the *client* there is this server's own job.
     """
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_auth_code_app"),
-        dependencies=[Firewall()],
     )
 
 
@@ -99,7 +97,6 @@ def _administered_application() -> FastAPI:
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_auth_code_app"),
         _mount_deactivation,
-        dependencies=[Firewall()],
     )
 
 

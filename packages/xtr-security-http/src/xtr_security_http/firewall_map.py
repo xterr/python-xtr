@@ -30,10 +30,9 @@ __all__ = ["FirewallMap"]
 class FirewallMap(FirewallMapInterface):
     """Holds an application's firewalls, found by name or by matching a request.
 
-    A firewall bound by name — ``Firewall("api")`` — is looked up directly. An
-    unbound firewall — ``Firewall()`` — is matched to the first firewall whose
-    request matcher claims the request, in the order they were registered, so a
-    narrow firewall must be registered before a catch-all it would shadow.
+    A firewall is matched to the first firewall whose request matcher claims
+    the request, in the order they were registered, so a narrow firewall must
+    be registered before a catch-all it would shadow.
 
     Each firewall is paired with a
     :class:`~xtr_http_foundation.request_matcher_interface.RequestMatcherInterface`

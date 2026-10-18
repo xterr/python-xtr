@@ -1,7 +1,8 @@
 """The served FastAPI application the integration tests drive.
 
-An app-level firewall dependency authenticates every request its matchers claim;
-routes then use the firewall's scopes, ``IsGranted`` in every shape, and
+The firewalls the configuration matches run as the firewall — a subscriber
+over the kernel lifecycle's events — so the routes carry no firewall
+dependency of their own; they use ``IsGranted`` in every shape and
 ``CurrentUser`` so the served tests exercise the whole request surface.
 """
 
@@ -13,13 +14,11 @@ from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
 from xtr_http_kernel import setup
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import CurrentUser, Firewall, IsGranted
+from xtr_security_http import CurrentUser, IsGranted
 
 from tests.fixtures.security_app.bundles import BUNDLES
 
 __all__ = ["app", "kernel"]
-
-_api = Firewall("api")
 
 
 def _owns_book(context: object, subject: object) -> bool:
@@ -28,7 +27,7 @@ def _owns_book(context: object, subject: object) -> bool:
     return subject == "owned"
 
 
-app = FastAPI(dependencies=[Firewall()])
+app = FastAPI()
 
 
 @app.get("/open/ping")
@@ -49,13 +48,13 @@ async def me(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
     return {"user": user.get_user_identifier()}
 
 
-@app.get("/api/books", dependencies=[_api.scoped("books:read")])
+@app.get("/api/books")
 async def books() -> list[dict[str, str]]:
     """A scoped route: needs the ``books:read`` scope."""
     return [{"isbn": "0262510871"}]
 
 
-@app.get("/api/reports", dependencies=[_api.scoped("reports:write")])
+@app.get("/api/reports")
 async def reports() -> dict[str, str]:
     """A scoped route: needs the ``reports:write`` scope."""
     return {"status": "reported"}

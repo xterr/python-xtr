@@ -17,7 +17,6 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 from xtr_dependency_injection import Injected
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.oauth2_orm_app.config import USER_IDENTIFIER, USER_PASSWORD
 from tests.support.orm_app import orm_kernel, stored_tables
@@ -90,7 +89,6 @@ def _application(tmp_path: Path) -> FastAPI:
     return served_application(
         orm_kernel(tmp_path),
         extend=_routes,
-        dependencies=[Firewall()],
     )
 
 

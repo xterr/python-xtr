@@ -28,9 +28,9 @@ This package is the one bundle of the family. An application lists `SecurityBund
   the rules it enforces, in one frozen value.
 - 🧩 **Open at the seams** — a third-party bundle adds a kind of authenticator, token handler or
   user provider through the factory registries, without this package knowing it.
-- 🪪 **The FastAPI surface stays FastAPI's** — `Firewall`, `IsGranted` and `CurrentUser` are
-  dependencies and decorators; the generated OpenAPI schema names each firewall's scheme and each
-  route's scopes.
+- 🪪 **The FastAPI surface stays FastAPI's** — `IsGranted` and `CurrentUser` are dependencies
+  and decorators; the firewall itself runs as a subscriber over the kernel lifecycle's events,
+  before routing, and a route documents its security with the framework's own params.
 - 🔒 **Scoped to the request** — the token storage, the authorization checker and the `Security`
   facade are per-request; concurrent requests never share them.
 
@@ -113,12 +113,11 @@ from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
 from xtr_http_kernel import setup
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import CurrentUser, Firewall, IsGranted
+from xtr_security_http import CurrentUser, IsGranted
 
 from app.bundles import BUNDLES
 
-api = Firewall("api")
-app = FastAPI(dependencies=[Firewall()])
+app = FastAPI()
 
 
 @app.get("/api/me")
@@ -126,7 +125,7 @@ async def me(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
     return {"user": user.get_user_identifier()}
 
 
-@app.get("/api/books", dependencies=[api.scoped("books:read")])
+@app.get("/api/books")
 async def books() -> list[str]: ...
 
 
@@ -193,10 +192,10 @@ of them — `request_matcher`'s callable included — reads the request as a mes
 `pattern` matches the path below the application's mount, with per-cent escapes undone; `host` is
 matched without regard to case.
 
-A firewall matched per request — `Firewall()` — runs the first firewall whose matcher claims the
-request; a firewall bound by name — `Firewall("api")` — runs that one and shows its exact scheme
-in OpenAPI. Authentication runs once per request however many firewall dependencies a route
-carries.
+The firewalls run as the firewall — a subscriber `SecurityBundle` registers over the kernel
+lifecycle's events, before routing — so the routes carry no firewall dependency of their own:
+each request runs the first firewall whose matcher claims it, authenticated once, and a route
+documents its security with the framework's own params.
 
 ### Firewall listeners
 
@@ -218,8 +217,7 @@ for the traceable variant, so a traced firewall's chain explains its authenticat
 The chain carries the firewall's access step the same way: an `AccessListener` over the
 request's token storage, the decision manager and the firewall's own access map, registered
 under `firewall_access_listener_name(firewall)` and ordered by its `-255` priority after the
-authentication step. It is the same listener the context hands the firewall runner, so what the
-chain would decide is what the runner decides today.
+authentication step.
 
 ### Token handlers
 
@@ -331,7 +329,10 @@ clock, the role hierarchy, the voters and the decision manager (traceable per re
 and `GuestAuthorizationCheckerInterface` — and the `Security` facade (both scoped), the password
 hasher factory and the user hasher, the user providers, and — per
 firewall — its own event dispatcher with the login listeners, its authenticators, its access
-map, its entry point and its OpenAPI scheme, gathered into a `FirewallMap`. A firewall's
+map and its entry point, gathered into a `FirewallMap`. The bundle also registers the
+firewall itself — a subscriber over the kernel lifecycle's events, one listener per event,
+resolving the map per call from the request's scope — so every request the configuration's
+firewalls claim is authenticated before routing. A firewall's
 `listeners` configuration names the qualifiers of its listener chain; the bundle parks them on
 the firewall's context definition, where `SortFirewallListenersPass` orders them, and the
 context carries the ordered chain — with the global exception listener and, while the firewall

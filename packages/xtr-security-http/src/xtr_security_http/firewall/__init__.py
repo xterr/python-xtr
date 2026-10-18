@@ -1,6 +1,7 @@
 """The firewall a request passes, its listeners and its exception listener.
 
-The :class:`Firewall` dependency a route attaches, the
+The :class:`Firewall` — the subscriber that runs, over the kernel lifecycle's
+events, the firewall a request matched — the
 :class:`AccessListener` that decides a request against a firewall's rules, the
 :class:`AuthenticatorManagerListener` that runs a firewall's authenticators as
 a chain step, the :class:`ExceptionListener` that turns a security error into

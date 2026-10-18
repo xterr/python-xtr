@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 from fastapi import APIRouter, FastAPI
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.oauth2_auth_code_app.config import USER_IDENTIFIER, USER_PASSWORD
 from tests.support.served import (
@@ -45,7 +44,7 @@ def _client_auth() -> dict[str, str]:
 
 def _api(app: FastAPI) -> None:
     """Mount an API behind the firewall, so a withdrawal can be seen to take."""
-    router = APIRouter(prefix="/api", dependencies=[Firewall(FIREWALL)])
+    router = APIRouter(prefix="/api")
 
     @router.get("/me")
     async def me() -> dict[str, str]:
@@ -91,7 +90,6 @@ def _owner_application() -> FastAPI:
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_auth_code_app"),
         extend=_api,
-        dependencies=[Firewall()],
     )
 
 

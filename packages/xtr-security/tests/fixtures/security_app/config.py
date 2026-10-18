@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from xtr_dependency_injection import configure
 from xtr_security_core import InMemoryUser
+from xtr_security_http import oauth2_scope
 
 from tests.fixtures.security_app.services import FixtureTokenHandler, FixtureUserProvider
 from xtr_security.bundle import (
@@ -47,6 +48,8 @@ def security() -> SecurityConfig:
         },
         access_control=(
             AccessControlConfig(path=r"^/api/public", attribute="PUBLIC_ACCESS"),
+            AccessControlConfig(path=r"^/api/books", attribute=oauth2_scope("books:read")),
+            AccessControlConfig(path=r"^/api/reports", attribute=oauth2_scope("reports:write")),
             AccessControlConfig(path=r"^/api/admin", attribute="ROLE_ADMIN"),
             AccessControlConfig(path=r"^/api", attribute="IS_AUTHENTICATED"),
         ),

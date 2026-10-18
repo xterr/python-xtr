@@ -31,7 +31,7 @@ the protocol library, and ships everything around it an application would otherw
   `/introspect` (RFC 7662), the RFC 8414 description and the published key set, added by
   `setup(app, kernel)` and arranged in a routes file.
 - 🔥 **A firewall key `oauth2`** — `OAuth2AuthenticatorConfig()` on a firewall accepts the access
-  tokens (RFC 9068) this server signs; their scopes become roles and `Firewall.scoped()` checks.
+  tokens (RFC 9068) this server signs; their scopes become roles, checked by the access rules.
 - 🗄️ **Stores** — in memory, in a database through [xtr-orm](../xtr-orm) (the mapping ships, the
   revision is the application's), or the application's own.
 - 🗣️ **Events** — consent, scopes, users, extra claims and the token answer are each a question
@@ -223,10 +223,10 @@ from xtr_dependency_injection import Injected, Kernel
 from xtr_http_kernel import setup
 from xtr_security_core.user.in_memory_user import InMemoryUser
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import CurrentUser, Firewall
+from xtr_security_http import CurrentUser
 from xtr_security_jwt import JwtTokenManagerInterface
 
-app = FastAPI(dependencies=[Firewall()])
+app = FastAPI()
 
 
 @app.post("/login")
@@ -237,7 +237,7 @@ async def login(
     response.set_cookie("session", await tokens.create(user), httponly=True, secure=True)
 
 
-@app.get("/api/invoices", dependencies=[Firewall("api").scoped("invoices:read")])
+@app.get("/api/invoices")
 async def invoices(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
     return {"caller": user.get_user_identifier()}
 
@@ -246,10 +246,12 @@ kernel = Kernel("app", concurrent_scoped_access=True)
 setup(app, kernel)
 ```
 
-The unbound `Firewall()` on the application is what runs the firewalls in front of the endpoints
-`setup` adds, which carry no dependency of their own: without it `/authorize` is reached with
-nobody signed in and answers `access_denied`. The description and the key set stay at the fixed
-paths RFC 8414 puts under the issuer; the other endpoints can move — see [Endpoints](#endpoints).
+The firewalls written in step 3 run as the firewall — a subscriber the security bundle
+registers over the kernel lifecycle's events — so the endpoints `setup` adds carry no
+dependency of their own: the `login` firewall establishes the resource owner on `/authorize`,
+and without one `/authorize` is reached with nobody signed in and answers `access_denied`. The
+description and the key set stay at the fixed paths RFC 8414 puts under the issuer; the other
+endpoints can move — see [Endpoints](#endpoints).
 
 ```console
 $ curl -s -u billing:s3cret -d grant_type=client_credentials -d scope=invoices:read \
@@ -483,9 +485,10 @@ removing it undoes.
 - **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
   from `xtr_security_oauth2_server.bundle` — and `JwtBundle` beside it when the end user signs in
   with a self-issued token. Then build the kernel with `concurrent_scoped_access=True` and call
-  `setup(app, kernel)`, as the security family requires: it adds this server's endpoints. Put an
-  unbound `Firewall()` on the application itself: the endpoints carry no dependency of their
-  own, so that is what establishes the resource owner on `/authorize`.
+  `setup(app, kernel)`, as the security family requires: it adds this server's endpoints. The
+  firewalls the configuration matches run as the firewall — a subscriber the security bundle
+  registers over the kernel lifecycle's events — so the endpoints carry no dependency of their
+  own: the `login` firewall is what establishes the resource owner on `/authorize`.
 - **Brings along** — the [security bundle](../xtr-security), the [clock](../xtr-clock), the
   [event dispatcher](../xtr-event-dispatcher) and the [HTTP kernel](../xtr-http-kernel) always,
   because this bundle requires them; the [logging](../xtr-logging) bundle when xtr-logging is

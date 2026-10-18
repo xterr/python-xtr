@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 from fastapi import APIRouter, FastAPI
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.support.served import (
     client_credentials_token,
@@ -45,14 +44,13 @@ ERROR_CHARACTERS: Final = frozenset(
 
 def _api(app: FastAPI) -> None:
     """Mount an API behind the firewall that reads this server's access tokens."""
-    firewall = Firewall(FIREWALL)
-    router = APIRouter(prefix="/api", dependencies=[firewall])
+    router = APIRouter(prefix="/api")
 
     @router.get("/me")
     async def me() -> dict[str, str]:
         return {"read": "yes"}
 
-    @router.get("/writable", dependencies=[firewall.scoped("write")])
+    @router.get("/writable")
     async def writable() -> dict[str, str]:
         return {"wrote": "yes"}
 

@@ -15,7 +15,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from xtr_dependency_injection import Injected
 from xtr_security import Security
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.support.served import (
     json_of,
@@ -40,8 +39,7 @@ CLIENT_ID: Final = "client-1"
 
 def _api(app: FastAPI) -> None:
     """Mount one route behind the firewall that reads this server's tokens."""
-    api = Firewall("api")
-    router = APIRouter(prefix="/api", dependencies=[api])
+    router = APIRouter(prefix="/api")
 
     @router.get("/me")
     async def me(security: Injected[Security]) -> dict[str, object]:

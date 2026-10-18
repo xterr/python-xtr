@@ -13,7 +13,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
-from fastapi.security import APIKeyQuery, HTTPBearer
 from typing_extensions import override
 from xtr_password_hasher import PasswordHasherFactoryInterface, UserPasswordHasherInterface
 from xtr_security_core import MissingUserProvider, RoleHierarchyInterface, UserProviderInterface
@@ -30,12 +29,10 @@ from xtr_security_http import (
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 
 from xtr_security.bundle import (
-    AccessTokenConfig,
     AutoHasherConfig,
     InMemoryUserProviderConfig,
     NativeHasherConfig,
     SecurityConfig,
-    ServiceTokenHandlerConfig,
     firewall_access_listener_name,
     firewall_manager_listener_name,
 )
@@ -45,11 +42,9 @@ from xtr_security.bundle._wiring import (
     _default_hasher_config,
     _register_authenticators,
     _register_context_factory,
-    _scheme_from,
     register_hashers,
     register_voters,
 )
-from xtr_security.bundle.authenticator_configs import ExtractorName
 from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.factory import (
     AuthenticatorFactoryInterface,
@@ -440,68 +435,3 @@ def test_the_firewall_provider_is_handed_to_every_authenticator() -> None:
 
     assert needy.user_providers == [(UserProviderInterface, "users")]
     assert stateless.user_providers == [(UserProviderInterface, "users")]
-
-
-class _Handler:
-    """A stand-in token-handler class."""
-
-
-def _firewall(*token_extractors: ExtractorName) -> FirewallConfig:
-    """Return a secured firewall reading tokens by the named extractors."""
-    return FirewallConfig(
-        authenticators=(
-            AccessTokenConfig(
-                token_handler=ServiceTokenHandlerConfig(_Handler),
-                token_extractors=token_extractors,
-            ),
-        ),
-    )
-
-
-def test_the_header_extractor_name_shows_the_bearer_scheme() -> None:
-    scheme = _scheme_from(_firewall("header"))
-
-    assert isinstance(scheme, HTTPBearer)
-    assert scheme.scheme_name == "Bearer"
-    assert scheme.auto_error is False
-    assert (
-        scheme.model == HTTPBearer(auto_error=False, bearerFormat="JWT", scheme_name="Bearer").model
-    )
-
-
-def test_the_body_extractor_name_shows_the_bearer_scheme() -> None:
-    scheme = _scheme_from(_firewall("body"))
-
-    assert isinstance(scheme, HTTPBearer)
-    assert scheme.scheme_name == "Bearer"
-    assert scheme.auto_error is False
-    assert (
-        scheme.model == HTTPBearer(auto_error=False, bearerFormat="JWT", scheme_name="Bearer").model
-    )
-
-
-def test_the_query_extractor_name_shows_the_query_scheme() -> None:
-    scheme = _scheme_from(_firewall("query"))
-
-    assert isinstance(scheme, APIKeyQuery)
-    assert scheme.scheme_name == "access_token"
-    assert scheme.auto_error is False
-    assert (
-        scheme.model
-        == APIKeyQuery(name="access_token", auto_error=False, scheme_name="access_token").model
-    )
-
-
-def test_the_first_extractor_name_names_the_scheme() -> None:
-    scheme = _scheme_from(_firewall("query", "header"))
-
-    assert isinstance(scheme, APIKeyQuery)
-
-
-def test_a_firewall_without_an_access_token_authenticator_shows_the_plain_bearer_scheme() -> None:
-    scheme = _scheme_from(FirewallConfig(authenticators=(_StatelessConfig(),)))
-
-    assert isinstance(scheme, HTTPBearer)
-    assert scheme.scheme_name == "HTTPBearer"
-    assert scheme.auto_error is False
-    assert scheme.model == HTTPBearer(auto_error=False, bearerFormat="JWT").model

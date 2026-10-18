@@ -8,6 +8,7 @@ route by a scope the fake handler grants.
 from __future__ import annotations
 
 from xtr_dependency_injection import configure
+from xtr_security_http import oauth2_scope
 
 from tests.fixtures.seam_app.factories import FakeOAuth2Config
 from xtr_security.bundle import AccessControlConfig, FirewallConfig, SecurityConfig
@@ -25,5 +26,8 @@ def security() -> SecurityConfig:
                 authenticators=(FakeOAuth2Config(realm="fake"),),
             ),
         },
-        access_control=(AccessControlConfig(path=r"^/api", attribute="IS_AUTHENTICATED"),),
+        access_control=(
+            AccessControlConfig(path=r"^/api/scoped", attribute=oauth2_scope("fake:read")),
+            AccessControlConfig(path=r"^/api", attribute="IS_AUTHENTICATED"),
+        ),
     )

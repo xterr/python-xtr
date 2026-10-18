@@ -23,7 +23,6 @@ from typing import (
     TYPE_CHECKING,
     Annotated,
     Protocol,
-    assert_never,
     cast,
     final,
     runtime_checkable,
@@ -92,7 +91,6 @@ from xtr_security.factory.stateless_authenticator_factory_interface import (
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
-    from fastapi.security.base import SecurityBase
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
     from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
     from xtr_security_core.user.user_checker_interface import UserCheckerInterface
@@ -403,7 +401,6 @@ def _register_open_context(
     so the global exception listener answers its errors the way it answers
     every request's.
     """
-    from fastapi.security import HTTPBearer  # noqa: PLC0415 -- http-only
 
     async def firewall_context(
         chain: ServiceLocator[FirewallListenerInterface],
@@ -418,7 +415,6 @@ def _register_open_context(
                 cast("AccessDecisionManagerInterface", cast("object", null)),
                 AccessMap(),
             ),
-            scheme=HTTPBearer(auto_error=False),
             security=False,
             listeners=tuple([await chain.get(qualifier) for qualifier in listeners]),
         )
@@ -651,8 +647,7 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     authenticators were aliased under, so a firewall builds its own and no other
     firewall's; the manager is a service of its own over them and the injected
     storage and dispatcher, so the chain's listener and the context hand each
-    other the same one; the OpenAPI scheme is derived from the firewall's own
-    configuration while the entry point is read off the built authenticators.
+    other the same one; the entry point is read off the built authenticators.
     ``expose`` is the configured
     :class:`~xtr_security_http.ExposeSecurityLevel`, threaded to the manager so a
     non-default level reaches every firewall.
@@ -677,7 +672,6 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
     realm = _realm_of(firewall)
     access_denied = firewall.access_denied_handler
     required_badges = firewall.required_badges
-    scheme = _scheme_from(firewall)
     manager_qualifier = f"{name}#authenticator_manager"
     listener_qualifier = firewall_manager_listener_name(name)
     access_listener_qualifier = firewall_access_listener_name(name)
@@ -779,7 +773,6 @@ def _register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one f
             name=name,
             authenticator_manager=manager,
             access_listener=access_listener,
-            scheme=scheme,
             entry_point=entry_point,
             access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
             scope_denied_handler=InsufficientScopeAccessDeniedHandler(responses, realm),
@@ -822,39 +815,6 @@ def _firewall_map_factory(
         )
 
     return firewall_map
-
-
-def _scheme_from(firewall: FirewallConfig) -> SecurityBase:
-    """Return the OpenAPI scheme the firewall shows, read off its configuration.
-
-    The first access-token authenticator's first extractor name picks the
-    FastAPI security class — the same object that extractor's removed scheme
-    member used to return — and a firewall reading tokens another way shows the
-    standard bearer scheme.
-
-    TRANSITIONAL: this derivation exists only while the extractor interface
-    carries no scheme member (decision D5). It dies in P2.9b, when the
-    decorator, the scheme registry and the firewall context's scheme field are
-    retired together and per-route security becomes native framework
-    declaration.
-    """
-    from fastapi.security import APIKeyQuery, HTTPBearer  # noqa: PLC0415 -- http-only
-
-    for authenticator_config in firewall.authenticators:
-        if isinstance(authenticator_config, AccessTokenConfig):
-            extractor_name = authenticator_config.token_extractors[0]
-            match extractor_name:
-                case "query":
-                    return APIKeyQuery(
-                        name="access_token",
-                        auto_error=False,
-                        scheme_name="access_token",
-                    )
-                case "header" | "body":
-                    return HTTPBearer(auto_error=False, bearerFormat="JWT", scheme_name="Bearer")
-                case _:  # pragma: no cover -- exhaustive over ExtractorName
-                    assert_never(extractor_name)
-    return HTTPBearer(auto_error=False, bearerFormat="JWT")
 
 
 def _resolve_entry_point(

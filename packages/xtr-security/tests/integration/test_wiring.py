@@ -2,7 +2,8 @@
 
 Boots the wiring fixture — an in-memory provider, a chain over it, a multi-
 extractor access-token authenticator, native password hashers and vote tracing —
-and drives ``run_firewall`` so the paths the served fixtures leave aside run.
+and runs the firewall over a request event so the paths the served fixtures
+leave aside run.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from xtr_dependency_injection import Kernel, unit_of_work
 from xtr_dependency_injection.testing import boot_for_test
+from xtr_http_kernel import RequestEvent
 from xtr_password_hasher import UserPasswordHasherInterface
 from xtr_security_core import InMemoryUser
 from xtr_security_core.authentication.token.storage.token_storage_interface import (
@@ -27,15 +29,14 @@ from xtr_security_http import (
     SecurityTokenResolver,
     UserValueResolver,
 )
-from xtr_security_http._runner import run_firewall
-from xtr_security_http._security_state import security_state_of
+from xtr_security_http.firewall.firewall import Firewall
 from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
 from tests.support.messages import make_message
 from xtr_security.bundle import SecurityBundle
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
+    from collections.abc import AsyncIterator
 
     from xtr_http_message import ServerRequest
     from xtr_service_contracts import ContainerInterface
@@ -43,18 +44,15 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.anyio
 
 
-async def _run(
-    unit: ContainerInterface, message: ServerRequest, scopes: Sequence[str] = ()
-) -> None:
-    await run_firewall(
-        "api",
-        message,
-        scopes,
-        state=security_state_of({}),
-        firewall_map=await unit.get(FirewallMapInterface),
-        token_storage=await unit.get(TokenStorageInterface),
-        access_decision_manager=await unit.get(AccessDecisionManagerInterface),
-    )
+async def _run(unit: ContainerInterface, message: ServerRequest) -> None:
+    """Run the firewall over ``message``, the way the lifecycle's request phase does.
+
+    The firewall resolves the map from the unit the caller opened — the
+    request's own, when the lifecycle runs it — and the chain parks what it
+    learns on the event's state bag.
+    """
+    firewall = Firewall(await unit.get(FirewallMapInterface))
+    await firewall.on_request(RequestEvent(message, {}))
 
 
 @pytest.fixture
@@ -174,12 +172,12 @@ async def test_tracing_logs_each_decision_and_its_votes(container: ContainerInte
     from xtr_security_core import Access, AuthenticatedVoter, TraceableAccessDecisionManager
 
     async with unit_of_work(container) as unit:
-        await _run(unit, _message("good"), ("books:read",))
+        await _run(unit, _message("good"))
         manager = await unit.get(AccessDecisionManagerInterface)
         assert isinstance(manager, TraceableAccessDecisionManager)
         log = manager.get_decision_log()
 
-    assert len(log) == 2
+    assert len(log) == 1
     assert log[0]["attributes"] == ("IS_AUTHENTICATED",)
     assert all(entry["result"] is True for entry in log)
     first_votes = cast("list[dict[str, object]]", log[0]["voter_details"])

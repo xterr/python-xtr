@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, final
 from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
 if TYPE_CHECKING:
-    from fastapi.security.base import SecurityBase
     from xtr_security_http.authentication.authenticator_manager_interface import (
         AuthenticatorManagerInterface,
     )
@@ -46,16 +45,15 @@ class FirewallContext(FirewallContextInterface):
     """The runtime pieces of one firewall, resolved once and shared for its lifetime.
 
     Groups the manager that authenticates a request, the access listener that
-    decides it, the entry point and handlers that answer it, the OpenAPI
-    scheme it contributes, and the listener chain it runs — ordered by the
-    bundle's sorting pass, so the order held here is the order it runs in.
+    decides it, the entry point and handlers that answer it, and the listener
+    chain it runs — ordered by the bundle's sorting pass, so the order held
+    here is the order it runs in.
 
     Attributes:
         name: The firewall's name — the key it is looked up by, and the memo
             key that keeps its authentication to one pass per request.
         authenticator_manager: Runs the firewall's authenticators.
         access_listener: Decides a request against the firewall's rules.
-        scheme: The FastAPI security object the firewall shows in OpenAPI.
         security: Whether the firewall authenticates at all; ``False`` lets
             every request through untouched.
         entry_point: Answers an unauthenticated request with a challenge.
@@ -72,7 +70,6 @@ class FirewallContext(FirewallContextInterface):
     name: str
     authenticator_manager: AuthenticatorManagerInterface
     access_listener: AccessListener
-    scheme: SecurityBase
     security: bool = True
     entry_point: AuthenticationEntryPointInterface | None = None
     access_denied_handler: AccessDeniedHandlerInterface | None = None

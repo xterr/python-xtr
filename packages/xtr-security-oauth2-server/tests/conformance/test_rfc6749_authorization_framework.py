@@ -14,7 +14,6 @@ from urllib.parse import parse_qsl, urlsplit
 import httpx
 import pytest
 from fastapi import FastAPI
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.oauth2_auth_code_app.config import USER_IDENTIFIER, USER_PASSWORD
 from tests.support.served import (
@@ -60,14 +59,15 @@ ERROR_CHARACTERS: Final = frozenset(
 def _application() -> FastAPI:
     """Return a deployment running the redirect flow and the flows beside it.
 
-    The firewall goes on the application rather than on the routes this package
-    contributes, which is what establishes the resource owner on the authorization
-    endpoint; the token endpoint stays outside it, because authenticating the
-    *client* there is this server's own job.
+    The firewalls the configuration matches run as the firewall — a subscriber
+    over the kernel lifecycle's events — so the routes this package contributes
+    carry no firewall dependency of their own: the ``login`` firewall the
+    fixture configures establishes the resource owner on the authorization
+    endpoint, and the token endpoint stays outside it, because authenticating
+    the *client* there is this server's own job.
     """
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_auth_code_app"),
-        dependencies=[Firewall()],
     )
 
 

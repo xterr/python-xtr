@@ -32,8 +32,6 @@ from xtr_security_oauth2_server.value_object.scope import Scope
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 
-    from fastapi.params import Depends
-
 __all__ = [
     "CLIENT_ID",
     "CLIENT_SECRET",
@@ -95,7 +93,6 @@ def oauth2_kernel(
 def served_application(
     kernel: Kernel | None = None,
     extend: Callable[[FastAPI], None] | None = None,
-    dependencies: Sequence[Depends] | None = None,
 ) -> FastAPI:
     """Return an application serving this package's endpoints, plus a way to seed a client.
 
@@ -108,15 +105,14 @@ def served_application(
     say — before serving begins, since an application refuses middleware once it
     has started.
 
-    ``dependencies`` go on the application itself, which is how a firewall
-    reaches *this package's* endpoints: the routes it contributes, which
-    ``setup`` mounts, carry none, so an unbound ``Firewall()`` here is what
-    establishes the resource owner on the authorization endpoint. Which requests
-    it claims is the firewall pattern's to decide, so the token endpoint — where
-    authenticating the *client* is the authorization server's own job — stays
-    outside it.
+    The firewalls the fixture configurations match run as the firewall — a
+    subscriber over the kernel lifecycle's events — so the routes this
+    package contributes carry no firewall dependency of their own: the
+    ``login`` firewall a fixture configures establishes the resource owner on
+    the authorization endpoint, and the token endpoint — where authenticating
+    the *client* is the authorization server's own job — stays outside it.
     """
-    app = FastAPI(dependencies=list(dependencies) if dependencies is not None else None)
+    app = FastAPI()
 
     @app.post(SEED_PATH)
     async def seed_client(

@@ -5,9 +5,9 @@ container — the token storage and authorization checker scoped to a request, t
 voters and the decision manager, the user providers and password hashers, and,
 per firewall, its own event dispatcher, authenticators, access map and entry
 point, gathered into a :class:`FirewallMap`. The exception listener turns a
-security error into a response on the http-kernel lifecycle, and — at boot — the
-firewalls' OpenAPI schemes are filled into a per-kernel registry the generated
-schema reads.
+security error into a response on the http-kernel lifecycle, and the firewall —
+a subscriber over the same lifecycle's events — runs the chain of the firewall
+that matched each request, before routing.
 """
 
 from __future__ import annotations
@@ -55,18 +55,15 @@ from xtr_security_core import (
 from xtr_security_http import (
     CsrfTokenChecker,
     ExceptionListener,
-    FirewallSchemeRegistry,
     IsGrantedChecker,
     SecurityTokenResolver,
     UserValueResolver,
 )
-from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
 from xtr_security.access_token import OidcTokenHandlerFactory
 from xtr_security.bundle.security_config import SecurityConfig
 from xtr_security.security import Security
 
-from ._firewall_scheme_middleware_factory import FirewallSchemeMiddlewareFactory
 from ._wiring import (
     VOTER_TAG,
     build_firewall_map,
@@ -94,14 +91,8 @@ if TYPE_CHECKING:
 
 __all__ = ["SecurityBundle"]
 
-_MIDDLEWARE_TAG = "http_kernel.middleware"
-"""The tag the http-kernel bundle orders middleware factories by."""
-
 _TRACEABLE_PASS_PRIORITY = 10
 """Ahead of the bundles' own passes, once autoconfiguration has run; decorations resolve later."""
-
-_SCHEME_MIDDLEWARE_PRIORITY = -4096
-"""The scheme-activating middleware sits innermost; it wraps only the schema read."""
 
 
 @final
@@ -115,9 +106,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
     """Configures the xtr security family from one :class:`SecurityConfig`."""
 
     def __init__(self) -> None:
-        """Start with a fresh per-kernel scheme registry to fill at boot."""
-        self._scheme_registry = FirewallSchemeRegistry()
-        self._firewall_names: tuple[str, ...] = ()
+        """Start with the strategy the configuration has not changed yet."""
         self._strategy: AccessDecisionStrategyInterface = (
             SecurityConfig().access_decision_manager.build()
         )
@@ -135,6 +124,9 @@ class SecurityBundle(Bundle[SecurityConfig]):
         both out. The firewalls' listener chains are ordered after every
         bundle's ``process`` hook, so a listener another bundle adds to one is
         sorted with the rest.
+
+        The firewall itself runs as one listener per lifecycle event, loaded
+        here so the scan finds it whatever the application configures.
         """
         _ = builder.register_for_autoconfiguration(VoterInterface).add_tag(VOTER_TAG)
         builder.add_compiler_pass(
@@ -217,18 +209,17 @@ class SecurityBundle(Bundle[SecurityConfig]):
         register_hashers(services, config)
         register_user_providers(services, config)
 
-        self._firewall_names = tuple(config.firewalls)
         build_firewall_map(services, self._bind_oidc_closeables(config))
+
+        # The firewall runs the chain of the firewall each request matched,
+        # over the lifecycle's own events; the listeners resolve the map per
+        # call, from the request's scope.
+        services.load("xtr_security.event_listener.firewall_listener")
 
         _ = services.set(ExceptionListener).add_tag(
             LISTENER_TAG,
             event=ExceptionEvent,
             method="on_exception",
-        )
-
-        _ = services.instance(self._scheme_registry)
-        _ = services.set(_scheme_middleware_factory(self._scheme_registry)).add_tag(
-            _MIDDLEWARE_TAG, priority=_SCHEME_MIDDLEWARE_PRIORITY
         )
 
         if bundle_active(builder, "console"):
@@ -278,30 +269,6 @@ class SecurityBundle(Bundle[SecurityConfig]):
             _ = builder.get_definition(UserPasswordHashCommand).set_argument(
                 "user_classes", self._user_classes
             )
-
-    @override
-    async def boot(self) -> None:
-        """Fill this kernel's scheme registry from every firewall's OpenAPI scheme.
-
-        Read synchronously by the generated schema, so it is resolved once here:
-        each firewall's entry-point scheme model, keyed by the firewall name. The
-        firewall map is a scoped service, so it is resolved inside a unit of work.
-        """
-        from xtr_dependency_injection import unit_of_work  # noqa: PLC0415 -- boot-only
-
-        container = self.container
-        if container is None:  # pragma: no cover -- the kernel sets this before boot.
-            message = "SecurityBundle.boot ran without a container"
-            raise RuntimeError(message)
-        if not self._firewall_names:
-            return
-        async with unit_of_work(container) as unit:
-            firewall_map = await unit.get(FirewallMapInterface)
-            for name in self._firewall_names:
-                if not firewall_map.has(name):
-                    continue
-                context = firewall_map.get(name)
-                self._scheme_registry.register(name, context.scheme.model, scheme_name=name)
 
     @override
     async def shutdown(self) -> None:
@@ -411,14 +378,3 @@ def _security_facade(
 ) -> Security:
     """Build the :class:`Security` facade over the request's storage and checker."""
     return Security(token_storage, authorization_checker)
-
-
-def _scheme_middleware_factory(
-    registry: FirewallSchemeRegistry,
-) -> Callable[[], FirewallSchemeMiddlewareFactory]:
-    """Return the middleware factory that activates ``registry`` per request."""
-
-    def firewall_scheme_middleware() -> FirewallSchemeMiddlewareFactory:
-        return FirewallSchemeMiddlewareFactory(registry)
-
-    return firewall_scheme_middleware

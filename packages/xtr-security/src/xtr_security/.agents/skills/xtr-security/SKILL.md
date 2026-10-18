@@ -18,8 +18,7 @@ Write one `SecurityConfig`; the container owns the rest.
 
 | Want | Write |
 | --- | --- |
-| Protect every route | `app = FastAPI(dependencies=[Firewall()])` |
-| Protect one router by name | `router = Firewall("api")(APIRouter())` |
+| Protect the routes | a firewall in `SecurityConfig.firewalls`; the bundle runs them |
 | Require a role on a route | `@IsGranted("ROLE_ADMIN")` under the route decorator |
 | Require it over a subject | `dependencies=[IsGranted("BOOK_EDIT", subject=load_book)]` |
 | The current user in an endpoint | `user: Annotated[UserInterface, CurrentUser()]` |
@@ -29,12 +28,12 @@ Write one `SecurityConfig`; the container owns the rest.
 | Refuse in a service | `await security.deny_access_unless_granted("EDIT", book)` |
 | A rule of your own | a class extending `Voter`, registered `@as_service` |
 | Hash a password | inject `UserPasswordHasherInterface` |
-| Require scopes | `api.scoped("books:read")` in a route's `dependencies` |
+| Require scopes | an `AccessControlConfig` with an `oauth2_scope(...)` attribute |
 
 Import from these surfaces, nothing deeper: `xtr_security` (`Security`), `xtr_security.bundle`
 (every `*Config` and `SecurityBundle`), `xtr_security_core` (users, tokens, voters, errors),
-`xtr_security_http` (`Firewall`, `IsGranted`, `CurrentUser`, `CurrentToken`, `IsCsrfTokenValid`,
-badges) and `xtr_password_hasher`.
+`xtr_security_http` (`IsGranted`, `CurrentUser`, `CurrentToken`, `IsCsrfTokenValid`, badges) and
+`xtr_password_hasher`.
 
 Self-issued JSON Web Tokens are an add-on package, `xtr-security-jwt`, with a skill of its own
 (`xtr-security-jwt`); it plugs its authenticator into this bundle.
@@ -110,11 +109,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, FastAPI
 from xtr_security_core import UserInterface
-from xtr_security_http import CurrentUser, Firewall, IsGranted
+from xtr_security_http import CurrentUser, IsGranted
 
-api = Firewall("api")
-app = FastAPI(dependencies=[Firewall()])
-router = api(APIRouter(prefix="/api"))
+app = FastAPI()
+router = APIRouter(prefix="/api")
 
 
 @router.get("/me")
@@ -127,9 +125,10 @@ async def me(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, object]
 async def delete_book(isbn: str) -> None: ...
 ```
 
-- `Firewall()` runs the firewall the configuration matches; `Firewall("api")` runs that one and
-  shows its exact scheme in the generated schema. Authentication runs once per request however
-  many firewall dependencies a route carries.
+- The firewalls the configuration matches run as the firewall — a subscriber the bundle
+  registers over the kernel lifecycle's events, before routing — so the routes carry no
+  firewall dependency of their own and the generated schema shows only what a route declares
+  natively.
 - `CurrentUser()` raises on an anonymous request, answered `401`. `optional=True` yields `None`
   instead, for a parameter typed `UserInterface | None`; `CurrentUser(MyUser)` requires a class.
 - `IsGranted` takes a `subject` in `dependencies=[...]`: a path-parameter name, or a callable

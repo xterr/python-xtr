@@ -39,16 +39,15 @@ class DebugFirewallCommand:
         return self._list(io, firewall_map)
 
     def _list(self, io: ConsoleStyle, firewall_map: FirewallMapInterface) -> int:
-        """List every firewall, its scheme and whether it secures its requests."""
+        """List every firewall and whether it secures its requests."""
         names = firewall_map.names()
         io.section(f"Firewalls ({len(names)})")
         io.table(
-            ("Name", "Secured", "Scheme"),
+            ("Name", "Secured"),
             [
                 (
                     escape(fw_name),
                     "yes" if firewall_map.get(fw_name).security else "no",
-                    escape(type(firewall_map.get(fw_name).scheme).__name__),
                 )
                 for fw_name in names
             ],
@@ -63,7 +62,6 @@ class DebugFirewallCommand:
         context = firewall_map.get(name)
         io.title(f'Firewall "{escape(name)}"')
         io.text(f"Secured: {'yes' if context.security else 'no'}")
-        io.text(f"Scheme: {escape(type(context.scheme).__name__)}")
         io.text(f"Entry point: {escape(_name_of(context.entry_point))}")
         io.text(f"Access-denied handler: {escape(_name_of(context.access_denied_handler))}")
         io.text(f"Scope-denied handler: {escape(_name_of(context.scope_denied_handler))}")

@@ -1,10 +1,10 @@
 """The HTTP edge of xtr security: firewalls, authenticators and access tokens.
 
-The :class:`Firewall`, :class:`IsGranted` and :class:`CurrentUser` route
-surface, the authenticator and passport machinery a firewall runs, the bearer
-access-token extractors and the :class:`AccessTokenAuthenticator`, and the
-listeners and events around a login. Built on the security core; needs FastAPI
-and xtr-http-kernel.
+The :class:`Firewall` — a subscriber over the kernel lifecycle's events — the
+:class:`IsGranted` and :class:`CurrentUser` route surface, the authenticator
+and passport machinery a firewall runs, the bearer access-token extractors and
+the :class:`AccessTokenAuthenticator`, and the listeners and events around a
+login. Built on the security core; needs FastAPI and xtr-http-kernel.
 """
 
 from __future__ import annotations
@@ -90,7 +90,6 @@ from .event_listener import (
     UserProviderListener,
 )
 from .exception import (
-    FirewallNotBootedError,
     InvalidAccessTokenError,
     MissingStateBagError,
     UnknownFirewallError,
@@ -106,11 +105,6 @@ from .firewall import (
 from .firewall_context_interface import FirewallContextInterface
 from .firewall_map import FirewallMap
 from .firewall_map_interface import FirewallMapInterface
-from .firewall_scheme import FirewallScheme
-from .firewall_scheme_registry import (
-    FirewallSchemeRegistry,
-    active_firewall_schemes,
-)
 from .http_utils import HttpUtils
 from .resolver import (
     CsrfTokenChecker,
@@ -162,9 +156,6 @@ __all__ = [
     "FirewallListenerOrder",
     "FirewallMap",
     "FirewallMapInterface",
-    "FirewallNotBootedError",
-    "FirewallScheme",
-    "FirewallSchemeRegistry",
     "FormEncodedBodyExtractor",
     "HeaderAccessTokenExtractor",
     "HttpUtils",
@@ -202,7 +193,6 @@ __all__ = [
     "UserProviderListener",
     "UserValueResolver",
     "__version__",
-    "active_firewall_schemes",
     "firewall_listener_order_of",
     "is_sensitive",
     "mask",

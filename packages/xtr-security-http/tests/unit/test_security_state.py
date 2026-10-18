@@ -1,12 +1,8 @@
-"""The per-request security state, its key on the bag, and the carried response."""
+"""The per-request security state and its key on the bag."""
 
 from __future__ import annotations
 
-from xtr_http_kernel.bridge import ResponseFactory
-from xtr_http_message_contracts import ResponseInterface
-
 from xtr_security_http._security_state import (
-    CarriedResponse,
     SecurityState,
     security_state_of,
 )
@@ -43,13 +39,3 @@ def test_a_fresh_state_carries_an_empty_attribute_bag() -> None:
     state = SecurityState()
 
     assert state.attributes == {}
-
-
-def test_a_carried_response_holds_its_response() -> None:
-    response = ResponseFactory().create_response(200)
-
-    carried = CarriedResponse(response)
-
-    assert carried.response is response
-    assert isinstance(carried, Exception)
-    assert isinstance(response, ResponseInterface)

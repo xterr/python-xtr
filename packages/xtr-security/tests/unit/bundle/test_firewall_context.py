@@ -3,25 +3,18 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
 
 import pytest
-from fastapi.security import HTTPBearer
 from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
 from xtr_security.bundle.firewall_context import FirewallContext
 
-if TYPE_CHECKING:
-    from fastapi.security.base import SecurityBase
-
 
 def _context(**overrides: object) -> FirewallContext:
-    scheme: SecurityBase = HTTPBearer(auto_error=False)
     fields: dict[str, object] = {
         "name": "api",
         "authenticator_manager": object(),
         "access_listener": object(),
-        "scheme": scheme,
     }
     fields.update(overrides)
     return FirewallContext(**fields)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]

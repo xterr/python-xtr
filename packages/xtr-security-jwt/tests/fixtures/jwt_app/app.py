@@ -8,14 +8,14 @@ from fastapi import FastAPI
 from xtr_dependency_injection import Injected, Kernel
 from xtr_http_kernel import setup
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import CurrentUser, Firewall, IsGranted
+from xtr_security_http import CurrentUser, IsGranted
 
 from tests.fixtures.jwt_app.bundles import BUNDLES
 from xtr_security_jwt.services.jwt_token_manager_interface import JwtTokenManagerInterface
 
 __all__ = ["app", "kernel"]
 
-app = FastAPI(dependencies=[Firewall()])
+app = FastAPI()
 
 
 @app.get("/api/me")

@@ -1,11 +1,11 @@
-"""The per-firewall contract the firewall runner and exception listener read.
+"""The per-firewall contract the firewall and the exception listener read.
 
 The HTTP edge runs a firewall without knowing how its parts were built: the
-runner authenticates through the manager and decides through the access
-listener, and the exception listener answers a failure through the entry point
-and handlers. Both read those parts off this contract, so the concrete context
-that gathers them — built by the bundle — lives outside this package while the
-runtime here depends only on the shape.
+firewall's chain authenticates through the manager's listener step and
+decides through the access step, and the exception listener answers a
+failure through the entry point and handlers. Both read those parts off this
+contract, so the concrete context that gathers them — built by the bundle —
+lives outside this package while the runtime here depends only on the shape.
 
 The firewall's listener chain is read through this contract too: the map's
 ``get_listeners`` answers a request with the matched firewall's chain, its
@@ -18,8 +18,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from fastapi.security.base import SecurityBase
-
     from xtr_security_http.authentication.authenticator_manager_interface import (
         AuthenticatorManagerInterface,
     )
@@ -43,17 +41,15 @@ class FirewallContextInterface(Protocol):
     """The runtime pieces of one firewall, resolved once and shared for its lifetime.
 
     Groups the manager that authenticates a request, the access listener that
-    decides it, the entry point and handlers that answer it, the OpenAPI
-    scheme it contributes, and the listener chain it runs — already ordered
-    by the bundle's sorting pass, so the order it is held in is the order it
-    runs in.
+    decides it, the entry point and handlers that answer it, and the listener
+    chain it runs — already ordered by the bundle's sorting pass, so the
+    order it is held in is the order it runs in.
 
     Attributes:
         name: The firewall's name — the key it is looked up by, and the memo
             key that keeps its authentication to one pass per request.
         authenticator_manager: Runs the firewall's authenticators.
         access_listener: Decides a request against the firewall's rules.
-        scheme: The FastAPI security object the firewall shows in OpenAPI.
         security: Whether the firewall authenticates at all; ``False`` lets
             every request through untouched.
         entry_point: Answers an unauthenticated request with a challenge.
@@ -70,7 +66,6 @@ class FirewallContextInterface(Protocol):
     name: str
     authenticator_manager: AuthenticatorManagerInterface
     access_listener: AccessListener
-    scheme: SecurityBase
     security: bool
     entry_point: AuthenticationEntryPointInterface | None
     access_denied_handler: AccessDeniedHandlerInterface | None

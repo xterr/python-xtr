@@ -138,6 +138,11 @@ class AccessListener(AbstractListener):
         # of attribute strings; the cast reads that handoff back.
         attributes = cast("tuple[str, ...]", parked)
         token = self._token_storage.get_token() or NullToken()
+        # The token this step read is parked on the request's state — the
+        # per-request carrier — so the exception listener weighs the same
+        # token the rules were decided against, without reaching for the
+        # storage a singleton cannot hold.
+        state.token = token
         await self._decide(request_event.request, token, attributes)
 
     async def check_access(self, request: ServerRequestInterface, token: TokenInterface) -> None:
