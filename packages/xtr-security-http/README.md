@@ -1029,6 +1029,35 @@ ever makes it: documentation.
   per-origin nonce memory and a retry on `use_dpop_nonce`) and a proof factory; neither
   is landed here. The follow-up that lands them is the plan's deferred DPoP row, and the
   client this suite serves works bearer-only until then.
+- **The ended-sessions key hashes the `sid` with SHA-256, not xxh128.** Upstream hashes the
+  opaque `sid` with xxh128; the standard library offers no xxh128, and the family's keys —
+  the discovery document's, the JWKS's — are SHA-256, so the ended-session key is too:
+  `oidc_ended_session.<namespace>.<sha256(sid)>`. The scheme is the upstream one; only the
+  digest differs, and no hashing dependency is added for it.
+- **The logout token's claim rules are hand-written.** The ID-token reader's recorded
+  deviation extends here: the JOSE library's claims registry accepts a boolean as the
+  timestamp `1` where the upstream check refuses it, dispatches per claim in the token's
+  document order, and its terse errors would need translating regardless — so the logout
+  token's rules are written out against the injected clock, the same set in the same fixed
+  order (mandatory claims first, the family's order, where the upstream checker manager runs
+  its checkers before the mandatory pass), with the same refusal of a non-numeric time
+  claim.
+- **The end-session redirect goes through `HttpUtils`.** Upstream answers the logout with a
+  bare redirect response; the local listener builds it through
+  `create_redirect_response`, so a configured domain regexp weighs the provider's
+  end-session endpoint too — a further restriction, never a widening, and the same
+  convention the OIDC login's redirects follow. The `post_logout_redirect_uri` is written
+  by the injected URI builder — the path itself by default, an absolute URI when the
+  application's builder writes one — where upstream builds the absolute URI from the
+  request; this stack has no routing component, and the builder is the application's own
+  way to write absolute URIs.
+- **The OIDC listeners keep their client machinery as typing-only references.** The
+  back-channel logout listener holds an `OidcEndedSessions` and the end-session listener an
+  `OidcDiscovery`, both imported only for type checking: a runtime import would execute
+  the `oidc` package's gate and pull the JOSE toolkit behind the `oidc` extra into every
+  application importing this package, listener or no listener. The wiring that builds them
+  resolves the classes where the extra is already required — the same shape as the token
+  refresh listener's refresher.
 
 ### Access tokens
 
@@ -1295,6 +1324,62 @@ the extra parameters, and a listener may compute them per request — `set_param
 `remove_param`, `set_params` — with the same managed-parameters guard refusing a listener
 that sets one of the flow's own.
 
+The back-channel logout is the provider pushing the end of one of its sessions, and it is
+client-side machinery too — the login's tokens are what carry what it names:
+
+- **`OidcLogoutToken`** validates the claims of a logout token — the security event token of
+  RFC 8417 a provider pushes — per OpenID Connect Back-Channel Logout 1.0, Section 2.6:
+  `iss`/`aud`/`iat`/`exp`/`jti`/`events` are mandatory, the time claims are read against the
+  injected clock with the allowed drift, and the token must carry the
+  `http://schemas.openid.net/event/backchannel-logout` member in an `events` object
+  (`OidcLogoutToken.EVENT`). A `nonce` is refused — only an ID token carries one, which is
+  what keeps an ID token from being replayed as a logout token — and the `sid` must be a
+  non-empty string naming the session that ended, which `validate_claims(claims,
+  expected_issuer, expected_audience)` returns. A `sub` is not required (a token naming a
+  user rather than a session is refused by the `sid` rule), and a replayed `jti` is not
+  remembered: `exp` is what bounds a captured token, Section 2.6 leaving the remembering
+  optional. The signature is not verified here — the token arrives unauthenticated, from
+  anyone able to reach the back-channel endpoint, so the signature verifier makes it the
+  provider's and that check can never be skipped.
+- **`OidcEndedSessions`** remembers the provider sessions a back-channel logout ended, in a
+  cache-item pool every server of the application shares — the logout token reaches any
+  one of them, and the session it names was opened by another, so an adapter local to one
+  process loses what the others recorded. `OidcEndedSessions(pool, namespace, lifetime)`
+  namespaces by the firewall (two firewalls, two providers, never reading each other's
+  entries) and keeps each end for `lifetime` seconds — at least how long a session can stay
+  idle. `record(sid)` writes the end down (recording the same end twice is what it already
+  says, which is what makes replaying a logout token harmless), `has(sid)` tells whether a
+  session ended; the key is `oidc_ended_session.<namespace>.<hash(sid)>`, the opaque `sid`
+  hashed out of the pool.
+- **`OidcBackChannelLogout`** is what the back-channel endpoint hands the pushed token to:
+  `logout(logout_token)` verifies the signature first — nothing of the token is the
+  provider's until its signature says so — and a verification failure is answered with a
+  generic refusal, the reason logged rather than answered, because the endpoint is public
+  and the verifier names what it verifies after the ID token it is built for. The claims
+  are then validated against the issuer the discovery document announces and the client
+  id, and the session the token names is recorded in the ended sessions — a token naming a
+  session this application never opened is recorded all the same, and so is one naming a
+  session that already ended.
+- **`OidcBackChannelLogoutListener`** (`event_listener/`) is where the recorded end is
+  acted on: a plain callable on `CheckRefreshedUserEvent`, registered by the wiring on the
+  dispatcher the refreshed-user check is announced on — one per firewall, over the ended
+  sessions that firewall's provider pushed. A token minted on another firewall, or one
+  naming no provider session (no `oidc_sid` attribute), is left untouched and costs no
+  lookup; a token whose `sid` the ended sessions hold is deauthenticated with
+  `OidcSessionEndedError` — the login stops working on the next request the browser makes.
+  Deauthenticating is where it stops, which is what a password change does too: an
+  application wanting its session invalidated as well reads the error off the
+  deauthentication event.
+- **`OidcEndSessionListener`** (`event_listener/`) handles RP-Initiated Logout: at the
+  logout event, priority 65 — ahead of the default logout listener's 64 — it redirects the
+  caller to the `end_session_endpoint` the discovery document announces, carrying the ID
+  token the login keeps as its `id_token_hint` and, when a
+  `post_logout_redirect_path` is configured, the page to come back to as its
+  `post_logout_redirect_uri`. A logout a listener answered first is left alone, and so is
+  one whose login carries no OIDC ID token; a provider announcing no usable
+  `end_session_endpoint` — or one that cannot be reached — falls back to a local logout,
+  warned about: logging out of the application never depends on the provider being up.
+
 With the `oidc` extra, the resource-server side keeps its own pieces:
 **`OidcTokenHandler`** (`access_token/oidc/`) verifies a third-party issuer's tokens against
 an `OidcKeySetProviderInterface` — `StaticOidcKeySetProvider(jwks)` for a fixed JWKS, or
@@ -1418,7 +1503,10 @@ xtr_security_http/
 │                              passport/, token/
 ├── access_token/               extractors, handler interface, oauth2/ (Oauth2TokenHandler),
 │                              oidc/ (OidcTokenHandler)
-├── oidc/                       DiscoveryOidcKeySetProvider
+├── oidc/                       the client suite: discovery, JWKS, signature verifier,
+│                              ID token, client, token refresher, and the back-channel
+│                              logout (logout token, ended sessions, the endpoint handler);
+│                              DiscoveryOidcKeySetProvider for the resource server
 ├── oauth2/                     the client side: JwsAlgorithms, BearerTokenType, the
 │                              client-authentication methods (the assertion pair behind
 │                              the oidc extra)

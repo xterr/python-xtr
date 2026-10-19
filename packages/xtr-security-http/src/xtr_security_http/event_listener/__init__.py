@@ -9,7 +9,10 @@ orders it around the ones that answer the request. The remember-me pair
 answers a login's ask to be remembered — the conditions listener enables
 the badge, the listener that follows sets or clears the cookie — and the
 endings that must drop one. The throttling listener counts a login's
-failed attempts, through a request limiter that builds its own keys.
+failed attempts, through a request limiter that builds its own keys. The
+OIDC pair answers what the provider says about the login it issued: the
+back-channel logout listener refuses a token whose provider session ended,
+and the end-session listener redirects a logout to the provider.
 """
 
 from __future__ import annotations
@@ -24,6 +27,8 @@ from .csrf_protection_listener import CsrfProtectionListener
 from .csrf_token_clearing_listener import CsrfTokenClearingListener
 from .default_logout_listener import DefaultLogoutListener
 from .login_throttling_listener import LoginThrottlingListener
+from .oidc_back_channel_logout_listener import OidcBackChannelLogoutListener
+from .oidc_end_session_listener import OidcEndSessionListener
 from .password_migrating_listener import PasswordMigratingListener
 from .remember_me_listener import RememberMeListener
 from .session_logout_listener import SessionLogoutListener
@@ -42,6 +47,8 @@ __all__ = [
     "CsrfTokenClearingListener",
     "DefaultLogoutListener",
     "LoginThrottlingListener",
+    "OidcBackChannelLogoutListener",
+    "OidcEndSessionListener",
     "PasswordMigratingListener",
     "RememberMeListener",
     "SessionLogoutListener",
