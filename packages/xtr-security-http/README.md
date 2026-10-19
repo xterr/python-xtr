@@ -908,6 +908,33 @@ ever makes it: documentation.
   *no restriction*, so a handler configured without algorithms would verify a signed response
   against anything; the setter refuses the empty list rather than silently disabling the
   restriction.
+- **The OIDC errors end in `Error`, not `Exception`.** The local convention names every error
+  the package raises with the `Error` suffix, so the OIDC family's `InvalidSignatureError` and
+  `MissingClaimError` follow it; both derive from the core `AuthenticationError`, as their
+  upstream counterparts do from the authentication exception.
+- **`InvalidSignatureError` is raised by nothing yet.** Upstream's verifier-side OIDC handler
+  raises it on a bad signature; the local one landed earlier and reports the same failure as an
+  `InvalidAccessTokenError` directly, so the error completes the family's surface — the
+  signature-verification side names it — without a raiser of its own.
+- **The generator takes an algorithm allow-list, not an algorithm manager.** The JOSE library
+  signs by the header's `alg`, so the manager's list becomes a sequence of names the generator
+  validates a chosen algorithm against; the signing key is chosen with the library's own key-set
+  selection, which picks among the suitable keys rather than the first.
+- **The userinfo handler rides the `oidc` extra.** It needs no JOSE library — only the HTTP
+  client and cache contracts — but it lives in the OIDC subpackage, whose import gate requires
+  the extra; an application using only the userinfo handler installs it anyway.
+- **The userinfo handler fetches its own discovery document.** Upstream delegates to a discovery
+  reader the local side does not have yet — the OIDC discovery alignment owns it — so the
+  handler reads the well-known document itself, through its own client and cache, and weighs the
+  announced endpoint against the URL that served the document exactly as that reader would.
+  When the alignment lands, the fetch moves behind it.
+- **The userinfo handler keeps no memo to reset.** Upstream memoizes the decoded document per
+  instance and resets it between requests; here the cache is the memo — every token reads it,
+  as the introspection handler reads its own — so there is nothing to reset and no reset hook.
+- **The trait refuses with the access-token error.** Upstream's shared behaviour throws a
+  generic runtime error its handlers wrap; here it raises `InvalidAccessTokenError` directly —
+  the failure currency of the access-token handlers it serves — which those handlers log and
+  re-raise as-is.
 
 ### Access tokens
 
@@ -995,6 +1022,55 @@ the trusted issuers, the `aud` against the audience, and the time claims against
 leeway. **`exp` is required** — a token that never expires is refused. A key set that cannot be
 fetched, discovered or read raises `OidcKeySetError`; every discovery and JWKS endpoint must be
 `https` unless insecure HTTP is explicitly allowed.
+
+**`OidcUserInfoTokenHandler`** (in `access_token/oidc/`) validates a token the other way round:
+it presents it to the issuer's userinfo endpoint as a bearer credential and takes the claims the
+endpoint answers with as the user — the one arrangement where the issuer's own answer, over the
+transport the client carries, is the whole of the validation:
+
+```python
+from xtr_security_http.access_token.oidc import OidcUserInfoTokenHandler
+
+handler = OidcUserInfoTokenHandler(
+    HttpxHttpClient().with_options(base_uri="https://issuer.example/userinfo"),
+    claim="sub",
+)
+```
+
+The endpoint is the client's base URI, or the one the issuer's discovery document announces
+after `enable_discovery(cache, cache_key)` — the document is fetched from the well-known path
+relative to the client's base URI, kept under `cache_key + ".document"` with no lifetime of its
+own (the pool decides), and its `userinfo_endpoint` is weighed before anything is cached: an
+endpoint that would downgrade the `https` transport that carried the document is refused, and
+so is a document announcing no endpoint. The identifier is read from `claim` (`sub` by default);
+the badge's loader is wrapped in a `FallbackUserLoader`, so the access-token authenticator
+replaces it with the firewall's user provider when one is configured, and without one the
+loader builds the core `OidcUser` the claims describe. Every failure becomes an
+`InvalidAccessTokenError` — a missing claim raises `MissingClaimError` on the chain, a bad
+signature names `InvalidSignatureError`.
+
+**`OidcTokenGenerator`** (in `access_token/oidc/`) signs the other side: an access token this
+application issues, as RFC 9068 profiles one — `typ: at+jwt` in the header, the user on `sub`
+(or the claim configured), the audience, the issuer, and `exp`/`nbf` from a `ttl` and a
+not-before:
+
+```python
+from xtr_security_http.access_token.oidc import OidcTokenGenerator
+
+generator = OidcTokenGenerator(
+    ("RS256",),
+    keyset,
+    "shop-api",
+    ("https://this-application.example",),
+)
+token = generator.generate("alice", ttl=3600)
+```
+
+The algorithm and the issuer are each either named at every call or declared as the only one;
+the signing key is chosen from the key set — one whose declared use is signing and that fits
+the algorithm. **`OidcTrait`** is the mixin the OIDC handlers share: `create_user(claims)`
+builds the `OidcUser` the claims describe, and `check_discovered_endpoint(endpoint, key,
+discovery_url)` refuses an endpoint a discovery document must not announce.
 
 ### OAuth2 scopes
 

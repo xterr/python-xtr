@@ -1,9 +1,11 @@
-"""Verifying bearer tokens from third-party OIDC issuers (needs the ``oidc`` extra).
+"""Signing and reading bearer tokens for OIDC issuers (needs the ``oidc`` extra).
 
 Importing this subpackage requires joserfc and httpx, brought by the ``oidc``
 extra of xtr-security-http. Importing :mod:`xtr_security_http` itself pulls in
-neither; only reaching in here does, so an application that never verifies OIDC
-tokens carries no JOSE or HTTP-client dependency.
+neither; only reaching in here does, so an application that never signs or
+verifies OIDC tokens carries no JOSE or HTTP-client dependency. The userinfo
+handler needs neither, but rides the extra with the subpackage it lives in —
+the price of keeping the OIDC surface in one place.
 
 The key material lives with the authenticator and discovery it serves —
 :mod:`xtr_security_http.authenticator.oidc` and :mod:`xtr_security_http.oidc` —
@@ -17,7 +19,7 @@ try:
     import joserfc as _joserfc
 except ImportError as _error:  # pragma: no cover -- exercised in a subprocess without the extra
     raise ImportError(
-        "The OIDC access-token handler needs joserfc and httpx; install the 'oidc' extra: "
+        "The OIDC access-token pieces need joserfc and httpx; install the 'oidc' extra: "
         'uv add "xtr-security-http[oidc]".',
     ) from _error
 else:
@@ -29,13 +31,23 @@ from xtr_security_http.authenticator.oidc.oidc_jwks import (
 )
 from xtr_security_http.oidc.oidc_discovery import DiscoveryOidcKeySetProvider
 
+from .exception.invalid_signature_error import InvalidSignatureError
+from .exception.missing_claim_error import MissingClaimError
 from .exception.oidc_key_set_error import OidcKeySetError
+from .oidc_token_generator import OidcTokenGenerator
 from .oidc_token_handler import OidcTokenHandler
+from .oidc_trait import OidcTrait
+from .oidc_user_info_token_handler import OidcUserInfoTokenHandler
 
 __all__ = [
     "DiscoveryOidcKeySetProvider",
+    "InvalidSignatureError",
+    "MissingClaimError",
     "OidcKeySetError",
     "OidcKeySetProviderInterface",
+    "OidcTokenGenerator",
     "OidcTokenHandler",
+    "OidcTrait",
+    "OidcUserInfoTokenHandler",
     "StaticOidcKeySetProvider",
 ]
