@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from xtr_security_core.user.user_interface import UserInterface
 
@@ -27,21 +27,25 @@ class FallbackUserLoader:
 
     An authenticator that knows how to load its own user — a token's claims
     naming one, a link signing one — hands its badge a loader wrapped here,
-    and the wiring leaves it alone. Called, the wrapper answers as the
-    loader it wraps; wrapped around ``None``, it answers with no user, the
-    badge's own way of saying the wiring should not load one at all.
+    and the wiring leaves it alone. Called, the wrapper answers as the loader
+    it wraps — a coroutine when the loader is an async one, which the badge
+    awaits; wrapped around ``None``, it answers with no user, the badge's own
+    way of saying the wiring should not load one at all.
     """
 
     __slots__ = ("_inner",)
 
     def __init__(
         self,
-        inner: Callable[..., UserInterface | None] | None = None,
+        inner: Callable[..., UserInterface | Awaitable[UserInterface] | None] | None = None,
     ) -> None:
         """Wrap ``inner``, the loader the badge owns."""
         self._inner = inner
 
-    def __call__(self, *arguments: object) -> UserInterface | None:
+    def __call__(
+        self,
+        *arguments: object,
+    ) -> UserInterface | Awaitable[UserInterface] | None:
         """Answer as the loader this wrapper wraps, or with no user."""
         if self._inner is None:
             return None

@@ -41,7 +41,7 @@ class UserBadge(BadgeInterface):
     def __init__(
         self,
         identifier: str,
-        user_loader: Callable[..., UserInterface | Awaitable[UserInterface]] | None = None,
+        user_loader: Callable[..., UserInterface | Awaitable[UserInterface] | None] | None = None,
         attributes: Mapping[str, object] | None = None,
         identifier_normalizer: Callable[[str], str] | None = None,
     ) -> None:
@@ -94,13 +94,15 @@ class UserBadge(BadgeInterface):
         """Return the attributes handed to the loader."""
         return dict(self._attributes)
 
-    def get_user_loader(self) -> Callable[..., UserInterface | Awaitable[UserInterface]] | None:
+    def get_user_loader(
+        self,
+    ) -> Callable[..., UserInterface | Awaitable[UserInterface] | None] | None:
         """Return the loader set for this badge, or ``None``."""
         return self._user_loader
 
     def set_user_loader(
         self,
-        user_loader: Callable[..., UserInterface | Awaitable[UserInterface]],
+        user_loader: Callable[..., UserInterface | Awaitable[UserInterface] | None],
     ) -> None:
         """Set the loader a provider listener resolved for this badge."""
         self._user_loader = user_loader
@@ -132,7 +134,7 @@ class UserBadge(BadgeInterface):
 
     def _call_loader(
         self,
-        loader: Callable[..., UserInterface | Awaitable[UserInterface]],
+        loader: Callable[..., UserInterface | Awaitable[UserInterface] | None],
     ) -> object:
         """Call ``loader`` with the identifier, and the attributes when it takes them."""
         try:

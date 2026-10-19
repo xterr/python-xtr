@@ -417,6 +417,37 @@ builds a self-validating passport whose user loader is the cookie being spent th
 and the token is the core `RememberMeToken`, which a trust resolver tells apart from a fully
 proven login. It reports itself interactive, as the flow always has.
 
+### Login links
+
+**`LoginLinkDetails(url, expires_at)`** is one minted link: the URL whole, and the moment the
+hash inside it stops verifying. A **`LoginLinkHandlerInterface`** is the one voice on the
+links: `create_login_link(user, request=None, lifetime=None, parameters=None)` mints one for
+a user, and `consume_login_link(request)` checks the one a request presents and loads the
+user it signs in.
+
+**`LoginLinkHandler(user_provider, signature_hasher, options, uri_builder=None, clock=None)`**
+signs stateless links with the core `SignatureHasher`: the hash covers the user, the expiry
+and the link's extra parameters, and is checked against the identifier before the user is
+loaded, then against the loaded user's own covered fields — so a changed password retires
+every link issued before it, which is also the limit: no single link can be revoked alone.
+The options are `lifetime` (600 seconds by default) and `path`, the literal path every
+minted link leads to, required. Extra parameter names must match `[A-Za-z0-9_.-]+` and may
+not take the reserved names `user`, `expires`, `hash` or `hash_parameters`; the extras are
+sorted and their names listed in the link's `hash_parameters`, each covered by the hash.
+Consuming reads the link's parameters from the query string, or the body of a request that
+is not a `GET`; a refused link raises `InvalidLoginLinkError` — `ExpiredLoginLinkError`
+when only its moment has passed — and the extra parameters it carried are parked on the
+request's security state under the `LOGIN_LINK_PARAMETERS` key, for the handlers that
+answer the login.
+
+**`LoginLinkAuthenticator(login_link_handler, http_utils, success_handler, failure_handler,
+options)`** spends the link a followed request presents: `supports` answers for the request
+arriving at the configured `check_path` — a `POST` there when `check_post_only` is set —
+and `authenticate` builds a self-validating passport whose user loader, wrapped in
+`FallbackUserLoader` so the wiring leaves it alone, is the link being consumed through the
+handler, wearing a `RememberMeBadge`. The answers are delegated to the success and failure
+handlers, and the login reports itself interactive: the user followed the link themselves.
+
 ### Listeners
 
 The bundle registers these on each firewall's dispatcher; they are the badge-resolving half of
@@ -690,6 +721,19 @@ ever makes it: documentation.
   `UnsupportedUserError` derives from `SecurityError` and `TypeError`, never from
   `AuthenticationError`, so it cannot reach the failure hook and the branch has no local
   counterpart.
+- **Login links lead by a literal path, not a route name.** Upstream generates the link's
+  URL from a route name through a routing component this stack does not have; the handler's
+  `path` option and the authenticator's `check_path` name the literal path, a `route_name`
+  or `check_route` option is refused, and the URI a path becomes is written by the injected
+  URI builder — the path itself by default, and the builder receives the request the link
+  is generated against, the translation of building the link for that request's own
+  address.
+- **The login-link notification is not ported.** Upstream's `LoginLinkNotification` wraps
+  a minted link for a notifier component this workspace does not ship; sending the link is
+  the application's own.
+- **A non-string `user` parameter is refused as missing.** Upstream would hand a repeated
+  query parameter's array to the badge and fail later; the local authenticator answers the
+  same "Missing user from link." error for a value that is not a string.
 
 ### Access tokens
 
@@ -792,6 +836,8 @@ xtr_security_http/
 ├── event/                      the firewall events around a login and a logout
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)
 │                              and the logout listeners answering LogoutEvent
+├── login_link/                 the signed links a login arrives by: details, handler,
+│                              handler interface
 ├── logout/                     LogoutUrlGenerator, LogoutForm — the logout addresses
 ├── remember_me/                the handlers, details, staged cookie and response pass of a
 │                              login the user asked to outlive its session

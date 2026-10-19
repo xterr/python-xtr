@@ -46,6 +46,7 @@ from .authenticator import (
     HttpBasicAuthenticator,
     InteractiveAuthenticatorInterface,
     JsonLoginAuthenticator,
+    LoginLinkAuthenticator,
     RememberMeAuthenticator,
     TraceableAuthenticator,
     TraceableAuthenticatorManagerListener,
@@ -117,7 +118,11 @@ from .event_listener import (
     UserProviderListener,
 )
 from .exception import (
+    ExpiredLoginLinkError,
     InvalidAccessTokenError,
+    InvalidLoginLinkAuthenticationError,
+    InvalidLoginLinkError,
+    InvalidLoginLinkErrorInterface,
     InvalidSessionStrategyError,
     LogoutError,
     MissingSessionError,
@@ -140,6 +145,11 @@ from .firewall_context_interface import FirewallContextInterface
 from .firewall_map import FirewallMap
 from .firewall_map_interface import FirewallMapInterface
 from .http_utils import HttpUtils
+from .login_link import (
+    LoginLinkDetails,
+    LoginLinkHandler,
+    LoginLinkHandlerInterface,
+)
 from .logout import LogoutForm, LogoutUrlGenerator
 from .remember_me import (
     AbstractRememberMeHandler,
@@ -214,6 +224,7 @@ __all__ = [
     "DefaultAuthenticationSuccessHandler",
     "DefaultLogoutListener",
     "ExceptionListener",
+    "ExpiredLoginLinkError",
     "ExposeSecurityLevel",
     "FallbackAuthenticationEntryPointInterface",
     "FallbackUserLoader",
@@ -232,6 +243,9 @@ __all__ = [
     "InteractiveAuthenticatorInterface",
     "InteractiveLoginEvent",
     "InvalidAccessTokenError",
+    "InvalidLoginLinkAuthenticationError",
+    "InvalidLoginLinkError",
+    "InvalidLoginLinkErrorInterface",
     "InvalidSessionStrategyError",
     "IsCsrfTokenValid",
     "IsGranted",
@@ -239,6 +253,10 @@ __all__ = [
     "IsGrantedContext",
     "JsonLoginAuthenticator",
     "LoginFailureEvent",
+    "LoginLinkAuthenticator",
+    "LoginLinkDetails",
+    "LoginLinkHandler",
+    "LoginLinkHandlerInterface",
     "LoginSuccessEvent",
     "LogoutError",
     "LogoutEvent",
