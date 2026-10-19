@@ -495,6 +495,34 @@ path-only by default. A generation over a firewall without a switch, a forgery-a
 without a manager, or a dedicated path configured as a route name raises
 `ImpersonationError`.
 
+### Pre-authenticated
+
+Some requests arrive already vouched for — the server in front of the application authenticated
+them, or a TLS certificate named their user. **`AbstractPreAuthenticatedAuthenticator(user_provider,
+token_storage, firewall_name, logger=None)`** is the base those authenticators share: a subclass
+implements `extract_username(request)` — the one abstract part, reading the username the request
+carries as already proven — and the base decides the rest. `supports` skips a request whose
+reading yields no user, one whose reading raises `BadCredentialsError` (clearing the token the
+failure invalidates), and one whose user already holds a `PreAuthenticatedToken` for this
+firewall: the token from the session vouches for everything a new one would. `authenticate`
+builds a self-validating passport whose user loader is the provider's `load_user_by_identifier`,
+wearing a `PreAuthenticatedUserBadge` — the badge that tells the passport check there are no
+credentials to verify and the account was vouched for before the passport existed. The token it
+settles on is the core `PreAuthenticatedToken`, a failure clears the firewall's pre-authenticated
+token and answers nothing, and the login reports itself interactive.
+
+**`RemoteUserAuthenticator(user_provider, token_storage, firewall_name, user_key="REMOTE_USER",
+logger=None)`** reads the account a server in front authenticated, from the environment the
+request arrives with: a request whose environment carries no `user_key` is refused, and one whose
+value is empty reads as no user. **`X509Authenticator(user_provider, token_storage,
+firewall_name, user_key="SSL_CLIENT_S_DN_Email", credentials_key="SSL_CLIENT_S_DN", logger=None,
+credential_user_identifier="emailAddress")`** reads what the server verified of the request's
+client certificate: the email key first, as it is, and the configured identifier out of the
+distinguished name when the email is not there — `emailAddress` also answers its dotted OID
+spelling `1.2.840.113549.1.9.1`, a custom identifier is matched anywhere in the name, and the
+value read out of a name is trimmed. A request carrying neither key, or a name without the
+identifier, is refused.
+
 ### Listeners
 
 The bundle registers these on each firewall's dispatcher; they are the badge-resolving half of
@@ -836,6 +864,12 @@ ever makes it: documentation.
 - **A non-string switch parameter reads as no username.** Upstream would hand a repeated
   query parameter's array on and fail later; the local readers narrow to text, so anything
   but a name is not a switch this flow can carry out.
+- **The pre-authenticated username is read twice, not handed over.** Upstream parks the
+  username its supports pass extracted on the request and reads the park back when
+  authenticating; a request message is immutable here, and the pass that authenticates is
+  handed the request as it arrived — not the one the supports pass read — so
+  `authenticate` reads the request again through the same `extract_username` hook. The
+  reading is the request's own environment, so it answers what it answered before.
 
 ### Access tokens
 
@@ -928,7 +962,8 @@ xtr_security_http/
 │                              SwitchUserListener, RefreshUserResult,
 │                              FirewallListenerInterface, AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
-├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, passport/, token/
+├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, the
+│                              pre-authenticated trio, passport/, token/
 ├── access_token/               extractors, handler interface, oidc/ (OidcTokenHandler)
 ├── oidc/                       DiscoveryOidcKeySetProvider
 ├── access_map.py               the ordered access-control rules

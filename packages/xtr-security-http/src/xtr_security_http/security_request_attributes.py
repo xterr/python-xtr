@@ -94,8 +94,11 @@ class SecurityRequestAttributes:
     both halves of one request reach the same session."""
 
     PRE_AUTHENTICATED_USERNAME: Final[str] = "_xtr_security_pre_authenticated_username"
-    """The username a pre-authenticated authenticator read from the request,
-    handed from its supports pass to its authenticate pass."""
+    """Reserved for the username a pre-authenticated authenticator read from
+    the request. Nothing parks it today: a request message is immutable and
+    the pass that authenticates is handed the request as it arrived, so the
+    pre-authenticated authenticators read the username again through their
+    own extraction hook instead of handing one over."""
 
     LOGIN_LINK_PARAMETERS: Final[str] = "_xtr_security_login_link_parameters"
     """The extra parameters a consumed login link carried, exposed to the

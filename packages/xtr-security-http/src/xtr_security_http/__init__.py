@@ -39,6 +39,7 @@ from .authentication import (
 from .authenticator import (
     AbstractAuthenticator,
     AbstractLoginFormAuthenticator,
+    AbstractPreAuthenticatedAuthenticator,
     AccessTokenAuthenticator,
     AuthenticatorInterface,
     FallbackUserLoader,
@@ -48,9 +49,11 @@ from .authenticator import (
     JsonLoginAuthenticator,
     LoginLinkAuthenticator,
     RememberMeAuthenticator,
+    RemoteUserAuthenticator,
     TraceableAuthenticator,
     TraceableAuthenticatorManagerListener,
     UnsupportedReasons,
+    X509Authenticator,
 )
 from .authenticator.passport import Passport, SelfValidatingPassport
 from .authenticator.passport.badge import (
@@ -193,6 +196,7 @@ __all__ = [
     "AbstractAuthenticator",
     "AbstractListener",
     "AbstractLoginFormAuthenticator",
+    "AbstractPreAuthenticatedAuthenticator",
     "AbstractRememberMeHandler",
     "AccessDeniedHandlerInterface",
     "AccessListener",
@@ -298,6 +302,7 @@ __all__ = [
     "RememberMeDetails",
     "RememberMeHandlerInterface",
     "RememberMeListener",
+    "RemoteUserAuthenticator",
     "ResponseListener",
     "SecurityEvents",
     "SecurityRequestAttributes",
@@ -322,6 +327,7 @@ __all__ = [
     "UserCheckerListener",
     "UserProviderListener",
     "UserValueResolver",
+    "X509Authenticator",
     "__version__",
     "firewall_listener_order_of",
     "get_target_path",
