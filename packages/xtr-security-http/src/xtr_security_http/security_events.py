@@ -22,6 +22,7 @@ from .event.interactive_login_event import InteractiveLoginEvent
 from .event.login_failure_event import LoginFailureEvent
 from .event.login_success_event import LoginSuccessEvent
 from .event.logout_event import LogoutEvent
+from .event.oidc_authorization_request_event import OidcAuthorizationRequestEvent
 from .event.switch_user_event import SwitchUserEvent
 from .event.token_deauthenticated_event import TokenDeauthenticatedEvent
 
@@ -66,6 +67,7 @@ class SecurityEvents:
         LoginFailureEvent: event_name_of(LoginFailureEvent),
         LoginSuccessEvent: event_name_of(LoginSuccessEvent),
         LogoutEvent: event_name_of(LogoutEvent),
+        OidcAuthorizationRequestEvent: event_name_of(OidcAuthorizationRequestEvent),
         SwitchUserEvent: SWITCH_USER,
         TokenDeauthenticatedEvent: event_name_of(TokenDeauthenticatedEvent),
     }

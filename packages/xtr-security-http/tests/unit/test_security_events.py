@@ -12,6 +12,7 @@ from xtr_security_http.event import (
     LoginFailureEvent,
     LoginSuccessEvent,
     LogoutEvent,
+    OidcAuthorizationRequestEvent,
     SwitchUserEvent,
     TokenDeauthenticatedEvent,
 )
@@ -33,6 +34,7 @@ def test_every_event_class_maps_to_the_name_it_dispatches_under() -> None:
         LoginFailureEvent,
         LoginSuccessEvent,
         LogoutEvent,
+        OidcAuthorizationRequestEvent,
         SwitchUserEvent,
         CheckRefreshedUserEvent,
         TokenDeauthenticatedEvent,
@@ -48,6 +50,7 @@ def test_every_event_class_maps_to_the_name_it_dispatches_under() -> None:
         LoginFailureEvent,
         LoginSuccessEvent,
         LogoutEvent,
+        OidcAuthorizationRequestEvent,
         CheckRefreshedUserEvent,
         TokenDeauthenticatedEvent,
     ):

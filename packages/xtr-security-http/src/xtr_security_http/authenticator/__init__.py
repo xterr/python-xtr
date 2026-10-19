@@ -18,6 +18,7 @@ from .http_basic_authenticator import HttpBasicAuthenticator
 from .interactive_authenticator_interface import InteractiveAuthenticatorInterface
 from .json_login_authenticator import JsonLoginAuthenticator
 from .login_link_authenticator import LoginLinkAuthenticator
+from .oidc_login_authenticator import OidcLoginAuthenticator
 from .remember_me_authenticator import RememberMeAuthenticator
 from .remote_user_authenticator import RemoteUserAuthenticator
 from .x509_authenticator import X509Authenticator
@@ -34,6 +35,7 @@ __all__ = [
     "InteractiveAuthenticatorInterface",
     "JsonLoginAuthenticator",
     "LoginLinkAuthenticator",
+    "OidcLoginAuthenticator",
     "RememberMeAuthenticator",
     "RemoteUserAuthenticator",
     "TraceableAuthenticator",

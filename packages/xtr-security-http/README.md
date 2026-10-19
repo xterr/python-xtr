@@ -793,6 +793,32 @@ ever makes it: documentation.
   the proof machinery is deferred here, so the client always asks for a
   bearer token and the single-retry hook stays the access token type's
   `on_response` — which the bearer type answers `False`.
+- **The OIDC login tracks its pending attempts in an index attribute.** The
+  upstream authenticator enumerates the session's attribute names to find
+  its pending attempts; the local session contract exposes no enumeration,
+  so the states are kept in a list under
+  `_security.oidc_login.<firewall>.attempts`, oldest first, and the attempt
+  keys are derived from it. The cap (five, oldest dropped first), the
+  constant-time state match and the consume-on-callback semantics are the
+  upstream ones, pinned by tests.
+- **The OIDC login validates the ID token against `get_issuer()`.** The
+  upstream authenticator reads the issuer straight off the discovery
+  document's configuration; the local one goes through
+  `OidcDiscovery.get_issuer()`, which requires an expected issuer to have
+  been configured — a discovery document nobody vouched for cannot name the
+  audience of the flow. The value validated against is the same one.
+- **The OIDC login's redirects answer through `HttpUtils`.** The upstream
+  entry point returns a bare redirect response; the local one goes through
+  `create_redirect_response`, so a configured domain regexp weighs the
+  provider's authorization endpoint too — a further restriction, never a
+  widening, and the family's convention.
+- **The OIDC login folds the upstream's logic exceptions into
+  `InvalidArgumentError`.** The upstream constructor guard raises an
+  invalid-argument exception and the runtime guards (a listener setting a
+  managed parameter, a public client without PKCE or a signature verifier)
+  a logic one; the local taxonomy has no separate logic-error class, so all
+  four raise `InvalidArgumentError`, and a request without a session raises
+  `MissingSessionError` — the stateful family's refusal.
 - **The ID token reader validates claims itself.** The upstream reader leans
   on the JOSE library's claim-checker manager for `iss`/`aud`/`exp`/`iat`/`nbf`
   and hand-writes the OIDC-specific rules (`sub`, `azp`, `nonce`, `max_age`).
@@ -1199,6 +1225,63 @@ the refreshed `oidc_id_token` with its `oidc_sid` — a refreshed ID token is va
 the discovery document's issuer and the client id, and its `sub` must match the previous
 token's in constant time, and nothing is stored until the whole response has passed.
 
+**`OidcLoginAuthenticator`** (`authenticator/`) lands the whole Authorization Code Flow on
+top of that machinery — the entry point, the callback and the token, one class:
+
+```python
+from xtr_security_http.authenticator import OidcLoginAuthenticator
+
+authenticator = OidcLoginAuthenticator(
+    http_utils,
+    user_provider,
+    oidc_client,
+    discovery,
+    id_token,
+    "shop-api",
+    success_handler,
+    failure_handler,
+    options={"check_path": "/oidc/callback", "scope": ("openid", "email")},
+    signature_verifier=verifier,
+    clock=clock,
+    event_dispatcher=dispatcher,
+)
+```
+
+`start()` builds the authorization redirect: a `state` and a `nonce` of the flow's own, a
+PKCE code verifier (`S256` by default, `plain` on option, never off for a public client)
+with its challenge, the scopes — `openid` always, first — the configured `max_age` when one
+is given, and the extra `authorization_params`, after the managed-parameters guard refused
+any of `response_type`/`client_id`/`redirect_uri`/`scope`/`state`/`nonce`/`code_challenge`/
+`code_challenge_method`/`max_age`/`dpop_jkt` — the parameters the authenticator computes
+itself, so that no configuration can weaken them. Each pending attempt lives under its own
+session key (`_security.oidc_login.<firewall>.attempt.<state>`), capped at five, oldest
+dropped first. `start_re_authentication(request, token)` sends `prompt=login` with the
+previous ID token as `id_token_hint`, applied after the event so a listener cannot drop
+them. `authenticate()` consumes the callback (a POST reads the body, anything else the
+query): the `state` is matched in constant time and the attempt consumed whatever follows —
+a replayed callback fails, the other attempts survive — then the RFC 9207 `iss` parameter
+is checked against the announced issuer (mandatory when the provider announces
+`authorization_response_iss_parameter_supported`), the provider's `error` answered, the code
+exchanged with the PKCE verifier and the very `redirect_uri` the flow started on, the ID
+token's signature verified before its claims are read, the claims validated against the
+issuer, the client, the nonce and the `max_age`, and the user loaded from the claims the
+configured `user_data_source` names (`userinfo` — its `sub` bound to the ID token's in
+constant time — or `id_token`), with every claim handed to the loader as badge attributes.
+`create_token()` stamps the `oidc_*` attributes the refresher renews and the back-channel
+logout matches — `oidc_id_token`, `oidc_access_token`, `oidc_refresh_token`,
+`oidc_access_token_expires_at` (the clock's now plus `expires_in`, when the provider sent
+one), `oidc_acr`, `oidc_sid` — and the authentication proofs: the `amr` methods keyed to
+`min(auth_time, now)` — a provider whose clock runs ahead never extends the recency window —
+or to the login instant without an `auth_time`. A public client — one authenticating with
+`none` — is refused when PKCE is off or no signature verifier was given, at use time so the
+client can stay lazy. The login is interactive; a missing session is refused loudly.
+
+**`OidcAuthorizationRequestEvent`** (`event/`) is dispatched while that redirect is being
+built, before anything is stored in the session: it carries the request, the firewall and
+the extra parameters, and a listener may compute them per request — `set_param`,
+`remove_param`, `set_params` — with the same managed-parameters guard refusing a listener
+that sets one of the flow's own.
+
 With the `oidc` extra, the resource-server side keeps its own pieces:
 **`OidcTokenHandler`** (`access_token/oidc/`) verifies a third-party issuer's tokens against
 an `OidcKeySetProviderInterface` — `StaticOidcKeySetProvider(jwks)` for a fixed JWKS, or
@@ -1273,9 +1356,10 @@ answers a denied scope with a `403` carrying the RFC 6750 `insufficient_scope` c
 
 ### Security events
 
-Nine events are raised around a request's authentication — `CheckPassportEvent`,
+Ten events are raised around a request's authentication — `CheckPassportEvent`,
 `AuthenticationTokenCreatedEvent`, `InteractiveLoginEvent`, `LoginSuccessEvent`, `LoginFailureEvent`,
-`CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent`, `LogoutEvent`, `SwitchUserEvent`.
+`CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent`, `LogoutEvent`, `SwitchUserEvent`,
+`OidcAuthorizationRequestEvent`.
 A subscriber listens to the event class itself (the dispatcher derives each event's name from its
 class) — except `InteractiveLoginEvent` and `SwitchUserEvent`, the two events that carry a name of
 their own, `SecurityEvents.INTERACTIVE_LOGIN` (`security.interactive_login`) and
@@ -1316,8 +1400,9 @@ xtr_security_http/
 │                              SwitchUserListener, RefreshUserResult,
 │                              FirewallListenerInterface, AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
-├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, the
-│                              pre-authenticated trio, passport/, token/
+├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator,
+│                              OidcLoginAuthenticator, the pre-authenticated trio,
+│                              passport/, token/
 ├── access_token/               extractors, handler interface, oauth2/ (Oauth2TokenHandler),
 │                              oidc/ (OidcTokenHandler)
 ├── oidc/                       DiscoveryOidcKeySetProvider

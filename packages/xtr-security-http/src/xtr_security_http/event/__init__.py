@@ -17,6 +17,7 @@ from .interactive_login_event import InteractiveLoginEvent
 from .login_failure_event import LoginFailureEvent
 from .login_success_event import LoginSuccessEvent
 from .logout_event import LogoutEvent
+from .oidc_authorization_request_event import OidcAuthorizationRequestEvent
 from .switch_user_event import SwitchUserEvent
 from .token_deauthenticated_event import TokenDeauthenticatedEvent
 
@@ -28,6 +29,7 @@ __all__ = [
     "LoginFailureEvent",
     "LoginSuccessEvent",
     "LogoutEvent",
+    "OidcAuthorizationRequestEvent",
     "SwitchUserEvent",
     "TokenDeauthenticatedEvent",
 ]
