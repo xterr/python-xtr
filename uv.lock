@@ -5407,6 +5407,7 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
     { name = "xtr-cache" },
+    { name = "xtr-console" },
     { name = "xtr-http-client" },
     { name = "xtr-http-message" },
 ]
@@ -5445,6 +5446,7 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-cache", editable = "packages/xtr-cache" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]

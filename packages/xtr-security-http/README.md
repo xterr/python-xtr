@@ -1058,6 +1058,21 @@ ever makes it: documentation.
   application importing this package, listener or no listener. The wiring that builds them
   resolves the classes where the extra is already required — the same shape as the token
   refresh listener's refresher.
+- **The token-generate command keeps no completion maps.** The upstream command's
+  registration also collects the algorithms and issuers each firewall declared, to suggest
+  them while the shell completes an option; the console here has no completion surface, so
+  the registry the command takes carries only the firewall names and their generators.
+- **The token-generate command reads `--not-before` with the clock's own grammar.** The
+  upstream command hands the option to its platform's date parser, which reads any English
+  date phrase; the local command reads it with the [xtr-clock](../xtr-clock) modifier
+  grammar — an offset like `+1 hour`, a keyword like `tomorrow`, an ISO-8601 datetime, a
+  trailing zone — counted from the injected clock, and anything else is refused with the
+  upstream message. An explicitly empty value is refused rather than quietly read as "no
+  not-before", which is what the upstream truthiness happens to do with it.
+- **The token-generate command reports refusals itself.** Where the upstream command lets
+  its refusals escape for the console to render, the local one writes each through the
+  style's error block and fails the run — the family's command convention — keeping the
+  upstream messages, with the upstream's "Please choose an firewall" article mended.
 
 ### Access tokens
 
@@ -1443,6 +1458,18 @@ the algorithm. **`OidcTrait`** is the mixin the OIDC handlers share: `create_use
 builds the `OidcUser` the claims describe, and `check_discovered_endpoint(endpoint, key,
 discovery_url)` refuses an endpoint a discovery document must not announce.
 
+**`OidcTokenGenerateCommand`** (`command/`) mints one from the console:
+`security:oidc:generate-token <user-identifier>` signs a token through the generator of a
+firewall — `--firewall` naming which when several are configured, `--algorithm` and
+`--issuer` naming the choice when several are declared, `--ttl` the seconds it lives,
+`--not-before` the moment it starts being valid (a date, or an offset like `-5 minutes`,
+read against the command's clock) — and prints the token, nothing else. The generators
+arrive one per firewall, keyed by the firewall's name — the registry the
+[xtr-security](../xtr-security) bundle fills as it wires the firewalls — and every
+refusal, the generator's included, is reported as the run's error. The command rides the
+`oidc` extra with its generator and runs on the application's console: the bundle loads
+it only when one is active.
+
 ### OAuth2 scopes
 
 A scope requirement is written as an access-control attribute. `oauth2_scope("books:read",
@@ -1539,6 +1566,7 @@ xtr_security_http/
 ├── remember_me/                the handlers, details, staged cookie and response pass of a
 │                              login the user asked to outlive its session
 ├── session/                    what a login does to the session it reattached
+├── command/                    the console command: security:oidc:generate-token
 └── exception/                  the errors this package adds
 ```
 
