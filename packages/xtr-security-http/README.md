@@ -532,6 +532,7 @@ the event order:
 |---|---|
 | `UserProviderListener` | gives a `UserBadge` its loader from the firewall's user provider, unless it has one |
 | `CheckCredentialsListener` | verifies a password passport's `PasswordCredentials` and `CustomCredentials` |
+| `CsrfProtectionListener` | settles a passport's `CsrfTokenBadge` — the token manager must vouch for the value the request presented, or the login fails |
 | `UserCheckerListener` | runs the account's pre- and post-authentication checks |
 | `PasswordMigratingListener` | rehashes a password flagged by a `PasswordUpgradeBadge`, best-effort, storing through the badge's, the listener's, or the user provider's upgrader — a provider implementing `PasswordUpgraderInterface` is derived from the passport's user loader |
 | `SessionStrategyListener` | nothing on a passport — hands a successful login to the firewall's session strategy, which moves the session the request reattached |
@@ -759,8 +760,9 @@ ever makes it: documentation.
   this stack dispatches.
 - **No expression language.** An `IsGranted` attribute or subject written as an
   expression, and an `IsCsrfTokenValid` id written as one, are not supported:
-  the workspace ships no expression component. Strings and callables land;
-  expression support is deferred until one exists.
+  the workspace ships no expression component. `IsGranted`'s attribute and
+  subject accept strings and callables; an `IsCsrfTokenValid` id is a plain
+  string — the expression and callable forms it takes upstream are not ported.
 - **`exception_code` is recorded, not applied.** The local error taxonomy
   carries no exception-code channel, so `IsGranted(exception_code=...)` is
   metadata a caller reads off the marker; the denial itself carries the
@@ -945,6 +947,7 @@ Everything this library raises derives from `SecurityError` (from
 | Error | Base (besides `SecurityError`) | Raised when |
 |---|---|---|
 | `InvalidAccessTokenError` | `AuthenticationError` | a bearer token was present but could not be trusted — answered with an `invalid_token` challenge |
+| `InvalidCsrfTokenError` | `AuthenticationError` | a passport's cross-site request forgery token did not check out — the login it guards is refused |
 | `ImpersonationError` | `RuntimeError` | an impersonation address was asked for and could not be built — no firewall with a switch, a forgery-asking switch without a manager, or a dedicated path configured as a route name |
 | `InvalidSessionStrategyError` | `RuntimeError` | a session strategy was asked to act under a name that is none of its own; carries `strategy` |
 | `LogoutError` | `RuntimeError` | a logout request failed its cross-site request forgery proof |

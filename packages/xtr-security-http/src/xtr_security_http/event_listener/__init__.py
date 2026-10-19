@@ -19,6 +19,7 @@ from .check_remember_me_conditions_listener import CheckRememberMeConditionsList
 from .clear_site_data_listener import ClearSiteDataListener
 from .cleared_cookie import ClearedCookie
 from .cookie_clearing_listener import CookieClearingListener
+from .csrf_protection_listener import CsrfProtectionListener
 from .csrf_token_clearing_listener import CsrfTokenClearingListener
 from .default_logout_listener import DefaultLogoutListener
 from .login_throttling_listener import LoginThrottlingListener
@@ -35,6 +36,7 @@ __all__ = [
     "ClearSiteDataListener",
     "ClearedCookie",
     "CookieClearingListener",
+    "CsrfProtectionListener",
     "CsrfTokenClearingListener",
     "DefaultLogoutListener",
     "LoginThrottlingListener",
