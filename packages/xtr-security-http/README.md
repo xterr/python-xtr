@@ -386,8 +386,11 @@ keys by one — through duck-typed setters.
 **`AuthenticationUtils(request)`** reads what the last login attempt left, for the page that
 renders the form again: `get_last_authentication_error(clear_session=True)`, `get_last_username()`
 and `get_re_authentication_attribute()`, each reading the request's own security state first, then
-the session. **`FallbackUserLoader(inner=None)`** wraps a user loader the wiring must not override —
-a badge carrying one of these keeps it, where a badge with no loader gets the firewall's provider.
+the session. **`FallbackUserLoader(inner=None)`** wraps a user loader the wiring must not
+override — a badge carrying one of these keeps it through the passport check, where a badge
+with no loader gets the firewall's provider. The access-token authenticator carries the
+replacement rule of its own for the badges its handlers build: a loader that is missing or
+marked as a stand-in is replaced by the firewall's provider, when one is configured.
 
 ### Remember me
 
@@ -708,9 +711,13 @@ the plain `403`. The target path is kept under `_security.<firewall>.target_path
 `util` helpers `save_target_path`, `get_target_path` and `remove_target_path`, over the
 session and the firewall's name.
 
-`AccessTokenAuthenticator` is itself an `AuthenticationEntryPointInterface`: `start(request,
-error)` answers a request with an RFC 6750 bearer challenge, naming `invalid_token` when a
-present token was rejected, and the `realm` when one is configured.
+`AccessTokenAuthenticator` only stands in as an entry point (a
+`FallbackAuthenticationEntryPointInterface`): `start(request, error)` answers a request no
+authenticator applied to with the RFC 6750 bearer challenge — the `realm` when one is
+configured, the protected-resource metadata address when one is, and the scheme and
+parameters of the sender constraint when one is configured. The challenge of a request
+that carried no token at all holds no error code; a token that was rejected is answered by
+the authenticator's own failure hook, with `invalid_token`.
 
 ### Decorators
 
@@ -873,6 +880,19 @@ ever makes it: documentation.
   handed the request as it arrived — not the one the supports pass read — so
   `authenticate` reads the request again through the same `extract_username` hook. The
   reading is the request's own environment, so it answers what it answered before.
+- **The access-token authenticator answers lazily on a tokenless request.** Upstream's
+  `supports` answers `False` when its extractor finds no token, collecting the reason for
+  the tooling; the local extractor's read is async and the supports pass is sync, so the
+  miss cannot be answered there without inventing a synchronous reading the extractor
+  contract does not carry. The miss is answered one step later — `authenticate` raises the
+  no-token error and the manager's lazy abstain skips the authenticator — which leaves the
+  request anonymous exactly as a `False` would.
+- **A marked user loader is the wiring's word, not the authenticator's.** The
+  `UserProviderListener` leaves a `FallbackUserLoader`-marked loader alone — the marker's
+  word to the wiring — while the access-token authenticator replaces a marked loader with
+  the firewall's provider when one is configured, the rule the upstream authenticator
+  itself carries: a handler that knows how to load its own user marks its loader so the
+  wiring keeps it, and a stand-in loader is the provider's to replace.
 
 ### Access tokens
 
@@ -888,9 +908,16 @@ extractors:
 | `FormEncodedBodyExtractor(field_name="access_token")` | a form field |
 | `ChainAccessTokenExtractor(extractors)` | the first that finds one |
 
-**`AccessTokenAuthenticator(handler, extractor, user_provider=None, ..., realm=None)`** reads the
-token, validates it through the handler, and builds a `SelfValidatingPassport`; it copies the
-badge's granted `scope` onto the token as `oauth2_scope`.
+**`AccessTokenAuthenticator(handler, extractor, user_provider=None, ..., realm=None,
+resource_metadata_uri=None, sender_constraint=None)`** reads the token, validates it through
+the handler, and builds a `SelfValidatingPassport`; it copies the badge's granted scopes —
+read from its `scope` or `scp` attribute, the first that reads — onto the token as
+`oauth2_scope`. A `sender_constraint` (a `SenderConstraintInterface`) weighs the request
+against what the token says it is bound to before anything is loaded on the user's behalf,
+and names the scheme and the parameters every challenge answers with; a failed
+authentication is always answered — a `401` whose `WWW-Authenticate` names `invalid_token` —
+and the `resource_metadata_uri` (RFC 9728) is advertised in every challenge, a path
+resolved against the request.
 
 ### OIDC
 

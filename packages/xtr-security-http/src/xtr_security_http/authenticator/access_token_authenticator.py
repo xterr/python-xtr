@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, cast, final
+from typing import TYPE_CHECKING, ClassVar, final
 
 from typing_extensions import override
 from xtr_http_message_contracts.factory import (
@@ -10,19 +10,21 @@ from xtr_http_message_contracts.factory import (
 )
 from xtr_security_core.exception import AuthenticationError, BadCredentialsError
 
-from xtr_security_http._challenge import json_challenge, quote_auth_param
+from xtr_security_http._challenge import json_challenge
+from xtr_security_http.authenticator._access_token_challenge import (
+    access_token_challenge,
+)
+from xtr_security_http.authenticator._access_token_scopes import extract_scopes, normalize_scope
+from xtr_security_http.authenticator.fallback_user_loader import FallbackUserLoader
 from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.authorization.oauth2_scope_voter import OAuth2ScopeVoter
-from xtr_security_http.entry_point.authentication_entry_point_interface import (
-    AuthenticationEntryPointInterface,
+from xtr_security_http.entry_point.fallback_authentication_entry_point_interface import (
+    FallbackAuthenticationEntryPointInterface,
 )
-from xtr_security_http.exception.invalid_access_token_error import InvalidAccessTokenError
 
 from .abstract_authenticator import AbstractAuthenticator
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.user.user_interface import UserInterface
@@ -33,6 +35,9 @@ if TYPE_CHECKING:
     )
     from xtr_security_http.access_token.access_token_handler_interface import (
         AccessTokenHandlerInterface,
+    )
+    from xtr_security_http.access_token.sender_constraint_interface import (
+        SenderConstraintInterface,
     )
     from xtr_security_http.authentication.authentication_failure_handler_interface import (
         AuthenticationFailureHandlerInterface,
@@ -46,20 +51,29 @@ __all__ = ["AccessTokenAuthenticator"]
 
 
 @final
-class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface):
+class AccessTokenAuthenticator(
+    AbstractAuthenticator,
+    FallbackAuthenticationEntryPointInterface,
+):
     """Authenticates a request by a bearer access token, and challenges when it is absent or bad.
 
     An extractor reads the token out of the request; a handler validates it and
     returns a user badge. The passport is self-validating — the token already
-    proved the user — so no credentials are checked. The badge's ``scope``
-    attribute (a list, or a space-separated string) becomes the token's
+    proved the user — so no credentials are checked. The granted scopes,
+    read from the badge's ``scope`` or ``scp`` attribute, become the token's
     ``oauth2_scope`` attribute, the one
     :class:`~xtr_security_http.authorization.oauth2_scope_voter.OAuth2ScopeVoter`
-    reads.
+    reads. A sender constraint, when one is configured, checks the request
+    against what the token says it is bound to before anything is loaded on
+    the user's behalf, and its scheme and parameters are the challenge's.
 
-    As the firewall's entry point it also answers an unauthenticated or failed
-    request with the RFC 6750 ``WWW-Authenticate: Bearer`` challenge — a bare
-    one when no token was sent, ``error="invalid_token"`` when one was rejected.
+    A failed authentication is always answered here: a ``401`` whose
+    ``WWW-Authenticate`` names ``invalid_token`` and says why. As the
+    firewall's stand-in entry point it also answers an unauthenticated
+    request with the RFC 6750 challenge that carries no error code — an
+    error code describes a token the client did send; it only stands in, so
+    a firewall holding an entry point that starts an authentication keeps
+    that one.
 
     Attributes:
         realm: The protection realm named in the challenge, when set.
@@ -68,20 +82,24 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
     #: The token attribute the copied scopes are stored under.
     SCOPE_ATTRIBUTE: ClassVar[str] = OAuth2ScopeVoter.SCOPE_ATTRIBUTE
 
-    #: The badge attribute the handler stores the granted scopes under.
-    BADGE_SCOPE_ATTRIBUTE: ClassVar[str] = "scope"
+    #: The badge attributes a scope is read from, in order of precedence:
+    #: ``scope`` is the one RFC 9068 Section 2.2.3 and RFC 7662 Section 2.2
+    #: define, ``scp`` the spelling some providers use instead.
+    SCOPE_CLAIMS: ClassVar[tuple[str, ...]] = ("scope", "scp")
 
-    __slots__: ClassVar[tuple[str, ...]] = (
+    __slots__: tuple[str, ...] = (
         "_extractor",
         "_failure_handler",
         "_handler",
         "_realm",
+        "_resource_metadata_uri",
         "_responses",
+        "_sender_constraint",
         "_success_handler",
         "_user_provider",
     )
 
-    def __init__(  # noqa: PLR0913, PLR0917 -- a wiring constructor; the handlers are optional peers
+    def __init__(  # noqa: PLR0913, PLR0917 -- a wiring constructor; the handlers and peers are optional
         self,
         handler: AccessTokenHandlerInterface,
         extractor: AccessTokenExtractorInterface,
@@ -90,8 +108,10 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         success_handler: AuthenticationSuccessHandlerInterface | None = None,
         failure_handler: AuthenticationFailureHandlerInterface | None = None,
         realm: str | None = None,
+        resource_metadata_uri: str | None = None,
+        sender_constraint: SenderConstraintInterface | None = None,
     ) -> None:
-        """Record the handler, extractor, response factory, optional peers and realm.
+        """Record the handler, extractor, response factory, optional peers and challenge settings.
 
         Args:
             handler: Validates a token into a user badge.
@@ -99,10 +119,18 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
             responses: Builds the challenge responses the entry point answers
                 with, so the authenticator names no response class.
             user_provider: Loads the user an identifier names, when the badge
-                the handler returned carries no loader of its own.
+                the handler returned carries no loader of its own — or one
+                marked as a stand-in.
             success_handler: Reacts to a successful authentication, or ``None``.
             failure_handler: Reacts to a failed authentication, or ``None``.
             realm: The protection realm named in the challenge, or ``None``.
+            resource_metadata_uri: The RFC 9728 protected-resource metadata
+                URL the challenge advertises; a path is resolved against the
+                request.
+            sender_constraint: What the request has to prove possession of,
+                beyond holding the access token, for it to be accepted;
+                ``None`` accepts a token from whoever presents it, which is
+                what a bearer token is (RFC 6750, Section 1).
         """
         self._handler = handler
         self._extractor = extractor
@@ -111,6 +139,8 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         self._success_handler = success_handler
         self._failure_handler = failure_handler
         self._realm = realm
+        self._resource_metadata_uri = resource_metadata_uri
+        self._sender_constraint = sender_constraint
 
     @property
     def extractor(self) -> AccessTokenExtractorInterface:
@@ -119,11 +149,14 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
 
     @override
     def supports(self, request: ServerRequestInterface) -> bool | None:
-        """Handle the request only when it carries a token this extractor reads.
+        """Answer lazily: ``None``, whether or not the request carries a token.
 
-        Returns ``None`` — not ``False`` — when no token is present, so the
-        firewall leaves the request anonymous rather than failing it; a
-        protected route then challenges through the entry point.
+        Upstream answers ``False`` when its extractor finds no token,
+        collecting the reason; the local extractor's read is async and this
+        hook is sync, so the miss is answered one step later instead —
+        ``authenticate`` raises the no-token error and the manager's lazy
+        abstain skips this authenticator, leaving the request anonymous
+        exactly as a ``False`` would.
         """
         del request
         return None
@@ -132,25 +165,37 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
     async def authenticate(self, request: ServerRequestInterface) -> Passport:
         """Read and validate the token, and build a self-validating passport.
 
+        The sender constraint, when one is configured, weighs the request
+        against what the token says it is bound to before anything is loaded
+        on the user's behalf.
+
         Raises:
-            AuthenticationError: When no token is present, or the handler
-                rejects the one that is.
+            AuthenticationError: When no token is present, the handler
+                rejects the one that is, or the request does not prove
+                possession of what the token is bound to.
         """
         token = await self._extractor.extract_access_token(request)
         if token is None:
             raise BadCredentialsError("No access token was found in the request.")
         badge = await self._handler.get_user_badge_from(token)
-        if self._user_provider is not None and badge.get_user_loader() is None:
-            provider = self._user_provider
+        if self._sender_constraint is not None:
+            await self._sender_constraint.check(request, token, badge.get_attributes())
+        if self._user_provider is not None:
+            loader = badge.get_user_loader()
+            if loader is None or isinstance(  # pyright: ignore[reportUnnecessaryIsInstance] -- the loader's declared type is the callable union; a stand-in wrapper is one callable spelling of it
+                loader,
+                FallbackUserLoader,
+            ):
+                provider = self._user_provider
 
-            async def load(identifier: str) -> UserInterface:
-                return await provider.load_user_by_identifier(identifier)
+                async def load(identifier: str) -> UserInterface:
+                    return await provider.load_user_by_identifier(identifier)
 
-            badge.set_user_loader(load)
+                badge.set_user_loader(load)
         passport = SelfValidatingPassport(badge)
-        scope = badge.get_attributes().get(self.BADGE_SCOPE_ATTRIBUTE)
-        if scope is not None:
-            passport.set_attribute(self.SCOPE_ATTRIBUTE, scope)
+        scopes = extract_scopes(badge.get_attributes(), self.SCOPE_CLAIMS)
+        if scopes:
+            passport.set_attribute(self.SCOPE_ATTRIBUTE, scopes)
         return passport
 
     @override
@@ -159,7 +204,7 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         token = await super().create_token(passport, firewall_name)
         scope = passport.get_attribute(self.SCOPE_ATTRIBUTE)
         if scope is not None:
-            token.set_attribute(self.SCOPE_ATTRIBUTE, self._normalize_scope(scope))
+            token.set_attribute(self.SCOPE_ATTRIBUTE, normalize_scope(scope))
         return token
 
     @override
@@ -180,11 +225,33 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         self,
         request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> ResponseInterface | None:
-        """Delegate to the failure handler, or let the entry point challenge."""
+    ) -> ResponseInterface:
+        """Answer the failure: the handler's response, or the ``invalid_token`` challenge.
+
+        A configured failure handler answers for this authenticator. Without
+        one the failure is answered here and now — a ``401`` naming
+        ``invalid_token`` and saying why — so a refused token is told it was
+        refused, rather than waiting for the access decision to challenge an
+        anonymous request.
+        """
         if self._failure_handler is not None:
             return await self._failure_handler.on_authentication_failure(request, error)
-        return None
+        return await json_challenge(
+            self._responses,
+            401,
+            {"error": "invalid_token"},
+            {
+                "WWW-Authenticate": access_token_challenge(
+                    request,
+                    error_code="invalid_token",
+                    error_description=error.get_message_key(),
+                    error=error,
+                    realm=self._realm,
+                    resource_metadata_uri=self._resource_metadata_uri,
+                    sender_constraint=self._sender_constraint,
+                ),
+            },
+        )
 
     @override
     async def start(
@@ -192,36 +259,27 @@ class AccessTokenAuthenticator(AbstractAuthenticator, AuthenticationEntryPointIn
         request: ServerRequestInterface,
         error: AuthenticationError | None = None,
     ) -> ResponseInterface:
-        """Answer an unauthenticated or failed request with an RFC 6750 challenge.
+        """Answer an unauthenticated request with the RFC 6750 challenge.
 
-        A rejected token — an
-        :class:`InvalidAccessTokenError` — draws the
-        ``error="invalid_token"`` challenge and a matching body; a request that
-        carried no token, or one only lacking authentication, draws a bare
-        ``Bearer`` challenge.
+        The challenge of a request that carried no token at all holds no
+        error code — an error code describes a token the client did send —
+        so this is the bare challenge through which an RFC 9728 client
+        discovers where to get a token from. A token that was rejected is
+        the failure hook's to answer, with ``invalid_token``.
         """
-        del request
-        parts = ["Bearer"]
-        if self._realm is not None:
-            parts.append(f"realm={quote_auth_param(self._realm)}")
-        body: dict[str, str] = {}
-        if isinstance(error, InvalidAccessTokenError):
-            parts.append('error="invalid_token"')
-            parts.append(f"error_description={quote_auth_param(error.get_message_key())}")
-            body = {"error": "invalid_token"}
-        challenge = parts[0] + (" " + ", ".join(parts[1:]) if len(parts) > 1 else "")
         return await json_challenge(
             self._responses,
             401,
-            body,
-            {"WWW-Authenticate": challenge},
+            {},
+            {
+                "WWW-Authenticate": access_token_challenge(
+                    request,
+                    realm=self._realm,
+                    resource_metadata_uri=self._resource_metadata_uri,
+                    sender_constraint=self._sender_constraint,
+                    error_code=None,
+                    error_description=None,
+                    error=error,
+                ),
+            },
         )
-
-    def _normalize_scope(self, scope: object) -> list[str]:
-        """Turn a scope list or space-separated string into a list of scopes."""
-        if isinstance(scope, str):
-            return scope.split()
-        if isinstance(scope, (list, tuple, set, frozenset)):
-            items: Iterable[object] = cast("Iterable[object]", scope)
-            return [str(one) for one in items]
-        return [str(scope)]

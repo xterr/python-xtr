@@ -20,6 +20,7 @@ from .access_token import (
     FormEncodedBodyExtractor,
     HeaderAccessTokenExtractor,
     QueryAccessTokenExtractor,
+    SenderConstraintInterface,
 )
 from .authentication import (
     AuthenticationFailureHandlerInterface,
@@ -314,6 +315,7 @@ __all__ = [
     "SecurityRequestAttributes",
     "SecurityTokenResolver",
     "SelfValidatingPassport",
+    "SenderConstraintInterface",
     "SessionAuthenticationStrategy",
     "SessionAuthenticationStrategyInterface",
     "SessionLogoutListener",
