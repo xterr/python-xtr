@@ -149,6 +149,8 @@ graph LR
     security --> httpfoundation
     security --> httpmsgcon
     security --> clock
+    security --> httpclient
+    security --> cache
     security -. optional .-> console
     securityjwt[xtr-security-jwt] --> security
     securityjwt --> securitycore

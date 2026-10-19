@@ -1,318 +1,376 @@
-"""A key set provider that fetches and caches an issuer's JWKS."""
+"""Fetching and caching an OpenID Connect provider's discovery document."""
 
 from __future__ import annotations
 
-import time
-from typing import TYPE_CHECKING, cast, final
-from urllib.parse import SplitResult, urlsplit
+import json
+from hashlib import sha256
+from typing import TYPE_CHECKING, Final, cast, final
+from urllib.parse import urlsplit
 
-import anyio
-from joserfc.errors import JoseError
-from joserfc.jwk import KeySet
-from typing_extensions import override
-from xtr_security_core.exception import InvalidArgumentError
-
-from xtr_security_http.access_token.oidc.exception.oidc_key_set_error import (
-    OidcKeySetError,
-)
-from xtr_security_http.authenticator.oidc.oidc_jwks import OidcKeySetProviderInterface
+from xtr_security_core.exception import AuthenticationError, BadMethodCallError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Sequence
 
-    import httpx
-    from joserfc._keys import KeySetSerialization
+    from xtr_cache_contracts import CacheInterface, ItemInterface
+    from xtr_http_client_contracts import HttpClientInterface, HttpResponseInterface
 
-__all__ = ["DiscoveryOidcKeySetProvider"]
+__all__ = ["OidcDiscovery"]
 
-_DISCOVERY_PATH = "/.well-known/openid-configuration"
-
-#: The port a scheme speaks on when a URL names none, so an explicit ``:443`` on
-#: an ``https`` URL compares equal to the same URL without a port.
-_DEFAULT_PORTS: dict[str, int] = {"https": 443, "http": 80}
+_LOOPBACK_HOSTS: Final = frozenset({"localhost", "127.0.0.1", "::1"})
+"""The hosts the authorization code and the tokens it is exchanged for stay
+confidential on, plain HTTP included, for local development."""
 
 
 @final
-class DiscoveryOidcKeySetProvider(OidcKeySetProviderInterface):
-    """Fetches an issuer's JWKS, caches it, and refetches when a key is unknown.
+class OidcDiscovery:
+    """Fetches and caches the OpenID Connect discovery configuration.
 
-    Given an issuer's ``base_uri`` it reads the OpenID discovery document to
-    find the ``jwks_uri``; given a ``jwks_uri`` outright it fetches that. The
-    set is cached for ``ttl`` seconds. A ``force_refresh`` fetches again — the
-    handler asks for one when a token names a ``kid`` the cached set lacks, a
-    rotated key — but no more than once every ``refresh_cooldown`` seconds, so a
-    burst of tokens with an unknown ``kid`` triggers a single fetch. A lock
-    serialises fetches, so concurrent callers that all find the set stale share
-    the one fetch rather than each making their own.
+    It lives outside the authenticator namespace on purpose: resolving the
+    endpoints of a provider is a protocol concern shared by every OIDC
+    authentication mechanism, not something specific to the Authorization
+    Code Flow.
 
-    Every endpoint must be ``https`` unless ``allow_insecure_http`` is set, a
-    door left only for a development or test issuer served over plain HTTP.
-
-    A fetch that fails while a set is cached keeps serving that set rather than
-    failing the request — but only until ``max_stale`` seconds past the last
-    successful fetch, after which a failed refresh drops the stale set and
-    fails, so an issuer that has been unreachable for a day no longer validates
-    tokens against keys that may since have rotated.
+    The decoded document is memoized for the lifetime of the instance, so
+    repeated endpoint reads within one authentication neither re-read the
+    cache nor re-decode, and a zero cache TTL costs a single HTTP request per
+    authentication instead of one per read.
     """
 
     __slots__ = (
-        "_allow_insecure_http",
-        "_base_uri",
-        "_client",
-        "_cooldown",
-        "_http_client_factory",
-        "_jwks_uri",
-        "_key_set",
-        "_last_error",
-        "_last_fetch",
-        "_last_success",
-        "_lock",
-        "_max_stale",
-        "_monotonic",
-        "_resolved_jwks_uri",
-        "_ttl",
+        "_cache",
+        "_cache_key",
+        "_cache_ttl",
+        "_checked_endpoints",
+        "_checked_mtls_aliases",
+        "_configuration",
+        "_http_client",
+        "_issuer",
+        "_open_id_configuration_url",
+        "_response",
     )
 
-    def __init__(  # noqa: PLR0913 -- a wiring constructor; every knob has a default
+    MAX_CONFIGURATION_SIZE: Final = 1024 * 1024
+    """The most discovery-document bytes an answer may hold before it is
+    refused. Discovery documents are small; the bound keeps a provider from
+    parking bulk in a cache entry every authentication reads."""
+
+    def __init__(  # noqa: PLR0913, PLR0917 -- the upstream wiring shape: the client, the cache and the five knobs it takes
         self,
-        *,
-        base_uri: str | None = None,
-        jwks_uri: str | None = None,
-        http_client_factory: Callable[[], httpx.AsyncClient],
-        ttl: float = 600,
-        refresh_cooldown: float = 60,
-        max_stale: float = 24 * 60 * 60,
-        allow_insecure_http: bool = False,
-        monotonic: Callable[[], float] = time.monotonic,
+        http_client: HttpClientInterface,
+        cache: CacheInterface,
+        open_id_configuration_url: str = ".well-known/openid-configuration",
+        issuer: str | None = None,
+        cache_ttl: int | None = 3600,
+        cache_key: str | None = None,
+        checked_endpoints: Sequence[str] = (),
+        checked_mtls_aliases: Sequence[str] = (),
     ) -> None:
-        """Record the endpoints, the client factory and the cache timings.
+        """Record where the document is read from, where it is kept, and what it must announce.
+
+        Args:
+            http_client: The client the discovery document is fetched with.
+            cache: Where the raw document is kept between reads.
+            open_id_configuration_url: Absolute, or relative to ``issuer``
+                when one is given, or to the HTTP client's ``base_uri``.
+            issuer: The expected issuer, or ``None`` to skip the check of
+                OIDC Discovery 1.0, Section 4.3.
+            cache_ttl: The cache entry's lifetime, or ``None`` to leave it to
+                the cache pool.
+            cache_key: The cache key, or ``None`` to derive it from the
+                configuration URL.
+            checked_endpoints: Endpoints that must be announced, and must not
+                downgrade to plain HTTP the transport that carried the
+                discovery document — checked before the document is cached.
+            checked_mtls_aliases: Endpoints whose ``mtls_endpoint_aliases``
+                entry is checked the same way, when the provider announces
+                one.
+        """
+        # The trailing slash is trimmed here, and the configuration URL built
+        # from the issuer, because an issuer coming from an environment
+        # variable is an unresolved placeholder while the container compiles:
+        # trimming it there leaves the resolved value untouched, and the
+        # discovery URL ends up carrying a double slash.
+        self._issuer = issuer.rstrip("/") if issuer is not None else None
+        # OIDC Discovery 1.0, Section 4.1: the well-known path is appended to
+        # the issuer.
+        self._open_id_configuration_url = (
+            f"{self._issuer}/{open_id_configuration_url.lstrip('/')}"
+            if self._issuer is not None and not _is_absolute(open_id_configuration_url)
+            else open_id_configuration_url
+        )
+        self._http_client = http_client
+        self._cache = cache
+        self._cache_ttl = cache_ttl
+        self._cache_key = cache_key
+        self._checked_endpoints = tuple(checked_endpoints)
+        self._checked_mtls_aliases = tuple(checked_mtls_aliases)
+        self._response: HttpResponseInterface | None = None
+        self._configuration: dict[str, object] | None = None
+
+    async def get_configuration(self) -> dict[str, object]:
+        """Return the raw discovery document, fetched and cached on first read.
+
+        The issuer's scheme is checked outside the cache callback so it also
+        applies to warm entries, and here rather than only in the wiring,
+        because an issuer coming from an environment variable is unknown until
+        runtime.
 
         Raises:
-            InvalidArgumentError: When neither or both of ``base_uri`` and
-                ``jwks_uri`` are given, or a given endpoint is not ``https`` and
-                insecure HTTP is not allowed.
+            AuthenticationError: When the document cannot be fetched, is not
+                a JSON object, announces another issuer, or names an endpoint
+                it must not.
         """
-        if (base_uri is None) == (jwks_uri is None):
-            raise InvalidArgumentError(
-                "A discovery key set provider needs exactly one of base_uri or jwks_uri.",
+        if self._issuer is not None and not self.is_secure_url(self._issuer):
+            raise AuthenticationError(
+                f'The OIDC issuer "{self._issuer}" must use HTTPS: the authorization '
+                "code, the PKCE verifier and the tokens it is exchanged for are only "
+                "confidential over TLS.",
             )
-        self._allow_insecure_http = allow_insecure_http
-        if base_uri is not None:
-            self._require_secure(base_uri)
-        if jwks_uri is not None:
-            self._require_secure(jwks_uri)
-        self._base_uri = base_uri
-        self._jwks_uri = jwks_uri
-        self._http_client_factory = http_client_factory
-        self._ttl = ttl
-        self._cooldown = refresh_cooldown
-        self._max_stale = max_stale
-        self._monotonic = monotonic
-        self._lock = anyio.Lock()
-        self._key_set: KeySet | None = None
-        self._resolved_jwks_uri: str | None = jwks_uri
-        self._last_fetch = 0.0
-        self._last_success = 0.0
-        self._last_error: str | None = None
-        self._client: httpx.AsyncClient | None = None
+        if self._configuration is not None:
+            return self._configuration
+        value = await self._cache.get(self._cache_key_value(), self._compute)
+        # A request sent by prefetch() is dropped when another process warmed
+        # the entry in between, instead of being consumed the next time the
+        # document is read.
+        if self._response is not None:
+            await self._response.cancel()
+        self._response = None
+        payload = value["payload"]
+        self._configuration = _decode(payload if isinstance(payload, str) else "")
+        return self._configuration
 
-    @override
-    async def get_key_set(self, *, force_refresh: bool = False) -> KeySet:
-        """Return the cached key set, fetching a fresh one when stale or forced.
+    async def prefetch(self) -> None:
+        """Send the discovery request without waiting for its response.
+
+        Nothing is sent when a request was already sent, or the document is
+        memoized. Calling it on several instances before reading any of them
+        lets their requests travel concurrently, since the response is only
+        consumed by :meth:`get_configuration`.
+        """
+        if self._response is not None or self._configuration is not None:
+            return
+        self._response = await self._request()
+
+    def reset(self) -> None:
+        """Forget the memoized document and any prefetched response."""
+        self._configuration = None
+        self._response = None
+
+    async def get_secure_endpoint(self, endpoint: str) -> str:
+        """Return an endpoint the discovery document announces, checked for transport security.
+
+        The document is fetched from the provider, so a tampered or
+        misconfigured one must not be able to downgrade a request to plain
+        HTTP: enforcing HTTPS on the configured issuer would be pointless if
+        the endpoints it announces were used as they are.
+
+        Args:
+            endpoint: The document member naming the endpoint.
+
+        Returns:
+            The announced endpoint.
 
         Raises:
-            OidcKeySetError: When the key set cannot be fetched, discovered or
-                read.
+            AuthenticationError: When the endpoint is not announced, or does
+                not use HTTPS.
         """
-        async with self._lock:
-            now = self._monotonic()
-            cached = self._fresh_cached(now, force_refresh=force_refresh)
-            if cached is not None:
-                return cached
-            held = self._held_failure(now)
-            if held is not None:
-                raise held
-            return await self._refresh(now, force_refresh=force_refresh)
+        configuration = await self.get_configuration()
+        url = configuration.get(endpoint)
+        if not isinstance(url, str) or not url:
+            raise AuthenticationError(
+                f'The OIDC provider does not announce any "{endpoint}".',
+            )
+        if not self.is_secure_url(url):
+            raise AuthenticationError(
+                f'The "{endpoint}" announced by the OIDC provider must use HTTPS '
+                f'(got "{url}"): the authorization code, the PKCE verifier and the '
+                "tokens it is exchanged for are only confidential over TLS.",
+            )
+        return url
 
-    async def aclose(self) -> None:
-        """Close the HTTP client this provider lazily built, if any.
+    async def get_issuer(self) -> str:
+        """Return the issuer identifier the provider announces.
 
-        The bundle calls this on shutdown; a provider that never fetched built
-        no client and this is a no-op.
-        """
-        client = self._client
-        if client is not None:
-            self._client = None
-            await client.aclose()
+        It is the value the document itself carries, rather than the
+        configured one, because the two are compared ignoring a trailing
+        slash: what a provider verifies an audience against is what it
+        announces, down to that slash. An expected issuer is required, as RFC
+        8414, Section 3.3 has the client validate the announced one —
+        otherwise a document could name another provider as the audience of
+        an assertion sent to a token endpoint the document controls.
 
-    async def _refresh(self, now: float, *, force_refresh: bool) -> KeySet:
-        """Fetch a fresh key set, recording the attempt even when it fails.
-
-        The attempt time is recorded whether the fetch succeeds or fails, so the
-        cooldown applies to failures too and a burst of forced refreshes during
-        an outage makes one fetch, not one per call. When a fetch fails but a set
-        was cached before, that cached set keeps being served rather than the
-        request failing outright — but only while it is less than ``max_stale``
-        seconds past the last successful fetch; once that ceiling is crossed the
-        stale set is dropped and the failure raised, so a long outage does not
-        pin validation to keys that may have rotated. When none was ever cached,
-        the failure is remembered so a burst during a cold-start outage re-raises
-        it within the cooldown rather than fetching again — see
-        :meth:`_held_failure`.
+        Returns:
+            The announced issuer.
 
         Raises:
-            OidcKeySetError: When the fetch fails and either no set was ever
-                cached or the cached set is past the ``max_stale`` ceiling.
+            BadMethodCallError: When no expected issuer was given to the
+                constructor.
+            AuthenticationError: When the document cannot be fetched, or
+                announces no issuer.
+        """
+        if self._issuer is None:
+            raise BadMethodCallError(
+                f'The issuer announced at "{self._open_id_configuration_url}" cannot be '
+                "trusted since no expected issuer was given to check it against: pass "
+                'one to the constructor of "OidcDiscovery".',
+            )
+        issuer = (await self.get_configuration()).get("issuer")
+        if not isinstance(issuer, str) or not issuer:
+            raise AuthenticationError('The OIDC provider does not announce any "issuer".')
+        return issuer
+
+    @staticmethod
+    def is_secure_url(url: str) -> bool:
+        """Tell whether a URL provides the transport security the OIDC flow relies on.
+
+        The authorization code, the PKCE verifier and the tokens they are
+        exchanged for are only confidential over TLS, so HTTPS is mandatory —
+        loopback hosts excepted, for local development, including the
+        ``*.localhost`` names RFC 6761, Section 6.3 resolves to the loopback
+        address.
+        """
+        if urlsplit(url).scheme.lower() == "https":
+            return True
+        host = urlsplit(url).hostname or ""
+        host = host.lower().strip("[]")
+        return host in _LOOPBACK_HOSTS or host.endswith(".localhost")
+
+    async def _compute(self, item: ItemInterface) -> dict[str, object]:
+        """Fetch, decode and weigh the document, returning it for the cache.
+
+        The document is decoded here so a malformed one is refused once,
+        before it reaches the cache where it would otherwise fail on every
+        read until its entry expires. The issuer match and the endpoint
+        schemes are checked before anything is stored, so a document sending
+        its clients to plain HTTP is never cached.
+        """
+        if self._cache_ttl is not None:
+            _ = item.expires_after(self._cache_ttl)
+        # The request may have been sent by prefetch() already, and is
+        # consumed once.
+        response = self._response if self._response is not None else await self._request()
+        self._response = None
+        payload = await self._payload(response)
+        configuration = _decode(payload.decode("utf-8", errors="replace"))
+        # OIDC Discovery 1.0, Section 4.3: the "issuer" returned MUST be
+        # identical to the issuer used to build the discovery URL, which
+        # validates it and prevents a tampered document from redefining the
+        # expected issuer. A trailing slash is ignored on both sides:
+        # providers do announce issuers ending with one, and it carries no
+        # security meaning since the origin and the path are otherwise
+        # identical.
+        if self._issuer is not None:
+            announced = configuration.get("issuer")
+            announced = announced.rstrip("/") if isinstance(announced, str) else ""
+            if announced != self._issuer:
+                raise AuthenticationError(
+                    f'The OIDC provider announced the issuer "{announced}", which does '
+                    f'not match the configured issuer "{self._issuer}".',
+                )
+        served_by = response.get_info("url")
+        served_by = served_by if isinstance(served_by, str) else ""
+        for endpoint in self._checked_endpoints:
+            _check_endpoint_scheme(configuration.get(endpoint), endpoint, served_by)
+        aliases = configuration.get("mtls_endpoint_aliases")
+        aliases = cast("dict[str, object]", aliases) if isinstance(aliases, dict) else {}
+        for endpoint in self._checked_mtls_aliases:
+            if endpoint in aliases:
+                _check_endpoint_scheme(
+                    aliases[endpoint],
+                    f"mtls_endpoint_aliases.{endpoint}",
+                    served_by,
+                )
+        # The raw payload is cached next to the URL that served it, rather
+        # than the decoded document, so the whole document survives the round
+        # trip unchanged.
+        return {"url": served_by, "payload": payload.decode("utf-8", errors="replace")}
+
+    async def _request(self) -> HttpResponseInterface:
+        """Send the discovery request, following no redirect.
+
+        The endpoints the document announces are weighed against the URL it
+        was requested from, which a redirect would change.
         """
         try:
-            key_set = await self._fetch(force_refresh=force_refresh)
-        except OidcKeySetError as error:
-            self._last_fetch = now
-            if self._key_set is not None and now - self._last_success < self._max_stale:
-                return self._key_set
-            self._key_set = None
-            self._last_error = str(error)
-            raise
-        self._key_set = key_set
-        self._last_fetch = now
-        self._last_success = now
-        self._last_error = None
-        return key_set
+            return await self._http_client.request(
+                "GET",
+                self._open_id_configuration_url,
+                max_redirects=0,
+            )
+        except Exception as error:
+            raise self._cannot_fetch(error) from error
 
-    def _held_failure(self, now: float) -> OidcKeySetError | None:
-        """Return the remembered cold-start failure while its cooldown holds.
-
-        Only a provider that has never cached a set remembers one; within the
-        cooldown of that failure its message is re-raised as a fresh error
-        without a fetch, so a burst of requests during a cold-start outage costs
-        one fetch, not one each, and no single exception instance accumulates a
-        chain of contexts.
-        """
-        if self._key_set is not None or self._last_error is None:
-            return None
-        if now - self._last_fetch < self._cooldown:
-            return OidcKeySetError(self._last_error)
-        return None
-
-    def _fresh_cached(self, now: float, *, force_refresh: bool) -> KeySet | None:
-        """Return the cached set when it still answers this call, else ``None``."""
-        if self._key_set is None:
-            return None
-        window = self._cooldown if force_refresh else self._ttl
-        if now - self._last_fetch < window:
-            return self._key_set
-        return None
-
-    async def _fetch(self, *, force_refresh: bool) -> KeySet:
-        """Discover the ``jwks_uri`` when needed, then fetch and read the set.
-
-        When a ``base_uri`` was configured, a forced refresh re-runs discovery
-        too, so a provider follows an issuer that moved its ``jwks_uri`` rather
-        than refetching a stale one. A provider given a ``jwks_uri`` outright has
-        nothing to discover and refetches that URI.
-
-        Raises:
-            OidcKeySetError: When discovery is needed but no base URI was given —
-                an impossible state the constructor forbids, guarded explicitly
-                in place of a bare assertion.
-        """
-        jwks_uri = self._resolved_jwks_uri
-        if jwks_uri is None or (force_refresh and self._base_uri is not None):
-            base_uri = self._base_uri
-            if base_uri is None:  # pragma: no cover -- the constructor enforces one of the two
-                raise OidcKeySetError("A discovery key set provider has no base URI to discover.")
-            jwks_uri = await self._discover(base_uri)
-            self._require_secure(jwks_uri)
-            self._resolved_jwks_uri = jwks_uri
-        document = await self._get_json(jwks_uri)
+    async def _payload(self, response: HttpResponseInterface) -> bytes:
+        """Read the document's body, refusing one too large to keep."""
         try:
-            serialization = cast("KeySetSerialization", cast("object", document))
-            return KeySet.import_key_set(serialization)
-        except (JoseError, ValueError) as error:
-            raise OidcKeySetError(
-                f"The JWKS document at {jwks_uri} could not be read: {error}",
-            ) from error
-
-    async def _discover(self, base_uri: str) -> str:
-        """Read the discovery document at ``base_uri`` and return the ``jwks_uri`` it names.
-
-        Raises:
-            OidcKeySetError: When the document cannot be read or names no
-                usable ``jwks_uri``, or when the ``jwks_uri`` it names is served
-                from a different host than the issuer.
-        """
-        document = await self._get_json(base_uri.rstrip("/") + _DISCOVERY_PATH)
-        jwks_uri = document.get("jwks_uri")
-        if not isinstance(jwks_uri, str) or not jwks_uri:
-            raise OidcKeySetError(
-                f"The discovery document at {base_uri} names no jwks_uri.",
+            async with response:
+                content = await response.get_content()
+        except Exception as error:
+            raise self._cannot_fetch(error) from error
+        if len(content) > self.MAX_CONFIGURATION_SIZE:
+            raise AuthenticationError(
+                "The OIDC discovery document exceeds the maximum size of 1 MiB.",
             )
-        self._require_same_host(base_uri, jwks_uri)
-        return jwks_uri
+        return content
 
-    async def _get_json(self, uri: str) -> dict[str, object]:
-        """Fetch ``uri`` and return its JSON body as a mapping.
+    def _cannot_fetch(self, error: Exception) -> AuthenticationError:
+        """Wrap a fetch failure into the refusal every reader reports."""
+        return AuthenticationError(
+            "The OIDC discovery document could not be fetched from "
+            f'"{self._open_id_configuration_url}": {error}',
+        )
 
-        Raises:
-            OidcKeySetError: When the request fails or the body is not a JSON
-                object.
-        """
-        import httpx  # noqa: PLC0415 -- guarded behind the oidc extra
-
-        client = self._get_client()
-        try:
-            response = await client.get(uri)
-            _ = response.raise_for_status()
-            body = cast("object", response.json())
-        except (httpx.HTTPError, ValueError) as error:
-            raise OidcKeySetError(f"The request to {uri} failed: {error}") from error
-        if not isinstance(body, dict):
-            raise OidcKeySetError(f"The answer from {uri} is not a JSON object.")
-        return cast("dict[str, object]", body)
-
-    def _get_client(self) -> httpx.AsyncClient:
-        """Return the provider's one HTTP client, building it on first use."""
-        if self._client is None:
-            self._client = self._http_client_factory()
-        return self._client
-
-    def _require_same_host(self, base_uri: str, jwks_uri: str) -> None:
-        """Refuse a discovered ``jwks_uri`` whose origin differs from the issuer's.
-
-        The origin is the scheme, host and effective port — a URL naming no port
-        takes its scheme's default (443 for ``https``, 80 for ``http``), so an
-        explicit ``:443`` compares equal to none. Comparing the host alone would
-        wave through a ``jwks_uri`` on the issuer's host but another port, an
-        endpoint the issuer never meant to serve keys from.
-
-        Raises:
-            OidcKeySetError: When the ``jwks_uri`` origin differs from the issuer
-                origin, a discovery document pointing keys at an attacker's host
-                or port.
-        """
-        base_origin = _origin(urlsplit(base_uri))
-        jwks_origin = _origin(urlsplit(jwks_uri))
-        if jwks_origin != base_origin:
-            raise OidcKeySetError(
-                f"The discovery document names a jwks_uri on origin {jwks_origin!r}, "
-                f"not the issuer origin {base_origin!r}.",
-            )
-
-    def _require_secure(self, uri: str) -> None:
-        """Refuse a non-``https`` endpoint unless insecure HTTP is allowed.
-
-        Raises:
-            InvalidArgumentError: When ``uri`` is not ``https`` and insecure
-                HTTP is not allowed.
-        """
-        if not self._allow_insecure_http and not uri.lower().startswith("https://"):
-            raise InvalidArgumentError(
-                f"The endpoint {uri} must be https; set allow_insecure_http for a dev issuer.",
-            )
+    def _cache_key_value(self) -> str:
+        """Return the key the document is cached under."""
+        return (
+            self._cache_key
+            if self._cache_key is not None
+            else (f"oidc_discovery.{sha256(self._open_id_configuration_url.encode()).hexdigest()}")
+        )
 
 
-def _origin(split: SplitResult) -> tuple[str, str | None, int | None]:
-    """Return the comparable origin of ``split``: scheme, host and effective port."""
-    scheme = split.scheme.lower()
-    port = split.port if split.port is not None else _DEFAULT_PORTS.get(scheme)
-    return (scheme, split.hostname, port)
+def _is_absolute(url: str) -> bool:
+    """Tell whether a configuration URL names its own scheme."""
+    return urlsplit(url).scheme != ""
+
+
+def _decode(payload: str) -> dict[str, object]:
+    """Decode a JSON payload, refusing anything but a JSON object.
+
+    Raises:
+        AuthenticationError: When the payload is not a JSON object.
+    """
+    try:
+        document = cast("object", json.loads(payload))
+    except ValueError as error:
+        raise AuthenticationError(
+            f"The OIDC discovery document could not be decoded: {error}",
+        ) from error
+    if not isinstance(document, dict):
+        raise AuthenticationError("The OIDC discovery document is not a JSON object.")
+    return cast("dict[str, object]", document)
+
+
+def _check_endpoint_scheme(endpoint: object, key: str, discovery_url: str) -> None:
+    """Refuse an endpoint that downgrades the transport that carried the document.
+
+    The discovery specification requires the endpoints it advertises to use
+    ``https``; an endpoint naming no scheme is taken as it stands, the way a
+    relative announcement would be.
+
+    Raises:
+        AuthenticationError: When the endpoint is missing, or names a scheme
+            other than ``https`` while the document itself was served over
+            ``https``.
+    """
+    if not isinstance(endpoint, str) or not endpoint:
+        raise AuthenticationError(
+            f'The "{key}" is missing from the OIDC discovery document.',
+        )
+    scheme = urlsplit(endpoint).scheme
+    if scheme and scheme.lower() != "https" and discovery_url.startswith("https://"):
+        raise AuthenticationError(
+            f'The "{key}" found in the OIDC discovery document must use the '
+            f'"https" scheme, "{scheme}" given.',
+        )

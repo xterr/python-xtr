@@ -762,6 +762,50 @@ ever makes it: documentation.
 
 ### Deviations and decisions
 
+- **The OIDC discovery reader is async where its upstream twin is not.** The
+  cache contract here is awaitable — a fetch-or-compute over I/O — so
+  `get_secure_endpoint` and `get_issuer` are `async def` where the upstream
+  reader answers synchronously from a memoized document. Callers await them;
+  the semantics are the upstream ones.
+- **`OidcDiscovery.prefetch` cannot probe the cache.** The cache contract
+  offers no read that computes nothing, so a prefetch sends its request
+  unconditionally (unless a response is already in flight or the document
+  memoized) where the upstream one stays quiet when the entry is warm; the
+  prefetched response is dropped unread when the cache answers a warm entry,
+  exactly as upstream drops it.
+- **The discovery reader caches unconditionally.** The upstream reader skips
+  saving when the URL that served the document is unknown; the cache contract
+  here has no "do not keep" answer for a computed value, so the entry is saved
+  with the URL it was served by, empty or not.
+- **The discovery key-set provider keeps a no-op `aclose`.** The provider no
+  longer owns an HTTP client — the application's is injected — so it holds
+  nothing to release; the method stays so the wiring that collects closeable
+  providers needs no special case.
+- **The discovery key-set provider serves stale keys no longer.** The rebuilt
+  provider keeps its keys in the injected cache, whose expiry is the
+  provider's freshness boundary; the in-memory `max_stale` ceiling and the
+  cold-start failure memo of the previous design went with it, as did the
+  same-origin `jwks_uri` check — the aligned discovery weighs the announced
+  endpoint's scheme and the issuer the document announces instead, which is
+  the upstream shape.
+- **The OIDC client omits the DPoP seam.** The upstream client takes an
+  optional proof factory and asks for a bound access token when one is given;
+  the proof machinery is deferred here, so the client always asks for a
+  bearer token and the single-retry hook stays the access token type's
+  `on_response` — which the bearer type answers `False`.
+- **The ID token reader validates claims itself.** The upstream reader leans
+  on the JOSE library's claim-checker manager for `iss`/`aud`/`exp`/`iat`/`nbf`
+  and hand-writes the OIDC-specific rules (`sub`, `azp`, `nonce`, `max_age`).
+  The local JOSE library does have a claims registry — its clock is injectable
+  and its leeway maps to the allowed drift — but it reads a time claim with a
+  bare `isinstance(value, (int, float))`, which accepts `true` as the timestamp
+  `1` where the upstream check refuses it; it dispatches per claim in the
+  token's document order, where which error a multi-defect token surfaces
+  first follows the manager's fixed checker order upstream and does here; and
+  its terse library errors would need translating into the reader's texts
+  regardless. The rules are written out against the injected clock: the same
+  set, in the same fixed order, with the same refusal of a non-numeric time
+  claim.
 - **No controller-arguments events.** The upstream listeners that enforce the
   route markers run on a controller-arguments event the
   [kernel](../xtr-http-kernel) deliberately lacks — the web framework resolves
@@ -1020,12 +1064,16 @@ Every failure becomes an `InvalidAccessTokenError` whose public text is `Invalid
 `enable_cache(cache, key_prefix, ttl=60)` keeps the responses of active tokens for at most
 `ttl` seconds — never past the `exp` the server reported, and an inactive response is not
 cached at all. Entries are keyed by the digest of the token, so a pool holds no usable
-credential. `enable_signed_response(algorithms, keyset, enforce=True)` asks for the response
-as a signed JWT (RFC 9701) and verifies it — the `typ` header, the signature against the key
-set under the algorithm allow-list, the mandatory top-level claims, and the RFC 7662 members
-nested inside `token_introspection`; it needs joserfc, which the `oidc` extra carries. Reading
-the verifying keys from the authorization server's metadata instead of a pinned key set waits
-for the OIDC discovery machinery this workspace aligns next.
+credential. `enable_signed_response(algorithms, keyset=None, enforce=True)` asks for the
+response as a signed JWT (RFC 9701) and verifies it — the `typ` header, the signature against
+the key set under the algorithm allow-list, the mandatory top-level claims, and the RFC 7662
+members nested inside `token_introspection`; it needs joserfc, which the `oidc` extra carries.
+The verifying keys may also be read from the authorization server's metadata instead of a
+pinned key set: `enable_signed_response_discovery(cache, client, cache_key)` builds an
+`OidcDiscovery` over the RFC 8414 metadata URL derived from the handler's `issuer` (required
+for that path), keeps the document under `cache_key + ".document"` and the keys under the bare
+`cache_key` for what the response headers' freshness arithmetic leaves, and a `keyset` of
+`None` then resolves to those keys.
 
 ### OAuth2 clients
 
@@ -1072,28 +1120,104 @@ and `...private_key_jwt`, which name the extra when it is missing.
 
 ### OIDC
 
-With the `oidc` extra, **`OidcTokenHandler`** verifies a third-party OpenID issuer's tokens:
+The `oidc/` folder at the package root is the **client** side of OpenID Connect — what an
+application that *talks to* a provider builds its login flow from, next to `oauth2/` and a
+different concern from `access_token/oidc/`, which is the resource server verifying the tokens
+that arrive.
+
+**`OidcDiscovery`** fetches and caches a provider's discovery document, over the HTTP client
+and cache contracts:
 
 ```python
-from xtr_security_http.access_token.oidc.oidc_token_handler import OidcTokenHandler
-from xtr_security_http.oidc.oidc_discovery import DiscoveryOidcKeySetProvider
+from xtr_security_http.oidc import OidcDiscovery
+
+discovery = OidcDiscovery(
+    http_client,
+    cache,
+    issuer="https://issuer.example",
+    checked_endpoints=("token_endpoint", "userinfo_endpoint"),
+)
 ```
 
-Its keys come from an `OidcKeySetProviderInterface` — `StaticOidcKeySetProvider(jwks)` for a
-fixed JWKS, or `DiscoveryOidcKeySetProvider(base_uri=... | jwks_uri=..., ...)` which reads an
-issuer's OpenID discovery document to find the `jwks_uri`, fetches the key set, caches it for a
-`ttl`, and refreshes on a `kid` it does not know — no more than once every `refresh_cooldown`,
-with a lock so concurrent callers share the one fetch. The handler checks the signature against
-an explicit **algorithm allow-list** (refusing `none` and symmetric `HS*`), the `iss` against
-the trusted issuers, the `aud` against the audience, and the time claims against a clock with
-leeway. **`exp` is required** — a token that never expires is refused. A key set that cannot be
-fetched, discovered or read raises `OidcKeySetError`; every discovery and JWKS endpoint must be
-`https` unless insecure HTTP is explicitly allowed.
+The configuration URL defaults to the well-known path relative to the `issuer` (or the client's
+`base_uri` with no issuer); the issuer must be `https` — the loopback hosts local development
+serves on excepted, `is_secure_url` is the check — and the document must announce the same
+issuer, a trailing slash ignored on both sides. The endpoints named in `checked_endpoints` are
+weighed before anything is cached: one that would downgrade the `https` transport that carried
+the document is refused, and so is a missing one; `checked_mtls_aliases` weighs the
+`mtls_endpoint_aliases` entries the same way. The raw payload is cached (under `cache_key`, or
+a key derived from the URL) for `cache_ttl` seconds — `None` leaves the lifetime to the pool —
+and memoized per instance, so repeated reads within one authentication cost one fetch.
+`get_configuration()` returns the document, `get_secure_endpoint(member)` an announced
+`https` endpoint, `get_issuer()` the announced issuer (an expected one required, RFC 8414
+Section 3.3), `prefetch()` sends the request without waiting for its response, and `reset()`
+forgets the memo. Nothing is cached that exceeds 1 MiB.
 
-**`OidcUserInfoTokenHandler`** (in `access_token/oidc/`) validates a token the other way round:
-it presents it to the issuer's userinfo endpoint as a bearer credential and takes the claims the
-endpoint answers with as the user — the one arrangement where the issuer's own answer, over the
-transport the client carries, is the whole of the validation:
+**`OidcJwks`** is the static helper both OIDC entry points read keys through:
+`from_response(response, enforce_key_usage_verification=True, clock=None)` returns the
+filtered signing keys and the TTL the response's headers leave — `Cache-Control: max-age`,
+or `Expires` counted from the response's `Date` or the clock, minus the response's `Age`
+(RFC 9111 arithmetic), `None` when nothing is left — and `fetch_keys(http_client, jwks_uri,
+item, default_ttl=3600)` lands them in a cache item, capped at 30 days. Strict (the default)
+keeps only keys declared for signatures (`use: sig` or `key_ops` holding `sign`/`verify`);
+lax keeps keys declaring neither; a key without a `kty`, or with a `kid` that is not a
+string, is dropped either way.
+
+**`OidcSignatureVerifier`** verifies an ID token's signature against the provider's JWKS —
+discovered from the `jwks_uri` of the discovery document, cached with the header TTL
+arithmetic above, refetched when a token names a `kid` the cached set lacks, throttled to
+once every 60 seconds. The `alg` header is checked first against the allow-list
+(`("RS256",)` by default) — **no MAC algorithm is ever accepted**, so a public key the
+provider publishes can never be turned into the shared secret of an `HS256` token — and the
+claims come back for `OidcIdToken.validate_claims` to confront.
+
+**`OidcIdToken`** decodes a JWT without verifying its signature (`decode`) and validates the
+claims per OIDC Core 1.0, Section 3.1.3.7 (`validate_claims(claims, expected_issuer,
+expected_audience, expected_nonce=None, max_age=None)`): `iss`/`aud`/`exp`/`iat`/`sub` are
+mandatory, the time claims are read against the injected clock with the allowed drift,
+`azp` must name the client when present, the `nonce` must match when one was sent, and a
+requested `max_age` turns `auth_time` mandatory and must not be exceeded.
+
+**`OidcClientInterface`** / **`OidcClient`** are the protocol operations the login flow needs:
+`request(endpoint, body, options)` makes a client-authenticated POST to any endpoint the
+provider announces (the `client_id` added to the form body, the registration's
+`ClientAuthenticationInterface` applied against the token endpoint whatever is called, no
+redirect followed), `exchange_code(code, redirect_uri, code_verifier=None)` runs the
+authorization-code grant, `refresh_token(refresh_token, scopes=())` the refresh grant — a
+4xx `invalid_grant` raises `OidcInvalidGrantError`, the one error a caller has to tell apart —
+`fetch_user_info(access_token)` presents the token to the userinfo endpoint, and
+`get_client_authentication_method()` names the registration. With `certificate_options`
+(`local_cert`/`local_pk`/`passphrase`) the requests go to the `mtls_endpoint_aliases` the
+document announces (RFC 8705, Section 5). The access token type is the bearer one; a token
+bound to a key a proof factory signs for is not asked for here.
+
+**`OidcTokenRefresher`** renews the tokens a security token carries, in place:
+`refresh_if_needed(token)` renews when the `oidc_access_token_expires_at` attribute is within
+`leeway` (30 seconds by default), `refresh(token)` renews whatever the expiry and stores the
+new `oidc_access_token`, `oidc_access_token_expires_at`, the rotated `oidc_refresh_token` and
+the refreshed `oidc_id_token` with its `oidc_sid` — a refreshed ID token is validated against
+the discovery document's issuer and the client id, and its `sub` must match the previous
+token's in constant time, and nothing is stored until the whole response has passed.
+
+With the `oidc` extra, the resource-server side keeps its own pieces:
+**`OidcTokenHandler`** (`access_token/oidc/`) verifies a third-party issuer's tokens against
+an `OidcKeySetProviderInterface` — `StaticOidcKeySetProvider(jwks)` for a fixed JWKS, or
+`DiscoveryOidcKeySetProvider(http_client, cache, base_uri=... | jwks_uri=...)`, rebuilt on the
+aligned discovery and the JWKS reader above: it discovers the `jwks_uri` through an
+`OidcDiscovery` of its own (the issuer checked for `https` and for the issuer the document
+announces, the `jwks_uri` weighed), keeps the keys in the injected cache for what the
+provider's headers leave — or `jwks_cache_ttl` seconds — and refetches on a `kid` the cached
+set lacks, no more than once every 60 seconds. The handler checks the signature against an
+explicit **algorithm allow-list** (refusing `none` and symmetric `HS*`), the `iss` against the
+trusted issuers, the `aud` against the audience, and the time claims against a clock with
+leeway. **`exp` is required** — a token that never expires is refused. A key set that cannot
+be fetched, discovered or read raises `OidcKeySetError`; every endpoint must be `https` —
+the loopback hosts excepted — unless `allow_insecure_http` opens the development door.
+
+**`OidcUserInfoTokenHandler`** (`access_token/oidc/`) validates a token the other way round:
+it presents it to the issuer's userinfo endpoint as a bearer credential and takes the claims
+the endpoint answers with as the user — the one arrangement where the issuer's own answer,
+over the transport the client carries, is the whole of the validation:
 
 ```python
 from xtr_security_http.access_token.oidc import OidcUserInfoTokenHandler
@@ -1105,18 +1229,17 @@ handler = OidcUserInfoTokenHandler(
 ```
 
 The endpoint is the client's base URI, or the one the issuer's discovery document announces
-after `enable_discovery(cache, cache_key)` — the document is fetched from the well-known path
-relative to the client's base URI, kept under `cache_key + ".document"` with no lifetime of its
-own (the pool decides), and its `userinfo_endpoint` is weighed before anything is cached: an
-endpoint that would downgrade the `https` transport that carried the document is refused, and
-so is a document announcing no endpoint. The identifier is read from `claim` (`sub` by default);
-the badge's loader is wrapped in a `FallbackUserLoader`, so the access-token authenticator
-replaces it with the firewall's user provider when one is configured, and without one the
-loader builds the core `OidcUser` the claims describe. Every failure becomes an
-`InvalidAccessTokenError` — a missing claim raises `MissingClaimError` on the chain, a bad
+after `enable_discovery(cache, cache_key)` — which builds an `OidcDiscovery` over the
+handler's own client, the document kept under `cache_key + ".document"` with no lifetime of
+its own (the pool decides) and its `userinfo_endpoint` weighed before anything is cached.
+`reset()` forgets the memoized document. The identifier is read from `claim` (`sub` by
+default); the badge's loader is wrapped in a `FallbackUserLoader`, so the access-token
+authenticator replaces it with the firewall's user provider when one is configured, and
+without one the loader builds the core `OidcUser` the claims describe. Every failure becomes
+an `InvalidAccessTokenError` — a missing claim raises `MissingClaimError` on the chain, a bad
 signature names `InvalidSignatureError`.
 
-**`OidcTokenGenerator`** (in `access_token/oidc/`) signs the other side: an access token this
+**`OidcTokenGenerator`** (`access_token/oidc/`) signs the other side: an access token this
 application issues, as RFC 9068 profiles one — `typ: at+jwt` in the header, the user on `sub`
 (or the claim configured), the audience, the issuer, and `exp`/`nbf` from a `ttl` and a
 not-before:

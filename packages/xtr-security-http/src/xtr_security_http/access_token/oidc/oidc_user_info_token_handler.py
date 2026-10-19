@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, final
 
 from xtr_logging_contracts import EXCEPTION_KEY, NullLogger
 
 from xtr_security_http.authenticator.fallback_user_loader import FallbackUserLoader
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.exception.invalid_access_token_error import InvalidAccessTokenError
+from xtr_security_http.oidc.oidc_discovery import OidcDiscovery
 
 from .exception.missing_claim_error import MissingClaimError
 from .oidc_trait import OidcTrait
@@ -17,27 +17,12 @@ from .oidc_trait import OidcTrait
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from xtr_cache_contracts import CacheInterface, ItemInterface
+    from xtr_cache_contracts import CacheInterface
     from xtr_http_client_contracts import HttpClientInterface
     from xtr_logging_contracts import LoggerInterface
     from xtr_security_core.user.oidc_user import OidcUser
 
 __all__ = ["OidcUserInfoTokenHandler"]
-
-_CONFIGURATION_PATH: Final = ".well-known/openid-configuration"
-"""Where an issuer's OpenID discovery document is read from, relative to the client's base URI."""
-
-_MAX_DOCUMENT_SIZE: Final = 1024 * 1024
-"""The most discovery-document bytes an answer may hold before it is refused.
-
-Discovery documents are small; the bound keeps an issuer from parking bulk
-in a cache entry every request reads."""
-
-_DOCUMENT_SUFFIX: Final = ".document"
-"""What the discovery-document cache key ends with.
-
-It keeps the document clear of the entries other OIDC pieces write under the
-bare key, in formats of their own: they expire with the pool, unread."""
 
 
 @final
@@ -66,10 +51,9 @@ class OidcUserInfoTokenHandler(OidcTrait):
     """
 
     __slots__: tuple[str, ...] = (
-        "_cache_key",
         "_claim",
         "_client",
-        "_discovery_cache",
+        "_discovery",
         "_logger",
     )
 
@@ -92,8 +76,7 @@ class OidcUserInfoTokenHandler(OidcTrait):
         self._client = client
         self._logger = logger or NullLogger()
         self._claim = claim
-        self._discovery_cache = None
-        self._cache_key = ""
+        self._discovery: OidcDiscovery | None = None
 
     def enable_discovery(self, cache: CacheInterface, cache_key: str) -> None:
         """Read the userinfo endpoint off the issuer's discovery document, cached.
@@ -103,18 +86,27 @@ class OidcUserInfoTokenHandler(OidcTrait):
         ``cache_key`` suffixed with ``.document``. No lifetime is set on the
         entry: the cache pool decides how long the document is kept, as it
         did before this delegated to a discovery reader. The endpoint the
-        document announces is weighed before anything is cached — see
-        :meth:`OidcTrait.check_discovered_endpoint
-        <xtr_security_http.access_token.oidc.oidc_trait.OidcTrait.check_discovered_endpoint>`
-        — so a document that sends its clients to plain HTTP is never stored.
+        document announces is weighed before anything is cached — the
+        discovery reader's ``userinfo_endpoint`` check — so a document that
+        sends its clients to plain HTTP is never stored.
 
         Args:
             cache: The cache the discovery document is kept in.
             cache_key: What the document's cache key starts with, so one
                 pool can serve several handlers.
         """
-        self._discovery_cache = cache
-        self._cache_key = cache_key
+        self._discovery = OidcDiscovery(
+            self._client,
+            cache,
+            cache_ttl=None,
+            cache_key=f"{cache_key}.document",
+            checked_endpoints=("userinfo_endpoint",),
+        )
+
+    def reset(self) -> None:
+        """Forget the memoized discovery document, if one was read."""
+        if self._discovery is not None:
+            self._discovery.reset()
 
     async def get_user_badge_from(self, access_token: str) -> UserBadge:
         """Ask the userinfo endpoint who ``access_token`` is for, and return the badge naming them.
@@ -131,21 +123,15 @@ class OidcUserInfoTokenHandler(OidcTrait):
                 the token, or its answer cannot be read.
         """
         endpoint = ""
-        cache = self._discovery_cache
-        if cache is not None:
+        discovery = self._discovery
+        if discovery is not None:
             try:
-                document = await cache.get(
-                    f"{self._cache_key}{_DOCUMENT_SUFFIX}",
-                    self._fetch_document,
-                )
+                document = await discovery.get_configuration()
                 endpoint = self.check_discovered_endpoint(
                     document.get("userinfo_endpoint"),
                     "userinfo_endpoint",
                     None,
                 )
-            except InvalidAccessTokenError as error:
-                self._log_configuration_failure(error)
-                raise
             except Exception as error:
                 self._log_configuration_failure(error)
                 raise InvalidAccessTokenError(
@@ -216,47 +202,6 @@ class OidcUserInfoTokenHandler(OidcTrait):
             return self.create_user(with_identifier)
 
         return load
-
-    async def _fetch_document(self, item: ItemInterface) -> dict[str, object]:
-        """Fetch the discovery document and weigh the endpoint it announces.
-
-        The endpoint's scheme is weighed against the URL that served the
-        document — read off the response, since no redirect was followed —
-        before anything is cached, so a document that sends its clients to
-        plain HTTP is never stored, and a cached document needs no URL of
-        its own to be trusted. The document is decoded here rather than on
-        read, so a malformed one is refused once instead of failing every
-        request until its entry expires.
-
-        Raises:
-            InvalidAccessTokenError: When the document cannot be read, is
-            not a JSON object, is too large to keep, or announces an
-            endpoint that must not be used.
-        """
-        del item  # no lifetime is set: the cache pool decides how long the document is kept
-        response = await self._client.request("GET", _CONFIGURATION_PATH, max_redirects=0)
-        async with response:
-            served_by = response.get_info("url")
-            content = await response.get_content()
-        if len(content) > _MAX_DOCUMENT_SIZE:
-            raise InvalidAccessTokenError(
-                "The OIDC discovery document exceeds the maximum size of 1 MiB.",
-            )
-        try:
-            document = cast("object", json.loads(content))
-        except ValueError as error:
-            raise InvalidAccessTokenError(
-                f"The OIDC discovery document could not be decoded: {error}",
-            ) from error
-        if not isinstance(document, dict):
-            raise InvalidAccessTokenError("The OIDC discovery document is not a JSON object.")
-        members = cast("dict[str, object]", document)
-        _ = self.check_discovered_endpoint(
-            members.get("userinfo_endpoint"),
-            "userinfo_endpoint",
-            served_by if isinstance(served_by, str) else None,
-        )
-        return members
 
     def _log_configuration_failure(self, error: Exception) -> None:
         """Write the failure the discovery read explains."""

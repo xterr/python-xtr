@@ -16,7 +16,7 @@ from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient
 from xtr_http_client.exception import TransportError
 from xtr_http_client.response import MockResponse
-from xtr_security_core.exception import InvalidArgumentError
+from xtr_security_core.exception import BadMethodCallError, InvalidArgumentError
 from xtr_security_core.user.oauth2_user import OAuth2User
 
 from tests.support.oidc import NOW, make_key, make_key_set
@@ -947,3 +947,138 @@ async def test_a_signed_response_whose_members_repeat_a_wrong_issuer_is_refused(
 
     with pytest.raises(InvalidAccessTokenError):
         _ = await handler.get_user_badge_from("the-token")
+
+
+_METADATA_URI: Final = "https://as.example/.well-known/oauth-authorization-server/issue/token"
+"""Where RFC 8414 Section 3 reads the issuer's metadata from."""
+
+
+def _metadata_response(**members: object) -> MockResponse:
+    """The authorization server's metadata document, plus ``members``."""
+    return MockResponse(
+        json.dumps(
+            {"issuer": _ISSUER, "jwks_uri": "https://as.example/jwks.json", **members}
+        ).encode(),
+        {"http_code": 200, "response_headers": {"Content-Type": "application/json"}},
+    )
+
+
+def _jwks_response(key: RSAKey) -> MockResponse:
+    """The authorization server's JWKS, carrying ``key``'s public half."""
+    return MockResponse(
+        json.dumps({"keys": [dict(key.as_dict(private=False), use="sig")]}).encode(),
+        {"http_code": 200, "response_headers": {"Content-Type": "application/json"}},
+    )
+
+
+@pytest.mark.anyio
+async def test_a_signed_answer_is_verified_against_the_discovered_keys() -> None:
+    key = make_key()
+    client = MockHttpClient(
+        [
+            _jwt_response(_mint_introspection(key, _members())),
+            _metadata_response(),
+            _jwks_response(key),
+        ],
+        base_uri=_INTROSPECTION_URI,
+    )
+    handler = _handler(client, audiences=_AUDIENCE, issuer=_ISSUER)
+    handler.enable_signed_response(("RS256",))
+    handler.enable_signed_response_discovery(ArrayAdapter(clock=_clock_at(NOW)), client, "as")
+
+    badge = await handler.get_user_badge_from("the-token")
+
+    assert badge.get_user_identifier() == "alice"
+
+
+@pytest.mark.anyio
+async def test_the_metadata_document_is_cached_under_the_suffixed_key() -> None:
+    key = make_key()
+    client = MockHttpClient(
+        [
+            _jwt_response(_mint_introspection(key, _members())),
+            _metadata_response(),
+            _jwks_response(key),
+        ],
+        base_uri=_INTROSPECTION_URI,
+    )
+    cache = _RecordingCache(_clock_at(NOW))
+    handler = _handler(client, audiences=_AUDIENCE, issuer=_ISSUER)
+    handler.enable_signed_response(("RS256",))
+    handler.enable_signed_response_discovery(cache, client, "as")
+
+    _ = await handler.get_user_badge_from("the-token")
+
+    # The keys are asked for first; the metadata document is read inside that
+    # computation, so its own entry follows.
+    assert cache.keys == ["as", "as.document"]
+
+
+@pytest.mark.anyio
+async def test_the_keys_are_cached_under_the_bare_key() -> None:
+    key = make_key()
+    client = MockHttpClient(
+        [
+            _jwt_response(_mint_introspection(key, _members())),
+            _metadata_response(),
+            _jwks_response(key),
+        ],
+        base_uri=_INTROSPECTION_URI,
+    )
+    cache = _RecordingCache(_clock_at(NOW))
+    handler = _handler(client, audiences=_AUDIENCE, issuer=_ISSUER)
+    handler.enable_signed_response(("RS256",))
+    handler.enable_signed_response_discovery(cache, client, "as")
+
+    _ = await handler.get_user_badge_from("the-token")
+
+    assert "as" in cache.keys
+
+
+@pytest.mark.anyio
+async def test_a_signed_answer_without_any_key_source_is_refused() -> None:
+    client = MockHttpClient([_jwt_response(_mint_introspection(make_key(), _members()))])
+    handler = _handler(client, audiences=_AUDIENCE, issuer=_ISSUER)
+    handler.enable_signed_response(("RS256",), None)
+
+    with pytest.raises(InvalidAccessTokenError):
+        _ = await handler.get_user_badge_from("the-token")
+
+
+@pytest.mark.anyio
+async def test_a_plain_answer_is_accepted_without_any_key_source() -> None:
+    client = MockHttpClient([_json_response(_members())])
+    handler = _handler(client)
+    handler.enable_signed_response(("RS256",), None)
+
+    badge = await handler.get_user_badge_from("the-token")
+
+    assert badge.get_user_identifier() == "alice"
+
+
+def test_the_discovery_path_refuses_a_handler_without_an_issuer() -> None:
+    handler = _handler(MockHttpClient())
+
+    with pytest.raises(BadMethodCallError):
+        handler.enable_signed_response_discovery(ArrayAdapter(), MockHttpClient(), "as")
+
+
+def test_the_metadata_url_inserts_the_well_known_path() -> None:
+    from xtr_security_http.access_token.oauth2.oauth2_token_handler import (  # noqa: PLC0415 -- test-local helper
+        _metadata_url,
+    )
+
+    assert _metadata_url("https://as.example/issue/token") == _METADATA_URI
+    assert _metadata_url("https://as.example/issue/token/") == _METADATA_URI
+    assert _metadata_url("https://as.example") == (
+        "https://as.example/.well-known/oauth-authorization-server"
+    )
+
+
+def test_a_non_url_issuer_is_refused_by_the_metadata_url() -> None:
+    from xtr_security_http.access_token.oauth2.oauth2_token_handler import (  # noqa: PLC0415 -- test-local helper
+        _metadata_url,
+    )
+
+    with pytest.raises(BadMethodCallError):
+        _ = _metadata_url("issuer.example")

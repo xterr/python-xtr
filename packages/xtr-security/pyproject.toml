@@ -29,6 +29,10 @@ dependencies = [
     "xtr-http-kernel>=4.0,<5",
     "xtr-http-foundation>=4.0,<5",
     "xtr-http-message-contracts>=4.0,<5",
+    # The OIDC token-handler factory builds the discovery key-set provider on
+    # the HTTP client contract and an in-memory cache pool.
+    "xtr-http-client>=4.0,<5",
+    "xtr-cache>=4.0,<5",
     "typing-extensions>=4.12",
 ]
 

@@ -5230,9 +5230,11 @@ version = "4.1.0"
 source = { editable = "packages/xtr-security" }
 dependencies = [
     { name = "typing-extensions" },
+    { name = "xtr-cache" },
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
+    { name = "xtr-http-client" },
     { name = "xtr-http-foundation" },
     { name = "xtr-http-kernel" },
     { name = "xtr-http-message-contracts" },
@@ -5260,9 +5262,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-cache", editable = "packages/xtr-cache" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
@@ -5390,7 +5394,6 @@ dependencies = [
 
 [package.optional-dependencies]
 oidc = [
-    { name = "httpx" },
     { name = "joserfc" },
 ]
 
@@ -5398,7 +5401,6 @@ oidc = [
 dev = [
     { name = "anyio" },
     { name = "basedpyright" },
-    { name = "httpx" },
     { name = "joserfc" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -5413,7 +5415,6 @@ dev = [
 requires-dist = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "fastapi", specifier = ">=0.123" },
-    { name = "httpx", marker = "extra == 'oidc'", specifier = ">=0.27" },
     { name = "joserfc", marker = "extra == 'oidc'", specifier = ">=1.7" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
@@ -5438,7 +5439,6 @@ provides-extras = ["oidc"]
 dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
-    { name = "httpx", specifier = ">=0.27" },
     { name = "joserfc", specifier = ">=1.7" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },

@@ -21,6 +21,7 @@ from .invalid_session_strategy_error import InvalidSessionStrategyError
 from .logout_error import LogoutError
 from .missing_session_error import MissingSessionError
 from .missing_state_bag_error import MissingStateBagError
+from .oidc_invalid_grant_error import OidcInvalidGrantError
 from .unknown_firewall_error import UnknownFirewallError
 
 __all__ = [
@@ -35,5 +36,6 @@ __all__ = [
     "LogoutError",
     "MissingSessionError",
     "MissingStateBagError",
+    "OidcInvalidGrantError",
     "UnknownFirewallError",
 ]

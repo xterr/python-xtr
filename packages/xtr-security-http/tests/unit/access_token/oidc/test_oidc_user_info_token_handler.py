@@ -324,6 +324,28 @@ async def test_a_cached_document_answers_the_second_call_without_a_fetch() -> No
 
 
 @pytest.mark.anyio
+async def test_reset_forgets_the_memoized_document() -> None:
+    client = _client(
+        _json_response({"userinfo_endpoint": _USERINFO_URI}),
+        _json_response(_CLAIMS),
+        _json_response({"userinfo_endpoint": _USERINFO_URI}),
+        _json_response(_CLAIMS),
+        base_uri=_ISSUER,
+    )
+    cache = _RecordingCache()
+    handler = _handler(client)
+    handler.enable_discovery(cache, "oidc")
+
+    _ = await handler.get_user_badge_from("the-token")
+    handler.reset()
+    _ = await handler.get_user_badge_from("the-token")
+
+    # The memoized document is forgotten: the discovery document is read again.
+    assert client.get_requests_count() == 4
+    assert cache.keys == ["oidc.document"] * 2
+
+
+@pytest.mark.anyio
 async def test_a_document_announcing_no_userinfo_endpoint_is_refused() -> None:
     handler = _handler(_client(_json_response({"issuer": _ISSUER}), base_uri=_ISSUER))
     handler.enable_discovery(ArrayAdapter(), "oidc")
@@ -331,8 +353,11 @@ async def test_a_document_announcing_no_userinfo_endpoint_is_refused() -> None:
     with pytest.raises(InvalidAccessTokenError) as raised:
         _ = await handler.get_user_badge_from("the-token")
 
+    # The discovery reader owns the refusal; the handler wraps it under its
+    # configuration-failure prefix, the reason carried through unchanged.
     assert (
-        str(raised.value) == 'The "userinfo_endpoint" is missing from the OIDC discovery document.'
+        str(raised.value) == "An error occurred while requesting the OIDC configuration: The "
+        '"userinfo_endpoint" is missing from the OIDC discovery document.'
     )
 
 
@@ -352,7 +377,8 @@ async def test_an_http_endpoint_of_an_https_discovery_url_is_refused_before_cach
         _ = await handler.get_user_badge_from("the-token")
 
     assert str(raised.value) == (
-        'The "userinfo_endpoint" found in the OIDC discovery document must use the '
+        "An error occurred while requesting the OIDC configuration: The "
+        '"userinfo_endpoint" found in the OIDC discovery document must use the '
         '"https" scheme, "http" given.'
     )
     assert client.get_requests_count() == 2
@@ -404,7 +430,10 @@ async def test_a_discovery_document_that_is_not_json_is_wrapped() -> None:
     with pytest.raises(InvalidAccessTokenError) as raised:
         _ = await handler.get_user_badge_from("the-token")
 
-    assert str(raised.value).startswith("The OIDC discovery document could not be decoded:")
+    assert str(raised.value).startswith(
+        "An error occurred while requesting the OIDC configuration: "
+        "The OIDC discovery document could not be decoded:",
+    )
 
 
 @pytest.mark.anyio
@@ -417,7 +446,10 @@ async def test_a_discovery_document_that_is_not_a_json_object_is_refused() -> No
     with pytest.raises(InvalidAccessTokenError) as raised:
         _ = await handler.get_user_badge_from("the-token")
 
-    assert str(raised.value) == "The OIDC discovery document is not a JSON object."
+    assert str(raised.value) == (
+        "An error occurred while requesting the OIDC configuration: "
+        "The OIDC discovery document is not a JSON object."
+    )
 
 
 @pytest.mark.anyio
@@ -429,7 +461,16 @@ async def test_an_oversized_discovery_document_is_refused() -> None:
     with pytest.raises(InvalidAccessTokenError) as raised:
         _ = await handler.get_user_badge_from("the-token")
 
-    assert str(raised.value) == "The OIDC discovery document exceeds the maximum size of 1 MiB."
+    assert str(raised.value) == (
+        "An error occurred while requesting the OIDC configuration: "
+        "The OIDC discovery document exceeds the maximum size of 1 MiB."
+    )
+
+
+def test_reset_without_discovery_is_a_no_op() -> None:
+    handler = _handler()
+
+    handler.reset()
 
 
 @pytest.mark.anyio

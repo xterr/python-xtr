@@ -54,11 +54,11 @@ class OidcTokenHandlerFactory(TokenHandlerFactoryInterface):
     """Builds an OIDC token handler that verifies a third-party issuer's tokens.
 
     The handler and its key-set provider live in xtr-security-http's ``oidc``
-    extra (joserfc, httpx); this factory imports them only when it builds one, so
-    the bundle carries no JOSE or HTTP-client dependency until an application
-    configures an OIDC firewall. The bundle registers this factory by default
-    only when that extra is importable. Time comes from the wall clock, the
-    injectable now-function the handler takes.
+    extra (joserfc); this factory imports them only when it builds one, so
+    the bundle carries no JOSE dependency until an application configures an
+    OIDC firewall. The bundle registers this factory by default only when
+    that extra is importable. Time comes from the wall clock, the injectable
+    now-function the handler takes.
     """
 
     __slots__ = ("_closeables",)
@@ -134,8 +134,14 @@ def _build_provider(
     settings: OidcTokenHandlerConfig,
     closeables: list[_AsyncCloseable] | None,
 ) -> OidcKeySetProviderInterface:
-    """Build the key-set provider the configuration's single source describes."""
-    import httpx  # noqa: PLC0415 -- guarded behind the oidc extra
+    """Build the key-set provider the configuration's single source describes.
+
+    The provider fetches through the HTTP client contract, so the client is
+    the bundle's own scoped one and the cache is an in-memory pool: neither
+    outlives the provider the application configured.
+    """
+    from xtr_cache import ArrayAdapter  # noqa: PLC0415 -- guarded behind the oidc extra
+    from xtr_http_client import HttpxHttpClient  # noqa: PLC0415 -- guarded behind the oidc extra
     from xtr_security_http.access_token.oidc import (  # noqa: PLC0415 -- guarded behind the oidc extra
         DiscoveryOidcKeySetProvider,
         StaticOidcKeySetProvider,
@@ -144,16 +150,14 @@ def _build_provider(
     if settings.keyset is not None:
         return StaticOidcKeySetProvider(settings.keyset)
 
-    def client_factory() -> httpx.AsyncClient:
-        return httpx.AsyncClient(
-            timeout=httpx.Timeout(_DISCOVERY_TIMEOUT),
-            limits=httpx.Limits(max_connections=_DISCOVERY_MAX_CONNECTIONS),
-        )
-
     provider = DiscoveryOidcKeySetProvider(
+        HttpxHttpClient(
+            {"timeout": _DISCOVERY_TIMEOUT},
+            max_host_connections=_DISCOVERY_MAX_CONNECTIONS,
+        ),
+        ArrayAdapter(),
         base_uri=settings.discovery_uri,
         jwks_uri=settings.jwks_uri,
-        http_client_factory=client_factory,
         allow_insecure_http=settings.allow_insecure_http,
     )
     if closeables is not None:
