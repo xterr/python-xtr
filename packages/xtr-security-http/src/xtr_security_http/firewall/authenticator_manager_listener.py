@@ -9,6 +9,7 @@ from xtr_http_kernel.bridge import Response as FrameworkResponse
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 
 from xtr_security_http._security_state import security_state_of, state_bag_of
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from .abstract_listener import AbstractListener
 
@@ -72,9 +73,18 @@ class AuthenticatorManagerListener(AbstractListener):
 
     @override
     async def authenticate(self, request_event: RequestEvent) -> None:
-        """Authenticate the request, answering it when a handler produced a response."""
+        """Authenticate the request, answering it when a handler produced a response.
+
+        The request handed to the manager carries the event's bag, parked the
+        way :meth:`supports` sees it, so the re-check, the authenticator and
+        the success and failure hooks all reach the same carrier — a hook
+        reading the bag off the request finds it in the live chain too.
+        """
+        asked = request_event.request.with_attribute(
+            SecurityRequestAttributes.STATE_BAG, request_event.state
+        )
         response = await self._authenticator_manager.authenticate_request(
-            request_event.request, security_state_of(request_event.state)
+            asked, security_state_of(request_event.state)
         )
         if response is None:
             return

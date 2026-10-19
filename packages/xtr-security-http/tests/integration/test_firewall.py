@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from xtr_event_dispatcher import EventDispatcher
-from xtr_http_foundation import PathRequestMatcher
+from xtr_http_foundation import MemorySessionStorage, PathRequestMatcher, Session
 from xtr_http_kernel import ExceptionEvent, FinishRequestEvent, RequestEvent
 from xtr_http_kernel.bridge import ResponseFactory, StarletteHttpFactory
 from xtr_http_message import Response as PureResponse
@@ -28,6 +28,7 @@ from xtr_security_core.user import InMemoryUser
 
 from tests.support.contexts import FakeFirewallContext
 from tests.support.messages import make_message
+from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.access_map import AccessMap
 from xtr_security_http.authenticator.token import PostAuthenticationToken
@@ -255,6 +256,68 @@ async def test_an_unmatched_requests_failure_is_answered_by_the_global_listener(
     assert failure.response is not None
     assert failure.response.status_code == 401
     assert failure.response.headers["WWW-Authenticate"] == "Bearer"
+
+
+async def test_a_manager_hook_reads_the_parked_session_of_the_live_chain() -> None:
+    """The request the manager authenticates carries the event's bag, not a bagless copy.
+
+    The kernel event parks its bag only on the request the chain's supports
+    asks about; the manager step must hand the authenticate pass a request
+    that carries the same bag, or a hook reading the session off the request
+    finds nothing in the live chain.
+    """
+    token_storage = TokenStorage()
+    seen: list[object] = []
+
+    @final
+    class _ReadingManager:
+        """Reads the session off the request the manager is handed, then answers nothing."""
+
+        def supports(self, request: ServerRequestInterface, state: SecurityState) -> bool | None:
+            del request, state
+            return None
+
+        async def authenticate_request(
+            self,
+            request: ServerRequestInterface,
+            state: SecurityState,
+        ) -> ResponseInterface | None:
+            del state
+            seen.append(parked_session_of(request))
+            return None
+
+    session = Session(MemorySessionStorage())
+    bag: dict[str, object] = {}
+    security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = session
+    manager_step = AuthenticatorManagerListener(
+        _ReadingManager(),
+        StarletteHttpFactory(),
+    )
+    access_step = AccessListener(
+        token_storage,
+        AccessDecisionManager([RoleVoter()]),
+        AccessMap(),
+    )
+    dispatcher = _dispatcher(
+        FirewallMap(
+            [
+                (
+                    PathRequestMatcher("^/api"),
+                    FakeFirewallContext(
+                        name="api",
+                        authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                        access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                        listeners=(manager_step, access_step),
+                        exception_listener=_exception_listener(),
+                    ),
+                ),
+            ],
+        )
+    )
+
+    _ = await dispatcher.dispatch(RequestEvent(make_message(path="/api/books"), bag))
+
+    assert seen == [session]
 
 
 async def test_a_response_from_the_manager_step_short_circuits_the_chain() -> None:

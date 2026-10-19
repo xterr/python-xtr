@@ -11,7 +11,7 @@ from xtr_http_kernel.bridge import ResponseFactory, StarletteHttpFactory
 from xtr_http_message import Response as PureResponse
 
 from tests.support.messages import make_message
-from xtr_security_http._security_state import security_state_of
+from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.exception import MissingStateBagError
 from xtr_security_http.firewall.authenticator_manager_listener import AuthenticatorManagerListener
 from xtr_security_http.firewall.firewall_listener_interface import FirewallListenerInterface
@@ -91,7 +91,34 @@ async def test_authenticate_delegates_with_the_carrier_from_the_events_state_bag
 
     await _listener(manager).authenticate(event)
 
-    assert manager.authenticate_calls == [(event.request, state)]
+    ((handed, handed_state),) = manager.authenticate_calls
+    assert handed_state is state
+    assert handed.get_attribute(SecurityRequestAttributes.STATE_BAG) is bag
+
+
+async def test_authenticate_hands_the_manager_a_request_carrying_the_events_state_bag() -> None:
+    bag: dict[str, object] = {}
+    _ = security_state_of(bag)
+    manager = _Manager()
+    event = RequestEvent(make_message(), bag)
+
+    await _listener(manager).authenticate(event)
+
+    ((handed, _state),) = manager.authenticate_calls
+    assert handed.get_attribute(SecurityRequestAttributes.STATE_BAG) is bag
+    assert event.request.get_attribute(SecurityRequestAttributes.STATE_BAG) is None
+
+
+async def test_authenticate_hands_the_manager_the_same_security_state_the_bag_carries() -> None:
+    bag: dict[str, object] = {}
+    state = security_state_of(bag)
+    manager = _Manager()
+
+    await _listener(manager).authenticate(RequestEvent(make_message(), bag))
+
+    ((handed, handed_state),) = manager.authenticate_calls
+    assert handed_state is state
+    assert security_state_of(state_bag_of(handed)) is state
 
 
 async def test_authenticate_sets_the_bridged_response_when_the_manager_answers_one() -> None:
