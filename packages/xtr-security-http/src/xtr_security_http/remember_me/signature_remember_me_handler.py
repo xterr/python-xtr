@@ -5,20 +5,20 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_clock import SystemClock
 from xtr_security_core.exception import (
     AuthenticationError,
     ExpiredSignatureError,
     InvalidSignatureError,
 )
 
-from ._clock import system_now
 from .abstract_remember_me_handler import AbstractRememberMeHandler
 from .remember_me_details import RememberMeDetails
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
-    from datetime import datetime
+    from collections.abc import Mapping
 
+    from xtr_clock import ClockInterface
     from xtr_http_message_contracts import ServerRequestInterface
     from xtr_logging_contracts import LoggerInterface
     from xtr_security_core.signature.signature_hasher import SignatureHasher
@@ -54,7 +54,7 @@ class SignatureRememberMeHandler(AbstractRememberMeHandler):
         user_provider: UserProviderInterface,
         options: Mapping[str, object] | None = None,
         logger: LoggerInterface | None = None,
-        clock: Callable[[], datetime] | None = None,
+        clock: ClockInterface | None = None,
     ) -> None:
         """Record the hasher, the provider, the options and the clock.
 
@@ -70,7 +70,7 @@ class SignatureRememberMeHandler(AbstractRememberMeHandler):
         """
         super().__init__(user_provider, options, logger)
         self._signature_hasher = signature_hasher
-        self._clock = clock if clock is not None else system_now
+        self._clock = clock if clock is not None else SystemClock()
 
     @override
     async def create_remember_me_cookie(
@@ -79,7 +79,7 @@ class SignatureRememberMeHandler(AbstractRememberMeHandler):
         user: UserInterface,
     ) -> None:
         """Stage a cookie signed for ``user``, until a lifetime from now."""
-        expires = int(self._clock().timestamp()) + self._lifetime()
+        expires = int(self._clock.now().timestamp()) + self._lifetime()
         value = self._signature_hasher.compute_signature_hash(user, expires)
         self._create_cookie(request, RememberMeDetails(user.get_user_identifier(), expires, value))
 

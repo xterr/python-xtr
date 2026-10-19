@@ -731,10 +731,6 @@ ever makes it: documentation.
   renders its own finished `Set-Cookie` value — through the [foundation](../xtr-http-foundation)
   cookie helpers — and the response listener appends it to the outgoing head. The response
   listener keeps no main-request guard: this kernel has no sub-requests.
-- **The handlers read their time from a callable.** Upstream takes a PSR clock; this package does
-  not depend on the clock package, so the handlers take a `clock: Callable[[], datetime]` — the
-  system clock when omitted — and a test freezes time by handing one that answers a fixed
-  instant.
 - **The persistent handler reads properties, not property paths.** Upstream walks `foo[bar]`
   paths through a property accessor; here a signature property is a plain attribute name read
   with `getattr`, the same reading the core `SignatureHasher` does.

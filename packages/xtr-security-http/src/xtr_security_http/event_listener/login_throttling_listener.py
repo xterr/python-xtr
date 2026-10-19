@@ -14,6 +14,7 @@ from collections.abc import MutableMapping
 from typing import TYPE_CHECKING, Final, cast, final
 
 from typing_extensions import override
+from xtr_clock import SystemClock
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_http_foundation import PeekableRequestRateLimiterInterface
 from xtr_rate_limiter import RateLimit, RateLimitExceededEvent
@@ -29,12 +30,10 @@ from xtr_security_http.event.login_failure_event import LoginFailureEvent
 from xtr_security_http.event.login_success_event import LoginSuccessEvent
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
-from ._clock import system_now
-
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
-    from datetime import datetime
+    from collections.abc import Mapping
 
+    from xtr_clock import ClockInterface
     from xtr_event_dispatcher import SubscribedEvents
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_http_foundation import RequestRateLimiterInterface
@@ -71,7 +70,7 @@ class LoginThrottlingListener(EventSubscriberInterface):
         limiter: RequestRateLimiterInterface,
         limiter_name: str | None = None,
         dispatcher: EventDispatcherInterface | None = None,
-        clock: Callable[[], datetime] = system_now,
+        clock: ClockInterface | None = None,
     ) -> None:
         """Record the limiter, its configured name, and the dispatcher to announce on.
 
@@ -91,7 +90,7 @@ class LoginThrottlingListener(EventSubscriberInterface):
         self._limiter = limiter
         self._limiter_name = limiter_name
         self._dispatcher = dispatcher
-        self._clock = clock
+        self._clock = clock if clock is not None else SystemClock()
 
     @classmethod
     @override
@@ -160,7 +159,7 @@ class LoginThrottlingListener(EventSubscriberInterface):
                 RateLimitExceededEvent(rejected, limiter_name=self._limiter_name),
             )
 
-        wait = math.ceil((limit.retry_after.timestamp() - self._clock().timestamp()) / 60)
+        wait = math.ceil((limit.retry_after.timestamp() - self._clock.now().timestamp()) / 60)
         raise TooManyLoginAttemptsAuthenticationError(wait)
 
     async def on_failed_login(self, event: LoginFailureEvent) -> None:

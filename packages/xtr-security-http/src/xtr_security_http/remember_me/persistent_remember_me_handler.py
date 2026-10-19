@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_clock import SystemClock
 from xtr_security_core.authentication.remember_me.persistent_token import PersistentToken
 from xtr_security_core.authentication.remember_me.token_verifier_interface import (
     TokenVerifierInterface,
@@ -18,14 +19,14 @@ from xtr_security_core.exception import (
     CookieTheftError,
 )
 
-from ._clock import system_now
 from ._signature_digest import digest_of, properties_digest, with_digest
 from .abstract_remember_me_handler import AbstractRememberMeHandler
 from .remember_me_details import RememberMeDetails
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Mapping, Sequence
 
+    from xtr_clock import ClockInterface
     from xtr_http_message_contracts import ServerRequestInterface
     from xtr_logging_contracts import LoggerInterface
     from xtr_security_core.authentication.remember_me.token_provider_interface import (
@@ -85,7 +86,7 @@ class PersistentRememberMeHandler(AbstractRememberMeHandler):
         logger: LoggerInterface | None = None,
         token_verifier: TokenVerifierInterface | None = None,
         signature_properties: Sequence[str] | None = None,
-        clock: Callable[[], datetime] | None = None,
+        clock: ClockInterface | None = None,
     ) -> None:
         """Record the store, the provider, the bound properties and the clock.
 
@@ -115,7 +116,7 @@ class PersistentRememberMeHandler(AbstractRememberMeHandler):
         self._signature_properties = (
             None if signature_properties is None else tuple(signature_properties)
         )
-        self._clock = clock if clock is not None else system_now
+        self._clock = clock if clock is not None else SystemClock()
 
     @override
     async def create_remember_me_cookie(
@@ -135,14 +136,14 @@ class PersistentRememberMeHandler(AbstractRememberMeHandler):
         digest = properties_digest(user, self._signature_properties)
         if digest is not None:
             token_value = with_digest(token_value, digest)
-        last_used = self._clock()
+        last_used = self._clock.now()
         token = PersistentToken(user.get_user_identifier(), series, token_value, last_used)
         await self._token_provider.create_new_token(token)
         self._create_cookie(
             request,
             RememberMeDetails.from_persistent_token(
                 token,
-                int(self._clock().timestamp()) + self._lifetime(),
+                int(self._clock.now().timestamp()) + self._lifetime(),
             ),
         )
 
@@ -183,7 +184,7 @@ class PersistentRememberMeHandler(AbstractRememberMeHandler):
                 "This token was already used. The account is possibly compromised.",
             )
         expires = int(token.get_last_used().timestamp()) + self._lifetime()
-        if expires < int(self._clock().timestamp()):
+        if expires < int(self._clock.now().timestamp()):
             raise AuthenticationError("The cookie has expired.")
         return await super().consume_remember_me_cookie(
             request,
@@ -229,12 +230,12 @@ class PersistentRememberMeHandler(AbstractRememberMeHandler):
         ):
             raise AuthenticationError("The cookie's hash is invalid.")
         last_rotated_at = int(token.get_last_used().timestamp()) + _ROTATION_WINDOW
-        if last_rotated_at >= int(self._clock().timestamp()):
+        if last_rotated_at >= int(self._clock.now().timestamp()):
             return
         token_value = _encode(secrets.token_bytes(33))
         if digest is not None:
             token_value = with_digest(token_value, digest)
-        token_last_used = self._clock()
+        token_last_used = self._clock.now()
         if self._token_verifier is not None:
             await self._token_verifier.update_existing_token(token, token_value, token_last_used)
         await self._token_provider.update_token(series, token_value, token_last_used)

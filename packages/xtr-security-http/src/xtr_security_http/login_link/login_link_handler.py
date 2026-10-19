@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Final, final
 from urllib.parse import urlencode, urlsplit
 
 from typing_extensions import override
+from xtr_clock import SystemClock
 from xtr_security_core.exception import (
     ExpiredSignatureError,
     InvalidArgumentError,
@@ -19,7 +20,6 @@ from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.exception import ExpiredLoginLinkError, InvalidLoginLinkError
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
-from ._clock import system_now
 from ._presented_link import (
     PARAMETER_NAME,
     extra_parameters_of,
@@ -31,6 +31,7 @@ from .login_link_handler_interface import LoginLinkHandlerInterface
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
+    from xtr_clock import ClockInterface
     from xtr_http_message_contracts import ServerRequestInterface
     from xtr_security_core.signature.signature_hasher import SignatureHasher
     from xtr_security_core.user.user_interface import UserInterface
@@ -125,7 +126,7 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
         signature_hasher: SignatureHasher,
         options: Mapping[str, object] | None = None,
         uri_builder: Callable[[str, ServerRequestInterface | None], str] | None = None,
-        clock: Callable[[], datetime] | None = None,
+        clock: ClockInterface | None = None,
     ) -> None:
         """Record the provider, the hasher, the options, the builder and the clock.
 
@@ -165,7 +166,7 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
         self._path = path
         self._lifetime = lifetime if isinstance(lifetime, int) else int(str(lifetime))
         self._uri_builder = _plain_path if uri_builder is None else uri_builder
-        self._clock = clock if clock is not None else system_now
+        self._clock = clock if clock is not None else SystemClock()
 
     @override
     async def create_login_link(
@@ -196,7 +197,7 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
                 )
             if name in _RESERVED_PARAMETERS:
                 raise InvalidArgumentError(f'Login link parameter name "{name}" is reserved.')
-        expires = int(self._clock().timestamp()) + (lifetime or self._lifetime)
+        expires = int(self._clock.now().timestamp()) + (lifetime or self._lifetime)
         if extra:
             extra = dict(sorted(extra.items()))
             extra["hash_parameters"] = ",".join(extra)

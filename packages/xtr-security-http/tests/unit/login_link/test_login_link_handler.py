@@ -68,7 +68,7 @@ def _handler(
             hasher,
             {"path": "/login-link", **(options or {})},
             uri_builder=uri_builder,
-            clock=clock.now,
+            clock=clock,
         ),
         provider,
     )

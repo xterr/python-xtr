@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, cast, final
 from joserfc import jwt
 from joserfc.errors import InvalidKeyIdError, JoseError
 from joserfc.jwt import JWTClaimsRegistry
+from xtr_clock import SystemClock
 from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user.attributes_based_user_provider_interface import (
     AttributesBasedUserProviderInterface,
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping, Sequence
 
     from joserfc.jwt import ClaimsOption, Token
+    from xtr_clock import ClockInterface
     from xtr_security_core.user.user_interface import UserInterface
     from xtr_security_core.user.user_provider_interface import UserProviderInterface
 
@@ -81,7 +83,7 @@ class OidcTokenHandler:
         claim: str = "sub",
         leeway: int = 0,
         enforce_at_jwt_type: bool = False,
-        clock: Callable[[], int],
+        clock: ClockInterface | None = None,
         user_provider: UserProviderInterface | None = None,
     ) -> None:
         """Record the provider, the trusted issuers, the audience and the knobs.
@@ -101,7 +103,7 @@ class OidcTokenHandler:
         self._claim = claim
         self._leeway = leeway
         self._enforce_at_jwt_type = enforce_at_jwt_type
-        self._clock = clock
+        self._clock = clock if clock is not None else SystemClock()
         self._user_provider = user_provider
 
     async def get_user_badge_from(self, access_token: str) -> UserBadge:
@@ -161,7 +163,9 @@ class OidcTokenHandler:
             "exp": {"essential": True},
         }
         options[self._claim] = {**options.get(self._claim, {}), "essential": True}
-        registry = JWTClaimsRegistry(now=self._clock(), leeway=self._leeway, **options)
+        registry = JWTClaimsRegistry(
+            now=int(self._clock.now().timestamp()), leeway=self._leeway, **options
+        )
         try:
             registry.validate(dict(claims))
         except (JoseError, ValueError) as error:

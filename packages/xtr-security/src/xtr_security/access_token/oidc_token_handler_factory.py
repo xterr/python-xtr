@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING, Protocol, cast, final, runtime_checkable
 
 from typing_extensions import override
@@ -126,7 +125,6 @@ def _oidc_handler_factory(
             claim=settings.claim,
             leeway=settings.leeway,
             enforce_at_jwt_type=settings.enforce_at_jwt_type,
-            clock=lambda: int(time.time()),
         )
 
     return oidc_token_handler

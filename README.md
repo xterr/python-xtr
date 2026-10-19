@@ -137,6 +137,7 @@ graph LR
     securityhttp --> logcon
     securityhttp --> passwordhasher
     securityhttp --> ratelimiter
+    securityhttp --> clock
     security[xtr-security] --> securitycore
     security --> securityhttp
     security --> passwordhasher

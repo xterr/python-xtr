@@ -123,7 +123,7 @@ def _handler(
     """Build the handler over a frozen clock, its user registered with the provider."""
     provider = RecordingTokenProvider()
     user_provider = RecordingUserProvider({user.get_user_identifier(): user})
-    handler = PersistentRememberMeHandler(provider, user_provider, clock=clock.now)
+    handler = PersistentRememberMeHandler(provider, user_provider, clock=clock)
     return handler, provider, user_provider
 
 
@@ -244,7 +244,7 @@ async def test_consume_consults_the_verifier_over_the_plain_equality() -> None:
     handler = PersistentRememberMeHandler(
         provider,
         RecordingUserProvider({"ada": user}),
-        clock=clock.now,
+        clock=clock,
         token_verifier=verifier,
     )
     created = _request()
@@ -271,7 +271,7 @@ async def test_a_provider_that_verifies_is_its_own_verifier() -> None:
     handler = PersistentRememberMeHandler(
         provider,
         RecordingUserProvider({"ada": user}),
-        clock=clock.now,
+        clock=clock,
     )
     created = _request()
     await handler.create_remember_me_cookie(created, user)

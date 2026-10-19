@@ -28,6 +28,7 @@ dependencies = [
     "xtr-dependency-injection>=4.0,<5",
     "xtr-event-dispatcher>=4.0,<5",
     "xtr-event-dispatcher-contracts>=4.0,<5",
+    "xtr-clock>=4.0,<5",
     "xtr-logging-contracts>=4.0,<5",
     "xtr-password-hasher>=4.0,<5",
     "xtr-rate-limiter>=4.0,<5",

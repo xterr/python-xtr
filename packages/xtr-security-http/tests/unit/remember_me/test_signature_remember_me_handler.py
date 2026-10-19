@@ -75,7 +75,7 @@ def _handler(
     """Build the handler over a frozen clock, its user registered with the provider."""
     provider = RecordingUserProvider({user.get_user_identifier(): user})
     hasher = SignatureHasher(["password"], "a-secret", clock=clock)
-    return SignatureRememberMeHandler(hasher, provider, clock=clock.now), provider
+    return SignatureRememberMeHandler(hasher, provider, clock=clock), provider
 
 
 def test_the_handler_satisfies_the_interface() -> None:
@@ -192,7 +192,7 @@ async def test_the_options_name_the_cookie_and_its_attributes() -> None:
         hasher,
         provider,
         {"name": "APP_REMEMBER", "secure": True, "samesite": "lax"},
-        clock=clock.now,
+        clock=clock,
     )
     request = _request()
 
