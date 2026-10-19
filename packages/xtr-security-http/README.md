@@ -539,6 +539,7 @@ the event order:
 | `CheckRememberMeConditionsListener` | nothing on a passport — enables the `RememberMeBadge` when the login asked to be remembered |
 | `RememberMeListener` | nothing on a passport — clears any cookie the request carried and sets the one the enabled badge earned; clears it on a failure, a logout, a deauthentication |
 | `LoginThrottlingListener` | nothing on a passport — refuses an attempt already over the login limits, counts a failed one, forgets the account's count on a successful one |
+| `AuthenticationProofsListener` | nothing on a passport — records the authentication methods an interactive, non-remember-me login proved on its token, and carries the previous token's proofs over for the same user |
 
 The logout listeners — the ones answering `LogoutEvent` rather than a passport — have their own
 table under [Logout](#logout); the bundle's wiring for them arrives with the logout configuration

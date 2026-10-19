@@ -107,6 +107,7 @@ from .event import (
     TokenDeauthenticatedEvent,
 )
 from .event_listener import (
+    AuthenticationProofsListener,
     CheckCredentialsListener,
     CheckRememberMeConditionsListener,
     ClearedCookie,
@@ -210,6 +211,7 @@ __all__ = [
     "AuthenticationEntryPointInterface",
     "AuthenticationFailureHandlerInterface",
     "AuthenticationMethodBadge",
+    "AuthenticationProofsListener",
     "AuthenticationSuccessHandlerInterface",
     "AuthenticationTokenCreatedEvent",
     "AuthenticationUtils",

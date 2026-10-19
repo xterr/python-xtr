@@ -14,6 +14,7 @@ failed attempts, through a request limiter that builds its own keys.
 
 from __future__ import annotations
 
+from .authentication_proofs_listener import AuthenticationProofsListener
 from .check_credentials_listener import CheckCredentialsListener
 from .check_remember_me_conditions_listener import CheckRememberMeConditionsListener
 from .clear_site_data_listener import ClearSiteDataListener
@@ -31,6 +32,7 @@ from .user_checker_listener import UserCheckerListener
 from .user_provider_listener import UserProviderListener
 
 __all__ = [
+    "AuthenticationProofsListener",
     "CheckCredentialsListener",
     "CheckRememberMeConditionsListener",
     "ClearSiteDataListener",
