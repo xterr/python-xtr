@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 from xtr_event_dispatcher_contracts import Event
 
 if TYPE_CHECKING:
+    from xtr_http_message_contracts import ServerRequestInterface
+
     from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
     from xtr_security_http.authenticator.passport.passport import Passport
 
@@ -34,10 +36,14 @@ class CheckPassportEvent(Event):
     Attributes:
         authenticator: The authenticator that produced the passport.
         passport: The passport whose badges are to be resolved and checked.
+        request: The request the passport arrived with, when the dispatcher
+            carried it — the checks that read where an attempt came from
+            (throttling) need it; ``None`` for a hand-built event.
     """
 
     authenticator: AuthenticatorInterface
     passport: Passport
+    request: ServerRequestInterface | None = None
 
     def get_authenticator(self) -> AuthenticatorInterface:
         """Return the authenticator that produced the passport."""
@@ -46,3 +52,7 @@ class CheckPassportEvent(Event):
     def get_passport(self) -> Passport:
         """Return the passport whose badges are to be resolved and checked."""
         return self.passport
+
+    def get_request(self) -> ServerRequestInterface | None:
+        """Return the request the passport arrived with, when the event carries it."""
+        return self.request

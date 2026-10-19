@@ -104,3 +104,7 @@ class SecurityRequestAttributes:
     REMEMBER_ME_COOKIE: Final[str] = "_xtr_security_remember_me_cookie"
     """The remember-me cookie a handler staged on the request before a
     response existed, moved onto the response by the response pass."""
+
+    LOGIN_THROTTLING_UNTOUCHED: Final[str] = "_xtr_security_login_throttling_untouched"
+    """Whether the login throttling window was untouched when the passport was
+    checked, so a successful login has nothing to reset."""

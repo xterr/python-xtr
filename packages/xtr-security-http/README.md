@@ -462,12 +462,28 @@ the event order:
 | `SessionStrategyListener` | nothing on a passport — hands a successful login to the firewall's session strategy, which moves the session the request reattached |
 | `CheckRememberMeConditionsListener` | nothing on a passport — enables the `RememberMeBadge` when the login asked to be remembered |
 | `RememberMeListener` | nothing on a passport — clears any cookie the request carried and sets the one the enabled badge earned; clears it on a failure, a logout, a deauthentication |
+| `LoginThrottlingListener` | nothing on a passport — refuses an attempt already over the login limits, counts a failed one, forgets the account's count on a successful one |
 
 The logout listeners — the ones answering `LogoutEvent` rather than a passport — have their own
 table under [Logout](#logout); the bundle's wiring for them arrives with the logout configuration
 surface. The remember-me pair runs on the login-success event at the priorities above; the
 response listener that moves the staged cookie onto the response belongs to the kernel's response
 event, on the application's main dispatcher.
+
+**Login throttling.** The throttling listener runs first of all on the passport check (priority
+2080, above the provider listener's 2048), and answers through one request limiter —
+`RequestRateLimiterInterface` from [xtr-http-foundation](../xtr-http-foundation), a peekable one
+preferred. The limiter builds its own keys, and the default one —
+`DefaultLoginRateLimiter` in `rate_limiter/`, over the [xtr-rate-limiter](../xtr-rate-limiter)
+factories — counts a login twice: under the address it came from (a global limit, bounding how
+many accounts one client may sweep) and under the account it named from that address (a local
+limit). Both keys are eight-character HMAC-SHA256 prefixes over a non-empty application secret,
+so a store shared across servers keeps no readable account or address; a successful login forgets
+the local count only — the global one must survive the successful login of any one account. A
+peekable limiter is looked ahead at on the check (nothing spent), counted on a failure; a
+non-peekable one is counted on the check and still forgotten on a success. An attempt over the
+limit is refused with the core `TooManyLoginAttemptsAuthenticationError`, carrying the minutes to
+wait, and announced as a `RateLimitExceededEvent` on the dispatcher the listener was given.
 
 **The dummy-hash timing guard.** When a password passport names an *unknown* user,
 `CheckCredentialsListener` still verifies against a dummy hash, so the timing of a bad username
@@ -698,6 +714,15 @@ ever makes it: documentation.
 - **`JsonLoginAuthenticator` and `HttpBasicAuthenticator` take a response
   factory.** Upstream constructs its `JsonResponse`/`Response` directly; here
   the class names no response class, so the factory is a constructor parameter.
+- **The throttling listener reads the request off the passport event.** Upstream
+  reaches the current request through a request stack, and parks the username
+  on the request's mutable attributes; here `CheckPassportEvent` carries the
+  request (the manager passes it), and the username is parked on the request's
+  security state — the per-request carrier — because a request message here has
+  no mutable attributes. The exceeded-rate-limit event is normalised into the
+  rate-limiter package's `RateLimit` value object, which is the state its
+  constructor declares, rather than passing a third-party limiter's own answer
+  through unchecked.
 - **The remember-me handlers take the request.** Upstream pulls the main request from a request
   stack; this stack has none, so every handler method takes the request the flow is running and
   stages the cookie on that request's own security state.
@@ -836,6 +861,8 @@ xtr_security_http/
 ├── event/                      the firewall events around a login and a logout
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)
 │                              and the logout listeners answering LogoutEvent
+├── rate_limiter/               DefaultLoginRateLimiter — the limits a login's failed attempts
+│                              count under, keyed by the address and the account
 ├── login_link/                 the signed links a login arrives by: details, handler,
 │                              handler interface
 ├── logout/                     LogoutUrlGenerator, LogoutForm — the logout addresses

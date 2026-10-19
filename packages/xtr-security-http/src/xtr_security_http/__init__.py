@@ -110,6 +110,7 @@ from .event_listener import (
     CookieClearingListener,
     CsrfTokenClearingListener,
     DefaultLogoutListener,
+    LoginThrottlingListener,
     PasswordMigratingListener,
     RememberMeListener,
     SessionLogoutListener,
@@ -151,6 +152,7 @@ from .login_link import (
     LoginLinkHandlerInterface,
 )
 from .logout import LogoutForm, LogoutUrlGenerator
+from .rate_limiter import DefaultLoginRateLimiter
 from .remember_me import (
     AbstractRememberMeHandler,
     PersistentRememberMeHandler,
@@ -222,6 +224,7 @@ __all__ = [
     "CustomCredentials",
     "DefaultAuthenticationFailureHandler",
     "DefaultAuthenticationSuccessHandler",
+    "DefaultLoginRateLimiter",
     "DefaultLogoutListener",
     "ExceptionListener",
     "ExpiredLoginLinkError",
@@ -258,6 +261,7 @@ __all__ = [
     "LoginLinkHandler",
     "LoginLinkHandlerInterface",
     "LoginSuccessEvent",
+    "LoginThrottlingListener",
     "LogoutError",
     "LogoutEvent",
     "LogoutForm",

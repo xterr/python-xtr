@@ -278,7 +278,9 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
         previous_token = self._token_storage.get_token()
         try:
             passport = await authenticator.authenticate(request)
-            _ = await self._event_dispatcher.dispatch(CheckPassportEvent(authenticator, passport))
+            _ = await self._event_dispatcher.dispatch(
+                CheckPassportEvent(authenticator, passport, request)
+            )
             self._ensure_resolved(passport)
             _ = await passport.get_user()
             token = await authenticator.create_token(passport, self._firewall_name)
