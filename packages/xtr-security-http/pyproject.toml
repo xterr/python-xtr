@@ -25,6 +25,12 @@ dependencies = [
     "xtr-http-kernel>=4.0,<5",
     "xtr-http-foundation>=4.0,<5",
     "xtr-http-message-contracts>=4.0,<5",
+    # The client interface the introspection endpoint is reached through; the client
+    # itself is installed by the application that introspects.
+    "xtr-http-client-contracts>=4.0,<5",
+    # The cache contract the introspection responses are cached under; the pool
+    # behind it is the application's choice.
+    "xtr-cache-contracts>=4.0,<5",
     "xtr-dependency-injection>=4.0,<5",
     "xtr-event-dispatcher>=4.0,<5",
     "xtr-event-dispatcher-contracts>=4.0,<5",
@@ -56,6 +62,10 @@ dev = [
     "joserfc>=1.7",
     # The tests match real requests, so they build the request messages.
     "xtr-http-message>=4.0,<5",
+    # The tests drive the introspection endpoint through the scripted client and
+    # cache the responses in the in-memory pool.
+    "xtr-http-client>=4.0,<5",
+    "xtr-cache>=4.0,<5",
 ]
 
 [build-system]

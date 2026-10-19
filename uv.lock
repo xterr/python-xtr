@@ -5372,10 +5372,12 @@ dependencies = [
     { name = "fastapi" },
     { name = "starlette" },
     { name = "typing-extensions" },
+    { name = "xtr-cache-contracts" },
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-client-contracts" },
     { name = "xtr-http-foundation" },
     { name = "xtr-http-kernel" },
     { name = "xtr-http-message-contracts" },
@@ -5402,6 +5404,8 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-cache" },
+    { name = "xtr-http-client" },
     { name = "xtr-http-message" },
 ]
 
@@ -5413,10 +5417,12 @@ requires-dist = [
     { name = "joserfc", marker = "extra == 'oidc'", specifier = ">=1.7" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-cache-contracts", editable = "packages/xtr-cache-contracts" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
     { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
@@ -5438,6 +5444,8 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-cache", editable = "packages/xtr-cache" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 

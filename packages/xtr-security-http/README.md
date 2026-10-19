@@ -29,7 +29,8 @@ It builds on [xtr-security-core](../xtr-security-core)'s users, tokens and voter
 - 🎟️ **Authenticators and passports** — an authenticator reads a request into a `Passport` of
   badges and credentials; a fixed event order resolves and checks it, then mints a token.
 - 🪙 **Bearer access tokens** — extractors pull a token from a header, query or form; a handler
-  turns it into a user. An OIDC handler verifies a third-party issuer's tokens.
+  turns it into a user. An OAuth2 handler introspects the token on the authorization server; an
+  OIDC handler verifies a third-party issuer's tokens.
 - 🛂 **The FastAPI surface stays FastAPI's** — `IsGranted` and `CurrentUser` are dependencies
   and decorators; the firewall runs as a subscriber over the request lifecycle, before
   routing, and a route documents its security with the framework's own params.
@@ -48,7 +49,8 @@ uv add "xtr-security-http[oidc]"         # + verifying a third-party OIDC issuer
 
 Requires Python 3.11+. The web framework and the security core come with the package; the `oidc`
 extra adds [joserfc](https://jose.authlib.org/) and [httpx](https://www.python-httpx.org/) for
-verifying and discovering an issuer's keys.
+verifying and discovering an issuer's keys, and for verifying the signed introspection responses
+the OAuth2 handler can ask for.
 
 ## Quick start
 
@@ -893,6 +895,19 @@ ever makes it: documentation.
   the firewall's provider when one is configured, the rule the upstream authenticator
   itself carries: a handler that knows how to load its own user marks its loader so the
   wiring keeps it, and a stand-in loader is the provider's to replace.
+- **The introspection handler reads the members as they are spelled.** Upstream re-cases every
+  claim name before building the user; the local `OAuth2User` speaks RFC 7662's own spelling
+  (`client_id`, `updated_at`), so the members keep the names the response carried and the
+  normalisations — the `updated_at` moment, the two verified flags — read the response's
+  spellings too.
+- **`enable_signed_response` requires its key set.** Upstream accepts none because its
+  discovery variant fills the keys from the authorization server's metadata; that discovery
+  machinery is the OIDC discovery alignment's, so until it lands the key set is a required
+  argument and the discovery setter is not ported.
+- **An empty algorithm allow-list is refused.** The JOSE library reads an empty allow-list as
+  *no restriction*, so a handler configured without algorithms would verify a signed response
+  against anything; the setter refuses the empty list rather than silently disabling the
+  restriction.
 
 ### Access tokens
 
@@ -918,6 +933,48 @@ and names the scheme and the parameters every challenge answers with; a failed
 authentication is always answered — a `401` whose `WWW-Authenticate` names `invalid_token` —
 and the `resource_metadata_uri` (RFC 9728) is advertised in every challenge, a path
 resolved against the request.
+
+### OAuth2 introspection
+
+**`Oauth2TokenHandler`** (in `access_token/oauth2/`) validates a bearer token the only way a
+resource server can trust one it did not issue: it asks the authorization server (RFC 7662).
+The endpoint is reached through the HTTP client the handler is given — a scoped client whose
+`base_uri` is the introspection endpoint and whose `auth_basic` carries this resource server's
+credentials, so the handler knows nothing of the transport:
+
+```python
+from xtr_http_client import HttpxHttpClient
+from xtr_security_http.access_token.oauth2 import Oauth2TokenHandler
+
+handler = Oauth2TokenHandler(
+    HttpxHttpClient().with_options(
+        base_uri="https://as.example/introspect",
+        auth_basic=("resource-server", "secret"),
+    ),
+    audiences="shop-api",
+    issuer="https://as.example",
+)
+```
+
+The constructor takes the client, an optional logger, the `audiences` this resource server
+answers for, the `issuer` of the authorization server, the `claim` the user identifier is read
+from (`sub` with `username` falling back by default), a clock and the `allowed_time_drift` on
+the time members. Only `active`, `exp`, `nbf`, `iat`, `iss` and `aud` are read — the last two
+only when the handler was given the ones it expects — and the badge carries the identifier, a
+loader that builds the core `OAuth2User` the response describes, and the members themselves as
+the badge's attributes, so the access-token authenticator reads the granted scopes out of them.
+Every failure becomes an `InvalidAccessTokenError` whose public text is `Invalid credentials.`
+— the specific reason is logged and chained.
+
+`enable_cache(cache, key_prefix, ttl=60)` keeps the responses of active tokens for at most
+`ttl` seconds — never past the `exp` the server reported, and an inactive response is not
+cached at all. Entries are keyed by the digest of the token, so a pool holds no usable
+credential. `enable_signed_response(algorithms, keyset, enforce=True)` asks for the response
+as a signed JWT (RFC 9701) and verifies it — the `typ` header, the signature against the key
+set under the algorithm allow-list, the mandatory top-level claims, and the RFC 7662 members
+nested inside `token_introspection`; it needs joserfc, which the `oidc` extra carries. Reading
+the verifying keys from the authorization server's metadata instead of a pinned key set waits
+for the OIDC discovery machinery this workspace aligns next.
 
 ### OIDC
 
@@ -995,7 +1052,8 @@ xtr_security_http/
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
 ├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, the
 │                              pre-authenticated trio, passport/, token/
-├── access_token/               extractors, handler interface, oidc/ (OidcTokenHandler)
+├── access_token/               extractors, handler interface, oauth2/ (Oauth2TokenHandler),
+│                              oidc/ (OidcTokenHandler)
 ├── oidc/                       DiscoveryOidcKeySetProvider
 ├── access_map.py               the ordered access-control rules
 ├── request_matcher/            the callable escape hatch (the rest come from xtr-http-foundation)
