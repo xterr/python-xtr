@@ -11,6 +11,7 @@ them together.
 from __future__ import annotations
 
 from .expired_login_link_error import ExpiredLoginLinkError
+from .impersonation_error import ImpersonationError
 from .invalid_access_token_error import InvalidAccessTokenError
 from .invalid_login_link_authentication_error import InvalidLoginLinkAuthenticationError
 from .invalid_login_link_error import InvalidLoginLinkError
@@ -23,6 +24,7 @@ from .unknown_firewall_error import UnknownFirewallError
 
 __all__ = [
     "ExpiredLoginLinkError",
+    "ImpersonationError",
     "InvalidAccessTokenError",
     "InvalidLoginLinkAuthenticationError",
     "InvalidLoginLinkError",

@@ -12,6 +12,7 @@ from xtr_security_http.event import (
     LoginFailureEvent,
     LoginSuccessEvent,
     LogoutEvent,
+    SwitchUserEvent,
     TokenDeauthenticatedEvent,
 )
 from xtr_security_http.security_events import SecurityEvents
@@ -32,13 +33,15 @@ def test_every_event_class_maps_to_the_name_it_dispatches_under() -> None:
         LoginFailureEvent,
         LoginSuccessEvent,
         LogoutEvent,
+        SwitchUserEvent,
         CheckRefreshedUserEvent,
         TokenDeauthenticatedEvent,
     }
     for event_class in aliases:
         assert issubclass(event_class, Event)
     # The class-keyed ones run under the qualified name the dispatcher
-    # derives; the interactive login under the name it carries.
+    # derives; the interactive login and the user switch under the names
+    # they carry.
     for event_class in (
         AuthenticationTokenCreatedEvent,
         CheckPassportEvent,
@@ -50,3 +53,4 @@ def test_every_event_class_maps_to_the_name_it_dispatches_under() -> None:
     ):
         assert aliases[event_class] == event_name_of(event_class)
     assert aliases[InteractiveLoginEvent] == SecurityEvents.INTERACTIVE_LOGIN
+    assert aliases[SwitchUserEvent] == SecurityEvents.SWITCH_USER

@@ -108,3 +108,7 @@ class SecurityRequestAttributes:
     LOGIN_THROTTLING_UNTOUCHED: Final[str] = "_xtr_security_login_throttling_untouched"
     """Whether the login throttling window was untouched when the passport was
     checked, so a successful login has nothing to reset."""
+
+    SWITCH_USER_USERNAME: Final[str] = "_xtr_security_switch_user_username"
+    """The user a request asks to switch to, handed from the supports pass
+    that read the parameter to the pass that carries the switch out."""

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from xtr_logging_contracts import NullLogger
+from xtr_security_core.authentication.token.switch_user_token import SwitchUserToken
 from xtr_security_core.exception import UnsupportedUserError, UserNotFoundError
 
 from xtr_security_http.event.check_refreshed_user_event import CheckRefreshedUserEvent
@@ -40,6 +41,11 @@ class UserRefresher:
     the user hands it to the next; one that cannot find the user contributes
     its class to the deauthentication, because a session whose user no
     provider can find is a session about nobody.
+
+    A switch token refreshes from the inside out: the original token —
+    the impersonator's — is refreshed first, and a reload that
+    deauthenticates it deauthenticates the switch with it, because a
+    switch whose origin is gone has nothing to return to.
     """
 
     __slots__ = ("_dispatcher", "_logger", "_user_providers")
@@ -64,13 +70,24 @@ class UserRefresher:
         self._logger = logger or NullLogger()
         self._dispatcher = dispatcher
 
-    async def refresh(self, token: TokenInterface, user: UserInterface) -> RefreshUserResult:
+    async def refresh(  # noqa: C901 -- the provider loop: one branch per way a provider answers, kept in one place
+        self,
+        token: TokenInterface,
+        user: UserInterface,
+    ) -> RefreshUserResult:
         """Reload ``token``'s ``user``, deauthenticating on a change.
+
+        A switch token first has its original token reloaded the same
+        way; a reload that deauthenticates the impersonator answers for
+        the switch too, with the impersonator's own result.
 
         Raises:
             UnsupportedUserError: When no provider supports the class of
                 ``user``.
         """
+        deauthenticated = await self._switch_original_result(token)
+        if deauthenticated is not None:
+            return deauthenticated
         user_class = type(user)
         user_changed_by: list[type] = []
         user_not_found_by: list[type] = []
@@ -106,13 +123,13 @@ class UserRefresher:
                 continue
 
             token.set_user(refreshed_user)
-            self._logger.debug(
-                "The user was reloaded from a user provider.",
-                {
-                    "provider": type(provider).__name__,
-                    "username": refreshed_user.get_user_identifier(),
-                },
-            )
+            context: dict[str, object] = {
+                "provider": type(provider).__name__,
+                "username": refreshed_user.get_user_identifier(),
+            }
+            if isinstance(token, SwitchUserToken):
+                context["impersonator_username"] = token.get_original_token().get_user_identifier()
+            self._logger.debug("The user was reloaded from a user provider.", context)
             return RefreshUserResult(token)
 
         if user_changed_by:
@@ -133,6 +150,30 @@ class UserRefresher:
             "provider's supports_class() answers for it, so the session token's user cannot "
             "be reloaded.",
         )
+
+    async def _switch_original_result(
+        self,
+        token: TokenInterface,
+    ) -> RefreshUserResult | None:
+        """Reload a switch token's original first, and answer when it deauthenticates.
+
+        A switch token's user is reloaded only after the impersonator's
+        own is — the switch stands on that token — so a reload that
+        deauthenticates the impersonator ends the switch with the
+        impersonator's result: its reason, its providers, its error. A
+        token that is no switch, or whose original carries no user, is
+        nothing this reload must settle first.
+        """
+        if not isinstance(token, SwitchUserToken):
+            return None
+        original_token = token.get_original_token()
+        original_user = original_token.get_user()
+        if original_user is None:
+            return None
+        original_result = await self.refresh(original_token, original_user)
+        if original_result.token is None:
+            return original_result
+        return None
 
     async def _weigh(
         self,

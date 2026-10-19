@@ -140,9 +140,9 @@ everything as bad credentials, `ACCOUNT_STATUS` reveals disabled, locked and exp
 
 Each firewall dispatches `CheckPassportEvent`, `AuthenticationTokenCreatedEvent`,
 `AuthenticationSuccessEvent`, `InteractiveLoginEvent`, `LoginSuccessEvent`,
-`LoginFailureEvent`, `CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent` and `LogoutEvent`
-on a dispatcher of its own. A listener of them on the main dispatcher hears every firewall; to
-hear one alone, name its dispatcher:
+`LoginFailureEvent`, `CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent`, `LogoutEvent` and
+`SwitchUserEvent` on a dispatcher of its own. A listener of them on the main dispatcher hears
+every firewall; to hear one alone, name its dispatcher:
 
 ```python
 from xtr_event_dispatcher import as_event_listener

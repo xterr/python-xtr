@@ -100,6 +100,7 @@ from .event import (
     LoginFailureEvent,
     LoginSuccessEvent,
     LogoutEvent,
+    SwitchUserEvent,
     TokenDeauthenticatedEvent,
 )
 from .event_listener import (
@@ -120,6 +121,7 @@ from .event_listener import (
 )
 from .exception import (
     ExpiredLoginLinkError,
+    ImpersonationError,
     InvalidAccessTokenError,
     InvalidLoginLinkAuthenticationError,
     InvalidLoginLinkError,
@@ -141,11 +143,18 @@ from .firewall import (
     FirewallListenerInterface,
     LogoutListener,
     RefreshUserResult,
+    SwitchUserListener,
 )
 from .firewall_context_interface import FirewallContextInterface
 from .firewall_map import FirewallMap
 from .firewall_map_interface import FirewallMapInterface
 from .http_utils import HttpUtils
+from .impersonate import (
+    ImpersonateUrlGenerator,
+    ImpersonationForm,
+    SwitchUserConfig,
+    SwitchUserConfigLookupInterface,
+)
 from .login_link import (
     LoginLinkDetails,
     LoginLinkHandler,
@@ -242,6 +251,9 @@ __all__ = [
     "HeaderAccessTokenExtractor",
     "HttpBasicAuthenticator",
     "HttpUtils",
+    "ImpersonateUrlGenerator",
+    "ImpersonationError",
+    "ImpersonationForm",
     "InsufficientScopeAccessDeniedHandler",
     "InteractiveAuthenticatorInterface",
     "InteractiveLoginEvent",
@@ -296,6 +308,10 @@ __all__ = [
     "SessionLogoutListener",
     "SessionStrategyListener",
     "SignatureRememberMeHandler",
+    "SwitchUserConfig",
+    "SwitchUserConfigLookupInterface",
+    "SwitchUserEvent",
+    "SwitchUserListener",
     "TokenDeauthenticatedEvent",
     "TraceableAuthenticator",
     "TraceableAuthenticatorManagerListener",

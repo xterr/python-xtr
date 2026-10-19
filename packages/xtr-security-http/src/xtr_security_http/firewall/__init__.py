@@ -8,7 +8,8 @@ a chain step, the :class:`ChannelListener` that redirects a request onto the
 scheme its matched rule demands, the :class:`ContextListener` that restores the
 token a session carries into the request, the :class:`ExceptionListener` that
 turns a security error into a response, the :class:`LogoutListener` that
-carries a logout out through the logout event, and the
+carries a logout out through the logout event, the
+:class:`SwitchUserListener` that carries a user switch out, and the
 :class:`FirewallListenerInterface` every listener of a
 firewall's chain implements — with :class:`AbstractListener` as the template a
 concrete listener starts from — kept together in one folder.
@@ -26,6 +27,7 @@ from .firewall import Firewall
 from .firewall_listener_interface import FirewallListenerInterface
 from .logout_listener import LogoutListener
 from .refresh_user_result import RefreshUserResult
+from .switch_user_listener import SwitchUserListener
 
 __all__ = [
     "AbstractListener",
@@ -38,4 +40,5 @@ __all__ = [
     "FirewallListenerInterface",
     "LogoutListener",
     "RefreshUserResult",
+    "SwitchUserListener",
 ]

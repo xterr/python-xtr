@@ -223,6 +223,25 @@ storage and the request's security state, and sets the response a logout listene
 on the request's event, which also stops the chain. The event is announced before the token is
 cleared, so its listeners still read the token being logged out.
 
+**`SwitchUserListener`** is the chain's user-switch step, at the default priority `0` and
+declared — through `@FirewallListenerOrder` — to run after the authentication step, so the
+switch is carried out over a request the firewall has already authenticated. `supports` answers
+whether the request carries the configured parameter naming the user to become — in its query
+string, in the body of a request that is not safe, or in a header of the same name — or, when
+the switch is scoped to a dedicated path, only at that path; `authenticate` proves the request
+first (the forgery token under the configured parameter and id, when a manager is wired —
+`AccessDeniedError` when it does not check out), then carries the switch out: the right to
+switch is decided — the configured role, against the target user as the subject — the target
+user is loaded beside a throwaway identifier no provider can know (and a target that cannot be
+loaded burns a load of the current user instead, so a switch's timing never tells whether a
+user exists), checked after authentication, and settled on a `SwitchUserToken` that keeps the
+token the switch started from. The switch is announced as `SwitchUserEvent` under
+`SecurityEvents.SWITCH_USER` before the token is stored — a listener may replace it — and the
+request is answered with a redirect to the page it was asked at, the switch's own parameters
+stripped from the address. The exit is the same parameter carrying `SwitchUserListener.EXIT_VALUE`
+(`_exit`): the original token is restored, its user reloaded first, and the exit announced the
+same way. A `stateless` step switches without answering the request.
+
 ### Logout
 
 A logout is carried by the `LogoutEvent` — the request asking for it and the token it logs out —
@@ -448,6 +467,34 @@ and `authenticate` builds a self-validating passport whose user loader, wrapped 
 handler, wearing a `RememberMeBadge`. The answers are delegated to the success and failure
 handlers, and the login reports itself interactive: the user followed the link themselves.
 
+### Switch user
+
+A user switch — one user temporarily acting as another, like the `su` command — is carried by
+**`SwitchUserListener`** (see [Firewall listeners](#firewall-listeners)) and announced as
+**`SwitchUserEvent`**: the request the switch was asked through, the user being switched to —
+on an exit, the user returned to — and the token the switch settles on, which a listener may
+replace through `set_token`. It runs under the name `SecurityEvents.SWITCH_USER`
+(`security.switch_user`), announced once before the switched token is stored and once before
+an exit restores the original.
+
+**`ImpersonateUrlGenerator(config_lookup, token_storage, uri_builder=None,
+csrf_token_manager=None)`** generates the addresses a switch is asked by:
+`generate_impersonation_path(request, identifier, target_uri=None)` and its `..._url` twin,
+`generate_exit_path(request, target_uri=None)` and its twin, and
+`generate_impersonation_form` / `generate_exit_form`, answering the `ImpersonationForm` shape
+the logout form has — the action, the hidden fields, the forgery field's name. The exit
+addresses answer empty while the current user impersonates nobody, so a template can skip
+them. How the request's firewall asks for switches is read through
+**`SwitchUserConfigLookupInterface`** — `await get_switch_user_config(request)` answering the
+firewall's **`SwitchUserConfig`** (the parameter name, the forgery toggle with its parameter
+and id, the optional dedicated path) or `None` — the local stand-in for the bundle-level
+firewall map the upstream generator reads, so whatever knows the firewalls can answer without
+the generator knowing how they are held. A dedicated path carries the page to come back to as
+an explicit `_target_path`; the URL methods write through the injected URI builder, which is
+path-only by default. A generation over a firewall without a switch, a forgery-asking switch
+without a manager, or a dedicated path configured as a route name raises
+`ImpersonationError`.
+
 ### Listeners
 
 The bundle registers these on each firewall's dispatcher; they are the badge-resolving half of
@@ -539,7 +586,10 @@ comparison and then announced as **`CheckRefreshedUserEvent`** — seeded with t
 a listener to confirm, add its own `AuthenticationError` reason to, or clear. A deauthentication
 is announced as **`TokenDeauthenticatedEvent`** — the original token, the reason, the provider
 classes that contributed, the error a listener gave — and the storage is left empty, so the
-request goes on anonymous. A session holding no token, or something that is not one — a corrupt
+request goes on anonymous. A switch token refreshes from the inside out: the original token —
+the impersonator's — is refreshed first, and a reload that deauthenticates it deauthenticates
+the switch with it, because a switch whose origin is gone has nothing to return to. A session
+holding no token, or something that is not one — a corrupt
 payload, a foreign class — leaves the storage empty the same way, without failing the request.
 
 The response half, **`on_response(response_event)`** — registered beside the chain on the
@@ -755,6 +805,37 @@ ever makes it: documentation.
 - **A non-string `user` parameter is refused as missing.** Upstream would hand a repeated
   query parameter's array to the badge and fail later; the local authenticator answers the
   same "Missing user from link." error for a value that is not a string.
+- **The switch listener takes its HTTP utilities and a bridge as required parameters.**
+  Upstream takes its HTTP utilities optionally — needed only with a dedicated path — and
+  builds the non-path redirect directly; here they are the one redirect builder — the
+  class names no response class — and the bridge converts the built message into what the
+  kernel's event accepts, so both are constructor parameters.
+- **The switch's target route is not ported.** Upstream can redirect a completed switch to
+  a configured `target_route` through a routing component; no routing component exists here,
+  so the redirect falls to the request's own stripped URI — or the submitted `_target_path`
+  and then `/` on a dedicated path — and the generator refuses a dedicated path configured
+  as a route name.
+- **The query strip is written on the URI's text.** Upstream removes the switch's parameters
+  from the request's query bag and rebuilds the query string; a request message is immutable
+  here, so the strip removes each parameter's pattern from the URI text and mends the join,
+  keeping the spelling the client sent for the parameters that remain.
+- **The burned identifier is hashed with the standard library.** Upstream derives its
+  timing-equalisation identifier with its own 128-bit hash; here SHA-256 over random bytes
+  serves the same purpose — an unguessable identifier no provider can know — without a
+  hashing dependency.
+- **The impersonate generator takes the request as a parameter.** Upstream reads the
+  current request from a request stack; this stack has none, so every generate method
+  takes the request it generates for, and the URL methods write through the injected URI
+  builder — the path itself by default, an absolute URL when the application's builder
+  writes one.
+- **The generator reads the firewall's switch configuration through a local interface.**
+  Upstream reaches into the bundle's own firewall map; here
+  `SwitchUserConfigLookupInterface` answers the switch-user configuration of the request's
+  firewall — or `None` — so whatever knows the firewalls can answer, and the generator
+  works with no bundle behind it.
+- **A non-string switch parameter reads as no username.** Upstream would hand a repeated
+  query parameter's array on and fail later; the local readers narrow to text, so anything
+  but a name is not a switch this flow can carry out.
 
 ### Access tokens
 
@@ -805,13 +886,14 @@ answers a denied scope with a `403` carrying the RFC 6750 `insufficient_scope` c
 
 ### Security events
 
-Eight events are raised around a request's authentication — `CheckPassportEvent`,
+Nine events are raised around a request's authentication — `CheckPassportEvent`,
 `AuthenticationTokenCreatedEvent`, `InteractiveLoginEvent`, `LoginSuccessEvent`, `LoginFailureEvent`,
-`CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent`, `LogoutEvent`.
+`CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent`, `LogoutEvent`, `SwitchUserEvent`.
 A subscriber listens to the event class itself (the dispatcher derives each event's name from its
-class) — except `InteractiveLoginEvent`, the one event that carries a name of its own,
-`SecurityEvents.INTERACTIVE_LOGIN` (`security.interactive_login`), because an application listens
-for a user's own login across the whole flow rather than at one authenticator.
+class) — except `InteractiveLoginEvent` and `SwitchUserEvent`, the two events that carry a name of
+their own, `SecurityEvents.INTERACTIVE_LOGIN` (`security.interactive_login`) and
+`SecurityEvents.SWITCH_USER` (`security.switch_user`), because an application listens for a user's
+own login or a user switch across the whole flow rather than at one authenticator.
 `SecurityEvents.ALIASES` maps every event class to the name it is dispatched under.
 
 `CheckRefreshedUserEvent` and `TokenDeauthenticatedEvent` belong to the stateful half: the
@@ -829,6 +911,7 @@ Everything this library raises derives from `SecurityError` (from
 | Error | Base (besides `SecurityError`) | Raised when |
 |---|---|---|
 | `InvalidAccessTokenError` | `AuthenticationError` | a bearer token was present but could not be trusted — answered with an `invalid_token` challenge |
+| `ImpersonationError` | `RuntimeError` | an impersonation address was asked for and could not be built — no firewall with a switch, a forgery-asking switch without a manager, or a dedicated path configured as a route name |
 | `InvalidSessionStrategyError` | `RuntimeError` | a session strategy was asked to act under a name that is none of its own; carries `strategy` |
 | `LogoutError` | `RuntimeError` | a logout request failed its cross-site request forgery proof |
 | `MissingSessionError` | `RuntimeError` | a session strategy was asked to move a request whose security state carries no session |
@@ -842,7 +925,8 @@ xtr_security_http/
 ├── firewall_context_interface.py  one firewall's runtime pieces
 ├── firewall/                   Firewall (the subscriber), AccessListener, ChannelListener,
 │                              ContextListener, ExceptionListener, LogoutListener,
-│                              RefreshUserResult, FirewallListenerInterface, AbstractListener
+│                              SwitchUserListener, RefreshUserResult,
+│                              FirewallListenerInterface, AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
 ├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, passport/, token/
 ├── access_token/               extractors, handler interface, oidc/ (OidcTokenHandler)
@@ -854,9 +938,11 @@ xtr_security_http/
 │                              FirewallListenerOrder
 ├── resolver/                   the enforcement services behind the markers
 ├── entry_point/                AuthenticationEntryPointInterface
-├── event/                      the firewall events around a login and a logout
+├── event/                      the firewall events around a login, a logout and a switch
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)
 │                              and the logout listeners answering LogoutEvent
+├── impersonate/                ImpersonateUrlGenerator, ImpersonationForm, SwitchUserConfig,
+│                              SwitchUserConfigLookupInterface — the switch addresses
 ├── rate_limiter/               DefaultLoginRateLimiter — the limits a login's failed attempts
 │                              count under, keyed by the address and the account
 ├── login_link/                 the signed links a login arrives by: details, handler,

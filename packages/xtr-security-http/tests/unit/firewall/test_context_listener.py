@@ -11,6 +11,7 @@ from xtr_http_foundation import MemorySessionStorage, Session
 from xtr_http_kernel import RequestEvent, ResponseEvent
 from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
+from xtr_security_core.authentication.token.switch_user_token import SwitchUserToken
 from xtr_security_core.exception import (
     AuthenticationError,
     InvalidArgumentError,
@@ -19,6 +20,7 @@ from xtr_security_core.exception import (
 )
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
+from tests.support.dispatchers import RecordingDispatcher
 from tests.support.messages import make_message
 from xtr_security_http._security_state import SecurityState, security_state_of
 from xtr_security_http.authenticator.token.post_authentication_token import PostAuthenticationToken
@@ -526,3 +528,117 @@ async def test_the_response_half_skips_a_request_without_a_session() -> None:
     security_state_of(state).attributes[SecurityRequestAttributes.FIREWALL_RUN] = _MAIN_KEY
 
     await listener.on_response(_response_event(state))
+
+
+@final
+class _PerUserProvider:
+    """Reloads each user as a fresh copy of the one it was asked for."""
+
+    __slots__ = ("refreshed_users",)
+
+    def __init__(self) -> None:
+        self.refreshed_users: dict[str, InMemoryUser] = {}
+
+    async def refresh_user(self, user: UserInterface) -> InMemoryUser:
+        """Answer a fresh user of the same identifier, recording the reload."""
+        refreshed = InMemoryUser(user.get_user_identifier())
+        self.refreshed_users[user.get_user_identifier()] = refreshed
+        return refreshed
+
+    async def load_user_by_identifier(self, identifier: str) -> InMemoryUser:
+        """Load the user named by ``identifier``."""
+        return InMemoryUser(identifier)
+
+    def supports_class(self, user_class: type) -> bool:
+        """Tell whether ``user_class`` is the in-memory user."""
+        return issubclass(user_class, InMemoryUser)
+
+
+@final
+class _ChangedPasswordProvider:
+    """Reloads one user changed, and every other as a fresh copy of itself."""
+
+    __slots__ = ("_changed_identifier",)
+
+    def __init__(self, changed_identifier: str) -> None:
+        self._changed_identifier = changed_identifier
+
+    async def refresh_user(self, user: UserInterface) -> InMemoryUser:
+        """Answer the changed user for the one identifier, a fresh copy for the rest."""
+        if user.get_user_identifier() == self._changed_identifier:
+            return InMemoryUser(
+                user.get_user_identifier(),
+                password="rehashed",  # noqa: S106 -- a test password, not a credential
+            )
+        return InMemoryUser(user.get_user_identifier())
+
+    async def load_user_by_identifier(self, identifier: str) -> InMemoryUser:
+        """Load the user named by ``identifier``."""
+        return InMemoryUser(identifier)
+
+    def supports_class(self, user_class: type) -> bool:
+        """Tell whether ``user_class`` is the in-memory user."""
+        return issubclass(user_class, InMemoryUser)
+
+
+async def test_a_switch_token_refreshes_the_original_user_first() -> None:
+    """The impersonator's token is reloaded before the switched one, both holding fresh users."""
+    provider = _PerUserProvider()
+    original = _token(InMemoryUser("admin"))
+    switched = SwitchUserToken(InMemoryUser("ada"), "main", ("ROLE_USER",), original)
+    session_storage = MemorySessionStorage()
+    session_id = await _session_holding(session_storage, _MAIN_KEY, switched)
+    storage = TokenStorage()
+    listener = _listener((provider,), session_storage=session_storage, storage=storage)
+
+    await listener.authenticate(_request_event(session_id))
+
+    stored = storage.get_token()
+    assert stored is switched
+    assert isinstance(stored, SwitchUserToken)
+    assert stored.get_original_token().get_user() is provider.refreshed_users["admin"]
+    assert stored.get_user() is provider.refreshed_users["ada"]
+
+
+async def test_a_deauthenticated_original_deauthenticates_the_switch_with_its_result() -> None:
+    """A reload that ends the impersonator's session ends the switch with the same reason."""
+    provider = _ChangedPasswordProvider("admin")
+    original = _token(InMemoryUser("admin"))
+    switched = SwitchUserToken(InMemoryUser("ada"), "main", ("ROLE_USER",), original)
+    session_storage = MemorySessionStorage()
+    session_id = await _session_holding(session_storage, _MAIN_KEY, switched)
+    storage = TokenStorage()
+    dispatcher = RecordingDispatcher()
+    listener = ContextListener(
+        storage,
+        (provider,),
+        "main",
+        session_storage,
+        dispatcher=dispatcher,
+    )
+
+    await listener.authenticate(_request_event(session_id))
+
+    assert storage.get_token() is None
+    deauthenticated = [
+        event for event in dispatcher.events if isinstance(event, TokenDeauthenticatedEvent)
+    ]
+    (event,) = deauthenticated
+    assert event.get_original_token() is switched
+    assert event.get_reason() == "the user has changed"
+
+
+async def test_a_switch_token_whose_original_carries_no_user_refreshes_only_its_own() -> None:
+    """A switch standing on a token about nobody skips the recursion and reloads its own user."""
+    provider = _PerUserProvider()
+    switched = SwitchUserToken(InMemoryUser("ada"), "main", ("ROLE_USER",), NullToken())
+    session_storage = MemorySessionStorage()
+    session_id = await _session_holding(session_storage, _MAIN_KEY, switched)
+    storage = TokenStorage()
+    listener = _listener((provider,), session_storage=session_storage, storage=storage)
+
+    await listener.authenticate(_request_event(session_id))
+
+    stored = storage.get_token()
+    assert stored is switched
+    assert list(provider.refreshed_users) == ["ada"]
