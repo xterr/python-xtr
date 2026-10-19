@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
+from xtr_clock import MockClock
 from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.exception import (
@@ -106,13 +107,45 @@ def test_the_reasons_attribute_rides_the_request_for_the_supports_call_alone() -
 
 
 async def test_it_records_the_passport_and_how_long_it_took() -> None:
-    traceable = TraceableAuthenticator(_Explaining(supported=True))
+    traceable = TraceableAuthenticator(
+        _Explaining(supported=True),
+        clock=MockClock("2026-01-01T00:00:00Z"),
+    )
     _ = traceable.supports(make_message())
 
     passport = await traceable.authenticate(make_message())
 
     assert traceable.get_info()["passport"] is passport
     assert isinstance(traceable.get_info()["duration"], float)
+
+
+@final
+class _Sleeping(AbstractAuthenticator):
+    """Moves a frozen clock forward while it authenticates, so duration is observable."""
+
+    def __init__(self, clock: MockClock, seconds: float) -> None:
+        self._clock = clock
+        self._seconds = seconds
+
+    @override
+    def supports(self, request: ServerRequestInterface) -> bool | None:
+        del request
+        return True
+
+    @override
+    async def authenticate(self, request: ServerRequestInterface) -> Passport:
+        del request
+        self._clock.sleep(self._seconds)
+        return SelfValidatingPassport(UserBadge("alice"))
+
+
+async def test_the_recorded_duration_is_the_clock_time_the_authentication_took() -> None:
+    clock = MockClock("2026-01-01T00:00:00Z")
+    traceable = TraceableAuthenticator(_Sleeping(clock, 2.5), clock=clock)
+
+    _ = await traceable.authenticate(make_message())
+
+    assert traceable.get_info()["duration"] == 2.5
 
 
 async def test_it_records_the_outcome_of_both_hooks() -> None:

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from time import monotonic
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_clock import SystemClock
 
 from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
 from xtr_security_http.authenticator.interactive_authenticator_interface import (
@@ -18,6 +18,7 @@ from .unsupported_reasons import UnsupportedReasons
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from xtr_clock import ClockInterface
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.exception import AuthenticationError
@@ -40,11 +41,18 @@ class TraceableAuthenticator(AuthenticatorInterface, InteractiveAuthenticatorInt
     The wrapped authenticator is stored as given, never unwrapped here: the
     event getters and the manager's logs open the wrapper where they want the
     real authenticator's name, so :meth:`get_authenticator` is the only door.
+
+    The duration is read off the injected clock as the wall-clock delta, in
+    float seconds. The clock rule mandates the injectable clock, so tests can
+    freeze it; a monotonic reading would survive NTP steps, but the duration
+    of a debug trace tolerates the wall clock, and the rule keeps one time
+    source for the package.
     """
 
     __slots__ = (
         "_authenticated",
         "_authenticator",
+        "_clock",
         "_duration",
         "_exception",
         "_passport",
@@ -52,9 +60,20 @@ class TraceableAuthenticator(AuthenticatorInterface, InteractiveAuthenticatorInt
         "_unsupported_reasons",
     )
 
-    def __init__(self, authenticator: AuthenticatorInterface) -> None:
-        """Wrap ``authenticator`` with every record empty."""
+    def __init__(
+        self,
+        authenticator: AuthenticatorInterface,
+        clock: ClockInterface | None = None,
+    ) -> None:
+        """Wrap ``authenticator`` with every record empty, timing it on ``clock``.
+
+        Args:
+            authenticator: The authenticator to wrap and record.
+            clock: The clock reading the authentication's start and end; the
+                system clock when ``None``.
+        """
         self._authenticator = authenticator
+        self._clock = clock if clock is not None else SystemClock()
         self._supports: bool | None = False
         self._unsupported_reasons: tuple[str, ...] = ()
         self._passport: Passport | None = None
@@ -82,11 +101,11 @@ class TraceableAuthenticator(AuthenticatorInterface, InteractiveAuthenticatorInt
     @override
     async def authenticate(self, request: ServerRequestInterface) -> Passport:
         """Record the passport the wrapped authenticator built, and how long."""
-        started = monotonic()
+        started = self._clock.now().timestamp()
         try:
             self._passport = await self._authenticator.authenticate(request)
         finally:
-            self._duration = monotonic() - started
+            self._duration = self._clock.now().timestamp() - started
         return self._passport
 
     @override
