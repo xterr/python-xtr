@@ -19,7 +19,6 @@ from tests.support.served import (
     oauth2_kernel,
     served_application,
     serving,
-    text_field,
 )
 
 if TYPE_CHECKING:
@@ -233,7 +232,10 @@ async def test_a_token_lacking_the_privilege_asked_for_says_so() -> None:
         )
 
     assert answered.status_code == 403
-    assert text_field(json_of(answered), "error") == "insufficient_scope"
+    # The challenge header carries the error code — the body carries nothing,
+    # so no scope detail leaks anywhere but the header RFC 6750 reserves for it.
+    assert answered.text == ""
+    assert 'error="insufficient_scope"' in _challenge(answered)
     assert 'scope="write"' in _challenge(answered)
 
 

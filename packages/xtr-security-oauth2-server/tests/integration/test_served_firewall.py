@@ -110,9 +110,10 @@ async def test_a_token_without_the_scope_a_route_asks_for_is_refused() -> None:
     assert answered.status_code == 403
     # What the caller is told, not only that it was refused: RFC 6750 2 names
     # ``insufficient_scope`` for a token good enough to prove the caller and
-    # not good enough for what it asked to do.
-    refused = json_of(answered)
-    assert text_field(refused, "error") == "insufficient_scope"
+    # not good enough for what it asked to do — in the challenge header, the
+    # one place RFC 6750 reserves for it, and nowhere in the body.
+    assert answered.text == ""
+    assert 'error="insufficient_scope"' in answered.headers["WWW-Authenticate"]
     assert answered.headers["WWW-Authenticate"].startswith("Bearer")
 
 

@@ -1447,10 +1447,19 @@ discovery_url)` refuses an endpoint a discovery document must not announce.
 
 A scope requirement is written as an access-control attribute. `oauth2_scope("books:read",
 "books:write")` builds the string `"OAUTH2_SCOPE(books:read books:write)"`;
-`parse_oauth2_scope(attribute)` reads the scopes back out, or `None` for anything not shaped like
-it. **`OAuth2ScopeVoter`** grants when the token holds every asked-for scope, reading the
-`oauth2_scope` attribute an authenticator copied onto it; **`InsufficientScopeAccessDeniedHandler(realm=None)`**
-answers a denied scope with a `403` carrying the RFC 6750 `insufficient_scope` challenge.
+`OAuth2ScopeVoter.get_required_scopes(attribute)` reads the scopes back out — the static every
+reader shares, `parse_oauth2_scope(attribute)` its module-level spelling — or `None` for anything
+not shaped like it. **`OAuth2ScopeVoter`** grants when the token holds every asked-for scope,
+reading the `oauth2_scope` attribute an authenticator copied onto it, and supports an attribute
+by its `OAUTH2_SCOPE(` prefix alone; **`InsufficientScopeAccessDeniedHandler(responses, realm=None,
+inner=None, resource_metadata_uri=None, sender_constraint=None)`** answers a denied scope with a
+`403` whose empty body carries nothing — the RFC 6750 `insufficient_scope` challenge in its
+`WWW-Authenticate` header says it all: the realm, the fixed error description, the scopes every
+denied attribute asked for merged and deduplicated, the `resource_metadata` address (RFC 9728,
+Section 5.1 — a leading-slash path resolved against the request) and the scheme of the sender
+constraint when one is configured. A denial no scope took part in is not this handler's to
+answer: it goes to `inner`, which answering `None` hands back to the regular access-denied
+handling.
 
 ### Security events
 
