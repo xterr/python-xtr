@@ -19,6 +19,9 @@ from xtr_security_http.authenticator.abstract_authenticator import AbstractAuthe
 from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
 from xtr_security_http.authenticator.debug.traceable_authenticator import TraceableAuthenticator
 from xtr_security_http.authenticator.debug.unsupported_reasons import UnsupportedReasons
+from xtr_security_http.authenticator.interactive_authenticator_interface import (
+    InteractiveAuthenticatorInterface,
+)
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
@@ -150,3 +153,41 @@ def test_it_opens_to_the_wrapped_authenticator_and_satisfies_the_interface() -> 
 
     assert isinstance(traceable, AuthenticatorInterface)
     assert traceable.get_authenticator() is inner
+
+
+def test_it_delegates_the_interactive_announcement_to_the_wrapped_authenticator() -> None:
+    @final
+    class _Interactive(AbstractAuthenticator):
+        """A wrapped authenticator that reports its logins as the user's own act."""
+
+        def __init__(self, *, interactive: bool) -> None:
+            super().__init__()
+            self._interactive = interactive
+
+        @override
+        def supports(self, request: ServerRequestInterface) -> bool | None:
+            """Answer yes; the test never reaches this."""
+            del request
+            return True
+
+        @override
+        async def authenticate(self, request: ServerRequestInterface) -> Passport:
+            """Hand back a self-validating passport; the test never reaches this."""
+            del request
+            return SelfValidatingPassport(UserBadge("alice"))
+
+        def is_interactive(self) -> bool:
+            """Answer as the test built this authenticator to."""
+            return self._interactive
+
+    assert isinstance(
+        TraceableAuthenticator(_Interactive(interactive=True)), InteractiveAuthenticatorInterface
+    )
+    assert TraceableAuthenticator(_Interactive(interactive=True)).is_interactive() is True
+    assert TraceableAuthenticator(_Interactive(interactive=False)).is_interactive() is False
+
+
+def test_a_wrapped_authenticator_without_the_interface_answers_not_interactive() -> None:
+    traceable = TraceableAuthenticator(_Explaining(supported=True))
+
+    assert traceable.is_interactive() is False

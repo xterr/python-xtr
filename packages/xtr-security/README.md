@@ -345,8 +345,10 @@ answer. Its zero-config path builds and boots with no configuration and touches 
 until a request arrives.
 
 Each firewall dispatches its security events — `CheckPassportEvent`,
-`AuthenticationTokenCreatedEvent`, `AuthenticationSuccessEvent`, `LoginSuccessEvent`,
-`LoginFailureEvent` — on a dispatcher of its own, named by `firewall_dispatcher_name(firewall)`.
+`AuthenticationTokenCreatedEvent`, `AuthenticationSuccessEvent`, `InteractiveLoginEvent`,
+`LoginSuccessEvent`, `LoginFailureEvent`, `CheckRefreshedUserEvent`,
+`TokenDeauthenticatedEvent`, `LogoutEvent` — on a dispatcher of its own, named by
+`firewall_dispatcher_name(firewall)`.
 A listener of those events on the main dispatcher hears every firewall
 (`RegisterGlobalSecurityEventListenersPass` copies it onto each); one naming a firewall's
 dispatcher hears that firewall alone:

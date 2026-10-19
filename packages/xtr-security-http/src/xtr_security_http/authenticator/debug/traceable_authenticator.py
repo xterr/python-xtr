@@ -8,6 +8,9 @@ from typing import TYPE_CHECKING, final
 from typing_extensions import override
 
 from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
+from xtr_security_http.authenticator.interactive_authenticator_interface import (
+    InteractiveAuthenticatorInterface,
+)
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from .unsupported_reasons import UnsupportedReasons
@@ -25,7 +28,7 @@ __all__ = ["TraceableAuthenticator"]
 
 
 @final
-class TraceableAuthenticator(AuthenticatorInterface):
+class TraceableAuthenticator(AuthenticatorInterface, InteractiveAuthenticatorInterface):
     """Wraps an authenticator and records each answer it gives.
 
     The wiring swaps an authenticator for one of these when the tooling needs
@@ -116,6 +119,23 @@ class TraceableAuthenticator(AuthenticatorInterface):
     def get_authenticator(self) -> AuthenticatorInterface:
         """Return the wrapped authenticator, the one the wiring really runs."""
         return self._authenticator
+
+    @override
+    def is_interactive(self) -> bool:
+        """Answer for the wrapped authenticator, so tracing changes no announcement.
+
+        A wrapped form login is a form login still: the manager asks here,
+        and the interactive-login announcement fires exactly as it would
+        without the wrapper — which is the wrapper's whole contract, that
+        every call is passed through as it came.
+        """
+        return (
+            isinstance(
+                self._authenticator,
+                InteractiveAuthenticatorInterface,
+            )
+            and self._authenticator.is_interactive()
+        )
 
     def get_info(self) -> Mapping[str, object]:
         """Return everything recorded about the wrapped authenticator so far."""

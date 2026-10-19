@@ -306,8 +306,9 @@ over the firewall's own dispatcher:
 Between the success handler and the login-success event, an authenticator that is an
 **`InteractiveAuthenticatorInterface`** reporting `is_interactive()` announces the login through
 **`InteractiveLoginEvent`** — a user actively logging in, as opposed to a session or a bearer token
-re-establishing one — under the name `SecurityEvents.INTERACTIVE_LOGIN`. No authenticator shipped
-here is interactive; one that is (a form login, a login link) brings the announcement with it.
+re-establishing one — under the name `SecurityEvents.INTERACTIVE_LOGIN`. The form-login and
+JSON-login authenticators are interactive — a login through either announces itself; a login link
+brings the announcement with it when it lands.
 
 A lazy authenticator that raises a plain `BadCredentialsError` is read as *no credential
 presented* — it did not apply, so the next authenticator is tried. Any other failure is masked to
@@ -320,6 +321,54 @@ point's challenge. `AuthenticationSuccessHandlerInterface` and
 `AuthenticationFailureHandlerInterface` are the two handler shapes a route may answer with, and
 `authenticate_user(user, authenticator, request, badges=(), attributes=())` on the manager logs a
 known user in through one authenticator outside the request-driven flow.
+
+### Login forms
+
+**`AbstractLoginFormAuthenticator(http_utils)`** is the base a form login builds on: the subclass
+names its login page's URL (`get_login_url(request)` — a path, compared strictly with the
+request's own), `supports` answers only a POST to exactly that page, a failure keeps the error on
+the request's session for the form that renders again and redirects back to the page, `start` —
+the entry point — redirects there too, and `is_interactive()` reports the login as the user's own
+act.
+
+**`FormLoginAuthenticator(http_utils, user_provider, success_handler, failure_handler, options)`**
+reads a submitted form by its configured names (`username_parameter`, `password_parameter`,
+`check_path`, `post_only`, `form_only`, `enable_csrf`, `csrf_parameter`, `csrf_token_id`, and the
+required `login_path`) into a passport carrying a `PasswordCredentials`, a `RememberMeBadge` and an
+`AuthenticationMethodBadge` — plus a `CsrfTokenBadge` when `enable_csrf` is set, and a
+`PasswordUpgradeBadge` when the provider upgrades passwords — and mints a `UsernamePasswordToken`.
+It also implements `ReAuthenticationEntryPointInterface`: `start_re_authentication(request, token)`
+sends an already-authenticated caller back to the form to prove themselves again, keeping their
+identifier and the denied attribute on the session for the page.
+
+**`JsonLoginAuthenticator(http_utils, user_provider, responses, success_handler=None,
+failure_handler=None, options=None)`** is the stateless sibling: a JSON body read by its configured
+paths (`username_path`, `password_path` — a dotted path walks a nested document), answered — when
+no failure handler is given — with a `401` carrying the error's message as JSON. The password is
+erased from the document before its fields ride along as remember-me parameters.
+
+**`HttpBasicAuthenticator(realm_name, user_provider, responses, logger=None)`** authenticates the
+`Authorization: Basic` header's credentials and is its own entry point: a `401` carrying
+`WWW-Authenticate: Basic realm="…"`, which a failed attempt is answered with again.
+
+The answers a form login gives are delegated. **`DefaultAuthenticationSuccessHandler(http_utils,
+options=None, logger=None)`** redirects by its target ladder — the `target_path_parameter` the
+request carried, the path the interrupted request saved on the session (read and removed — a
+return trip happens once), the `Referer` when `use_referer` is set, then `default_target_path` —
+and **`DefaultAuthenticationFailureHandler(http_utils, options=None, logger=None,
+firewall_name=None)`** keeps the error on the session for the form that renders again and redirects
+by its own ladder (`failure_path_parameter`, `failure_path`, then `login_path`), keeping the
+`Referer` as the return trip's target when `use_referer` is set and the handler knows its firewall.
+**`CustomAuthenticationSuccessHandler(handler, options, firewall_name)`** and
+**`CustomAuthenticationFailureHandler(handler, options)`** are the seams for an application's own
+handlers, handing them the wiring's options — and the firewall's name, for a success handler that
+keys by one — through duck-typed setters.
+
+**`AuthenticationUtils(request)`** reads what the last login attempt left, for the page that
+renders the form again: `get_last_authentication_error(clear_session=True)`, `get_last_username()`
+and `get_re_authentication_attribute()`, each reading the request's own security state first, then
+the session. **`FallbackUserLoader(inner=None)`** wraps a user loader the wiring must not override —
+a badge carrying one of these keeps it, where a badge with no loader gets the firewall's provider.
 
 ### Listeners
 
@@ -547,6 +596,26 @@ ever makes it: documentation.
 - **`IsCsrfTokenValid` answers `403` directly.** A request that fails the token
   check is refused with a plain `403` — the caller is already identified —
   rather than routed through the firewall's exception listener.
+- **`failure_forward` is refused.** The default failure handler answers with
+  the redirect only: this stack has no sub-request to hand the login page to,
+  so a configuration asking for the forward is a wiring mistake reported where
+  it would cost a request, not a request answered as if it had been forwarded.
+- **A malformed form field fails the login, not the request.** A username or
+  password that is missing, empty or not a string at all raises
+  `BadCredentialsError` — the failure handler answers it — where the upstream
+  stack answers some of them with a bare `400`: no HTTP-status distinction
+  lives in this stack's error taxonomy, and a form login is a form answered,
+  not an API request rejected.
+- **The `Referer` is weighed by path.** The URI builder is path-only (no
+  routing component), so the pages a referer must not win — the login page,
+  the page the request asked for — are recognised by their paths, and the
+  failure handler's save checks the referer's host against the request's own.
+- **`FormLoginAuthenticator` requires a `login_path` option.** Upstream's
+  bundle config guarantees one; here the constructor refuses to build without
+  it, where upstream would fail later on a missing array key.
+- **`JsonLoginAuthenticator` and `HttpBasicAuthenticator` take a response
+  factory.** Upstream constructs its `JsonResponse`/`Response` directly; here
+  the class names no response class, so the factory is a constructor parameter.
 
 ### Access tokens
 
