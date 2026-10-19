@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Final
 from typing_extensions import override
 
 from xtr_security_core.authentication.token.offline_token_interface import OfflineTokenInterface
+from xtr_security_core.authentication.token.switch_user_token import SwitchUserToken
 from xtr_security_core.exception import InvalidArgumentError
 
 from .access import Access
@@ -34,9 +35,6 @@ class AuthenticatedVoter(CacheableVoterInterface):
     authenticated; ``IS_REMEMBERED`` and ``IS_IMPERSONATOR`` how it came to be;
     ``PUBLIC_ACCESS``, asked alone, is always granted. It defers every question
     of strength to a trust resolver, so it need not know how a token was made.
-
-    No impersonation token exists in this library yet, so ``IS_IMPERSONATOR`` is
-    always denied.
     """
 
     IS_AUTHENTICATED_VERY_RECENTLY: Final[str] = "IS_AUTHENTICATED_VERY_RECENTLY"
@@ -146,6 +144,11 @@ class AuthenticatedVoter(CacheableVoterInterface):
             if attribute == self.IS_REMEMBERED and resolver.is_remember_me(token):
                 if vote is not None:
                     vote.add_reason("The user is remembered.")
+                return Access.GRANTED
+
+            if attribute == self.IS_IMPERSONATOR and isinstance(token, SwitchUserToken):
+                if vote is not None:
+                    vote.add_reason("The user is impersonating another user.")
                 return Access.GRANTED
 
         if result is Access.DENIED and vote is not None:

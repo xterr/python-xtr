@@ -14,6 +14,7 @@ from xtr_security_core.authentication.token import (
     AbstractToken,
     NullToken,
     OfflineTokenInterface,
+    SwitchUserToken,
     UsernamePasswordToken,
 )
 from xtr_security_core.authorization.voter import (
@@ -140,7 +141,16 @@ async def test_is_remembered_denied_when_not_remembered() -> None:
 
 
 @pytest.mark.anyio
-async def test_is_impersonator_is_always_denied() -> None:
+async def test_is_impersonator_granted_for_a_switch_user_token() -> None:
+    token = SwitchUserToken(InMemoryUser("alice"), "api", ["ROLE_USER"], _real_token())
+    result, vote = await _vote(token, AuthenticatedVoter.IS_IMPERSONATOR)
+
+    assert result is Access.GRANTED
+    assert vote.reasons == ["The user is impersonating another user."]
+
+
+@pytest.mark.anyio
+async def test_is_impersonator_denied_for_a_plain_token() -> None:
     result, vote = await _vote(_real_token(), AuthenticatedVoter.IS_IMPERSONATOR)
 
     assert result is Access.DENIED
