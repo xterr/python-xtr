@@ -211,6 +211,48 @@ the decision when it is refused. A null token stands in for an anonymous request
 decision — not the listener — is what turns an anonymous request away from a rule that needs
 authentication.
 
+**`LogoutListener`** is the chain's logout step, at priority `-127` — behind the steps that
+authenticate and decide, ahead of the ones that only clean up. A firewall with one configured
+runs it where the firewall's insertion rule places it: ahead of the first chain step running at
+a lower priority. `supports` answers whether the request's path is the configured logout path —
+a strict `False` for anything else, so the chain skips it; `authenticate` proves the request
+first (the cross-site request forgery token under the configured parameter name, in the
+submitted form or the query string, when a manager is wired — `LogoutError` when it does not
+check out), announces `LogoutEvent` on the firewall's own dispatcher, clears the token from the
+storage and the request's security state, and sets the response a logout listener answered with
+on the request's event, which also stops the chain. The event is announced before the token is
+cleared, so its listeners still read the token being logged out.
+
+### Logout
+
+A logout is carried by the `LogoutEvent` — the request asking for it and the token it logs out —
+announced on the firewall's own dispatcher, where each of the firewall's logout listeners does
+its part. The first response set on the event is the one the request is answered with:
+
+| Listener | Priority | Does |
+|---|---|---|
+| `DefaultLogoutListener` | 64 | answers a logout nothing else answered with a redirect to the configured target (`/` by default) — the first response wins |
+| `ClearSiteDataListener` | 0 | sets the `Clear-Site-Data` header on the response, with the configured directives quoted and comma-joined, unless it already carries one |
+| `CsrfTokenClearingListener` | 0 | clears every cross-site request forgery token the firewall's clearable storage minted |
+| `SessionLogoutListener` | 0 | invalidates the session the request's security state carries — the one the context listener parked |
+| `CookieClearingListener` | -255 | adds the `Set-Cookie` headers that clear the configured cookies, repeating the path and domain each was set with (`ClearedCookie`) |
+
+**`LogoutUrlGenerator`** generates the logout addresses of the firewalls that registered one:
+`register_listener(key, path, csrf_token_id, csrf_parameter, csrf_token_manager?, context?)`
+records a firewall's logout, and `get_logout_path(key?)`, `get_logout_url(key?)` and
+`get_logout_form(key?)` generate its path, its URL and the action and hidden fields of a form
+posting to it — the form keeps the forgery token out of the address bar. A keyless generation
+resolves its firewall from the token the storage holds (the firewall that authenticated it),
+then the firewall named by `set_current_firewall`, then the one sharing the current context;
+`reset()` puts that tracking back to none. Paths are literal — an absolute path or an absolute
+URL, never a route name — and the URL runs the path through the injected URI builder, the path
+itself by default.
+
+The bundle's logout wiring — the configuration surface that builds the listener per firewall,
+parks it on the context's `logout_listener` slot, registers the event listeners on the
+firewall's dispatcher and registers each firewall with the generator — arrives with that
+configuration surface; the pieces above are what it will wire.
+
 ### Authenticators, passports, badges and credentials
 
 An **`AuthenticatorInterface`** answers `supports(request)` — `True` to handle and stop others,
@@ -291,6 +333,10 @@ the event order:
 | `UserCheckerListener` | runs the account's pre- and post-authentication checks |
 | `PasswordMigratingListener` | rehashes a password flagged by a `PasswordUpgradeBadge`, best-effort, storing through the badge's, the listener's, or the user provider's upgrader — a provider implementing `PasswordUpgraderInterface` is derived from the passport's user loader |
 | `SessionStrategyListener` | nothing on a passport — hands a successful login to the firewall's session strategy, which moves the session the request reattached |
+
+The logout listeners — the ones answering `LogoutEvent` rather than a passport — have their own
+table under [Logout](#logout); the bundle's wiring for them arrives with the logout configuration
+surface.
 
 **The dummy-hash timing guard.** When a password passport names an *unknown* user,
 `CheckCredentialsListener` still verifies against a dummy hash, so the timing of a bad username
@@ -551,9 +597,9 @@ answers a denied scope with a `403` carrying the RFC 6750 `insufficient_scope` c
 
 ### Security events
 
-Seven events are raised around a request's authentication — `CheckPassportEvent`,
+Eight events are raised around a request's authentication — `CheckPassportEvent`,
 `AuthenticationTokenCreatedEvent`, `InteractiveLoginEvent`, `LoginSuccessEvent`, `LoginFailureEvent`,
-`CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent`.
+`CheckRefreshedUserEvent`, `TokenDeauthenticatedEvent`, `LogoutEvent`.
 A subscriber listens to the event class itself (the dispatcher derives each event's name from its
 class) — except `InteractiveLoginEvent`, the one event that carries a name of its own,
 `SecurityEvents.INTERACTIVE_LOGIN` (`security.interactive_login`), because an application listens
@@ -576,6 +622,7 @@ Everything this library raises derives from `SecurityError` (from
 |---|---|---|
 | `InvalidAccessTokenError` | `AuthenticationError` | a bearer token was present but could not be trusted — answered with an `invalid_token` challenge |
 | `InvalidSessionStrategyError` | `RuntimeError` | a session strategy was asked to act under a name that is none of its own; carries `strategy` |
+| `LogoutError` | `RuntimeError` | a logout request failed its cross-site request forgery proof |
 | `MissingSessionError` | `RuntimeError` | a session strategy was asked to move a request whose security state carries no session |
 | `UnknownFirewallError` | `LookupError` | a firewall was asked for by a name none is registered under; carries `name` and `configured` |
 
@@ -586,8 +633,8 @@ xtr_security_http/
 ├── firewall_map.py             FirewallMap, matched or fetched by name
 ├── firewall_context_interface.py  one firewall's runtime pieces
 ├── firewall/                   Firewall (the subscriber), AccessListener, ChannelListener,
-│                              ContextListener, ExceptionListener, RefreshUserResult,
-│                              FirewallListenerInterface, AbstractListener
+│                              ContextListener, ExceptionListener, LogoutListener,
+│                              RefreshUserResult, FirewallListenerInterface, AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
 ├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator, passport/, token/
 ├── access_token/               extractors, handler interface, oidc/ (OidcTokenHandler)
@@ -599,8 +646,10 @@ xtr_security_http/
 │                              FirewallListenerOrder
 ├── resolver/                   the enforcement services behind the markers
 ├── entry_point/                AuthenticationEntryPointInterface
-├── event/                      the firewall events around a login
+├── event/                      the firewall events around a login and a logout
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)
+│                              and the logout listeners answering LogoutEvent
+├── logout/                     LogoutUrlGenerator, LogoutForm — the logout addresses
 ├── session/                    what a login does to the session it reattached
 └── exception/                  the errors this package adds
 ```

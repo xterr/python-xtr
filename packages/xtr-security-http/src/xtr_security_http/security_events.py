@@ -21,6 +21,7 @@ from .event.check_refreshed_user_event import CheckRefreshedUserEvent
 from .event.interactive_login_event import InteractiveLoginEvent
 from .event.login_failure_event import LoginFailureEvent
 from .event.login_success_event import LoginSuccessEvent
+from .event.logout_event import LogoutEvent
 from .event.token_deauthenticated_event import TokenDeauthenticatedEvent
 
 if TYPE_CHECKING:
@@ -66,6 +67,7 @@ class SecurityEvents:
         InteractiveLoginEvent: INTERACTIVE_LOGIN,
         LoginFailureEvent: event_name_of(LoginFailureEvent),
         LoginSuccessEvent: event_name_of(LoginSuccessEvent),
+        LogoutEvent: event_name_of(LogoutEvent),
         TokenDeauthenticatedEvent: event_name_of(TokenDeauthenticatedEvent),
     }
     """Every event class this package raises today, mapped to the name it is

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .invalid_access_token_error import InvalidAccessTokenError
 from .invalid_session_strategy_error import InvalidSessionStrategyError
+from .logout_error import LogoutError
 from .missing_session_error import MissingSessionError
 from .missing_state_bag_error import MissingStateBagError
 from .unknown_firewall_error import UnknownFirewallError
@@ -16,6 +17,7 @@ from .unknown_firewall_error import UnknownFirewallError
 __all__ = [
     "InvalidAccessTokenError",
     "InvalidSessionStrategyError",
+    "LogoutError",
     "MissingSessionError",
     "MissingStateBagError",
     "UnknownFirewallError",

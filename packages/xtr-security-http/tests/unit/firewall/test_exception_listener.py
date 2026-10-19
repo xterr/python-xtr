@@ -35,7 +35,7 @@ from xtr_security_http.authenticator.token import PostAuthenticationToken
 from xtr_security_http.entry_point.fallback_authentication_entry_point_interface import (
     FallbackAuthenticationEntryPointInterface,
 )
-from xtr_security_http.exception import InvalidAccessTokenError
+from xtr_security_http.exception import InvalidAccessTokenError, LogoutError
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 from xtr_security_http.util.target_path import get_target_path
@@ -231,6 +231,26 @@ async def test_a_non_security_exception_is_left_alone() -> None:
     await _listener().on_exception(event)
 
     assert event.response is None
+
+
+async def test_a_logout_error_is_refused() -> None:
+    event = _event(LogoutError("Invalid CSRF token."))
+
+    await _listener().on_exception(event)
+
+    assert event.response is not None
+    assert event.response.status_code == 403
+
+
+async def test_a_logout_error_is_logged_when_a_logger_is_given() -> None:
+    logger = RecordingLogger()
+    event = _event(LogoutError("Invalid CSRF token."))
+
+    await _listener(logger=logger).on_exception(event)
+
+    assert logger.messages("info") == [
+        "A logout error was thrown; refusing the request.",
+    ]
 
 
 async def test_a_security_error_in_the_cause_chain_is_answered() -> None:

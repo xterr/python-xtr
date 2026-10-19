@@ -15,6 +15,7 @@ from .check_refreshed_user_event import CheckRefreshedUserEvent
 from .interactive_login_event import InteractiveLoginEvent
 from .login_failure_event import LoginFailureEvent
 from .login_success_event import LoginSuccessEvent
+from .logout_event import LogoutEvent
 from .token_deauthenticated_event import TokenDeauthenticatedEvent
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     "InteractiveLoginEvent",
     "LoginFailureEvent",
     "LoginSuccessEvent",
+    "LogoutEvent",
     "TokenDeauthenticatedEvent",
 ]

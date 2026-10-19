@@ -37,6 +37,7 @@ from xtr_security_http.entry_point.fallback_authentication_entry_point_interface
 from xtr_security_http.entry_point.re_authentication_entry_point_interface import (
     ReAuthenticationEntryPointInterface,
 )
+from xtr_security_http.exception import LogoutError
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 from xtr_security_http.util.target_path import save_target_path
 
@@ -76,11 +77,11 @@ class ExceptionListener:
     :class:`~xtr_security_core.exception.AuthenticationError` starts the
     entry point's challenge, an
     :class:`~xtr_security_core.exception.AccessDeniedError` is answered by
-    denial. The two later links of the upstream order — a lazy response
-    waiting for the response phase, a logout that failed — have no local shape
-    yet: the lazy-response decision is P2.10's to record and the logout
-    listener P3.2's to land, so their branches here are vacant, in that
-    order, until then.
+    denial, a :class:`~xtr_security_http.exception.LogoutError` — a logout
+    that failed its proof — by a plain refusal. The one later link of the
+    upstream order — a lazy response waiting for the response phase — has no
+    local shape: the lazy-response decision is P2.10's to record, so its
+    branch here is vacant until then.
 
     An authentication error starts the entry point's challenge, keeping the
     path the request was heading for on the session — unless the firewall is
@@ -200,10 +201,14 @@ class ExceptionListener:
                 answered = await self._handle_access_denied(state, event.request, error)
                 await self._answers.set_on(event, answered)
                 return
-            # The upstream order holds two more links here: a lazy response
-            # waiting for the response phase (P2.10's decision to record) and
-            # a failed logout (P3.2's listener to land). Neither shape exists
-            # locally yet, so neither branch has anything to walk.
+            if isinstance(error, LogoutError):
+                answered = await self._handle_logout_error(error)
+                await self._answers.set_on(event, answered)
+                return
+            # The upstream order holds one more link here: a lazy response
+            # waiting for the response phase (P2.10's decision to record).
+            # No local shape exists for it yet, so the branch has nothing
+            # to walk.
             error = error.__cause__
 
     async def _handle_authentication_error(
@@ -251,6 +256,20 @@ class ExceptionListener:
                 {"firewall": self._firewall_name, "error": type(error).__name__},
             )
         return await self._entry_point.start(request, error)
+
+    async def _handle_logout_error(self, error: LogoutError) -> ResponseInterface:
+        """Refuse a logout that failed its proof.
+
+        A logout that did not prove itself is not answered with a challenge —
+        the caller may well be authenticated — nor with a page explaining a
+        denial: it is refused, the way a request that failed a proof of the
+        application's own is.
+        """
+        self._info(
+            "A logout error was thrown; refusing the request.",
+            {"firewall": self._firewall_name, "error": type(error).__name__},
+        )
+        return await self._answers.forbidden()
 
     async def _handle_access_denied(
         self,
