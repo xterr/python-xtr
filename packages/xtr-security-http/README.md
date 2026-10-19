@@ -935,6 +935,30 @@ ever makes it: documentation.
   generic runtime error its handlers wrap; here it raises `InvalidAccessTokenError` directly —
   the failure currency of the access-token handlers it serves — which those handlers log and
   re-raise as-is.
+- **The client suite's audience is an issuer string, not a discovery reader.** Upstream's
+  `AbstractClientAssertion` takes a discovery object and reads its issuer; the discovery
+  reader is the OIDC client alignment's own deliverable, so the local base takes the
+  issuer identifier outright — a caller that has a reader hands its `issuer` over, and
+  nothing here knows the reader.
+- **The MAC key length is measured, not exercised.** Upstream signs once with the secret
+  at construction to surface one its library rejects; the local JOSE library warns where
+  the upstream one refuses, so `ClientSecretJwt` measures the RFC 7518, Section 3.2
+  minimum — as many bytes as the digest produces — itself.
+- **The PKCE refusal is an invalid argument.** Upstream answers a code exchange without
+  a verifier with a logic exception; the local error taxonomy carries no logic error, and
+  the refusal names a call missing its `code_verifier`, so it raises
+  `InvalidArgumentError` — a malformed call.
+- **The assertion's default `typ` is suppressed.** The local JOSE library adds
+  `typ: JWT` to a header that names none; upstream's builder adds nothing, so the local
+  assertion is typed only when it names the issuer.
+- **The algorithms map names key types, not algorithm classes.** The local JOSE library
+  selects an algorithm by its JWA name, so `JwsAlgorithms` maps each name onto what it
+  demands of its key — the key type, and the curve for ECDSA — which is what
+  `check_key` reads.
+- **DPoP is deferred.** Upstream's `OAuth2/` also carries a DPoP token type (with
+  per-origin nonce memory and a retry on `use_dpop_nonce`) and a proof factory; neither
+  is landed here. The follow-up that lands them is the plan's deferred DPoP row, and the
+  client this suite serves works bearer-only until then.
 
 ### Access tokens
 
@@ -1002,6 +1026,49 @@ set under the algorithm allow-list, the mandatory top-level claims, and the RFC 
 nested inside `token_introspection`; it needs joserfc, which the `oidc` extra carries. Reading
 the verifying keys from the authorization server's metadata instead of a pinned key set waits
 for the OIDC discovery machinery this workspace aligns next.
+
+### OAuth2 clients
+
+The `oauth2/` folder at the package root is the **client** side of OAuth2 — what an
+application that *talks to* an authorization server builds its client from. It is a
+different folder and a different concern from `access_token/oauth2/`, which is the
+resource server validating the tokens that arrive: this one never reads a token it was
+not issued.
+
+A **`ClientAuthenticationInterface`** is how a client authenticates itself at the token
+endpoint — the one method its registration carries, named by RFC 7591, Section 2 in its
+`token_endpoint_auth_method` metadata. `authenticate(client_id, token_endpoint, options)`
+returns the request options the token request is made with — a header, a body member, or
+nothing at all — and `get_method()` answers the registration name, compared exactly:
+
+| Method | Does |
+|---|---|
+| `ClientSecretBasic(secret)` | sends the identifier and secret as Basic credentials, each percent-encoded |
+| `ClientSecretPost(secret)` | adds `client_secret` to the token request body |
+| `ClientSecretJwt(secret, algorithm="HS256", lifetime=60, clock=None, issuer=None)` | signs a jwt-bearer assertion (RFC 7523) with the secret as its HMAC key |
+| `PrivateKeyJwt(key, algorithm="RS256", lifetime=60, clock=None, issuer=None)` | signs the assertion with the client's private key |
+| `NoClientAuthentication()` | sends nothing — a public client, which refuses a code exchange without a PKCE verifier |
+| `TlsClientAuth()` / `SelfSignedTlsClientAuth()` | authenticates by the certificate the TLS handshake presented; the certificate itself is configured on the HTTP client (`local_cert`, `local_pk`, `passphrase`) |
+
+The assertion pair builds on `AbstractClientAssertion`: the assertion names the client as
+its issuer and subject, the provider as its audience — the `issuer` given to the
+constructor, or the token endpoint — carries a single-use `jti`, an `iat` read from the
+clock and an `exp` a `lifetime` past it, and is typed `client-authentication+jwt` only
+when it names the issuer. `JwsAlgorithms` maps the JWA names onto what each demands of
+its key (`check_key`), and the allow-lists keep a shared secret out of `private_key_jwt`
+and an asymmetric key out of `client_secret_jwt`.
+
+An **`AccessTokenTypeInterface`** is how the token the endpoint issued is presented:
+`get_token_type()`, `check_token_response(members)` — which refuses a token of another
+type — `prepare_token_request(url, options)`, `present_token(token, method, url,
+options)` and `on_response(response, url)`. **`BearerTokenType`** carries the token
+under the request's `auth_bearer`.
+
+Everything in the folder is importable with nothing beyond the package's own
+dependencies, except the assertion pair — `ClientSecretJwt` and `PrivateKeyJwt`, over
+`AbstractClientAssertion` — which signs a JWT and needs joserfc, carried by the `oidc`
+extra: import them from `xtr_security_http.oauth2.client_authentication.client_secret_jwt`
+and `...private_key_jwt`, which name the extra when it is missing.
 
 ### OIDC
 
@@ -1131,6 +1198,9 @@ xtr_security_http/
 ├── access_token/               extractors, handler interface, oauth2/ (Oauth2TokenHandler),
 │                              oidc/ (OidcTokenHandler)
 ├── oidc/                       DiscoveryOidcKeySetProvider
+├── oauth2/                     the client side: JwsAlgorithms, BearerTokenType, the
+│                              client-authentication methods (the assertion pair behind
+│                              the oidc extra)
 ├── access_map.py               the ordered access-control rules
 ├── request_matcher/            the callable escape hatch (the rest come from xtr-http-foundation)
 ├── authorization/              OAuth2ScopeVoter, oauth2_scope, the scope-denied handler
