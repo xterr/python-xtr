@@ -149,6 +149,7 @@ from .firewall import (
     Firewall,
     FirewallListenerInterface,
     LogoutListener,
+    OidcTokenRefreshListener,
     RefreshUserResult,
     SwitchUserListener,
 )
@@ -293,6 +294,7 @@ __all__ = [
     "MissingSessionError",
     "MissingStateBagError",
     "OAuth2ScopeVoter",
+    "OidcTokenRefreshListener",
     "Passport",
     "PasswordCredentials",
     "PasswordMigratingListener",

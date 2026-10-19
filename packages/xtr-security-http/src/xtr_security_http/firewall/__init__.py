@@ -9,6 +9,8 @@ scheme its matched rule demands, the :class:`ContextListener` that restores the
 token a session carries into the request, the :class:`ExceptionListener` that
 turns a security error into a response, the :class:`LogoutListener` that
 carries a logout out through the logout event, the
+:class:`OidcTokenRefreshListener` that renews the OIDC tokens a
+logged-in user's token carries, the
 :class:`SwitchUserListener` that carries a user switch out, and the
 :class:`FirewallListenerInterface` every listener of a
 firewall's chain implements — with :class:`AbstractListener` as the template a
@@ -26,6 +28,7 @@ from .exception_listener import ExceptionListener
 from .firewall import Firewall
 from .firewall_listener_interface import FirewallListenerInterface
 from .logout_listener import LogoutListener
+from .oidc_token_refresh_listener import OidcTokenRefreshListener
 from .refresh_user_result import RefreshUserResult
 from .switch_user_listener import SwitchUserListener
 
@@ -39,6 +42,7 @@ __all__ = [
     "Firewall",
     "FirewallListenerInterface",
     "LogoutListener",
+    "OidcTokenRefreshListener",
     "RefreshUserResult",
     "SwitchUserListener",
 ]

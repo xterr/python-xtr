@@ -1225,6 +1225,19 @@ the refreshed `oidc_id_token` with its `oidc_sid` — a refreshed ID token is va
 the discovery document's issuer and the client id, and its `sub` must match the previous
 token's in constant time, and nothing is stored until the whole response has passed.
 
+**`OidcTokenRefreshListener`** (`firewall/`) is the chain step that runs that renewal per
+request. Ordered — through `@FirewallListenerOrder`, at the priority the two share — after
+the context listener, it hands the token the context step restored from the session to the
+refresher, so what it renews is what the request reads and the context step's response half
+writes back into the session. `supports()` answers `None` always — the lazy join: the chain
+asks before the context step has restored anything, so the storage is the step's to read in
+`authenticate()`, not before. A request with no stored token is left alone; a token the
+refresher renews is renewed in place; a refresh token the provider no longer honors
+(`OidcInvalidGrantError`) clears the storage — the request goes on anonymous, and the context
+step's response half removes the session's copy — while any other renewal failure is warned
+about and left for the next request, the tokens untouched: a provider that cannot be reached
+costs a warning per request, not every user's login.
+
 **`OidcLoginAuthenticator`** (`authenticator/`) lands the whole Authorization Code Flow on
 top of that machinery — the entry point, the callback and the token, one class:
 
@@ -1397,7 +1410,7 @@ xtr_security_http/
 ├── firewall_context_interface.py  one firewall's runtime pieces
 ├── firewall/                   Firewall (the subscriber), AccessListener, ChannelListener,
 │                              ContextListener, ExceptionListener, LogoutListener,
-│                              SwitchUserListener, RefreshUserResult,
+│                              OidcTokenRefreshListener, SwitchUserListener, RefreshUserResult,
 │                              FirewallListenerInterface, AbstractListener
 ├── authentication/             AuthenticatorManager, handlers, ExposeSecurityLevel
 ├── authenticator/              AuthenticatorInterface, AccessTokenAuthenticator,
