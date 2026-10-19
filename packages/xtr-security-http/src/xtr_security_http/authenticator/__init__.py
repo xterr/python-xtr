@@ -16,6 +16,7 @@ from .form_login_authenticator import FormLoginAuthenticator
 from .http_basic_authenticator import HttpBasicAuthenticator
 from .interactive_authenticator_interface import InteractiveAuthenticatorInterface
 from .json_login_authenticator import JsonLoginAuthenticator
+from .remember_me_authenticator import RememberMeAuthenticator
 
 __all__ = [
     "AbstractAuthenticator",
@@ -27,6 +28,7 @@ __all__ = [
     "HttpBasicAuthenticator",
     "InteractiveAuthenticatorInterface",
     "JsonLoginAuthenticator",
+    "RememberMeAuthenticator",
     "TraceableAuthenticator",
     "TraceableAuthenticatorManagerListener",
     "UnsupportedReasons",

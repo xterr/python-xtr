@@ -370,6 +370,53 @@ and `get_re_authentication_attribute()`, each reading the request's own security
 the session. **`FallbackUserLoader(inner=None)`** wraps a user loader the wiring must not override —
 a badge carrying one of these keeps it, where a badge with no loader gets the firewall's provider.
 
+### Remember me
+
+**`RememberMeDetails(user_identifier, expires, value)`** is the cookie's whole content: its
+serialization — `:<b64url(identifier)>:<expires>:<value>`, the identifier in the URL-safe base64
+alphabet, the expiry a Unix timestamp — is the format itself, and `from_raw_cookie` reads back
+exactly what `str()` writes. **`RememberMeCookie`** is one cookie staged on the request's security
+state under the `REMEMBER_ME_COOKIE` key, moved onto the outgoing head by
+**`ResponseListener`** — a subscriber on the kernel's response event, registered on the
+application's main dispatcher — which appends the finished `Set-Cookie` value the cookie renders
+for itself.
+
+A **`RememberMeHandlerInterface`** is the one voice on the cookie: `create_remember_me_cookie(request, user)`
+stages it, `consume_remember_me_cookie(request, details)` spends it and loads its user,
+`clear_remember_me_cookie(request)` stages its clearing. Every method takes the request, because
+the cookie is staged on that request's own state — there is no request stack to read the current
+one from. **`AbstractRememberMeHandler(user_provider, options, logger)`** loads the user a cookie
+names and stages every cookie; its options default to the name `REMEMBERME`, a one-year lifetime,
+`path=/`, `httponly`, and the two the conditions listener reads (`always_remember_me`,
+`remember_me_parameter=_remember_me`). Two handlers complete it:
+
+- **`SignatureRememberMeHandler(signature_hasher, user_provider, options, logger, clock)`** signs
+  the value with the core `SignatureHasher` — checked against the identifier before the user is
+  loaded, against the user's covered fields after — and reissues a fresh cookie on every consume.
+  Stateless: no series can be revoked alone, only every cookie of the user, by changing what the
+  signature covers.
+- **`PersistentRememberMeHandler(token_provider, user_provider, options, logger, token_verifier,
+  signature_properties, clock)`** stores each cookie's series and value — 33 random bytes each —
+  through the core `TokenProviderInterface`, rotates the value on every consume (a spent value
+  presented again raises the core `CookieTheftError`), skips the rotation within a 60-second
+  window so concurrent requests do not spend one another, and binds a digest of the user's
+  signature properties — the password by default, properties the user does not expose skipped —
+  so a changed password retires the series. A verifier accepts a value the store no longer holds
+  exactly; the provider itself is used when it implements the verifier's contract. Clearing drops
+  the series the request's own cookie names.
+
+Around the handlers: **`CheckRememberMeConditionsListener(options, logger)`** enables the passport's
+`RememberMeBadge` on a successful login when the application always wants the cookie or the request
+carries the remember-me parameter (the badge's own parameters first, then the request's attributes,
+query, and body for a non-`GET`); **`RememberMeListener(handler, logger)`** — at a lower priority —
+clears any cookie the request still carries and sets a new one when the badge was enabled, and
+clears the cookie on a failed login, a logout and a deauthentication. **`RememberMeAuthenticator(handler,
+token_storage, cookie_name, logger)`** spends the cookie a returning request presents: `supports`
+answers `None` — lazily — for a request carrying the cookie and storing no token, `authenticate`
+builds a self-validating passport whose user loader is the cookie being spent through the handler,
+and the token is the core `RememberMeToken`, which a trust resolver tells apart from a fully
+proven login. It reports itself interactive, as the flow always has.
+
 ### Listeners
 
 The bundle registers these on each firewall's dispatcher; they are the badge-resolving half of
@@ -382,10 +429,14 @@ the event order:
 | `UserCheckerListener` | runs the account's pre- and post-authentication checks |
 | `PasswordMigratingListener` | rehashes a password flagged by a `PasswordUpgradeBadge`, best-effort, storing through the badge's, the listener's, or the user provider's upgrader — a provider implementing `PasswordUpgraderInterface` is derived from the passport's user loader |
 | `SessionStrategyListener` | nothing on a passport — hands a successful login to the firewall's session strategy, which moves the session the request reattached |
+| `CheckRememberMeConditionsListener` | nothing on a passport — enables the `RememberMeBadge` when the login asked to be remembered |
+| `RememberMeListener` | nothing on a passport — clears any cookie the request carried and sets the one the enabled badge earned; clears it on a failure, a logout, a deauthentication |
 
 The logout listeners — the ones answering `LogoutEvent` rather than a passport — have their own
 table under [Logout](#logout); the bundle's wiring for them arrives with the logout configuration
-surface.
+surface. The remember-me pair runs on the login-success event at the priorities above; the
+response listener that moves the staged cookie onto the response belongs to the kernel's response
+event, on the application's main dispatcher.
 
 **The dummy-hash timing guard.** When a password passport names an *unknown* user,
 `CheckCredentialsListener` still verifies against a dummy hash, so the timing of a bad username
@@ -616,6 +667,29 @@ ever makes it: documentation.
 - **`JsonLoginAuthenticator` and `HttpBasicAuthenticator` take a response
   factory.** Upstream constructs its `JsonResponse`/`Response` directly; here
   the class names no response class, so the factory is a constructor parameter.
+- **The remember-me handlers take the request.** Upstream pulls the main request from a request
+  stack; this stack has none, so every handler method takes the request the flow is running and
+  stages the cookie on that request's own security state.
+- **The staged cookie is a value object, rendered where it is read.** Upstream stages a framework
+  `Cookie` and the response listener sets it on the response; here the staged `RememberMeCookie`
+  renders its own finished `Set-Cookie` value — through the [foundation](../xtr-http-foundation)
+  cookie helpers — and the response listener appends it to the outgoing head. The response
+  listener keeps no main-request guard: this kernel has no sub-requests.
+- **The handlers read their time from a callable.** Upstream takes a PSR clock; this package does
+  not depend on the clock package, so the handlers take a `clock: Callable[[], datetime]` — the
+  system clock when omitted — and a test freezes time by handing one that answers a fixed
+  instant.
+- **The persistent handler reads properties, not property paths.** Upstream walks `foo[bar]`
+  paths through a property accessor; here a signature property is a plain attribute name read
+  with `getattr`, the same reading the core `SignatureHasher` does.
+- **The remember-me parameter is a plain name.** Upstream evaluates `foo[bar]` paths against the
+  request; the conditions listener reads one name — the badge's parameters first, then the
+  request's attributes, query, and body for a non-`GET`.
+- **An unsupported user class is not logged by the authenticator.** Upstream's
+  `RememberMeAuthenticator` logs `UnsupportedUserException` at warning; the local
+  `UnsupportedUserError` derives from `SecurityError` and `TypeError`, never from
+  `AuthenticationError`, so it cannot reach the failure hook and the branch has no local
+  counterpart.
 
 ### Access tokens
 
@@ -719,6 +793,8 @@ xtr_security_http/
 ├── event_listener/             the listeners the bundle registers (incl. the timing guard)
 │                              and the logout listeners answering LogoutEvent
 ├── logout/                     LogoutUrlGenerator, LogoutForm — the logout addresses
+├── remember_me/                the handlers, details, staged cookie and response pass of a
+│                              login the user asked to outlive its session
 ├── session/                    what a login does to the session it reattached
 └── exception/                  the errors this package adds
 ```
