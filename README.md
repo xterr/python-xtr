@@ -39,6 +39,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-logging](packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. |
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
+| [xtr-notifier](packages/xtr-notifier) | Notifications sent to chat, SMS and push channels — picked by the notification or its importance — through any provider configured by DSN, directly or through the message bus. |
 | [xtr-orm](packages/xtr-orm) | Engines, sessions and versioned schema migrations for async applications, configured once per connection. |
 | [xtr-password-hasher](packages/xtr-password-hasher) | Password hashing behind one interface: argon2id by default, legacy hashes verified and upgraded. |
 | [xtr-security-core](packages/xtr-security-core) | The security core: users, tokens, roles, voters and the authorization decision. |
@@ -203,6 +204,13 @@ graph LR
     webhook -. optional .-> httpclient
     webhook --> httpmsg
     remoteevent -. optional .-> di
+    notifier[xtr-notifier] --> clock
+    notifier --> eventcon
+    notifier --> httpclientcon
+    notifier --> logcon
+    notifier --> svccon
+    notifier -. optional .-> messenger
+    notifier -. optional .-> di
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

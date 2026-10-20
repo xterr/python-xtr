@@ -31,6 +31,7 @@ xtr-lock                 = { workspace = true }
 xtr-logging              = { workspace = true }
 xtr-logging-contracts    = { workspace = true }
 xtr-messenger            = { workspace = true }
+xtr-notifier             = { workspace = true }
 xtr-orm                  = { workspace = true }
 xtr-password-hasher      = { workspace = true }
 xtr-rate-limiter         = { workspace = true }
