@@ -276,7 +276,7 @@ Everything the family raises derives from `SecurityError` (`xtr_security_core.ex
 
 | Error | Raised when |
 | --- | --- |
-| `InvalidConfigurationError` | A configuration the bundle cannot turn into services — an unknown provider, a non-stateless firewall, an authenticator with no factory. Also a `ValueError` |
+| `InvalidConfigurationError` | A configuration the bundle cannot turn into services — an unknown provider, a secured firewall with no authenticator, an authenticator with no factory, a stateful firewall with no `SessionStorageInterface` registered. Also a `ValueError` |
 | `AuthenticationError` | Authentication failed, answered `401`. The base of `BadCredentialsError` (rejected), `AuthenticationCredentialsNotFoundError` (none presented — what `CurrentUser()` raises when anonymous), `InvalidAccessTokenError` (a bearer token present but untrusted), `InvalidCsrfTokenError` (a form's forgery token present but untrusted), `UserNotFoundError`, and the account-state errors `DisabledError`, `LockedError`, `AccountExpiredError` |
 | `AccessDeniedError` | Authorization refused; carries `attributes`, `subject` and `access_decision` |
 | `UnknownFirewallError` | A firewall was asked for by a name none is registered under |

@@ -12,9 +12,12 @@ from xtr_security_core import TokenStorage
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 
 from xtr_security.bundle import (
+    OidcBackChannelLogoutConfig,
+    OidcEndSessionConfig,
     OidcLoginConfig,
     OidcTokenGeneratorConfig,
     TokenEndpointAuthMethod,
+    firewall_dispatcher_name,
 )
 from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory import AuthenticatorFactoryInterface, OidcLoginFactory
@@ -39,6 +42,8 @@ def _login(  # noqa: PLR0913 -- a test helper gathering one login's knobs
     certificate_options: Mapping[str, str] | None = None,
     signature_verifier_algorithms: tuple[str, ...] | None = None,
     token_generator: OidcTokenGeneratorConfig | None = None,
+    backchannel_logout: OidcBackChannelLogoutConfig | None = None,
+    end_session: OidcEndSessionConfig | None = None,
 ) -> OidcLoginConfig:
     """A login against a stand-in provider, carrying the usual secret."""
     return OidcLoginConfig(
@@ -50,6 +55,8 @@ def _login(  # noqa: PLR0913 -- a test helper gathering one login's knobs
         certificate_options=certificate_options,
         signature_verifier_algorithms=signature_verifier_algorithms,
         token_generator=token_generator,
+        backchannel_logout=backchannel_logout,
+        end_session=end_session,
     )
 
 
@@ -70,13 +77,14 @@ def _async(target: Callable[..., object]) -> Callable[..., Awaitable[object]]:
 
 @final
 class _RecordingDefinition:
-    """A stand-in definition handing back the key of the service it describes."""
+    """A stand-in definition handing back its key and recording the tags it gains."""
 
-    def __init__(self, key: ServiceKey) -> None:
+    def __init__(self, key: ServiceKey, tags: list[tuple[str, dict[str, object]]]) -> None:
         self.key = key
+        self._tags = tags
 
     def add_tag(self, name: str, **attributes: object) -> _RecordingDefinition:
-        del name, attributes
+        self._tags.append((name, dict(attributes)))
         return self
 
     def set_argument(self, name: str, value: object, /) -> _RecordingDefinition:
@@ -86,12 +94,13 @@ class _RecordingDefinition:
 
 @final
 class _RecordingConfigurator:
-    """A stand-in configurator recording every ``set`` and ``alias`` the factory makes."""
+    """A stand-in configurator recording every ``set``, ``alias`` and tag the factory makes."""
 
     def __init__(self) -> None:
         self.by_qualifier: dict[Hashable, Callable[..., object]] = {}
         self.aliases: list[tuple[type, Hashable]] = []
         self.registered: list[tuple[Hashable, Callable[..., object]]] = []
+        self.tags: dict[Hashable | None, list[tuple[str, dict[str, object]]]] = {}
 
     def set(
         self,
@@ -104,7 +113,9 @@ class _RecordingConfigurator:
         del lifetime
         self.by_qualifier[qualifier] = target
         self.registered.append((qualifier, target))
-        return _RecordingDefinition(cast("ServiceKey", (object, qualifier)))
+        tags: list[tuple[str, dict[str, object]]] = []
+        self.tags[qualifier] = tags
+        return _RecordingDefinition(cast("ServiceKey", (object, qualifier)), tags)
 
     def alias(
         self,
@@ -387,3 +398,81 @@ async def test_a_public_client_authenticates_with_nothing() -> None:
 
     assert isinstance(client, OidcClient)
     assert isinstance(client._client_authentication, NoClientAuthentication)
+
+
+def _handler_factories(services: _RecordingConfigurator) -> list[object]:
+    """Return the factories building the back-channel logout handler."""
+    from xtr_security.oidc_back_channel_logout_handler import OidcBackChannelLogoutHandler
+
+    return [
+        factory
+        for _qualifier, factory in services.registered
+        if factory.__annotations__.get("return") is OidcBackChannelLogoutHandler
+    ]
+
+
+def test_a_backchannel_logout_registers_its_services_and_listener() -> None:
+    from xtr_security_http import CheckRefreshedUserEvent
+
+    services = _create(
+        _login(
+            signature_verifier_algorithms=("RS256",),
+            backchannel_logout=OidcBackChannelLogoutConfig(route="/logout/provider"),
+        )
+    )
+
+    assert "api#oidc_ended_sessions" in services.by_qualifier
+    assert "api#oidc_logout_token" in services.by_qualifier
+    assert "api#oidc_back_channel_logout" in services.by_qualifier
+    assert len(_handler_factories(services)) == 1
+    assert "api#oidc_back_channel_logout_listener" in services.by_qualifier
+    assert services.tags["api#oidc_back_channel_logout_listener"] == [
+        ("event_dispatcher.listener", {"event": CheckRefreshedUserEvent})
+    ]
+
+
+def test_a_backchannel_logout_without_a_verifier_fails_the_build() -> None:
+    with pytest.raises(InvalidConfigurationError, match="signature_verifier_algorithms"):
+        _ = _create(_login(backchannel_logout=OidcBackChannelLogoutConfig()))
+
+
+def test_no_backchannel_services_register_without_the_block() -> None:
+    services = _create(_login(signature_verifier_algorithms=("RS256",)))
+
+    assert "api#oidc_ended_sessions" not in services.by_qualifier
+    assert "api#oidc_back_channel_logout_listener" not in services.by_qualifier
+    assert _handler_factories(services) == []
+
+
+def test_a_disabled_backchannel_logout_registers_nothing() -> None:
+    services = _create(
+        _login(
+            signature_verifier_algorithms=("RS256",),
+            backchannel_logout=OidcBackChannelLogoutConfig(enable=False),
+        )
+    )
+
+    assert "api#oidc_ended_sessions" not in services.by_qualifier
+    assert _handler_factories(services) == []
+
+
+def test_an_end_session_listener_subscribes_on_the_firewalls_dispatcher() -> None:
+    services = _create(
+        _login(
+            end_session=OidcEndSessionConfig(post_logout_redirect_path="/bye"),
+        )
+    )
+
+    assert "api#oidc_end_session_listener" in services.by_qualifier
+    assert services.tags["api#oidc_end_session_listener"] == [
+        (
+            "event_dispatcher.subscriber",
+            {"dispatcher": firewall_dispatcher_name("api")},
+        )
+    ]
+
+
+def test_no_end_session_listener_registers_without_the_block() -> None:
+    services = _create(_login())
+
+    assert "api#oidc_end_session_listener" not in services.by_qualifier

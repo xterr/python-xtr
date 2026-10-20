@@ -30,6 +30,7 @@ from xtr_security_http import (
     AuthenticatorManager,
     ExposeSecurityLevel,
     FirewallListenerInterface,
+    LogoutListener,
     SenderConstraintInterface,
 )
 from xtr_security_http.firewall.exception_listener import ExceptionListener
@@ -40,6 +41,7 @@ from xtr_security.bundle import (
     AutoHasherConfig,
     InMemoryUserProviderConfig,
     NativeHasherConfig,
+    OidcBackChannelLogoutConfig,
     OidcLoginConfig,
     SecurityConfig,
     ServiceTokenHandlerConfig,
@@ -669,6 +671,22 @@ def test_the_scope_denied_handler_reads_the_access_token_settings() -> None:
     )
 
 
+def test_the_context_factory_annotates_the_denied_handler_it_is_given() -> None:
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False, access_denied_handler=_Handler),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.NONE,
+    )
+    factory = services.set_targets[-1]
+
+    assert factory.__annotations__["denied"] is _Handler
+
+
 def test_the_scope_denied_handler_builds_bare_without_the_settings() -> None:
     services = _RecordingConfigurator()
     _register_context_factory(
@@ -732,6 +750,7 @@ def test_an_oidc_login_firewall_parks_its_refresh_listener_in_the_chain() -> Non
                 ),
             ),
         ),
+        {},
     )
 
     assert services.definitions[-1].arguments["listeners"] == (
@@ -739,3 +758,164 @@ def test_an_oidc_login_firewall_parks_its_refresh_listener_in_the_chain() -> Non
         firewall_access_listener_name("api"),
         "api#oidc_token_refresh_listener",
     )
+
+
+def _http_basic_config() -> FirewallConfig:
+    """A stateless firewall over the ungated http-basic authenticator."""
+    from xtr_security.bundle import HttpBasicConfig
+
+    return FirewallConfig(
+        pattern=r"^/api",
+        authenticators=(HttpBasicConfig(),),
+    )
+
+
+def test_a_stateful_firewall_parks_its_context_listener_ahead_of_the_manager() -> None:
+    services = _RecordingConfigurator()
+    firewall = FirewallConfig(
+        pattern=r"^/api",
+        stateless=False,
+        authenticators=(_http_basic_config().authenticators[0],),
+    )
+
+    _build_firewall_context(
+        cast("ServiceConfigurator", cast("object", services)),
+        SecurityConfig(),
+        "main",
+        firewall,
+        {},
+    )
+
+    assert services.definitions[-1].arguments["listeners"] == (
+        "main#context_listener",
+        firewall_manager_listener_name("main"),
+        firewall_access_listener_name("main"),
+    )
+    assert FirewallListenerInterface in services.aliases
+
+
+def test_a_stateless_firewall_registers_no_context_listener() -> None:
+    services = _RecordingConfigurator()
+
+    _build_firewall_context(
+        cast("ServiceConfigurator", cast("object", services)),
+        SecurityConfig(),
+        "main",
+        _http_basic_config(),
+        {},
+    )
+
+    assert "main#context_listener" not in services.by_qualifier
+    assert services.definitions[-1].arguments["listeners"] == (
+        firewall_manager_listener_name("main"),
+        firewall_access_listener_name("main"),
+    )
+
+
+def test_a_stateful_firewall_registers_its_session_strategy_subscriber() -> None:
+    from xtr_event_dispatcher.bundle import SUBSCRIBER_TAG
+
+    services = _RecordingConfigurator()
+    firewall = FirewallConfig(
+        pattern=r"^/api",
+        stateless=False,
+        session_strategy="invalidate",
+        authenticators=(_http_basic_config().authenticators[0],),
+    )
+
+    _build_firewall_context(
+        cast("ServiceConfigurator", cast("object", services)),
+        SecurityConfig(),
+        "main",
+        firewall,
+        {},
+    )
+
+    assert "main#session_authentication_strategy" in services.by_qualifier
+    assert SUBSCRIBER_TAG in services.tags
+
+
+def test_a_configured_logout_parks_its_listener_on_the_contexts_slot() -> None:
+    from xtr_security.bundle import LogoutConfig
+
+    services = _RecordingConfigurator()
+    firewall = FirewallConfig(
+        pattern=r"^/api",
+        logout=LogoutConfig(path="/sign-out", target_path="/bye"),
+        authenticators=(_http_basic_config().authenticators[0],),
+    )
+
+    _build_firewall_context(
+        cast("ServiceConfigurator", cast("object", services)),
+        SecurityConfig(),
+        "main",
+        firewall,
+        {},
+    )
+
+    assert "main#logout_listener" in services.by_qualifier
+    factory = cast("Callable[..., object]", services.set_targets[-1])
+    assert (
+        factory.__annotations__["logout"]
+        == Annotated[LogoutListener, Target("main#logout_listener")]
+    )
+
+
+def test_a_logout_asking_for_a_csrf_check_fails_the_build() -> None:
+    from xtr_security.bundle import LogoutConfig
+
+    services = _RecordingConfigurator()
+    firewall = FirewallConfig(
+        pattern=r"^/api",
+        logout=LogoutConfig(enable_csrf=True),
+        authenticators=(_http_basic_config().authenticators[0],),
+    )
+
+    with pytest.raises(InvalidConfigurationError, match="enable_csrf"):
+        _build_firewall_context(
+            cast("ServiceConfigurator", cast("object", services)),
+            SecurityConfig(),
+            "main",
+            firewall,
+            {},
+        )
+
+
+def test_the_logout_url_generator_registers_every_configured_firewall() -> None:
+    from xtr_security_http import LogoutUrlGenerator
+
+    from xtr_security.bundle._logout_wiring import register_logout_url_generator
+
+    services = _RecordingConfigurator()
+
+    register_logout_url_generator(
+        cast("ServiceConfigurator", cast("object", services)),
+        {"main": ("/sign-out", "main"), "api": ("/logout", None)},
+    )
+
+    generator = cast("Callable[..., object]", services.set_targets[-1])
+    assert generator.__annotations__["return"] is LogoutUrlGenerator
+
+
+def test_a_backchannel_logout_on_a_stateless_firewall_fails_the_build() -> None:
+    services = _RecordingConfigurator()
+    firewall = FirewallConfig(
+        pattern=r"^/api",
+        authenticators=(
+            OidcLoginConfig(
+                issuer="https://issuer.example",
+                client_id="shop",
+                client_secret="secret",
+                backchannel_logout=OidcBackChannelLogoutConfig(),
+            ),
+        ),
+    )
+
+    with pytest.raises(InvalidConfigurationError, match="stateless=False"):
+        _build_firewall_context(
+            cast("ServiceConfigurator", cast("object", services)),
+            SecurityConfig(authenticator_factories=(OidcLoginFactory(),)),
+            "api",
+            firewall,
+            {},
+        )

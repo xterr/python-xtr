@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from xtr_security.bundle import OidcLoginConfig, OidcTokenGeneratorConfig
+from xtr_security.bundle import (
+    OidcBackChannelLogoutConfig,
+    OidcEndSessionConfig,
+    OidcLoginConfig,
+    OidcTokenGeneratorConfig,
+)
 from xtr_security.exception import InvalidConfigurationError
 
 
@@ -150,6 +155,53 @@ def test_a_login_defaults_to_the_documented_choices() -> None:
     assert config.client_authentication_keyset is None
     assert config.certificate_options is None
     assert config.token_generator is None
+    assert config.backchannel_logout is None
+    assert config.end_session is None
+
+
+def test_a_backchannel_logout_refuses_a_route_name() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = OidcBackChannelLogoutConfig(route="app_logout")
+
+
+def test_a_backchannel_logout_refuses_a_non_positive_lifetime() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = OidcBackChannelLogoutConfig(lifetime=0)
+
+
+def test_a_backchannel_logout_keeps_its_fields() -> None:
+    backchannel = OidcBackChannelLogoutConfig(route="/logout/provider", lifetime=7200)
+
+    assert backchannel.enable is True
+    assert backchannel.route == "/logout/provider"
+    assert backchannel.lifetime == 7200
+
+
+def test_an_end_session_refuses_a_route_name() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = OidcEndSessionConfig(post_logout_redirect_path="home")
+
+
+def test_an_end_session_keeps_its_fields() -> None:
+    end_session = OidcEndSessionConfig(post_logout_redirect_path="/bye")
+
+    assert end_session.enable is True
+    assert end_session.post_logout_redirect_path == "/bye"
+
+
+def test_a_login_carries_its_backchannel_and_end_session() -> None:
+    backchannel = OidcBackChannelLogoutConfig()
+    end_session = OidcEndSessionConfig()
+    config = OidcLoginConfig(
+        issuer="https://issuer.example",
+        client_id="shop",
+        client_secret="secret",
+        backchannel_logout=backchannel,
+        end_session=end_session,
+    )
+
+    assert config.backchannel_logout is backchannel
+    assert config.end_session is end_session
 
 
 def test_a_generator_needs_its_algorithms() -> None:

@@ -22,6 +22,7 @@ from xtr_security_http import (
     ExposeSecurityLevel,
     FirewallListenerInterface,
     InsufficientScopeAccessDeniedHandler,
+    LogoutListener,
     SenderConstraintInterface,
 )
 from xtr_security_http.authenticator.authenticator_interface import (
@@ -51,7 +52,7 @@ if TYPE_CHECKING:
 __all__ = ["register_context_factory"]
 
 
-def register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one firewall's parts
+def register_context_factory(  # noqa: PLR0913, PLR0915 -- a wiring call gathering one firewall's parts
     services: ServiceConfigurator,
     name: str,
     firewall: FirewallConfig,
@@ -61,6 +62,8 @@ def register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one fi
     access_map: AccessMap,
     expose: ExposeSecurityLevel,
     extra_listeners: tuple[str, ...] = (),
+    context_listener: str | None = None,
+    logout_listener: str | None = None,
 ) -> None:
     """Register the factory that gathers one firewall's parts into a context.
 
@@ -85,9 +88,11 @@ def register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one fi
     parked on the context definition's ``listeners`` argument — the
     P2.1 convention the sorting pass reads — so it is ordered before the
     context resolves it through the locator, in the order the pass left it.
-    The exception listener is built per firewall, from the firewall's own
-    parts — its name, its resolved entry point, its configured denial
-    handler, the scope handler over its realm — so a request's failure is
+    A stateful firewall's context step is parked ahead of the manager's own,
+    so the token its session carries is restored before anything
+    authenticates. The exception listener is built per firewall, from the
+    firewall's own parts — its name, its resolved entry point, its configured
+    denial handler, the scope handler over its realm — so a request's failure is
     answered by the firewall that ran it. The scope handler reads its RFC 9728
     ``resource_metadata`` URI and its sender constraint off the firewall's
     first access-token authenticator, and its inner handler off the firewall's
@@ -97,7 +102,9 @@ def register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one fi
     ``extra_listeners`` names further chain steps the bundle itself parked —
     an OIDC login's token-refresh listener — ahead of the listeners the
     application's own configuration names; the sorting pass orders them with
-    the rest.
+    the rest. ``logout_listener`` names the logout step a configured logout
+    registered: the context carries it on its own logout slot, where the
+    firewall runs it at its priority instead of the chain's ordering.
     """
     realm = realm_of(firewall)
     scope_settings = access_token_settings_of(firewall)
@@ -198,6 +205,7 @@ def register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one fi
         denied: object | None = None,
         scope_denied: object | None = None,
         scope_constraint: object | None = None,
+        logout: object | None = None,
     ) -> FirewallContext:
         available = {
             qualifier: await authenticators.get(qualifier) for qualifier in auth_qualifiers
@@ -236,6 +244,7 @@ def register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one fi
             scope_denied_handler=scope_denied_handler,
             listeners=tuple([await chain.get(qualifier) for qualifier in listeners]),
             exception_listener=exception_listener,
+            logout_listener=cast("FirewallListenerInterface | None", logout),
         )
 
     annotations: dict[str, object] = {
@@ -257,10 +266,15 @@ def register_context_factory(  # noqa: PLR0913 -- a wiring call gathering one fi
         annotations["scope_constraint"] = Annotated[
             SenderConstraintInterface, Target(scope_constraint_qualifier)
         ]
+    if logout_listener is not None:
+        annotations["logout"] = Annotated[LogoutListener, Target(logout_listener)]
     firewall_context.__annotations__ = annotations
     firewall_context.__name__ = f"firewall_context_{name}"
     firewall_context.__qualname__ = firewall_context.__name__
+    chain = (listener_qualifier, access_listener_qualifier, *extra_listeners, *firewall.listeners)
+    if context_listener is not None:
+        chain = (context_listener, *chain)
     _ = services.set(firewall_context, qualifier=name, lifetime="scoped").set_argument(
         "listeners",
-        (listener_qualifier, access_listener_qualifier, *extra_listeners, *firewall.listeners),
+        chain,
     )

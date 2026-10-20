@@ -179,13 +179,16 @@ so the zero-config path is no firewalls and the affirmative decision strategy.
 | `methods` | `()` | The HTTP methods claimed; every method when empty |
 | `request_matcher` | `None` | A callable `(ServerRequestInterface) -> bool`, tried last |
 | `security` | `True` | `False` lets every request the firewall claims through untouched |
-| `stateless` | `True` | Only `True` is accepted in this version |
+| `stateless` | `True` | Whether the firewall keeps no session. A stateful firewall (`stateless=False`) restores the token its session carries on every request, through the `SessionStorageInterface` service the application registers; with none registered the build fails naming it |
+| `context_key` | `None` | The name the firewall's context is stored under in the session — the part after `_security.` — or `None` for the firewall's own name |
+| `session_strategy` | `migrate` | What a successful login does to the session it reattached: `migrate` rotates its ID keeping its attributes, `invalidate` empties it, `none` leaves it alone. Meaningful on a stateful firewall only |
 | `provider` | `None` | The user provider the firewall loads users from; with none here and none configured at all, an authenticator that needs one gets a `MissingUserProvider` that fails, naming the firewall, when first used |
 | `user_checker` | `None` | A user-checker service type, or the default in-memory checker |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
 | `access_denied_handler` | `None` | A handler for a denied, fully-authenticated caller |
 | `authenticators` | `()` | The authenticator configurations the firewall runs |
 | `required_badges` | `()` | Badge types every passport must carry |
+| `logout` | `None` | The logout the firewall's requests can ask for — see below |
 
 The matchers those fields build come from [xtr-http-foundation](../xtr-http-foundation), and each
 of them — `request_matcher`'s callable included — reads the request as a message.
@@ -196,6 +199,70 @@ The firewalls run as the firewall — a subscriber `SecurityBundle` registers ov
 lifecycle's events, before routing — so the routes carry no firewall dependency of their own:
 each request runs the first firewall whose matcher claims it, authenticated once, and a route
 documents its security with the framework's own params.
+
+### Stateful firewalls
+
+A stateful firewall (`stateless=False`) carries a context step at the head of its chain — the
+`ContextListener` restoring the token its session holds, reloading the user it carries through
+the firewall's provider, and writing the token back on the response — registered by the bundle
+under `<firewall>#context_listener` and parked ahead of the authentication step. The session
+itself is the application's: the `SessionStorageInterface` service it registered (an in-memory
+one for a single process, a cache-pool one for a shared backend) is what the listener builds
+the session from, and a stateful firewall with none registered fails the build naming the
+service — the bundle never builds one silently, and a firewall the application asked to be
+stateful cannot quietly run as a stateless one.
+
+A successful login hands the session to the firewall's `session_strategy` — `migrate` by
+default, rotating the session's ID so a fixation stops answering for the account the login
+named — through a `SessionStrategyListener` on the firewall's own dispatcher.
+
+### Logout
+
+A firewall with a `LogoutConfig` carries a logout step on its context — the request asking for
+the configured `path` is logged out, its token cleared — and the logout event it announces is
+answered on the firewall's own dispatcher by the listeners the configuration turns on: the
+default redirect to `target_path`, the `Clear-Site-Data` header, the configured cookies
+cleared, and the session invalidated on a stateful firewall. One `LogoutUrlGenerator` service
+carries every firewall's registration, so whatever renders a page asks for a logout's address
+by the firewall's name — or with none, resolved over the current request's token.
+
+The cross-site request forgery checks a logout can ask for (`enable_csrf`,
+`clear_csrf_tokens`) are not wired yet: a configuration asking for either fails the build
+saying so, rather than logging out unproven requests silently.
+
+### The OIDC back channel
+
+An OIDC login can carry a `backchannel_logout` and an `end_session` block. The end-session
+listener joins the firewall's own logout listeners, redirecting the application's logout to
+the provider's end-session endpoint. The back-channel logout records the sessions the
+provider says have ended, into the `CacheItemPoolInterface` service the application
+registered — a pool shared by every server, never one the bundle builds — and refuses the
+logins they name through a listener on the refreshed-user check.
+
+The route the provider pushes its logout tokens to is the application's to map: the bundle
+registers an `OidcBackChannelLogoutHandler` service, qualified by the firewall's name, and
+the application serves it at the path it configured as the block's `route`:
+
+```python
+from typing import Annotated
+from fastapi import Form
+from xtr_dependency_injection import Target
+from xtr_http_kernel.bridge import Response
+
+from xtr_security import OidcBackChannelLogoutHandler
+
+
+@app.post("/logout/backchannel")
+async def backchannel_logout(
+    logout_token: Annotated[str | None, Form()] = None,
+    answer: Annotated[OidcBackChannelLogoutHandler, Target("main")] = None,
+) -> Response:
+    return await answer(logout_token)
+```
+
+The endpoint is public and unauthenticated by design — the request comes from the provider,
+carrying nothing of the browser that logged in — and a refusal answers the bare `400` with
+no detail: the reason is the verifier's to name in the log, not the caller's to read.
 
 ### Firewall listeners
 
@@ -381,7 +448,7 @@ Everything the family raises derives from `SecurityError` (from
 
 | Error | Raised when |
 |---|---|
-| `InvalidConfigurationError` | A security configuration the bundle cannot turn into services — an unknown provider, a firewall that is not stateless, an authenticator with no factory, an ambiguous entry point; also a `ValueError` |
+| `InvalidConfigurationError` | A security configuration the bundle cannot turn into services — an unknown provider, a secured firewall with no authenticator, an authenticator with no factory, an ambiguous entry point, a stateful firewall with no `SessionStorageInterface` registered, a logout asking for a cross-site request forgery check this version does not wire, a back-channel logout on a stateless firewall; also a `ValueError` |
 
 ## Layout
 
@@ -389,6 +456,8 @@ Everything the family raises derives from `SecurityError` (from
 xtr_security/
 ├── security.py                the Security facade
 ├── firewall_config.py         FirewallConfig, the firewall an application writes
+├── logout_config.py           LogoutConfig, the logout a firewall's requests ask for
+├── oidc_back_channel_logout_handler.py  answers the route a provider pushes logout tokens to
 ├── exception/                 InvalidConfigurationError
 ├── command/                   debug:firewall
 ├── factory/                   authenticator factory interface + AccessTokenFactory,
@@ -403,6 +472,7 @@ xtr_security/
     ├── firewall_context.py    FirewallContext, one firewall's runtime pieces (internal)
     ├── firewall_manager_listener_name.py  the qualifier of a firewall's manager listener
     ├── make_firewalls_manager_listener_traceable_pass.py  traces the manager listeners
+    ├── refuse_stateful_firewalls_without_session_storage_pass.py  names the missing storage
     ├── sort_firewall_listeners_pass.py  orders each firewall's listener chain
     └── *_configs.py           the configs an application writes, incl. password_hasher_configs
 ```

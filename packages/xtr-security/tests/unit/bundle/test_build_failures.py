@@ -31,3 +31,13 @@ async def test_an_ambiguous_entry_point_fails_the_build() -> None:
     )
     with pytest.raises(InvalidConfigurationError):
         _ = kernel.build()
+
+
+async def test_a_stateful_firewall_without_a_session_storage_fails_the_build() -> None:
+    kernel = Kernel(
+        "tests.fixtures.broken_apps.stateful_without_storage",
+        env="test",
+        bundles={SecurityBundle: {"all": True}},
+    )
+    with pytest.raises(InvalidConfigurationError, match="SessionStorageInterface"):
+        _ = kernel.build()

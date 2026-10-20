@@ -16,8 +16,17 @@ from xtr_security_http.firewall_map import FirewallMap as HttpFirewallMap
 from xtr_security.bundle._authenticator_wiring import register_authenticators
 from xtr_security.bundle._context_wiring import register_context_factory
 from xtr_security.bundle._dispatcher_wiring import register_dispatcher, register_shared_listeners
+from xtr_security.bundle._logout_wiring import (
+    register_logout,
+    register_logout_url_generator,
+)
+from xtr_security.bundle._stateful_wiring import (
+    register_context_listener,
+    register_session_strategy,
+)
 from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.bundle.oidc_configs import OidcLoginConfig
+from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory.oidc_login_factory import oidc_token_refresh_listener_name
 
 if TYPE_CHECKING:
@@ -50,11 +59,14 @@ def build_firewall_map(
     by firewall name, and pairs each with its matcher into the map.
     """
     matchers: dict[str, RequestMatcherInterface] = {}
+    logout_registrations: dict[str, tuple[str, str | None]] = {}
     for name, firewall in config.firewalls.items():
         matchers[name] = firewall.to_matcher()
-        _build_firewall_context(services, config, name, firewall)
+        _build_firewall_context(services, config, name, firewall, logout_registrations)
     if any(firewall.security for firewall in config.firewalls.values()):
         register_shared_listeners(services)
+    if logout_registrations:
+        register_logout_url_generator(services, logout_registrations)
 
     _ = services.set(firewall_map_factory(matchers), lifetime="scoped")
     services.alias(FirewallMapInterface, HttpFirewallMap)
@@ -65,11 +77,13 @@ def _build_firewall_context(
     config: SecurityConfig,
     name: str,
     firewall: FirewallConfig,
+    logout_registrations: dict[str, tuple[str, str | None]],
 ) -> None:
     """Register everything one firewall needs: its dispatcher, authenticators and context."""
     if not firewall.security:
         _register_open_context(services, name, firewall)
     else:
+        _refuse_back_channel_logout_on_a_stateless_firewall(name, firewall)
         provider_qualifier = firewall.provider
         register_dispatcher(services, name, firewall, provider_qualifier)
         auth_qualifiers, entry_point_qualifier = register_authenticators(
@@ -79,6 +93,19 @@ def _build_firewall_context(
         for rule in config.access_control:
             if rule.firewall in (None, name):
                 access_map.add(rule.to_matcher(), rule.attribute)
+        context_listener = None
+        logout_listener = None
+        if not firewall.stateless:
+            context_listener = register_context_listener(
+                services, name, firewall, provider_qualifier
+            )
+            register_session_strategy(services, name, firewall)
+        if firewall.logout is not None:
+            logout_listener = register_logout(services, name, firewall, firewall.logout)
+            logout_registrations[name] = (
+                firewall.logout.path,
+                firewall.context_key if firewall.context_key is not None else name,
+            )
         register_context_factory(
             services,
             name,
@@ -95,7 +122,33 @@ def _build_firewall_context(
                 )
                 else ()
             ),
+            context_listener=context_listener,
+            logout_listener=logout_listener,
         )
+
+
+def _refuse_back_channel_logout_on_a_stateless_firewall(
+    name: str,
+    firewall: FirewallConfig,
+) -> None:
+    """Refuse a back-channel logout a stateless firewall could never act on.
+
+    The ended sessions a back-channel logout records are acted on by the
+    refreshed-user check, which only a stateful firewall's context listener
+    announces: on a stateless firewall the recording would be machinery
+    nothing reads, reading as protection while refusing nothing.
+    """
+    for authenticator in firewall.authenticators:
+        if (
+            isinstance(authenticator, OidcLoginConfig)
+            and authenticator.backchannel_logout is not None
+            and authenticator.backchannel_logout.enable
+            and firewall.stateless
+        ):
+            raise InvalidConfigurationError(
+                f'The OIDC login of the firewall "{name}" asks for a back-channel '
+                "logout, which needs a stateful firewall; set stateless=False.",
+            )
 
 
 def _register_open_context(

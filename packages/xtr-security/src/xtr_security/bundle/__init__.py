@@ -26,6 +26,7 @@ from xtr_security.factory import (
 )
 from xtr_security.factory.add_authenticator_factory import add_authenticator_factory
 from xtr_security.firewall_config import FirewallConfig
+from xtr_security.logout_config import LogoutConfig
 from xtr_security.user_provider import (
     ChainUserProviderFactory,
     InMemoryUserProviderFactory,
@@ -47,6 +48,8 @@ from .make_firewalls_manager_listener_traceable_pass import (
     MakeFirewallsManagerListenerTraceablePass,
 )
 from .oidc_configs import (
+    OidcBackChannelLogoutConfig,
+    OidcEndSessionConfig,
     OidcLoginConfig,
     OidcTokenGeneratorConfig,
     TokenEndpointAuthMethod,
@@ -58,6 +61,9 @@ from .password_hasher_configs import (
     Pbkdf2HasherConfig,
     PlaintextHasherConfig,
     ServiceHasherConfig,
+)
+from .refuse_stateful_firewalls_without_session_storage_pass import (
+    RefuseStatefulFirewallsWithoutSessionStoragePass,
 )
 from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
 from .security_bundle import SecurityBundle
@@ -94,11 +100,14 @@ __all__ = [
     "InMemoryUserProviderConfig",
     "InMemoryUserProviderFactory",
     "InvalidConfigurationError",
+    "LogoutConfig",
     "MakeFirewallsEventDispatcherTraceablePass",
     "MakeFirewallsManagerListenerTraceablePass",
     "NativeHasherConfig",
     "Oauth2TokenHandlerConfig",
     "Oauth2TokenHandlerFactory",
+    "OidcBackChannelLogoutConfig",
+    "OidcEndSessionConfig",
     "OidcLoginConfig",
     "OidcLoginFactory",
     "OidcTokenGeneratorConfig",
@@ -108,6 +117,7 @@ __all__ = [
     "OidcUserInfoTokenHandlerFactory",
     "Pbkdf2HasherConfig",
     "PlaintextHasherConfig",
+    "RefuseStatefulFirewallsWithoutSessionStoragePass",
     "RegisterGlobalSecurityEventListenersPass",
     "SecurityBundle",
     "SecurityConfig",

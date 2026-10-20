@@ -81,6 +81,9 @@ from .make_firewalls_event_dispatcher_traceable_pass import (
 from .make_firewalls_manager_listener_traceable_pass import (
     MakeFirewallsManagerListenerTraceablePass,
 )
+from .refuse_stateful_firewalls_without_session_storage_pass import (
+    RefuseStatefulFirewallsWithoutSessionStoragePass,
+)
 from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
 from .sort_firewall_listeners_pass import SortFirewallListenersPass
 
@@ -147,6 +150,13 @@ class SecurityBundle(Bundle[SecurityConfig]):
             RegisterGlobalSecurityEventListenersPass(),
             stage=PassStage.BEFORE_OPTIMIZATION,
             priority=BUNDLE_PASS_PRIORITY - 1,
+        )
+        # Between the container's remove-if-missing pass (priority 100) and
+        # the chain sorting below, so the refusal is heard first.
+        builder.add_compiler_pass(
+            RefuseStatefulFirewallsWithoutSessionStoragePass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=0,
         )
         builder.add_compiler_pass(
             SortFirewallListenersPass(),

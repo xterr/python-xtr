@@ -15,6 +15,8 @@ from typing import Literal
 from xtr_security.exception import InvalidConfigurationError
 
 __all__ = [
+    "OidcBackChannelLogoutConfig",
+    "OidcEndSessionConfig",
     "OidcLoginConfig",
     "OidcTokenGeneratorConfig",
     "TokenEndpointAuthMethod",
@@ -95,6 +97,82 @@ def _no_authorization_params() -> dict[str, str]:
 
 
 @dataclass(frozen=True, slots=True)
+class OidcBackChannelLogoutConfig:
+    """The back-channel logout a provider pushes its logout tokens to.
+
+    The provider ends one of its sessions and says so out of band — a
+    logout token posted to a public route of this application, verified
+    against the provider's keys and recorded, so the login it names is
+    refused on the browser's next request. The route is the application's
+    to map: the bundle registers the handler service, and the application
+    serves it at ``route`` — the path it configured here, the same path the
+    provider is told to push to.
+
+    Attributes:
+        enable: Whether the login takes part in a back-channel logout.
+        route: The path the application serves the back-channel route at.
+        lifetime: How long an ended session is remembered, in seconds — at
+            least as long as a session of this application can stay idle.
+
+    Raises:
+        InvalidConfigurationError: When the route is not an absolute path,
+            or the lifetime is not positive.
+    """
+
+    enable: bool = True
+    route: str = "/logout/backchannel"
+    lifetime: int = 3600
+
+    def __post_init__(self) -> None:
+        """Check the route is a path and the lifetime outlives a session."""
+        if not self.route.startswith("/"):
+            raise InvalidConfigurationError(
+                f"The back-channel logout route {self.route!r} is not an absolute "
+                "path; route names are not supported, only literal paths.",
+            )
+        if self.lifetime <= 0:
+            raise InvalidConfigurationError(
+                "The back-channel logout lifetime must be positive; it has to "
+                "outlive the sessions it refuses.",
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class OidcEndSessionConfig:
+    """The provider's own session ended when the application's logout runs.
+
+    A logout of a login this provider issued redirects to the provider's
+    end-session endpoint, so the provider's session of that login ends too
+    — the redirect carrying the ID token as its hint and, when one is
+    configured, the page to come back to.
+
+    Attributes:
+        enable: Whether the logout redirects to the provider.
+        post_logout_redirect_path: The path the provider sends the browser
+            back to after it ended its session, or ``None`` for the
+            provider's own default.
+
+    Raises:
+        InvalidConfigurationError: When the redirect path is not an
+            absolute path.
+    """
+
+    enable: bool = True
+    post_logout_redirect_path: str | None = None
+
+    def __post_init__(self) -> None:
+        """Check the redirect path is a path."""
+        if self.post_logout_redirect_path is not None and (
+            not self.post_logout_redirect_path.startswith("/")
+        ):
+            raise InvalidConfigurationError(
+                f"The end-session redirect path {self.post_logout_redirect_path!r} is "
+                "not an absolute path; route names are not supported, only literal "
+                "paths.",
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class OidcLoginConfig:
     """An OIDC authorization-code login: the provider redirects, the callback authenticates.
 
@@ -132,6 +210,11 @@ class OidcLoginConfig:
             ``passphrase`` — carried on the client.
         token_generator: The tokens the token-generate command mints for this
             firewall, or ``None`` when it mints none.
+        backchannel_logout: The back-channel logout the provider's logout
+            tokens are pushed to, or ``None`` when the login takes part in
+            none. Needs a stateful firewall.
+        end_session: The provider's own session ended when the
+            application's logout runs, or ``None`` for a local logout alone.
 
     Raises:
         InvalidConfigurationError: When the issuer or client is missing, when
@@ -155,6 +238,8 @@ class OidcLoginConfig:
     client_authentication_keyset: str | None = None
     certificate_options: Mapping[str, str] | None = None
     token_generator: OidcTokenGeneratorConfig | None = None
+    backchannel_logout: OidcBackChannelLogoutConfig | None = None
+    end_session: OidcEndSessionConfig | None = None
 
     def __post_init__(self) -> None:
         """Check the client, its secret and the login's choices."""

@@ -19,6 +19,10 @@ from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_nam
 from xtr_security.bundle.oidc_configs import OidcLoginConfig
 from xtr_security.exception import InvalidConfigurationError
 
+from ._oidc_back_channel_services import (
+    register_back_channel_logout,
+    register_end_session_listener,
+)
 from ._oidc_login_services import (
     oidc_token_refresh_listener_name,
     register_failure_handler,
@@ -129,6 +133,8 @@ class OidcLoginFactory(AuthenticatorFactoryInterface):
             verifier_key,
         )
         register_refresh_listener(services, firewall_name, refresher_key)
+        register_back_channel_logout(services, firewall_name, settings, discovery_key, verifier_key)
+        register_end_session_listener(services, firewall_name, settings, discovery_key)
         success_key = register_success_handler(services, firewall_name)
         failure_key = register_failure_handler(services, firewall_name)
         if settings.token_generator is not None:
