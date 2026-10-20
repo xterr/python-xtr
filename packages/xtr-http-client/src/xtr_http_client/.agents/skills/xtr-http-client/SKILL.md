@@ -66,6 +66,23 @@ resolved against `base_uri`, `query` is merged into the URI, and `auth_bearer` a
 where the request has no `Authorization`. A `body` or `json` option plus a request that already
 carries a body is refused.
 
+## Upload a file
+
+```python
+with open("photo.png", "rb") as photo:
+    response = await client.request("POST", "upload", body={"caption": "hi", "photo": photo})
+```
+
+- A `body` mapping holding a binary file (`open(..., "rb")`, `io.BytesIO`) is sent as
+  `multipart/form-data`; without one it stays url-encoded.
+- Each file part is named after the file's `name` (`unknown` without one) and typed by
+  `mimetypes.guess_type`, else `application/octet-stream`.
+- A caller-set `Content-Type: multipart/form-data; boundary=...` keeps its boundary; do not set
+  a multipart content type without one.
+- The file is read synchronously while the body is sent: keep the file open until `request()`
+  returns, and keep uploads modest in size.
+- `MockHttpClient` hands the mapping, file included, to the script as given.
+
 ## Give each service its own defaults
 
 ```python

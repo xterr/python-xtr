@@ -86,7 +86,7 @@ dropped, which took the test with it.
 
 63 reference methods: 43 here, 19 removed with the features they test, 1 with no counterpart.
 
-Seven tests are the contract's own additions, with nothing behind them in the reference suite:
+Eleven tests are the contract's own additions, with nothing behind them in the reference suite:
 
 ``test_body_stream``
     Reads the body through the message's stream rather than in one go.
@@ -102,11 +102,20 @@ Seven tests are the contract's own additions, with nothing behind them in the re
     A request with a body plus a ``body`` option is refused, word for word.
 ``test_request_is_send_request_of_the_same_request``
     ``request()`` answers as ``send_request`` of the same request does.
+``test_post_multipart``
+    A form holding a file is sent as multipart, each part echoed back.
+``test_post_multipart_with_an_unnamed_file``
+    A file with no name goes as ``unknown``, typed ``application/octet-stream``.
+``test_post_multipart_keeps_the_callers_boundary``
+    A caller-set multipart content type keeps its boundary.
+``test_post_form_without_a_file_stays_url_encoded``
+    A form holding no file is still url-encoded.
 """
 
 from __future__ import annotations
 
 import gzip
+import io
 import json
 import re
 import time
@@ -129,6 +138,7 @@ from .test_http_server import TestHttpServer
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator, Sequence
+    from pathlib import Path
 
     from xtr_http_client_contracts.http_client_interface import HttpClientInterface
     from xtr_http_client_contracts.http_response_interface import HttpResponseInterface
@@ -158,6 +168,10 @@ _CLIENT_PORT = "REMOTE_PORT"
 _BOTH_BODIES = (
     'Define either the request body or the "body" or "json" option, setting both is not supported.'
 )
+
+# The first bytes of a PNG: a line ending and a byte past ASCII, which a multipart body must
+# carry through untouched.
+_PHOTO = b"\x89PNG\r\n\x1a\n"
 
 
 class _NamedNode(Protocol):
@@ -1018,6 +1032,81 @@ class HttpClientTestCase:
         sent = await (await client.send_request(Request("GET", f"{self.base_uri}/"))).to_array()
 
         assert _without_client_port(sent) == _without_client_port(direct)
+
+    async def test_post_multipart(self, tmp_path: Path) -> None:
+        """A form holding a file is sent as multipart, the file named and typed after itself."""
+        client = self.create_client()
+        photo = tmp_path / "photo.png"
+        _ = photo.write_bytes(_PHOTO)
+
+        with photo.open("rb") as file:
+            response = await client.request(
+                "POST",
+                f"{self.base_uri}/multipart",
+                body={"caption": "hello", "photo": file},
+            )
+            echo = await response.to_array()
+
+        assert _expect(echo["content-type"], str).startswith("multipart/form-data; boundary=")
+        assert echo["parts"] == [
+            {"name": "caption", "filename": None, "content-type": None, "content": "hello"},
+            {
+                "name": "photo",
+                "filename": "photo.png",
+                "content-type": "image/png",
+                "content": _PHOTO.decode("latin-1"),
+            },
+        ]
+
+    async def test_post_multipart_with_an_unnamed_file(self) -> None:
+        """A file with no name of its own goes as ``unknown``, of no type anyone can guess."""
+        client = self.create_client()
+
+        response = await client.request(
+            "POST",
+            f"{self.base_uri}/multipart",
+            body={"data": io.BytesIO(b"plain bytes")},
+        )
+
+        assert (await response.to_array())["parts"] == [
+            {
+                "name": "data",
+                "filename": "unknown",
+                "content-type": "application/octet-stream",
+                "content": "plain bytes",
+            },
+        ]
+
+    async def test_post_multipart_keeps_the_callers_boundary(self) -> None:
+        """A multipart content type the caller set, boundary and all, is the one the body uses."""
+        client = self.create_client()
+        content_type = "multipart/form-data; boundary=xtr-boundary"
+
+        response = await client.request(
+            "POST",
+            f"{self.base_uri}/multipart",
+            headers={"Content-Type": content_type},
+            body={"caption": "hello", "data": io.BytesIO(b"plain bytes")},
+        )
+
+        echo = await response.to_array()
+        assert echo["content-type"] == content_type
+        parts = cast("Sequence[Mapping[str, object]]", _expect(echo["parts"], list))
+        assert [part["name"] for part in parts] == ["caption", "data"]
+
+    async def test_post_form_without_a_file_stays_url_encoded(self) -> None:
+        """A form holding no file is sent url-encoded, not as multipart."""
+        client = self.create_client()
+
+        response = await client.request(
+            "POST",
+            f"{self.base_uri}/multipart",
+            body={"caption": "hello"},
+        )
+
+        echo = await response.to_array()
+        assert _expect(echo["content-type"], str).startswith("application/x-www-form-urlencoded")
+        assert echo["parts"] == []
 
     def _is_proxied(self, request_uri: object) -> bool:
         """Whether the server was asked for its own root in absolute form, as a proxy is."""

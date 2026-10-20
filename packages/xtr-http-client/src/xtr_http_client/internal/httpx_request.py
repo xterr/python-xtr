@@ -8,8 +8,13 @@ per part, made here, away from the exchange and the redirect chain that follow.
 
 from __future__ import annotations
 
+import io
+import mimetypes
+import os
+import re
 from collections.abc import AsyncIterable, Mapping, Sequence
-from typing import TYPE_CHECKING, Final, NamedTuple, cast
+from pathlib import PurePath
+from typing import TYPE_CHECKING, BinaryIO, Final, NamedTuple, cast
 
 import httpx
 
@@ -47,12 +52,28 @@ _FORM: Final = "application/x-www-form-urlencoded"
 _NO_BODY: Final = (None, b"", "")
 
 
+# Read the way the backend reads it: a boundary it cannot find here is one it would not use
+# either, and it would then write a body the caller's header does not describe.
+_NAMED_BOUNDARY: Final = re.compile(r'^multipart/form-data;.*\bboundary=(?:"[^"]+"|[^;\s"]+)')
+
+# What a file with no name of its own is sent as: a server reads a part without a file name
+# as a plain value, so a file has to be called something.
+_UNNAMED: Final = "unknown"
+_OCTET_STREAM: Final = "application/octet-stream"
+
+
 class Payload(NamedTuple):
-    """The one body of a request, in whichever of three shapes it is to be sent."""
+    """The one body of a request, in whichever of four shapes it is to be sent.
+
+    ``files`` sits beside ``form`` rather than replacing it: a form holding a file is sent
+    as multipart, its plain values in ``form`` and each file, with the name and content type
+    its part is labelled with, in ``files``.
+    """
 
     content: bytes | str | AsyncIterator[bytes] | None
     form: Mapping[str, object] | None
     document: object
+    files: Mapping[str, tuple[str, BinaryIO, str]] | None = None
 
 
 def target_url(request: RequestInterface, options: Mapping[str, object]) -> httpx.URL:
@@ -161,9 +182,9 @@ async def assemble_payload(
 def _asked_for(options: Mapping[str, object], headers: list[tuple[str, str]]) -> Payload:
     """What the options alone say to send, for a request that carried no body.
 
-    A mapping is a form, which the backend writes out; bytes, text and an
-    iterable are a body nobody labelled, so they are said to be a form here;
-    and a JSON document labels itself.
+    A mapping is a form, which the backend writes out — as multipart when it
+    holds a file; bytes, text and an iterable are a body nobody labelled, so
+    they are said to be a form here; and a JSON document labels itself.
     """
     document = options.get("json")
     if document is not None:
@@ -171,7 +192,7 @@ def _asked_for(options: Mapping[str, object], headers: list[tuple[str, str]]) ->
 
     body = options.get("body")
     if isinstance(body, Mapping):
-        return Payload(None, cast("Mapping[str, object]", body), None)
+        return _form(cast("Mapping[str, object]", body), headers)
     if isinstance(body, (bytes, str)) and body:
         _imply_form(headers)
 
@@ -182,6 +203,47 @@ def _asked_for(options: Mapping[str, object], headers: list[tuple[str, str]]) ->
         return Payload(checked_body(body), None, None)
 
     return Payload(None, None, None)
+
+
+def _form(body: Mapping[str, object], headers: list[tuple[str, str]]) -> Payload:
+    """A form, url-encoded unless one of its values is a binary file.
+
+    The content type is left for the backend to write with the boundary it
+    picks, unless the caller already named one: then that boundary is the one
+    the body is written with. A content type naming none would describe a
+    body it cannot be read by, so it is dropped.
+    """
+    files = {
+        # The standard library's binary file classes are what `BinaryIO` describes, though
+        # the two are not declared related.
+        name: _file_part(cast("BinaryIO", cast("object", value)))
+        for name, value in body.items()
+        if isinstance(value, (io.RawIOBase, io.BufferedIOBase))
+    }
+    if not files:
+        return Payload(None, body, None)
+
+    content_type = next(
+        (value for name, value in headers if name.lower() == "content-type"),
+        "",
+    )
+    if not _NAMED_BOUNDARY.match(content_type):
+        headers[:] = [entry for entry in headers if entry[0].lower() != "content-type"]
+
+    plain = {name: value for name, value in body.items() if name not in files}
+
+    return Payload(None, plain, None, files)
+
+
+def _file_part(file: BinaryIO) -> tuple[str, BinaryIO, str]:
+    """``file``, with the file name and the content type its part is labelled with."""
+    name = cast("object", getattr(file, "name", None))
+    if isinstance(name, bytes):
+        name = os.fsdecode(name)
+    filename = PurePath(name).name if isinstance(name, str) and name else _UNNAMED
+    content_type = mimetypes.guess_type(filename)[0] or _OCTET_STREAM
+
+    return filename, file, content_type
 
 
 async def checked_body(source: AsyncIterable[object]) -> AsyncIterator[bytes]:

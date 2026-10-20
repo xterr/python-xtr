@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import TYPE_CHECKING, Final
 from urllib.parse import parse_qsl
 
@@ -58,6 +59,8 @@ _AFTER_HINTS: Final = (
 _CHUNKS: Final = b"8\r\nchunked \r\n5\r\ndata \r\n6\r\nworks!\r\n0\r\n\r\n"
 _TRUNCATED_CHUNKS: Final = b"8\r\nchunked \r\n5\r\ndata \r\n6\r\nw"
 _NOT_GZIP: Final = b"-" * 1000
+_BOUNDARY: Final = re.compile(r'^multipart/form-data;.*\bboundary=(?:"([^"]+)"|([^;\s"]+))')
+_PARAMETER: Final = re.compile(r'(\w+)="([^"]*)"')
 _DOCUMENTS: Final = {"documents": [{"id": "/json/1"}, {"id": "/json/2"}, {"id": "/json/3"}]}
 
 
@@ -172,6 +175,48 @@ async def _echo_posted(request: FixtureRequest, writer: StreamWriter) -> None:
     body = pretty(_posted(request))
     answer = Answer(200, (_JSON, length(body)))
     await send(writer, head(request, answer), body)
+
+
+async def _echo_multipart(request: FixtureRequest, writer: StreamWriter) -> None:
+    """Answers the content type a body came with and every multipart part it held.
+
+    Each part is answered as its name, its file name, its content type — ``None`` for what the
+    part did not say — and its content, decoded byte for byte so binary content survives JSON.
+    A body that is not multipart holds no parts.
+    """
+    content_type = request.header("content-type")
+    body = pretty(
+        {"content-type": content_type or "?", "parts": _parts(content_type, request.body)}
+    )
+    await send(writer, head(request, Answer(200, (_JSON, length(body)))), body)
+
+
+def _parts(content_type: str | None, body: bytes) -> list[dict[str, object]]:
+    boundary = _BOUNDARY.search(content_type or "")
+    if boundary is None:
+        return []
+    delimiter = b"--" + (boundary.group(1) or boundary.group(2)).encode("latin-1")
+    parts: list[dict[str, object]] = []
+    for section in body.split(delimiter)[1:]:
+        if section.startswith(b"--"):
+            break
+        head_block, _, content = section.removeprefix(b"\r\n").partition(b"\r\n\r\n")
+        fields = {
+            name.strip().lower(): value.strip()
+            for name, _, value in (
+                line.partition(":") for line in head_block.decode("latin-1").split("\r\n")
+            )
+        }
+        disposition = dict(_PARAMETER.findall(fields.get("content-disposition", "")))
+        parts.append(
+            {
+                "name": disposition.get("name"),
+                "filename": disposition.get("filename"),
+                "content-type": fields.get("content-type"),
+                "content": content.removesuffix(b"\r\n").decode("latin-1"),
+            }
+        )
+    return parts
 
 
 async def _slow_head(request: FixtureRequest, writer: StreamWriter) -> None:
@@ -309,6 +354,7 @@ _ROUTES: Final[Mapping[str, _Route]] = {
     "/json/3": _json_document,
     "/length-broken": _broken_length,
     "/max-duration": _endless,
+    "/multipart": _echo_multipart,
     "/post": _echo_posted,
     "/timeout-body": _slow_body,
     "/timeout-header": _slow_head,

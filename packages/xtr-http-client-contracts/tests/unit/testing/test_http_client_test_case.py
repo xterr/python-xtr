@@ -30,6 +30,10 @@ ADDED_BY_THIS_CONTRACT = frozenset(
         "test_send_request_applies_auth_bearer_only_without_one",
         "test_send_request_refuses_a_body_on_both",
         "test_request_is_send_request_of_the_same_request",
+        "test_post_multipart",
+        "test_post_multipart_with_an_unnamed_file",
+        "test_post_multipart_keeps_the_callers_boundary",
+        "test_post_form_without_a_file_stays_url_encoded",
     }
 )
 
@@ -85,6 +89,10 @@ EXPECTED_TESTS = frozenset(
         "test_send_request_applies_auth_bearer_only_without_one",
         "test_send_request_refuses_a_body_on_both",
         "test_request_is_send_request_of_the_same_request",
+        "test_post_multipart",
+        "test_post_multipart_with_an_unnamed_file",
+        "test_post_multipart_keeps_the_callers_boundary",
+        "test_post_form_without_a_file_stays_url_encoded",
     }
 )
 

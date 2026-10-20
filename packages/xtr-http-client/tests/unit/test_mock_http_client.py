@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import re
 from typing import TYPE_CHECKING, cast
 
@@ -260,6 +261,22 @@ async def test_the_options_the_request_was_made_with_are_the_merged_ones() -> No
         assert options["auth_bearer"] == "token"
         assert options["timeout"] == 2.0
         assert options["max_redirects"] == 20
+
+
+async def test_a_form_holding_a_file_reaches_the_script_as_it_was_given() -> None:
+    file = io.BytesIO(b"plain bytes")
+    seen: list[object] = []
+
+    def factory(_method: str, _url: str, options: RequestOptions) -> MockResponse:
+        seen.append(options.get("body"))
+        return MockResponse()
+
+    client = MockHttpClient(factory)
+
+    async with await client.request("POST", URL, body={"caption": "hello", "data": file}):
+        pass
+
+    assert seen == [{"caption": "hello", "data": file}]
 
 
 async def test_an_option_no_client_knows_is_refused_before_anything_is_answered() -> None:
