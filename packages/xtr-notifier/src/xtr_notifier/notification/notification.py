@@ -73,8 +73,8 @@ class Notification:
             channels: The channels to send to (``"chat"``, ``"sms"``), each
                 optionally naming a transport (``"chat/slack"``). Empty leaves
                 the choice to the channel policy.
-            exception: An error the notification reports. Replaces ``subject``
-                with the error's type and message, and keeps its traceback.
+            exception: An error the notification reports; its traceback is kept.
+                Left empty, ``subject`` becomes the error's type and message.
         """
         self._subject = subject
         self._content = content
@@ -84,7 +84,7 @@ class Notification:
         self._exception = exception
         self._exception_as_string = ""
         if exception is not None:
-            self._subject = f"{type(exception).__name__}: {exception}"
+            self._subject = subject or f"{type(exception).__name__}: {exception}"
             self._exception_as_string = "".join(traceback.format_exception(exception)).rstrip()
 
     @classmethod

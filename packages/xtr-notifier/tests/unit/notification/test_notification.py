@@ -85,10 +85,17 @@ def test_it_is_built_from_an_exception() -> None:
     assert "_fail" in notification.exception_as_string
 
 
-def test_an_exception_given_at_build_names_the_subject() -> None:
-    notification = Notification("ignored", exception=_raise_and_catch())
+def test_an_exception_given_at_build_names_an_empty_subject() -> None:
+    notification = Notification(exception=_raise_and_catch())
 
     assert notification.subject == "_DiskFullError: disk almost full"
+
+
+def test_a_subject_given_with_an_exception_is_kept() -> None:
+    notification = Notification("Backup failed", exception=_raise_and_catch())
+
+    assert notification.subject == "Backup failed"
+    assert notification.exception_as_string.endswith("_DiskFullError: disk almost full")
 
 
 @pytest.mark.parametrize(
