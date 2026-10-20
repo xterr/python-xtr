@@ -54,6 +54,10 @@ class FirewallConfig:
             unauthenticated request, or ``None`` to resolve it automatically.
         access_denied_handler: A handler service type answering a denied,
             fully-authenticated caller, or ``None`` for a plain refusal.
+        scope_denied_handler: A handler service type answering a caller whose
+            token lacks a scope an access rule asks for — wrapped by the
+            bundle's ``WWW-Authenticate`` answer — or ``None`` for that answer
+            alone.
         authenticators: The authenticator configurations the firewall runs, each
             an instance a registered factory's ``config_type`` matches.
         required_badges: Badge types every passport must carry to authenticate.
@@ -79,6 +83,7 @@ class FirewallConfig:
     user_checker: type | None = None
     entry_point: str | None = None
     access_denied_handler: type | None = None
+    scope_denied_handler: type | None = None
     authenticators: tuple[object, ...] = ()
     required_badges: tuple[type, ...] = field(default_factory=tuple)
     listeners: tuple[str, ...] = field(default_factory=tuple)

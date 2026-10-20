@@ -10,10 +10,11 @@ driven by the integration suite.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, Annotated, cast, final
 
 import pytest
 from typing_extensions import override
+from xtr_dependency_injection import Target
 from xtr_http_kernel.bridge import ResponseFactory, StarletteHttpFactory
 from xtr_password_hasher import PasswordHasherFactoryInterface, UserPasswordHasherInterface
 from xtr_security_core import MissingUserProvider, RoleHierarchyInterface, UserProviderInterface
@@ -29,29 +30,42 @@ from xtr_security_http import (
     AuthenticatorManager,
     ExposeSecurityLevel,
     FirewallListenerInterface,
+    SenderConstraintInterface,
 )
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 
 from xtr_security.bundle import (
+    AccessControlConfig,
+    AccessTokenConfig,
     AutoHasherConfig,
     InMemoryUserProviderConfig,
     NativeHasherConfig,
+    OidcLoginConfig,
     SecurityConfig,
+    ServiceTokenHandlerConfig,
     firewall_access_listener_name,
     firewall_manager_listener_name,
 )
+from xtr_security.bundle._authenticator_wiring import (
+    register_authenticators as _register_authenticators,
+)
+from xtr_security.bundle._context_wiring import (
+    register_context_factory as _register_context_factory,
+)
+from xtr_security.bundle._entry_point_wiring import resolve_entry_point as _resolve_entry_point
+from xtr_security.bundle._firewall_wiring import _build_firewall_context
+from xtr_security.bundle._hasher_wiring import _default_hasher_config
 from xtr_security.bundle._wiring import (
     DUMMY_PASSWORD_HASHER_QUALIFIER,
     VOTER_TAG,
-    _default_hasher_config,
-    _register_authenticators,
-    _register_context_factory,
     register_hashers,
     register_voters,
 )
 from xtr_security.bundle.firewall_context import FirewallContext
+from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory import (
     AuthenticatorFactoryInterface,
+    OidcLoginFactory,
     StatelessAuthenticatorFactoryInterface,
 )
 from xtr_security.firewall_config import FirewallConfig
@@ -69,9 +83,15 @@ pytestmark = pytest.mark.anyio
 class _RecordingDefinition:
     """A stand-in definition recording the tags and arguments a helper gives a service."""
 
-    def __init__(self, tags: list[str]) -> None:
+    def __init__(self, tags: list[str], qualifier: Hashable | None) -> None:
         self._tags: list[str] = tags
+        self._qualifier = qualifier
         self.arguments: dict[str, object] = {}
+
+    @property
+    def key(self) -> tuple[type, Hashable | None]:
+        """The service key of the definition, as the container would hand it."""
+        return (object, self._qualifier)
 
     def add_tag(self, name: str, **attributes: object) -> _RecordingDefinition:
         del attributes
@@ -106,7 +126,7 @@ class _RecordingConfigurator:
         self.set_targets.append(target)
         if qualifier is not None:
             self.by_qualifier[qualifier] = target
-        definition = _RecordingDefinition(self.tags)
+        definition = _RecordingDefinition(self.tags, qualifier)
         self.definitions.append(definition)
         return definition
 
@@ -492,3 +512,230 @@ def test_the_firewall_provider_is_handed_to_every_authenticator() -> None:
 
     assert needy.user_providers == [(UserProviderInterface, "users")]
     assert stateless.user_providers == [(UserProviderInterface, "users")]
+
+
+def _keys(*qualifiers: str) -> list[tuple[type, str]]:
+    """Service keys for authenticators aliased under the given qualifiers."""
+    return [(object, qualifier) for qualifier in qualifiers]
+
+
+def test_a_fallback_entry_point_never_wins_over_a_real_one() -> None:
+    config = SecurityConfig()
+    firewall = FirewallConfig(authenticators=(_NeedyConfig(),))
+
+    resolved = _resolve_entry_point(
+        config,
+        "api",
+        firewall,
+        _keys("bearer", "form"),
+        ("q0", "q1"),
+        ("fallback", "real"),
+    )
+
+    assert resolved == "q1"
+
+
+def test_a_fallback_entry_point_answers_when_no_real_one_runs() -> None:
+    config = SecurityConfig()
+    firewall = FirewallConfig(authenticators=(_NeedyConfig(),))
+
+    resolved = _resolve_entry_point(
+        config,
+        "api",
+        firewall,
+        _keys("bearer", "other"),
+        ("q0", "q1"),
+        ("fallback", "none"),
+    )
+
+    assert resolved == "q0"
+
+
+def test_two_real_entry_points_stay_ambiguous() -> None:
+    config = SecurityConfig(
+        access_control=(AccessControlConfig(path=r"^/api", attribute="IS_AUTHENTICATED"),),
+    )
+    firewall = FirewallConfig(authenticators=(_NeedyConfig(),))
+
+    with pytest.raises(InvalidConfigurationError):
+        _ = _resolve_entry_point(
+            config,
+            "api",
+            firewall,
+            _keys("form", "json"),
+            ("q0", "q1"),
+            ("real", "real"),
+        )
+
+
+def test_a_configured_entry_point_must_be_one_of_the_authenticators() -> None:
+    config = SecurityConfig()
+    firewall = FirewallConfig(
+        entry_point="elsewhere",
+        authenticators=(_NeedyConfig(),),
+    )
+
+    with pytest.raises(InvalidConfigurationError):
+        _ = _resolve_entry_point(
+            config,
+            "api",
+            firewall,
+            _keys("form"),
+            ("q0",),
+            ("real",),
+        )
+
+
+def test_no_challenging_authenticator_needs_a_named_entry_point() -> None:
+    config = SecurityConfig(
+        access_control=(AccessControlConfig(path=r"^/api", attribute="IS_AUTHENTICATED"),),
+    )
+    firewall = FirewallConfig(authenticators=(_NeedyConfig(),))
+
+    with pytest.raises(InvalidConfigurationError):
+        _ = _resolve_entry_point(
+            config,
+            "api",
+            firewall,
+            _keys("one", "two"),
+            ("q0", "q1"),
+            ("none", "none"),
+        )
+
+
+def test_a_configured_entry_point_names_the_authenticator_that_answers() -> None:
+    config = SecurityConfig()
+    firewall = FirewallConfig(
+        entry_point="form",
+        authenticators=(_NeedyConfig(),),
+    )
+
+    resolved = _resolve_entry_point(
+        config,
+        "api",
+        firewall,
+        _keys("form", "bearer"),
+        ("q0", "q1"),
+        ("real", "fallback"),
+    )
+
+    assert resolved == "q0"
+
+
+def test_no_challenging_authenticator_and_no_auth_rule_leaves_the_first() -> None:
+    config = SecurityConfig()
+    firewall = FirewallConfig(authenticators=(_NeedyConfig(),))
+
+    resolved = _resolve_entry_point(
+        config,
+        "api",
+        firewall,
+        _keys("one", "two"),
+        ("q0", "q1"),
+        ("none", "none"),
+    )
+
+    assert resolved == "q0"
+
+
+def test_the_scope_denied_handler_reads_the_access_token_settings() -> None:
+    """The WWW-Authenticate answer reuses the authenticator's metadata and constraint."""
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(
+            security=False,
+            scope_denied_handler=_Inner,
+            authenticators=(
+                AccessTokenConfig(
+                    token_handler=ServiceTokenHandlerConfig(_Handler),
+                    resource_metadata_uri="/.well-known/oauth-protected-resource",
+                    sender_constraint="api.constraint",
+                ),
+            ),
+        ),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.NONE,
+    )
+    factory = services.set_targets[-1]
+
+    assert factory.__annotations__["scope_denied"] is _Inner
+    assert (
+        factory.__annotations__["scope_constraint"]
+        == Annotated[SenderConstraintInterface, Target("api.constraint")]
+    )
+
+
+def test_the_scope_denied_handler_builds_bare_without_the_settings() -> None:
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.NONE,
+    )
+    factory = services.set_targets[-1]
+
+    assert "scope_denied" not in factory.__annotations__
+    assert "scope_constraint" not in factory.__annotations__
+
+
+class _Inner:
+    """A stand-in inner access-denied handler service."""
+
+
+class _Handler:
+    """A stand-in token-handler class the service token-handler config names."""
+
+
+def test_the_context_factory_parks_the_extra_listeners_ahead_of_the_owns() -> None:
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False, listeners=("late",)),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.NONE,
+        extra_listeners=("api#oidc_token_refresh_listener",),
+    )
+
+    assert services.definitions[-1].arguments == {
+        "listeners": (
+            firewall_manager_listener_name("api"),
+            firewall_access_listener_name("api"),
+            "api#oidc_token_refresh_listener",
+            "late",
+        )
+    }
+
+
+def test_an_oidc_login_firewall_parks_its_refresh_listener_in_the_chain() -> None:
+    services = _RecordingConfigurator()
+    _build_firewall_context(
+        cast("ServiceConfigurator", cast("object", services)),
+        SecurityConfig(authenticator_factories=(OidcLoginFactory(),)),
+        "api",
+        FirewallConfig(
+            authenticators=(
+                OidcLoginConfig(
+                    issuer="https://issuer.example",
+                    client_id="shop",
+                    client_secret="secret",
+                ),
+            ),
+        ),
+    )
+
+    assert services.definitions[-1].arguments["listeners"] == (
+        firewall_manager_listener_name("api"),
+        firewall_access_listener_name("api"),
+        "api#oidc_token_refresh_listener",
+    )

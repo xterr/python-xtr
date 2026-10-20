@@ -18,7 +18,9 @@ from importlib.util import find_spec
 from xtr_security_http import ExposeSecurityLevel
 
 from xtr_security.access_token import (
+    Oauth2TokenHandlerFactory,
     OidcTokenHandlerFactory,
+    OidcUserInfoTokenHandlerFactory,
     ServiceTokenHandlerFactory,
     TokenHandlerFactoryInterface,
 )
@@ -35,7 +37,12 @@ from xtr_security.bundle.user_provider_configs import (
     UserProviderConfig,
 )
 from xtr_security.exception import InvalidConfigurationError
-from xtr_security.factory import AccessTokenFactory, AuthenticatorFactoryInterface
+from xtr_security.factory import (
+    AccessTokenFactory,
+    AuthenticatorFactoryInterface,
+    HttpBasicFactory,
+    OidcLoginFactory,
+)
 from xtr_security.firewall_config import (
     FirewallConfig,  # noqa: TC001 -- field type read at runtime
 )
@@ -70,8 +77,19 @@ def _no_role_hierarchy() -> dict[str, Sequence[str]]:
 
 
 def _default_authenticator_factories() -> tuple[AuthenticatorFactoryInterface, ...]:
-    """The authenticator factories every application starts with."""
-    return (AccessTokenFactory(),)
+    """The authenticator factories every application starts with.
+
+    The OIDC login factory joins only when its extra is installed, so an
+    application without joserfc and httpx carries no factory that would
+    import them.
+    """
+    factories: tuple[AuthenticatorFactoryInterface, ...] = (
+        AccessTokenFactory(),
+        HttpBasicFactory(),
+    )
+    if _oidc_extra_available():
+        factories = (*factories, OidcLoginFactory())
+    return factories
 
 
 def _oidc_extra_available() -> bool:
@@ -82,12 +100,16 @@ def _oidc_extra_available() -> bool:
 def _default_token_handler_factories() -> tuple[TokenHandlerFactoryInterface, ...]:
     """The token-handler factories every application starts with.
 
-    The OIDC handler joins only when its extra is installed, so an application
-    without joserfc and httpx carries no factory that would import them.
+    The OIDC and userinfo handlers join only when their extra is installed, so
+    an application without joserfc and httpx carries no factory that would
+    import them; the introspection handler needs neither.
     """
-    factories: tuple[TokenHandlerFactoryInterface, ...] = (ServiceTokenHandlerFactory(),)
+    factories: tuple[TokenHandlerFactoryInterface, ...] = (
+        ServiceTokenHandlerFactory(),
+        Oauth2TokenHandlerFactory(),
+    )
     if _oidc_extra_available():
-        factories = (*factories, OidcTokenHandlerFactory())
+        factories = (*factories, OidcTokenHandlerFactory(), OidcUserInfoTokenHandlerFactory())
     return factories
 
 

@@ -1,10 +1,11 @@
 """How a bearer access token is validated, described as inert data.
 
-A token handler turns an access-token string into a user badge. Two kinds ship
-here — a handler the container provides, and one that verifies a third-party
-OIDC issuer's tokens — and the ``type`` field tells the kinds apart so a later
-package (an introspection handler) adds its own through the token-handler factory
-registry (seam S-2).
+A token handler turns an access-token string into a user badge. Four kinds
+ship here — a handler the container provides, one that verifies a
+third-party OIDC issuer's tokens, one that introspects a token with its
+authorization server, and one that reads the userinfo endpoint — and the
+``type`` field tells the kinds apart so a later package adds its own through
+the token-handler factory registry (seam S-2).
 """
 
 from __future__ import annotations
@@ -17,7 +18,9 @@ from typing import Literal
 from xtr_security.exception import InvalidConfigurationError
 
 __all__ = [
+    "Oauth2TokenHandlerConfig",
     "OidcTokenHandlerConfig",
+    "OidcUserInfoTokenHandlerConfig",
     "ServiceTokenHandlerConfig",
     "TokenHandlerConfig",
 ]
@@ -53,6 +56,11 @@ class ServiceTokenHandlerConfig:
 
 def _no_issuers() -> Sequence[str]:
     """The empty issuer list an OIDC handler configuration starts with."""
+    return ()
+
+
+def _no_audiences() -> Sequence[str]:
+    """The empty audience list an OAuth2 handler configuration starts with."""
     return ()
 
 
@@ -124,5 +132,147 @@ class OidcTokenHandlerConfig:
             )
 
 
-TokenHandlerConfig = ServiceTokenHandlerConfig | OidcTokenHandlerConfig
+@dataclass(frozen=True, slots=True)
+class Oauth2TokenHandlerConfig:
+    """A handler that introspects a token with its authorization server (RFC 7662).
+
+    The introspection endpoint is reached through a scoped client — the
+    application's own HTTP client carrying the endpoint's base URI and this
+    resource server's credentials — or through the ``client`` service the
+    application registered instead. A ``cache`` service keeps the
+    introspection responses of active tokens for ``cache_ttl`` seconds; a
+    signed response (RFC 9701) is verified against ``signed_response_keyset``
+    or against the keys the issuer's metadata publishes, read through the
+    ``signed_response_discovery_cache`` service.
+
+    Attributes:
+        introspection_base_uri: The URI the RFC 7662 introspection endpoint
+            answers at, unless ``client`` names a service.
+        credentials: The basic credentials the introspection endpoint asks
+            this resource server for — ``"client:secret"`` or the two as a
+            tuple — or ``None`` when the endpoint asks for none.
+        client: The type of a registered
+            :class:`~xtr_http_client_contracts.HttpClientInterface` service
+            that reaches the introspection endpoint, or ``None`` to scope the
+            application's own client.
+        audiences: The identifiers of this resource server, one of which the
+            ``aud`` of the response must name; empty skips the check.
+        issuer: The authorization server's identifier, checked against the
+            ``iss`` of the response, or ``None`` to skip the check.
+        claim: The claim holding the user identifier, or ``None`` to read
+            ``sub`` and fall back to ``username``.
+        allowed_time_drift: The tolerance, in seconds, on the time claims.
+        cache: The type of a registered
+            :class:`~xtr_cache_contracts.CacheInterface` service that keeps
+            the introspection responses of active tokens, or ``None`` to
+            introspect on every request.
+        cache_key_prefix: The prefix of the keys the cached responses land
+            under.
+        cache_ttl: How long a cached response is reused, at most.
+        signed_response_algorithms: The signature algorithms a signed
+            introspection response (RFC 9701) may use, or ``None`` to accept
+            plain introspection responses only.
+        signed_response_keyset: A JWKS document pinning the verifying keys,
+            or ``None`` to read them from the issuer's metadata.
+        signed_response_enforce: Whether a response without a signature is
+            refused.
+        signed_response_discovery_cache: The type of a registered
+            :class:`~xtr_cache_contracts.CacheInterface` service the metadata
+            keys are read through, or ``None`` when none is pinned.
+        signed_response_discovery_cache_key: The key the metadata document
+            lands under.
+        type: The discriminator, always ``"oauth2"``.
+
+    Raises:
+        InvalidConfigurationError: When neither ``introspection_base_uri`` nor
+            ``client`` is given, when ``credentials`` name a service client
+            that carries its own, or when the discovery cache is configured
+            without the ``issuer`` its metadata URL is built from.
+    """
+
+    introspection_base_uri: str | None = None
+    credentials: str | tuple[str, str] | None = None
+    client: builtins.type | None = None
+    audiences: Sequence[str] = field(default_factory=_no_audiences)
+    issuer: str | None = None
+    claim: str | None = None
+    allowed_time_drift: int = 0
+    cache: builtins.type | None = None
+    cache_key_prefix: str = "oauth2_introspection"
+    cache_ttl: int = 60
+    signed_response_algorithms: Sequence[str] | None = None
+    signed_response_keyset: str | None = None
+    signed_response_enforce: bool = True
+    signed_response_discovery_cache: builtins.type | None = None
+    signed_response_discovery_cache_key: str | None = None
+    type: Literal["oauth2"] = "oauth2"
+
+    def __post_init__(self) -> None:
+        """Check the endpoint source, and the discovery's issuer."""
+        if self.introspection_base_uri is None and self.client is None:
+            raise InvalidConfigurationError(
+                "An OAuth2 token handler needs the introspection endpoint: set "
+                "introspection_base_uri, or name a client service.",
+            )
+        if self.client is not None and self.credentials is not None:
+            raise InvalidConfigurationError(
+                "An OAuth2 token handler names a client service, which carries its "
+                "own credentials; set credentials only with introspection_base_uri.",
+            )
+        if self.signed_response_discovery_cache is not None and self.issuer is None:
+            raise InvalidConfigurationError(
+                "An OAuth2 token handler reading its verifying keys from the "
+                "issuer's metadata needs the issuer they are read for; set issuer.",
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class OidcUserInfoTokenHandlerConfig:
+    """A handler that reads the userinfo endpoint with the token (OIDC Core 5.3).
+
+    The endpoint is reached through a scoped client — the application's own
+    HTTP client carrying the endpoint's base URI — or, with a discovery cache
+    configured, read off the issuer's discovery document and re-scoped per
+    request.
+
+    Attributes:
+        userinfo_base_uri: The URI the userinfo endpoint answers at.
+        claim: The claim holding the user identifier.
+        discovery_cache: The type of a registered
+            :class:`~xtr_cache_contracts.CacheInterface` service the issuer's
+            discovery document is read through, or ``None`` to keep the
+            configured endpoint.
+        discovery_cache_key: The key the discovery document lands under.
+        type: The discriminator, always ``"oidc_user_info"``.
+
+    Raises:
+        InvalidConfigurationError: When no endpoint is given, or a discovery
+            cache is configured without its key.
+    """
+
+    userinfo_base_uri: str = ""
+    claim: str = "sub"
+    discovery_cache: builtins.type | None = None
+    discovery_cache_key: str | None = None
+    type: Literal["oidc_user_info"] = "oidc_user_info"
+
+    def __post_init__(self) -> None:
+        """Check the endpoint and the discovery key."""
+        if not self.userinfo_base_uri:
+            raise InvalidConfigurationError(
+                "A userinfo token handler needs the endpoint; set userinfo_base_uri.",
+            )
+        if self.discovery_cache is not None and self.discovery_cache_key is None:
+            raise InvalidConfigurationError(
+                "A userinfo token handler reading its endpoint from discovery needs "
+                "the key the document lands under; set discovery_cache_key.",
+            )
+
+
+TokenHandlerConfig = (
+    ServiceTokenHandlerConfig
+    | OidcTokenHandlerConfig
+    | Oauth2TokenHandlerConfig
+    | OidcUserInfoTokenHandlerConfig
+)
 """Every kind of token-handler configuration, told apart by its ``type`` field."""

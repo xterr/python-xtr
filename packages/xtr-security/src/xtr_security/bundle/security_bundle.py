@@ -34,6 +34,9 @@ from xtr_dependency_injection.kernel.kernel import BUNDLE_PASS_PRIORITY
 from xtr_event_dispatcher.bundle import EventDispatcherBundle
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_kernel.bundle import HttpKernelBundle
+from xtr_http_message_contracts.factory import (  # noqa: TC002 -- a factory signature the container reads
+    ResponseFactoryInterface,
+)
 from xtr_security_core import (
     AccessDecisionManager,
     AccessDecisionManagerInterface,
@@ -54,12 +57,14 @@ from xtr_security_core import (
 )
 from xtr_security_http import (
     CsrfTokenChecker,
+    HttpUtils,
     IsGrantedChecker,
     SecurityTokenResolver,
     UserValueResolver,
 )
 
 from xtr_security.access_token import OidcTokenHandlerFactory
+from xtr_security.bundle.oidc_configs import OidcLoginConfig
 from xtr_security.bundle.security_config import SecurityConfig
 from xtr_security.security import Security
 
@@ -208,6 +213,10 @@ class SecurityBundle(Bundle[SecurityConfig]):
         register_hashers(services, config)
         register_user_providers(services, config)
 
+        # The redirect and URI helper the login flows answer through — one
+        # per application, over the response factory every answer builds on.
+        _ = services.set(_http_utils)
+
         build_firewall_map(services, self._bind_oidc_closeables(config))
 
         # The firewall runs the chain of the firewall each request matched,
@@ -220,6 +229,8 @@ class SecurityBundle(Bundle[SecurityConfig]):
                 key if isinstance(key, str) else f"{key.__module__}:{key.__qualname__}"
                 for key in config.password_hashers
             )
+            if _has_oidc_token_generators(config):
+                services.load("xtr_security_http.command.oidc_token_generate_command")
             # A scan finds what a module defines, not what it imports: the hasher
             # command is scanned where it is defined.
             services.load(
@@ -371,3 +382,17 @@ def _security_facade(
 ) -> Security:
     """Build the :class:`Security` facade over the request's storage and checker."""
     return Security(token_storage, authorization_checker)
+
+
+def _http_utils(responses: ResponseFactoryInterface) -> HttpUtils:
+    """Build the redirect and URI helper the login flows answer through."""
+    return HttpUtils(responses)
+
+
+def _has_oidc_token_generators(config: SecurityConfig) -> bool:
+    """Tell whether any firewall mints OIDC tokens through the command."""
+    return any(
+        isinstance(authenticator, OidcLoginConfig) and authenticator.token_generator is not None
+        for firewall in config.firewalls.values()
+        for authenticator in firewall.authenticators
+    )
