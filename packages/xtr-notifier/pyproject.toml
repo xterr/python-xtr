@@ -40,6 +40,15 @@ messenger = ["xtr-messenger>=4.0,<5"]
 # Wire the notifier from one configuration.
 di = ["xtr-dependency-injection>=4.0,<5"]
 
+# Provider factories advertise themselves here, keyed by the DSN scheme they serve so only
+# the matching library is ever imported: chat providers under the chatter's group, SMS and
+# push providers under the texter's. The null transport serves both.
+[project.entry-points."xtr_notifier.chatter_transport_factories"]
+null = "xtr_notifier.transport:NullTransportFactory"
+
+[project.entry-points."xtr_notifier.texter_transport_factories"]
+null = "xtr_notifier.transport:NullTransportFactory"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",

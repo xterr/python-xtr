@@ -7,4 +7,6 @@ channel hands a message to a transport configured by DSN, or to a message bus.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .transport import Transport
+
+__all__ = ["Transport"]
