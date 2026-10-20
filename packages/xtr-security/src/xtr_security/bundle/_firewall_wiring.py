@@ -15,6 +15,7 @@ from xtr_security_http.firewall_map import FirewallMap as HttpFirewallMap
 
 from xtr_security.bundle._authenticator_wiring import register_authenticators
 from xtr_security.bundle._context_wiring import register_context_factory
+from xtr_security.bundle._csrf_wiring import firewall_asks_for_csrf, register_csrf_token_manager
 from xtr_security.bundle._dispatcher_wiring import register_dispatcher, register_shared_listeners
 from xtr_security.bundle._logout_wiring import (
     register_logout,
@@ -24,6 +25,7 @@ from xtr_security.bundle._stateful_wiring import (
     register_context_listener,
     register_session_strategy,
 )
+from xtr_security.bundle.authenticator_configs import FormLoginConfig
 from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.bundle.oidc_configs import OidcLoginConfig
 from xtr_security.exception import InvalidConfigurationError
@@ -58,11 +60,24 @@ def build_firewall_map(
     the main dispatcher, once. A final factory asks a locator for every context,
     by firewall name, and pairs each with its matcher into the map.
     """
+    # The forgery-token manager is one service of the request, registered
+    # when any secured firewall's configuration asks for a token: the
+    # checker's remove-if-missing marker watches the interface, so the
+    # manager's arrival is what keeps the route marker's checker alive.
+    csrf_wired = any(
+        firewall.security and firewall_asks_for_csrf(firewall)
+        for firewall in config.firewalls.values()
+    )
+    if csrf_wired:
+        register_csrf_token_manager(services)
+
     matchers: dict[str, RequestMatcherInterface] = {}
     logout_registrations: dict[str, tuple[str, str | None]] = {}
     for name, firewall in config.firewalls.items():
         matchers[name] = firewall.to_matcher()
-        _build_firewall_context(services, config, name, firewall, logout_registrations)
+        _build_firewall_context(
+            services, config, name, firewall, logout_registrations, csrf_wired=csrf_wired
+        )
     if any(firewall.security for firewall in config.firewalls.values()):
         register_shared_listeners(services)
     if logout_registrations:
@@ -72,18 +87,21 @@ def build_firewall_map(
     services.alias(FirewallMapInterface, HttpFirewallMap)
 
 
-def _build_firewall_context(
+def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one firewall's parts
     services: ServiceConfigurator,
     config: SecurityConfig,
     name: str,
     firewall: FirewallConfig,
     logout_registrations: dict[str, tuple[str, str | None]],
+    *,
+    csrf_wired: bool,
 ) -> None:
     """Register everything one firewall needs: its dispatcher, authenticators and context."""
     if not firewall.security:
         _register_open_context(services, name, firewall)
     else:
         _refuse_back_channel_logout_on_a_stateless_firewall(name, firewall)
+        _refuse_a_form_login_on_a_stateless_firewall(name, firewall)
         provider_qualifier = firewall.provider
         register_dispatcher(services, name, firewall, provider_qualifier)
         auth_qualifiers, entry_point_qualifier = register_authenticators(
@@ -99,7 +117,7 @@ def _build_firewall_context(
             context_listener = register_context_listener(
                 services, name, firewall, provider_qualifier
             )
-            register_session_strategy(services, name, firewall)
+            register_session_strategy(services, name, firewall, csrf_wired=csrf_wired)
         if firewall.logout is not None:
             logout_listener = register_logout(services, name, firewall, firewall.logout)
             logout_registrations[name] = (
@@ -149,6 +167,29 @@ def _refuse_back_channel_logout_on_a_stateless_firewall(
                 f'The OIDC login of the firewall "{name}" asks for a back-channel '
                 "logout, which needs a stateful firewall; set stateless=False.",
             )
+
+
+def _refuse_a_form_login_on_a_stateless_firewall(
+    name: str,
+    firewall: FirewallConfig,
+) -> None:
+    """Refuse a form login on a firewall that keeps no session.
+
+    The login's errors are stored on the session and its success rotates it;
+    on a stateless firewall both would silently go nowhere, reading as a
+    login while logging nothing in.
+
+    Raises:
+        InvalidConfigurationError: When a stateless firewall configures a
+            form login.
+    """
+    if firewall.stateless and any(
+        isinstance(authenticator, FormLoginConfig) for authenticator in firewall.authenticators
+    ):
+        raise InvalidConfigurationError(
+            f'The form login of the firewall "{name}" needs the session its errors '
+            "are stored in and its success rotates; set stateless=False.",
+        )
 
 
 def _register_open_context(

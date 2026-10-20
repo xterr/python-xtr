@@ -95,6 +95,23 @@ audience; `algorithms` default to `("RS256",)`, `claim` to `"sub"`, plus `leeway
 seconds), `enforce_at_jwt_type` and `allow_insecure_http`. `exp` is required on a token: one that
 never expires is refused.
 
+## Form and JSON logins
+
+`FormLoginConfig(login_path, check_path="/login_check", username_parameter="_username",
+password_parameter="_password", post_only=True, form_only=False, enable_csrf=False,
+csrf_parameter="_csrf_token", csrf_token_id="authenticate", success_handler=None,
+failure_handler=None)` builds the form login — stateful only, needing the firewall's user
+provider, its redirect to the login page a real entry point. The handlers are the bundle's
+default pair, or the application's own services named by type and answered through its wrappers.
+
+`JsonLoginConfig(check_path=None, username_path="username", password_path="password",
+success_handler=None, failure_handler=None)` builds the stateless JSON login, which never
+challenges: a firewall whose only login is it resolves its entry point elsewhere.
+
+`enable_csrf` wires the forgery machinery: the csrf package's manager over the session the
+request reattached, the passport check settling the form's badge ahead of any user load, and the
+route marker's checker — all registered only when a configuration asks for a token.
+
 ## The token handler you write
 
 A handler turns a token string into a `UserBadge` — the identifier, and how to load the user.

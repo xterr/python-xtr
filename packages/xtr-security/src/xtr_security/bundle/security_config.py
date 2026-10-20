@@ -40,7 +40,9 @@ from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory import (
     AccessTokenFactory,
     AuthenticatorFactoryInterface,
+    FormLoginFactory,
     HttpBasicFactory,
+    JsonLoginFactory,
     OidcLoginFactory,
 )
 from xtr_security.firewall_config import (
@@ -85,7 +87,9 @@ def _default_authenticator_factories() -> tuple[AuthenticatorFactoryInterface, .
     """
     factories: tuple[AuthenticatorFactoryInterface, ...] = (
         AccessTokenFactory(),
+        FormLoginFactory(),
         HttpBasicFactory(),
+        JsonLoginFactory(),
     )
     if _oidc_extra_available():
         factories = (*factories, OidcLoginFactory())

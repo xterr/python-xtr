@@ -85,6 +85,7 @@ from .refuse_stateful_firewalls_without_session_storage_pass import (
     RefuseStatefulFirewallsWithoutSessionStoragePass,
 )
 from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
+from .register_per_call_listeners_pass import RegisterPerCallListenersPass
 from .sort_firewall_listeners_pass import SortFirewallListenersPass
 
 if TYPE_CHECKING:
@@ -162,6 +163,14 @@ class SecurityBundle(Bundle[SecurityConfig]):
             SortFirewallListenersPass(),
             stage=PassStage.BEFORE_OPTIMIZATION,
             priority=BUNDLE_PASS_PRIORITY - 1,
+        )
+        # Behind the listener maps' own passes: the per-call listeners join
+        # the map every other listener has been placed in, at the positions
+        # they run in.
+        builder.add_compiler_pass(
+            RegisterPerCallListenersPass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=BUNDLE_PASS_PRIORITY - 2,
         )
 
     @override

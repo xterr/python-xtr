@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from xtr_security.bundle import AccessTokenConfig, HttpBasicConfig, ServiceTokenHandlerConfig
+from xtr_security.bundle import (
+    AccessTokenConfig,
+    FormLoginConfig,
+    HttpBasicConfig,
+    JsonLoginConfig,
+    ServiceTokenHandlerConfig,
+)
 from xtr_security.exception import InvalidConfigurationError
 
 
@@ -76,3 +82,13 @@ def test_it_refuses_an_unknown_extractor() -> None:
             token_handler=ServiceTokenHandlerConfig(_Handler),
             token_extractors=("cookie",),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  -- a bad name is rejected at runtime
         )
+
+
+def test_a_form_login_needs_the_path_of_its_page() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = FormLoginConfig(login_path="")
+
+
+def test_a_json_login_refuses_a_check_path_that_names_nothing() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = JsonLoginConfig(check_path="")

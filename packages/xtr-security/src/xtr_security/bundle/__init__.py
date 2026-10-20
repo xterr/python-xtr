@@ -21,7 +21,9 @@ from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory import (
     AccessTokenFactory,
     AuthenticatorFactoryInterface,
+    FormLoginFactory,
     HttpBasicFactory,
+    JsonLoginFactory,
     OidcLoginFactory,
 )
 from xtr_security.factory.add_authenticator_factory import add_authenticator_factory
@@ -37,7 +39,12 @@ from xtr_security.user_provider.add_user_provider_factory import add_user_provid
 
 from .access_control_configs import AccessControlConfig
 from .access_decision_manager_config import AccessDecisionManagerConfig
-from .authenticator_configs import AccessTokenConfig, HttpBasicConfig
+from .authenticator_configs import (
+    AccessTokenConfig,
+    FormLoginConfig,
+    HttpBasicConfig,
+    JsonLoginConfig,
+)
 from .firewall_access_listener_name import firewall_access_listener_name
 from .firewall_dispatcher_name import firewall_dispatcher_name
 from .firewall_manager_listener_name import firewall_manager_listener_name
@@ -94,12 +101,16 @@ __all__ = [
     "ChainUserProviderFactory",
     "ExposeSecurityLevel",
     "FirewallConfig",
+    "FormLoginConfig",
+    "FormLoginFactory",
     "HasherConfig",
     "HttpBasicConfig",
     "HttpBasicFactory",
     "InMemoryUserProviderConfig",
     "InMemoryUserProviderFactory",
     "InvalidConfigurationError",
+    "JsonLoginConfig",
+    "JsonLoginFactory",
     "LogoutConfig",
     "MakeFirewallsEventDispatcherTraceablePass",
     "MakeFirewallsManagerListenerTraceablePass",

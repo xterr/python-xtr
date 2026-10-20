@@ -216,6 +216,42 @@ A successful login hands the session to the firewall's `session_strategy` — `m
 default, rotating the session's ID so a fixation stops answering for the account the login
 named — through a `SessionStrategyListener` on the firewall's own dispatcher.
 
+### Form login
+
+A `FormLoginConfig` builds the form login: the form rendered at `login_path`, submitted to
+`check_path` — a POST there, its fields read by the names the form gives them
+(`username_parameter`, `password_parameter`), a form content type demanded when `form_only` is
+set. A failed login stores its error on the session and redirects back to the page; a successful
+one is answered by the target ladder — the default pair of handlers, or the application's own
+pair, named by service type in `success_handler` and `failure_handler`, answered through the
+bundle's wrappers. The redirect to the login page is a real entry point: an unauthenticated
+request is sent there to prove itself.
+
+The login is stateful — its errors travel in the session, its success rotates it — so it is
+refused on a stateless firewall, where it could only ever answer the one request that submitted
+it. It needs the firewall's user provider.
+
+### JSON login
+
+A `JsonLoginConfig` builds the JSON login: the request's parsed body read by the dotted paths
+`username_path` and `password_path`, the path it is submitted to named by `check_path` — or
+`None` for every request carrying a JSON body. The login is stateless and never challenges: a
+failed login is answered with a plain `401` carrying the error's message, or the application's
+own handlers when `success_handler` and `failure_handler` name them. A firewall whose only login
+is this one resolves its entry point elsewhere.
+
+### Cross-site request forgery
+
+The forgery machinery is opt-in: it is wired when a firewall's configuration asks for a token —
+a form login with `enable_csrf`, a logout with `enable_csrf` or `clear_csrf_tokens` — and nothing
+registers without an ask. The bundle then builds the csrf package's manager over the session the
+request reattached, as the application's one `CsrfTokenManagerInterface` service: the route
+marker's checker survives on its arrival, and the passport check settles the badge a form login
+mints, ahead of any user load, at the priority the landed listener declares. The tokens
+themselves travel in the session — the storage reads it anew on every call, so the machinery
+works whatever moment its services are built in — and a migration empties them with the session
+it rotates.
+
 ### Logout
 
 A firewall with a `LogoutConfig` carries a logout step on its context — the request asking for
@@ -226,9 +262,11 @@ cleared, and the session invalidated on a stateful firewall. One `LogoutUrlGener
 carries every firewall's registration, so whatever renders a page asks for a logout's address
 by the firewall's name — or with none, resolved over the current request's token.
 
-The cross-site request forgery checks a logout can ask for (`enable_csrf`,
-`clear_csrf_tokens`) are not wired yet: a configuration asking for either fails the build
-saying so, rather than logging out unproven requests silently.
+The cross-site request forgery checks a logout can ask for are wired with the machinery above:
+`enable_csrf` has the step prove the request with the manager before it logs out, and
+`clear_csrf_tokens` drops every token the request's session minted on the logout event. Both
+need the session the tokens are stored in, so a stateless firewall asking for either fails the
+build saying so.
 
 ### The OIDC back channel
 

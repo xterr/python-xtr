@@ -5240,6 +5240,7 @@ dependencies = [
     { name = "xtr-http-message-contracts" },
     { name = "xtr-password-hasher" },
     { name = "xtr-security-core" },
+    { name = "xtr-security-csrf" },
     { name = "xtr-security-http" },
 ]
 
@@ -5272,6 +5273,7 @@ requires-dist = [
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-password-hasher", editable = "packages/xtr-password-hasher" },
     { name = "xtr-security-core", editable = "packages/xtr-security-core" },
+    { name = "xtr-security-csrf", editable = "packages/xtr-security-csrf" },
     { name = "xtr-security-http", editable = "packages/xtr-security-http" },
 ]
 

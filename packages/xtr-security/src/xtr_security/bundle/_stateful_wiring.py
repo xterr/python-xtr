@@ -12,11 +12,10 @@ there.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 
-from xtr_dependency_injection import Target, named_factory
+from xtr_dependency_injection import Target
 from xtr_dependency_injection.decorator.remove_if_missing import REMOVE_IF_MISSING_TAG
-from xtr_event_dispatcher.bundle import SUBSCRIBER_TAG
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_foundation import SessionStorageInterface
 from xtr_security_core import (
@@ -26,16 +25,23 @@ from xtr_security_core import (
 from xtr_security_core.user.user_provider_interface import (
     UserProviderInterface,
 )
+from xtr_security_csrf.token_storage.clearable_token_storage_interface import (
+    ClearableTokenStorageInterface,
+)
 
 from xtr_security.bundle._authenticator_wiring import register_missing_user_provider
-from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 
 if TYPE_CHECKING:
     from xtr_dependency_injection import ServiceConfigurator, ServiceKey
 
     from xtr_security.firewall_config import FirewallConfig
 
-__all__ = ["context_listener_name", "register_context_listener", "register_session_strategy"]
+__all__ = [
+    "context_listener_name",
+    "register_context_listener",
+    "register_session_strategy",
+    "session_authentication_strategy_name",
+]
 
 
 def context_listener_name(firewall_name: str) -> str:
@@ -134,47 +140,46 @@ def register_session_strategy(
     services: ServiceConfigurator,
     name: str,
     firewall: FirewallConfig,
+    *,
+    csrf_wired: bool,
 ) -> None:
     """Register what a successful login does to the session it reattached.
 
-    The strategy itself is a service of the firewall's own, and the listener
-    handing it a login runs on the firewall's own dispatcher — the same
-    place its login listeners run — as a subscriber on the login-success
-    event. The clearable cross-site request forgery storage a migration
-    would empty is not wired yet: the strategy rotates the session's ID
-    without it, and the forgery tokens minted under the old ID go with it
-    once the storage joins.
+    The strategy is a service of the firewall's own, scoped like the request
+    it acts on: it holds the clearable cross-site request forgery storage a
+    migration empties — the request's own, over the session it reattached —
+    whenever the forgery-token machinery is wired, and nothing otherwise.
+    The listener handing it a login is placed by the bundle's per-call pass,
+    not registered here: a dispatcher keeps its listeners for the
+    application's life, and this one holds what belongs to one request.
     """
     from xtr_security_http import (  # noqa: PLC0415 -- the family's session import
         SessionAuthenticationStrategy,
-        SessionStrategyListener,
     )
 
-    strategy_qualifier = f"{name}#session_authentication_strategy"
+    strategy_qualifier = session_authentication_strategy_name(name)
 
-    def session_authentication_strategy() -> SessionAuthenticationStrategy:
-        """Build the strategy the firewall configured."""
-        return SessionAuthenticationStrategy(firewall.session_strategy, None)
+    def session_authentication_strategy(
+        storage: object | None = None,
+    ) -> SessionAuthenticationStrategy:
+        """Build the strategy the firewall configured, over the storage it clears."""
+        return SessionAuthenticationStrategy(
+            firewall.session_strategy,
+            cast("ClearableTokenStorageInterface | None", storage),
+        )
 
-    session_authentication_strategy.__annotations__ = {
-        "return": SessionAuthenticationStrategy,
-    }
+    annotations: dict[str, object] = {"return": SessionAuthenticationStrategy}
+    if csrf_wired:
+        annotations["storage"] = ClearableTokenStorageInterface
+    session_authentication_strategy.__annotations__ = annotations
+
     session_authentication_strategy.__name__ = f"session_authentication_strategy_{name}"
     session_authentication_strategy.__qualname__ = session_authentication_strategy.__name__
-    _ = services.set(session_authentication_strategy, qualifier=strategy_qualifier)
-
-    def session_strategy_listener(
-        strategy: SessionAuthenticationStrategy,
-    ) -> SessionStrategyListener:
-        """Build the listener handing the firewall's logins to the strategy."""
-        return SessionStrategyListener(strategy)
-
-    session_strategy_listener.__annotations__ = {
-        "strategy": Annotated[SessionAuthenticationStrategy, Target(strategy_qualifier)],
-        "return": SessionStrategyListener,
-    }
-    dispatcher = firewall_dispatcher_name(name)
     _ = services.set(
-        named_factory(session_strategy_listener, f"session_strategy_listener_{name}"),
-        qualifier=dispatcher,
-    ).add_tag(SUBSCRIBER_TAG, dispatcher=dispatcher)
+        session_authentication_strategy, qualifier=strategy_qualifier, lifetime="scoped"
+    )
+
+
+def session_authentication_strategy_name(firewall_name: str) -> str:
+    """The qualifier of a firewall's session authentication strategy."""
+    return f"{firewall_name}#session_authentication_strategy"

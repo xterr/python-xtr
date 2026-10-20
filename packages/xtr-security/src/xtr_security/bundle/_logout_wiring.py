@@ -10,13 +10,16 @@ hands every firewall's logout address to whatever renders a page.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 
 from xtr_dependency_injection import Target, named_factory
 from xtr_event_dispatcher.bundle import SUBSCRIBER_TAG
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 from xtr_security_core import TokenStorageInterface
+from xtr_security_csrf.csrf_token_manager_interface import (
+    CsrfTokenManagerInterface,
+)
 from xtr_security_http import HttpUtils
 
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
@@ -56,18 +59,19 @@ def register_logout(
     clearing, the session invalidation.
 
     Raises:
-        InvalidConfigurationError: When the configuration asks for a
-            cross-site request forgery check the bundle does not wire yet.
+            InvalidConfigurationError: When the configuration asks for a
+                cross-site request forgery check on a stateless firewall,
+                which has no session to store the tokens in.
     """
     from xtr_security_http import (  # noqa: PLC0415 -- the family's logout import
         LogoutListener,
     )
 
-    if logout.enable_csrf or logout.clear_csrf_tokens:
+    if (logout.enable_csrf or logout.clear_csrf_tokens) and firewall.stateless:
         raise InvalidConfigurationError(
             f'The logout of the firewall "{name}" asks for a cross-site request '
-            "forgery check, which this version does not wire yet; leave "
-            "enable_csrf and clear_csrf_tokens off until it does.",
+            "forgery check, which needs the session its tokens are stored in; "
+            "set stateless=False.",
         )
 
     def logout_listener(
@@ -75,6 +79,7 @@ def register_logout(
         http_utils: HttpUtils,
         dispatcher: EventDispatcherInterface,
         bridge: StarletteHttpFactoryInterface,
+        csrf_token_manager: object | None = None,
     ) -> LogoutListener:
         """Build the step over one firewall's logout parts."""
         return LogoutListener(
@@ -82,19 +87,22 @@ def register_logout(
             http_utils,
             dispatcher,
             bridge,
-            None,
+            cast("CsrfTokenManagerInterface | None", csrf_token_manager),
             csrf_parameter=logout.csrf_parameter,
             csrf_token_id=logout.csrf_token_id,
             logout_path=logout.path,
         )
 
-    logout_listener.__annotations__ = {
+    annotations: dict[str, object] = {
         "storage": TokenStorageInterface,
         "http_utils": HttpUtils,
         "dispatcher": Annotated[EventDispatcherInterface, Target(firewall_dispatcher_name(name))],
         "bridge": StarletteHttpFactoryInterface,
         "return": LogoutListener,
     }
+    if logout.enable_csrf:
+        annotations["csrf_token_manager"] = CsrfTokenManagerInterface
+    logout_listener.__annotations__ = annotations
     logout_listener.__name__ = f"logout_listener_{name}"
     logout_listener.__qualname__ = logout_listener.__name__
     _ = services.set(logout_listener, qualifier=logout_listener_name(name), lifetime="scoped")

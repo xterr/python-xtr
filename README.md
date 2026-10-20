@@ -142,6 +142,7 @@ graph LR
     securityhttp --> cachecon
     security[xtr-security] --> securitycore
     security --> securityhttp
+    security --> securitycsrf
     security --> passwordhasher
     security --> di
     security --> events

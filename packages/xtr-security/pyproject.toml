@@ -22,6 +22,10 @@ classifiers = [
 dependencies = [
     "xtr-security-core>=4.0,<5",
     "xtr-security-http>=4.0,<5",
+    # The bundle owns the forgery-token manager wiring: it builds the csrf
+    # package's manager and session token storage itself, so it declares the
+    # package rather than reaching through security-http's own dependency.
+    "xtr-security-csrf>=4.0,<5",
     "xtr-password-hasher>=4.0,<5",
     "xtr-clock>=4.0,<5",
     "xtr-dependency-injection>=4.0,<5",

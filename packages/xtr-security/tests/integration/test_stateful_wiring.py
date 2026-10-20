@@ -37,7 +37,6 @@ from xtr_security_http.event_listener import (
     CookieClearingListener,
     DefaultLogoutListener,
     SessionLogoutListener,
-    SessionStrategyListener,
 )
 from xtr_security_http.firewall.access_listener import AccessListener
 from xtr_security_http.firewall.authenticator_manager_listener import (
@@ -110,13 +109,22 @@ async def test_the_chain_runs_the_context_step_ahead_of_the_manager_and_the_refr
     assert context_step._session_key == "_security.main"
 
 
-async def test_the_session_strategy_listener_subscribes_on_the_firewalls_dispatcher(
+async def test_the_session_strategy_listener_runs_on_the_firewalls_dispatcher(
     container: ContainerInterface,
 ) -> None:
+    """The strategy reaches the firewall's logins as a per-call listener.
+
+    The listener holds the request's own state — the clearable forgery-token
+    storage a migration empties — so the dispatcher cannot keep it: it runs
+    as a function whose strategy is resolved per call, named after the
+    function the bundle places.
+    """
     async with unit_of_work(container) as unit:
         listeners = await _listeners_of(unit, "main", LoginSuccessEvent)
 
-    assert any(isinstance(listener, SessionStrategyListener) for listener in listeners)
+    assert any(
+        getattr(listener, "__name__", "") == "apply_the_session_strategy" for listener in listeners
+    )
 
 
 async def test_the_logout_step_sits_on_the_contexts_own_slot(

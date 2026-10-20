@@ -751,6 +751,7 @@ def test_an_oidc_login_firewall_parks_its_refresh_listener_in_the_chain() -> Non
             ),
         ),
         {},
+        csrf_wired=False,
     )
 
     assert services.definitions[-1].arguments["listeners"] == (
@@ -784,6 +785,7 @@ def test_a_stateful_firewall_parks_its_context_listener_ahead_of_the_manager() -
         "main",
         firewall,
         {},
+        csrf_wired=False,
     )
 
     assert services.definitions[-1].arguments["listeners"] == (
@@ -803,6 +805,7 @@ def test_a_stateless_firewall_registers_no_context_listener() -> None:
         "main",
         _http_basic_config(),
         {},
+        csrf_wired=False,
     )
 
     assert "main#context_listener" not in services.by_qualifier
@@ -812,8 +815,34 @@ def test_a_stateless_firewall_registers_no_context_listener() -> None:
     )
 
 
-def test_a_stateful_firewall_registers_its_session_strategy_subscriber() -> None:
-    from xtr_event_dispatcher.bundle import SUBSCRIBER_TAG
+def test_a_stateful_firewall_registers_its_session_strategy() -> None:
+    services = _RecordingConfigurator()
+    firewall = FirewallConfig(
+        pattern=r"^/api",
+        stateless=False,
+        session_strategy="invalidate",
+        authenticators=(_http_basic_config().authenticators[0],),
+    )
+
+    _build_firewall_context(
+        cast("ServiceConfigurator", cast("object", services)),
+        SecurityConfig(),
+        "main",
+        firewall,
+        {},
+        csrf_wired=False,
+    )
+
+    assert "main#session_authentication_strategy" in services.by_qualifier
+    assert "session_strategy_listener_main" not in {
+        getattr(target, "__name__", "") for target in services.set_targets
+    }
+
+
+def test_a_stateful_firewall_hands_its_strategy_the_clearable_storage_when_csrf_is_wired() -> None:
+    from xtr_security_csrf.token_storage.clearable_token_storage_interface import (
+        ClearableTokenStorageInterface,
+    )
 
     services = _RecordingConfigurator()
     firewall = FirewallConfig(
@@ -829,10 +858,18 @@ def test_a_stateful_firewall_registers_its_session_strategy_subscriber() -> None
         "main",
         firewall,
         {},
+        csrf_wired=True,
     )
 
-    assert "main#session_authentication_strategy" in services.by_qualifier
-    assert SUBSCRIBER_TAG in services.tags
+    strategy = cast(
+        "Callable[..., object]",
+        next(
+            target
+            for target in services.set_targets
+            if getattr(target, "__name__", "") == "session_authentication_strategy_main"
+        ),
+    )
+    assert strategy.__annotations__["storage"] is ClearableTokenStorageInterface
 
 
 def test_a_configured_logout_parks_its_listener_on_the_contexts_slot() -> None:
@@ -851,6 +888,7 @@ def test_a_configured_logout_parks_its_listener_on_the_contexts_slot() -> None:
         "main",
         firewall,
         {},
+        csrf_wired=False,
     )
 
     assert "main#logout_listener" in services.by_qualifier
@@ -861,7 +899,7 @@ def test_a_configured_logout_parks_its_listener_on_the_contexts_slot() -> None:
     )
 
 
-def test_a_logout_asking_for_a_csrf_check_fails_the_build() -> None:
+def test_a_logout_asking_for_a_csrf_check_on_a_stateless_firewall_fails_the_build() -> None:
     from xtr_security.bundle import LogoutConfig
 
     services = _RecordingConfigurator()
@@ -871,14 +909,48 @@ def test_a_logout_asking_for_a_csrf_check_fails_the_build() -> None:
         authenticators=(_http_basic_config().authenticators[0],),
     )
 
-    with pytest.raises(InvalidConfigurationError, match="enable_csrf"):
+    with pytest.raises(InvalidConfigurationError, match="cross-site request forgery"):
         _build_firewall_context(
             cast("ServiceConfigurator", cast("object", services)),
             SecurityConfig(),
             "main",
             firewall,
             {},
+            csrf_wired=False,
         )
+
+
+def test_a_logout_asking_for_a_csrf_check_wires_the_manager_into_its_listener() -> None:
+    from xtr_security_csrf.csrf_token_manager_interface import CsrfTokenManagerInterface
+
+    from xtr_security.bundle import LogoutConfig
+
+    services = _RecordingConfigurator()
+    firewall = FirewallConfig(
+        pattern=r"^/api",
+        stateless=False,
+        logout=LogoutConfig(enable_csrf=True),
+        authenticators=(_http_basic_config().authenticators[0],),
+    )
+
+    _build_firewall_context(
+        cast("ServiceConfigurator", cast("object", services)),
+        SecurityConfig(),
+        "main",
+        firewall,
+        {},
+        csrf_wired=True,
+    )
+
+    logout_listener = cast(
+        "Callable[..., object]",
+        next(
+            target
+            for target in services.set_targets
+            if getattr(target, "__name__", "") == "logout_listener_main"
+        ),
+    )
+    assert logout_listener.__annotations__["csrf_token_manager"] is CsrfTokenManagerInterface
 
 
 def test_the_logout_url_generator_registers_every_configured_firewall() -> None:
@@ -918,4 +990,5 @@ def test_a_backchannel_logout_on_a_stateless_firewall_fails_the_build() -> None:
             "api",
             firewall,
             {},
+            csrf_wired=False,
         )
