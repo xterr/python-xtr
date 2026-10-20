@@ -149,7 +149,7 @@ def test_the_manager_registers_the_storages_interface_and_its_own() -> None:
     assert manager_factory.__annotations__["storage"] is ClearableTokenStorageInterface
 
 
-def test_a_firewall_asks_through_its_form_login_its_logout_or_both() -> None:
+def test_a_firewall_asks_through_its_form_login_its_logout_its_markers_or_any_two() -> None:
     assert firewall_asks_for_csrf(
         FirewallConfig(authenticators=(FormLoginConfig(login_path="/login", enable_csrf=True),))
     )
@@ -161,6 +161,9 @@ def test_a_firewall_asks_through_its_form_login_its_logout_or_both() -> None:
             authenticators=(_an_authenticator(),),
             logout=LogoutConfig(clear_csrf_tokens=True),
         )
+    )
+    assert firewall_asks_for_csrf(
+        FirewallConfig(authenticators=(_an_authenticator(),), csrf_route_markers=True)
     )
     assert not firewall_asks_for_csrf(
         FirewallConfig(authenticators=(FormLoginConfig(login_path="/login"),))

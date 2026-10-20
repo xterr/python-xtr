@@ -19,7 +19,9 @@ from xtr_dependency_injection.testing import boot_for_test
 from xtr_event_dispatcher import EventDispatcher, LazyListener
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_foundation import MemorySessionStorage, SessionStorageInterface
+from xtr_http_kernel import FinishRequestEvent, RequestEvent, ResponseEvent
 from xtr_security_http import (
+    AuthenticationProofsListener,
     CheckRefreshedUserEvent,
     ContextListener,
     LogoutUrlGenerator,
@@ -36,6 +38,7 @@ from xtr_security_http.event_listener import (
     ClearSiteDataListener,
     CookieClearingListener,
     DefaultLogoutListener,
+    SaveSessionListener,
     SessionLogoutListener,
 )
 from xtr_security_http.firewall.access_listener import AccessListener
@@ -190,3 +193,82 @@ async def test_the_stateful_firewall_stores_its_sessions_through_the_application
         storage = await unit.get(SessionStorageInterface)
 
     assert isinstance(storage, MemorySessionStorage)
+
+
+async def test_the_response_side_saves_the_session_and_stores_the_token(
+    container: ContainerInterface,
+) -> None:
+    """The write-back runs ahead of the save, both on the main dispatcher.
+
+    The token must be in the session before the session is written through,
+    so the write-back — the context step's response half, resolved per call —
+    sits at the default priority and the save below everything, at the
+    priority the landed listener declares.
+    """
+    async with unit_of_work(container) as unit:
+        dispatcher = cast("EventDispatcher", await unit.get(EventDispatcherInterface))
+        response_listeners = [
+            await listener.resolve() if isinstance(listener, LazyListener) else listener
+            for listener in dispatcher.get_listeners(ResponseEvent)
+        ]
+        finish_listeners = [
+            await listener.resolve() if isinstance(listener, LazyListener) else listener
+            for listener in dispatcher.get_listeners(FinishRequestEvent)
+        ]
+
+    write_backs = [
+        listener
+        for listener in response_listeners
+        if getattr(listener, "__name__", "") == "store_the_token"
+    ]
+    saves = [
+        listener
+        for listener in response_listeners
+        if getattr(listener, "__self__", None).__class__ is SaveSessionListener
+    ]
+    assert len(write_backs) == 1
+    assert len(saves) == 1
+    assert response_listeners.index(write_backs[0]) < response_listeners.index(saves[0])
+    assert [
+        getattr(listener, "__self__", None).__class__ is SaveSessionListener
+        for listener in finish_listeners
+    ].count(True) == 1
+
+
+async def test_the_matched_firewall_is_named_on_the_logout_url_generator(
+    container: ContainerInterface,
+) -> None:
+    """The namer joins the main dispatcher behind the firewall that parks the context."""
+    async with unit_of_work(container) as unit:
+        dispatcher = cast("EventDispatcher", await unit.get(EventDispatcherInterface))
+        request_listeners = [
+            await listener.resolve() if isinstance(listener, LazyListener) else listener
+            for listener in dispatcher.get_listeners(RequestEvent)
+        ]
+
+    namers = [
+        listener
+        for listener in request_listeners
+        if getattr(listener, "__name__", "") == "name_the_matched_firewall"
+    ]
+    assert len(namers) == 1
+
+
+async def test_the_proofs_listener_joins_every_firewalls_logins(
+    container: ContainerInterface,
+) -> None:
+    """The proofs are recorded ahead of the session strategy, on the firewall's dispatcher."""
+    async with unit_of_work(container) as unit:
+        listeners = await _listeners_of(unit, "main", LoginSuccessEvent)
+
+    proofs = [
+        listener for listener in listeners if isinstance(listener, AuthenticationProofsListener)
+    ]
+    strategies = [
+        listener
+        for listener in listeners
+        if getattr(listener, "__name__", "") == "apply_the_session_strategy"
+    ]
+    assert len(proofs) == 1
+    assert len(strategies) == 1
+    assert listeners.index(proofs[0]) < listeners.index(strategies[0])

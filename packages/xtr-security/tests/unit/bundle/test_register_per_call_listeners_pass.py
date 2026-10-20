@@ -1,4 +1,4 @@
-"""The pass placing the per-call listeners into each firewall's dispatcher map."""
+"""The pass placing the per-call listeners into the dispatchers' maps."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Annotated, cast, final
 from xtr_dependency_injection import Target
 from xtr_event_dispatcher.bundle import ListenerMap
 from xtr_event_dispatcher_contracts import event_name_of
-from xtr_security_http import CheckPassportEvent, LogoutEvent
+from xtr_http_kernel import RequestEvent, ResponseEvent
+from xtr_security_http import CheckPassportEvent, ContextListener, LogoutEvent
 from xtr_security_http.session.session_authentication_strategy import (
     SessionAuthenticationStrategy,
 )
@@ -55,11 +56,13 @@ class _Builder:
     def __init__(self, config: SecurityConfig, listeners: Map) -> None:
         self._config = config
         self._listeners = listeners
-        self.definitions: dict[str, _Definition] = {
+        self.definitions: dict[str | None, _Definition] = {
             firewall_dispatcher_name(name): _Definition(listeners)
             for name in config.firewalls
             if config.firewalls[name].security
         }
+        # The main dispatcher, keyed the way the container holds it: no qualifier.
+        self.definitions[None] = _Definition(listeners)
 
     def get_extension_config(self, bundle: type, /) -> SecurityConfig:
         """Return the configuration the firewalls come from."""
@@ -212,6 +215,71 @@ def test_a_stateful_firewall_gets_the_session_strategy_listener() -> None:
         strategy_listener.__annotations__["strategy"]
         == Annotated[SessionAuthenticationStrategy, Target("main#session_authentication_strategy")]
     )
+
+
+def test_a_stateful_firewalls_context_write_back_joins_the_main_dispatchers_response() -> None:
+    ahead, behind = object(), object()
+    listeners = _map_of(ResponseEvent, (0, ahead), (-1000, behind))
+    config = SecurityConfig(
+        firewalls={
+            "main": FirewallConfig(
+                stateless=False,
+                authenticators=(FormLoginConfig(login_path="/login"),),
+            )
+        }
+    )
+    builder = _Builder(config, listeners)
+
+    RegisterPerCallListenersPass().process(cast("ContainerBuilder", cast("object", builder)))
+
+    placed = cast("Map", builder.definitions[None].set_arguments["listeners"])
+    entries = placed.by_event[event_name_of(ResponseEvent)]
+    assert [priority for priority, _ in entries] == [0, 0, -1000]
+    assert entries[0][1] is ahead
+    write_back = _function_of(entries[1][1])
+    assert getattr(write_back, "__name__", "") == "store_the_token"
+    assert (
+        write_back.__annotations__["context_listener"]
+        == Annotated[ContextListener, Target("main#context_listener")]
+    )
+    assert entries[2][1] is behind
+
+
+def test_no_stateful_firewall_leaves_the_main_dispatcher_alone() -> None:
+    listeners = _map_with((0, object()))
+    config = SecurityConfig(
+        firewalls={"main": FirewallConfig(authenticators=(FormLoginConfig(login_path="/login"),))}
+    )
+    builder = _Builder(config, listeners)
+
+    RegisterPerCallListenersPass().process(cast("ContainerBuilder", cast("object", builder)))
+
+    assert builder.definitions[None].set_arguments == {}
+
+
+def test_a_firewall_with_a_logout_gains_the_current_firewall_namer_after_the_firewall() -> None:
+    router, firewall_step = object(), object()
+    listeners = _map_of(RequestEvent, (32, router), (8, firewall_step), (0, object()))
+    config = SecurityConfig(
+        firewalls={
+            "main": FirewallConfig(
+                stateless=False,
+                authenticators=(FormLoginConfig(login_path="/login"),),
+                logout=LogoutConfig(),
+            )
+        }
+    )
+    builder = _Builder(config, listeners)
+
+    RegisterPerCallListenersPass().process(cast("ContainerBuilder", cast("object", builder)))
+
+    placed = cast("Map", builder.definitions[None].set_arguments["listeners"])
+    entries = placed.by_event[event_name_of(RequestEvent)]
+    assert [priority for priority, _ in entries] == [32, 8, 4, 0]
+    assert entries[0][1] is router
+    assert entries[1][1] is firewall_step
+    namer = _function_of(entries[2][1])
+    assert getattr(namer, "__name__", "") == "name_the_matched_firewall"
 
 
 if TYPE_CHECKING:

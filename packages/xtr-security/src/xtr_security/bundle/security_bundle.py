@@ -236,7 +236,11 @@ class SecurityBundle(Bundle[SecurityConfig]):
         # per application, over the response factory every answer builds on.
         _ = services.set(_http_utils)
 
-        build_firewall_map(services, self._bind_oidc_closeables(config))
+        build_firewall_map(
+            services,
+            self._bind_oidc_closeables(config),
+            clock_active=bundle_active(builder, "clock"),
+        )
 
         # The firewall runs the chain of the firewall each request matched,
         # over the lifecycle's own events; the listeners resolve the map per

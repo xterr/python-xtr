@@ -28,6 +28,7 @@ from xtr_security_http import (
     AccessListener,
     AccessMap,
     AuthenticatorManager,
+    ContextListener,
     ExposeSecurityLevel,
     FirewallListenerInterface,
     LogoutListener,
@@ -35,6 +36,7 @@ from xtr_security_http import (
 )
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 
+from tests.support.messages import make_message
 from xtr_security.bundle import (
     AccessControlConfig,
     AccessTokenConfig,
@@ -77,6 +79,7 @@ if TYPE_CHECKING:
 
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator, ServiceKey
     from xtr_password_hasher import PasswordHasherInterface
+    from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
 pytestmark = pytest.mark.anyio
 
@@ -89,6 +92,7 @@ class _RecordingDefinition:
         self._tags: list[str] = tags
         self._qualifier = qualifier
         self.arguments: dict[str, object] = {}
+        self.tag_attributes: list[dict[str, object]] = []
 
     @property
     def key(self) -> tuple[type, Hashable | None]:
@@ -96,8 +100,8 @@ class _RecordingDefinition:
         return (object, self._qualifier)
 
     def add_tag(self, name: str, **attributes: object) -> _RecordingDefinition:
-        del attributes
         self._tags.append(name)
+        self.tag_attributes.append(attributes)
         return self
 
     def set_argument(self, name: str, value: object, /) -> _RecordingDefinition:
@@ -992,3 +996,139 @@ def test_a_backchannel_logout_on_a_stateless_firewall_fails_the_build() -> None:
             {},
             csrf_wired=False,
         )
+
+
+def test_the_save_listener_is_registered_as_a_subscriber_over_the_storage_marker() -> None:
+    """The listener joins the main dispatcher, dropped while the storage is absent.
+
+    The marker is the context step's own: with no ``SessionStorageInterface``
+    service registered, both are dropped and the bundle's guard pass fails the
+    build naming the missing service.
+    """
+    from xtr_dependency_injection.decorator.remove_if_missing import REMOVE_IF_MISSING_TAG
+    from xtr_event_dispatcher.bundle import SUBSCRIBER_TAG
+    from xtr_http_foundation import SessionStorageInterface
+    from xtr_security_http import SaveSessionListener
+
+    from xtr_security.bundle._stateful_wiring import register_session_save_listener
+
+    services = _RecordingConfigurator()
+
+    register_session_save_listener(cast("ServiceConfigurator", cast("object", services)))
+
+    assert services.set_targets == [SaveSessionListener]
+    assert services.tags == [SUBSCRIBER_TAG, REMOVE_IF_MISSING_TAG]
+    assert services.definitions[0].tag_attributes == [{}, {"service": SessionStorageInterface}]
+
+
+def test_the_proofs_listener_factory_injects_the_clock_only_while_its_bundle_is_active() -> None:
+    from xtr_clock import ClockInterface
+    from xtr_security_http import AuthenticationProofsListener
+
+    from xtr_security.bundle._dispatcher_wiring import _authentication_proofs_listener
+
+    with_clock = _authentication_proofs_listener(clock_active=True)
+    without_clock = _authentication_proofs_listener(clock_active=False)
+
+    assert with_clock.__annotations__["clock"] is ClockInterface
+    assert with_clock.__annotations__["return"] is AuthenticationProofsListener
+    assert "clock" not in without_clock.__annotations__
+    assert without_clock.__annotations__["return"] is AuthenticationProofsListener
+
+
+async def test_the_context_write_back_resolves_its_firewalls_own_step() -> None:
+    from xtr_http_kernel import ResponseEvent
+
+    from xtr_security.bundle._stateful_wiring import store_the_context
+
+    @final
+    class _RecordingStep:
+        """A context step recording the response it is handed."""
+
+        __slots__ = ("events",)
+
+        def __init__(self) -> None:
+            self.events: list[ResponseEvent] = []
+
+        async def on_response(self, event: ResponseEvent) -> None:
+            """Record the response event the write-back handed over."""
+            self.events.append(event)
+
+    write_back = store_the_context("main#context_listener")
+    assert (
+        write_back.__annotations__["context_listener"]
+        == Annotated[ContextListener, Target("main#context_listener")]
+    )
+
+    step = _RecordingStep()
+    event = cast("ResponseEvent", object())
+    await write_back(event, step)
+
+    assert step.events == [event]
+
+
+async def test_the_namer_names_the_matched_firewall_with_its_registered_context() -> None:
+    from xtr_http_kernel import RequestEvent
+    from xtr_security_http._security_state import security_state_of
+
+    from xtr_security.bundle._logout_wiring import name_the_current_firewall
+
+    @final
+    class _RecordingGenerator:
+        """A generator recording the firewalls it is told are current."""
+
+        __slots__ = ("named",)
+
+        def __init__(self) -> None:
+            self.named: list[tuple[str, str | None]] = []
+
+        def set_current_firewall(self, key: str, context: str | None) -> None:
+            """Record the naming, the shape the generator's own contract asks."""
+            self.named.append((key, context))
+
+    @final
+    class _MatchedContext:
+        """The context the firewall parks for the request it matched."""
+
+        __slots__ = ("name",)
+
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    name_it = name_the_current_firewall({"main": "main", "api": "api"})
+    bag: dict[str, object] = {}
+    security_state_of(bag).firewall_context = cast(
+        "FirewallContextInterface", cast("object", _MatchedContext("api"))
+    )
+    event = RequestEvent(make_message(), bag)
+    generator = _RecordingGenerator()
+
+    await name_it(event, generator)
+
+    assert generator.named == [("api", "api")]
+
+
+async def test_the_namer_leaves_a_request_no_firewall_matched_alone() -> None:
+    from xtr_http_kernel import RequestEvent
+
+    from xtr_security.bundle._logout_wiring import name_the_current_firewall
+
+    @final
+    class _RecordingGenerator:
+        """A generator recording the firewalls it is told are current."""
+
+        __slots__ = ("named",)
+
+        def __init__(self) -> None:
+            self.named: list[tuple[str, str | None]] = []
+
+        def set_current_firewall(self, key: str, context: str | None) -> None:
+            """Record the naming, the shape the generator's own contract asks."""
+            self.named.append((key, context))
+
+    name_it = name_the_current_firewall({"main": "main"})
+    generator = _RecordingGenerator()
+
+    await name_it(RequestEvent(make_message(), {}), generator)
+
+    assert generator.named == []

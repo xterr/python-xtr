@@ -12,7 +12,9 @@ endings that must drop one. The throttling listener counts a login's
 failed attempts, through a request limiter that builds its own keys. The
 OIDC pair answers what the provider says about the login it issued: the
 back-channel logout listener refuses a token whose provider session ended,
-and the end-session listener redirects a logout to the provider.
+and the end-session listener redirects a logout to the provider. The save
+listener writes the session a stateful request reattached back through its
+storage, and stages the cookie that carries its ID.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from .oidc_back_channel_logout_listener import OidcBackChannelLogoutListener
 from .oidc_end_session_listener import OidcEndSessionListener
 from .password_migrating_listener import PasswordMigratingListener
 from .remember_me_listener import RememberMeListener
+from .save_session_listener import SaveSessionListener
 from .session_logout_listener import SessionLogoutListener
 from .session_strategy_listener import SessionStrategyListener
 from .user_checker_listener import UserCheckerListener
@@ -51,6 +54,7 @@ __all__ = [
     "OidcEndSessionListener",
     "PasswordMigratingListener",
     "RememberMeListener",
+    "SaveSessionListener",
     "SessionLogoutListener",
     "SessionStrategyListener",
     "UserCheckerListener",

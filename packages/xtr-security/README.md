@@ -216,6 +216,17 @@ A successful login hands the session to the firewall's `session_strategy` — `m
 default, rotating the session's ID so a fixation stops answering for the account the login
 named — through a `SessionStrategyListener` on the firewall's own dispatcher.
 
+The response side is wired with the request side: the context step's response half stores
+the token the request authenticated back into the session it reattached, and a
+`SaveSessionListener` on the kernel's response event writes that session through the
+storage and stages the cookie that carries its ID — a fresh session, or one a login
+rotated. The save runs below every other response listener, so the token is in the
+session before the session is written, and a storage that fails fails the request
+loudly rather than losing the session quietly; the finish event saves what a request
+that failed without producing a response still wrote. The listener is registered while
+any stateful firewall is configured and carries the same remove-if-missing marker over
+the application's session storage as the context step it serves.
+
 ### Form login
 
 A `FormLoginConfig` builds the form login: the form rendered at `login_path`, submitted to
@@ -244,7 +255,11 @@ is this one resolves its entry point elsewhere.
 
 The forgery machinery is opt-in: it is wired when a firewall's configuration asks for a token —
 a form login with `enable_csrf`, a logout with `enable_csrf` or `clear_csrf_tokens` — and nothing
-registers without an ask. The bundle then builds the csrf package's manager over the session the
+registers without an ask. A firewall whose routes prove themselves with `IsCsrfTokenValid`
+markers asks the same way, with `csrf_route_markers` — the marker's checker answers through
+the manager, so the declaration wires it; the tokens travel in the session the request
+reattached, so a stateless firewall declaring them fails the build. The bundle then builds
+the csrf package's manager over the session the
 request reattached, as the application's one `CsrfTokenManagerInterface` service: the route
 marker's checker survives on its arrival, and the passport check settles the badge a form login
 mints, ahead of any user load, at the priority the landed listener declares. The tokens
@@ -260,7 +275,11 @@ answered on the firewall's own dispatcher by the listeners the configuration tur
 default redirect to `target_path`, the `Clear-Site-Data` header, the configured cookies
 cleared, and the session invalidated on a stateful firewall. One `LogoutUrlGenerator` service
 carries every firewall's registration, so whatever renders a page asks for a logout's address
-by the firewall's name — or with none, resolved over the current request's token.
+by the firewall's name — or with none, resolved over the current request's token, or over
+the firewall the request runs under: the bundle names the matched firewall on the
+generator per request, so an anonymous page under a firewall with a logout renders that
+logout's address too. The generator is scoped to the request, so what one request named
+never answers for the next.
 
 The cross-site request forgery checks a logout can ask for are wired with the machinery above:
 `enable_csrf` has the step prove the request with the manager before it logs out, and

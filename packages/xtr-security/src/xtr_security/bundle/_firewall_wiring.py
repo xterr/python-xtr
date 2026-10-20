@@ -18,11 +18,13 @@ from xtr_security.bundle._context_wiring import register_context_factory
 from xtr_security.bundle._csrf_wiring import firewall_asks_for_csrf, register_csrf_token_manager
 from xtr_security.bundle._dispatcher_wiring import register_dispatcher, register_shared_listeners
 from xtr_security.bundle._logout_wiring import (
+    logout_context_key,
     register_logout,
     register_logout_url_generator,
 )
 from xtr_security.bundle._stateful_wiring import (
     register_context_listener,
+    register_session_save_listener,
     register_session_strategy,
 )
 from xtr_security.bundle.authenticator_configs import FormLoginConfig
@@ -50,6 +52,8 @@ __all__ = ["build_firewall_map"]
 def build_firewall_map(
     services: ServiceConfigurator,
     config: SecurityConfig,
+    *,
+    clock_active: bool,
 ) -> None:
     """Register a firewall context per firewall and the HTTP edge's firewall map.
 
@@ -70,6 +74,12 @@ def build_firewall_map(
     )
     if csrf_wired:
         register_csrf_token_manager(services)
+    # The response side of a stateful firewall: the token write-back and the
+    # session save. Registered while any stateful firewall is configured;
+    # the save listener carries the same remove-if-missing marker over the
+    # application's session storage as the context step it serves.
+    if any(firewall.security and not firewall.stateless for firewall in config.firewalls.values()):
+        register_session_save_listener(services)
 
     matchers: dict[str, RequestMatcherInterface] = {}
     logout_registrations: dict[str, tuple[str, str | None]] = {}
@@ -79,7 +89,7 @@ def build_firewall_map(
             services, config, name, firewall, logout_registrations, csrf_wired=csrf_wired
         )
     if any(firewall.security for firewall in config.firewalls.values()):
-        register_shared_listeners(services)
+        register_shared_listeners(services, clock_active=clock_active)
     if logout_registrations:
         register_logout_url_generator(services, logout_registrations)
 
@@ -102,6 +112,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
     else:
         _refuse_back_channel_logout_on_a_stateless_firewall(name, firewall)
         _refuse_a_form_login_on_a_stateless_firewall(name, firewall)
+        _refuse_csrf_route_markers_on_a_stateless_firewall(name, firewall)
         provider_qualifier = firewall.provider
         register_dispatcher(services, name, firewall, provider_qualifier)
         auth_qualifiers, entry_point_qualifier = register_authenticators(
@@ -122,7 +133,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
             logout_listener = register_logout(services, name, firewall, firewall.logout)
             logout_registrations[name] = (
                 firewall.logout.path,
-                firewall.context_key if firewall.context_key is not None else name,
+                logout_context_key(name, firewall),
             )
         register_context_factory(
             services,
@@ -189,6 +200,28 @@ def _refuse_a_form_login_on_a_stateless_firewall(
         raise InvalidConfigurationError(
             f'The form login of the firewall "{name}" needs the session its errors '
             "are stored in and its success rotates; set stateless=False.",
+        )
+
+
+def _refuse_csrf_route_markers_on_a_stateless_firewall(
+    name: str,
+    firewall: FirewallConfig,
+) -> None:
+    """Refuse route-marker tokens on a firewall that keeps no session.
+
+    The manager the markers resolve through keeps its tokens in the session
+    the request reattached; on a stateless firewall there is none, so the
+    markers would refuse every request they guard — protection that reads
+    as a refusal while proving nothing.
+
+    Raises:
+        InvalidConfigurationError: When a stateless firewall declares
+            ``csrf_route_markers``.
+    """
+    if firewall.stateless and firewall.csrf_route_markers:
+        raise InvalidConfigurationError(
+            f'The cross-site request forgery markers of the firewall "{name}" need '
+            "the session their tokens are stored in; set stateless=False.",
         )
 
 

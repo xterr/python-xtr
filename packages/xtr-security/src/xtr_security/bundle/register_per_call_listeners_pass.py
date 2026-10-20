@@ -1,4 +1,4 @@
-"""Gives each firewall's dispatcher the listeners that must be built per call.
+"""Gives the dispatchers the listeners that must be built per call.
 
 The listeners a dispatcher keeps are singletons, but these hold what belongs
 to one request — the forgery-token manager over the request's session, the
@@ -7,7 +7,10 @@ dispatcher keeps. This pass places their per-call references into the
 dispatcher's compiled listener map instead, after the event dispatcher bundle
 has worked the map out and the security bundle has merged the shared
 listeners into it, so the positions they land in are the positions they run
-in.
+in. Two of them belong on the main dispatcher, over the kernel's own events:
+the context step's response half, which stores the token a stateful request
+authenticated back into its session, and the naming of the matched firewall
+on the logout-address generator.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from typing import TYPE_CHECKING, Final, cast, final
 from xtr_event_dispatcher import EventDispatcherInterface
 from xtr_event_dispatcher.bundle import ListenerMap
 from xtr_event_dispatcher_contracts import event_name_of
+from xtr_http_kernel import RequestEvent, ResponseEvent
 from xtr_security_http import (
     CheckPassportEvent,
     LoginSuccessEvent,
@@ -33,7 +37,12 @@ from xtr_security.bundle._csrf_listeners import (
     session_strategy_listener,
 )
 from xtr_security.bundle._csrf_wiring import form_login_asks_for_csrf
-from xtr_security.bundle._stateful_wiring import session_authentication_strategy_name
+from xtr_security.bundle._logout_wiring import logout_context_key, name_the_current_firewall
+from xtr_security.bundle._stateful_wiring import (
+    context_listener_name,
+    session_authentication_strategy_name,
+    store_the_context,
+)
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 from xtr_security.bundle.security_config import SecurityConfig
 
@@ -52,23 +61,33 @@ __all__ = ["RegisterPerCallListenersPass"]
 _DEFAULT_PRIORITY: Final = 0
 """Where the landed clearing and strategy listeners run: the default priority."""
 
+_CURRENT_FIREWALL_PRIORITY: Final = 4
+"""Where the matched firewall is named on the generator: after the firewall.
+
+The firewall runs at its own priority of 8, parking the context this listener
+names; anything later would do as well, but a priority of its own keeps the
+constraint readable where it is declared.
+"""
+
 
 @final
 class RegisterPerCallListenersPass:
-    """Places the per-call listeners of each firewall into its dispatcher's map.
+    """Places the per-call listeners into the dispatchers' maps.
 
     The forgery check runs at the priority the landed listener declares,
     ahead of every other listener of that priority — a forged request is
     refused before any user is loaded, and the resolve step's dummy burn has
     no user timing to equalise. The token clearing and the session strategy
     run at the default priority their landed listeners declare, behind the
-    listeners already placed there.
+    listeners already placed there. The main dispatcher's two — the token
+    write-back at the default priority, the firewall naming after the
+    firewall — land behind the listeners already placed at theirs.
     """
 
     __slots__ = ()
 
     def process(self, builder: ContainerBuilder) -> None:
-        """Insert each firewall's per-call listeners into its dispatcher's map."""
+        """Insert the per-call listeners into the dispatchers' maps."""
         config = builder.get_extension_config(SecurityConfig)
         for name, firewall in config.firewalls.items():
             dispatcher = firewall_dispatcher_name(name)
@@ -79,6 +98,11 @@ class RegisterPerCallListenersPass:
             inserted = _insertions_of(name, firewall)
             if inserted:
                 _ = definition.set_argument("listeners", _with_inserted(listeners, inserted))
+        main_inserted = _main_insertions_of(config)
+        if main_inserted:
+            definition = builder.get_definition(EventDispatcherInterface, None)
+            listeners = cast("ListenerMap", definition.get_arguments()["listeners"])
+            _ = definition.set_argument("listeners", _with_inserted(listeners, main_inserted))
 
 
 def _insertions_of(
@@ -108,6 +132,46 @@ def _insertions_of(
                 PerCallListener(
                     session_strategy_listener(session_authentication_strategy_name(name))
                 ),
+                False,
+            ),
+        )
+    return inserted
+
+
+def _main_insertions_of(
+    config: SecurityConfig,
+) -> dict[str, list[tuple[int, object, bool]]]:
+    """Return the per-call listeners the main dispatcher runs.
+
+    Each stateful firewall's context step gains its response half — the
+    write-back storing the token the request authenticated into the session
+    it reattached — and the logout-address generator gains the naming of
+    the matched firewall, for the firewalls that registered a logout. Both
+    resolve their service from the request's own unit of work, the way the
+    firewall dispatchers' per-call listeners do.
+    """
+    inserted: dict[str, list[tuple[int, object, bool]]] = {}
+    write_backs: list[tuple[int, object, bool]] = [
+        (
+            _DEFAULT_PRIORITY,
+            PerCallListener(store_the_context(context_listener_name(name))),
+            False,
+        )
+        for name, firewall in config.firewalls.items()
+        if firewall.security and not firewall.stateless
+    ]
+    if write_backs:
+        inserted[event_name_of(ResponseEvent)] = write_backs
+    contexts = {
+        name: logout_context_key(name, firewall)
+        for name, firewall in config.firewalls.items()
+        if firewall.logout is not None
+    }
+    if contexts:
+        inserted.setdefault(event_name_of(RequestEvent), []).append(
+            (
+                _CURRENT_FIREWALL_PRIORITY,
+                PerCallListener(name_the_current_firewall(contexts)),
                 False,
             ),
         )

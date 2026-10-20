@@ -18,7 +18,6 @@ from xtr_http_message_contracts import ServerRequestInterface
 from xtr_security_core.user.user_interface import UserInterface
 from xtr_security_csrf.csrf_token_manager_interface import CsrfTokenManagerInterface
 from xtr_security_http import AuthenticationUtils, CurrentUser
-from xtr_security_http._parked_session import parked_session_of
 
 from tests.fixtures.csrf_app.bundles import BUNDLES
 from xtr_security.bundle._csrf_wiring import ParkedRequest
@@ -38,22 +37,16 @@ async def login_page(
 
     The last error is read off the chain's request — the one carrying the
     state bag the failure stored the error under — which the park holds for
-    exactly the services a request builds. The session is saved and its
-    cookie staged here because the response-time save listener has not
-    landed yet: the library leaves the save to the caller, and this page
-    is the caller its tokens must survive.
+    exactly the services a request builds. The tokens and the error travel
+    in the session the request reattached, which the bundle's save listener
+    writes back through the storage on the response — nothing here saves
+    the session itself.
     """
     request = cast("ServerRequestInterface", request_park.request)
     token = await csrf_token_manager.get_token("authenticate")
     logout_token = await csrf_token_manager.get_token("logout")
     error = await AuthenticationUtils(request).get_last_authentication_error()
     message = "" if error is None else error.get_message_key()
-    session = parked_session_of(request)
-    if session is not None:
-        await session.save()
-        staged_cookie = session.staged_set_cookie()
-        if staged_cookie is not None:
-            response = response.with_header("set-cookie", staged_cookie)
     _ = await response.get_body().write(
         (
             f"<p>{message}</p>"

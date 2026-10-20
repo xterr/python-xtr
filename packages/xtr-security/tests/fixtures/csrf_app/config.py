@@ -2,7 +2,11 @@
 
 A stateful ``main`` firewall on ``^/`` with a form login whose form carries a
 forgery token, and a logout that both demands one and drops the stored ones —
- every piece of the forgery machinery the bundle wires, on one firewall.
+every piece of the forgery machinery the bundle wires, on one firewall. The
+form login reads its fields from either place — ``post_only`` off — because
+the chain's request carries its body unparsed until the route materialises
+it, so a served submission's fields ride the query string, the readers' own
+fallback.
 """
 
 from __future__ import annotations
@@ -40,7 +44,9 @@ def security() -> SecurityConfig:
                 stateless=False,
                 provider="users",
                 logout=LogoutConfig(enable_csrf=True, clear_csrf_tokens=True),
-                authenticators=(FormLoginConfig(login_path="/login", enable_csrf=True),),
+                authenticators=(
+                    FormLoginConfig(login_path="/login", enable_csrf=True, post_only=False),
+                ),
             )
         },
     )

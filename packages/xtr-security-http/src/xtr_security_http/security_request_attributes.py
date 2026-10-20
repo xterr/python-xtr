@@ -93,6 +93,11 @@ class SecurityRequestAttributes:
     request half that read the token to the response half that stores it, so
     both halves of one request reach the same session."""
 
+    SESSION_SAVED: Final[str] = "_xtr_security_session_saved"
+    """Marks the requests whose session the response half already wrote
+    through, so the finish half — which runs on every path — saves a session
+    once per request and never twice."""
+
     PRE_AUTHENTICATED_USERNAME: Final[str] = "_xtr_security_pre_authenticated_username"
     """Reserved for the username a pre-authenticated authenticator read from
     the request. Nothing parks it today: a request message is immutable and

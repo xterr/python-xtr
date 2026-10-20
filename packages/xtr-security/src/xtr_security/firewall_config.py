@@ -76,6 +76,12 @@ class FirewallConfig:
         authenticators: The authenticator configurations the firewall runs, each
             an instance a registered factory's ``config_type`` matches.
         required_badges: Badge types every passport must carry to authenticate.
+        csrf_route_markers: Whether the routes this firewall claims prove
+            themselves with ``IsCsrfTokenValid`` markers — wiring the
+            forgery-token manager for them even when no login or logout of
+            the firewall asks for a token. The tokens travel in the session
+            the request reattached, so a stateless firewall declaring them
+            fails the build.
         logout: The logout the firewall's requests can ask for, or ``None``
             when the firewall has none.
         listeners: The qualifiers of the firewall's listener chain, each naming
@@ -107,6 +113,7 @@ class FirewallConfig:
     scope_denied_handler: type | None = None
     authenticators: tuple[object, ...] = ()
     required_badges: tuple[type, ...] = field(default_factory=tuple)
+    csrf_route_markers: bool = False
     logout: LogoutConfig | None = None
     listeners: tuple[str, ...] = field(default_factory=tuple)
 

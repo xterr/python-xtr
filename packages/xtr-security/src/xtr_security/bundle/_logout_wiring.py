@@ -5,28 +5,33 @@ logout slot — not the listener chain, not the sorting pass: the firewall
 inserts it where its ``-127`` priority runs. What the logout announces is
 answered on the firewall's own dispatcher, where each listener this
 configuration turns on does its part, and one generator per application
-hands every firewall's logout address to whatever renders a page.
+hands every firewall's logout address to whatever renders a page. The
+generator is told which firewall the request runs under — the matched
+firewall, named per request — so a keyless generation resolves on the
+requests no token answers for too.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, cast
 
-from xtr_dependency_injection import Target, named_factory
+from xtr_dependency_injection import Injected, Target, named_factory
 from xtr_event_dispatcher.bundle import SUBSCRIBER_TAG
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
+from xtr_http_kernel import RequestEvent
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 from xtr_security_core import TokenStorageInterface
 from xtr_security_csrf.csrf_token_manager_interface import (
     CsrfTokenManagerInterface,
 )
 from xtr_security_http import HttpUtils
+from xtr_security_http._security_state import security_state_of
 
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 from xtr_security.exception import InvalidConfigurationError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Awaitable, Callable, Mapping, Sequence
 
     from xtr_dependency_injection import ServiceConfigurator
     from xtr_security_http import ClearedCookie
@@ -34,7 +39,23 @@ if TYPE_CHECKING:
     from xtr_security.firewall_config import FirewallConfig
     from xtr_security.logout_config import LogoutConfig
 
-__all__ = ["logout_listener_name", "register_logout", "register_logout_url_generator"]
+__all__ = [
+    "logout_context_key",
+    "logout_listener_name",
+    "name_the_current_firewall",
+    "register_logout",
+    "register_logout_url_generator",
+]
+
+
+def logout_context_key(name: str, firewall: FirewallConfig) -> str:
+    """Return the context a firewall's logout is registered under.
+
+    The firewall's own context key when it names one, else its name — the
+    same value the generator's registration carries, so the per-request
+    naming and the registration it resolves against cannot disagree.
+    """
+    return firewall.context_key if firewall.context_key is not None else name
 
 
 def logout_listener_name(firewall_name: str) -> str:
@@ -168,6 +189,43 @@ def register_logout_url_generator(
         "return": LogoutUrlGenerator,
     }
     _ = services.set(logout_url_generator, lifetime="scoped")
+
+
+def name_the_current_firewall(
+    contexts: Mapping[str, str],
+) -> Callable[..., Awaitable[None]]:
+    """Return the request listener naming the matched firewall on the generator.
+
+    The generator is a service of the request — scoped, so what one request
+    named never answers for the next; no reset is wired, the scope is the
+    reset. The listener runs after the firewall matched the request and
+    parked its context, and names that firewall — with the context its
+    logout was registered under — so a keyless generation resolves on the
+    requests no token answers for: an anonymous page under a firewall with
+    a logout, rendering that logout's address.
+
+    Args:
+        contexts: Each firewall with a logout, mapped to the context its
+            logout was registered under.
+    """
+    from xtr_security_http import (  # noqa: PLC0415 -- the family's logout import
+        LogoutUrlGenerator,
+    )
+
+    async def name_the_matched_firewall(
+        event: RequestEvent, generator: Injected[LogoutUrlGenerator]
+    ) -> None:
+        context = security_state_of(event.state).firewall_context
+        if context is None:
+            return
+        generator.set_current_firewall(context.name, contexts.get(context.name))
+
+    name_the_matched_firewall.__annotations__ = {
+        "event": RequestEvent,
+        "generator": Injected[LogoutUrlGenerator],
+        "return": None,
+    }
+    return name_the_matched_firewall
 
 
 def _register_subscriber(

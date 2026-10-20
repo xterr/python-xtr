@@ -38,6 +38,7 @@ A firewall naming a `provider` that is not declared fails the build with
 | `access_denied_handler` | `None` | A handler service type for a denied, fully-authenticated caller |
 | `authenticators` | `()` | The authenticator configurations the firewall runs |
 | `required_badges` | `()` | Badge types every passport must carry |
+| `csrf_route_markers` | `False` | The firewall's routes prove themselves with `IsCsrfTokenValid` markers; wires the forgery-token manager for them — stateful only |
 
 A secured firewall with no authenticators is refused. The matchers those fields build come from
 `xtr-http-foundation` and read the request as a message: `pattern` matches the path below the
@@ -110,7 +111,9 @@ challenges: a firewall whose only login is it resolves its entry point elsewhere
 
 `enable_csrf` wires the forgery machinery: the csrf package's manager over the session the
 request reattached, the passport check settling the form's badge ahead of any user load, and the
-route marker's checker — all registered only when a configuration asks for a token.
+route marker's checker — all registered only when a configuration asks for a token. A firewall
+whose routes carry the markers without a form login or a proven logout asks with
+`csrf_route_markers=True`.
 
 ## The token handler you write
 

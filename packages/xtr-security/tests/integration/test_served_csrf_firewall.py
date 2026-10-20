@@ -4,16 +4,15 @@ Drives the CSRF fixture through ``httpx.ASGITransport`` inside the app's own
 lifespan. The login page mints the tokens its forms carry — through the very
 manager the bundle wires, over the session the request reattached — and the
 logout's proof is driven both ways: a forged token is refused loudly, a minted
-one logs the request out.
+one logs the request out. The login submission is driven across requests
+too: the session the first request wrote — its minted token, the login the
+second proves, the token the login stores — survives each response through
+the bundle's save listener, and the third request reattaches it by the
+cookie that save staged.
 
-The login submission's own forgery check cannot be driven across requests
-here: the response-time session save has not landed, so nothing the chain
-writes survives the redirect. The check's registration — ahead of the user
-load, at the landed listener's own priority — is pinned by the wiring suite;
-what this suite pins live is the machinery every request runs: the park, the
-manager over it, and the logout's proof through it — carried in the query
-string, the readers' own fallback, because the chain's request carries its
-body unparsed until the route materialises it.
+The logout's proof is carried in the query string — the readers' own
+fallback — because the chain's request carries its body unparsed until the
+route materialises it.
 """
 
 from __future__ import annotations
@@ -72,7 +71,7 @@ async def test_a_form_submission_is_answered_by_the_login_pages_redirect(
 
     response = await client.post(
         "/login_check",
-        data={"_username": "alice", "_password": "secret", "_csrf_token": "anything"},
+        params={"_username": "alice", "_password": "secret", "_csrf_token": "anything"},
     )
 
     assert response.status_code == 302
@@ -100,3 +99,39 @@ async def test_a_logout_with_a_minted_token_logs_the_request_out(
 
     assert response.status_code == 302
     assert response.headers["location"] == "/"
+
+
+async def test_a_login_submission_persists_the_session_across_requests(
+    client: httpx.AsyncClient,
+) -> None:
+    """The login writes a session the next request reattaches by its cookie.
+
+    The first request mints the forgery token into the session its response
+    saves; the second presents that token, authenticates, and stores the
+    login's token in the session its response saves — under the ID the login
+    rotated, carried by the cookie that response staged; the third arrives
+    with that cookie and is answered as the logged-in user, its token
+    restored from the session the first two wrote.
+
+    The submission's fields ride the query string — the readers' own
+    fallback — because the chain's request carries its body unparsed until
+    the route materialises it; the login itself, the part this suite is
+    here to prove, runs live: the save, the cookie, the write-back, the
+    reattachment, the restored token.
+    """
+    page = await client.get("/login")
+
+    submitted = await client.post(
+        "/login_check",
+        params={
+            "_username": "alice",
+            "_password": "secret",
+            "_csrf_token": _token_of(page, "_csrf_token"),
+        },
+    )
+    assert submitted.status_code == 302
+    assert submitted.headers["location"] == "/"
+
+    home = await client.get("/")
+    assert home.status_code == 200
+    assert "alice" in home.text
