@@ -34,6 +34,7 @@ SENDS = """
 import anyio
 
 import xtr_notifier.event_listener
+import xtr_notifier.testing
 from xtr_notifier import Notifier, Transport
 from xtr_notifier.channel import ChatChannel
 from xtr_notifier.notification import Notification
