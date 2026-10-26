@@ -11,7 +11,7 @@ asynchronous transport. Needs the ``messenger`` extra.
 
 from __future__ import annotations
 
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from xtr_messenger import register_message
 
@@ -19,11 +19,14 @@ from xtr_notifier.message import ChatMessage, PushMessage, SmsMessage
 
 from .message_handler import MessageHandler
 
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
 __all__ = ["MESSAGE_NAMES", "MessageHandler"]
 
 #: The wire name of each message, pinned so a queued message still decodes after
 #: a module is renamed.
-MESSAGE_NAMES: Final = {
+MESSAGE_NAMES: Final[Mapping[type, str]] = {
     ChatMessage: "xtr_notifier.chat_message.v1",
     SmsMessage: "xtr_notifier.sms_message.v1",
     PushMessage: "xtr_notifier.push_message.v1",

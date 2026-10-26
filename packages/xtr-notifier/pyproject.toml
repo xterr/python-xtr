@@ -49,6 +49,11 @@ null = "xtr_notifier.transport:NullTransportFactory"
 [project.entry-points."xtr_notifier.texter_transport_factories"]
 null = "xtr_notifier.transport:NullTransportFactory"
 
+# Advertises the bundle so debug:bundles can name it when installed but not listed.
+# Advertising activates nothing: an application lists the bundles it wants.
+[project.entry-points."xtr_dependency_injection.bundles"]
+notifier = "xtr_notifier.bundle:NotifierBundle"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",
@@ -129,6 +134,9 @@ fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
+# The bundle registers factory functions and handlers whose signatures the
+# container reads at runtime; deferring these would register them under nothing.
+"src/xtr_notifier/bundle/*.py" = ["TC001", "TC002", "TC003"]
 "tests/**/*.py" = [
     "S101",    # assert is the point of pytest
     "ARG",     # fixtures look unused
