@@ -33,6 +33,8 @@ if TYPE_CHECKING:
     },
 )
 class TaskWorkflow(WorkflowTrait):
+    # Only the type checker imports ``Marking``: the bundle reads the markers past it.
+    _last_marking: Marking | None = None
     START: ClassVar[Annotated[str, Transition(froms=TaskStep.NEW, tos=TaskStep.PROCESSING)]] = (
         "start"
     )

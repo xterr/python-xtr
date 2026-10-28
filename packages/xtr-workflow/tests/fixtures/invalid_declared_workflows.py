@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from enum import Enum, IntEnum
-from typing import Annotated, ClassVar, Final, cast
+from typing import TYPE_CHECKING, Annotated, ClassVar, Final, cast
 
 from tests.fixtures.declared_workflows import Step
 from xtr_workflow.decorator import Place, Transition, as_workflow
+
+if TYPE_CHECKING:
+    from tests.fixtures.task_step import TaskStep
 
 # What a declaration typed loosely could still hand over as a place.
 NOT_A_PLACE: Final = cast("str", cast("object", 1))
@@ -75,3 +78,9 @@ class SeveralPlaceMarkersWorkflow:
 @as_workflow(supports=object)
 class NoTransitionWorkflow:
     DRAFT: ClassVar[Annotated[str, Place()]] = "draft"
+
+
+@as_workflow(supports=object)
+class TypeCheckingStepWorkflow:
+    # Only the type checker imports ``TaskStep``, which the marker needs at runtime.
+    GO: ClassVar[Annotated[str, Transition(froms=TaskStep.NEW, tos="b")]] = "go"

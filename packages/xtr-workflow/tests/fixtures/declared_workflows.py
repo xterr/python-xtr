@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sized
 from enum import Enum, StrEnum
-from typing import Annotated, ClassVar, Final
+from typing import TYPE_CHECKING, Annotated, ClassVar, Final
 
 from tests.fixtures.definition_validator import DefinitionValidator
-from xtr_workflow import Arc, WorkflowType
+from xtr_workflow import Arc, WorkflowTrait, WorkflowType
 from xtr_workflow.decorator import Place, Transition, as_workflow
 from xtr_workflow.event_listener import GuardContext
+
+if TYPE_CHECKING:
+    from tests.fixtures.task import Task
 
 
 class Step(StrEnum):
@@ -235,3 +238,10 @@ class InheritedTransitionsWorkflow(TransitionsBase):
 class OverridingTransitionsWorkflow(TransitionsBase):
     GO: ClassVar[Annotated[str, Transition(froms="a", tos="c")]] = "go"
     title: str = "Not a marked constant"
+
+
+@as_workflow(supports=object)
+class TaskQueueWorkflow(WorkflowTrait):
+    # Only the type checker imports ``Task``: this annotation cannot be read at runtime.
+    _current: Task | None = None
+    QUEUE: ClassVar[Annotated[str, Transition(froms="new", tos="queued")]] = "queue"

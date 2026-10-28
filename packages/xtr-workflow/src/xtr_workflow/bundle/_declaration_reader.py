@@ -6,10 +6,9 @@ The configuration it returns is checked as one written by hand is, by
 
 from __future__ import annotations
 
-import inspect
 from collections.abc import Sequence
 from enum import Enum
-from typing import ClassVar, Final, NamedTuple, cast, final, get_args, get_origin, get_type_hints
+from typing import Final, cast, final
 
 from xtr_workflow.arc import Arc
 from xtr_workflow.decorator._workflow_name import class_name
@@ -19,6 +18,7 @@ from xtr_workflow.decorator.transition import Transition
 from xtr_workflow.exception import LogicError
 from xtr_workflow.workflow_type import WorkflowType
 
+from ._marked_constants import MarkedConstant, marked_constants
 from .arc_config import ArcConfig
 from .audit_trail_config import AuditTrailConfig
 from .marking_store_config import MarkingStoreConfig
@@ -29,19 +29,6 @@ from .workflow_definition_config import WorkflowDefinitionConfig
 __all__ = ["read_declaration"]
 
 _DECORATOR: Final = "@as_workflow"
-
-
-class _Constant(NamedTuple):
-    """A class constant carrying markers."""
-
-    attribute: str
-    """Its name on the class."""
-
-    label: str
-    """How errors name it: the class declaring it, then its name."""
-
-    markers: tuple[object, ...]
-    """The metadata of its ``Annotated`` annotation."""
 
 
 def read_declaration(class_: type, declaration: AsWorkflow) -> WorkflowDefinitionConfig:
@@ -55,10 +42,11 @@ def read_declaration(class_: type, declaration: AsWorkflow) -> WorkflowDefinitio
 
     Raises:
         LogicError: If the declaration cannot be read into a workflow: a
-            constant naming a transition or a place holds no name, a place is
-            not a string or a member of a string enum, a state machine's
-            transition has several places one way, a place is declared twice
-            or is not a member of the ``places`` enum.
+            constant's markers name what its module imports only for the type
+            checker, a constant naming a transition or a place holds no name,
+            a place is not a string or a member of a string enum, a state
+            machine's transition has several places one way, a place is
+            declared twice or is not a member of the ``places`` enum.
         InvalidArgumentError: If the configuration read is invalid, as one
             written by hand would be.
     """
@@ -87,7 +75,7 @@ class _Reader:
 
         transitions: list[TransitionConfig] = []
         place_constants: dict[str, tuple[str, Place]] = {}
-        for constant in self._constants():
+        for constant in marked_constants(self._class):
             transitions.extend(
                 self._transition(constant, marker)
                 for marker in constant.markers
@@ -164,29 +152,7 @@ class _Reader:
             )
         return places_enum
 
-    def _constants(self) -> list[_Constant]:
-        """Return each annotated constant of the class and of its bases, with its markers.
-
-        The class's own constants come first, then those it inherits.
-        """
-        found: list[_Constant] = []
-        seen: set[str] = set()
-        for owner in self._class.__mro__[:-1]:
-            hints = get_type_hints(owner, include_extras=True)
-            for attribute in inspect.get_annotations(owner):
-                if attribute in seen:
-                    continue
-                seen.add(attribute)
-                found.append(
-                    _Constant(
-                        attribute,
-                        f"{class_name(owner)}.{attribute}",
-                        _annotated_markers(cast("object", hints[attribute])),
-                    )
-                )
-        return found
-
-    def _transition(self, constant: _Constant, marker: Transition) -> TransitionConfig:
+    def _transition(self, constant: MarkedConstant, marker: Transition) -> TransitionConfig:
         name = self._value(constant)
         if not isinstance(name, str):
             raise LogicError(
@@ -233,7 +199,7 @@ class _Reader:
         return tuple(arcs)
 
     def _read_place_constant(
-        self, constant: _Constant, place_constants: dict[str, tuple[str, Place]]
+        self, constant: MarkedConstant, place_constants: dict[str, tuple[str, Place]]
     ) -> None:
         place_markers = [marker for marker in constant.markers if isinstance(marker, Place)]
         if len(place_markers) > 1:
@@ -255,7 +221,7 @@ class _Reader:
             )
         place_constants[name] = (constant.label, place_markers[0])
 
-    def _value(self, constant: _Constant) -> object:
+    def _value(self, constant: MarkedConstant) -> object:
         # A constant annotated but never assigned holds nothing, reported as ``None``.
         return cast("object", getattr(self._class, constant.attribute, None))
 
@@ -282,10 +248,3 @@ class _Reader:
 
 def _values(enum: type[Enum]) -> set[object]:
     return {cast("object", member.value) for member in enum}
-
-
-def _annotated_markers(hint: object) -> tuple[object, ...]:
-    """Return the ``Annotated`` metadata of a constant's annotation, ``ClassVar`` unwrapped."""
-    if get_origin(hint) is ClassVar:
-        hint = cast("object", get_args(hint)[0])
-    return cast("tuple[object, ...]", getattr(hint, "__metadata__", ()))

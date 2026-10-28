@@ -209,6 +209,22 @@ def test_a_constant_redeclared_by_the_class_hides_the_inherited_one() -> None:
     assert config.transitions == (TransitionConfig("go", "a", "c"),)
 
 
+def test_an_annotation_only_the_type_checker_can_read_is_passed_over() -> None:
+    assert _read(declared.TaskQueueWorkflow) == (
+        "task_queue",
+        WorkflowDefinitionConfig(
+            type=WorkflowType.STATE_MACHINE,
+            supports=(object,),
+            initial_marking=(),
+            metadata={},
+            audit_trail=AuditTrailConfig(enabled=False),
+            definition_validators=(),
+            places=(PlaceConfig("new"), PlaceConfig("queued")),
+            transitions=(TransitionConfig("queue", "new", "queued"),),
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     ("class_", "expected_message"),
     [
@@ -274,6 +290,13 @@ def test_a_constant_redeclared_by_the_class_hides_the_inherited_one() -> None:
             invalid.SeveralPlaceMarkersWorkflow,
             f'"{_INVALID}.SeveralPlaceMarkersWorkflow.START" cannot have several "Place" markers.',
             id="several place markers on a constant",
+        ),
+        pytest.param(
+            invalid.TypeCheckingStepWorkflow,
+            f'The annotation of "{_INVALID}.TypeCheckingStepWorkflow.GO" cannot be read at '
+            "runtime (name 'TaskStep' is not defined); import what it names outside "
+            "TYPE_CHECKING.",
+            id="marker naming what only the type checker imports",
         ),
     ],
 )

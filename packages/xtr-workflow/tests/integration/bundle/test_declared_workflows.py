@@ -8,7 +8,12 @@ import pytest
 from xtr_dependency_injection import Kernel
 from xtr_dependency_injection.testing import boot_for_test
 
-from tests.fixtures.app_workflow_declared.workflows import Chore, ChoreStateMachine, TaskConsumer
+from tests.fixtures.app_workflow_declared.workflows import (
+    Chore,
+    ChoreStateMachine,
+    TaskConsumer,
+    TaskWorkflow,
+)
 from tests.fixtures.task import Task
 from tests.fixtures.task_step import TaskStep
 from xtr_workflow import Registry, StateMachine, WorkflowInterface
@@ -72,6 +77,19 @@ async def test_a_listener_of_a_workflow_class_hears_only_its_own_workflow() -> N
         can_start = await chores.can(chore, ChoreStateMachine.START)
 
     assert can_start, "the task workflow's guard of its start transition does not run"
+
+
+async def test_a_workflow_class_is_read_past_what_only_the_type_checker_imports() -> None:
+    async with await booted() as kernel:
+        task_workflow = await kernel.container.get(TaskWorkflow)
+
+    transitions = task_workflow.get_definition().get_transitions()
+    assert [transition.get_name() for transition in transitions] == [
+        "start",
+        "finish",
+        "finish",
+        "fail",
+    ]
 
 
 async def test_in_debug_mode_the_class_answers_for_the_traced_workflow() -> None:
