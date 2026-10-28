@@ -57,10 +57,6 @@ class Event(BaseEvent):
         """Return the transition being applied; ``None`` for the initial marking."""
         return self._transition
 
-    def get_workflow(self) -> WorkflowInterface | None:
-        """Return the workflow moving the subject, ``None`` for an event built without one."""
-        return self._workflow
-
     def get_workflow_name(self) -> str:
         """Return the name of the workflow moving the subject.
 

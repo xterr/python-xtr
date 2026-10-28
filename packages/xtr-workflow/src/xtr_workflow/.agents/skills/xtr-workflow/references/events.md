@@ -43,7 +43,7 @@ workflow raises `InvalidArgumentError`.
 ## Reading an event
 
 Every event answers `get_subject()`, `get_marking()`, `get_transition()` (`None` only for an
-initial marking), `get_workflow()`, `get_workflow_name()` and `get_metadata(key, subject)`.
+initial marking), `get_workflow_name()` and `get_metadata(key, subject)`.
 `GuardEvent.get_transition()` is never `None`. `LeaveEvent`, `TransitionEvent`, `EnterEvent`,
 `EnteredEvent`, `CompletedEvent` and `AnnounceEvent` also carry `get_context()`.
 

@@ -35,21 +35,18 @@ def test_it_is_an_event_a_listener_can_stop() -> None:
 def test_it_keeps_what_it_is_built_with() -> None:
     subject = object()
     marking = Marking({"draft": 1})
-    workflow = _workflow()
 
-    event = Event(subject, marking, TRANSITION, workflow)
+    event = Event(subject, marking, TRANSITION)
 
     assert event.get_subject() is subject
     assert event.get_marking() is marking
     assert event.get_transition() is TRANSITION
-    assert event.get_workflow() is workflow
 
 
-def test_its_transition_and_workflow_are_none_unless_given() -> None:
+def test_its_transition_is_none_unless_given() -> None:
     event = Event(object(), Marking())
 
     assert event.get_transition() is None
-    assert event.get_workflow() is None
 
 
 def test_it_names_its_workflow() -> None:
