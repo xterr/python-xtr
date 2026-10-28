@@ -38,6 +38,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-http-message-contracts](packages/xtr-http-message-contracts) | The HTTP message interfaces alone: requests, responses, streams, URIs, uploaded files and their factories. |
 | [xtr-logging](packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. |
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
+| [xtr-mailer](packages/xtr-mailer) | Email sent through SMTP, sendmail or a provider's API — picked by DSN, in-process or queued on a message bus, with failover, round-robin, envelope and header overrides, DKIM and S/MIME signing. |
 | [xtr-maker](packages/xtr-maker) | Console commands that write application code for the xtr libraries, refusing a file that already exists. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
 | [xtr-amqp-messenger](packages/xtr-amqp-messenger) | A RabbitMQ transport for xtr-messenger: queues on an AMQP broker, a retry ladder, delays and real dead-lettering, through taskiq. |
@@ -249,6 +250,16 @@ graph LR
     serializer[xtr-serializer] -. optional .-> di
     serializer -. optional .-> console
     mime[xtr-mime] --> clock
+    mailer[xtr-mailer] --> mime
+    mailer --> clock
+    mailer --> eventcon
+    mailer --> httpclientcon
+    mailer --> logcon
+    mailer --> svccon
+    mailer -. optional .-> messenger
+    mailer -. optional .-> ratelimiter
+    mailer -. optional .-> console
+    mailer -. optional .-> di
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

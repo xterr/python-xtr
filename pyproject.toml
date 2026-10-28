@@ -31,6 +31,7 @@ xtr-http-message-contracts = { workspace = true }
 xtr-lock                 = { workspace = true }
 xtr-logging              = { workspace = true }
 xtr-logging-contracts    = { workspace = true }
+xtr-mailer               = { workspace = true }
 xtr-maker                = { workspace = true }
 xtr-messenger            = { workspace = true }
 xtr-mime                 = { workspace = true }

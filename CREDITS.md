@@ -6,7 +6,7 @@ contributors.
 
 | Project | Translated into |
 |---|---|
-| [Symfony](https://symfony.com) | xtr-amqp-messenger, xtr-cache, xtr-cache-contracts, xtr-clock, xtr-console, xtr-dependency-injection, xtr-dotenv, xtr-event-dispatcher, xtr-event-dispatcher-contracts, xtr-http-client, xtr-http-client-contracts, xtr-http-foundation, xtr-http-kernel, xtr-lock, xtr-logging, xtr-messenger, xtr-mime, xtr-notifier, xtr-orm, xtr-orm-messenger, xtr-password-hasher, xtr-rate-limiter, xtr-recipes, xtr-remote-event, xtr-scheduler, xtr-security, xtr-security-core, xtr-security-csrf, xtr-security-http, xtr-serializer, xtr-service-contracts, xtr-slack-notifier, xtr-telegram-notifier, xtr-webhook, xtr-workflow |
+| [Symfony](https://symfony.com) | xtr-amqp-messenger, xtr-cache, xtr-cache-contracts, xtr-clock, xtr-console, xtr-dependency-injection, xtr-dotenv, xtr-event-dispatcher, xtr-event-dispatcher-contracts, xtr-http-client, xtr-http-client-contracts, xtr-http-foundation, xtr-http-kernel, xtr-lock, xtr-logging, xtr-mailer, xtr-messenger, xtr-mime, xtr-notifier, xtr-orm, xtr-orm-messenger, xtr-password-hasher, xtr-rate-limiter, xtr-recipes, xtr-remote-event, xtr-scheduler, xtr-security, xtr-security-core, xtr-security-csrf, xtr-security-http, xtr-serializer, xtr-service-contracts, xtr-slack-notifier, xtr-telegram-notifier, xtr-webhook, xtr-workflow |
 | [MakerBundle](https://github.com/symfony/maker-bundle) | xtr-maker |
 | [Monolog](https://github.com/Seldaek/monolog) | xtr-logging |
 | [PSR-3 Logger Interface](https://github.com/php-fig/log) (PHP-FIG) | xtr-logging-contracts |
