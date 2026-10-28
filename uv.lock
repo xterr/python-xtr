@@ -4054,7 +4054,7 @@ wheels = [
 
 [[package]]
 name = "xtr"
-version = "5.1.0"
+version = "5.2.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
@@ -4081,7 +4081,7 @@ dev = [
 
 [[package]]
 name = "xtr-cache"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-cache" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4145,7 +4145,7 @@ dev = [
 
 [[package]]
 name = "xtr-cache-contracts"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-cache-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4180,7 +4180,7 @@ dev = [
 
 [[package]]
 name = "xtr-cli"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-cli" }
 dependencies = [
     { name = "xtr-console" },
@@ -4211,7 +4211,7 @@ dev = [
 
 [[package]]
 name = "xtr-clock"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-clock" }
 dependencies = [
     { name = "anyio" },
@@ -4255,7 +4255,7 @@ dev = [
 
 [[package]]
 name = "xtr-console"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-console" }
 dependencies = [
     { name = "cyclopts" },
@@ -4307,7 +4307,7 @@ dev = [
 
 [[package]]
 name = "xtr-dependency-injection"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-dependency-injection" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4355,7 +4355,7 @@ dev = [
 
 [[package]]
 name = "xtr-dotenv"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-dotenv" }
 dependencies = [
     { name = "anyio" },
@@ -4398,7 +4398,7 @@ dev = [
 
 [[package]]
 name = "xtr-event-dispatcher"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-event-dispatcher" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4443,7 +4443,7 @@ dev = [
 
 [[package]]
 name = "xtr-event-dispatcher-contracts"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-event-dispatcher-contracts" }
 
 [package.dev-dependencies]
@@ -4470,7 +4470,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-client"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-http-client" }
 dependencies = [
     { name = "anyio" },
@@ -4534,7 +4534,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-client-contracts"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-http-client-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4582,7 +4582,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-foundation"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-http-foundation" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4628,7 +4628,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-kernel"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-http-kernel" }
 dependencies = [
     { name = "fastapi" },
@@ -4691,7 +4691,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-message"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-http-message" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4728,7 +4728,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-message-contracts"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-http-message-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4757,7 +4757,7 @@ dev = [
 
 [[package]]
 name = "xtr-lock"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-lock" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4811,7 +4811,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-logging" }
 dependencies = [
     { name = "msgspec" },
@@ -4854,7 +4854,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging-contracts"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-logging-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -4883,7 +4883,7 @@ dev = [
 
 [[package]]
 name = "xtr-messenger"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-messenger" }
 dependencies = [
     { name = "msgspec" },
@@ -4959,7 +4959,7 @@ dev = [
 
 [[package]]
 name = "xtr-notifier"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-notifier" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5021,7 +5021,7 @@ dev = [
 
 [[package]]
 name = "xtr-orm"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-orm" }
 dependencies = [
     { name = "advanced-alchemy" },
@@ -5089,7 +5089,7 @@ dev = [
 
 [[package]]
 name = "xtr-password-hasher"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-password-hasher" }
 dependencies = [
     { name = "pwdlib", extra = ["argon2"] },
@@ -5135,7 +5135,7 @@ dev = [
 
 [[package]]
 name = "xtr-rate-limiter"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-rate-limiter" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5193,7 +5193,7 @@ dev = [
 
 [[package]]
 name = "xtr-recipes"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-recipes" }
 dependencies = [
     { name = "cryptography" },
@@ -5230,7 +5230,7 @@ dev = [
 
 [[package]]
 name = "xtr-remote-event"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-remote-event" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5269,7 +5269,7 @@ dev = [
 
 [[package]]
 name = "xtr-scheduler"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-scheduler" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5337,7 +5337,7 @@ dev = [
 
 [[package]]
 name = "xtr-security"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-security" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5408,7 +5408,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-core"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-security-core" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5449,7 +5449,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-csrf"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-security-csrf" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5484,7 +5484,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-http"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-security-http" }
 dependencies = [
     { name = "anyio" },
@@ -5568,7 +5568,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-jwt"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-security-jwt" }
 dependencies = [
     { name = "joserfc" },
@@ -5629,7 +5629,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-oauth2-server"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-security-oauth2-server" }
 dependencies = [
     { name = "anyio" },
@@ -5704,7 +5704,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-oauth2-server-core"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-security-oauth2-server-core" }
 dependencies = [
     { name = "joserfc" },
@@ -5751,7 +5751,7 @@ dev = [
 
 [[package]]
 name = "xtr-service-contracts"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-service-contracts" }
 
 [package.dev-dependencies]
@@ -5778,7 +5778,7 @@ dev = [
 
 [[package]]
 name = "xtr-slack-notifier"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-slack-notifier" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5819,7 +5819,7 @@ dev = [
 
 [[package]]
 name = "xtr-storage"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-storage" }
 dependencies = [
     { name = "fsspec" },
@@ -5875,7 +5875,7 @@ dev = [
 
 [[package]]
 name = "xtr-telegram-notifier"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-telegram-notifier" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5916,7 +5916,7 @@ dev = [
 
 [[package]]
 name = "xtr-webhook"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-webhook" }
 dependencies = [
     { name = "msgspec" },
@@ -5979,7 +5979,7 @@ dev = [
 
 [[package]]
 name = "xtr-workflow"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "packages/xtr-workflow" }
 dependencies = [
     { name = "typing-extensions" },
