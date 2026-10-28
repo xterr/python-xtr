@@ -245,6 +245,32 @@ async def test_every_refusing_guard_adds_a_blocker_of_its_own() -> None:
     ]
 
 
+def test_the_guards_run_for_a_transition_are_named_as_their_blockers_name_them() -> None:
+    guarded = Transition("name", "from", "to")
+    listener = _guard_listener(
+        {
+            EVENT_NAME: [
+                _refuse,
+                GuardExpression(Transition("name", "from", "to"), _is_granted_admin),
+                GuardExpression(guarded, _RecordingGuard(True)),
+            ]
+        }
+    )
+
+    names = listener.get_guard_names(EVENT_NAME, guarded)
+
+    assert names == [
+        "tests.unit.event_listener.test_guard_listener._refuse",
+        "tests.unit.event_listener.test_guard_listener._RecordingGuard",
+    ]
+
+
+def test_an_event_name_no_guard_is_configured_for_names_no_guard() -> None:
+    listener = _guard_listener({EVENT_NAME: [_refuse]})
+
+    assert listener.get_guard_names("not supported", Transition("name", "from", "to")) == []
+
+
 def test_a_container_can_read_what_it_takes_and_what_it_listens_to() -> None:
     constructor = get_type_hints(GuardListener.__init__)
     listener = get_type_hints(GuardListener.on_transition)

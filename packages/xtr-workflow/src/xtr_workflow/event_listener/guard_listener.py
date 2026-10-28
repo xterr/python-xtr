@@ -6,7 +6,7 @@ from __future__ import annotations
 # from its constructor's annotations, and registering ``on_transition`` as a
 # listener reads that method's.
 import inspect
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
 from typing import final
 
 from xtr_security_core.authentication import AuthenticationTrustResolverInterface
@@ -15,6 +15,7 @@ from xtr_security_core.authorization import AuthorizationCheckerInterface
 from xtr_security_core.role import RoleHierarchyInterface
 
 from xtr_workflow.event import GuardEvent
+from xtr_workflow.transition import Transition
 from xtr_workflow.transition_blocker import TransitionBlocker
 
 from .guard_context import GuardContext
@@ -92,17 +93,32 @@ class GuardListener:
             event_name: The name the event was dispatched under, which picks
                 the guards.
         """
-        guards = self._configuration.get(event_name)
-        if guards is None:
-            return
+        for guard in self._guards_for(event_name, event.get_transition()):
+            await self._validate_guard_expression(event, guard)
 
-        for guard in guards:
+    def get_guard_names(self, event_name: str, transition: Transition) -> list[str]:
+        """Return the name of each guard run for ``transition`` under ``event_name``, in order.
+
+        Each is named as a blocker names it, so a tool listing what this
+        listener asks before a transition shows the names its refusals carry.
+        """
+        return [_qualified_name(guard) for guard in self._guards_for(event_name, transition)]
+
+    def _guards_for(
+        self, event_name: str, transition: Transition
+    ) -> Iterator[Callable[[GuardContext], bool | Awaitable[bool]]]:
+        """Yield the guards configured for ``event_name`` that apply to ``transition``.
+
+        A guard expression applies to the transition it was configured on
+        only; a bare guard, to any.
+        """
+        for guard in self._configuration.get(event_name, ()):
             match guard:
                 case GuardExpression():
-                    if guard.get_transition() is event.get_transition():
-                        await self._validate_guard_expression(event, guard.get_expression())
+                    if guard.get_transition() is transition:
+                        yield guard.get_expression()
                 case _:
-                    await self._validate_guard_expression(event, guard)
+                    yield guard
 
     async def _validate_guard_expression(
         self,
