@@ -8,4 +8,29 @@ and sign the email with DKIM or S/MIME.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .exception import (
+    HttpTransportError,
+    IncompleteDsnError,
+    InvalidArgumentError,
+    LogicError,
+    MailerError,
+    MailerRuntimeError,
+    TransportError,
+    UnexpectedResponseError,
+    UnsupportedSchemeError,
+)
+from .transport import Dsn, DsnOption
+
+__all__ = [
+    "Dsn",
+    "DsnOption",
+    "HttpTransportError",
+    "IncompleteDsnError",
+    "InvalidArgumentError",
+    "LogicError",
+    "MailerError",
+    "MailerRuntimeError",
+    "TransportError",
+    "UnexpectedResponseError",
+    "UnsupportedSchemeError",
+]
