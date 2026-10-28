@@ -20,6 +20,7 @@ from .metadata import MetadataStoreInterface
 from .transition import Transition
 from .transition_blocker import TransitionBlocker
 from .transition_blocker_list import TransitionBlockerList
+from .validator import DefinitionValidatorInterface
 from .workflow_events import WorkflowEvents
 from .workflow_interface import WorkflowInterface
 from .workflow_type import WorkflowType
@@ -28,6 +29,7 @@ __all__ = [
     "Arc",
     "Definition",
     "DefinitionBuilder",
+    "DefinitionValidatorInterface",
     "Marking",
     "MarkingStoreInterface",
     "MetadataStoreInterface",
