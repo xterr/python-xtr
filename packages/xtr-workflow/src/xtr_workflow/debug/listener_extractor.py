@@ -38,8 +38,8 @@ _UNIT_OF_WORK_GUARD_LISTENER_MODULE: Final = "xtr_workflow.bundle._unit_of_work_
 class _GuardListenerOfEachUnitOfWork(Protocol):
     """Runs a guard listener built for each unit of work."""
 
-    async def get_guard_listener(self) -> GuardListener:
-        """Return the guard listener built for the unit of work open."""
+    async def get_guard_names(self, event_name: str, transition: Transition) -> list[str]:
+        """Return the name of each guard run for ``transition``, named in a unit of work."""
         ...
 
 
@@ -63,7 +63,8 @@ class ListenerExtractor:
     A listener is named after what it runs, never after a wrapper: a traced
     listener is unwrapped, a lazy one built, as dispatching to it would build
     it — which is why listing is a coroutine — and a guard listener run in
-    each unit of work is named after the one built for the unit open.
+    each unit of work is named after the guard listener it runs, whose
+    guards it names in a unit of work.
     """
 
     __slots__: tuple[str, ...] = ("_dispatcher",)
@@ -123,7 +124,7 @@ class ListenerExtractor:
         described: dict[str, list[dict[str, object]]] = {}
         for event_name in event_names:
             for listener in self._dispatcher.get_listeners(event_name):
-                summary = _summary(await _unwrapped(listener), event_name, transition)
+                summary = await _summary(await _unwrapped(listener), event_name, transition)
                 described.setdefault(event_name, []).append(summary)
         return described
 
@@ -145,39 +146,49 @@ async def _unwrapped(listener: Listener | WrappedListener | LazyListener) -> Lis
     """Return what ``listener`` runs: what a traced listener wraps, what a lazy one builds.
 
     Building a lazy listener is what dispatching to it would do first; it is
-    built once, and runs as what it built from then on. A guard listener run
-    in each unit of work stands for the guard listener it builds there.
+    built once, and runs as what it built from then on.
     """
     if isinstance(listener, WrappedListener):
         return await _unwrapped(listener.get_wrapped_listener())
     if isinstance(listener, LazyListener):
         return await _unwrapped(await listener.resolve())
-    runner = _instance_owning(
-        listener, _UNIT_OF_WORK_GUARD_LISTENER_MODULE, "UnitOfWorkGuardListener"
-    )
-    if runner is not None:
-        guard_listener = await cast("_GuardListenerOfEachUnitOfWork", runner).get_guard_listener()
-        return guard_listener.on_transition
     return listener
 
 
-def _summary(
+async def _summary(
     listener: Listener, event_name: str, transition: Transition | None
 ) -> dict[str, object]:
     """Return ``listener`` as a tool shows it: its title, its file, the guards it runs.
+
+    A guard listener run in each unit of work is shown as the guard listener
+    it runs, and names the guards in a unit of work it opens for the asking —
+    or joins.
 
     Raises:
         LogicError: If ``listener`` is a guard listener's and there is no
             transition to name the guards of.
     """
-    title, called = _titled(listener)
+    runner = _runner_of(listener)
+    title, called = _titled(listener if runner is None else _guard_listener_class().on_transition)
     summary: dict[str, object] = {"title": title, "file": _file_of(called)}
-    guard_listener = _guard_listener_of(listener)
-    if guard_listener is not None:
-        if transition is None:
-            raise LogicError("Missing event name or transition.")
-        summary["guardExpressions"] = guard_listener.get_guard_names(event_name, transition)
+    if runner is not None:
+        summary["guardExpressions"] = await runner.get_guard_names(event_name, _guarded(transition))
+    elif (guard_listener := _guard_listener_of(listener)) is not None:
+        summary["guardExpressions"] = guard_listener.get_guard_names(
+            event_name, _guarded(transition)
+        )
     return summary
+
+
+def _guarded(transition: Transition | None) -> Transition:
+    """Return the transition whose guards a guard listener is asked to name.
+
+    Raises:
+        LogicError: If there is none: the guard listener listens to a place's event.
+    """
+    if transition is None:
+        raise LogicError("Missing event name or transition.")
+    return transition
 
 
 def _titled(listener: Listener) -> tuple[str, Callable[..., object]]:
@@ -227,6 +238,24 @@ def _guard_listener_of(listener: Listener) -> GuardListener | None:
     """Return the guard listener ``listener`` is a method of; ``None`` when it is none's."""
     guard_listener = _instance_owning(listener, _GUARD_LISTENER_MODULE, "GuardListener")
     return cast("GuardListener | None", guard_listener)
+
+
+def _runner_of(listener: Listener) -> _GuardListenerOfEachUnitOfWork | None:
+    """Return what ``listener`` is a method of, if it runs a guard listener in each unit of work."""
+    runner = _instance_owning(
+        listener, _UNIT_OF_WORK_GUARD_LISTENER_MODULE, "UnitOfWorkGuardListener"
+    )
+    return cast("_GuardListenerOfEachUnitOfWork | None", runner)
+
+
+def _guard_listener_class() -> type[GuardListener]:
+    """Return the class of the guard listener built in each unit of work.
+
+    Looked up among the modules imported, as a listener's class is: what runs
+    a guard listener in each unit of work is handed this class, so wherever
+    one runs, its module has run.
+    """
+    return cast("type[GuardListener]", sys.modules[_GUARD_LISTENER_MODULE].GuardListener)
 
 
 def _instance_owning(listener: Listener, module_name: str, class_name: str) -> object | None:

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
     from xtr_workflow.event import GuardEvent
     from xtr_workflow.event_listener.guard_listener import GuardListener
+    from xtr_workflow.transition import Transition
 
 __all__ = ["UnitOfWorkGuardListener"]
 
@@ -55,12 +56,14 @@ class UnitOfWorkGuardListener:
             listener = await unit.get(self._guard_listener, self._qualifier)
             await listener.on_transition(event, event_name)
 
-    async def get_guard_listener(self) -> GuardListener:
-        """Return the guard listener built for the unit of work open where it is asked.
+    async def get_guard_names(self, event_name: str, transition: Transition) -> list[str]:
+        """Return the name of each guard run for ``transition`` under ``event_name``, in order.
 
         For a tool naming what a guard event runs: the guards are the same in
-        every unit of work, so the guard listener of this one names them for
-        all.
+        every unit of work, so the guard listener built for the one open where
+        they are asked names them for all — while that unit is open, as what
+        lives in a unit of work is not used past it.
         """
         async with self._scopes.unit_of_work() as unit:
-            return await unit.get(self._guard_listener, self._qualifier)
+            listener = await unit.get(self._guard_listener, self._qualifier)
+            return listener.get_guard_names(event_name, transition)
