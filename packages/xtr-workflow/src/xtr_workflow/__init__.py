@@ -12,8 +12,19 @@ Mermaid diagrams.
 from __future__ import annotations
 
 from .arc import Arc
+from .definition import Definition
+from .definition_builder import DefinitionBuilder
 from .marking import Marking
+from .metadata import MetadataStoreInterface
 from .transition import Transition
 from .workflow_type import WorkflowType
 
-__all__ = ["Arc", "Marking", "Transition", "WorkflowType"]
+__all__ = [
+    "Arc",
+    "Definition",
+    "DefinitionBuilder",
+    "Marking",
+    "MetadataStoreInterface",
+    "Transition",
+    "WorkflowType",
+]
