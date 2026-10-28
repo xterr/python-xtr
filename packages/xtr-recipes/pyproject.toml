@@ -1,6 +1,6 @@
 [project]
 name = "xtr-recipes"
-version = "5.2.0"
+version = "5.2.1"
 description = "Applies a package's use-in-an-application steps to a project from a committed lock, and undoes them when the package goes away."
 readme = "README.md"
 requires-python = ">=3.11"

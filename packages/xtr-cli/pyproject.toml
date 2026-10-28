@@ -1,6 +1,6 @@
 [project]
 name = "xtr-cli"
-version = "5.2.0"
+version = "5.2.1"
 description = "Scaffolds a new xtr application — a console application or a web application — in one command, and serves it."
 readme = "README.md"
 requires-python = ">=3.11"

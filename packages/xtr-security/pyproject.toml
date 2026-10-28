@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security"
-version = "5.2.0"
+version = "5.2.1"
 description = "The xtr security bundle: the family facade and the container wiring that configures it."
 readme = "README.md"
 requires-python = ">=3.11"
