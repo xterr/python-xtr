@@ -172,4 +172,7 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
     "^\\s*\\.\\.\\.$",
+    # An overload only states a signature for the type checker; the
+    # implementation after it is what runs.
+    "^\\s*@overload$",
 ]
