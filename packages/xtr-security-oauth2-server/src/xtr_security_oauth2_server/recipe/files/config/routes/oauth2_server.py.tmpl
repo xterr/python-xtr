@@ -2,7 +2,7 @@
 
 This file is what registers them: routing is never imported automatically, and
 deleting it takes every endpoint down. Every endpoint is contributed; one
-turned off in config/oauth2_server.py answers 404. The discovery document
+turned off in config/packages/oauth2_server.py answers 404. The discovery document
 publishes each endpoint wherever this file puts it, and leaves out the ones it
 filters away. The /.well-known/ documents stay where RFC 8414 puts them.
 """

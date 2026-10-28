@@ -14,9 +14,6 @@ if TYPE_CHECKING:
 
 __all__ = ["MarkedBlockEditor"]
 
-_OPEN = "# >>>"
-_CLOSE = "# <<<"
-
 
 @final
 class MarkedBlockEditor:
@@ -25,15 +22,19 @@ class MarkedBlockEditor:
     A recipe writes the environment variables and ignore lines it brings between
     two marker comments naming its distribution::
 
-        # >>> xtr-messenger
+        ###> xtr-messenger ###
         MESSENGER_DSN=
-        # <<< xtr-messenger
+        ###< xtr-messenger ###
 
     The markers are what makes undoing possible: removal deletes the block
     rather than guessing which lines were once written for the package.
     Everything outside the block belongs to the application owner — a key
     already set, an ignore line already there — and is adopted: left exactly
     where it is, never recorded, so it survives the package going away.
+
+    A block an earlier release wrote between ``# >>> <package>`` and
+    ``# <<< <package>`` is still read as the package's own, and is rewritten
+    with the current markers the next time the block is written.
 
     Stateless: every method takes a file's whole text and returns the new one,
     with two helpers so a caller need not repeat the encoding.
@@ -109,6 +110,20 @@ class MarkedBlockEditor:
         outside = _outside(text, package)
         return tuple(key for key in entries if not _assigned(outside, key))
 
+    def env_value(self, text: str, key: str) -> str | None:
+        """Return the value ``key`` is assigned in ``text``, or ``None`` when it is not.
+
+        The last assignment wins, as it does when the file is loaded; a value
+        wrapped in matching quotes is read without them.
+        """
+        assignment = _assignment(key)
+        value: str | None = None
+        for line in text.splitlines():
+            match = assignment.match(line.lstrip())
+            if match is not None:
+                value = _unquoted(line.lstrip()[match.end() :].strip())
+        return value
+
     def ignore_lines(self, text: str, package: str, lines: Iterable[str]) -> tuple[str, ...]:
         """Return the entries of ``lines`` that ``text`` does not already carry.
 
@@ -163,7 +178,8 @@ class MarkedBlockEditor:
         """
         if not lines:
             return self.remove_block(text, package)
-        block = [f"{_OPEN} {package}", *lines, f"{_CLOSE} {package}"]
+        opening, closing = _markers(package)[0]
+        block = [opening, *lines, closing]
         existing = text.splitlines()
         span = _span(existing, package)
         if span is not None:
@@ -200,12 +216,40 @@ class MarkedBlockEditor:
 def _span(lines: Sequence[str], package: str) -> tuple[int, int] | None:
     """Return the indices of ``package``'s two markers, or ``None`` for no block.
 
+    The current markers are looked for first, then the ones an earlier release
+    wrote, so a project synced before the markers changed keeps its block.
+
     Raises:
         MarkedBlockError: When the opening marker has no closing one; where the
             block ends is then unknown, and rewriting it would take the rest of
             the file with it.
     """
-    opening, closing = f"{_OPEN} {package}", f"{_CLOSE} {package}"
+    for opening, closing in _markers(package):
+        span = _marked(lines, package, opening, closing)
+        if span is not None:
+            return span
+    return None
+
+
+def _markers(package: str) -> tuple[tuple[str, str], ...]:
+    """Return ``package``'s marker pairs: the one written now, then the earlier one."""
+    return (
+        (f"###> {package} ###", f"###< {package} ###"),
+        (f"# >>> {package}", f"# <<< {package}"),
+    )
+
+
+def _marked(
+    lines: Sequence[str],
+    package: str,
+    opening: str,
+    closing: str,
+) -> tuple[int, int] | None:
+    """Return the indices of one marker pair in ``lines``, or ``None`` when it opens nowhere.
+
+    Raises:
+        MarkedBlockError: When ``opening`` is never closed by ``closing``.
+    """
     start: int | None = None
     for index, line in enumerate(lines):
         stripped = line.strip()
@@ -235,8 +279,20 @@ def _assigned(lines: Iterable[str], key: str) -> bool:
     A commented ``# KEY=`` does not count: nothing reaches the environment from
     it, so the key is as good as missing.
     """
-    assignment = re.compile(rf"^(?:export\s+)?{re.escape(key)}\s*=")
+    assignment = _assignment(key)
     return any(assignment.match(line.lstrip()) for line in lines)
+
+
+def _assignment(key: str) -> re.Pattern[str]:
+    """Return the pattern of a line assigning ``key``, with or without ``export``."""
+    return re.compile(rf"^(?:export\s+)?{re.escape(key)}\s*=")
+
+
+def _unquoted(value: str) -> str:
+    """Return ``value`` without one pair of matching surrounding quotes."""
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:  # noqa: PLR2004 — a pair of quotes is two characters.
+        return value[1:-1]
+    return value
 
 
 def _without_trailing_blanks(lines: Sequence[str]) -> list[str]:

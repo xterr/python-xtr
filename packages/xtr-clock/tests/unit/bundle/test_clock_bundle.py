@@ -34,6 +34,14 @@ async def test_the_clock_reads_the_system_time_in_the_configured_zone() -> None:
     assert abs(datetime.now(UTC) - now) < timedelta(seconds=5)
 
 
+async def test_an_unconfigured_clock_reports_in_utc_whatever_the_machines_zone() -> None:
+    # No resource is scanned, so the fixture's own configuration is never read.
+    async with await Kernel(APP, resources=()).boot() as booted:
+        clock = await booted.container.get(ClockInterface)
+
+    assert str(clock.now().tzinfo) == "UTC"
+
+
 async def test_boot_and_shutdown_restore_the_ambient_clock() -> None:
     before = Clock.get()
     async with await Kernel(APP).boot() as booted:

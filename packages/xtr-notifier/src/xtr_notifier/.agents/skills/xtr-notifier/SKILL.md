@@ -97,28 +97,28 @@ when the event dispatcher bundle is active — get it from the container.
 ## Use in an application
 
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
-`NotifierBundle`, writes `<app>/config/notifier.py`, and `NOTIFIER_CHATTER_DSN` and
+`NotifierBundle`, writes `<app>/config/packages/notifier.py`, and `NOTIFIER_CHATTER_DSN` and
 `NOTIFIER_TEXTER_DSN` (both `null://null`) in `.env`. It prints the steps it cannot make.
 
 1. **Install** — `uv add "xtr-notifier[messenger]"` (or `xtr-notifier` alone); a provider
    library per provider. xtr-http-client, xtr-event-dispatcher and xtr-messenger are used when
    installed.
-2. **Activate** — `NotifierBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`
+2. **Activate** — `NotifierBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_notifier.bundle import NotifierBundle`).
 3. **Brings along** — the HTTP client, messenger and event dispatcher bundles, each when its
    package is installed.
-4. **Configure** — `<app>/config/notifier.py`, a `@configure` function returning
+4. **Configure** — `<app>/config/packages/notifier.py`, a `@configure` function returning
    `NotifierConfig`: `chatter_transports`, `texter_transports`, `channel_policy`,
    `admin_recipients` (`AdminRecipientConfig`), `notification_on_failed_messages`, `http_client`.
    With no transports there is no channel: sending raises `The "chat" channel does not exist.`
-5. **Queue** — route `ChatMessage`, `SmsMessage`, `PushMessage` in `<app>/config/messenger.py`;
+5. **Queue** — route `ChatMessage`, `SmsMessage`, `PushMessage` in `<app>/config/packages/messenger.py`;
    an unrouted message is sent at once.
 6. **Environment** — `NOTIFIER_CHATTER_DSN`, `NOTIFIER_TEXTER_DSN`. **Ignore** — nothing.
 7. **Use** — inject `NotifierInterface`, `ChatterInterface` or `TexterInterface`.
 8. **Extend** — tag a factory `CHATTER_TRANSPORT_FACTORY_TAG` / `TEXTER_TRANSPORT_FACTORY_TAG`,
    or a channel `CHANNEL_TAG` with `channel="<name>"`.
 9. **Check** — `debug:bundles` shows `notifier` active; `debug:config notifier`.
-10. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/notifier.py` and the two
+10. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/notifier.py` and the two
     variables, then `uv remove xtr-notifier`.
 
 ## Errors

@@ -174,20 +174,20 @@ with Clock.using(MockClock("2026-09-24 12:00:00")):
 ## Use in an application
 
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
-`LoggingBundle` and writes a starting `config/logging.py`. That is the steps below a recipe can do;
+`LoggingBundle` and writes a starting `config/packages/logging.py`. That is the steps below a recipe can do;
 the handlers it prints for you to add.
 
 1. **Install** — `uv add xtr-logging xtr-dependency-injection`: the bundle needs the container
    installed beside it, never as an extra.
-2. **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+2. **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
    from `xtr_logging.bundle`.
 3. **Brings along** — the clock bundle: xtr-clock is a dependency, so it is always installed,
    and records read the same instant as an injected clock.
 4. **Configure** — required to see anything: with no configuration there are no handlers, so
-   records go nowhere. Put channels and handlers in `<app>/config/logging.py`:
+   records go nowhere. Put channels and handlers in `<app>/config/packages/logging.py`:
 
    ```python
-   # <app>/config/logging.py
+   # <app>/config/packages/logging.py
    from xtr_dependency_injection import as_service, configure
 
    from xtr_logging import TestHandler
@@ -232,7 +232,7 @@ the handlers it prints for you to add.
 
 8. **Check** — `debug:bundles` shows `logging` as `listed` and `active`, and `clock` as
    `required`.
-9. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/logging.py`, then
+9. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/logging.py`, then
    `uv remove xtr-logging`. Libraries logging through `xtr-logging-contracts` keep working,
    silently.
 

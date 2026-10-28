@@ -9,7 +9,7 @@
 # Destination under the application package = template under this recipe.
 # Needed to see anything: with no configuration there are no handlers, so every
 # record goes nowhere.
-"config/logging.py" = "files/config/logging.py.tmpl"
+"config/packages/logging.py" = "files/config/logging.py.tmpl"
 
 # No [env].
 
@@ -21,7 +21,7 @@ lines = []
 
 [notes]
 steps = [
-  "Add the handlers a deployment needs to config/logging.py, and the channels your own code asks for by name; ignore the directory any file handler writes to.",
+  "Add the handlers a deployment needs to config/packages/logging.py, and the channels your own code asks for by name; ignore the directory any file handler writes to.",
 ]
 check = [
   "<script> debug:bundles — logging is listed and active, clock required",

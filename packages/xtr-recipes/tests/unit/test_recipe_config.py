@@ -3,8 +3,12 @@ from __future__ import annotations
 import pytest
 
 from xtr_recipes.exception import InvalidManifestError
+from xtr_recipes.key_pair_config import KeyPairConfig
 from xtr_recipes.notes_config import NotesConfig
 from xtr_recipes.recipe_config import RecipeConfig
+from xtr_recipes.secret_config import SecretConfig
+
+GENERATED_SECRET = "%generate(secret)%"
 
 
 def test_it_parses_a_full_manifest() -> None:
@@ -147,3 +151,117 @@ def test_it_rejects_a_files_destination_climbing_out_with_backslashes() -> None:
         _ = RecipeConfig.from_toml("xtr-x", {"files": {"..\\..\\outside.txt": "files/x.tmpl"}})
 
     assert exc.value.key == "..\\..\\outside.txt"
+
+
+def _keyed(key: dict[str, object], env: dict[str, str] | None = None) -> dict[str, object]:
+    return {
+        "env": {"PASSPHRASE": GENERATED_SECRET} if env is None else env,
+        "keys": {"secrets/server.pem": key},
+    }
+
+
+def test_it_parses_a_generated_secret() -> None:
+    config = RecipeConfig.from_toml("xtr-x", {"env": {"SECRET": GENERATED_SECRET}})
+
+    assert config.env == {"SECRET": GENERATED_SECRET}
+    assert config.secrets == {"SECRET": SecretConfig()}
+
+
+def test_it_parses_a_configured_generator() -> None:
+    spelled = "%generate(secret, bytes=64, encoding=base64, prefix=whsec_)%"
+
+    config = RecipeConfig.from_toml("xtr-x", {"env": {"SECRET": spelled}})
+
+    assert config.secrets == {"SECRET": SecretConfig(64, "base64", "whsec_")}
+
+
+def test_a_plain_default_is_no_secret() -> None:
+    config = RecipeConfig.from_toml("xtr-x", {"env": {"DSN": "amqp://localhost"}})
+
+    assert config.secrets == {}
+
+
+def test_a_passphrase_may_name_a_configured_generator() -> None:
+    data = _keyed(
+        {"algorithm": "RS256", "passphrase": "PASSPHRASE"},
+        {"PASSPHRASE": "%generate(secret, bytes=48, encoding=hex)%"},
+    )
+
+    config = RecipeConfig.from_toml("xtr-x", data)
+
+    assert config.keys["secrets/server.pem"] == KeyPairConfig("RS256", "PASSPHRASE")
+
+
+def test_it_rejects_an_unknown_generator() -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-x", {"env": {"SECRET": "%generate(password)%"}})
+
+    assert exc.value.key == "env.SECRET"
+
+
+def test_it_parses_a_key_with_its_passphrase() -> None:
+    config = RecipeConfig.from_toml(
+        "xtr-x", _keyed({"algorithm": "RS256", "passphrase": "PASSPHRASE"})
+    )
+
+    assert config.keys == {"secrets/server.pem": KeyPairConfig("RS256", "PASSPHRASE")}
+
+
+def test_it_parses_a_key_with_no_passphrase() -> None:
+    config = RecipeConfig.from_toml("xtr-x", _keyed({"algorithm": "ES256"}))
+
+    assert config.keys == {"secrets/server.pem": KeyPairConfig("ES256")}
+
+
+def test_it_rejects_a_key_algorithm_it_cannot_mint() -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-x", _keyed({"algorithm": "HS256"}))
+
+    assert exc.value.key == "keys.secrets/server.pem.algorithm"
+
+
+def test_it_rejects_an_unknown_key_setting() -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-x", _keyed({"algorithm": "RS256", "size": 4096}))
+
+    assert exc.value.key == "keys.secrets/server.pem.size"
+
+
+def test_it_rejects_a_passphrase_that_is_not_a_generated_secret() -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml(
+            "xtr-x",
+            _keyed({"algorithm": "RS256", "passphrase": "PASSPHRASE"}, {"PASSPHRASE": "fixed"}),
+        )
+
+    assert exc.value.key == "keys.secrets/server.pem.passphrase"
+
+
+def test_it_rejects_a_key_path_that_climbs_out_of_the_project() -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-x", {"keys": {"../server.pem": {"algorithm": "RS256"}}})
+
+    assert exc.value.key == "../server.pem"
+
+
+def test_it_parses_a_key_with_its_path_variable() -> None:
+    data = _keyed(
+        {"algorithm": "RS256", "path_env": "KEY_PATH"},
+        {"KEY_PATH": "%kernel.project_dir%/secrets/server.pem"},
+    )
+
+    config = RecipeConfig.from_toml("xtr-x", data)
+
+    assert config.keys["secrets/server.pem"].path_env == "KEY_PATH"
+
+
+def test_it_rejects_a_path_variable_naming_another_file() -> None:
+    data = _keyed(
+        {"algorithm": "RS256", "path_env": "KEY_PATH"},
+        {"KEY_PATH": "%kernel.project_dir%/secrets/other.pem"},
+    )
+
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-x", data)
+
+    assert exc.value.key == "keys.secrets/server.pem.path_env"

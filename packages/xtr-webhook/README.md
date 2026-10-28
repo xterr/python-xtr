@@ -139,7 +139,7 @@ reads the webhook and the secret it is checked against, both configuration, so a
 needs no new route.
 
 ```python
-# app/config/webhook.py
+# app/config/packages/webhook.py
 from xtr_dependency_injection import configure, env
 
 from xtr_webhook.bundle import RouteConfig, WebhookConfig
@@ -536,27 +536,29 @@ removing it undoes.
   `LogicError`.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure* and
   *Environment* steps below: it lists `WebhookBundle`, writes a starting
-  `<app>/config/webhook.py` with one route, `<app>/config/routes/webhook.py` serving the
-  endpoint at its default path, and `WEBHOOK_SECRET` (commented out) in `.env`. There is no
+  `<app>/config/packages/webhook.py` with one route, `<app>/config/routes/webhook.py` serving the
+  endpoint at its default path, and a freshly generated `WEBHOOK_SECRET` in `.env`. There is no
   ignore line to write. It prints the steps to call `setup` and to name your own types, neither
   of which a recipe can make for you.
-- **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+- **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_webhook.bundle`.
 - **Brings along** — the remote-event bundle, the messenger bundle through it, and the HTTP
   kernel's bundle, always; the HTTP client bundle, `http_client`, when xtr-http-client is
   installed.
 - **Configure** — needed to receive anything: with no routing the endpoint knows no type and
   answers every webhook `404`. Routing, header names, the signature format, the client webhooks
-  are sent through and the guard go in `<app>/config/webhook.py`, a `@configure` function
+  are sent through and the guard go in `<app>/config/packages/webhook.py`, a `@configure` function
   returning `WebhookConfig` — see [Kernel / bundle](#kernel--bundle).
   `<app>/config/routes/webhook.py` imports the `webhook` route resource; move it under a prefix
-  there. A delivery's timeout is the client's, set in `<app>/config/http_client.py`.
+  there. A delivery's timeout is the client's, set in `<app>/config/packages/http_client.py`.
 - **Environment** — `WEBHOOK_SECRET`, the secret the written route verifies against, read when
-  the endpoint is built; one per sender in practice.
+  the endpoint is built; one per sender in practice. The recipe generates one for development:
+  give it to a sender that lets the subscriber choose, or replace it with the one a sender
+  issues, and set the deployment's own in production.
 - **Ignore** — nothing.
 - **Load** — call `setup(app, kernel)` where the application is built; it adds the endpoint,
   `POST /webhook/{type}`.
-- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/webhook.py` and
+- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/webhook.py` and
   `<app>/config/routes/webhook.py`, then `uv remove xtr-webhook`.
 - **Check** — `debug:bundles` shows `webhook` and `remote_event` as `listed` and `active`, and
   `http_client` when xtr-http-client is installed; `debug:config webhook` shows the resolved
@@ -565,14 +567,14 @@ removing it undoes.
 ## Kernel / bundle
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_webhook.bundle import WebhookBundle
 
 BUNDLES = {WebhookBundle: {"all": True}}
 ```
 
 ```python
-# app/config/webhook.py
+# app/config/packages/webhook.py
 from xtr_dependency_injection import configure, env
 
 from xtr_webhook.bundle import NoPrivateNetworkConfig, RouteConfig, WebhookConfig
@@ -598,7 +600,7 @@ timeout of their own. Leave `http_client` unset to send through the default clie
 timeout is `default_options.timeout` — see [xtr-http-client](../xtr-http-client#kernel--bundle).
 
 ```python
-# app/config/http_client.py
+# app/config/packages/http_client.py
 from xtr_dependency_injection import configure
 from xtr_http_client.bundle import HttpClientConfig, ScopedClientConfig
 

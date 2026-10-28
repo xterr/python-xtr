@@ -1,10 +1,10 @@
 """``demo:security`` — the firewall, the roles and the ``ORDER_VIEW`` voter, served in process.
 
 Each row is a claim the README makes about security, checked as it runs: the command exits 1 if
-one does not hold, so it is the executable proof of ``config/security.py``. The web application
-is served the way ``demo:rate-limit`` serves it — ``httpx.ASGITransport`` inside the app's own
-lifespan, which boots and shuts the kernel down around the run — and every call goes through the
-real firewall, authenticator and access-control map.
+one does not hold, so it is the executable proof of ``config/packages/security.py``. The web
+application is served the way ``demo:rate-limit`` serves it — ``httpx.ASGITransport`` inside the
+app's own lifespan, which boots and shuts the kernel down around the run — and every call goes
+through the real firewall, authenticator and access-control map.
 
 The flow a reader follows:
 
@@ -44,7 +44,7 @@ _FORBIDDEN: Final = HTTPStatus.FORBIDDEN
 _OWNER: Final = "ada@example.com"
 _OTHER: Final = "lin@example.com"
 _ADMIN: Final = "root@example.com"
-# The demo users' passwords, matching the hashes in config/security.py; this is a dev-only
+# The demo users' passwords, matching the hashes in config/packages/security.py; this is a dev-only
 # command signing in against inline example accounts, not a real secret.
 _PASSWORD: Final = "s3cret"  # noqa: S105
 _OTHER_PASSWORD: Final = "passw0rd"  # noqa: S105

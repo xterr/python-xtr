@@ -8,7 +8,7 @@
 [files]
 # Destination under the application package = template under this recipe.
 # Needed to send anything: with no transports the notifier has no channel.
-"config/notifier.py" = "files/config/notifier.py.tmpl"
+"config/packages/notifier.py" = "files/config/notifier.py.tmpl"
 
 [env]
 # The transports the written configuration reads. null://null sends nowhere, so a
@@ -22,8 +22,8 @@ lines = []
 
 [notes]
 steps = [
-  "Install a provider library — uv add xtr-telegram-notifier, say — and set NOTIFIER_CHATTER_DSN to its DSN; a provider library's own recipe adds its transport to config/notifier.py.",
-  "Route ChatMessage, SmsMessage and PushMessage to an asynchronous transport in config/messenger.py to send them from a worker instead of the request.",
+  "Install a provider library — uv add xtr-telegram-notifier, say — and set NOTIFIER_CHATTER_DSN to its DSN; a provider library's own recipe adds its transport to config/packages/notifier.py.",
+  "Route ChatMessage, SmsMessage and PushMessage to an asynchronous transport in config/packages/messenger.py to send them from a worker instead of the request.",
 ]
 check = [
   "<script> debug:bundles — notifier is listed and active",

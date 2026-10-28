@@ -12,6 +12,12 @@ if TYPE_CHECKING:
 
 _PACKAGE = "xtr-messenger"
 _BLOCK = """\
+###> xtr-messenger ###
+MESSENGER_DSN=amqp://localhost
+###< xtr-messenger ###
+"""
+# What an earlier release wrote: still the package's block, rewritten on the next write.
+_LEGACY_BLOCK = """\
 # >>> xtr-messenger
 MESSENGER_DSN=amqp://localhost
 # <<< xtr-messenger
@@ -130,12 +136,12 @@ def test_it_replaces_an_existing_block_where_it_stands(editor: MarkedBlockEditor
     result = editor.put_block(text, _PACKAGE, ["MESSENGER_DSN=amqp://other"])
 
     assert result == (
-        "# >>> xtr-messenger\nMESSENGER_DSN=amqp://other\n# <<< xtr-messenger\n\nOTHER=1\n"
+        "###> xtr-messenger ###\nMESSENGER_DSN=amqp://other\n###< xtr-messenger ###\n\nOTHER=1\n"
     )
 
 
 def test_it_leaves_another_packages_block_alone(editor: MarkedBlockEditor) -> None:
-    text = "# >>> xtr-orm\nDATABASE_URL=\n# <<< xtr-orm\n"
+    text = "###> xtr-orm ###\nDATABASE_URL=\n###< xtr-orm ###\n"
 
     result = editor.put_block(text, _PACKAGE, ["MESSENGER_DSN=amqp://localhost"])
 
@@ -180,13 +186,35 @@ def test_it_reads_no_lines_without_a_block(editor: MarkedBlockEditor) -> None:
 
 
 def test_an_unclosed_block_is_an_error(editor: MarkedBlockEditor) -> None:
-    text = "# >>> xtr-messenger\nMESSENGER_DSN=\n"
+    text = "###> xtr-messenger ###\nMESSENGER_DSN=\n"
 
     with pytest.raises(MarkedBlockError) as raised:
         _ = editor.block_lines(text, _PACKAGE)
 
     assert raised.value.path_or_name == _PACKAGE
-    assert "# <<< xtr-messenger" in raised.value.reason
+    assert "###< xtr-messenger ###" in raised.value.reason
+
+
+def test_it_reads_a_block_an_earlier_release_marked(editor: MarkedBlockEditor) -> None:
+    assert editor.block_lines(_LEGACY_BLOCK, _PACKAGE) == ("MESSENGER_DSN=amqp://localhost",)
+
+
+def test_it_rewrites_an_earlier_block_with_the_current_markers(editor: MarkedBlockEditor) -> None:
+    lines = ["MESSENGER_DSN=amqp://localhost"]
+
+    assert editor.put_block(f"OTHER=1\n\n{_LEGACY_BLOCK}", _PACKAGE, lines) == (
+        f"OTHER=1\n\n{_BLOCK}"
+    )
+
+
+def test_it_removes_a_block_an_earlier_release_marked(editor: MarkedBlockEditor) -> None:
+    assert editor.remove_block(f"OTHER=1\n\n{_LEGACY_BLOCK}", _PACKAGE) == "OTHER=1\n"
+
+
+def test_a_key_inside_an_earlier_block_is_still_the_packages_own(
+    editor: MarkedBlockEditor,
+) -> None:
+    assert editor.env_keys(_LEGACY_BLOCK, _PACKAGE, {"MESSENGER_DSN": ""}) == ("MESSENGER_DSN",)
 
 
 def test_it_reads_a_missing_file_as_empty(editor: MarkedBlockEditor, tmp_path: Path) -> None:
@@ -219,3 +247,15 @@ def test_it_does_not_force_a_gitignore_to_owner_only(
     editor.write(path, "/var/messenger\n")
 
     assert path.stat().st_mode & 0o200
+
+
+def test_env_value_reads_the_last_assignment(editor: MarkedBlockEditor) -> None:
+    assert editor.env_value("KEY=first\nexport KEY=second\n", "KEY") == "second"
+
+
+def test_env_value_reads_a_quoted_value_without_its_quotes(editor: MarkedBlockEditor) -> None:
+    assert editor.env_value("KEY='a b'\nOTHER=\"c\"\n", "KEY") == "a b"
+
+
+def test_env_value_ignores_a_commented_out_key(editor: MarkedBlockEditor) -> None:
+    assert editor.env_value("# KEY=hidden\n", "KEY") is None

@@ -13,13 +13,26 @@ def catalog() -> AddOnCatalog:
 def test_a_name_alone_takes_the_default_variants(catalog: AddOnCatalog) -> None:
     (orm,) = catalog.parse("orm", "cli")
 
-    assert orm.requirement == "xtr-orm[sqlite]"
+    assert orm.requirement == "xtr-orm[postgres]"
 
 
 def test_variants_are_kept_in_the_order_the_add_on_lists_them(catalog: AddOnCatalog) -> None:
     (orm,) = catalog.parse("orm:postgres+sqlite", "cli")
 
     assert orm.variants == ("sqlite", "postgres")
+
+
+def test_the_messenger_named_alone_takes_the_amqp_transport(catalog: AddOnCatalog) -> None:
+    (messenger,) = catalog.parse("messenger", "cli")
+
+    assert messenger.requirement == "xtr-messenger[amqp]"
+
+
+def test_the_rate_limiter_offers_no_store_to_choose(catalog: AddOnCatalog) -> None:
+    (limiter,) = catalog.parse("rate-limiter", "cli")
+
+    assert limiter.add_on.variants == ()
+    assert limiter.requirement == "xtr-rate-limiter"
 
 
 def test_a_colon_with_nothing_after_it_picks_no_variant(catalog: AddOnCatalog) -> None:

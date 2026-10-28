@@ -158,7 +158,7 @@ async def test_a_paid_order_is_marked_paid() -> None:
 
 1. **Install** — `uv add xtr-remote-event xtr-dependency-injection`: the bundle needs the
    container installed beside it, never as an extra. There are no extras.
-2. **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`
+2. **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_remote_event.bundle import RemoteEventBundle`). Nothing to do when xtr-webhook's
    bundle is listed, which requires this one.
 3. **Brings along** — the messenger bundle, always: the handler is registered on its bus.
@@ -185,7 +185,7 @@ async def test_a_paid_order_is_marked_paid() -> None:
    A class declared for two sources is registered once, so what it remembers between events does
    not depend on which name the event arrived under.
 7. **Consume elsewhere** — route `ConsumeRemoteEventMessage` to a transport in
-   `<app>/config/messenger.py` to handle it on a worker; left unrouted it is handled in the
+   `<app>/config/packages/messenger.py` to handle it on a worker; left unrouted it is handled in the
    process that dispatched it.
 8. **Check** — `debug:bundles` shows `remote_event` as `listed` and `active`.
 9. **Remove** — drop the `BUNDLES` entry, then `uv remove xtr-remote-event` — unless xtr-webhook

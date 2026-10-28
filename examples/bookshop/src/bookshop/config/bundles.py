@@ -13,7 +13,8 @@ here rather than in a comment beside it.
 What each entry brings:
 
 - ``OrmBundle`` — the database: engines, sessions per unit of work, migrations, and — with the
-  messenger bundle active — the ``orm_*`` middleware the bus lists in ``config/messenger.py``.
+  messenger bundle active — the ``orm_*`` middleware the bus lists in
+  ``config/packages/messenger.py``.
 - ``HttpKernelBundle`` — brings ``EventDispatcherBundle`` with it; the web entry point's
   request lifecycle.
 - ``SchedulerBundle`` — brings ``MessengerBundle`` with it; with the cache bundle active it
@@ -23,7 +24,7 @@ What each entry brings:
   under the default lock.
 - ``JwtBundle`` — self-issued JSON Web Tokens: brings ``SecurityBundle`` with it (which in
   turn needs the event-dispatcher and http-kernel bundles, already active), and registers the
-  jwt authenticator the api firewall lists. It boots without a key; ``config/jwt.py`` names
+  jwt authenticator the api firewall lists. It boots without a key; ``config/packages/jwt.py`` names
   the one it signs with, and signing without it raises ``MissingKeyError``.
 - ``DevToolsBundle`` — development helpers, never active in prod. Its resources are only
   scanned when active.

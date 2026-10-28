@@ -54,10 +54,10 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop debug:firewall [name]` | the firewalls the security bundle built, or one described |
 | `bookshop debug:bundles` | now lists `security` (required by jwt) and `jwt` (listed) active |
 | `bookshop jwt:check-config` | signs a probe token with the configured key and reads it back |
-| `bookshop security:hash-password [PASSWORD] [USER-CLASS] [--empty-salt]` | hashes a password with the configured factory — the hashes `config/security.py` stores |
+| `bookshop security:hash-password [PASSWORD] [USER-CLASS] [--empty-salt]` | hashes a password with the configured factory — the hashes `config/packages/security.py` stores |
 | `bookshop jwt:generate-keypair` · `jwt:generate-token IDENTIFIER` | mint a signing key, or a token for a user |
 | `bookshop bundle:check` · `demo:frozen-clock` · `demo:wireup` · `demo:dotenv` · `demo:without-container` | dev and test only — the `dev_tools` bundle |
-| `bookshop demo:rate-limit` | dev and test only — every limiter of `config/rate_limiter.py` under a frozen clock, then every limited route served in process; each row a claim checked, exit 1 if one fails |
+| `bookshop demo:rate-limit` | dev and test only — every limiter of `config/packages/rate_limiter.py` under a frozen clock, then every limited route served in process; each row a claim checked, exit 1 if one fails |
 | `bookshop demo:security` | dev and test only — the firewall, the roles and the `ORDER_VIEW` voter served in process: 401 without a token, 200 with one, 403 on a role or an owner denial; each row a claim checked, exit 1 if one fails |
 
 ## The web application
@@ -83,7 +83,7 @@ copies answers 409 `{"error": "rolled back", ...}`, and the order is not in the 
 `GET /orders`.
 
 Every route is rate limited, each the way it suits (`web/routes.py`, limiters in
-`config/rate_limiter.py`):
+`config/packages/rate_limiter.py`):
 
 ```sh
 curl -i localhost:8080/books            # X-RateLimit-Limit: 120 — the router's limit, per client
@@ -119,12 +119,12 @@ handler apiece. A handler failing for any other reason is a fault, not a refusal
 on, and answered 500. Without the server:
 `bookshop debug:router` lists every route in the order routing tries them, and
 `bookshop router:match /books/978-0135957059` names the one a path reaches and what it reads
-out of it — neither needs `--app`, because `config/http_kernel.py` names the application.
+out of it — neither needs `--app`, because `config/packages/http_kernel.py` names the application.
 
 ### Security — a firewall, roles and a voter
 
-One `api` firewall (`config/security.py`) covers every route and accepts a self-issued JSON Web
-Token; the JWT bundle (`config/jwt.py`) signs with the key minted once into `secrets/` (see the start). The
+One `api` firewall (`config/packages/security.py`) covers every route and accepts a self-issued JSON Web
+Token; the JWT bundle (`config/packages/jwt.py`) signs with the key minted once into `secrets/` (see the start). The
 catalog, search, the order list and placing an order stay open — the shop has always served them
 so — while a single order, `/me` and the admin slice require a caller, and `/admin` an admin:
 
@@ -141,7 +141,7 @@ ADMIN=$(curl -s -X POST localhost:8080/token \
 curl -s -H "Authorization: Bearer $ADMIN" localhost:8080/admin/stats # 200 {"orders": N}
 ```
 
-- `web/routes.py` carries no firewall dependency of its own: the firewalls `config/security.py`
+- `web/routes.py` carries no firewall dependency of its own: the firewalls `config/packages/security.py`
   matches run as the firewall — a subscriber the security bundle registers over the kernel
   lifecycle's events, before routing — so every route authenticates once and is checked against
   the access-control map; `/token` verifies the password with
@@ -155,7 +155,7 @@ curl -s -H "Authorization: Bearer $ADMIN" localhost:8080/admin/stats # 200 {"ord
   grants `ORDER_VIEW` to the user whose identifier is the order's `email`, checked in the body
   with `Security.deny_access_unless_granted` — another customer is answered 403;
 - the three inline users (`ada@example.com`, `lin@example.com`, `root@example.com`) and their
-  argon2id password hashes are in `config/security.py`; `security:hash-password` prints a hash
+  argon2id password hashes are in `config/packages/security.py`; `security:hash-password` prints a hash
   of the same shape, and `jwt:check-config` proves the signing key signs and verifies.
 
 `demo:security` runs this whole loop in process (`httpx.ASGITransport`, like `demo:rate-limit`)
@@ -183,7 +183,7 @@ def webhook(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
     # app.include_router(resources["webhook"], prefix="/hooks")   # moves the whole group
 ```
 
-- `config/webhook.py` names each sender's type and its secret — `payments` here, verified
+- `config/packages/webhook.py` names each sender's type and its secret — `payments` here, verified
   against `WEBHOOK_SECRET` — and the type in the URL picks the parser and the secret, so a
   new sender is configuration, not a new route.
 - A subscriber is given the URL built from the route's *name*,
@@ -210,8 +210,8 @@ examples/bookshop/
     ├── fulltext/         a reusable library shipping its own bundle — the library-author side
     └── bookshop/         the application
         ├── kernel.py     the Kernel recipe, the scan exclusions, load_environment()
-        ├── bundles.py    the root bundles, per environment
-        ├── config/       one @configure module per bundle, plus @parameters
+        ├── config/       bundles.py, the root bundles per environment; packages/, one
+        │                 @configure module per bundle; plus @parameters
         ├── scheduling/   the schedule, its tasks, and who hears about each run
         ├── __main__.py   console entry · web/ the web application · worker.py worker entry
         └── …             one package per concern, below
@@ -234,7 +234,7 @@ own, keep every secret out of the repository too.
 | `Kernel(package, name=, allowed_envs=, exclude=)`; env and debug from `APP_ENV` / `APP_DEBUG` | `bookshop/kernel.py` |
 | `kernel.run(console)` · `setup(app, kernel)` — build, lifespan and request scopes in one call · `kernel.boot()` | `__main__.py` · `web/app.py` · `worker.py` |
 | `Kernel(environ=)`, `kernel.with_env()`, `engine_container()` | `dev_tools/commands.py`, `commands/demo_errors.py` |
-| `BUNDLES` with `{"all": True}` and `{"dev": True, "test": True}` | `bookshop/bundles.py` |
+| `BUNDLES` with `{"all": True}` and `{"dev": True, "test": True}` | `bookshop/config/bundles.py` |
 | A bundle with every hook: `build`, `prepend_extension`, `load_extension`, `process`, `boot`, `shutdown` | `fulltext/bundle/fulltext_bundle.py` |
 | `@as_bundle(name, config=, resources=)`; `@required_bundle` by class, by `"module:Class"`, `ignore_on_invalid` | `fulltext/bundle/fulltext_bundle.py`, `dev_tools/dev_tools_bundle.py` |
 | A bundle whose only job is `resources`, with `NoConfig` | `dev_tools/dev_tools_bundle.py` |
@@ -244,7 +244,7 @@ own, keep every secret out of the repository too.
 | `services.set / instance / alias / load`, `.set_argument`, `.add_tag("kernel.reset", method=)`, `.set_decorated_service` | `fulltext/bundle/fulltext_bundle.py` |
 | `builder.get_extension_config`, `find_tagged_service_ids`, `get_definition`, `log` | `fulltext/bundle/analyzer_pipeline_pass.py` |
 | `ServiceLocator` inside a factory | `fulltext/bundle/fulltext_bundle.py`, `reporting/export_registry.py` |
-| `AliasOf` — a config field forwarded to another bundle | `fulltext/bundle/fulltext_config.py`, `config/fulltext.py`, `config/clock.py` |
+| `AliasOf` — a config field forwarded to another bundle | `fulltext/bundle/fulltext_config.py`, `config/packages/fulltext.py`, `config/packages/clock.py` |
 | `assert_zero_config` · `boot_for_test(overrides=)` | `dev_tools/commands.py` |
 | `integration.wireup`: `create_container`, `injectables`, `engine_container` | `dev_tools/commands.py` |
 
@@ -265,7 +265,7 @@ own, keep every secret out of the repository too.
 | `@on_boot`, `@on_boot(priority=)`, `@on_shutdown(priority=)` | `lifecycle.py` |
 | `@compiler_pass`, `(stage=, priority=)` at `BEFORE_OPTIMIZATION`, `OPTIMIZE`, `AFTER_REMOVING` | `compiler_passes.py` |
 | `@configure` base, transform, `(priority=)`, under `@when` | `config/*.py` |
-| `@parameters`; `%param%`, `%%`, `"%env(int:X)%"`; `env()` in every spelling | `config/parameters.py` |
+| `@parameters`; `%param%`, `%%`, `"%env(int:X)%"`; `env()` in every spelling | `config/packages/parameters.py` |
 | `Injected[T]`, `Autowire(param=)`, `Autowire(env=)`, `Target(q)`, `AutowireDecorated` | throughout; `env/env_showcase.py` for `env=` |
 | `EnvVarProcessorInterface` · `EnvVarLoaderInterface` | `env/rot13_processor.py` · `env/secrets_directory_loader.py` |
 | `ContainerInterface`, `ContainerBagInterface`, `KernelInterface`, `ServicesResetter`, `bind_callable` | `commands/showcase_commands.py`, `lifecycle.py` |
@@ -283,9 +283,9 @@ own, keep every secret out of the repository too.
 | messenger | `@as_message` in every form; dataclass and pydantic messages | `messaging/messages.py` |
 | messenger | `@as_message_handler` on functions and classes, `Envelope`, several handlers per message | `messaging/handlers.py` |
 | messenger | `@as_middleware`, repeated; a middleware instance in the config; custom stamps | `messaging/middleware.py`, `messaging/stamps.py` |
-| messenger | every `MessageBusConfig` / `TransportConfig` field; `sync://`, `in-memory://`; AMQP in prod | `config/messenger.py` |
+| messenger | every `MessageBusConfig` / `TransportConfig` field; `sync://`, `in-memory://`; AMQP in prod | `config/packages/messenger.py` |
 | messenger | an application transport factory, found by the bundle | `messaging/outbox_transport.py` |
-| logging | every handler, processor and formatter configuration; capture (dev) and a stdlib handler (prod) | `config/logging.py` |
+| logging | every handler, processor and formatter configuration; capture (dev) and a stdlib handler (prod) | `config/packages/logging.py` |
 | logging | service ids for a handler, formatter, processor and activation strategy | `observability/logging_services.py` |
 | logging | `@as_processor(channel=, handler=, priority=)` on classes and on a function | `observability/processors.py` |
 | logging | `bound_context`, context vars; `Logger` / `LoggerFactory` without a kernel | `dev_tools/commands.py` |
@@ -294,46 +294,46 @@ own, keep every secret out of the repository too.
 | messenger | a handler's return value, on its `HandledStamp` | `messaging/handlers.py`, `commands/order_commands.py` |
 | messenger | worker events — started, stopped, a message failed — heard by listeners | `scheduling/listeners.py` |
 | messenger | `RedispatchMessage` — a scheduled message sent on through routing | `scheduling/shop_schedule.py` |
-| messenger | a receiver registered as a service (`scheduler_<name>`, by the scheduler bundle), consumable with no transport configured | `config/messenger.py` names none |
+| messenger | a receiver registered as a service (`scheduler_<name>`, by the scheduler bundle), consumable with no transport configured | `config/packages/messenger.py` names none |
 | scheduler | `@as_schedule` — the README's starter schedule: `stateful` on the `scheduler` pool, a lock, `process_only_last_missed_run`, a schedule-local `before` listener | `scheduling/shop_schedule.py` |
 | scheduler | `RecurringMessage.cron` hashed (`#hourly`), `.every(...).with_jitter`, a message of its own with a result | `scheduling/shop_schedule.py`, `scheduling/messages.py`, `scheduling/handlers.py` |
 | scheduler | `@as_periodic_task` / `@as_cron_task` on a function, a class (`method=`), methods, with `arguments=`, `jitter=`, `env=`, `transports=` | `scheduling/tasks.py` |
 | scheduler | `PostRunEvent`, `FailureEvent` heard application-wide | `scheduling/listeners.py` |
-| scheduler | `SchedulerConfig` | `config/scheduler.py` |
+| scheduler | `SchedulerConfig` | `config/packages/scheduler.py` |
 | http-kernel | `setup(app, kernel)` — one kernel per application life, one scope per request | `web/app.py` |
-| http-kernel | `HttpKernelConfig(app=)`, read by `debug:router` and `router:match` | `config/http_kernel.py` |
-| http-kernel | the request lifecycle listed as a bundle: a fresh `X-Request-Id` per request, an uncaught exception on the `request` channel | `bundles.py` |
+| http-kernel | `HttpKernelConfig(app=)`, read by `debug:router` and `router:match` | `config/packages/http_kernel.py` |
+| http-kernel | the request lifecycle listed as a bundle: a fresh `X-Request-Id` per request, an uncaught exception on the `request` channel | `config/bundles.py` |
 | http-kernel | `RateLimited` on a router, as a decorator, in a route's `dependencies`; `TooManyRequestsError` reshaped by an exception handler | `web/routes.py`, `web/app.py` |
-| webhook | registration is a routes file: `config/routes/webhook.py` includes the contributed `webhook` resource — routing is never imported automatically; `WebhookConfig` names each sender's type and secret | `config/routes/webhook.py`, `config/webhook.py` |
+| webhook | registration is a routes file: `config/routes/webhook.py` includes the contributed `webhook` resource — routing is never imported automatically; `WebhookConfig` names each sender's type and secret | `config/routes/webhook.py`, `config/packages/webhook.py` |
 | remote-event | `@as_remote_event_consumer("payments")` hands an arrived webhook's event to the bus, off the request | `messaging/handlers.py` |
-| rate-limiter | every policy — `sliding_window`, `fixed_window` (and on a calendar, `anchor_at`), `token_bucket`, `compound` with a shared key; in-memory, cache-pool and (prod) Redis storage | `config/rate_limiter.py`, `.env.prod` |
+| rate-limiter | every policy — `sliding_window`, `fixed_window` (and on a calendar, `anchor_at`), `token_bucket`, `compound` with a shared key; in-memory, cache-pool and (prod) Redis storage | `config/packages/rate_limiter.py`, `.env.prod` |
 | rate-limiter | a limiter injected by name (`Target`), `consume()` and `ensure_accepted()` in a route, `reserve(max_time=)` and `wait()` in a handler | `web/routes.py`, `messaging/handlers.py` |
 | rate-limiter | `RateLimitExceededEvent` heard by a listener; `RateLimiterBuilder`; `reset()`; every limit checked under `mock_time` | `observability/rate_limit_audit.py`, `dev_tools/rate_limit_demo.py` |
 | event-dispatcher | a domain event (`Event`), `EventDispatcherInterface` injected, `@as_event_listener(priority=)`, an `EventSubscriberInterface` | `ordering/order_placed.py`, `ordering/order_service.py`, `ordering/order_listeners.py` |
-| lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `ordering/order_service.py`, `config/lock.py` |
+| lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `ordering/order_service.py`, `config/packages/lock.py` |
 | lock | the default `LockFactory`, a lock kept between runs | `scheduling/shop_schedule.py` |
-| cache | `CacheConfig` with a pool of its own, `@when("test")` in memory | `config/cache.py` |
+| cache | `CacheConfig` with a pool of its own, `@when("test")` in memory | `config/packages/cache.py` |
 | cache | a qualified `CacheInterface`, fetch-or-compute with a callback | `commands/catalog_commands.py` |
-| storage | `StorageConfig` — the `default` storage and a prefixed `reports` one, in memory under `@when("test")` | `config/storage.py` |
+| storage | `StorageConfig` — the `default` storage and a prefixed `reports` one, in memory under `@when("test")` | `config/packages/storage.py` |
 | storage | a qualified `StorageOperatorInterface` (`Target("reports")`) written to and asked for a file's size | `commands/catalog_commands.py` |
 | clock | `ClockInterface` injected, `Clock`, `MockClock`, `MonotonicClock`, `mock_time`, `DatePoint`, `ClockAwareMixin` | `ordering/order_number.py`, `fulltext/bundle/timed_search_engine.py`, `dev_tools/commands.py` |
 | dotenv | `Dotenv().boot_env()` at the entry point; `parse / load / overload / populate / load_env` | `kernel.py`, `dev_tools/commands.py` |
 | dotenv | `DotenvSettings` — typed settings from the same cascade | `settings.py` |
 | service-contracts | `ResetInterface` (nominal) and an explicit `kernel.reset` tag | `catalog/catalog_decorators.py`, `fulltext/query_log.py` |
-| orm | `OrmConfig` with one connection: the URL from `env("resolve:...")`, engine and session options, migrations under the project | `config/orm.py` |
+| orm | `OrmConfig` with one connection: the URL from `env("resolve:...")`, engine and session options, migrations under the project | `config/packages/orm.py` |
 | orm | engine and session options in the URL's query — `pool_pre_ping`, `expire_on_commit`, `pool_size` — taking precedence over the config | `.env`, `.env.prod` |
 | orm | advanced-alchemy models, and repositories as scoped services on the unit of work's session | `ordering/order.py`, `ordering/receipt.py`, `ordering/order_repository.py`, `ordering/receipt_repository.py` |
-| orm | `orm_close_connection`, `orm_transaction`, `orm_open_transaction_logger` with named arguments, in the order they need | `config/messenger.py` |
+| orm | `orm_close_connection`, `orm_transaction`, `orm_open_transaction_logger` with named arguments, in the order they need | `config/packages/messenger.py` |
 | orm | handlers sharing a message's session, a refusal rolling back what they wrote, the transport a receipt came through | `messaging/handlers.py` |
 | orm | a command and a route reading through repositories; a rolled-back message reported | `commands/order_commands.py`, `web/routes.py`, `web/app.py` |
 | orm | a generated revision | `migrations/` |
-| security | `SecurityConfig` — inline users, `password_hashers`, `role_hierarchy`, one firewall, `access_control` | `config/security.py` |
+| security | `SecurityConfig` — inline users, `password_hashers`, `role_hierarchy`, one firewall, `access_control` | `config/packages/security.py` |
 | security | `CurrentUser()`; `@IsGranted("ROLE_ADMIN")`; `Security.deny_access_unless_granted` in a body | `web/routes.py` |
 | security | a `Voter` subclass granting `ORDER_VIEW` to an order's owner, gathered by the `security.voter` tag | `ordering/order_voter.py` |
 | security | `UserPasswordHasherInterface` verifying a password, with a dummy-hash timing guard | `web/routes.py` |
 | security | `debug:firewall`, `security:hash-password` | the bundle registers them |
-| jwt | `JwtConfig` — the signing key from `env("resolve:...")`, the `issuer` and `audience` every token is checked against, `token_ttl`, `user_id_claim` | `config/jwt.py` |
-| jwt | `JwtAuthenticatorConfig()` in a firewall; `JwtTokenManagerInterface.create(user)` in `/token` | `config/security.py`, `web/routes.py` |
+| jwt | `JwtConfig` — the signing key from `env("resolve:...")`, the `issuer` and `audience` every token is checked against, `token_ttl`, `user_id_claim` | `config/packages/jwt.py` |
+| jwt | `JwtAuthenticatorConfig()` in a firewall; `JwtTokenManagerInterface.create(user)` in `/token` | `config/packages/security.py`, `web/routes.py` |
 | jwt | `jwt:generate-keypair`, `jwt:generate-token`, `jwt:check-config` | the bundle registers them |
 
 ## Environment variables
@@ -354,11 +354,11 @@ The application reads `SHOP_*`, `SEARCH_*`, `DATABASE_URL`, `APP_TIMEZONE`, `WEB
 `SHOP_DATABASE_URL` is the database — a SQLite file per environment in dev and test,
 PostgreSQL in prod; `DATABASE_URL` only shows the env processors.
 `SHOP_VAULT_TOKEN` is set nowhere on purpose: the secrets-directory loader supplies it.
-`JWT_SECRET_KEY_PATH` points `config/jwt.py` at the PEM that signs self-issued tokens — the
-key `jwt:generate-keypair` minted under `secrets/`; `config/jwt.py` reads it with `env("resolve:...")` so
+`JWT_SECRET_KEY_PATH` points `config/packages/jwt.py` at the PEM that signs self-issued tokens — the
+key `jwt:generate-keypair` minted under `secrets/`; `config/packages/jwt.py` reads it with `env("resolve:...")` so
 `%kernel.project_dir%` expands, and the JWT bundle's key loader reads the file. `JWT_ISSUER` is
 the `iss` those tokens carry and are checked against, read with `env("JWT_ISSUER")`.
-`WEBHOOK_SECRET` is what `config/webhook.py` verifies the `payments` sender's deliveries
+`WEBHOOK_SECRET` is what `config/packages/webhook.py` verifies the `payments` sender's deliveries
 against — a demo value in `.env`; a real deployment overrides it with the sender's own.
 
 ## Rules this example follows
@@ -368,7 +368,7 @@ against — a demo value in `.env`; a real deployment overrides it with the send
   for plain-wireup applications. Tune command parameters with `Argument` / `Option`, escape
   with `xtr_console.escape`, add a logging channel with `LoggingConfig.with_channels`.
 - **Every string in a bundle config is parameter-resolved.** A literal `%` is written `%%`:
-  `date_format="%%Y-%%m-%%d"` (`config/logging.py`).
+  `date_format="%%Y-%%m-%%d"` (`config/packages/logging.py`).
 - **`env()` is a placeholder while the kernel builds, never a value.** It cannot decide what
   the container contains (`if env(...)` raises); give a number a `default=` so config
   validation sees something plausible.
@@ -392,7 +392,7 @@ against — a demo value in `.env`; a real deployment overrides it with the send
 - **`exclude=` replaces `DEFAULT_EXCLUDES`**; extend it (`kernel.py`).
 - **The dotenv bundle loads nothing**: `load_environment()` runs before the kernel is built.
 - **A config another bundle forwards to with `AliasOf` takes no application base provider** —
-  that is a `ConflictingConfigProvidersError`; transform it instead (`config/clock.py`).
+  that is a `ConflictingConfigProvidersError`; transform it instead (`config/packages/clock.py`).
 - **A validator also sees a parameter's default** — except `None`, the default of an optional
   left out.
 

@@ -60,7 +60,7 @@ The private PEM signs; the public JWK set verifies — publish it, keep the PEM 
 ### 2. Configure the signing key and a firewall
 
 ```python
-# app/config/jwt.py
+# app/config/packages/jwt.py
 from xtr_dependency_injection import configure, env
 from xtr_security_jwt.bundle import JwtConfig
 
@@ -74,7 +74,7 @@ def jwt() -> JwtConfig:
 ```
 
 ```python
-# app/config/security.py
+# app/config/packages/security.py
 from xtr_dependency_injection import configure
 from xtr_security.bundle import (
     AccessControlConfig,
@@ -171,8 +171,9 @@ on it. No key is read until a token is signed or verified, so an application wit
 still runs — its console included, which is how `jwt:generate-keypair` mints the key it lacks.
 The first token signed or verified without one raises `MissingKeyError`, naming the setting to
 fill in and the command that mints a key; `jwt:check-config` asks the same question before a
-request does, so a deploy can run it as a gate. A key is never minted on the application's
-behalf: in production a deployment mounts its own and points `secret_key` at it.
+request does, so a deploy can run it as a gate. The bundle never mints a key on the
+application's behalf — the recipe mints a development one at install — and in production a
+deployment mounts its own and points `secret_key` at it.
 
 The key is measured where it is read, too: an HMAC secret shorter than its algorithm requires is
 refused the first time it signs, with an `InvalidConfigurationError` naming the floor; an
@@ -297,11 +298,12 @@ removing it undoes.
 - **Install** — `uv add xtr-security-jwt`; install [xtr-console](../xtr-console) beside it for
   the commands.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
-  and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/jwt.py`,
-  `JWT_SECRET_KEY_PATH=%kernel.project_dir%/secrets/jwt.pem` in `.env`, and adds `/secrets/*.pem`
-  and `/secrets/*.jwks.json` to `.gitignore`. It prints the keypair and firewall steps, which a
-  recipe cannot make for you.
-- **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
+  and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/packages/jwt.py`,
+  `JWT_SECRET_KEY_PATH=%kernel.project_dir%/secrets/jwt.pem` and a freshly generated
+  `JWT_PASSPHRASE` in `.env`, mints an RS256 signing key encrypted with that pass phrase at
+  `secrets/jwt.pem` when no file is there, and adds `/secrets/*.pem` and `/secrets/*.jwks.json` to
+  `.gitignore`. It prints the `setup` and firewall steps, which a recipe cannot make for you.
+- **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported from
   `xtr_security_jwt.bundle`. Then build the kernel with `concurrent_scoped_access=True` and call
   `setup(app, kernel)` where the application is served, as the security family requires.
 - **Brings along** — the [security bundle](../xtr-security), the
@@ -309,17 +311,20 @@ removing it undoes.
   bundle requires them; the [console](../xtr-console) bundle when xtr-console is installed, for
   the commands.
 - **Configure** — with no configuration the bundle builds and boots, the issuer is the kernel's
-  name, and nothing signs until a key is named: a `<app>/config/jwt.py` `@configure` function
+  name, and nothing signs until a key is named: a `<app>/config/packages/jwt.py` `@configure` function
   returning a `JwtConfig(secret_key=…)`, and a firewall that lists `JwtAuthenticatorConfig()`
   under its `authenticators` — see [Configure](#configure) and [Kernel / bundle](#kernel--bundle).
-  Mint a development key with `jwt:generate-keypair --kid jwt --output-dir secrets`; a deployment
-  mounts its own.
-- **Environment** — `JWT_SECRET_KEY_PATH`, the key file the written `config/jwt.py` reads with
-  `env("resolve:JWT_SECRET_KEY_PATH")`; until the file exists, signing raises `MissingKeyError`.
+  The recipe mints the development key; another checkout mints its own with
+  `uv run xtr-recipes recipes:install xtr-security-jwt`, sealed with the `JWT_PASSPHRASE` in its
+  `.env`, and a deployment mounts its own.
+- **Environment** — `JWT_SECRET_KEY_PATH`, the key file the written `config/packages/jwt.py` reads with
+  `env("resolve:JWT_SECRET_KEY_PATH")`, and `JWT_PASSPHRASE`, what that key is encrypted with —
+  empty for an unencrypted key, such as one `jwt:generate-keypair` writes. Until the file exists,
+  signing raises `MissingKeyError`.
 - **Ignore** — the key files the keypair command writes, when `--output-dir` points into the
   project: the recipe adds `/secrets/*.pem` and `/secrets/*.jwks.json` to `.gitignore` (or add
   wherever they land).
-- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/jwt.py` and the
+- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/jwt.py` and the
   `JwtAuthenticatorConfig` from the firewall, then `uv remove xtr-security-jwt`.
 - **Check** — `debug:bundles` shows `jwt` as `listed` and `active`, and `security` as `required`;
   `debug:firewall api` lists the firewall's `jwt` authenticator; `jwt:check-config` exits `0` once
@@ -328,7 +333,7 @@ removing it undoes.
 ## Kernel / bundle
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_security_jwt.bundle import JwtBundle
 
 BUNDLES = {JwtBundle: {"all": True}}

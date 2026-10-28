@@ -85,7 +85,7 @@ async def test_the_persistence_refusal_names_the_file_to_write_it_in() -> None:
     async with await _unconfigured().boot() as booted:
         refusal = await _refused(booted.container, ClientManagerInterface)
 
-    assert "config/oauth2_server.py" in str(refusal)
+    assert "config/packages/oauth2_server.py" in str(refusal)
 
 
 async def test_asking_for_a_key_names_the_private_key_setting() -> None:

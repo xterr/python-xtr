@@ -17,7 +17,7 @@ It is an add-on of the security family: firewalls, voters and user providers are
 
 ## Quick reference
 
-- List `OAuth2ServerBundle` in `<app>/bundles.py`; write `<app>/config/oauth2_server.py` with an
+- List `OAuth2ServerBundle` in `<app>/config/bundles.py`; write `<app>/config/packages/oauth2_server.py` with an
   `OAuth2ServerConfig` naming `issuer`, `private_key`, `encryption_key`, `scopes.available` and
   `persistence`. Each missing one is reported by the first service needing it.
 - `setup(app, kernel)` adds every endpoint (resources `oauth2_server` and the fixed
@@ -41,7 +41,7 @@ It is an add-on of the security family: firewalls, voters and user providers are
 ## Configure the server
 
 ```python
-# app/config/oauth2_server.py
+# app/config/packages/oauth2_server.py
 from xtr_dependency_injection import configure, env
 from xtr_security_oauth2_server.bundle import (
     AuthorizationServerConfig,
@@ -81,7 +81,7 @@ tables and an application-owned client class: [references/persistence.md](refere
 ## Write the firewalls and serve the endpoints
 
 ```python
-# app/config/security.py
+# app/config/packages/security.py
 from xtr_dependency_injection import configure, env
 from xtr_security.bundle import AccessControlConfig, FirewallConfig, SecurityConfig
 from xtr_security_jwt.bundle import (
@@ -326,9 +326,11 @@ async def test_a_service_is_issued_a_token(tmp_path, monkeypatch) -> None:
 1. **Install** — `uv add xtr-security-oauth2-server`. With xtr-orm installed beside it, clients
    and credentials can live in a database; install xtr-console beside it for the commands.
 2. **Recipe** — `uv run xtr-recipes recipes:sync` lists `OAuth2ServerBundle`, writes
-   `<app>/config/oauth2_server.py`, `OAUTH2_SERVER_PRIVATE_KEY_PATH` and a commented-out
-   `OAUTH2_SERVER_ENCRYPTION_KEY` in `.env`, adds `/secrets/*.pem` to `.gitignore`, and writes
-   `<app>/config/routes/oauth2_server.py`. It prints the rest: the keys, the issuer, `setup`, the
+   `<app>/config/packages/oauth2_server.py`, `OAUTH2_SERVER_PRIVATE_KEY_PATH` and a generated
+   `OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE` and `OAUTH2_SERVER_ENCRYPTION_KEY` in `.env`, mints an
+   RS256 key encrypted with that pass phrase at `secrets/oauth2.pem` when none is there, adds
+   `/secrets/*.pem` to `.gitignore`, and writes `<app>/config/routes/oauth2_server.py`. It prints
+   the rest: the issuer, `setup`, the
    three firewalls, the consent listener, a client, the scheduled sweep, the revision.
 3. **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` (and `JwtBundle` when the end
    user signs in with a self-issued token); `Kernel(..., concurrent_scoped_access=True)` and
@@ -336,11 +338,13 @@ async def test_a_service_is_issued_a_token(tmp_path, monkeypatch) -> None:
 4. **Brings along** — the security, clock, event-dispatcher and HTTP-kernel bundles always; the
    logging and console bundles when installed.
 5. **Configure** — `issuer`, `private_key`, `encryption_key`, `scopes.available`, `persistence` in
-   `<app>/config/oauth2_server.py`; the three firewalls in `<app>/config/security.py`; a listener
+   `<app>/config/packages/oauth2_server.py`; the three firewalls in `<app>/config/packages/security.py`; a listener
    on `OAuth2Events.AUTHORIZATION_REQUEST_RESOLVE`.
-6. **Environment** — `OAUTH2_SERVER_PRIVATE_KEY_PATH` (the signing key's file) and
+6. **Environment** — `OAUTH2_SERVER_PRIVATE_KEY_PATH` (the signing key's file),
+   `OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE` (what it is encrypted with, empty for none) and
    `OAUTH2_SERVER_ENCRYPTION_KEY` (base64url of 32 random bytes). Read when a server is built,
-   never at build.
+   never at build. The recipe's values are for development: another checkout runs
+   `oauth2-server:generate-keypair`, production sets all three to its own.
 7. **Ignore** — `/secrets/*.pem`.
 8. **Remove** — `uv run xtr-recipes recipes:remove xtr-security-oauth2-server`, then undo the
    printed steps: router, firewalls, listener, clients.
@@ -354,7 +358,7 @@ All derive from `OAuth2Error`.
 | Error | Raised when |
 | --- | --- |
 | `OAuthServerError` | A protocol refusal; the endpoints answer it. By hand, `await error.generate_http_response(response)` |
-| `InvalidConfigurationError` (`xtr_security_oauth2_server.exception`) | A setting unusable or missing where a service needs it — named, with `<app>/config/oauth2_server.py` |
+| `InvalidConfigurationError` (`xtr_security_oauth2_server.exception`) | A setting unusable or missing where a service needs it — named, with `<app>/config/packages/oauth2_server.py` |
 | `ClientAlreadyRegisteredError` | Registering an identifier already taken |
 | `OAuth2AuthenticationFailedError` (`xtr_security_oauth2_server.security.exception`) | The API's firewall refused a token: `401`, `invalid_token` |
 | `InvalidArgumentError` (`xtr_security_oauth2_server_core.exception`) | A library object used wrongly — a reserved extra claim, an unreadable key |
@@ -370,6 +374,7 @@ All derive from `OAuth2Error`.
   and protect its form against cross-site posts.
 - Do not store a client secret in plaintext, or compare one with `==`.
 - Do not reuse the `JwtBundle` key: this server's key loader lives under `Target("oauth2_server")`.
-- Do not mint keys at runtime or commit them; mount the deployment's own.
+- Do not mint keys at runtime or commit them; the recipe mints a development key, and a
+  deployment mounts its own.
 - Do not use `InMemoryPersistenceConfig()` in a deployment of more than one process.
 - Do not turn `persist_access_token` off if access tokens must be revocable before they expire.

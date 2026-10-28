@@ -11,7 +11,7 @@ from xtr_recipes.bundles_file import BundlesFile
 from xtr_recipes.exception import BundlesNotEditableError
 
 _APPLICATION = Path(__file__).resolve().parents[4] / "examples" / "bookshop"
-_ITS_BUNDLES = _APPLICATION / "src" / "bookshop" / "bundles.py"
+_ITS_BUNDLES = _APPLICATION / "src" / "bookshop" / "config" / "bundles.py"
 _ITS_PACKAGES = frozenset({"bookshop", "fulltext"})
 
 

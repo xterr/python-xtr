@@ -140,9 +140,9 @@ undoes. It ships no bundle: the notifier's bundle finds its factory by the DSN s
   [*Use in an application*](../xtr-notifier/README.md#use-in-an-application) says.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Environment* step below: it writes
   `TELEGRAM_DSN` in `.env`. It prints the step adding the transport to
-  `<app>/config/notifier.py`, which a recipe cannot make for you.
+  `<app>/config/packages/notifier.py`, which a recipe cannot make for you.
 - **Configure** — add `telegram=env("TELEGRAM_DSN")` to `chatter_transports` in
-  `<app>/config/notifier.py`.
+  `<app>/config/packages/notifier.py`.
 - **Environment** — `TELEGRAM_DSN`, `telegram://TOKEN@default?channel=CHAT_ID` with the bot's
   token and the chat; read when a message is first sent.
 - **Remove** — drop the `chatter_transports` entry and `TELEGRAM_DSN`, then

@@ -59,7 +59,7 @@ self-issued token in a cookie, which is what [xtr-security-jwt](../xtr-security-
 ### 1. List the bundles and mint the keys
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_security_jwt.bundle import JwtBundle
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 
@@ -82,7 +82,7 @@ tokens are sealed with; it is a different key from the pair access tokens are si
 ### 2. Say who the server is
 
 ```python
-# app/config/oauth2_server.py
+# app/config/packages/oauth2_server.py
 from xtr_dependency_injection import configure, env
 from xtr_security_oauth2_server.bundle import (
     AuthorizationServerConfig,
@@ -112,7 +112,7 @@ def oauth2_server() -> OAuth2ServerConfig:
 ### 3. Write the firewalls
 
 ```python
-# app/config/security.py
+# app/config/packages/security.py
 from xtr_dependency_injection import configure, env
 from xtr_security.bundle import AccessControlConfig, FirewallConfig, SecurityConfig
 from xtr_security_jwt.bundle import (
@@ -275,7 +275,7 @@ lacks are made. Nothing is issued until a deployment supplies what only it can: 
 `authorization_server.private_key`, `.encryption_key`, `.issuer`, `scopes.available`,
 `persistence` and — while the device flow is on — `authorization_server.device_code_verification_uri`
 is reported by the first service that cannot be built without it, as an
-`InvalidConfigurationError` naming the setting and `<app>/config/oauth2_server.py`. Nothing is
+`InvalidConfigurationError` naming the setting and `<app>/config/packages/oauth2_server.py`. Nothing is
 ever minted on the deployment's behalf.
 
 | Field | Default | What it is |
@@ -475,14 +475,15 @@ removing it undoes.
   keep clients and credentials in a database, [xtr-console](../xtr-console) for the commands.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
   and *Ignore* steps below, and no other: it lists `OAuth2ServerBundle`, writes a starting
-  `<app>/config/oauth2_server.py`, `OAUTH2_SERVER_PRIVATE_KEY_PATH=%kernel.project_dir%/secrets/oauth2.pem`
-  and a commented-out `OAUTH2_SERVER_ENCRYPTION_KEY` in `.env`, and adds `/secrets/*.pem` to
-  `.gitignore`, and writes `<app>/config/routes/oauth2_server.py` serving every endpoint at its
-  default path. It prints what a recipe cannot make for you: minting the key pair and the
-  encryption key, naming this deployment's issuer, calling `setup`, the three firewalls,
+  `<app>/config/packages/oauth2_server.py`, `OAUTH2_SERVER_PRIVATE_KEY_PATH=%kernel.project_dir%/secrets/oauth2.pem`
+  and a freshly generated `OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE` and `OAUTH2_SERVER_ENCRYPTION_KEY`
+  in `.env`, mints an RS256 signing key encrypted with that pass phrase at `secrets/oauth2.pem`
+  when no file is there, adds `/secrets/*.pem` to `.gitignore`, and writes
+  `<app>/config/routes/oauth2_server.py` serving every endpoint at its default path. It prints
+  what a recipe cannot make for you: naming this deployment's issuer, calling `setup`, the three firewalls,
   the listener that answers the consent question, registering a client, scheduling the sweep of
   what has expired, and the revision a database store takes.
-- **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+- **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_security_oauth2_server.bundle` — and `JwtBundle` beside it when the end user signs in
   with a self-issued token. Then build the kernel with `concurrent_scoped_access=True` and call
   `setup(app, kernel)`, as the security family requires: it adds this server's endpoints. The
@@ -496,12 +497,12 @@ removing it undoes.
   on the `oauth2_server` channel; the [console](../xtr-console) bundle when xtr-console is
   installed, for the commands.
 - **Configure** — with no configuration the bundle builds and boots, and issues nothing: a
-  `<app>/config/oauth2_server.py` `@configure` function returning an `OAuth2ServerConfig` says who
+  `<app>/config/packages/oauth2_server.py` `@configure` function returning an `OAuth2ServerConfig` says who
   this server is (`authorization_server.issuer`), what it signs and seals with
   (`private_key`, `encryption_key`), which scopes it knows (`scopes.available`) and where its
   clients and credentials live (`persistence`). Each of those is reported, by name and with the
   file to write it in, by the first service that cannot be built without it — never by the build,
-  which would take the console down with it. Three firewalls in `<app>/config/security.py`: one
+  which would take the console down with it. Three firewalls in `<app>/config/packages/security.py`: one
   claiming `^/authorize` that signs the end user in (a `JwtAuthenticatorConfig()` reading a
   cookie, say); none claiming `/token`, `/revoke`, `/introspect`, `/device-code` or the
   `.well-known` paths, because authenticating the *client* there is this server's own job; and
@@ -511,11 +512,15 @@ removing it undoes.
   `<app>/config/routes/oauth2_server.py` imports both route resources; move them or leave
   endpoints out there — see [Endpoints](#endpoints).
 - **Environment** — `OAUTH2_SERVER_PRIVATE_KEY_PATH`, the file the written
-  `config/oauth2_server.py` reads the signing key from with
-  `env("resolve:OAUTH2_SERVER_PRIVATE_KEY_PATH")`; and `OAUTH2_SERVER_ENCRYPTION_KEY`, the
-  base64url of 32 random bytes that authorization codes and refresh tokens are sealed with.
-  Neither is read while the application builds, so it runs before they are set; a request then
-  reports the one that is missing.
+  `config/packages/oauth2_server.py` reads the signing key from with
+  `env("resolve:OAUTH2_SERVER_PRIVATE_KEY_PATH")`; `OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE`, what
+  that key is encrypted with, empty for an unencrypted key; and `OAUTH2_SERVER_ENCRYPTION_KEY`, the
+  base64url of 32 random bytes that authorization codes and refresh tokens are sealed with. The
+  recipe generates the two secrets and the key for a development checkout; another checkout mints
+  its own key with `oauth2-server:generate-keypair`, and production sets all three to its own.
+  None is read while the application builds, so it runs before they are set; a request then
+  reports the one that is missing — a key file that is not there by
+  `authorization_server.private_key`, the setting that names it.
 - **Ignore** — the key files the key pair is written to, when they are written under the project:
   `/secrets/*.pem`, which covers the private key and the public half
   `oauth2-server:generate-keypair` writes beside it when a deployment names a file for one.
@@ -535,7 +540,7 @@ removing it undoes.
 ## Kernel / bundle
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 
 BUNDLES = {OAuth2ServerBundle: {"all": True}}
@@ -578,7 +583,7 @@ Everything this package and the protocol library raise derives from `OAuth2Error
 | Error | Base | Raised when |
 |---|---|---|
 | `OAuthServerError` | `OAuth2Error` | A request the protocol has a refusal for — `invalid_client`, `invalid_grant`, `access_denied`, `slow_down`, … — which the endpoints turn into the answer |
-| `InvalidConfigurationError` | `OAuth2Error`, `ValueError` | A setting that cannot be used, or one missing where a service needs it, naming it and `<app>/config/oauth2_server.py` |
+| `InvalidConfigurationError` | `OAuth2Error`, `ValueError` | A setting that cannot be used, or one missing where a service needs it, naming it and `<app>/config/packages/oauth2_server.py` |
 | `ClientAlreadyRegisteredError` | `OAuth2Error` | `oauth2-server:create-client`, or a store, met an identifier already registered |
 | `OAuth2AuthenticationError` | `AuthenticationError`, `OAuth2Error` | The resource-server side refused a token; answered `401` with a bearer `invalid_token` challenge |
 | `OAuth2AuthenticationFailedError` | `OAuth2AuthenticationError` | The one such refusal raised — the same for every unusable token, the cause kept |

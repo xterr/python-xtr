@@ -208,17 +208,18 @@ async def test_it_reads_the_created_order() -> None:
 ## Use in an application
 
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
-`HttpClientBundle`. There is no config file, environment or ignore line to write; it prints the
-step to name the services the application calls, which a recipe cannot make for you.
+`HttpClientBundle` and writes `<app>/config/packages/http_client.py` with the bundle's own
+defaults. There is no environment or ignore line to write; it prints the step to name the services
+the application calls, which a recipe cannot make for you.
 
 1. **Install** — `uv add xtr-http-client xtr-dependency-injection`: the bundle needs the container
    installed beside it, never as an extra. Add `http2` to ask for HTTP/2, and install
    xtr-rate-limiter beside it to pace a client with one of its limiters.
-2. **Activate** — `HttpClientBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`
+2. **Activate** — `HttpClientBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_http_client.bundle import HttpClientBundle`).
 3. **Brings along** — the rate limiter bundle when xtr-rate-limiter is installed.
-4. **Configure** — optional: with no configuration there is one client sending requests as they
-   are given. Otherwise `<app>/config/http_client.py`:
+4. **Configure** — the recipe writes `<app>/config/packages/http_client.py` holding the defaults,
+   one client sending requests as they are given, and that is where the rest goes:
 
    ```python
    from xtr_dependency_injection import configure, env
@@ -269,8 +270,9 @@ step to name the services the application calls, which a recipe cannot make for 
    ```
 
 7. **Check** — `debug:bundles` shows `http_client` as `listed` and `active`.
-8. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/http_client.py`, then
-   `uv remove xtr-http-client`.
+8. **Remove** — drop the `BUNDLES` entry; `uv run xtr-recipes recipes:remove xtr-http-client`
+   deletes `<app>/config/packages/http_client.py`, unless you edited it, in which case it is
+   moved aside to `http_client.py.removed`. Then `uv remove xtr-http-client`.
 
 ## Errors
 

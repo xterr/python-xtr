@@ -170,23 +170,23 @@ removing it undoes.
   installed.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure* and
   *Environment* steps below: it lists `NotifierBundle`, writes a starting
-  `<app>/config/notifier.py` with one chat and one SMS-and-push transport, and
+  `<app>/config/packages/notifier.py` with one chat and one SMS-and-push transport, and
   `NOTIFIER_CHATTER_DSN` and `NOTIFIER_TEXTER_DSN`, both `null://null`, in `.env`. There is no
   ignore line to write. It prints the steps to install a provider and to route the messages to
   a worker, which a recipe cannot make for you.
-- **Activate** — `NotifierBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+- **Activate** — `NotifierBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_notifier.bundle`.
 - **Brings along** — the HTTP client, messenger and event dispatcher bundles, each when its
   package is installed.
 - **Configure** — the zero-config notifier has no channel and refuses every notification with
   `The "chat" channel does not exist.`; transports, the channel policy and the administrators go
-  in `<app>/config/notifier.py`, a `@configure` function returning `NotifierConfig` — see
+  in `<app>/config/packages/notifier.py`, a `@configure` function returning `NotifierConfig` — see
   [Kernel / bundle](#kernel--bundle). To queue messages, route `ChatMessage`, `SmsMessage` and
-  `PushMessage` in `<app>/config/messenger.py`.
+  `PushMessage` in `<app>/config/packages/messenger.py`.
 - **Environment** — `NOTIFIER_CHATTER_DSN` and `NOTIFIER_TEXTER_DSN`, the DSNs the written
   configuration reads when a message is first sent. A provider's DSN carries its token.
 - **Ignore** — nothing.
-- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/notifier.py` and the two variables,
+- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/notifier.py` and the two variables,
   then `uv remove xtr-notifier`.
 - **Check** — `debug:bundles` shows `notifier` as `listed` and `active`; `debug:config notifier`
   shows the transports, the channel policy and the administrators.
@@ -194,7 +194,7 @@ removing it undoes.
 ## Kernel / bundle
 
 ```python
-# app/config/notifier.py
+# app/config/packages/notifier.py
 from xtr_dependency_injection import configure, env
 from xtr_notifier.bundle import AdminRecipientConfig, NotifierConfig
 

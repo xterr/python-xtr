@@ -4,9 +4,14 @@
       "xtr_cache.bundle:CacheBundle": "adopted"
     },
     "env": [],
-    "files": {},
+    "files": {
+      "src/bookshop/config/packages/cache.py": {
+        "adopted": true,
+        "sha256": "c9dee99b8c7a2f1e0d3ca21762c14f2420df333fe237ea4888ad11971eef8b04"
+      }
+    },
     "gitignore": [],
-    "recipe": "cb1ef566cb2c0558e8229a0d6b4a563568be919ea18843acd1000507d1e6788a"
+    "recipe": "75147c9e9d7b74837980c79c9db4f9b15e7d4c393706314562306eba86c4dd14"
   },
   "xtr-clock": {
     "bundles": {
@@ -15,7 +20,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "c3453eb7e75d36f47a5b67c3e6ae19672fcd8d1987feba27c56a97319677bef1"
+    "recipe": "e7d7fd79e2a9353280fcfc25d62fe443bf75087f01716829a22caddaf98ee3b0"
   },
   "xtr-console": {
     "bundles": {
@@ -24,7 +29,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "71f483ee669527ba55efd0d24274f385bed52427a64bf5980bf17bbead395141"
+    "recipe": "15ab94d6b6675f86139a670c56b4ca288adde40a5f35b7dcedddeecbe789720a"
   },
   "xtr-dotenv": {
     "bundles": {
@@ -33,7 +38,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "4f9aafe1bde82298c5cc3280aebeacb04070300a7483bf7a0641e0b803b44df6"
+    "recipe": "279683251c8b4a14ad4b705fa66f3cbd2ba0f5306ff603b0118895b44f998a24"
   },
   "xtr-event-dispatcher": {
     "bundles": {
@@ -42,25 +47,35 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "4067272614bb53e2b034ceb65bd08bbfd2e133c43cb6a090dc3e05f197390f86"
+    "recipe": "232b30851c60668806e7a2981e768068f2e5f58ecf4c0067070870576b67827e"
   },
   "xtr-http-kernel": {
     "bundles": {
       "xtr_http_kernel.bundle:HttpKernelBundle": "adopted"
     },
     "env": [],
-    "files": {},
+    "files": {
+      "src/bookshop/config/packages/http_kernel.py": {
+        "adopted": true,
+        "sha256": "bfc20011d609c244dfaf38a75bed30b2df1a34be5c9d3dca89ce87404c0e5a52"
+      }
+    },
     "gitignore": [],
-    "recipe": "22692d3b7ce30f3dbe2f839a38e7dac4eb5d7ad7c9ec077b33ce39aa3e7542a4"
+    "recipe": "2237f0b18b0d9f2aca663736d49eede12ef75e2f7bb1cdc40f64dad27bda2b2f"
   },
   "xtr-lock": {
     "bundles": {
       "xtr_lock.bundle:LockBundle": "adopted"
     },
     "env": [],
-    "files": {},
+    "files": {
+      "src/bookshop/config/packages/lock.py": {
+        "adopted": true,
+        "sha256": "4b22ad9852bb8c70c988d3c803329070575c1a308284a184b0dbb425c6483a28"
+      }
+    },
     "gitignore": [],
-    "recipe": "e8a7cc902b798bad63e980e96e519145c4d11a4691b585a23d8175b8e5b64657"
+    "recipe": "6c6a6f63f61fc3d91e570c6d3d260d27164883259273368ba93b5359b71c0ddf"
   },
   "xtr-logging": {
     "bundles": {
@@ -68,13 +83,13 @@
     },
     "env": [],
     "files": {
-      "src/bookshop/config/logging.py": {
+      "src/bookshop/config/packages/logging.py": {
         "adopted": true,
-        "sha256": "410d1d2f9f37f5c56601e91c07b953499f65ab8273feb64aefa6d620d3ce3c10"
+        "sha256": "3a9bd52e72bb25b045803ad33339480d7fcdea89bbd60d695e1d580f9a010b67"
       }
     },
     "gitignore": [],
-    "recipe": "d72c44240c28daf47fe842d42d468f17fa2084e5e407a6843279a8e0c31686df"
+    "recipe": "e63443155bfa0c97582cb1a858103c878ed4128b92c03d333bf1aefe4ec80db4"
   },
   "xtr-messenger": {
     "bundles": {
@@ -82,13 +97,13 @@
     },
     "env": [],
     "files": {
-      "src/bookshop/config/messenger.py": {
+      "src/bookshop/config/packages/messenger.py": {
         "adopted": true,
         "sha256": "3b634b8ce27c461aa9739a7aec5b29c0cdc328d19787b83f43659c08f79355e9"
       }
     },
     "gitignore": [],
-    "recipe": "1693e82984cd569a44ec7c76f79a43be104185028836790ccc1444d532c947e6"
+    "recipe": "c65d445d2e612a04aa49d9f3c86e9d103fd8f5fd8a77771f2c5755f8875b4d62"
   },
   "xtr-orm": {
     "bundles": {
@@ -96,22 +111,27 @@
     },
     "env": [],
     "files": {
-      "src/bookshop/config/orm.py": {
+      "src/bookshop/config/packages/orm.py": {
         "adopted": true,
         "sha256": "466fb17900d606fd6394d0267271be46c0ec76a7c3a8ed7ba4aeb24e7c600ae2"
       }
     },
     "gitignore": [],
-    "recipe": "2f11cbe2cbff051024538dc8da8490ef6be6ffc864e21a65c1db036d4e593615"
+    "recipe": "08f2aa6000a5de344b635af4f03971c897f8a5b9a432caf63b254046a5afca37"
   },
   "xtr-rate-limiter": {
     "bundles": {
       "xtr_rate_limiter.bundle:RateLimiterBundle": "adopted"
     },
     "env": [],
-    "files": {},
+    "files": {
+      "src/bookshop/config/packages/rate_limiter.py": {
+        "adopted": true,
+        "sha256": "605d81700eedbe6c95a76476636b550dcb015242b4864384ab4a6c5970201005"
+      }
+    },
     "gitignore": [],
-    "recipe": "8e79570fc3874a982e1e8da006050e6296885d5893315c8582d3381efb908aec"
+    "recipe": "1a86a35c2f192b49b92ae2a1895d2042762640285b0ad4db21d11292ff264f7d"
   },
   "xtr-remote-event": {
     "bundles": {
@@ -127,43 +147,60 @@
       "xtr_scheduler.bundle:SchedulerBundle": "adopted"
     },
     "env": [],
-    "files": {},
+    "files": {
+      "src/bookshop/config/packages/scheduler.py": {
+        "adopted": true,
+        "sha256": "cf9410f4a128aa02b963a7dbbd63cc3490dc7d3a2fa14e9ba6a148621828eeb0"
+      }
+    },
     "gitignore": [],
-    "recipe": "034c734d2cc538162eec9e46803a691b15b2f4052a21d60a03b029fe5c6b0a11"
+    "recipe": "32a3f3f784bae30d180f66785b35983ccb8ad4387fcbad743d861f1c9dbd33d8"
   },
   "xtr-security": {
     "bundles": {
       "xtr_security.bundle:SecurityBundle": "required"
     },
     "env": [],
-    "files": {},
+    "files": {
+      "src/bookshop/config/packages/security.py": {
+        "adopted": true,
+        "sha256": "2ecc52a5d5339851f53f3af8ec901300d9cd5724f4ac42d80880a6d504390285"
+      }
+    },
     "gitignore": [],
-    "recipe": "9b735d7c4c9850ede10848ce946ae51ca1319830d1329e88e4066f6886cf6d13"
+    "recipe": "84f4660a9cf20ce7a5a5bd7fa0c9847660683f4dce47063f28fc1ed04a413e97"
   },
   "xtr-security-jwt": {
     "bundles": {
       "xtr_security_jwt.bundle:JwtBundle": "adopted"
     },
-    "env": [],
+    "env": [
+      "JWT_PASSPHRASE"
+    ],
     "files": {
-      "src/bookshop/config/jwt.py": {
+      "src/bookshop/config/packages/jwt.py": {
         "adopted": true,
-        "sha256": "4f7e09a93b21e871c35f81beb15a9fceae793a914f44ccb9408d5cb164c4c420"
+        "sha256": "a2bf6b90f02fe15e94fc0379fcac76b20f9936f8e669bf1d1c038c2eeda07360"
       }
     },
     "gitignore": [],
-    "recipe": "db0ea13a9eb65e861f11437979dd4b82243803bea26fcf47c5e92eaefc4e4fc8"
+    "recipe": "af7c42ca7d1d20f230b65736acabdf87a0be887aeaac273dcbf7b80ef2a1966d"
   },
   "xtr-storage": {
     "bundles": {
       "xtr_storage.bundle:StorageBundle": "listed"
     },
     "env": [],
-    "files": {},
+    "files": {
+      "src/bookshop/config/packages/storage.py": {
+        "adopted": true,
+        "sha256": "ad2f9c79aacdc2d16c1a0317facb6b64c8d6f35f5d869e4c87a237f9cf3249e4"
+      }
+    },
     "gitignore": [
       "/var/storage/"
     ],
-    "recipe": "f67963901bcd3c8a872f5b4c1455120433611e7ac5998784fc5256f4336079e3"
+    "recipe": "ee91d0d685fcbead4303f4c9383a2f15fe2a270b6b0dcec582f69458227af982"
   },
   "xtr-webhook": {
     "bundles": {
@@ -173,16 +210,16 @@
       "WEBHOOK_SECRET"
     ],
     "files": {
+      "src/bookshop/config/packages/webhook.py": {
+        "adopted": false,
+        "sha256": "ff1623981c0fa86a7f51535d7004a948cffe3d27fa45a01c52cf9de6ee00225c"
+      },
       "src/bookshop/config/routes/webhook.py": {
         "adopted": false,
         "sha256": "2cfae779248541f7ec70782b2a366c23d7ddd44b9ec9ed32764a7f8f8ae6147f"
-      },
-      "src/bookshop/config/webhook.py": {
-        "adopted": false,
-        "sha256": "ff1623981c0fa86a7f51535d7004a948cffe3d27fa45a01c52cf9de6ee00225c"
       }
     },
     "gitignore": [],
-    "recipe": "22362216719974f131507edd915f5ed3f8e326b23e3b91bb8938b42ee2f3ebca"
+    "recipe": "81dace32f20ee410d7e2ade906c30ce9e3646ec0245302926b36768d4b7120d4"
   }
 }

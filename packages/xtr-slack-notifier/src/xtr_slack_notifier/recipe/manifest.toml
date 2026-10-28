@@ -16,7 +16,7 @@ lines = []
 [notes]
 steps = [
   "Set SLACK_DSN to the app's DSN: slack://xoxb-...@default?channel=CHANNEL.",
-  "Add the transport to chatter_transports in config/notifier.py: slack=env(\"SLACK_DSN\").",
+  "Add the transport to chatter_transports in config/packages/notifier.py: slack=env(\"SLACK_DSN\").",
 ]
 check = [
   "<script> debug:config notifier — slack is listed under chatter_transports",

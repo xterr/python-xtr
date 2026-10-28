@@ -362,22 +362,24 @@ removing it undoes.
 - **Install** — `uv add xtr-http-client xtr-dependency-injection`: the bundle needs the container
   installed beside it, never as an extra. Add `http2` to ask for HTTP/2, and install
   [xtr-rate-limiter](../xtr-rate-limiter) beside it to pace a client with one of its limiters.
-- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
-  `HttpClientBundle`. There is no config file, environment or ignore line to write; it prints the
-  step to name the services the application calls in `config/http_client.py`, which a recipe
-  cannot make for you (see [xtr-recipes](../xtr-recipes)).
-- **Activate** — `HttpClientBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`,
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Configure* steps below:
+  it lists `HttpClientBundle` and writes `<app>/config/packages/http_client.py` with the bundle's
+  own defaults. There is no environment or ignore line to write; it prints the step to name the
+  services the application calls in that file, which a recipe cannot make for you (see
+  [xtr-recipes](../xtr-recipes)).
+- **Activate** — `HttpClientBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
   imported from `xtr_http_client.bundle`.
 - **Brings along** — the rate limiter bundle when xtr-rate-limiter is installed.
-- **Configure** — optional: with no configuration there is one client, an
-  `HttpClientInterface` sending requests as they are given. Default options, a client per
-  service, retries, a pace and a mock for tests go in `<app>/config/http_client.py`, a
+- **Configure** — optional: the recipe writes `<app>/config/packages/http_client.py` holding the
+  defaults, one client — an `HttpClientInterface` sending requests as they are given. Default
+  options, a client per service, retries, a pace and a mock for tests go in that same
   `@configure` function returning `HttpClientConfig` — see [Kernel / bundle](#kernel--bundle).
 - **Environment** — nothing. A credential given as `env(...)` is read when the client needing
   it is built.
 - **Ignore** — nothing.
-- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/http_client.py`, then
-  `uv remove xtr-http-client`.
+- **Remove** — drop the `BUNDLES` entry; `uv run xtr-recipes recipes:remove xtr-http-client`
+  deletes `<app>/config/packages/http_client.py`, unless you edited it, in which case it is
+  moved aside to `http_client.py.removed`. Then `uv remove xtr-http-client`.
 - **Check** — `debug:bundles` shows `http_client` as `listed` and `active`.
 
 ## Kernel / bundle
@@ -387,14 +389,14 @@ not a dependency, and nothing outside `xtr_http_client.bundle` needs it — list
 configure the clients:
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_http_client.bundle import HttpClientBundle
 
 BUNDLES = {HttpClientBundle: {"all": True}}
 ```
 
 ```python
-# app/config/http_client.py
+# app/config/packages/http_client.py
 from xtr_dependency_injection import configure, env
 
 from xtr_http_client.bundle import (

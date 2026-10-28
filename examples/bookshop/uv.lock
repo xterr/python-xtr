@@ -2659,12 +2659,14 @@ name = "xtr-recipes"
 version = "5.0.1"
 source = { editable = "../../packages/xtr-recipes" }
 dependencies = [
+    { name = "cryptography" },
     { name = "xtr-console" },
     { name = "xtr-dependency-injection" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=43" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
 ]

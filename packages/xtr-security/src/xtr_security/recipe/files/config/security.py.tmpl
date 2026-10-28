@@ -1,0 +1,39 @@
+"""Who may do what: the firewalls, the user providers, and the access rules.
+
+With no firewall nothing is protected. A firewall matches requests by path, the first one
+matching wins, and its authenticators decide who the request is from; the access-control
+rules then decide what that user may reach.
+
+```python
+SecurityConfig(
+    firewalls={
+        "main": FirewallConfig(
+            stateless=False,
+            authenticators=(
+                FormLoginConfig(login_path="/login"),
+                RememberMeConfig(secret=env("REMEMBER_ME_SECRET")),
+            ),
+        ),
+    },
+    access_control=(AccessControlConfig(path=r"^/admin", attribute="ROLE_ADMIN"),),
+)
+```
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure
+from xtr_security.bundle import SecurityConfig
+
+__all__ = ["security"]
+
+
+@configure
+def security() -> SecurityConfig:
+    """No firewall yet, so no request is authenticated or refused."""
+    # providers names where users are loaded from, and firewalls refer to them by that name.
+    # password_hashers says how each user class's passwords are hashed.
+    #
+    # role_hierarchy lists the roles each role reaches, ROLE_ADMIN reaching ROLE_USER, say.
+    # expose_security_errors decides how much of an authentication failure reaches the client.
+    return SecurityConfig()

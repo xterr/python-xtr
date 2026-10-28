@@ -331,23 +331,25 @@ backwards, what removing it undoes.
 - **Install** — `uv add xtr-storage xtr-dependency-injection`: the bundle needs
   the container installed beside it, never as an extra. Add `s3` or `gcs` for
   the object stores you reach.
-- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Ignore*
-  steps below: it lists `StorageBundle` and ignores `/var/storage/`. There is no
-  config file or environment to write.
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*
+  and *Ignore* steps below: it lists `StorageBundle`, writes a starting
+  `<app>/config/packages/storage.py` naming the `default` storage on local files under
+  `var/storage`, and ignores `/var/storage/`. There is no environment to write.
 - **Activate** — `StorageBundle: {"all": True}` in `BUNDLES` in
-  `<app>/bundles.py`, imported from `xtr_storage.bundle`.
+  `<app>/config/bundles.py`, imported from `xtr_storage.bundle`.
 - **Brings along** — nothing; the bundle requires no other.
 - **Configure** — optional: with no configuration there is one `default` storage
-  on local files under `var/storage`. Named storages go in
-  `<app>/config/storage.py`, a `@configure` function returning `StorageConfig`
-  — see [Kernel / bundle](#kernel--bundle).
+  on local files under `var/storage`. `<app>/config/packages/storage.py`, a `@configure`
+  function returning `StorageConfig`, writes that storage out and is where named
+  storages go — see [Kernel / bundle](#kernel--bundle).
 - **Environment** — nothing required. Credentials and directories given as
   `env(...)` must be set when the application boots: booting checks every
   storage.
 - **Ignore** — `/var/storage/`: where the default storage keeps files, under the
   project.
-- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/storage.py`, then
-  `uv remove xtr-storage`.
+- **Remove** — `uv run xtr-recipes recipes:remove xtr-storage`: it drops the
+  `BUNDLES` entry and the ignore line, and deletes `<app>/config/packages/storage.py`
+  unless you edited it, which it moves aside to `storage.py.removed`.
 - **Check** — `debug:bundles` shows `storage` as `listed` and `active`.
 
 ## Kernel / bundle
@@ -357,14 +359,14 @@ package — it is not a dependency, and nothing outside `xtr_storage.bundle` nee
 it — list the bundle and name the storages:
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_storage.bundle import StorageBundle
 
 BUNDLES = {StorageBundle: {"all": True}}
 ```
 
 ```python
-# app/config/storage.py
+# app/config/packages/storage.py
 from xtr_dependency_injection import configure, env
 from xtr_storage.bundle import LocalAdapterConfig, S3AdapterConfig, StorageConfig, StorageDefinition
 

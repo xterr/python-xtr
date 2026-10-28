@@ -31,7 +31,7 @@ def test_every_shipped_template_renders(name: str) -> None:
 def test_no_shipped_template_writes_what_a_recipe_writes(name: str) -> None:
     paths = {path for path, _ in TemplateCatalog.default().load(name).render(_VALUES)}
 
-    assert not paths & {"src/web_shop/bundles.py", ".env", "xtr.lock"}
+    assert not paths & {"src/web_shop/config/bundles.py", ".env", "xtr.lock"}
 
 
 def test_the_web_template_keeps_the_console() -> None:

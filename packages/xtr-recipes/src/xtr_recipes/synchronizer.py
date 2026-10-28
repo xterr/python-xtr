@@ -35,7 +35,10 @@ if TYPE_CHECKING:
 
 __all__ = ["Synchronizer"]
 
-_BUNDLES_NAME = "bundles.py"
+# The application's bundle list, beside the rest of its configuration.
+_BUNDLES_NAME = "config/bundles.py"
+# Where an earlier layout kept it; read when the first is absent, and moved.
+_EARLIER_BUNDLES_NAME = "bundles.py"
 _SRC = "src"
 
 
@@ -46,6 +49,7 @@ class _Current:
 
     bundles: BundlesFile
     bundles_text: str | None
+    earlier_bundles: Path | None
     lock: RecipeLock
     lock_text: str | None
     installed: Mapping[str, Recipe]
@@ -127,7 +131,7 @@ class Synchronizer:
         )
         return Plan(
             operations=draft.sections(),
-            project_operations=self._write_steps(draft, current, bundles),
+            project_operations=self._write_steps(draft, current, bundles, planner),
             previous_lock=current.lock,
         )
 
@@ -163,9 +167,15 @@ class Synchronizer:
 
         The bundle list comes first and is read in full: a file that cannot be
         rewritten must stop the sync before it writes anything else.
+
+        An application whose bundle list is still where an earlier layout kept
+        it, ``<app>/bundles.py``, is read from there; the plan then moves it.
         """
         bundles_path = self._project.package_dir / _BUNDLES_NAME
-        bundles = BundlesFile.read(bundles_path)
+        earlier = self._project.package_dir / _EARLIER_BUNDLES_NAME
+        earlier_bundles = earlier if not bundles_path.is_file() and earlier.is_file() else None
+        source = earlier_bundles if earlier_bundles is not None else bundles_path
+        bundles = BundlesFile.read(source)
         installed: dict[str, Recipe] = {}
         unloadable: dict[str, tuple[str, ...]] = {}
         for recipe in self._loader.load():
@@ -182,7 +192,8 @@ class Synchronizer:
                 installed[recipe.distribution] = recipe
         return _Current(
             bundles=bundles,
-            bundles_text=_text(bundles_path),
+            bundles_text=_text(source),
+            earlier_bundles=earlier_bundles,
             lock=RecipeLock.load(self._project.project_dir),
             lock_text=_text(self._project.project_dir / LOCK_NAME),
             installed=installed,
@@ -237,22 +248,32 @@ class Synchronizer:
         draft: SyncDraft,
         current: _Current,
         bundles: BundlesFile,
+        planner: RecipePlanner,
     ) -> tuple[OperationInterface, ...]:
         """Return the two whole-project writes, each only when it would change something.
 
         A file that would come out empty — no bundle left to list, no recipe
         left to lock — is deleted rather than written blank, so unconfiguring
         the last package leaves the project as it was before the first.
+
+        A bundle list read from where an earlier layout kept it is written to
+        its current place and the earlier file deleted, whether or not its
+        entries changed.
         """
         steps: list[OperationInterface] = []
         bundles_path = self._project.package_dir / _BUNDLES_NAME
         bundles_display = bundles_path.relative_to(self._project.project_dir).as_posix()
         rendered = bundles.render(self._first_party())
+        earlier = current.earlier_bundles
         if bundles.entries:
-            if _replaces(rendered, current.bundles_text, has_entries=True):
+            if earlier is not None or _replaces(rendered, current.bundles_text, has_entries=True):
+                steps.extend(planner.config_packages(_BUNDLES_NAME))
                 steps.append(WriteBundles(bundles_path, bundles_display, rendered))
-        elif current.bundles_text is not None:
+        elif current.bundles_text is not None and earlier is None:
             steps.append(DeleteProjectFile(bundles_path, bundles_display))
+        if earlier is not None:
+            display = earlier.relative_to(self._project.project_dir).as_posix()
+            steps.append(DeleteProjectFile(earlier, display))
         lock = draft.next_lock()
         if lock.entries:
             if _replaces(lock.dumps(), current.lock_text, has_entries=True):

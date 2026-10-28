@@ -20,7 +20,9 @@ The environment is read from `.env`, then `.env.local`, then `.env.<APP_ENV>` an
 src/${app}/
 ├── __main__.py        the console entry point
 ├── kernel.py          the kernel every entry point builds, and the environment loader
-├── bundles.py         the active bundles — written by xtr-recipes
+├── config/
+│   ├── bundles.py     the active bundles — written by xtr-recipes
+│   └── packages/      one @configure module per bundle
 └── command/           the console commands
 ```
 

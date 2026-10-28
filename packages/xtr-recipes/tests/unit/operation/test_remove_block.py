@@ -11,9 +11,9 @@ _PACKAGE = "xtr-messenger"
 _FILE = """\
 OTHER=1
 
-# >>> xtr-messenger
+###> xtr-messenger ###
 MESSENGER_DSN=amqp://localhost
-# <<< xtr-messenger
+###< xtr-messenger ###
 """
 
 

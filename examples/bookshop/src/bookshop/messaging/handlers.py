@@ -13,8 +13,9 @@ messenger bundle binds them all at boot, so one asking for something the contain
 provide fails the boot, not the first message.
 
 Every message is a unit of work: its handlers share one database session — through the
-scoped repositories they ask for — and ``orm_transaction``, listed in ``config/messenger.py``,
-commits what they wrote once they all succeeded, or rolls it back. No handler commits.
+scoped repositories they ask for — and ``orm_transaction``, listed in
+``config/packages/messenger.py``, commits what they wrote once they all succeeded, or rolls it
+back. No handler commits.
 """
 
 from __future__ import annotations
@@ -232,7 +233,7 @@ class PaymentWebhookConsumer:
     The webhook endpoint answered the sender the moment the event was read — a
     sender waiting on a handler is a sender that times out and sends the webhook
     again. This runs later, where the work belongs: one consumer per type the
-    routing in ``config/webhook.py`` names.
+    routing in ``config/packages/webhook.py`` names.
     """
 
     __slots__ = ("_bus",)

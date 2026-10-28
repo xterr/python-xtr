@@ -10,6 +10,6 @@
 /secrets/*.pem
 /secrets/*.jwks.json
 
-# >>> xtr-storage
+###> xtr-storage ###
 /var/storage/
-# <<< xtr-storage
+###< xtr-storage ###

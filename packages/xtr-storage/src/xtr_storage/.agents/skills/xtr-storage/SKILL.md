@@ -138,19 +138,19 @@ async def test_the_report_is_stored() -> None:
 ## Use in an application
 
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
-`StorageBundle` and ignores `/var/storage/`. That is the steps below a recipe can do; the others it
-prints for you to make.
+`StorageBundle`, writes `<app>/config/packages/storage.py` naming the `default` local storage, and ignores
+`/var/storage/`. That is the steps below a recipe can do; the others it prints for you to make.
 
 1. **Install** — `uv add xtr-storage xtr-dependency-injection`: the bundle needs the container
    installed beside it, never as an extra. Add `s3` or `gcs` for the object stores you reach.
-2. **Activate** — `StorageBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
+2. **Activate** — `StorageBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported from
    `xtr_storage.bundle`.
 3. **Brings along** — nothing; the bundle requires no other.
 4. **Configure** — optional; with no configuration there is one `default` storage on local files
    under `var/storage`, and nothing is opened until it is first used:
 
    ```python
-   # <app>/config/storage.py
+   # <app>/config/packages/storage.py
    from xtr_dependency_injection import configure, env
    from xtr_storage.bundle import LocalAdapterConfig, S3AdapterConfig, StorageConfig, StorageDefinition
 
@@ -196,8 +196,9 @@ prints for you to make.
    ```
 
 8. **Check** — `debug:bundles` shows `storage` as `listed` and `active`.
-9. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/storage.py`, then
-   `uv remove xtr-storage`.
+9. **Remove** — `uv run xtr-recipes recipes:remove xtr-storage`: it drops the `BUNDLES` entry and
+   the ignore line, and deletes `<app>/config/packages/storage.py` unless you edited it (then it is moved to
+   `storage.py.removed`).
 
 ## Errors
 
@@ -234,4 +235,4 @@ Everything derives from `StorageError`; a failure of an operation the backend re
   and a local or in-memory storage gives urls only through a configured generator.
 - Do not leave a storage you built open; use `async with` or `close()`. The container closes the
   ones it built.
-- Do not put credentials in code; read them with `env(...)` in `config/storage.py`.
+- Do not put credentials in code; read them with `env(...)` in `config/packages/storage.py`.

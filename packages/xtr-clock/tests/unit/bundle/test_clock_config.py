@@ -8,8 +8,12 @@ from xtr_clock import InvalidTimezoneError
 from xtr_clock.bundle import ClockConfig
 
 
+def test_the_clock_reports_in_utc_unless_told_otherwise() -> None:
+    assert ClockConfig().timezone == "UTC"
+
+
 def test_no_timezone_follows_the_machines_own_zone() -> None:
-    assert ClockConfig().timezone is None
+    assert ClockConfig(timezone=None).timezone is None
 
 
 def test_a_known_zone_is_kept_as_it_was_written() -> None:

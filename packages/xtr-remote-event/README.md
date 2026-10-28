@@ -165,7 +165,7 @@ removing it undoes.
   `RemoteEventBundle`. There is nothing else for it to write — no configuration module, no
   environment variable, no ignore line. It prints the steps to declare your consumers and to
   route `ConsumeRemoteEventMessage`, neither of which a recipe can make for you.
-- **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`,
+- **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
   imported from `xtr_remote_event.bundle` — or nothing to do when
   [xtr-webhook](../xtr-webhook)'s bundle is listed, which requires this one.
 - **Brings along** — the messenger bundle, always: the handler is registered on its bus.
@@ -184,13 +184,13 @@ With [xtr-dependency-injection](../xtr-dependency-injection) installed beside th
 not a dependency, and nothing outside `xtr_remote_event.bundle` needs it — list the bundle:
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_remote_event.bundle import RemoteEventBundle
 
 BUNDLES = {RemoteEventBundle: {"all": True}}
 ```
 
-There is no `config/remote_event.py` to write. The bundle finds every class declared with
+There is no `config/packages/remote_event.py` to write. The bundle finds every class declared with
 `@as_remote_event_consumer` when the container is built, registers each one as a single service
 — once, however many sources it declared, so what it remembers between events does not depend
 on which name the event arrived under — and registers `ConsumeRemoteEventHandler` over a
@@ -218,7 +218,7 @@ consume on a worker rather than in the process that received the event, route th
 the messenger configuration:
 
 ```python
-# app/config/messenger.py
+# app/config/packages/messenger.py
 from xtr_dependency_injection import configure, env
 from xtr_messenger import MessageBusConfig, TransportConfig
 from xtr_remote_event.messenger import ConsumeRemoteEventMessage

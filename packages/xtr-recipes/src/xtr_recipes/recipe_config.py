@@ -7,17 +7,20 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, final
 
 from .exception import InvalidManifestError
+from .key_pair_config import KEY_ALGORITHMS, PROJECT_DIR, KeyPairConfig
 from .notes_config import NotesConfig
 from .safe_path import has_traversal
+from .secret_config import SecretConfig
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
 __all__ = ["RecipeConfig"]
 
-_TABLES = frozenset({"bundles", "files", "env", "gitignore", "notes"})
+_TABLES = frozenset({"bundles", "files", "env", "keys", "gitignore", "notes"})
 _NOTES_KEYS = ("steps", "check", "run")
 _GITIGNORE_KEYS = frozenset({"lines"})
+_KEY_PAIR_KEYS = frozenset({"algorithm", "passphrase", "path_env"})
 # A bundle target is "<dotted module>:<ClassName>", exactly as it reads in BUNDLES.
 _BUNDLE_TARGET = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*")
 
@@ -38,7 +41,13 @@ class RecipeConfig:
         files: Each destination, relative to the application package, mapped to
             its template path relative to the recipe.
         env: Each environment variable mapped to its default, ``""`` meaning no
-            default (written commented out so the variable stays unset).
+            default (written commented out so the variable stays unset) and a
+            ``%generate(secret, …)%`` placeholder a fresh secret made when the
+            line is written.
+        secrets: Each environment variable whose default is a generator, mapped
+            to how its secret is made.
+        keys: Each private key to mint, relative to the project directory,
+            mapped to its algorithm and the env key encrypting it.
         gitignore: The ``.gitignore`` lines the recipe contributes.
         notes: What the recipe prints rather than does.
     """
@@ -46,6 +55,8 @@ class RecipeConfig:
     bundles: Mapping[str, Mapping[str, bool]] = field(default_factory=dict)
     files: Mapping[str, str] = field(default_factory=dict)
     env: Mapping[str, str] = field(default_factory=dict)
+    secrets: Mapping[str, SecretConfig] = field(default_factory=dict[str, SecretConfig])
+    keys: Mapping[str, KeyPairConfig] = field(default_factory=dict[str, KeyPairConfig])
     gitignore: tuple[str, ...] = ()
     notes: NotesConfig = field(default_factory=NotesConfig)
 
@@ -62,16 +73,21 @@ class RecipeConfig:
 
         Raises:
             InvalidManifestError: On an unknown table, an unknown key, a
-                malformed ``"module:Class"`` bundle target, or a value of the
-                wrong type — each naming the package and the key at fault.
+                malformed ``"module:Class"`` bundle target, an unknown
+                generator or key algorithm, or a value of the wrong type — each
+                naming the package and the key at fault.
         """
         unknown = sorted(set(data) - _TABLES)
         if unknown:
             raise InvalidManifestError(package, unknown[0], "unknown table")
+        env = _read_env(package, data.get("env"))
+        generated = _read_secrets(package, env)
         return cls(
             bundles=_read_bundles(package, data.get("bundles")),
             files=_read_files(package, data.get("files")),
-            env=_read_strings(package, "env", data.get("env")),
+            env=env,
+            secrets=generated,
+            keys=_read_keys(package, data.get("keys"), env, generated),
             gitignore=_read_gitignore(package, data.get("gitignore")),
             notes=_read_notes(package, data.get("notes")),
         )
@@ -118,6 +134,74 @@ def _read_strings(package: str, key: str, value: object) -> dict[str, str]:
         if not isinstance(item, str):
             raise InvalidManifestError(package, f"{key}.{name}", "must be a string")
         result[name] = item
+    return result
+
+
+def _read_env(package: str, value: object) -> dict[str, str]:
+    """Parse the ``[env]`` table: every key mapped to its default, as written."""
+    return _read_strings(package, "env", value)
+
+
+def _read_secrets(package: str, env: Mapping[str, str]) -> dict[str, SecretConfig]:
+    """Return how each generated default is made, refusing a misspelt generator."""
+    result: dict[str, SecretConfig] = {}
+    for name, default in env.items():
+        secret = SecretConfig.parse(package, name, default)
+        if secret is not None:
+            result[name] = secret
+    return result
+
+
+def _read_keys(
+    package: str,
+    value: object,
+    env: Mapping[str, str],
+    generated: Mapping[str, SecretConfig],
+) -> dict[str, KeyPairConfig]:
+    """Parse the ``[keys]`` table: each private key's path, algorithm and pass phrase.
+
+    A path is relative to the project directory and refused when it would climb
+    out of it. A pass phrase names an ``[env]`` key whose default is a
+    generated secret: the key is encrypted with that very secret, so the
+    application reads back the value it was sealed with.
+    """
+    result: dict[str, KeyPairConfig] = {}
+    for destination, entry in _as_table(package, "keys", value).items():
+        if has_traversal(destination):
+            raise InvalidManifestError(
+                package, destination, "key path must be a relative path inside the project"
+            )
+        table = _as_table(package, f"keys.{destination}", entry)
+        unknown = sorted(set(table) - _KEY_PAIR_KEYS)
+        if unknown:
+            raise InvalidManifestError(package, f"keys.{destination}.{unknown[0]}", "unknown key")
+        algorithm = table.get("algorithm")
+        if algorithm not in KEY_ALGORITHMS:
+            raise InvalidManifestError(
+                package,
+                f"keys.{destination}.algorithm",
+                f"must be one of {', '.join(KEY_ALGORITHMS)}",
+            )
+        passphrase = table.get("passphrase")
+        if passphrase is not None and (
+            not isinstance(passphrase, str) or passphrase not in generated
+        ):
+            raise InvalidManifestError(
+                package,
+                f"keys.{destination}.passphrase",
+                "must name an [env] key whose default is a %generate(secret, …)% generator",
+            )
+        path_env = table.get("path_env")
+        expected = f"{PROJECT_DIR}/{destination}"
+        if path_env is not None and (
+            not isinstance(path_env, str) or env.get(path_env) != expected
+        ):
+            raise InvalidManifestError(
+                package,
+                f"keys.{destination}.path_env",
+                f"must name an [env] key whose default is {expected}",
+            )
+        result[destination] = KeyPairConfig(str(algorithm), passphrase, path_env)
     return result
 
 

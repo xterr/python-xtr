@@ -23,6 +23,9 @@ classifiers = [
 dependencies = [
     "xtr-console>=5.0,<6",
     "xtr-dependency-injection>=5.0,<6",
+    # A recipe may have the sync mint a signing key into the project; the key
+    # is made here, by this tool, so no code a dependency ships is run for it.
+    "cryptography>=43",
 ]
 
 [project.scripts]
@@ -136,6 +139,7 @@ unfixable = []
     "PLR2004", # magic numbers in test data
     "SLF001",  # tests reach into privates
     "D",       # test names are the docs
+    "S105",    # env key names and pass phrases are literals in test data
 ]
 
 [tool.ruff.lint.pydocstyle]

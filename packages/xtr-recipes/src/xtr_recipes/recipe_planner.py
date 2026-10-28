@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, final
 
 from .operation.delete_file import DeleteFile
 from .operation.keep_file import KeepFile
+from .operation.mint_key import MintKey
 from .operation.move_file import MoveFile
 from .operation.notes import Notes
 from .operation.put_block import PutBlock
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from .notes_config import NotesConfig
     from .operation.operation_interface import OperationInterface
     from .project import Project
+    from .recipe_config import RecipeConfig
     from .recipe_loader import Recipe
     from .recipe_lock import LockEntry
 
@@ -34,11 +36,20 @@ __all__ = ["RecipePlanner"]
 _ENV = ".env"
 _GITIGNORE = ".gitignore"
 _CONFIG_DIR = "config"
+# Where a package's configuration module goes, and where an earlier layout put
+# it: one is read off the other by dropping this segment.
+_PACKAGES_DIR = "config/packages/"
 _INIT = "__init__.py"
 _INIT_BODY = '"""{title}"""\n\nfrom __future__ import annotations\n\n__all__: list[str] = []\n'
 _SCRIPT = "<script>"
 # Appended to a file set aside on unconfigure: no import resolves to it.
 _REMOVED = ".removed"
+# Why a key already on disk is not minted again.
+_KEY_IN_PLACE = "in place"
+# Why a recipe-written file is moved from the earlier layout to the current one.
+_RELOCATED = "relocated"
+# Why a file in the earlier layout the recipe did not write is left there.
+_ADOPTED = "adopted"
 
 
 @final
@@ -78,16 +89,24 @@ class RecipePlanner:
         """Plan a recipe the lock has never recorded.
 
         A file the project already has is adopted — kept as it is and locked
-        as adopted, so removing the package later leaves it alone.
+        as adopted, so removing the package later leaves it alone. So is one
+        at the place an earlier layout put it, ``config/<name>.py`` for
+        ``config/packages/<name>.py``: it already configures the package, and
+        a second copy beside it would configure it twice.
         """
         operations: list[OperationInterface] = []
         files: dict[str, LockedFile] = {}
         for destination, template in recipe.config.files.items():
             operations.extend(self._config_init(destination))
             target = self._target(recipe, destination, template)
+            earlier = self._earlier(destination)
             if target.path.is_file():
-                operations.append(KeepFile(target.display, "adopted"))
+                operations.append(KeepFile(target.display, _ADOPTED))
                 files[target.display] = LockedFile(_sha256(_read(target.path)), adopted=True)
+            elif earlier is not None:
+                path, display = earlier
+                operations.append(KeepFile(display, _ADOPTED))
+                files[display] = LockedFile(_sha256(_read(path)), adopted=True)
             else:
                 operations.append(WriteFile(target.path, target.display, target.content))
                 files[target.display] = LockedFile(_sha256(target.content), adopted=False)
@@ -104,17 +123,35 @@ class RecipePlanner:
 
         Returns:
             The recipe's steps and what the lock should then say.
+
+        A file the lock recorded at the place an earlier layout put it is
+        carried to where the recipe writes it now when the recipe wrote it, and
+        reconciled there as if it had always been; one the recipe adopted stays
+        where it is, the owner's as before.
         """
         operations: list[OperationInterface] = []
         files: dict[str, LockedFile] = {}
+        carried: set[str] = set()
         for destination, template in recipe.config.files.items():
             operations.extend(self._config_init(destination))
             target = self._target(recipe, destination, template)
-            step, locked = self._reconcile(target, prior.files.get(target.display), force)
+            earlier = None if target.path.is_file() else self._earlier(destination)
+            if earlier is not None:
+                path, display = earlier
+                carried.add(display)
+                was = prior.files.get(display)
+                if was is None or was.adopted:
+                    operations.append(KeepFile(display, _ADOPTED))
+                    files[display] = was or LockedFile(_sha256(_read(path)), adopted=True)
+                    continue
+                operations.append(MoveFile(path, display, target.path, target.display, _RELOCATED))
+                step, locked = self._reconcile(target, was, force, _read(path))
+            else:
+                step, locked = self._reconcile(target, prior.files.get(target.display), force)
             if step is not None:
                 operations.append(step)
             files[target.display] = locked
-        operations.extend(self._dropped(prior, files))
+        operations.extend(self._dropped(prior, {*files, *carried}))
         return self._finish(recipe, tuple(operations), files)
 
     def unconfigure(self, package: str, prior: LockEntry) -> tuple[OperationInterface, ...]:
@@ -143,19 +180,51 @@ class RecipePlanner:
             content=recipe.render(template, app=self._project.app),
         )
 
+    def _earlier(self, destination: str) -> tuple[Path, str] | None:
+        """Return where an earlier layout put ``destination``, when a file is there.
+
+        A package's configuration module lived at ``config/<name>.py`` before it
+        moved to ``config/packages/<name>.py``; nothing else has moved.
+        """
+        if not destination.startswith(_PACKAGES_DIR):
+            return None
+        path = self._project.package_dir / _CONFIG_DIR / destination.removeprefix(_PACKAGES_DIR)
+        if not path.is_file():
+            return None
+        return path, self._display(path)
+
+    def config_packages(self, destination: str) -> tuple[OperationInterface, ...]:
+        """Plan every ``config`` package a file the run writes sits in, once each.
+
+        The bundle list is written by the run as a whole rather than by a
+        recipe, and it lives in ``config/`` too, so the run asks here for the
+        packages a recipe's file would have been given.
+
+        Args:
+            destination: The file's path relative to the application package.
+        """
+        return self._config_init(destination)
+
     def _reconcile(
         self,
         target: _Destination,
         prior: LockedFile | None,
         force: bool,
+        current: str | None = None,
     ) -> tuple[OperationInterface | None, LockedFile]:
-        """Decide what becomes of one file a re-applied recipe still declares."""
-        if not target.path.is_file():
-            return (
-                WriteFile(target.path, target.display, target.content),
-                LockedFile(_sha256(target.content), adopted=False),
-            )
-        current = _read(target.path)
+        """Decide what becomes of one file a re-applied recipe still declares.
+
+        ``current`` is the file's text when it is not at ``target`` yet — a file
+        being carried there from an earlier layout — and is read from
+        ``target`` otherwise.
+        """
+        if current is None:
+            if not target.path.is_file():
+                return (
+                    WriteFile(target.path, target.display, target.content),
+                    LockedFile(_sha256(target.content), adopted=False),
+                )
+            current = _read(target.path)
         written = LockedFile(_sha256(target.content), adopted=False)
         if prior is not None and not prior.adopted and _sha256(current) == prior.sha256:
             step = None if current == target.content else WriteFile(*_parts(target))
@@ -236,26 +305,89 @@ class RecipePlanner:
         operations: tuple[OperationInterface, ...],
         files: Mapping[str, LockedFile],
     ) -> PlannedRecipe:
-        """Add the shared blocks and the notes to a recipe's file steps."""
-        env_step, env = self._env(recipe)
+        """Add the shared blocks, the keys and the notes to a recipe's file steps."""
+        env_step, env, keys = self._env(recipe)
         ignore_step, gitignore = self._gitignore(recipe)
         blocks = tuple(step for step in (env_step, ignore_step) if step is not None)
         return PlannedRecipe(
-            operations=operations + blocks,
+            operations=operations + blocks + keys,
             notes=self._notes(recipe.config.notes),
             files=files,
             env=env,
             gitignore=gitignore,
         )
 
-    def _env(self, recipe: Recipe) -> tuple[OperationInterface | None, tuple[str, ...]]:
-        """Plan the recipe's ``.env`` block, and name the keys it would hold."""
+    def _env(
+        self,
+        recipe: Recipe,
+    ) -> tuple[OperationInterface | None, tuple[str, ...], tuple[OperationInterface, ...]]:
+        """Plan the recipe's ``.env`` block, the keys minted with it, and name its keys.
+
+        Planned together because a minted key is encrypted with a secret the
+        block holds: the key is sealed with exactly the value the application
+        will read back, whether the sync generates it now or the block already
+        has it.
+
+        A key whose path variable the project already points at another file
+        is the project's own: none is minted, and no pass phrase is made for it.
+        """
         path = self._project.project_dir / _ENV
         text = self._editor.read(path)
         package = recipe.distribution
-        lines = self._editor.env_lines(text, package, recipe.config.env)
-        keys = self._editor.env_keys(text, package, recipe.config.env)
-        return self._block(path, _ENV, text, lines, package), keys
+        config = recipe.config
+        targets = {
+            destination: within(self._project.project_dir, destination)
+            for destination in config.keys
+        }
+        elsewhere = {
+            destination
+            for destination, key in config.keys.items()
+            if key.path_env is not None
+            and self._editor.env_value(text, key.path_env) not in {None, config.env[key.path_env]}
+        }
+        unminted = elsewhere | {name for name, target in targets.items() if target.exists()}
+        entries = _env_defaults(config, unminted)
+        lines = self._editor.env_lines(text, package, entries)
+        keys = self._editor.env_keys(text, package, entries)
+        written = self._editor.put_block(text, package, lines)
+        return (
+            self._block(path, _ENV, text, lines, package),
+            keys,
+            self._keys(config, targets, written, elsewhere),
+        )
+
+    def _keys(
+        self,
+        config: RecipeConfig,
+        targets: Mapping[str, Path],
+        env_text: str,
+        elsewhere: Collection[str],
+    ) -> tuple[OperationInterface, ...]:
+        """Plan a mint for every declared key not on disk yet, and keep every one that is.
+
+        Args:
+            config: The recipe being planned.
+            targets: Each declared key path mapped to where it lands.
+            env_text: ``.env`` as it reads once the recipe's block is written,
+                which is where each key's pass phrase is read from.
+            elsewhere: The declared keys the project reads from another file,
+                which are neither minted nor reported.
+        """
+        steps: list[OperationInterface] = []
+        for destination, key in config.keys.items():
+            if destination in elsewhere:
+                continue
+            target = targets[destination]
+            if target.exists():
+                steps.append(KeepFile(destination, _KEY_IN_PLACE))
+                continue
+            passphrase = (
+                self._editor.env_value(env_text, key.passphrase)
+                if key.passphrase is not None
+                else None
+            )
+            steps.append(MintKey(target, destination, key.algorithm, passphrase))
+        return tuple(steps)
 
     def _gitignore(self, recipe: Recipe) -> tuple[OperationInterface | None, tuple[str, ...]]:
         """Plan the recipe's ``.gitignore`` block, and name the lines it would hold."""
@@ -340,6 +472,35 @@ def _free_name(path: Path) -> Path:
 def _sha256(text: str) -> str:
     """Return the hash the lock records for a file's content."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _env_defaults(config: RecipeConfig, unminted: Collection[str]) -> dict[str, str]:
+    """Return the recipe's ``[env]`` defaults with every generated secret made up.
+
+    A pass phrase belongs to the key minted with it. A key this sync does not
+    mint — one already on disk, one the project reads from elsewhere — is not
+    encrypted with a secret it would make, so its pass phrase is offered with
+    no default instead: a fresh one would not open the key that is used.
+
+    Args:
+        config: The recipe being planned.
+        unminted: The declared keys this sync does not mint.
+    """
+    unsealed = {
+        key.passphrase
+        for destination, key in config.keys.items()
+        if key.passphrase is not None and destination in unminted
+    }
+    defaults: dict[str, str] = {}
+    for name, default in config.env.items():
+        secret = config.secrets.get(name)
+        if name in unsealed:
+            defaults[name] = ""
+        elif secret is not None:
+            defaults[name] = secret.generate()
+        else:
+            defaults[name] = default
+    return defaults
 
 
 def _scripted(lines: Sequence[str], script: str | None) -> tuple[str, ...]:

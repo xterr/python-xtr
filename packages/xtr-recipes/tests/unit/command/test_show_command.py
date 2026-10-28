@@ -228,3 +228,21 @@ async def test_show_reads_a_removed_package_from_the_lock(
     assert code == ExitCode.SUCCESS
     assert f"{TARGET} (listed)" in tester.display
     assert "- MESSENGER_DSN" in tester.display
+
+
+async def test_show_reads_the_keys_a_recipe_mints(
+    tester: ApplicationTester,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = (
+        '[env]\nPASSPHRASE = "%generate(secret)%"\n\n'
+        '[keys]\n"secrets/server.pem" = { algorithm = "RS256", passphrase = "PASSPHRASE" }\n'
+    )
+    install_recipes(monkeypatch, {MESSENGER: manifest})
+
+    code = await tester.execute(_argv(project_dir, MESSENGER))
+
+    assert code == ExitCode.SUCCESS
+    assert "  keys:" in tester.display
+    assert "    - secrets/server.pem (RS256, encrypted with PASSPHRASE)" in tester.display

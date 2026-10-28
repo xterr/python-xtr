@@ -1,0 +1,34 @@
+"""The HTTP clients: the default one, and one per service the application calls.
+
+```python
+HttpClientConfig(
+    default_options=ClientOptionsConfig(
+        timeout=10, retry_failed=RetryFailedConfig(enabled=True)
+    ),
+    scoped_clients={
+        "github": ScopedClientConfig(
+            base_uri="https://api.github.com/", auth_bearer=env("GITHUB_TOKEN")
+        ),
+    },
+)
+```
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure
+from xtr_http_client.bundle import HttpClientConfig
+
+__all__ = ["http_client"]
+
+
+@configure
+def http_client() -> HttpClientConfig:
+    """One client, sending requests as they are given."""
+    # default_options is what every request starts from: a timeout, headers, retries.
+    #
+    # A client in scoped_clients is qualified by its name and carries its own base URI,
+    # headers and credentials, over what default_options sets.
+    #
+    # max_host_connections caps the connections one pool holds at once, six unless set.
+    return HttpClientConfig()

@@ -27,7 +27,7 @@ def test_the_xtr_requirements_are_pinned_to_the_tools_major(tmp_path: Path) -> N
         "xtr-console>=3.0,<4",
         "xtr-dotenv>=3.0,<4",
         "xtr-logging>=3.0,<4",
-        "xtr-orm[sqlite]>=3.0,<4",
+        "xtr-orm[postgres]>=3.0,<4",
     )
 
 

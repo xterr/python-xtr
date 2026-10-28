@@ -4,7 +4,7 @@
 arguments; a value of the wrong shape (an issuer with a path, a lifetime that is not positive, a
 default scope that is not available, an empty role prefix) raises `InvalidConfigurationError` as
 the configuration is built. A setting that is merely **missing** is reported later, by the first
-service that needs it, naming the setting and `<app>/config/oauth2_server.py`:
+service that needs it, naming the setting and `<app>/config/packages/oauth2_server.py`:
 
 | Missing | Reported when |
 | --- | --- |

@@ -5,9 +5,12 @@
 # "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
 "xtr_storage.bundle:StorageBundle" = { all = true }
 
-# No [files]: configuring is optional. With none there is one "default" storage
-# on local files under var/storage. An application that wants named storages
-# writes config/storage.py itself.
+[files]
+# Destination under the application package = template under this recipe.
+# The bundle builds and boots without it, with the same one "default" storage
+# on local files under var/storage; the file writes that storage out, so its
+# directory is somewhere to change and the next storage has a place to go.
+"config/packages/storage.py" = "files/config/storage.py.tmpl"
 
 # No [env]: nothing is required. Credentials and directories an application
 # gives as env(...) must be set when it boots, because booting checks every

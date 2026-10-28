@@ -11,7 +11,7 @@ Every request runs in a scope of its own, opened by ``setup`` in :mod:`bookshop.
 cart and the unit of work are built for the request and released once the response has gone
 out — which is when the unit of work commits.
 
-Rate limits, each a limiter of ``config/rate_limiter.py`` — every way to declare one:
+Rate limits, each a limiter of ``config/packages/rate_limiter.py`` — every way to declare one:
 
 - the router — every route, per client (``api``), with ``X-RateLimit-*`` headers;
 - a decorator below the route — ``GET /search`` (``search``);
@@ -68,7 +68,7 @@ _DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$csBCmuUDDdOHBAwK4xX+lA$0YF1rPunzp1
 
 # Limited before its routes are added; the firewall — a subscriber over the kernel
 # lifecycle's events — guards every route the access-control map of
-# config/security.py claims, before routing and hence before this limit.
+# config/packages/security.py claims, before routing and hence before this limit.
 router = RateLimited("api", expose_headers=True)(APIRouter())
 
 
@@ -181,7 +181,7 @@ class TokenRequest(BaseModel):
     """The body ``POST /token`` takes, an identifier and the password to verify.
 
     Attributes:
-        identifier: Who is signing in — one of the inline users of ``config/security.py``.
+        identifier: Who is signing in — one of the inline users of ``config/packages/security.py``.
         password: Their plaintext password, checked against the stored argon2id hash.
     """
 

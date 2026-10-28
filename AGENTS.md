@@ -154,7 +154,7 @@ These apply to every package that ships a bundle. Read
   Brings along, Configure, Environment, Ignore, Remove, Check. The **Recipe** bullet comes right
   after *Install* and names exactly the steps that package's `recipe/` performs — the subset of
   *Activate*, *Configure*, *Environment* and *Ignore* the recipe can make declaratively, and no
-  step it cannot. A recipe that only writes a `bundles.py` entry and a `.gitignore` line says so;
+  step it cannot. A recipe that only writes a `config/bundles.py` entry and a `.gitignore` line says so;
   it does not claim to do *Configure* when the package has no recipe-written configuration. Keep
   it true when the bundle, its config defaults, its peers or its extras change — and, because the
   recipe is that same list made declarative, keep the package's `recipe/` true whenever those

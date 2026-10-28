@@ -132,9 +132,9 @@ undoes. It ships no bundle: the notifier's bundle finds its factory by the DSN s
   [*Use in an application*](../xtr-notifier/README.md#use-in-an-application) says.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Environment* step below: it writes
   `SLACK_DSN` in `.env`. It prints the step adding the transport to
-  `<app>/config/notifier.py`, which a recipe cannot make for you.
+  `<app>/config/packages/notifier.py`, which a recipe cannot make for you.
 - **Configure** — add `slack=env("SLACK_DSN")` to `chatter_transports` in
-  `<app>/config/notifier.py`.
+  `<app>/config/packages/notifier.py`.
 - **Environment** — `SLACK_DSN`, `slack://TOKEN@default?channel=CHANNEL` with the app's token and
   the channel; read when a message is first sent.
 - **Remove** — drop the `chatter_transports` entry and `SLACK_DSN`, then

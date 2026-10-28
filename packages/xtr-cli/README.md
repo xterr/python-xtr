@@ -118,7 +118,7 @@ refused before anything is written.
 2. `uv add` the template's packages and the add-ons; every unversioned xtr requirement is pinned
    to this tool's major version, so the files and the packages are from the same release.
 3. `uv add --dev` the tools: `xtr-recipes`, `pytest`, `ruff`, `basedpyright`, `ty`.
-4. `uv run xtr-recipes recipes:sync` — each package's recipe writes `<app>/bundles.py`, its
+4. `uv run xtr-recipes recipes:sync` — each package's recipe writes `<app>/config/bundles.py`, its
    configuration files, its `.env` and `.gitignore` blocks, and `xtr.lock`; the steps it cannot
    make are printed.
 5. `git init`; nothing is committed.
@@ -208,13 +208,13 @@ way it would for a package added later with `xtr-recipes recipes:add`.
 
 | Add-on | Installs | Variants |
 |---|---|---|
-| `orm` | `xtr-orm` | `sqlite` (default), `postgres`, `mysql` |
-| `messenger` | `xtr-messenger` | `amqp`, `pydantic` |
+| `orm` | `xtr-orm` | `postgres` (default), `sqlite`, `mysql` |
+| `messenger` | `xtr-messenger` | `amqp` (default), `pydantic` |
 | `scheduler` | `xtr-scheduler[cron]` | |
 | `event-dispatcher` | `xtr-event-dispatcher` | |
 | `cache` | `xtr-cache` | `redis` |
 | `lock` | `xtr-lock` | `redis` |
-| `rate-limiter` | `xtr-rate-limiter` | `redis` |
+| `rate-limiter` | `xtr-rate-limiter` | |
 | `storage` | `xtr-storage` | `s3`, `gcs` |
 | `http-client` | `xtr-http-client` | `http2` |
 | `security` | `xtr-security` — `webapp` only | |
@@ -226,10 +226,11 @@ Variants only pick third-party backends. Integrations between xtr packages turn 
 installed: choose `orm` beside `oauth2` to keep its clients in a database, `http-client` beside
 `webhook` to send webhooks, `rate-limiter` beside `http-client` to pace requests.
 
-`jwt` boots without a key and signs nothing until one is there: run
-`uv run <name> jwt:generate-keypair --kid jwt --output-dir secrets` for development, and mount
-the deployment's own key in production. No key is ever minted for you.
-`oauth2` likewise issues nothing until its key pair, encryption key and issuer are configured.
+`jwt` and `oauth2` each have their recipe mint a development signing key under `secrets/`,
+encrypted with a pass phrase it generates in `.env` — and, for `oauth2`, the encryption key too.
+The keys are ignored: another checkout runs `uv run xtr-recipes recipes:install <package>` to
+mint its own, and production mounts the deployment's own key and sets its own secrets. `oauth2`
+still issues nothing until its issuer is configured.
 
 Variants follow the name after `:`, joined with `+`: `orm:sqlite+postgres`. A name alone takes
 the defaults; `messenger:` picks none. Asked interactively, an add-on with variants is followed by

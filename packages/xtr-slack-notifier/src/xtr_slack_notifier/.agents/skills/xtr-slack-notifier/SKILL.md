@@ -83,7 +83,7 @@ the configuration step.
 1. **Install** — `uv add xtr-slack-notifier`, beside xtr-notifier set up as the `xtr-notifier`
    skill says.
 2. **Configure** — add `slack=env("SLACK_DSN")` to `chatter_transports` in
-   `<app>/config/notifier.py`.
+   `<app>/config/packages/notifier.py`.
 3. **Environment** — `SLACK_DSN`, `slack://TOKEN@default?channel=CHANNEL`.
 4. **Check** — `debug:config notifier` lists `slack` under `chatter_transports`.
 5. **Remove** — drop the entry and `SLACK_DSN`, then `uv remove xtr-slack-notifier`.

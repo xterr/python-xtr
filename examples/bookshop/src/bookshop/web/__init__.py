@@ -12,8 +12,8 @@ unit of work last exactly one request and are released once the response has gon
 here resets services per request: that is a worker's answer to a message, not a request's.
 
 The lifecycle around the endpoints comes from the ``http_kernel`` bundle listed in
-:mod:`bookshop.bundles`: every response carries an ``X-Request-Id``, and an uncaught exception
-is written to the ``request`` channel with the request that caused it.
+:mod:`bookshop.config.bundles`: every response carries an ``X-Request-Id``, and an uncaught
+exception is written to the ``request`` channel with the request that caused it.
 """
 
 from __future__ import annotations

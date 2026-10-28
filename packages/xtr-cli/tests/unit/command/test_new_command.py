@@ -47,14 +47,14 @@ async def test_the_questions_fill_in_what_was_left_out(
 
     code = await tester.execute(
         ["new", "--python", "3.13", "--no-git"],
-        inputs=[str(target), "webapp", "orm, security", "postgres", "y"],
+        inputs=[str(target), "webapp", "orm, security", "sqlite", "y"],
     )
 
     assert code == ExitCode.SUCCESS
-    assert "--template=webapp --with=orm:postgres,security --python=3.13 --no-git -n" in (
+    assert "--template=webapp --with=orm:sqlite,security --python=3.13 --no-git -n" in (
         tester.display
     )
-    assert "xtr-orm[postgres]>=3.0,<4" in runner.calls[0][0]
+    assert "xtr-orm[sqlite]>=3.0,<4" in runner.calls[0][0]
     assert (target / "src" / "web_shop" / "web" / "app.py").is_file()
 
 

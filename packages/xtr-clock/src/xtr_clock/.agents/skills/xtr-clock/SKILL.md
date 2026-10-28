@@ -122,19 +122,20 @@ the steps below a recipe can do; the others it prints for you to make.
 1. **Install** — `uv add xtr-clock xtr-dependency-injection`: the bundle needs the container
    installed beside it, never as an extra. Add the `tzdata` extra on Windows or slim containers.
 2. **Activate** — usually nothing: the logging bundle requires it. Otherwise add
-   `ClockBundle: {"all": True}` to `BUNDLES` in `<app>/bundles.py`
+   `ClockBundle: {"all": True}` to `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_clock.bundle import ClockBundle`).
-3. **Configure** — optional; with no configuration it reports in the machine's zone:
+3. **Configure** — optional; with no configuration it reports in UTC, whatever the machine's zone.
+   Name another zone, or `None` to follow the machine's:
 
    ```python
-   # <app>/config/clock.py
+   # <app>/config/packages/clock.py
    from xtr_dependency_injection import configure
    from xtr_clock.bundle import ClockConfig
 
 
-   @configure
-   def clock() -> ClockConfig:
-       return ClockConfig(timezone="UTC")
+    @configure
+    def clock() -> ClockConfig:
+       return ClockConfig(timezone="Europe/Paris")
    ```
 
    `ClockConfig` resolves the zone as it is built, so an unknown one raises
@@ -145,8 +146,8 @@ the steps below a recipe can do; the others it prints for you to make.
 5. **Test** — replace the `Clock` service:
    `boot_for_test(kernel, overrides={Clock: Clock(MockClock("2026-01-01"), "UTC")})`.
 6. **Check** — `debug:bundles` shows `clock` as `active`.
-7. **Remove** — drop the `BUNDLES` entry and `<app>/config/clock.py`, then `uv remove xtr-clock`,
-   unless xtr-logging is installed (it depends on this package).
+7. **Remove** — drop the `BUNDLES` entry and `<app>/config/packages/clock.py`, then
+   `uv remove xtr-clock`, unless xtr-logging is installed (it depends on this package).
 
 ## Errors
 

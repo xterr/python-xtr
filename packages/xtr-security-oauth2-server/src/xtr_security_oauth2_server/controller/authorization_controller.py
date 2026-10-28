@@ -59,7 +59,7 @@ _NOBODY_TO_ASK: Final = (
 _UNCLAIMED_ENDPOINT: Final = (
     "An authorization request reached this server with no resource owner authenticated, so "
     "consent was never asked for and the request was refused. Configure a firewall claiming "
-    "the authorization endpoint in config/security.py, so the authorization endpoint "
+    "the authorization endpoint in config/packages/security.py, so the authorization endpoint "
     "establishes the resource owner; see this package's 'Use in an application' section."
 )
 

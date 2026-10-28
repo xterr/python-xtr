@@ -7,16 +7,18 @@ and the discovery document publishes it, so change it to this deployment's own
 origin before anything else. ``private_key`` takes the key text or the path of
 a file holding it — the key loader reads the file itself — so
 ``OAUTH2_SERVER_PRIVATE_KEY_PATH`` carries a path and no key material is
-written into the repository. ``encryption_key`` is what an authorization code
-and a refresh token are sealed with, read from
+written into the repository; ``OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE`` is what
+that key is encrypted with, or nothing for a key that is not. ``encryption_key``
+is what an authorization code and a refresh token are sealed with, read from
 ``OAUTH2_SERVER_ENCRYPTION_KEY`` as the base64url of 32 random bytes, which is
 what ``encryption_key_type="key"`` means.
 
-Neither variable is read while the application builds — a variable is read
-when the service needing it is built — so the application runs, and its
-console with it, before either is set; a request then reports the variable or
-the setting that is still missing. Nothing is ever minted on the
-application's behalf.
+The recipe that wrote this file minted the key and generated both secrets for
+this checkout; production sets the three variables to its own. No variable is
+read while the application builds — a variable is read when the service
+needing it is built — so the application runs, and its console with it, before
+any is set; a request then reports the variable or the setting that is still
+missing.
 
 ``scopes.available`` is the whole vocabulary this server issues, and
 ``scopes.default`` what a client registered naming none is given. The store
@@ -54,6 +56,7 @@ def oauth2_server() -> OAuth2ServerConfig:
         authorization_server=AuthorizationServerConfig(
             issuer="https://authorization.example.com",
             private_key=env("resolve:OAUTH2_SERVER_PRIVATE_KEY_PATH"),
+            private_key_passphrase=env("OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE", default=""),
             encryption_key=env("OAUTH2_SERVER_ENCRYPTION_KEY"),
             encryption_key_type="key",
             enable_device_code_grant=False,

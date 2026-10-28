@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.support import build_project
+from xtr_recipes.key_pair_config import KeyPairConfig
 from xtr_recipes.marked_block_editor import MarkedBlockEditor
 from xtr_recipes.notes_config import NotesConfig
 from xtr_recipes.operation.delete_file import DeleteFile
 from xtr_recipes.operation.keep_file import KeepFile
+from xtr_recipes.operation.mint_key import MintKey
 from xtr_recipes.operation.move_file import MoveFile
 from xtr_recipes.operation.notes import Notes
 from xtr_recipes.operation.put_block import PutBlock
@@ -20,6 +22,7 @@ from xtr_recipes.recipe_config import RecipeConfig
 from xtr_recipes.recipe_loader import Recipe
 from xtr_recipes.recipe_lock import LockedFile, LockEntry
 from xtr_recipes.recipe_planner import RecipePlanner
+from xtr_recipes.secret_config import SecretConfig
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -40,6 +43,15 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+GENERATED_SECRET = "%generate(secret)%"
+
+
+def _secrets(env: Mapping[str, str]) -> dict[str, SecretConfig]:
+    """Read the generators in ``env`` the way a manifest's are read."""
+    parsed = {name: SecretConfig.parse(_PACKAGE, name, value) for name, value in env.items()}
+    return {name: secret for name, secret in parsed.items() if secret is not None}
+
+
 def _recipe(
     files: Mapping[str, str] | None = None,
     env: Mapping[str, str] | None = None,
@@ -51,6 +63,7 @@ def _recipe(
         config=RecipeConfig(
             files={_DESTINATION: _TEMPLATE} if files is None else files,
             env=env or {},
+            secrets=_secrets(env or {}),
             gitignore=gitignore,
             notes=notes or NotesConfig(),
         ),
@@ -375,7 +388,7 @@ def test_update_clears_a_block_the_recipe_no_longer_contributes_to(
 ) -> None:
     path = project.project_dir / ".env"
     _ = path.write_text(
-        f"# >>> {_PACKAGE}\n# MESSENGER_DSN=\n# <<< {_PACKAGE}\n",
+        f"###> {_PACKAGE} ###\n# MESSENGER_DSN=\n###< {_PACKAGE} ###\n",
         encoding="utf-8",
     )
 
@@ -460,7 +473,7 @@ def test_unconfigure_removes_the_blocks_the_recipe_wrote(
     env = project.project_dir / ".env"
     ignore = project.project_dir / ".gitignore"
     for path in (env, ignore):
-        _ = path.write_text(f"# >>> {_PACKAGE}\nLINE\n# <<< {_PACKAGE}\n", encoding="utf-8")
+        _ = path.write_text(f"###> {_PACKAGE} ###\nLINE\n###< {_PACKAGE} ###\n", encoding="utf-8")
 
     assert planner.unconfigure(_PACKAGE, LockEntry()) == (
         RemoveBlock(env, ".env", _PACKAGE),
@@ -478,3 +491,247 @@ def test_planning_writes_nothing(planner: RecipePlanner, project: Project) -> No
     _ = planner.configure(_recipe(env={"MESSENGER_DSN": ""}, gitignore=("/var",)))
 
     assert sorted(path.name for path in project.project_dir.rglob("*")) == before
+
+
+_KEY = "secrets/server.pem"
+_PASSPHRASE = "SERVER_KEY_PASSPHRASE"
+
+
+def _keyed_recipe(env: Mapping[str, str] | None = None) -> Recipe:
+    chosen = {_PASSPHRASE: GENERATED_SECRET} if env is None else env
+    return Recipe(
+        distribution=_PACKAGE,
+        config=RecipeConfig(
+            env=chosen,
+            secrets=_secrets(chosen),
+            keys={_KEY: KeyPairConfig("RS256", _PASSPHRASE)},
+        ),
+        templates={},
+        recipe_hash="hash",
+    )
+
+
+def _block(planned_operations: tuple[object, ...]) -> PutBlock:
+    return next(step for step in planned_operations if isinstance(step, PutBlock))
+
+
+def test_a_generated_secret_is_written_in_place_of_its_placeholder(
+    planner: RecipePlanner,
+) -> None:
+    planned = planner.configure(_recipe(files={}, env={"SECRET": GENERATED_SECRET}))
+
+    (line,) = _block(planned.operations).lines
+    assert line.startswith("SECRET=")
+    assert GENERATED_SECRET not in line
+    assert len(line.removeprefix("SECRET=")) == 43
+
+
+def test_a_configured_generator_writes_the_secret_it_describes(planner: RecipePlanner) -> None:
+    spelled = "%generate(secret, bytes=16, encoding=hex, prefix=key_)%"
+
+    planned = planner.configure(_recipe(files={}, env={"SECRET": spelled}))
+
+    (line,) = _block(planned.operations).lines
+    value = line.removeprefix("SECRET=")
+    assert value.startswith("key_")
+    assert len(value.removeprefix("key_")) == 32
+    assert int(value.removeprefix("key_"), 16) >= 0
+
+
+def test_each_plan_generates_a_new_secret(planner: RecipePlanner, project: Project) -> None:
+    first = planner.configure(_recipe(files={}, env={"SECRET": GENERATED_SECRET}))
+    second = RecipePlanner(project, MarkedBlockEditor()).configure(
+        _recipe(files={}, env={"SECRET": GENERATED_SECRET})
+    )
+
+    assert _block(first.operations).lines != _block(second.operations).lines
+
+
+def test_a_secret_already_in_the_block_is_kept(planner: RecipePlanner, project: Project) -> None:
+    env = project.project_dir / ".env"
+    _ = env.write_text(f"###> {_PACKAGE} ###\nSECRET=mine\n###< {_PACKAGE} ###\n", encoding="utf-8")
+
+    planned = planner.configure(_recipe(files={}, env={"SECRET": GENERATED_SECRET}))
+
+    assert all(not isinstance(step, PutBlock) for step in planned.operations)
+
+
+def test_a_missing_key_is_minted_with_the_secret_the_block_writes(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    planned = planner.configure(_keyed_recipe())
+
+    (line,) = _block(planned.operations).lines
+    mint = next(step for step in planned.operations if isinstance(step, MintKey))
+    assert mint == MintKey(
+        (project.project_dir / _KEY).resolve(),
+        _KEY,
+        "RS256",
+        line.removeprefix(f"{_PASSPHRASE}="),
+    )
+
+
+def test_a_key_is_minted_with_a_passphrase_already_set_outside_the_block(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    _ = (project.project_dir / ".env").write_text(f"{_PASSPHRASE}='chosen'\n", encoding="utf-8")
+
+    planned = planner.configure(_keyed_recipe())
+
+    mint = next(step for step in planned.operations if isinstance(step, MintKey))
+    assert mint.passphrase == "chosen"
+
+
+def test_a_key_already_on_disk_is_kept_and_given_no_new_passphrase(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    key = project.project_dir / _KEY
+    key.parent.mkdir()
+    _ = key.write_text("KEY\n", encoding="utf-8")
+
+    planned = planner.configure(_keyed_recipe())
+
+    assert KeepFile(_KEY, "in place") in planned.operations
+    assert all(not isinstance(step, MintKey) for step in planned.operations)
+    assert _block(planned.operations).lines == (f"# {_PASSPHRASE}=",)
+
+
+def test_a_key_needs_no_passphrase(planner: RecipePlanner, project: Project) -> None:
+    recipe = Recipe(
+        distribution=_PACKAGE,
+        config=RecipeConfig(keys={_KEY: KeyPairConfig("EdDSA")}),
+        templates={},
+        recipe_hash="hash",
+    )
+
+    planned = planner.configure(recipe)
+
+    assert planned.operations == (
+        MintKey((project.project_dir / _KEY).resolve(), _KEY, "EdDSA", None),
+    )
+
+
+def test_a_minted_key_is_not_recorded_in_the_lock(planner: RecipePlanner) -> None:
+    planned = planner.configure(_keyed_recipe())
+
+    assert planned.files == {}
+    assert planned.env == (_PASSPHRASE,)
+
+
+_PATH_ENV = "SERVER_KEY_PATH"
+_PATH_DEFAULT = f"%kernel.project_dir%/{_KEY}"
+
+
+def _pathed_recipe() -> Recipe:
+    env = {_PATH_ENV: _PATH_DEFAULT, _PASSPHRASE: GENERATED_SECRET}
+    return Recipe(
+        distribution=_PACKAGE,
+        config=RecipeConfig(
+            env=env,
+            secrets=_secrets(env),
+            keys={_KEY: KeyPairConfig("RS256", _PASSPHRASE, _PATH_ENV)},
+        ),
+        templates={},
+        recipe_hash="hash",
+    )
+
+
+def test_a_key_the_project_reads_from_elsewhere_is_not_minted(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    env = project.project_dir / ".env"
+    _ = env.write_text(f"{_PATH_ENV}=%kernel.project_dir%/secrets/mine.pem\n", encoding="utf-8")
+
+    planned = planner.configure(_pathed_recipe())
+
+    assert all(not isinstance(step, MintKey | KeepFile) for step in planned.operations)
+    assert _block(planned.operations).lines == (f"# {_PASSPHRASE}=",)
+
+
+def test_a_key_whose_path_variable_keeps_its_default_is_minted(
+    planner: RecipePlanner,
+) -> None:
+    planned = planner.configure(_pathed_recipe())
+
+    assert any(isinstance(step, MintKey) for step in planned.operations)
+
+
+_PACKAGED = "config/packages/messenger.py"
+_PACKAGED_LOCKED = "src/app/config/packages/messenger.py"
+
+
+def test_a_file_the_recipe_wrote_in_the_earlier_layout_is_carried_over(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    earlier = _existing(project, _RENDERED)
+    prior = LockEntry(files={_LOCKED: LockedFile(_sha256(_RENDERED), adopted=False)})
+
+    planned = planner.update(_recipe(files={_PACKAGED: _TEMPLATE}), prior, force=False)
+
+    moved = project.package_dir / _PACKAGED
+    assert MoveFile(earlier, _LOCKED, moved, _PACKAGED_LOCKED, "relocated") in planned.operations
+    assert planned.files == {_PACKAGED_LOCKED: LockedFile(_sha256(_RENDERED), adopted=False)}
+    assert all(not isinstance(step, DeleteFile) for step in planned.operations)
+
+
+def test_a_carried_file_untouched_since_takes_the_new_content(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    _ = _existing(project, "OLD\n")
+    prior = LockEntry(files={_LOCKED: LockedFile(_sha256("OLD\n"), adopted=False)})
+
+    planned = planner.update(_recipe(files={_PACKAGED: _TEMPLATE}), prior, force=False)
+
+    moved = project.package_dir / _PACKAGED
+    assert WriteFile(moved, _PACKAGED_LOCKED, _RENDERED) in planned.operations
+
+
+def test_a_carried_file_the_owner_edited_keeps_the_edit(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    _ = _existing(project, "MINE\n")
+    prior = LockEntry(files={_LOCKED: LockedFile(_sha256(_RENDERED), adopted=False)})
+
+    planned = planner.update(_recipe(files={_PACKAGED: _TEMPLATE}), prior, force=False)
+
+    moved = project.package_dir / _PACKAGED
+    assert WriteNewFile(moved, _PACKAGED_LOCKED, _RENDERED) in planned.operations
+    assert planned.files[_PACKAGED_LOCKED] == LockedFile(_sha256(_RENDERED), adopted=False)
+
+
+def test_an_adopted_file_in_the_earlier_layout_stays_where_it_is(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    _ = _existing(project, "MINE\n")
+    prior = LockEntry(files={_LOCKED: LockedFile(_sha256("MINE\n"), adopted=True)})
+
+    planned = planner.update(_recipe(files={_PACKAGED: _TEMPLATE}), prior, force=False)
+
+    assert KeepFile(_LOCKED, "adopted") in planned.operations
+    assert planned.files == {_LOCKED: LockedFile(_sha256("MINE\n"), adopted=True)}
+    moved = project.package_dir / _PACKAGED
+    assert all(not isinstance(step, MoveFile) for step in planned.operations)
+    assert all(
+        not (isinstance(step, WriteFile) and step.path == moved) for step in planned.operations
+    )
+
+
+def test_configuring_adopts_a_file_in_the_earlier_layout_instead_of_writing_beside_it(
+    planner: RecipePlanner,
+    project: Project,
+) -> None:
+    _ = _existing(project, "MINE\n")
+
+    planned = planner.configure(_recipe(files={_PACKAGED: _TEMPLATE}))
+
+    assert KeepFile(_LOCKED, "adopted") in planned.operations
+    assert planned.files == {_LOCKED: LockedFile(_sha256("MINE\n"), adopted=True)}
+    assert not (project.package_dir / _PACKAGED).exists()

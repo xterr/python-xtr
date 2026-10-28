@@ -21,7 +21,8 @@ declarative, shipped beside the package, so one command does the chores — and,
 undoes them when the package is removed.
 
 A recipe is declarative only: bundles to list, files to write, environment and ignore lines to
-add, and notes to print. No recipe step and no template is ever executed. The one thing imported
+add, keys to mint, and notes to print. No recipe step and no template is ever executed: a secret
+or a key a recipe asks for is made by xtr-recipes itself. The one thing imported
 is the bundle class a recipe lists — and only from a module under the declaring distribution's own
 import package, never an arbitrary module a manifest names — so its `@required_bundle` declarations
 can be read to decide whether listing it is redundant; nothing else a dependency ships is imported
@@ -70,7 +71,7 @@ A sync does three things to the recipes of the project's direct dependencies
 the application did not choose):
 
 - **configure** a dependency not yet in the lock — write its files, add its env and ignore
-  blocks, list its bundle, print its notes;
+  blocks, mint its keys, list its bundle, print its notes;
 - **update** a dependency whose recipe changed since the lock — re-render its files, apply the
   bundle, env and ignore differences;
 - **unconfigure** a locked package no longer depended on — delete the files it wrote, move an
@@ -81,17 +82,17 @@ A plan reads as one block per package, under a heading naming the action:
 
 ```console
 configure xtr-messenger
-  write src/bookshop/config/messenger.py
+  write src/bookshop/config/packages/messenger.py
   write .env
   bundle MessengerBundle listed
   steps:
-    - Name the transports in config/messenger.py and route your messages to them: a message routed nowhere is neither sent nor handled.
+    - Name the transports in config/packages/messenger.py and route your messages to them: a message routed nowhere is neither sent nor handled.
   check:
     - bookshop debug:bundles — messenger is listed and active
     - bookshop debug:config messenger — the resolved transports and routing
   run:
     - bookshop messenger:consume <transport>
-write src/bookshop/bundles.py
+write src/bookshop/config/bundles.py
 write xtr.lock
 ```
 
@@ -140,14 +141,22 @@ with `tomllib`:
 
 [files]
 # destination under the application package = template under recipe/
-"config/messenger.py" = "files/config/messenger.py.tmpl"
+"config/packages/messenger.py" = "files/config/messenger.py.tmpl"
 
 [env]
 # written only when the key is absent from .env; "" means no default, so it is written commented out
 MESSENGER_DSN = ""
+# a fresh secret, made when the line is first written and kept on every later sync
+MESSENGER_SIGNING_SECRET = "%generate(secret)%"
+# the same, made to a format: 64 random bytes as hex
+MESSENGER_TOKEN = "%generate(secret, bytes=64, encoding=hex)%"
+
+[keys]
+# path under the project root = the key to mint there when no file is
+"secrets/messenger.pem" = { algorithm = "ES256", passphrase = "MESSENGER_SIGNING_SECRET" }
 
 [gitignore]
-lines = []
+lines = ["/secrets/*.pem"]
 
 [notes]
 steps = []
@@ -164,12 +173,46 @@ run   = ["<script> messenger:consume <transport>"]
 - A `<script>` token in a note is replaced with the application's first `[project.scripts]` name,
   so a printed check reads as a command you can actually run; with no script declared the token is
   left as it is.
+- `%generate(secret)%` as an `[env]` default stands for a fresh random secret, made up by the
+  sync when it writes the line. A value already in `.env` — inside the block or out — is kept, so
+  a secret is made once per project. With no arguments it is the unpadded base64url of 32 random
+  bytes; keyword arguments after `secret` shape it, in any order:
+
+  | Argument | Values | Default |
+  |---|---|---|
+  | `bytes` | how many random bytes, `16` to `1024` | `32` |
+  | `encoding` | `base64url` (unpadded), `base64` (standard alphabet, padded), `hex` | `base64url` |
+  | `prefix` | text written before them — letters, digits and `_ . : -` | none |
+
+  `%generate(secret, encoding=base64, prefix=whsec_)%` is a Standard Webhooks secret. A generator
+  of another kind, an unknown or repeated argument, or a value out of range is an
+  `InvalidManifestError` naming the `[env]` key, so a misspelt generator never reaches `.env` as
+  a literal.
+- A `[keys]` entry mints a private key, PKCS#8 PEM and `0o600`, at a path relative to the project
+  root, for `algorithm` — `RS256`–`RS512` and `PS256`–`PS512` (RSA 2048), `ES256`–`ES512` (the
+  algorithm's curve) or `EdDSA` (Ed25519). `passphrase`, optional, names an `[env]` key whose
+  default is a `%generate(secret, …)%` generator: the key is encrypted with the value that ends up
+  in `.env`. A
+  file already at the path is kept and its pass phrase is not generated, since a fresh secret would
+  not open it. `path_env`, optional, names the `[env]` key the application reads the key's path
+  from, whose default must be `%kernel.project_dir%/<path>`: when the project already sets it to
+  another file, the key is its own, so nothing is minted and no pass phrase is generated. A minted
+  key is not recorded in the lock and never deleted: it is the checkout's
+  secret, so ignore its path in `[gitignore]`. The key is minted when the plan is applied, so a
+  dry run shows `mint <path>` and writes nothing.
 - The three note lists stay apart because they are acted on differently: `steps` are changes to
   application code a declarative recipe cannot make, `check` shows the package working, `run` puts
   it to work. Notes are printed after a recipe is applied and never written to disk.
-- A destination under `config/` also ensures every package between `config` and the file exists
-  — `<app>/config/__init__.py`, and `<app>/config/routes/__init__.py` for a routes file — each a
-  docstring and `__all__: list[str] = []`, created if missing, adopted if present, never deleted.
+- A package's configuration module goes in `config/packages/<name>.py`, a routes file in
+  `config/routes/<name>.py`. A destination under `config/` also ensures every package between
+  `config` and the file exists — `<app>/config/__init__.py`, and `<app>/config/packages/__init__.py`
+  or `<app>/config/routes/__init__.py` — each a docstring and `__all__: list[str] = []`, created if
+  missing, adopted if present, never deleted.
+- A project laid out before configuration modules moved into `config/packages/` is carried over
+  as each recipe is next applied: a `config/<name>.py` the recipe wrote moves to
+  `config/packages/<name>.py` and is reconciled there like any other file — untouched, it takes the
+  new content; edited, the new content goes beside it as `.new` — while one the recipe adopted, or
+  that the application wrote itself, stays where it is rather than being configured twice.
 
 Recipes are discovered through the `xtr_recipes` entry-point group, named after the bundle, the
 same way bundles are found through `xtr_dependency_injection.bundles`:
@@ -191,7 +234,7 @@ it diffs cleanly; a sync rewrites it only when it actually changed.
   "xtr-messenger": {
     "recipe": "<sha256>",
     "bundles": {"xtr_messenger.bundle:MessengerBundle": "listed"},
-    "files": {"src/bookshop/config/messenger.py": {"sha256": "…", "adopted": false}},
+    "files": {"src/bookshop/config/packages/messenger.py": {"sha256": "…", "adopted": false}},
     "env": ["MESSENGER_DSN"],
     "gitignore": []
   }
@@ -213,7 +256,9 @@ it diffs cleanly; a sync rewrites it only when it actually changed.
 
 ## Bundles, env and ignore
 
-`<app>/bundles.py` is regenerated, not patched. It is read with the standard library's `ast`:
+`<app>/config/bundles.py` is regenerated, not patched. A project still keeping it at
+`<app>/bundles.py` has it read from there, written to `config/bundles.py`, and the earlier file
+deleted, on the next sync. It is read with the standard library's `ast`:
 each `from <module> import <Class>` maps a name, and the single `BUNDLES = {...}` assignment gives
 the ordered entries with their flags from `ast.literal_eval`. A `BUNDLES` built any other way, a
 key that is not an imported name, non-literal flags, or any statement besides the docstring,
@@ -238,14 +283,16 @@ Environment variables and ignore lines are written as marked blocks in the proje
 `.gitignore`:
 
 ```
-# >>> xtr-messenger
+###> xtr-messenger ###
 # MESSENGER_DSN=
-# <<< xtr-messenger
+###< xtr-messenger ###
 ```
 
 An env key with no default is written commented out, so the variable stays unset rather than being
 set to the empty string — the difference between a clear "not set" error at boot and a value that
 is silently wrong. A value you fill in inside the block is kept when the recipe is applied again.
+A block an earlier release marked `# >>> xtr-messenger` … `# <<< xtr-messenger` is still read as
+the package's own and is rewritten with the current markers the next time the recipe is applied.
 Removing a package deletes its whole block and nothing else.
 
 ## Adoption

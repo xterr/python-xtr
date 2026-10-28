@@ -1,4 +1,4 @@
-"""``demo:rate-limit`` — every limiter of ``config/rate_limiter.py`` and every limited route.
+"""``demo:rate-limit`` — every limiter of ``config/packages/rate_limiter.py``, every limited route.
 
 Each row is a claim the README makes, checked as it runs: the command exits 1 if one does not
 hold, so it is the executable proof of the rate limits.

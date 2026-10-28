@@ -87,7 +87,7 @@ async def test_the_refusal_says_where_to_write_it_and_how_to_come_by_one(service
     async with await _unsealed().boot() as booted:
         refusal = await _refused(booted.container, service)
 
-    assert "config/oauth2_server.py" in str(refusal)
+    assert "config/packages/oauth2_server.py" in str(refusal)
     # The same one-liner the recipe's steps give: the base64url of 32 random
     # bytes, which is what ``encryption_key_type="key"`` reads.
     assert "base64.urlsafe_b64encode(secrets.token_bytes(32))" in str(refusal)

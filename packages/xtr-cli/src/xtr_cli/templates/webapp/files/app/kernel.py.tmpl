@@ -19,7 +19,7 @@ PROJECT_DIR: Final = Path(__file__).resolve().parents[2]
 
 kernel: Final = Kernel(
     "${app}",
-    # The bundles are read from ${app}.bundles.BUNDLES; the environment from APP_ENV.
+    # The bundles are read from ${app}.config.bundles.BUNDLES; the environment from APP_ENV.
     allowed_envs=("dev", "test", "prod"),
     # ${app}.web.app builds the web application as it is imported, and that application is
     # served from this very kernel: scanning it would import it while the kernel builds.

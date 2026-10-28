@@ -27,7 +27,7 @@ def test_what_was_given_is_never_asked() -> None:
 
     assert questions.directory(Path("shop")) == Path("shop")
     assert questions.template("webapp") == "webapp"
-    assert [choice.variants for choice in questions.add_ons("orm", "cli")] == [("sqlite",)]
+    assert [choice.variants for choice in questions.add_ons("orm", "cli")] == [("postgres",)]
     assert output.getvalue() == ""
 
 
@@ -55,19 +55,19 @@ def test_an_unanswered_template_question_takes_cli() -> None:
 
 
 def test_variants_are_asked_for_an_add_on_named_alone() -> None:
-    questions, _ = _questions("orm, lock:redis", "postgres")
+    questions, _ = _questions("orm, lock:redis", "sqlite")
 
     chosen = questions.add_ons(None, "cli")
 
-    assert [choice.spelling for choice in chosen] == ["orm:postgres", "lock:redis"]
+    assert [choice.spelling for choice in chosen] == ["orm:sqlite", "lock:redis"]
 
 
 def test_variants_spelled_out_in_the_answer_are_not_asked_again() -> None:
-    questions, _ = _questions("orm:postgres, scheduler")
+    questions, _ = _questions("orm:sqlite, scheduler")
 
     chosen = questions.add_ons(None, "cli")
 
-    assert [choice.spelling for choice in chosen] == ["orm:postgres", "scheduler"]
+    assert [choice.spelling for choice in chosen] == ["orm:sqlite", "scheduler"]
 
 
 def test_a_wrong_answer_is_reported_and_asked_again() -> None:
@@ -75,7 +75,7 @@ def test_a_wrong_answer_is_reported_and_asked_again() -> None:
 
     chosen = questions.add_ons(None, "cli")
 
-    assert [choice.variants for choice in chosen] == [("sqlite",)]
+    assert [choice.variants for choice in chosen] == [("postgres",)]
     assert "cannot add 'queue'" in output.getvalue()
     assert "oracle is not one of its database drivers" in output.getvalue()
 

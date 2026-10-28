@@ -16,7 +16,7 @@ lines = []
 [notes]
 steps = [
   "Set TELEGRAM_DSN to the bot's DSN: telegram://BOT_ID:SECRET@default?channel=CHAT_ID.",
-  "Add the transport to chatter_transports in config/notifier.py: telegram=env(\"TELEGRAM_DSN\").",
+  "Add the transport to chatter_transports in config/packages/notifier.py: telegram=env(\"TELEGRAM_DSN\").",
 ]
 check = [
   "<script> debug:config notifier — telegram is listed under chatter_transports",

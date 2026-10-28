@@ -192,7 +192,7 @@ headers and body, and every error the provider answers mapped to `TransportError
   install is named.
 - The root `pyproject.toml` workspace source, `CREDITS.md`, the root README table and graph.
 - A recipe: `[env] ACME_DSN = "acme://TOKEN@default?channel=CHANNEL"` and a `notes.steps` line
-  adding `acme=env("ACME_DSN")` to `chatter_transports` in `config/notifier.py` — no `[bundles]`,
+  adding `acme=env("ACME_DSN")` to `chatter_transports` in `config/packages/notifier.py` — no `[bundles]`,
   no `[files]` — advertised as `[project.entry-points."xtr_recipes"] acme =
   "xtr_acme_notifier.recipe"`. The README's *Use in an application* lists Install, Recipe,
   Configure, Environment, Remove and Check, and points to xtr-notifier's for the rest.

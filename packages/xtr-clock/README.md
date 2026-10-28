@@ -362,15 +362,16 @@ Everything adding this package to an application on
   `ClockBundle`, or leaves it out when another bundle requires it (the logging bundle does). There
   is no config file, environment or ignore line to write.
 - **Activate** — usually nothing to do: the logging bundle requires this one. Otherwise
-  `ClockBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported from
+  `ClockBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported from
   `xtr_clock.bundle`.
 - **Brings along** — nothing.
-- **Configure** — optional: with no configuration the clock reports in the machine's zone.
-  `<app>/config/clock.py`, a `@configure` function returning `ClockConfig(timezone=...)`, fixes
-  one — see [Kernel / bundle](#kernel--bundle).
+- **Configure** — optional: with no configuration the clock reports in UTC, whatever the
+  machine's zone. `<app>/config/packages/clock.py`, a `@configure` function returning
+  `ClockConfig(timezone=...)`, names another zone, or `None` to follow the machine's — see
+  [Kernel / bundle](#kernel--bundle).
 - **Environment** — nothing.
 - **Ignore** — nothing.
-- **Remove** — drop the `BUNDLES` entry, if any, delete `<app>/config/clock.py`, then
+- **Remove** — drop the `BUNDLES` entry, if any, delete `<app>/config/packages/clock.py`, then
   `uv remove xtr-clock` — unless xtr-logging is installed, which depends on it.
 - **Check** — `debug:bundles` shows `clock` as `listed` or `required`, and `active`.
 
@@ -378,7 +379,7 @@ Everything adding this package to an application on
 
 With [xtr-dependency-injection](../xtr-dependency-injection) installed beside the package — it is
 not a dependency, and nothing outside `xtr_clock.bundle` needs it — an application lists
-`ClockBundle` in its `app/bundles.py` and configures it with `@configure`; nothing else changes.
+`ClockBundle` in its `app/config/bundles.py` and configures it with `@configure`; nothing else changes.
 The bundle registers a `Clock` under `ClockInterface` and installs it as the clock in force for
 the lifetime of the kernel, so an injected class and a helper reached through
 `xtr_clock.now()` read the same instant.
@@ -388,14 +389,14 @@ uv add xtr-clock xtr-dependency-injection
 ```
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_clock.bundle import ClockBundle
 
 BUNDLES = {ClockBundle: {"all": True}}
 ```
 
 ```python
-# app/config/clock.py
+# app/config/packages/clock.py
 from xtr_dependency_injection import configure
 
 from xtr_clock.bundle import ClockConfig
@@ -403,7 +404,7 @@ from xtr_clock.bundle import ClockConfig
 
 @configure
 def clock() -> ClockConfig:
-    return ClockConfig(timezone="UTC")
+    return ClockConfig(timezone="Europe/Paris")
 ```
 
 ```python
@@ -418,7 +419,7 @@ class TokenIssuer:
 
 | Field | Meaning |
 | --- | --- |
-| `timezone` | The zone `Clock.now()` reports in. `None` follows the machine's own zone |
+| `timezone` | The zone `Clock.now()` reports in: `"UTC"` unless set. `None` follows the machine's own zone |
 
 A zone this system cannot resolve is refused by `ClockConfig` itself, so a typo fails the build
 with an `InvalidTimezoneError` naming it rather than the first reading taken at runtime.

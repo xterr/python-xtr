@@ -1,6 +1,6 @@
 ---
 name: xtr-recipes
-description: How to add, configure and remove xtr packages in an application with the recipes:* commands instead of editing bundles.py, config files, .env and .gitignore by hand. Use when adding or removing an xtr dependency, when a package's use-in-an-application steps need applying, when bundles.py or a config/<name>.py is missing or drifted, when wiring the recipes:sync --check gate into CI, or when shipping a recipe beside a new bundle.
+description: How to add, configure and remove xtr packages in an application with the recipes:* commands instead of editing config/bundles.py, config files, .env and .gitignore by hand. Use when adding or removing an xtr dependency, when a package's use-in-an-application steps need applying, when config/bundles.py or a config/packages/<name>.py is missing or drifted, when wiring the recipes:sync --check gate into CI, or when shipping a recipe beside a new bundle.
 ---
 
 # xtr-recipes
@@ -21,8 +21,9 @@ It is a developer and CI tool, so install it as a dev dependency.
 - Read one recipe in full: `uv run xtr-recipes recipes:show xtr-messenger`.
 - Restore a config file you deleted: `uv run xtr-recipes recipes:install xtr-messenger`.
 - Guard it in CI: `uv run xtr-recipes recipes:sync --check` (exit 1 when anything drifted).
-- A recipe only writes bundles, files, env and ignore lines, and prints notes. It runs no recipe
-  step and no template; the only code it imports is the bundle class a recipe lists, and only from
+- A recipe only writes bundles, files, env and ignore lines, mints keys, and prints notes. It runs
+  no recipe step and no template — a generated secret or a minted key is made by xtr-recipes
+  itself; the only code it imports is the bundle class a recipe lists, and only from
   a module under that package's own import package, to read its requirements. It never edits your
   application code; the notes tell you the steps it cannot take.
 
@@ -70,7 +71,7 @@ them.
 
 ## When a bundle is not listed
 
-A recipe's bundle is left out of `bundles.py` when another listed bundle already requires it, so
+A recipe's bundle is left out of `config/bundles.py` when another listed bundle already requires it, so
 depending on `xtr-clock` while `xtr-logging` is active lists no `ClockBundle` — the lock records it
 `required`. This is recomputed every sync, so removing the requiring bundle lists it again. A
 requirer limited to some environments does not count, so its peers are still listed. A bundle
@@ -93,6 +94,24 @@ Removing a package moves an edited or adopted config file to `<file>.removed`: l
 would still import the removed package and stop the application loading. Delete it, or keep what
 you need from it.
 
+An application laid out before the bundle list moved to `config/bundles.py` and configuration
+modules to `config/packages/` is carried over by the sync: `bundles.py` moves on the next sync, and
+each recipe-written `config/<name>.py` moves as its recipe is next applied (run
+`recipes:install <package>` to move one now). A config file you wrote yourself stays where it is.
+
+## Generated secrets and keys
+
+A recipe may ask for a secret in `.env` (`KEY = "%generate(secret)%"` under `[env]` — 32 random
+bytes as unpadded base64url — or shaped with `bytes=16…1024`, `encoding=base64url|base64|hex` and
+`prefix=…`, as in `"%generate(secret, bytes=64, encoding=hex)%"`) and for a
+private key under the project root (`[keys]`, e.g.
+`"secrets/oauth2.pem" = { algorithm = "RS256", passphrase = "KEY" }`). The sync makes each one
+once: a secret already in `.env` is kept, a key file already there is kept and gets no new pass
+phrase. A minted key is never recorded in the lock and never deleted, so it must be ignored in
+`.gitignore`. A fresh checkout has no key: mint it with the package's own command (the recipe's
+`steps` name it) or run `recipes:install <package>`. These are development values — set
+production's own in its environment.
+
 ## Testing
 
 Run the drift gate in CI; it writes nothing and fails when the lock, bundle list, config files,
@@ -112,7 +131,7 @@ A clean project prints `recipes are in sync` and exits 0.
    `<app>/`.
 3. **Add packages through it** — `uv run xtr-recipes recipes:add "<requirement>"`, then do the
    steps it prints under `steps`, and confirm with `debug:bundles`.
-4. **Commit** `xtr.lock` alongside `bundles.py` and the generated config files.
+4. **Commit** `xtr.lock` alongside `config/bundles.py` and the generated config files.
 5. **Guard** — add `uv run xtr-recipes recipes:sync --check` to CI.
 
 There is no bundle to activate: `xtr-recipes` is a standalone console application, not wired into
@@ -127,7 +146,7 @@ Every error derives from `RecipesError` and names the package and the key or fil
   from.
 - `InvalidManifestError` — a recipe's `manifest.toml` has an unknown table or key, a malformed
   `"<module>:<Class>"` target, a value of the wrong type, or a template with an unknown placeholder.
-- `BundlesNotEditableError` — `bundles.py` was not written in the form the tool can read back; it
+- `BundlesNotEditableError` — `config/bundles.py` was not written in the form the tool can read back; it
   prints the entries to add by hand.
 - `RecipeNotInstalledError` — the named package is not one a command can work on. `recipes:install`
   raises it for a package that is not a direct dependency or ships no recipe; `recipes:show` only
@@ -141,9 +160,9 @@ Every error derives from `RecipesError` and names the package and the key or fil
 
 ## Do not
 
-- Do not hand-edit `bundles.py` into a shape the tool cannot read: keep `BUNDLES` a literal mapping
+- Do not hand-edit `config/bundles.py` into a shape the tool cannot read: keep `BUNDLES` a literal mapping
   of imported bundle classes to literal flag mappings.
-- Do not hand-edit the `# >>> xtr-<name>` … `# <<< xtr-<name>` blocks in `.env` or `.gitignore`;
+- Do not hand-edit the `###> xtr-<name> ###` … `###< xtr-<name> ###` blocks in `.env` or `.gitignore`;
   lines outside them are yours and are left alone.
 - Do not expect a recipe to edit application code — a `setup(app, kernel)` call, a middleware list,
   a firewall's authenticators are printed as `steps` for you to make.

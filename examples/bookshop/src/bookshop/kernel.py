@@ -53,7 +53,7 @@ kernel: Final = Kernel(
     "bookshop",
     # env=None      -> the APP_ENV variable, else "dev".
     # debug=None    -> the APP_DEBUG variable, else "not prod".
-    # bundles=None  -> bookshop.bundles.BUNDLES.
+    # bundles=None  -> bookshop.config.bundles.BUNDLES.
     # environ=None  -> read APP_ENV, APP_DEBUG and every env() from os.environ.
     name="bookshop",
     # The only environments this application accepts: anything else is an

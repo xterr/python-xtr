@@ -9,16 +9,17 @@
 # Destination under the application package = template under this recipe.
 # Needed to receive anything: with no routing the endpoint knows no type, and
 # every webhook is answered 404.
-"config/webhook.py" = "files/config/webhook.py.tmpl"
+"config/packages/webhook.py" = "files/config/webhook.py.tmpl"
 # What registers the endpoint — routing is never imported automatically:
 # POST /webhook/{type}, with the line that moves it under a prefix beside it.
 "config/routes/webhook.py" = "files/config/routes/webhook.py.tmpl"
 
 [env]
-# The secret the written routing verifies its one example type against. No
-# default to offer — a secret is the sender's — so it is written commented out
-# and stays unset until the sender names one.
-WEBHOOK_SECRET = ""
+# The secret the written routing verifies its one example type against, made up
+# once for this project: the endpoint verifies with it from the first sync, and
+# a sender that lets the subscriber choose is given it. A sender that issues its
+# own replaces it; a value already in .env is kept on every later sync.
+WEBHOOK_SECRET = "%generate(secret)%"
 
 [gitignore]
 # Nothing of its own: a webhook is read and handed on, never written to disk.
@@ -27,7 +28,8 @@ lines = []
 [notes]
 steps = [
   "Call setup(app, kernel) where the application is built: the written config/routes/webhook.py registers the endpoint, POST /webhook/{type} — delete the file and it is not served.",
-  "Name each sender's type in config/webhook.py and give its subscribers the URL that type is served at.",
+  "Name each sender's type in config/packages/webhook.py and give its subscribers the URL that type is served at.",
+  "WEBHOOK_SECRET was generated in .env for the example type: give it to a sender that lets you choose its secret, or replace it with the one a sender issues. In production, set it to the deployment's own rather than the development value in .env.",
 ]
 check = [
   "<script> debug:bundles — webhook and remote_event are listed and active",

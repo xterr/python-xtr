@@ -35,6 +35,7 @@ from .exception import (
     UnreadableFileError,
     UnsafePathError,
 )
+from .key_pair_config import KeyPairConfig
 from .marked_block_editor import MarkedBlockEditor
 from .notes_config import NotesConfig
 from .operation import OperationInterface, Plan
@@ -47,6 +48,7 @@ from .recipe_lock import BundleState, LockedFile, LockEntry, RecipeLock
 from .recipe_planner import RecipePlanner
 from .recipe_source_interface import RecipeSourceInterface
 from .recipe_survey import RecipeSurvey
+from .secret_config import SecretConfig
 from .sync_draft import SyncDraft
 from .sync_options import SyncOptions
 from .sync_selection import SyncSelection
@@ -69,6 +71,7 @@ __all__ = [
     "BundlesNotEditableError",
     "EntryPointRecipeSource",
     "InvalidManifestError",
+    "KeyPairConfig",
     "LockEntry",
     "LockedFile",
     "MarkedBlockEditor",
@@ -89,6 +92,7 @@ __all__ = [
     "RecipeSourceInterface",
     "RecipeSurvey",
     "RecipesError",
+    "SecretConfig",
     "SyncDraft",
     "SyncOptions",
     "SyncSelection",

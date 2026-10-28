@@ -3,11 +3,13 @@
 ``secret_key`` takes the key text or the path of a file holding it — the bundle's key loader
 reads the file itself — so what ``JWT_SECRET_KEY_PATH`` carries is a path, and no key material is
 written into the repository. ``resolve:`` expands the ``%kernel.project_dir%`` in it.
+``JWT_PASSPHRASE`` is what that key is encrypted with, or nothing for a key that is not.
 
-The application builds and boots before the file exists, so its console can mint one:
-``jwt:generate-keypair --kid jwt --output-dir secrets``. Signing or verifying a token without it
+The recipe that wrote this file minted the key and its pass phrase for this checkout; another
+checkout mints its own with ``uv run xtr-recipes recipes:install xtr-security-jwt``. The
+application builds and boots before the file exists. Signing or verifying a token without it
 raises ``MissingKeyError``; ``jwt:check-config`` says the same before a request does. A
-deployment mounts its own key and points ``JWT_SECRET_KEY_PATH`` at it.
+deployment mounts its own key and points ``JWT_SECRET_KEY_PATH`` and ``JWT_PASSPHRASE`` at it.
 
 Everything else keeps its default: the kernel's name as the issuer, ``RS256``, an hour's
 lifetime, the user named by the ``username`` claim, a token read from the authorization header.
@@ -25,5 +27,8 @@ __all__ = ["jwt"]
 
 @configure
 def jwt() -> JwtConfig:
-    """Sign with the key ``JWT_SECRET_KEY_PATH`` points at."""
-    return JwtConfig(secret_key=env("resolve:JWT_SECRET_KEY_PATH"))
+    """Sign with the key ``JWT_SECRET_KEY_PATH`` points at, opened with ``JWT_PASSPHRASE``."""
+    return JwtConfig(
+        secret_key=env("resolve:JWT_SECRET_KEY_PATH"),
+        pass_phrase=env("JWT_PASSPHRASE", default=""),
+    )

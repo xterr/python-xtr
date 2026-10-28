@@ -37,7 +37,7 @@ def test_it_tells_the_application_to_add_the_transport() -> None:
     steps = _manifest().notes.steps
 
     assert any('slack=env("SLACK_DSN")' in step for step in steps)
-    assert any("config/notifier.py" in step for step in steps)
+    assert any("config/packages/notifier.py" in step for step in steps)
 
 
 def test_the_readme_names_what_the_recipe_writes() -> None:

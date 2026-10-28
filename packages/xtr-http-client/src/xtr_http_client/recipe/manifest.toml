@@ -5,9 +5,11 @@
 # "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
 "xtr_http_client.bundle:HttpClientBundle" = { all = true }
 
-# No [files]: configuring is optional. With none there is one client sending
-# requests as they are given; an application naming the services it calls
-# writes config/http_client.py itself, which is what [notes] asks for.
+[files]
+# Destination under the application package = template under this recipe.
+# The bundle's own defaults written out — one client sending requests as they
+# are given — as the place the services it calls are named, as [notes] asks.
+"config/packages/http_client.py" = "files/config/http_client.py.tmpl"
 
 # No [env]: nothing is required. A credential an application gives as env(...)
 # is read when the client needing it is built.
@@ -18,6 +20,6 @@ lines = []
 
 [notes]
 steps = [
-  "Name the services the application calls in config/http_client.py — a scoped client per base URI, with its headers and credentials — when one client with no defaults is not enough.",
+  "Name the services the application calls in config/packages/http_client.py — a scoped client per base URI, with its headers and credentials — when one client with no defaults is not enough.",
 ]
 check = ["<script> debug:bundles — http_client is listed and active"]

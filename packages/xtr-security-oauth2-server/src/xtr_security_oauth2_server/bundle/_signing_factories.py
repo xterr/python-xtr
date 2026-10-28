@@ -9,6 +9,13 @@ its own key. Nothing here is ever aliased to the unqualified names.
 The key itself is read here rather than when the container is built: an
 application with no key yet still gets a container, and so a console that can
 mint one. Asking for anything that signs is what reports the key is missing.
+
+The loader is the self-issued-token package's, and so is the error it raises
+for a key file that is not there — worded for that package's own settings and
+its own command. The loader is therefore asked for its keys as it is built, and
+a missing file is reported in this server's terms: the setting naming it, the
+file that setting belongs in, the command that mints it. The key-set endpoint,
+which reads the key again on every request, reports it the same way.
 """
 
 from __future__ import annotations
@@ -17,11 +24,13 @@ from typing import TYPE_CHECKING, Annotated, Final
 
 from xtr_clock import ClockInterface
 from xtr_dependency_injection import Target, named_factory
+from xtr_security_jwt.exception import MissingKeyError
 from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
 from xtr_security_jwt.services.key_loader import RawKeyLoader, signing_key_id
 from xtr_security_jwt.services.key_loader.key_loader_interface import KeyLoaderInterface
 from xtr_security_oauth2_server_core.entities.access_token_signer import AccessTokenSigner
 
+from xtr_security_oauth2_server._missing_key_file import MINT_COMMAND, missing_key_file
 from xtr_security_oauth2_server._service_qualifier import SERVICE_QUALIFIER
 
 from ._required_settings import supplied
@@ -62,6 +71,9 @@ def key_loader_factory(
     named one, which is what a resource server running apart from the
     authorization server does: it holds the public half and never the private
     one.
+
+    The factory refuses, with an :class:`InvalidConfigurationError`, a private
+    key left unconfigured and a key setting naming a file that does not exist.
     """
     signing_key = authorization_server.private_key
     passphrase = authorization_server.private_key_passphrase
@@ -69,19 +81,50 @@ def key_loader_factory(
     additional = authorization_server.additional_public_keys
 
     def oauth2_server_key_loader() -> RawKeyLoader:
-        return RawKeyLoader(
+        loader = RawKeyLoader(
             supplied(
                 signing_key,
                 "authorization_server.private_key",
                 "this server has nothing to sign an access token with",
-                "Mint one with 'oauth2-server:generate-keypair'.",
+                f"Mint one with '{MINT_COMMAND}'.",
             ),
             public_key,
             passphrase or None,
             additional,
         )
+        _refuse_missing_key_files(loader)
+
+        return loader
 
     return named_factory(oauth2_server_key_loader, "oauth2_server_key_loader")
+
+
+def _refuse_missing_key_files(loader: RawKeyLoader) -> None:
+    """Refuse a key setting that names a file which is not there.
+
+    Raises:
+        InvalidConfigurationError: Naming the setting at fault, where it is
+            written, and the command that mints the key.
+    """
+    checks = (
+        (
+            loader.get_signing_key,
+            "authorization_server.private_key",
+            "this server has nothing to sign an access token with",
+            " — the written configuration reads it from OAUTH2_SERVER_PRIVATE_KEY_PATH",
+        ),
+        (
+            loader.get_public_key,
+            "resource_server.public_key",
+            "this server has nothing to verify an access token with",
+            "",
+        ),
+    )
+    for read, setting, because, source in checks:
+        try:
+            _ = read()
+        except MissingKeyError as missing:
+            raise missing_key_file(missing, setting, because, source) from missing
 
 
 def jws_provider_factory(

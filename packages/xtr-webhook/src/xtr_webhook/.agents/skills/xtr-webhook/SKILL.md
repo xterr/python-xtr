@@ -46,7 +46,7 @@ setup(app, Kernel("app"))
 ```
 
 ```python
-# app/config/webhook.py
+# app/config/packages/webhook.py
 from xtr_dependency_injection import configure, env
 
 from xtr_webhook.bundle import RouteConfig, WebhookConfig
@@ -283,25 +283,26 @@ async def test_the_parser_reads_every_recorded_payload(case: ParserCase) -> None
 ## Use in an application
 
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
-`WebhookBundle`, writes a starting `<app>/config/webhook.py` with one route,
-`<app>/config/routes/webhook.py`, and `WEBHOOK_SECRET` (commented out) in `.env`. It prints the
+`WebhookBundle`, writes a starting `<app>/config/packages/webhook.py` with one route,
+`<app>/config/routes/webhook.py`, and a generated `WEBHOOK_SECRET` in `.env`. It prints the
 steps it cannot make — calling `setup` and naming your own types.
 
 1. **Install** — `uv add xtr-webhook`; install xtr-http-client beside it to send. The endpoint
    and `WebhookBundle` are the package's own, and the container the bundle runs on arrives
    through xtr-http-kernel, which serves the endpoint. xtr-http-client sends, bringing its own
    bundle.
-2. **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`
+2. **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_webhook.bundle import WebhookBundle`).
 3. **Brings along** — the remote-event bundle, the messenger bundle through it, and the HTTP
    kernel's bundle, always; the HTTP client bundle when xtr-http-client is installed.
 4. **Configure** — needed to receive anything: with no routing the endpoint knows no type and
-   answers every webhook `404`. `<app>/config/webhook.py`, a `@configure` function returning
+   answers every webhook `404`. `<app>/config/packages/webhook.py`, a `@configure` function returning
    `WebhookConfig` — `routing`, `signature_format`, `timestamp_tolerance`, `signing_algorithm`,
    the four header names, `http_client`, `no_private_network`. A delivery's timeout is set on
-   the client, in `<app>/config/http_client.py`.
+   the client, in `<app>/config/packages/http_client.py`.
 5. **Environment** — `WEBHOOK_SECRET`, the secret the written route verifies against, read when
-   the endpoint is built; one per sender in practice. **Ignore** — nothing.
+   the endpoint is built; one per sender in practice. The recipe generates a development one;
+   replace it with a sender's own when the sender issues it. **Ignore** — nothing.
 6. **Load** — call `setup(app, kernel)`; the written `<app>/config/routes/webhook.py` registers
    `POST /webhook/{type}` — routing is never imported automatically, and deleting the file
    stops the endpoint being served (`app.include_router(resources["webhook"], prefix="/hooks")`
@@ -311,7 +312,7 @@ steps it cannot make — calling `setup` and naming your own types.
    `Annotated[RequestParserInterface, Target("webhook")]`.
 8. **Check** — `debug:bundles` shows `webhook` and `remote_event` as `listed` and `active`;
    `debug:config webhook` shows the resolved routing, header names and signature format.
-9. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/webhook.py` and
+9. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/webhook.py` and
    `<app>/config/routes/webhook.py`, then `uv remove xtr-webhook`.
 
 ## Errors

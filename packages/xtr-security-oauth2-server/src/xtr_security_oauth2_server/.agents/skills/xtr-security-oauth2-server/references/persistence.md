@@ -24,7 +24,7 @@ only. No credentials revoker is registered.
 ## In a database
 
 ```python
-# app/config/orm.py
+# app/config/packages/orm.py
 from xtr_dependency_injection import configure, env
 from xtr_orm.bundle import ConnectionConfig, OrmConfig
 

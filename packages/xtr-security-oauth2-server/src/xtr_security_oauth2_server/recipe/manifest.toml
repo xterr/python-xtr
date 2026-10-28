@@ -13,20 +13,31 @@
 # The bundle builds and boots without it, but issues nothing until a
 # deployment says who this server is, what it signs and seals with, which
 # scopes it knows and where its clients live: this module says all four.
-"config/oauth2_server.py" = "files/config/oauth2_server.py.tmpl"
+"config/packages/oauth2_server.py" = "files/config/oauth2_server.py.tmpl"
 # What registers the endpoints — routing is never imported automatically: every
 # one at its default path, with the lines that move them or leave some out
 # written beside it.
 "config/routes/oauth2_server.py" = "files/config/routes/oauth2_server.py.tmpl"
 
 [env]
-# The file the written configuration reads the signing key from. A deployment
-# mounts its own key and points this at it; a key is never minted for it.
+# The file the written configuration reads the signing key from: the key the
+# [keys] table below mints, at the same path. A deployment mounts its own key
+# and points this at it.
 OAUTH2_SERVER_PRIVATE_KEY_PATH = "%kernel.project_dir%/secrets/oauth2.pem"
-# No default, so the variable is written commented out and stays unset: this
-# carries the base64url of 32 random bytes, which only the deployment can
-# choose. Until it is set, a request reports it by name.
-OAUTH2_SERVER_ENCRYPTION_KEY = ""
+# What the minted key is encrypted with, made up once for this project. Left
+# with no default when a key is already in place, since a fresh secret would not
+# open it.
+OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE = "%generate(secret)%"
+# The base64url of 32 random bytes, which is what encryption_key_type="key"
+# reads; made up once for this project, and kept on every later sync.
+OAUTH2_SERVER_ENCRYPTION_KEY = "%generate(secret, bytes=32, encoding=base64url)%"
+
+[keys]
+# Minted under the project root when no file is there yet, never replaced, and
+# never deleted with the package — nor minted when OAUTH2_SERVER_PRIVATE_KEY_PATH
+# already points at a key of the project's own: the signing key of this
+# development checkout.
+"secrets/oauth2.pem" = { algorithm = "RS256", passphrase = "OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE", path_env = "OAUTH2_SERVER_PRIVATE_KEY_PATH" }
 
 [gitignore]
 # A private key never enters the repository, wherever the key pair is written —
@@ -36,11 +47,10 @@ lines = ["/secrets/*.pem"]
 
 [notes]
 steps = [
-  "Mint the signing key pair where OAUTH2_SERVER_PRIVATE_KEY_PATH points: '<script> oauth2-server:generate-keypair' writes it there, at the configured algorithm, and refuses to replace a key already in place unless '--overwrite' says so. Mount the deployment's own key in production; a key is never minted on its behalf.",
-  "Set OAUTH2_SERVER_ENCRYPTION_KEY to the base64url of 32 random bytes, which is what the written configuration's encryption_key_type='key' reads: python -c \"import base64, secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip('='))\".",
-  "Change the issuer in config/oauth2_server.py to the origin clients reach this server at: every token claims it, and the description published under it names the endpoints.",
+  "The signing key was minted at secrets/oauth2.pem, encrypted with OAUTH2_SERVER_PRIVATE_KEY_PASSPHRASE, and OAUTH2_SERVER_ENCRYPTION_KEY was generated in .env. The key is ignored, so another checkout mints its own with '<script> oauth2-server:generate-keypair'. In production, set the three variables to the deployment's own key, pass phrase and encryption key rather than the development values in .env.",
+  "Change the issuer in config/packages/oauth2_server.py to the origin clients reach this server at: every token claims it, and the description published under it names the endpoints.",
   "Build the kernel with concurrent_scoped_access=True and call setup(app, kernel), as the security family requires: the written config/routes/oauth2_server.py registers this server's endpoints — move them under a prefix or leave out the ones this deployment turned off there, and delete the file and none is served.",
-  "Write the three firewalls in config/security.py, and they run in front of the endpoints, which carry no firewall dependency of their own: one claiming ^/authorize that signs the end user in — a JwtAuthenticatorConfig() reading a cookie, say — so the consent question has somebody to ask, since without it /authorize answers access_denied; none claiming /token, /revoke, /introspect, /device-code or the .well-known paths, because authenticating the client there is this server's own job; and one in front of the API listing OAuth2AuthenticatorConfig(), so the tokens this server issues are accepted there.",
+  "Write the three firewalls in config/packages/security.py, and they run in front of the endpoints, which carry no firewall dependency of their own: one claiming ^/authorize that signs the end user in — a JwtAuthenticatorConfig() reading a cookie, say — so the consent question has somebody to ask, since without it /authorize answers access_denied; none claiming /token, /revoke, /introspect, /device-code or the .well-known paths, because authenticating the client there is this server's own job; and one in front of the API listing OAuth2AuthenticatorConfig(), so the tokens this server issues are accepted there.",
   "Answer the consent question: a listener on OAuth2Events.AUTHORIZATION_REQUEST_RESOLVE either resolves the request or answers the browser with a page of its own, and binds the form it shows to the person it is shown to.",
   "Register a client before any flow can run: '<script> oauth2-server:create-client \"A client\" my-client --grant-type client_credentials', which prints the plaintext secret once and stores only its hash. 'oauth2-server:list-clients', 'update-client' and 'delete-client' administer them afterwards. The in-memory store the written configuration starts with forgets a client when the command exits, so register through ClientManagerInterface from the application itself until the store is a database's.",
   "Run '<script> oauth2-server:clear-expired-tokens' on a schedule, so the credentials this server issues do not outstay their lifetime in the store.",

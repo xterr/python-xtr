@@ -22,7 +22,8 @@ _SHIPPED = (
         "xtr-orm",
         (),
         ("sqlite", "postgres", "mysql"),
-        ("sqlite",),
+        # The recipe's DATABASE_URL is a PostgreSQL one, so its driver is the default.
+        ("postgres",),
         "database drivers",
     ),
     AddOn(
@@ -31,7 +32,8 @@ _SHIPPED = (
         "xtr-messenger",
         (),
         ("amqp", "pydantic"),
-        (),
+        # The recipe's MESSENGER_DSN is a RabbitMQ one, so its transport is the default.
+        ("amqp",),
         "transports and serializers",
     ),
     AddOn(
@@ -55,15 +57,9 @@ _SHIPPED = (
         "backends",
     ),
     AddOn("lock", "Locks around shared resources.", "xtr-lock", (), ("redis",), (), "stores"),
-    AddOn(
-        "rate-limiter",
-        "Limits on how often anything may happen.",
-        "xtr-rate-limiter",
-        (),
-        ("redis",),
-        (),
-        "stores",
-    ),
+    # No store is asked for: the recipe writes no configuration that would use
+    # one, so a project picks its store where it names its limiters.
+    AddOn("rate-limiter", "Limits on how often anything may happen.", "xtr-rate-limiter"),
     AddOn(
         "storage",
         "Files on local disk, in memory or in object stores.",

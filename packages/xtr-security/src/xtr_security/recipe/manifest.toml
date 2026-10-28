@@ -7,10 +7,12 @@
 # dispatch through the one and answer on the other's exception event.
 "xtr_security.bundle:SecurityBundle" = { all = true }
 
-# No [files]: the zero-config path gives no firewalls and the affirmative
-# strategy, and touches no I/O until a request arrives. An application naming
-# its firewalls writes config/security.py itself, which is what [notes] asks
-# for.
+[files]
+# Destination under the application package = template under this recipe.
+# The bundle's own defaults written out — no firewall, the affirmative strategy,
+# no I/O until a request arrives — as the place the firewalls are named, as
+# [notes] asks.
+"config/packages/security.py" = "files/config/security.py.tmpl"
 
 # No [env]: an application reads its own secrets through env(...) in its
 # configuration. Nothing to ignore.
@@ -22,7 +24,7 @@ lines = []
 steps = [
   "Build the kernel with concurrent_scoped_access=True, so concurrent requests keep their own token storage.",
   "Call setup(app, kernel) where the application is built.",
-  "Name the firewalls, their authenticators and their access rules in config/security.py: with no configuration nothing is protected.",
+  "Name the firewalls, their authenticators and their access rules in config/packages/security.py: with no configuration nothing is protected.",
 ]
 check = [
   "<script> debug:bundles — security is listed and active, event_dispatcher and http_kernel required",

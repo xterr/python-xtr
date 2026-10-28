@@ -7,7 +7,10 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_security_jwt.exception import MissingKeyError
 from xtr_security_jwt.services.key_loader import public_key_set
+
+from xtr_security_oauth2_server._missing_key_file import missing_key_file
 
 if TYPE_CHECKING:
     from xtr_http_kernel.bridge import Response
@@ -49,9 +52,21 @@ class JwksController:
         request: ServerRequestInterface,
         response: Response,
     ) -> Response:
-        """Answer with the key set this server's tokens are verified against."""
+        """Answer with the key set this server's tokens are verified against.
+
+        Raises:
+            InvalidConfigurationError: When the signing key file is not there —
+                taken away since the server started, since starting reads it.
+        """
         del request
-        published = public_key_set(self._key_loader, self._signature_algorithm)
+        try:
+            published = public_key_set(self._key_loader, self._signature_algorithm)
+        except MissingKeyError as missing:
+            raise missing_key_file(
+                missing,
+                "authorization_server.private_key",
+                "this server has no key set to publish",
+            ) from missing
         answer = response.with_status(HTTPStatus.OK).with_header(
             "content-type",
             "application/jwk-set+json",

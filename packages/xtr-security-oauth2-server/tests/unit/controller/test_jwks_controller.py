@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Final, cast
+from typing import TYPE_CHECKING, Final, cast
 
 import pytest
 from xtr_http_kernel.bridge import Response
+from xtr_security_jwt.services.key_loader import RawKeyLoader
 
 from tests.support.messages import document_of, server_request
 from tests.support.signing import ALGORITHM, KEY_LOADER
 from xtr_security_oauth2_server.controller.jwks_controller import JwksController
+from xtr_security_oauth2_server.exception import InvalidConfigurationError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 pytestmark = pytest.mark.anyio
 
@@ -53,3 +58,22 @@ async def test_every_published_key_carries_the_id_a_token_names_it_by() -> None:
 
 def test_it_names_the_algorithm_and_never_the_keys() -> None:
     assert repr(_controller()) == f"JwksController(signature_algorithm={ALGORITHM!r})"
+
+
+async def test_a_key_file_gone_since_start_is_reported_in_this_servers_terms(
+    tmp_path: Path,
+) -> None:
+    missing = str(tmp_path / "oauth2.pem")
+    controller = JwksController(RawKeyLoader(missing, None), ALGORITHM)
+
+    with pytest.raises(InvalidConfigurationError) as refused:
+        _ = await controller.index_action(
+            server_request("GET", "/.well-known/jwks.json"),
+            Response(200),
+        )
+
+    message = str(refused.value)
+    assert missing in message
+    assert "authorization_server.private_key" in message
+    assert "oauth2-server:generate-keypair" in message
+    assert "jwt" not in message.lower()

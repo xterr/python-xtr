@@ -1,0 +1,38 @@
+"""The storages this application keeps files in, each by name.
+
+One storage is named here, ``default``, on local files under the project's
+``var/storage`` — what the application has with no configuration at all, written
+out so the directory is somewhere to change. It is the storage injected with no
+qualifier; every other storage is asked for by its name.
+
+Add a storage per place files live: another directory, an S3 or GCS bucket, any
+backend fsspec reaches. Wrap an adapter in a ``StorageDefinition`` to root it
+under a prefix, make it read-only, or give it a default visibility and public
+url. Credentials and directories given as ``env(...)`` must be set when the
+application boots, because booting checks every storage.
+
+```python
+"uploads": StorageDefinition(
+    adapter=S3AdapterConfig(bucket=env("UPLOADS_BUCKET"), region=env("AWS_REGION")),
+    prefix="avatars",
+    visibility="public",
+),
+```
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure
+from xtr_storage.bundle import LocalAdapterConfig, StorageConfig
+
+__all__ = ["storage"]
+
+
+@configure
+def storage() -> StorageConfig:
+    """The ``default`` storage, on local files under ``var/storage``."""
+    return StorageConfig(
+        storages={
+            "default": LocalAdapterConfig(directory="%kernel.project_dir%/var/storage"),
+        },
+    )

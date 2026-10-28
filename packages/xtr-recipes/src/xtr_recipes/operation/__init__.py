@@ -14,6 +14,7 @@ from .bundle_note import BundleNote
 from .delete_file import DeleteFile
 from .delete_project_file import DeleteProjectFile
 from .keep_file import KeepFile
+from .mint_key import MintKey
 from .move_file import MoveFile
 from .notes import Notes
 from .operation_interface import OperationInterface
@@ -31,6 +32,7 @@ __all__ = [
     "DeleteFile",
     "DeleteProjectFile",
     "KeepFile",
+    "MintKey",
     "MoveFile",
     "Notes",
     "OperationInterface",

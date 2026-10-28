@@ -14,6 +14,7 @@ from xtr_recipes.operation.notes import Notes
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from xtr_recipes.key_pair_config import KeyPairConfig
     from xtr_recipes.recipe_lock import LockEntry
     from xtr_recipes.recipe_survey import RecipeSurvey
 
@@ -114,6 +115,7 @@ def _detail(io: ConsoleStyle, survey: RecipeSurvey, package: str) -> None:
             *_group("bundles", [_bundle(*entry) for entry in config.bundles.items()]),
             *_group("files", [f"{into} {_ARROW} {out}" for into, out in config.files.items()]),
             *_group("env", list(config.env)),
+            *_group("keys", [_key(*entry) for entry in config.keys.items()]),
             *_group("gitignore", config.gitignore),
             *Notes(steps=notes.steps, check=notes.check, run=notes.run).render(),
         ),
@@ -162,3 +164,9 @@ def _bundle(target: str, flags: Mapping[str, bool]) -> str:
     """Return one bundle entry as the application's bundle list spells it."""
     rendered = ", ".join(f"{name}={str(active).lower()}" for name, active in flags.items())
     return f"{target} {rendered}" if rendered else target
+
+
+def _key(destination: str, key: KeyPairConfig) -> str:
+    """Return one key entry: where it is minted, for what, and what seals it."""
+    sealed = f", encrypted with {key.passphrase}" if key.passphrase is not None else ""
+    return f"{destination} ({key.algorithm}{sealed})"

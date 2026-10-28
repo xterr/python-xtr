@@ -617,7 +617,7 @@ removing it undoes.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does what *Activate*, *Configure*, *Environment*
   and *Ignore* list, from the recipe shipped beside the bundle; keep `recipe/` true when those
   bullets change (see [xtr-recipes](../xtr-recipes)).
-- **Activate** — `<Name>Bundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+- **Activate** — `<Name>Bundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_<name>.bundle` — or "nothing to do" when another bundle requires it.
 - **Brings along** — the bundles its `@required_bundle` pulls in, and when.
 - **Configure** — what the zero-config path gives; then the `<app>/config/<name>.py`

@@ -59,7 +59,7 @@ async def test_signing_without_a_key_raises_the_missing_key_naming_what_to_set()
     async with await _unconfigured().boot() as booted:
         manager = await booted.container.get(JwtTokenManagerInterface)
 
-        with pytest.raises(MissingKeyError, match=r"config/jwt\.py.*jwt:generate-keypair"):
+        with pytest.raises(MissingKeyError, match=r"config/packages/jwt\.py.*jwt:generate-keypair"):
             _ = await manager.create(InMemoryUser("ada", roles=["ROLE_USER"]))
 
 

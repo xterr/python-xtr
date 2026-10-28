@@ -70,7 +70,7 @@ _CONFIG_INIT_BODY = (
     '"""Configuration modules."""\n\nfrom __future__ import annotations\n\n'
     "__all__: list[str] = []\n"
 )
-_BUNDLES = "src/app/bundles.py"
+_BUNDLES = "src/app/config/bundles.py"
 _DEFAULT_DOCSTRING = "The root bundles, each mapped to the environments it is active in."
 _MESSENGER_BUNDLES = (
     f'"""{_DEFAULT_DOCSTRING}"""\n'
@@ -247,7 +247,7 @@ def test_applying_writes_the_env_block_with_a_commented_default(tmp_path: Path) 
     _ = _configured(tmp_path)
 
     assert _read(tmp_path, ".env") == (
-        f"# >>> {_MESSENGER}\n# MESSENGER_DSN=\n# <<< {_MESSENGER}\n"
+        f"###> {_MESSENGER} ###\n# MESSENGER_DSN=\n###< {_MESSENGER} ###\n"
     )
 
 
@@ -255,7 +255,7 @@ def test_applying_writes_the_gitignore_block(tmp_path: Path) -> None:
     _ = _configured(tmp_path)
 
     assert _read(tmp_path, ".gitignore") == (
-        f"# >>> {_MESSENGER}\n/var/messenger\n# <<< {_MESSENGER}\n"
+        f"###> {_MESSENGER} ###\n/var/messenger\n###< {_MESSENGER} ###\n"
     )
 
 
@@ -263,6 +263,33 @@ def test_applying_writes_the_bundle_list(tmp_path: Path) -> None:
     _ = _configured(tmp_path)
 
     assert _read(tmp_path, _BUNDLES) == _MESSENGER_BUNDLES
+
+
+def test_a_bundle_list_where_an_earlier_layout_kept_it_is_moved(tmp_path: Path) -> None:
+    project = _messenger_project(tmp_path)
+    earlier = tmp_path / "src" / "app" / "bundles.py"
+    _ = earlier.write_text(_MESSENGER_BUNDLES, encoding="utf-8")
+    synchronizer = _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST})
+
+    synchronizer.apply(synchronizer.plan())
+
+    assert not earlier.exists()
+    assert _read(tmp_path, _BUNDLES) == _MESSENGER_BUNDLES
+
+
+def test_a_moved_bundle_list_keeps_the_entries_it_had(tmp_path: Path) -> None:
+    project = _bare_project(tmp_path)
+    earlier = tmp_path / "src" / "app" / "bundles.py"
+    _ = earlier.write_text(_MESSENGER_BUNDLES, encoding="utf-8")
+    synchronizer = _synchronizer(project, {})
+
+    plan = synchronizer.plan()
+    synchronizer.apply(plan)
+
+    assert f"write {_BUNDLES}" in plan.render()
+    assert "delete src/app/bundles.py" in " ".join(plan.render())
+    assert "MessengerBundle" in _read(tmp_path, _BUNDLES)
+    assert (tmp_path / "src" / "app" / "config" / "__init__.py").is_file()
 
 
 def test_applying_records_what_it_did_in_the_lock(tmp_path: Path) -> None:
@@ -360,7 +387,9 @@ def test_a_changed_recipe_rewrites_a_block_whose_lines_moved(tmp_path: Path) -> 
 
     second.apply(second.plan())
 
-    assert _read(tmp_path, ".gitignore") == f"# >>> {_MESSENGER}\n/var/queue\n# <<< {_MESSENGER}\n"
+    assert _read(tmp_path, ".gitignore") == (
+        f"###> {_MESSENGER} ###\n/var/queue\n###< {_MESSENGER} ###\n"
+    )
     assert _entry(tmp_path, _MESSENGER).gitignore == ("/var/queue",)
 
 
@@ -616,6 +645,7 @@ def test_surveying_writes_nothing(tmp_path: Path) -> None:
 
 def test_a_bundle_list_it_cannot_rewrite_stops_the_sync(tmp_path: Path) -> None:
     project = _messenger_project(tmp_path)
+    (tmp_path / _BUNDLES).parent.mkdir(parents=True, exist_ok=True)
     _ = (tmp_path / _BUNDLES).write_text("BUNDLES = {**other}\n", encoding="utf-8")
     before = _snapshot(tmp_path)
     synchronizer = _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST})
@@ -647,7 +677,9 @@ def test_it_syncs_an_application_laid_out_at_the_project_root(tmp_path: Path) ->
     synchronizer.apply(synchronizer.plan())
 
     assert _read(tmp_path, "app/config/messenger.py") == _RENDERED
-    assert "from xtr_messenger.bundle import MessengerBundle" in _read(tmp_path, "app/bundles.py")
+    assert "from xtr_messenger.bundle import MessengerBundle" in _read(
+        tmp_path, "app/config/bundles.py"
+    )
 
 
 def test_a_bundle_of_the_applications_own_packages_is_imported_last(tmp_path: Path) -> None:
@@ -689,6 +721,7 @@ def test_a_bundle_required_only_by_a_bundle_limited_to_some_environments_is_list
     bundles = tmp_path / _BUNDLES
     dev_only = 'BUNDLES = {DevToolsBundle: {"dev": True}}\n'
     source = f"from tools.bundle import DevToolsBundle\n\n{dev_only}"
+    bundles.parent.mkdir(parents=True, exist_ok=True)
     _ = bundles.write_text(source, encoding="utf-8")
     known = {**_KNOWN, "tools.bundle:DevToolsBundle": DevToolsBundle}
     synchronizer = _synchronizer(project, {_CLOCK: _CLOCK_MANIFEST}, known=known)

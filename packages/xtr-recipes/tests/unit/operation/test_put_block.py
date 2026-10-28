@@ -9,9 +9,9 @@ if TYPE_CHECKING:
 
 _PACKAGE = "xtr-messenger"
 _BLOCK = """\
-# >>> xtr-messenger
+###> xtr-messenger ###
 # MESSENGER_DSN=
-# <<< xtr-messenger
+###< xtr-messenger ###
 """
 
 

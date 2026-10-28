@@ -16,7 +16,9 @@ def test_with_no_key_configured_it_says_where_to_set_one_and_how_to_mint_it() ->
     error = MissingKeyError()
 
     assert error.location is None
-    assert str(error).startswith("No JWT key is configured: set secret_key in <app>/config/jwt.py")
+    assert str(error).startswith(
+        "No JWT key is configured: set secret_key in <app>/config/packages/jwt.py"
+    )
     assert "jwt:generate-keypair --output-dir secrets" in str(error)
 
 

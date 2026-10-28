@@ -9,8 +9,8 @@ from xtr_security_core.exception import InvalidArgumentError
 __all__ = ["MissingKeyError"]
 
 _HINT = (
-    "set secret_key in <app>/config/jwt.py — usually a path read from JWT_SECRET_KEY_PATH — "
-    "or mint one with jwt:generate-keypair --output-dir secrets"
+    "set secret_key in <app>/config/packages/jwt.py — usually a path read from "
+    "JWT_SECRET_KEY_PATH — or mint one with jwt:generate-keypair --output-dir secrets"
 )
 
 

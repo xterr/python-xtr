@@ -78,7 +78,7 @@ class MyTokenHandler(AccessTokenHandlerInterface):
 ```
 
 ```python
-# app/config/security.py
+# app/config/packages/security.py
 from xtr_dependency_injection import configure
 from xtr_security.bundle import (
     AccessControlConfig,
@@ -641,11 +641,12 @@ removing it undoes.
 - **Install** — `uv add xtr-security`; install [xtr-console](../xtr-console) beside it for
   `debug:firewall` and `security:hash-password` — and `security:oidc:generate-token` when a
   firewall's OIDC login mints.
-- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
-  `SecurityBundle`, which brings the event dispatcher and http-kernel bundles with it. There is no
-  config file, environment or ignore line to write; it prints the `concurrent_scoped_access=True`,
-  `setup(app, kernel)` and `config/security.py` steps, which a recipe cannot make for you.
-- **Activate** — `SecurityBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Configure* steps below:
+  it lists `SecurityBundle`, which brings the event dispatcher and http-kernel bundles with it,
+  and writes `<app>/config/packages/security.py` with the bundle's own defaults. There is no
+  environment or ignore line to write; it prints the `concurrent_scoped_access=True`,
+  `setup(app, kernel)` and firewall steps, which a recipe cannot make for you.
+- **Activate** — `SecurityBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_security.bundle`. Then call `setup(app, kernel)` where the application is built, and
   build the kernel with `concurrent_scoped_access=True` so concurrent requests keep their own
   token storage.
@@ -655,22 +656,23 @@ removing it undoes.
   with the security core, whose clock the trust resolver measures recent authentication with;
   the [logging](../xtr-logging) and [console](../xtr-console) bundles whenever those packages
   are installed.
-- **Configure** — the zero-config path gives no firewalls and the affirmative strategy. A
-  `<app>/config/security.py` `@configure` function returning a `SecurityConfig` changes that —
-  see [Configure](#configure) and [Kernel / bundle](#kernel--bundle).
+- **Configure** — the recipe writes `<app>/config/packages/security.py` holding the defaults: no
+  firewall yet, and the affirmative strategy. Changing what its `@configure` function returns
+  changes that — see [Configure](#configure) and [Kernel / bundle](#kernel--bundle).
 - **Environment** — nothing the recipe writes; an application reads its own secrets through
   `env(...)` in its configuration — the remember-me, login-link and throttling `secret`
   fields, as [Secrets](#secrets) shows.
 - **Ignore** — nothing.
-- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/security.py`, then
-  `uv remove xtr-security`.
+- **Remove** — drop the `BUNDLES` entry; `uv run xtr-recipes recipes:remove xtr-security`
+  deletes `<app>/config/packages/security.py`, unless you edited it, in which case it is moved
+  aside to `security.py.removed`. Then `uv remove xtr-security`.
 - **Check** — `debug:bundles` shows `security` as `listed` and `active`, `event_dispatcher`,
   `http_kernel` and `clock` as `required`; `debug:firewall` lists the configured firewalls.
 
 ## Kernel / bundle
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_security.bundle import SecurityBundle
 
 BUNDLES = {SecurityBundle: {"all": True}}

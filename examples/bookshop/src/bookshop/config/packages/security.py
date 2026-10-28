@@ -7,7 +7,8 @@ secure default, so the stored hashes and a fresh one agree. ``role_hierarchy`` m
 ``ROLE_ADMIN`` reach ``ROLE_USER``, so an admin need not list both.
 
 One ``api`` firewall covers every route and accepts a self-issued token
-(``JwtAuthenticatorConfig`` — the JWT bundle wires it, reading its keys from ``config/jwt.py``).
+(``JwtAuthenticatorConfig`` — the JWT bundle wires it, reading its keys from
+``config/packages/jwt.py``).
 It loads the user named by the token's ``sub`` claim through the ``users`` provider, so a token
 carries identity and the store carries roles. A user is named by its email, so the owner of an
 order — the ``email`` it was placed under — is the user the ``ORDER_VIEW`` voter grants it to.

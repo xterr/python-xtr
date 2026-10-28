@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from xtr_console import ExitCode
 
 from tests.support import (
@@ -16,6 +17,7 @@ from tests.support import (
     messenger_project,
     snapshot,
 )
+from xtr_recipes.marked_block_editor import MarkedBlockEditor
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -156,3 +158,46 @@ async def test_a_project_whose_package_is_missing_is_reported(
 
     assert code == ExitCode.FAILURE
     assert "resolves to neither" in tester.display
+
+
+_KEYED_MANIFEST = """\
+[env]
+KEY_PATH = "%kernel.project_dir%/secrets/server.pem"
+KEY_PASSPHRASE = "%generate(secret)%"
+
+[keys]
+"secrets/server.pem" = { algorithm = "ES256", passphrase = "KEY_PASSPHRASE" }
+"""
+
+
+async def test_sync_mints_a_key_sealed_with_the_secret_it_writes(
+    tester: ApplicationTester,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_recipes(monkeypatch, {MESSENGER: _KEYED_MANIFEST})
+
+    code = await tester.execute(_argv(project_dir))
+
+    env = (project_dir / ".env").read_text(encoding="utf-8")
+    passphrase = MarkedBlockEditor().env_value(env, "KEY_PASSPHRASE")
+    key = (project_dir / "secrets" / "server.pem").read_bytes()
+    assert code == ExitCode.SUCCESS
+    assert "mint secrets/server.pem (ES256)" in tester.display
+    assert passphrase is not None
+    assert load_pem_private_key(key, passphrase.encode()) is not None
+
+
+async def test_a_second_sync_keeps_the_minted_key(
+    tester: ApplicationTester,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_recipes(monkeypatch, {MESSENGER: _KEYED_MANIFEST})
+    _ = await tester.execute(_argv(project_dir))
+    before = snapshot(project_dir)
+
+    _ = await tester.execute(["recipes:install", MESSENGER, "--project-dir", str(project_dir)])
+
+    assert snapshot(project_dir) == before
+    assert "kept secrets/server.pem (in place)" in tester.display

@@ -65,7 +65,7 @@ configured audiences as `aud`), and the time claims the algorithm and `token_ttl
 ## Accept a token on a firewall
 
 ```python
-# app/config/security.py
+# app/config/packages/security.py
 from xtr_dependency_injection import configure
 from xtr_security.bundle import AccessControlConfig, FirewallConfig, SecurityConfig
 from xtr_security_jwt.bundle import JwtAuthenticatorConfig, JwtUserProviderConfig
@@ -95,7 +95,7 @@ def security() -> SecurityConfig:
 ## Configure keys and claims
 
 ```python
-# app/config/jwt.py
+# app/config/packages/jwt.py
 from xtr_dependency_injection import configure, env
 from xtr_security_jwt.bundle import EncoderConfig, JwtConfig
 
@@ -270,25 +270,29 @@ undoes.
 
 1. **Install** — `uv add xtr-security-jwt`; install xtr-console beside it for the commands.
 2. **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure*, *Environment*
-   and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/jwt.py`,
-   `JWT_SECRET_KEY_PATH=%kernel.project_dir%/secrets/jwt.pem` in `.env`, and adds
-   `/secrets/*.pem` and `/secrets/*.jwks.json` to `.gitignore`. It prints the keypair and firewall
-   steps, which a recipe cannot make for you.
-3. **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, from
+   and *Ignore* steps below: it lists `JwtBundle`, writes a starting `<app>/config/packages/jwt.py`,
+   `JWT_SECRET_KEY_PATH=%kernel.project_dir%/secrets/jwt.pem` and a generated `JWT_PASSPHRASE`
+   in `.env`, mints an RS256 key encrypted with it at `secrets/jwt.pem` when none is there, and
+   adds `/secrets/*.pem` and `/secrets/*.jwks.json` to `.gitignore`. It prints the `setup` and
+   firewall steps, which a recipe cannot make for you.
+3. **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, from
    `xtr_security_jwt.bundle`. Build the kernel with `concurrent_scoped_access=True` and call
    `setup(app, kernel)` where the application is served, as the security family requires.
 4. **Brings along** — the security, clock and event dispatcher bundles always; the console
    bundle when xtr-console is installed.
-5. **Configure** — the bundle builds and boots unconfigured, so the console runs to mint a key:
-   `jwt:generate-keypair --kid jwt --output-dir secrets` writes the file the recipe's
-   `<app>/config/jwt.py` points `secret_key` at. In production mount the deployment's own key
+5. **Configure** — the recipe mints the development key the written `<app>/config/packages/jwt.py`
+   points `secret_key` at; another checkout mints its own with
+   `uv run xtr-recipes recipes:install xtr-security-jwt`, sealed with the `JWT_PASSPHRASE` in its
+   `.env` (`jwt:generate-keypair` writes an unencrypted key, which needs `JWT_PASSPHRASE` empty).
+   In production mount the deployment's own key
    instead; never mint one at runtime. Add `JwtAuthenticatorConfig()` to a firewall's
-   `authenticators` in `<app>/config/security.py`.
-6. **Environment** — `JWT_SECRET_KEY_PATH`, read with `env("resolve:JWT_SECRET_KEY_PATH")`.
-   Until the file is there, signing or verifying raises `MissingKeyError`.
+   `authenticators` in `<app>/config/packages/security.py`.
+6. **Environment** — `JWT_SECRET_KEY_PATH`, read with `env("resolve:JWT_SECRET_KEY_PATH")`, and
+   `JWT_PASSPHRASE`, the key's pass phrase, empty for none. Until the file is there, signing or
+   verifying raises `MissingKeyError`.
 7. **Ignore** — `.gitignore` the key files when they land in the project: the recipe adds
    `/secrets/*.pem` and `/secrets/*.jwks.json`.
-8. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/jwt.py` and the
+8. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/jwt.py` and the
    `JwtAuthenticatorConfig` from the firewall, then `uv remove xtr-security-jwt`.
 9. **Check** — `debug:bundles` shows `jwt` as `listed` and `active` and `security` as
    `required`; `debug:firewall api` lists the `jwt` authenticator; `jwt:check-config` proves the

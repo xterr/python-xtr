@@ -19,7 +19,7 @@ from xtr_security_oauth2_server.exception.invalid_configuration_error import (
 __all__ = ["private_key_path", "public_key_path"]
 
 #: Where an application writes this bundle's configuration.
-_CONFIG_FILE: Final = "<app>/config/oauth2_server.py"
+_CONFIG_FILE: Final = "<app>/config/packages/oauth2_server.py"
 
 #: What tells key text from the path of a file holding it, the way the key
 #: loader tells them apart.

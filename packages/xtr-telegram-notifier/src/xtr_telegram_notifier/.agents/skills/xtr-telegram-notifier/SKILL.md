@@ -93,7 +93,7 @@ prints the configuration step.
 1. **Install** — `uv add xtr-telegram-notifier`, beside xtr-notifier set up as the
    `xtr-notifier` skill says.
 2. **Configure** — add `telegram=env("TELEGRAM_DSN")` to `chatter_transports` in
-   `<app>/config/notifier.py`.
+   `<app>/config/packages/notifier.py`.
 3. **Environment** — `TELEGRAM_DSN`, `telegram://TOKEN@default?channel=CHAT_ID`.
 4. **Check** — `debug:config notifier` lists `telegram` under `chatter_transports`.
 5. **Remove** — drop the entry and `TELEGRAM_DSN`, then `uv remove xtr-telegram-notifier`.

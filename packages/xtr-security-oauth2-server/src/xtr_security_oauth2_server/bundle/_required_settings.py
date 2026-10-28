@@ -28,7 +28,7 @@ __all__ = [
     "supplied_scopes",
 ]
 
-CONFIG_FILE: Final = "<app>/config/oauth2_server.py"
+CONFIG_FILE: Final = "<app>/config/packages/oauth2_server.py"
 """Where an application writes this bundle's configuration."""
 
 

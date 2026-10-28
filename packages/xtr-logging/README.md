@@ -468,20 +468,20 @@ Everything adding this package to an application on
 - **Install** — `uv add xtr-logging xtr-dependency-injection`: the bundle needs the container
   installed beside it, never as an extra.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Configure* steps below:
-  it lists `LoggingBundle` and writes a starting `<app>/config/logging.py`. There is no environment
+  it lists `LoggingBundle` and writes a starting `<app>/config/packages/logging.py`. There is no environment
   or ignore line to write; it prints the step to add the handlers a deployment needs.
-- **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/bundles.py`, imported
+- **Activate** — `LoggingBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_logging.bundle`.
 - **Brings along** — the clock bundle. It is an optional peer, but xtr-clock is a dependency, so
   it is always installed and arrives as `required`: loggers read the boot-time clock from it, the
   same instant as an injected clock.
 - **Configure** — needed to see anything: with no configuration there are no handlers, so
-  records go nowhere. Channels and handlers go in `<app>/config/logging.py`, a `@configure`
+  records go nowhere. Channels and handlers go in `<app>/config/packages/logging.py`, a `@configure`
   function returning `LoggingConfig` — see [Kernel / bundle](#kernel--bundle) and
   [Configuration](#configuration).
 - **Environment** — nothing.
 - **Ignore** — whatever directory the file handlers write to, such as `var/log/`.
-- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/logging.py`, then
+- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/logging.py`, then
   `uv remove xtr-logging`. Libraries logging through xtr-logging-contracts keep working,
   silently.
 - **Check** — `debug:bundles` shows `logging` as `listed` and `active`, and `clock` as
@@ -491,7 +491,7 @@ Everything adding this package to an application on
 
 With [xtr-dependency-injection](../xtr-dependency-injection) installed beside the package — it is
 not a dependency, and nothing outside `xtr_logging.bundle` needs it — an application lists
-`LoggingBundle` in its `app/bundles.py` and configures it with `@configure`. A service asks
+`LoggingBundle` in its `app/config/bundles.py` and configures it with `@configure`. A service asks
 for the default channel by the interface, and for any other by qualifying it with the
 channel's name:
 
@@ -500,14 +500,14 @@ uv add xtr-logging xtr-dependency-injection
 ```
 
 ```python
-# app/bundles.py
+# app/config/bundles.py
 from xtr_logging.bundle import LoggingBundle
 
 BUNDLES = {LoggingBundle: {"all": True}}
 ```
 
 ```python
-# app/config/logging.py
+# app/config/packages/logging.py
 from xtr_dependency_injection import as_service, configure
 
 from xtr_logging import TestHandler

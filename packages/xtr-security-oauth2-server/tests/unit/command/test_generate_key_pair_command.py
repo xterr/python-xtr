@@ -313,7 +313,7 @@ async def test_a_deployment_with_no_signing_key_configured_is_told_which_setting
 
         assert code == ExitCode.FAILURE
         assert "The setting authorization_server.private_key is not configured" in tester.display
-        assert "<app>/config/oauth2_server.py" in tester.display
+        assert "<app>/config/packages/oauth2_server.py" in tester.display
 
 
 async def test_a_key_is_never_written_through_a_symbolic_link(

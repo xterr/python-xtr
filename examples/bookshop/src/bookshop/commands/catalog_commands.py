@@ -81,7 +81,7 @@ async def export_books(
 ) -> int:
     """Render the catalogue and keep the file in the ``reports`` storage.
 
-    ``reports`` is the storage named in ``config/storage.py``: local files rooted at the
+    ``reports`` is the storage named in ``config/packages/storage.py``: local files rooted at the
     ``catalog`` prefix, so the export lands in ``var/storage/catalog/`` — in tests, in memory.
     Injection is qualified by the storage's name, the way a named cache pool is.
 

@@ -1,7 +1,7 @@
 """The clock: its base arrives from the fulltext config's ``AliasOf`` field.
 
 ``FulltextConfig.clock`` is ``Annotated[ClockConfig | None, AliasOf("clock")]``; the value
-set in ``bookshop.config.fulltext`` is forwarded here as the clock's base (step 3). An
+set in ``bookshop.config.packages.fulltext`` is forwarded here as the clock's base (step 3). An
 application base provider for ``ClockConfig`` as well would be a
 ``ConflictingConfigProvidersError`` naming both — so this module only *transforms*.
 """
