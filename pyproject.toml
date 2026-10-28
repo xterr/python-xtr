@@ -50,6 +50,7 @@ xtr-slack-notifier       = { workspace = true }
 xtr-storage              = { workspace = true }
 xtr-telegram-notifier    = { workspace = true }
 xtr-webhook              = { workspace = true }
+xtr-workflow             = { workspace = true }
 
 [dependency-groups]
 dev = [

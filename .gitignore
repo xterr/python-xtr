@@ -19,3 +19,6 @@ var/
 
 # The local rebrand tool and its test stay out of the repository.
 .rebrand/
+
+# Git worktrees agents create for work kept off the checked-out branch (see AGENTS.md).
+/.worktrees/

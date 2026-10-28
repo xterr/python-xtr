@@ -1,0 +1,40 @@
+"""The workflows and state machines of the application.
+
+A workflow declared on a class with ``@as_workflow`` needs no entry here, so
+this module may stay as it is. A state machine moving one article at a time,
+kept in its ``status`` attribute, is configured like this:
+
+```python
+from xtr_workflow import WorkflowType
+from xtr_workflow.bundle import MarkingStoreConfig, TransitionConfig, WorkflowDefinitionConfig
+
+WorkflowConfig(
+    workflows={
+        "blog_publishing": WorkflowDefinitionConfig(
+            type=WorkflowType.STATE_MACHINE,
+            supports=Article,
+            marking_store=MarkingStoreConfig(property="status"),
+            places=("draft", "review", "published"),
+            transitions={
+                "request_review": TransitionConfig(froms="draft", tos="review"),
+                "publish": TransitionConfig(froms="review", tos="published"),
+                "reject": TransitionConfig(froms="review", tos="draft"),
+            },
+        ),
+    },
+)
+```
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure
+from xtr_workflow.bundle import WorkflowConfig
+
+__all__ = ["workflow"]
+
+
+@configure
+def workflow() -> WorkflowConfig:
+    """No workflow configured: only those declared with ``@as_workflow`` are registered."""
+    return WorkflowConfig()

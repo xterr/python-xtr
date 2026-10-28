@@ -274,3 +274,23 @@ Running commands — hard rule:
 - Never `git push` on your own; the human pushes.
 - Never bypass hooks (`--no-verify`, `-c core.hooksPath=/dev/null`, etc.).
 - All packages share one version, moved together with `scripts/release.py bump <version>`.
+
+## Worktrees
+
+Work asked for "in another worktree" — or any change that must not land on the branch checked
+out here, where someone else's work may be in progress — goes in a git worktree under
+`.worktrees/` at the repository root.
+
+- Create it from the branch it builds on, usually `main`, never from the checked-out branch:
+  `git worktree add .worktrees/<name> -b <type>/<topic> main`. Confirm the base with
+  `git -C .worktrees/<name> log --oneline -1`.
+- It sits inside the project so the jetbrains_pycharm MCP reaches it: every tool path starts
+  with `.worktrees/<name>/`, and the tools rule above applies there as it does here.
+  `/.worktrees/` is ignored, so the worktree never shows up in this checkout's status.
+- It has its own `.venv`. Run `uv sync --all-packages --all-extras` in it before anything else,
+  and run every `uv` command there with `VIRTUAL_ENV` unset (`export VIRTUAL_ENV=`), or it
+  warns and may reach for this checkout's environment instead of its own.
+- Gates, `--exact` runs and the example application all run from inside the worktree. Leave
+  nothing behind in it you would not commit; pytest's `.tmp` directories are ignored and go too.
+- Once the branch is merged, remove it from this checkout:
+  `git worktree remove .worktrees/<name>`. Deleting the branch is the human's call.

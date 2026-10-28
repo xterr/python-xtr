@@ -59,6 +59,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-storage](packages/xtr-storage) | Files on local disk, in memory or in object stores, behind one async interface. |
 | [xtr-remote-event](packages/xtr-remote-event) | Events received from another system, as one value type, handed to the consumer registered under their source's name. |
 | [xtr-webhook](packages/xtr-webhook) | Webhooks received as events — verified and replay-bounded — and sent signed, in the legacy or the Standard Webhooks format. |
+| [xtr-workflow](packages/xtr-workflow) | Move objects through workflows and state machines — weighted places and transitions, guards, events at every step, definitions in code, config or on a class, dumped as Graphviz, PlantUML or Mermaid. |
 
 How they depend on each other (runtime dependencies; a dotted edge is an optional integration,
 used when the application installs that package too):
@@ -217,6 +218,11 @@ graph LR
     telegramnotifier --> httpclientcon
     slacknotifier[xtr-slack-notifier] --> notifier
     slacknotifier --> httpclientcon
+    workflow[xtr-workflow] --> clock
+    workflow --> events
+    workflow --> eventcon
+    workflow --> logcon
+    workflow --> svccon
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its
@@ -620,7 +626,7 @@ removing it undoes.
 - **Activate** — `<Name>Bundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_<name>.bundle` — or "nothing to do" when another bundle requires it.
 - **Brings along** — the bundles its `@required_bundle` pulls in, and when.
-- **Configure** — what the zero-config path gives; then the `<app>/config/<name>.py`
+- **Configure** — what the zero-config path gives; then the `<app>/config/packages/<name>.py`
   `@configure` function that changes it, linking to *Kernel / bundle*.
 - **Environment** — variables the application must set, or "nothing".
 - **Ignore** — `.gitignore` lines for files it writes into the project, or "nothing".
