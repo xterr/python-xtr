@@ -286,13 +286,14 @@ async def test_a_paid_order_is_marked_paid() -> None:
 
 ## Errors
 
-Everything derives from `RemoteEventError`.
+Everything derives from `RemoteEventError`, with one exception: the `TypeError` raised when `AbstractMailerEvent` itself is built, a programming error like building any abstract type.
 
 | Error | Raised when | Also a |
 | --- | --- | --- |
 | `InvalidArgumentError` | a value cannot be used — an empty consumer name, a class with no `consume()` | `ValueError` |
 | `ParseError` | a converter cannot read a payload as an event | `InvalidArgumentError` |
 | `LogicError` | nothing is registered for a source, or what is registered is not a consumer | `RuntimeError` |
+| `TypeError` | `AbstractMailerEvent` itself is built — a programming error, as with any abstract type | — (not a `RemoteEventError`; the message is `"AbstractMailerEvent" is abstract: build a "MailerDeliveryEvent" or a "MailerEngagementEvent" instead.`) |
 
 A `ParseError` is the sender's doing, so the answer is to tell the sender. A `LogicError` is
 wiring the application got wrong, and is said where the event would otherwise be lost.

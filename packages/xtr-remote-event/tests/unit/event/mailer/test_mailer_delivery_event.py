@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import inspect
 from datetime import UTC, datetime
 
 import pytest
@@ -46,6 +47,19 @@ def test_the_reason_is_empty_unless_given() -> None:
     event = MailerDeliveryEvent(MailerDeliveryEvent.DELIVERED, "evt_1", {}, date=_DATE)
 
     assert event.reason == ""
+
+
+def test_the_reason_is_keyword_only() -> None:
+    parameter = inspect.signature(MailerDeliveryEvent).parameters["reason"]
+
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+
+
+def test_each_event_gets_its_own_metadata_by_default() -> None:
+    first = MailerDeliveryEvent(MailerDeliveryEvent.DELIVERED, "evt_1", {}, date=_DATE)
+    second = MailerDeliveryEvent(MailerDeliveryEvent.DELIVERED, "evt_2", {}, date=_DATE)
+
+    assert first.metadata is not second.metadata
 
 
 def test_it_is_a_mailer_event() -> None:

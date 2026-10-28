@@ -343,13 +343,14 @@ I/O.
 
 ## Errors
 
-Everything this library raises derives from `RemoteEventError`.
+Everything this library raises derives from `RemoteEventError`, with one exception: the `TypeError` raised when `AbstractMailerEvent` itself is built, a programming error like building any abstract type.
 
 | Error | Raised when |
 |---|---|
 | `InvalidArgumentError` | a value cannot be used — an empty consumer name, a class with no `consume()`; also a `ValueError` |
 | `ParseError` | a converter cannot read a payload as an event — the sender's doing, so tell the sender |
 | `LogicError` | nothing is registered for a source, or what is registered is not a consumer; also a `RuntimeError` |
+| `TypeError` | `AbstractMailerEvent` itself is built — a programming error, as with any abstract type; not a `RemoteEventError` — `"AbstractMailerEvent" is abstract: build a "MailerDeliveryEvent" or a "MailerEngagementEvent" instead.` |
 
 An event that cannot be written or read is refused by what carries it, not here: on a bus,
 `MessageEncodingFailedError` and `MessageDecodingFailedError` from xtr-messenger.
