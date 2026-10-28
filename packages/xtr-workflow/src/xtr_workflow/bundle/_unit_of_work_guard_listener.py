@@ -54,3 +54,13 @@ class UnitOfWorkGuardListener:
         async with self._scopes.unit_of_work() as unit:
             listener = await unit.get(self._guard_listener, self._qualifier)
             await listener.on_transition(event, event_name)
+
+    async def get_guard_listener(self) -> GuardListener:
+        """Return the guard listener built for the unit of work open where it is asked.
+
+        For a tool naming what a guard event runs: the guards are the same in
+        every unit of work, so the guard listener of this one names them for
+        all.
+        """
+        async with self._scopes.unit_of_work() as unit:
+            return await unit.get(self._guard_listener, self._qualifier)

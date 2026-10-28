@@ -67,3 +67,18 @@ async def test_each_event_runs_the_guard_listener_of_its_unit_of_work() -> None:
     assert scopes.opened == 1
     assert unit.asked == [(GuardListener, "article")]
     assert guard_listener.heard == [(event, "workflow.article.guard.publish")]
+
+
+async def test_it_hands_out_the_guard_listener_of_the_unit_of_work_it_is_asked_in() -> None:
+    guard_listener = _RecordingGuardListener()
+    unit = _Unit(guard_listener)
+    scopes = _Scopes(unit)
+    listener = UnitOfWorkGuardListener(
+        cast("ScopeFactoryInterface", cast("object", scopes)), GuardListener, "article"
+    )
+
+    handed_out = await listener.get_guard_listener()
+
+    assert cast("object", handed_out) is guard_listener
+    assert scopes.opened == 1
+    assert unit.asked == [(GuardListener, "article")]

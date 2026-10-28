@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 import sys
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, Protocol, cast, final
 
 from xtr_event_dispatcher import LazyListener
 from xtr_event_dispatcher.debug import WrappedListener
@@ -31,6 +31,17 @@ _TRANSITION_STEPS: Final = ("guard", "transition", "completed", "announce")
 _GUARD_LISTENER_MODULE: Final = "xtr_workflow.event_listener.guard_listener"
 """The module defining the guard listener, which is looked up and never imported here."""
 
+_UNIT_OF_WORK_GUARD_LISTENER_MODULE: Final = "xtr_workflow.bundle._unit_of_work_guard_listener"
+"""The module defining what runs a guard listener in each unit of work, looked up the same way."""
+
+
+class _GuardListenerOfEachUnitOfWork(Protocol):
+    """Runs a guard listener built for each unit of work."""
+
+    async def get_guard_listener(self) -> GuardListener:
+        """Return the guard listener built for the unit of work open."""
+        ...
+
 
 @final
 class ListenerExtractor:
@@ -50,8 +61,9 @@ class ListenerExtractor:
     runs for the transition.
 
     A listener is named after what it runs, never after a wrapper: a traced
-    listener is unwrapped, and a lazy one built, as dispatching to it would
-    build it — which is why listing is a coroutine.
+    listener is unwrapped, a lazy one built, as dispatching to it would build
+    it — which is why listing is a coroutine — and a guard listener run in
+    each unit of work is named after the one built for the unit open.
     """
 
     __slots__: tuple[str, ...] = ("_dispatcher",)
@@ -133,12 +145,19 @@ async def _unwrapped(listener: Listener | WrappedListener | LazyListener) -> Lis
     """Return what ``listener`` runs: what a traced listener wraps, what a lazy one builds.
 
     Building a lazy listener is what dispatching to it would do first; it is
-    built once, and runs as what it built from then on.
+    built once, and runs as what it built from then on. A guard listener run
+    in each unit of work stands for the guard listener it builds there.
     """
     if isinstance(listener, WrappedListener):
         return await _unwrapped(listener.get_wrapped_listener())
     if isinstance(listener, LazyListener):
         return await _unwrapped(await listener.resolve())
+    runner = _instance_owning(
+        listener, _UNIT_OF_WORK_GUARD_LISTENER_MODULE, "UnitOfWorkGuardListener"
+    )
+    if runner is not None:
+        guard_listener = await cast("_GuardListenerOfEachUnitOfWork", runner).get_guard_listener()
+        return guard_listener.on_transition
     return listener
 
 
@@ -205,17 +224,22 @@ def _file_of(called: Callable[..., object]) -> str | None:
 
 
 def _guard_listener_of(listener: Listener) -> GuardListener | None:
-    """Return the guard listener ``listener`` is a method of; ``None`` when it is none's.
+    """Return the guard listener ``listener`` is a method of; ``None`` when it is none's."""
+    guard_listener = _instance_owning(listener, _GUARD_LISTENER_MODULE, "GuardListener")
+    return cast("GuardListener | None", guard_listener)
 
-    Its class is looked up among the modules already imported, never imported
-    here: it needs the security core, which an application using no guard
-    does not install. A guard listener cannot exist before its module has
-    run, so while that module is not imported, no listener is a guard
-    listener's.
+
+def _instance_owning(listener: Listener, module_name: str, class_name: str) -> object | None:
+    """Return the object ``listener`` is a method of, if it is a ``class_name`` of ``module_name``.
+
+    The class is looked up among the modules already imported, never imported
+    here: the guard listener needs the security core and the bundle's classes
+    the container, which an application using neither does not install. An
+    object cannot exist before the module of its class has run, so while that
+    module is not imported, no listener is a method of one.
     """
-    module = sys.modules.get(_GUARD_LISTENER_MODULE)
+    module = sys.modules.get(module_name)
     if module is None or not inspect.ismethod(listener):
         return None
-    guard_listener_class = cast("type[GuardListener]", module.GuardListener)
     owner = listener.__self__
-    return owner if isinstance(owner, guard_listener_class) else None
+    return owner if isinstance(owner, cast("type", getattr(module, class_name))) else None

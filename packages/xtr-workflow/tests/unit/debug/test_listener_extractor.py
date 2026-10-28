@@ -1,15 +1,17 @@
 """The listener extractor lists who listens to each step of a workflow, named after their code.
 
 A listener is named after what it runs, through the lazy and traced wrappers
-an event dispatcher puts around it; a guard listener also names the guards it
-runs for the transition.
+an event dispatcher puts around it, and through the one running a guard
+listener in each unit of work; a guard listener also names the guards it runs
+for the transition.
 """
 
 from __future__ import annotations
 
 import functools
 import inspect
-from typing import TYPE_CHECKING, TypeAlias, final
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, TypeAlias, cast, final
 
 import pytest
 from xtr_event_dispatcher import CompiledEventDispatcher, EventDispatcher, LazyListener
@@ -27,13 +29,16 @@ from tests.support.definitions import (
     create_simple_workflow_definition,
 )
 from xtr_workflow import Definition, Transition, Workflow
+from xtr_workflow.bundle._unit_of_work_guard_listener import UnitOfWorkGuardListener
 from xtr_workflow.debug.listener_extractor import ListenerExtractor
 from xtr_workflow.event_listener import GuardExpression
 from xtr_workflow.event_listener.guard_listener import GuardListener
 from xtr_workflow.exception import LogicError
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Mapping, Sequence
+    from collections.abc import AsyncGenerator, Awaitable, Callable, Hashable, Mapping, Sequence
+
+    from xtr_dependency_injection import ScopeFactoryInterface
 
     from xtr_workflow.event_listener import GuardContext
 
@@ -62,6 +67,29 @@ class _Listeners:
 class _CallableListener:
     def __call__(self) -> None:
         pass
+
+
+@final
+class _UnitOfWork:
+    """Hands out the one guard listener built for it, whatever is asked."""
+
+    def __init__(self, guard_listener: GuardListener) -> None:
+        self._guard_listener = guard_listener
+
+    async def get(self, service: type, qualifier: Hashable | None = None) -> object:
+        del service, qualifier
+        return self._guard_listener
+
+
+@final
+class _Scopes:
+    def __init__(self, guard_listener: GuardListener) -> None:
+        self._unit = _UnitOfWork(guard_listener)
+
+    @asynccontextmanager
+    async def unit_of_work(self, *, join: bool = True) -> AsyncGenerator[_UnitOfWork]:
+        del join
+        yield self._unit
 
 
 def _keeping_what_it_wraps(function: Callable[[], None]) -> Callable[[], None]:
@@ -364,6 +392,29 @@ async def test_a_lazily_built_guard_listener_lists_its_guards() -> None:
 
     dispatcher = EventDispatcher()
     dispatcher.add_listener("workflow.article.guard.go", LazyListener(build, "on_transition"))
+    definition = Definition(["a", "b"], [Transition("go", "a", "b")])
+
+    listeners = await ListenerExtractor(dispatcher).extract_listeners("article", definition)
+
+    assert listeners == {
+        "transition__0": {
+            "workflow.article.guard.go": [
+                {
+                    "title": GUARD_LISTENER,
+                    "file": _where(GuardListener.on_transition),
+                    "guardExpressions": [f"{__name__}._my_expression"],
+                }
+            ]
+        }
+    }
+
+
+async def test_a_guard_listener_run_in_each_unit_of_work_is_named_with_its_guards() -> None:
+    guard_listener = _guard_listener({"workflow.article.guard.go": [_my_expression]})
+    scopes = cast("ScopeFactoryInterface", cast("object", _Scopes(guard_listener)))
+    in_each_unit_of_work = UnitOfWorkGuardListener(scopes, GuardListener, "article")
+    dispatcher = EventDispatcher()
+    dispatcher.add_listener("workflow.article.guard.go", in_each_unit_of_work.on_transition)
     definition = Definition(["a", "b"], [Transition("go", "a", "b")])
 
     listeners = await ListenerExtractor(dispatcher).extract_listeners("article", definition)

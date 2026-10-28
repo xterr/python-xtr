@@ -1,15 +1,27 @@
-"""The workflow bundle builds and boots unconfigured, and traces workflows in debug mode only."""
+"""The workflow bundle builds and boots unconfigured, and traces workflows in debug mode only.
+
+With a console, it adds the dump command, built with the workflows and, when
+the event dispatcher is active, the dispatcher their listeners are on.
+"""
 
 from __future__ import annotations
 
-import pytest
-from xtr_dependency_injection import Kernel
-from xtr_dependency_injection.testing import assert_zero_config
+import inspect
+from typing import TYPE_CHECKING, cast
 
-from tests.support.builds import build_state, builder_of
-from xtr_workflow import Registry
-from xtr_workflow.bundle import WorkflowBundle, WorkflowDebugPass
+import pytest
+from xtr_dependency_injection import Kernel, ServiceLocator
+from xtr_dependency_injection.testing import assert_zero_config
+from xtr_event_dispatcher_contracts import ListenerIntrospectionInterface
+
+from tests.support.builds import build_state, builder_of, definition_of, services_of
+from xtr_workflow import Registry, WorkflowInterface
+from xtr_workflow.bundle import WorkflowBundle, WorkflowConfig, WorkflowDebugPass
+from xtr_workflow.command import WorkflowDumpCommand
 from xtr_workflow.exception import InvalidArgumentError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @pytest.mark.anyio
@@ -55,3 +67,58 @@ def test_the_build_reads_workflows_and_misplaced_listeners_off_the_scan() -> Non
         "workflow",
         "workflow",
     ]
+
+
+@pytest.mark.parametrize(
+    ("bundles", "late_scans"),
+    [((), []), (("console",), [("workflow", ("xtr_workflow.command",))])],
+)
+def test_the_dump_command_is_loaded_with_a_console_only(
+    bundles: tuple[str, ...], late_scans: list[tuple[str, tuple[str, ...]]]
+) -> None:
+    state = build_state(bundles=bundles)
+
+    WorkflowBundle().load_extension(WorkflowConfig(), services_of(state), builder_of(state))
+
+    assert state.late_scans == late_scans
+
+
+@pytest.mark.parametrize(
+    ("bundles", "injected"),
+    [
+        (("console",), {"workflows": ServiceLocator[WorkflowInterface]}),
+        (
+            ("console", "event_dispatcher"),
+            {
+                "workflows": ServiceLocator[WorkflowInterface],
+                "dispatcher": ListenerIntrospectionInterface,
+            },
+        ),
+    ],
+)
+def test_the_dump_command_is_built_with_the_workflows_and_any_active_dispatcher(
+    bundles: tuple[str, ...], injected: dict[str, object]
+) -> None:
+    state = build_state(bundles=bundles)
+    # As the console registers a command class its scan finds.
+    _ = services_of(state).set(WorkflowDumpCommand)
+    state.phase = "process"
+
+    WorkflowBundle().process(builder_of(state))
+
+    definition = definition_of(state, WorkflowDumpCommand)
+    factory = cast("Callable[..., object]", definition.provider)
+    parameters = inspect.signature(factory).parameters.values()
+    assert definition.kind == "factory"
+    assert {
+        parameter.name: cast("object", parameter.annotation) for parameter in parameters
+    } == injected
+
+
+def test_without_a_console_there_is_no_command_to_build() -> None:
+    state = build_state(bundles=("event_dispatcher",))
+    state.phase = "process"
+
+    WorkflowBundle().process(builder_of(state))
+
+    assert state.store.entries() == ()
