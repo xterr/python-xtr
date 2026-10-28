@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-foundation"
-version = "5.0.0"
+version = "5.0.1"
 description = "Matchers that answer one question each about a request that arrived — method, path, host, port, scheme, headers, query, client address, JSON body — the helpers that place an IP in a network, and the session a stateful request carries: attributes under an ID cookie, kept in whatever storage the application points at."
 readme = "README.md"
 authors = [

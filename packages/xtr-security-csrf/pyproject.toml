@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-csrf"
-version = "5.0.0"
+version = "5.0.1"
 description = "Cross-site request forgery protection for xtr applications: a manager that mints and checks tokens by id, and the session storage that keeps them."
 readme = "README.md"
 requires-python = ">=3.11"
