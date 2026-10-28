@@ -38,6 +38,10 @@ dependencies = [
 [project.entry-points."xtr_dependency_injection.bundles"]
 workflow = "xtr_workflow.bundle:WorkflowBundle"
 
+# The recipe applying what the README's *Use in an application* section lists.
+[project.entry-points."xtr_recipes"]
+workflow = "xtr_workflow.recipe"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",

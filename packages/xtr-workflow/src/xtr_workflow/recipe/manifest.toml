@@ -1,0 +1,29 @@
+# The recipe for xtr-workflow: what *Use in an application* in the README
+# takes, as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+# It brings no bundle with it: the event dispatcher, logging, security and
+# console bundles are read where they are active, and required by none.
+"xtr_workflow.bundle:WorkflowBundle" = { all = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# The bundle's own defaults written out — no workflow — as the place the
+# application's workflows are configured, with a commented starter one.
+"config/packages/workflow.py" = "files/config/workflow.py.tmpl"
+
+# No [env], no [keys], and nothing to ignore.
+
+[gitignore]
+lines = []
+
+[notes]
+steps = [
+  "Configure the workflows in <app>/config/packages/workflow.py, or declare them on classes with @as_workflow: the bundle registers nothing until one of the two says a workflow.",
+  "Activate the security bundle if a transition carries a guard, the logging bundle for an audit trail, and the console bundle for workflow:dump — a workflow needing one that is not active fails the build naming it.",
+]
+check = [
+  "<script> debug:bundles — workflow is listed and active",
+  "<script> workflow:dump <name> — the definition the container built",
+]

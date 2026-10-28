@@ -626,7 +626,7 @@ removing it undoes.
 - **Activate** — `<Name>Bundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_<name>.bundle` — or "nothing to do" when another bundle requires it.
 - **Brings along** — the bundles its `@required_bundle` pulls in, and when.
-- **Configure** — what the zero-config path gives; then the `<app>/config/<name>.py`
+- **Configure** — what the zero-config path gives; then the `<app>/config/packages/<name>.py`
   `@configure` function that changes it, linking to *Kernel / bundle*.
 - **Environment** — variables the application must set, or "nothing".
 - **Ignore** — `.gitignore` lines for files it writes into the project, or "nothing".
