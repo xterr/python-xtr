@@ -101,14 +101,18 @@ def test_the_library_imports_with_no_test_framework_present() -> None:
 def test_the_library_imports_with_nothing_but_the_standard_library_and_anyio() -> None:
     # anyio is the one dependency the library itself imports, and sniffio is anyio's
     # own; typing-extensions and the container are imported only by the bundle, so
-    # anything else in the graph arrived without being asked for.
+    # anything else in the graph arrived without being asked for. The baseline is the
+    # interpreter's own startup module set: an image may boot Python with hooks of its
+    # own (a runner's sitecustomize), and those are no import of the library.
     result = subprocess.run(
         [
             sys.executable,
             "-c",
             (
-                "import sys, xtr_clock\n"
-                "roots = {n.partition('.')[0] for n in sys.modules "
+                "import sys\n"
+                "startup = set(sys.modules)\n"
+                "import xtr_clock\n"
+                "roots = {n.partition('.')[0] for n in set(sys.modules) - startup "
                 "if not n.startswith('_')}\n"
                 "allowed = {'xtr_clock', 'anyio', 'sniffio'}\n"
                 "extra = roots - set(sys.stdlib_module_names) - allowed\n"
