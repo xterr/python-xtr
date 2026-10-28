@@ -25,6 +25,10 @@ sender. This package is that last step and nothing else.
   onto a worker through [xtr-messenger](https://github.com/xterr/python-xtr).
 - `PayloadConverterInterface.convert(payload)` → `RemoteEvent`. Synchronous, takes the payload
   already decoded.
+- `MailerDeliveryEvent` / `MailerEngagementEvent` — a mail provider's reports, both
+  `AbstractMailerEvent`s: a `RemoteEvent` plus keyword-only `date` (required), `recipient_email`,
+  `metadata` and `tags`; a delivery adds `reason`. `name` is one of the class's constants.
+  Registered as `"mailer_delivery"` and `"mailer_engagement"`, so each crosses a bus as itself.
 - In an application, with xtr-dependency-injection installed beside the package (it is not a
   dependency): activate `RemoteEventBundle`, declare consumers where they live, route
   `ConsumeRemoteEventMessage`. There is no configuration module. Without the container, build the
@@ -170,6 +174,43 @@ one converter rather than touching whatever dispatches events. It takes the payl
 decoded — reading the bytes, and deciding whether they are to be trusted at all, belongs to
 whatever received them — and it is synchronous, because translating a mapping reaches for
 nothing.
+
+## Report what became of a mail
+
+```python
+from collections.abc import Mapping
+from datetime import UTC, datetime
+
+from xtr_remote_event import MailerDeliveryEvent, PayloadConverterInterface, RemoteEvent
+from xtr_remote_event.exception import ParseError
+
+_DELIVERY = {"delivered": MailerDeliveryEvent.DELIVERED, "bounced": MailerDeliveryEvent.BOUNCE}
+
+
+class AcmeMailConverter(PayloadConverterInterface):
+    def convert(self, payload: Mapping[str, object]) -> RemoteEvent:
+        name = _DELIVERY.get(str(payload.get("event")))
+        if name is None:
+            raise ParseError(f'Unsupported event "{payload.get("event")}".')
+        return MailerDeliveryEvent(
+            name,
+            str(payload["id"]),
+            dict(payload),
+            date=datetime.fromtimestamp(float(str(payload["timestamp"])), UTC),
+            recipient_email=str(payload.get("recipient", "")),
+            reason=str(payload.get("reason", "")),
+        )
+```
+
+- `name` is one of the class's constants, never the provider's word: a delivery is `RECEIVED`,
+  `DROPPED`, `DELIVERED`, `DEFERRED` or `BOUNCE`; an engagement (`MailerEngagementEvent`) is
+  `OPEN`, `CLICK`, `SPAM` or `UNSUBSCRIBE`. The converter translates, so consumers never do.
+- The three `RemoteEvent` fields stay positional; everything a mailer event adds is a keyword.
+  `date` is when the provider says it happened, not when the report arrived.
+- `date` is a plain `datetime`: give it in UTC, as providers report it. It keeps its offset on a
+  bus, not a zone's name, and one in the hour the clocks repeat is refused when written.
+- `metadata` holds JSON data, as `payload` does.
+- `AbstractMailerEvent` holds what both share; building it itself raises `TypeError`.
 
 ## Testing
 
