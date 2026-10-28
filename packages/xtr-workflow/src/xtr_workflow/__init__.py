@@ -15,6 +15,7 @@ from .arc import Arc
 from .definition import Definition
 from .definition_builder import DefinitionBuilder
 from .marking import Marking
+from .marking_store import MarkingStoreInterface
 from .metadata import MetadataStoreInterface
 from .transition import Transition
 from .workflow_type import WorkflowType
@@ -24,6 +25,7 @@ __all__ = [
     "Definition",
     "DefinitionBuilder",
     "Marking",
+    "MarkingStoreInterface",
     "MetadataStoreInterface",
     "Transition",
     "WorkflowType",
