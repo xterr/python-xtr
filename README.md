@@ -59,6 +59,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-storage](packages/xtr-storage) | Files on local disk, in memory or in object stores, behind one async interface. |
 | [xtr-remote-event](packages/xtr-remote-event) | Events received from another system, as one value type, handed to the consumer registered under their source's name. |
 | [xtr-webhook](packages/xtr-webhook) | Webhooks received as events — verified and replay-bounded — and sent signed, in the legacy or the Standard Webhooks format. |
+| [xtr-workflow](packages/xtr-workflow) | Move objects through workflows and state machines — weighted places and transitions, guards, events at every step, definitions in code, config or on a class, dumped as Graphviz, PlantUML or Mermaid. |
 
 How they depend on each other (runtime dependencies; a dotted edge is an optional integration,
 used when the application installs that package too):
@@ -217,6 +218,11 @@ graph LR
     telegramnotifier --> httpclientcon
     slacknotifier[xtr-slack-notifier] --> notifier
     slacknotifier --> httpclientcon
+    workflow[xtr-workflow] --> clock
+    workflow --> events
+    workflow --> eventcon
+    workflow --> logcon
+    workflow --> svccon
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its
