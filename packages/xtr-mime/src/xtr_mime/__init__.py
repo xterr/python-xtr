@@ -7,4 +7,18 @@ and DKIM or S/MIME signs it when asked.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .exception import (
+    InvalidArgumentError,
+    LogicError,
+    MimeError,
+    MimeRuntimeError,
+    RfcComplianceError,
+)
+
+__all__ = [
+    "InvalidArgumentError",
+    "LogicError",
+    "MimeError",
+    "MimeRuntimeError",
+    "RfcComplianceError",
+]
