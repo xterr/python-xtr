@@ -7,6 +7,7 @@ and DKIM or S/MIME signs it when asked.
 
 from __future__ import annotations
 
+from .address import Address
 from .exception import (
     InvalidArgumentError,
     LogicError,
@@ -14,8 +15,11 @@ from .exception import (
     MimeRuntimeError,
     RfcComplianceError,
 )
+from .group import Group
 
 __all__ = [
+    "Address",
+    "Group",
     "InvalidArgumentError",
     "LogicError",
     "MimeError",
