@@ -14,6 +14,7 @@ from __future__ import annotations
 from .arc import Arc
 from .definition import Definition
 from .definition_builder import DefinitionBuilder
+from .dumper import DumperInterface
 from .marking import Marking
 from .marking_store import MarkingStoreInterface
 from .metadata import MetadataStoreInterface
@@ -30,6 +31,7 @@ __all__ = [
     "Definition",
     "DefinitionBuilder",
     "DefinitionValidatorInterface",
+    "DumperInterface",
     "Marking",
     "MarkingStoreInterface",
     "MetadataStoreInterface",
