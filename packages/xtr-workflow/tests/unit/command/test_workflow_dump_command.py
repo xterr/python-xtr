@@ -228,6 +228,7 @@ async def test_the_help_lists_the_arguments_and_the_options() -> None:
         "--with-listeners",
         "--dump-format",
     } <= set(tester.display.split())
+    assert "Label a graph" in tester.display
 
 
 async def test_without_a_container_the_console_reports_the_missing_workflows() -> None:

@@ -60,9 +60,7 @@ class WorkflowDumpCommand:
         io: ConsoleStyle,
         name: str,
         *marking: str,
-        # Given again here: an option fine-tuned with ``Option`` does not get
-        # its description from the docstring.
-        label: Annotated[str | None, Option(alias="-l", help="Label a graph")] = None,
+        label: Annotated[str | None, Option(alias="-l")] = None,
         with_metadata: bool = False,
         with_listeners: bool = False,
         dump_format: str = "dot",
