@@ -28,6 +28,7 @@ from .validator import DefinitionValidatorInterface
 from .workflow import Workflow
 from .workflow_events import WorkflowEvents
 from .workflow_interface import WorkflowInterface
+from .workflow_trait import WorkflowTrait
 from .workflow_type import WorkflowType
 
 __all__ = [
@@ -48,5 +49,6 @@ __all__ = [
     "WorkflowEvents",
     "WorkflowInterface",
     "WorkflowSupportStrategyInterface",
+    "WorkflowTrait",
     "WorkflowType",
 ]
