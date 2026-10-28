@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-client-contracts"
-version = "5.0.1"
+version = "5.1.0"
 description = "The async HTTP client contract alone: a request call, a response read on demand, typed options and the errors they raise."
 readme = "README.md"
 authors = [
