@@ -6,32 +6,21 @@ from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
 from xtr_security_core.event.authentication_success_event import AuthenticationSuccessEvent
-from xtr_security_core.exception import (
-    AuthenticationError,
-    BadCredentialsError,
-    InvalidArgumentError,
-)
+from xtr_security_core.exception import AuthenticationError, BadCredentialsError
 
-from xtr_security_http.authentication._sensitive import mask
 from xtr_security_http.authentication.expose_security_level import ExposeSecurityLevel
 from xtr_security_http.authentication.user_authenticator_interface import UserAuthenticatorInterface
-from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
-from xtr_security_http.authenticator.debug.traceable_authenticator import TraceableAuthenticator
-from xtr_security_http.authenticator.interactive_authenticator_interface import (
-    InteractiveAuthenticatorInterface,
-)
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.event.authentication_token_created_event import (
     AuthenticationTokenCreatedEvent,
 )
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
-from xtr_security_http.event.interactive_login_event import InteractiveLoginEvent
-from xtr_security_http.event.login_failure_event import LoginFailureEvent
-from xtr_security_http.event.login_success_event import LoginSuccessEvent
-from xtr_security_http.security_events import SecurityEvents
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
+from ._authentication_outcome import AuthenticationOutcome, ManagerWiring
+from ._manager_reporting import authenticator_name, log_debug, log_info
+from ._supports_pass import run_supports_pass
 from .authenticator_manager_interface import AuthenticatorManagerInterface
 
 if TYPE_CHECKING:
@@ -40,7 +29,6 @@ if TYPE_CHECKING:
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_logging_contracts import LoggerInterface
-    from xtr_logging_contracts.context import Context
     from xtr_security_core.authentication.token.storage.token_storage_interface import (
         TokenStorageInterface,
     )
@@ -48,6 +36,7 @@ if TYPE_CHECKING:
     from xtr_security_core.user.user_interface import UserInterface
 
     from xtr_security_http._security_state import SecurityState
+    from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
     from xtr_security_http.authenticator.passport.badge.badge_interface import BadgeInterface
     from xtr_security_http.authenticator.passport.passport import Passport
 
@@ -99,7 +88,7 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
         "_expose_security_errors",
         "_firewall_name",
         "_logger",
-        "_required_badges",
+        "_outcome",
         "_token_storage",
     )
 
@@ -120,7 +109,16 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
         self._firewall_name = firewall_name
         self._logger = logger
         self._expose_security_errors = expose_security_errors
-        self._required_badges = tuple(required_badges)
+        self._outcome = AuthenticationOutcome(
+            ManagerWiring(
+                token_storage,
+                event_dispatcher,
+                firewall_name,
+                logger,
+                expose_security_errors,
+                tuple(required_badges),
+            )
+        )
 
     @override
     def supports(self, request: ServerRequestInterface, state: SecurityState) -> bool | None:
@@ -138,54 +136,13 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
                 :class:`~xtr_security_http.authenticator.authenticator_interface.AuthenticatorInterface`
                 — a wiring mistake, not a request failure.
         """
-        lazy = True
-        skipped: list[AuthenticatorInterface] = []
-        authenticators: list[AuthenticatorInterface] = []
-        for authenticator in self._authenticators:
-            # The sequence is typed, but nothing stops a caller from wiring a
-            # duck-typed impostor in; the pass refuses one here, where the
-            # mistake is about to cost a request.
-            if not isinstance(  # pyright: ignore[reportUnnecessaryIsInstance]
-                authenticator,
-                AuthenticatorInterface,
-            ):
-                raise InvalidArgumentError(
-                    f'The authenticator "{type(authenticator).__name__}" does not implement '
-                    f"AuthenticatorInterface.",
-                )
-            supported = authenticator.supports(request)
-            if supported is False:
-                self._debug(
-                    'Authenticator "{authenticator}" does not support the request.',
-                    {
-                        "firewall": self._firewall_name,
-                        "authenticator": type(authenticator).__name__,
-                    },
-                )
-                skipped.append(authenticator)
-            else:
-                self._debug(
-                    'Authenticator "{authenticator}" supports the request.',
-                    {
-                        "firewall": self._firewall_name,
-                        "authenticator": type(authenticator).__name__,
-                    },
-                )
-                authenticators.append(authenticator)
-                lazy = supported is None and lazy
-        state.attributes[SecurityRequestAttributes.SKIPPED_AUTHENTICATORS] = tuple(skipped)
-        state.attributes[SecurityRequestAttributes.AUTHENTICATORS] = tuple(authenticators)
-        if not authenticators:
-            return False
-        self._debug(
-            'Authenticators "{authenticators}" support the request.',
-            {
-                "firewall": self._firewall_name,
-                "authenticators": [
-                    type(authenticator).__name__ for authenticator in authenticators
-                ],
-            },
+        skipped, supporters, lazy = run_supports_pass(
+            self._authenticators, request, firewall_name=self._firewall_name, logger=self._logger
         )
+        state.attributes[SecurityRequestAttributes.SKIPPED_AUTHENTICATORS] = skipped
+        state.attributes[SecurityRequestAttributes.AUTHENTICATORS] = supporters
+        if not supporters:
+            return False
         return None if lazy else True
 
     @override
@@ -239,11 +196,12 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
         for authenticator in authenticators:
             supported = authenticator.supports(request)
             if supported is False:
-                self._debug(
+                log_debug(
+                    self._logger,
                     'Authenticator "{authenticator}" no longer supports the request.',
                     {
                         "firewall": self._firewall_name,
-                        "authenticator": type(self._named(authenticator)).__name__,
+                        "authenticator": authenticator_name(authenticator),
                     },
                 )
                 continue
@@ -253,11 +211,12 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
             if outcome is _ABSTAINED or outcome is None:
                 continue
             response = cast("ResponseInterface", outcome)
-            self._debug(
+            log_debug(
+                self._logger,
                 'Authenticator "{authenticator}" set the response.',
                 {
                     "firewall": self._firewall_name,
-                    "authenticator": type(self._named(authenticator)).__name__,
+                    "authenticator": authenticator_name(authenticator),
                 },
             )
             return response
@@ -290,11 +249,12 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
                 )
             ).get_authenticated_token()
             _ = await self._event_dispatcher.dispatch(AuthenticationSuccessEvent(token))
-            self._info(
+            log_info(
+                self._logger,
                 "Authenticator successful!",
                 {
                     "firewall": self._firewall_name,
-                    "authenticator": type(self._named(authenticator)).__name__,
+                    "authenticator": authenticator_name(authenticator),
                 },
             )
         except BadCredentialsError as error:
@@ -312,11 +272,12 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
         )
         if response is not None:
             return response
-        self._debug(
+        log_debug(
+            self._logger,
             "Authenticator set no success response: request continues.",
             {
                 "firewall": self._firewall_name,
-                "authenticator": type(self._named(authenticator)).__name__,
+                "authenticator": authenticator_name(authenticator),
             },
         )
         return None
@@ -380,31 +341,13 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
         under the name
         :attr:`~xtr_security_http.security_events.SecurityEvents.INTERACTIVE_LOGIN`.
         """
-        self._token_storage.set_token(token)
-        response = await authenticator.on_authentication_success(
-            request,
+        return await self._outcome.announce_login(
             token,
-            self._firewall_name,
-        )
-        if (
-            isinstance(authenticator, InteractiveAuthenticatorInterface)
-            and authenticator.is_interactive()
-        ):
-            _ = await self._event_dispatcher.dispatch(
-                InteractiveLoginEvent(request, token),
-                SecurityEvents.INTERACTIVE_LOGIN,
-            )
-        event = LoginSuccessEvent(
-            authenticator,
             passport,
-            token,
             request,
-            response,
-            self._firewall_name,
+            authenticator,
             previous_token,
         )
-        _ = await self._event_dispatcher.dispatch(event)
-        return event.get_response()
 
     async def handle_authentication_failure(
         self,
@@ -425,68 +368,14 @@ class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInter
         ``state``, where this step parked it, so the entry point's challenge
         can still name what went wrong.
         """
-        masked = mask(error, self._expose_security_errors)
-        state.attributes[SecurityRequestAttributes.AUTHENTICATION_ERROR] = masked
-        self._info(
-            "Authentication failed.",
-            {"firewall": self._firewall_name, "error": type(error).__name__},
-        )
-        response = await authenticator.on_authentication_failure(request, masked)
-        if response is not None:
-            self._debug(
-                'Authenticator "{authenticator}" set the failure response.',
-                {
-                    "firewall": self._firewall_name,
-                    "authenticator": type(self._named(authenticator)).__name__,
-                },
-            )
-        event = LoginFailureEvent(
-            masked,
-            authenticator,
+        return await self._outcome.answer_failure(
+            error,
             request,
-            response,
-            self._firewall_name,
+            authenticator,
             passport,
+            state,
         )
-        _ = await self._event_dispatcher.dispatch(event)
-        return event.get_response()
 
     def _ensure_resolved(self, passport: Passport) -> None:
-        """Raise when a badge is unresolved or a required badge is absent.
-
-        An unresolved badge fails fast, naming the first one the passport
-        carries; the required ones are checked as a group, so one error names
-        every badge the firewall asked for and the passport lacks.
-        """
-        for badge in passport.get_badges().values():
-            if not badge.is_resolved():
-                raise BadCredentialsError(
-                    f"The badge {type(badge).__name__} was not resolved by the passport check.",
-                )
-        missing = [badge for badge in self._required_badges if not passport.has_badge(badge)]
-        if missing:
-            raise BadCredentialsError(
-                "The passport is missing the required badges: "
-                + ", ".join(badge.__name__ for badge in missing)
-                + ".",
-            )
-
-    def _named(self, authenticator: AuthenticatorInterface) -> AuthenticatorInterface:
-        """Return the authenticator a log or a record should name.
-
-        A traceable wrapper is what the wiring runs, but its name explains
-        nothing; the wrapped one is what a reader is looking for.
-        """
-        if isinstance(authenticator, TraceableAuthenticator):
-            return authenticator.get_authenticator()
-        return authenticator
-
-    def _debug(self, message: str, context: Context) -> None:
-        """Log ``message`` at debug level, when a logger was given."""
-        if self._logger is not None:
-            self._logger.debug(message, context)
-
-    def _info(self, message: str, context: Context) -> None:
-        """Log ``message`` at info level, when a logger was given."""
-        if self._logger is not None:
-            self._logger.info(message, context)
+        """Raise when a badge is unresolved or a required badge is absent."""
+        self._outcome.ensure_resolved(passport)

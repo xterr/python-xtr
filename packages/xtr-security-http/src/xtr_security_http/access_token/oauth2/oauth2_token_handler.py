@@ -16,11 +16,11 @@ from xtr_security_http.exception.invalid_access_token_error import InvalidAccess
 from ._introspected_user import build_user
 from ._introspection_claims import numeric_seconds, user_identifier, verify_members
 from ._signed_response import verify_signed_response
+from ._signed_response_discovery import SignedResponseDiscovery, metadata_url
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
-    from joserfc._keys import KeySetSerialization
     from joserfc.jwk import KeySet
     from xtr_cache_contracts import CacheInterface, Callback, ItemInterface
     from xtr_clock import ClockInterface
@@ -28,18 +28,17 @@ if TYPE_CHECKING:
     from xtr_logging_contracts import LoggerInterface
     from xtr_security_core.user.oauth2_user import OAuth2User
 
-    from xtr_security_http.oidc.oidc_discovery import OidcDiscovery
-
     Introspection = tuple[dict[str, object], bool]
     """The members of an introspection response, and whether they were read from a signed one."""
 
 __all__ = ["Oauth2TokenHandler"]
 
+#: The metadata URL builder, kept under the private name this module has
+#: carried it as.
+_metadata_url = metadata_url
+
 _JWT_RESPONSE_MEDIA_TYPE: Final = "application/token-introspection+jwt"
 """RFC 9701 Section 5: the media type of a JWT introspection response."""
-
-_METADATA_PATH: Final = "/.well-known/oauth-authorization-server"
-"""RFC 8414 Section 3: the well-known path of the authorization server metadata."""
 
 
 @final
@@ -85,13 +84,10 @@ class Oauth2TokenHandler:
         "_claim",
         "_client",
         "_clock",
+        "_discovery",
         "_enforce_signed_response",
         "_issuer",
         "_logger",
-        "_metadata",
-        "_metadata_cache",
-        "_metadata_cache_key",
-        "_metadata_client",
         "_signature_algorithms",
         "_signature_keyset",
     )
@@ -149,10 +145,7 @@ class Oauth2TokenHandler:
         self._signature_algorithms: tuple[str, ...] = ()
         self._signature_keyset: KeySet | None = None
         self._enforce_signed_response = True
-        self._metadata: OidcDiscovery | None = None
-        self._metadata_cache: CacheInterface | None = None
-        self._metadata_cache_key: str | None = None
-        self._metadata_client: HttpClientInterface | None = None
+        self._discovery: SignedResponseDiscovery | None = None
 
     def enable_cache(self, cache: CacheInterface, cache_key_prefix: str, ttl: int = 60) -> None:
         """Cache the introspection responses of active tokens, for at most ``ttl`` seconds.
@@ -241,11 +234,11 @@ class Oauth2TokenHandler:
 
         RFC 8414 Section 3 builds the metadata URL by inserting the well-known
         path between the host and the path of the issuer identifier, where
-        OIDC Discovery 1.0 appends it, so the URL is built here and handed to
-        the discovery reader already absolute. The document is the authority
-        for the ``jwks_uri`` only: which algorithms this resource server
-        accepts stays its own decision, so that an authorization server cannot
-        widen it by announcing more.
+        OIDC Discovery 1.0 appends it, so the URL is built from the issuer
+        and handed to the discovery reader already absolute. The document is
+        the authority for the ``jwks_uri`` only: which algorithms this
+        resource server accepts stays its own decision, so that an
+        authorization server cannot widen it by announcing more.
 
         The metadata document is kept under ``cache_key`` suffixed with
         ``.document``, and the keys under the bare ``cache_key``, for as long
@@ -266,34 +259,12 @@ class Oauth2TokenHandler:
             ImportError: When joserfc, which verifies the responses, is not
                 installed — the ``oidc`` extra carries it.
         """
-        from xtr_security_core.exception import (  # noqa: PLC0415 -- the discovery reader rides the oidc extra
-            BadMethodCallError,
-        )
-
-        from xtr_security_http.oidc.oidc_discovery import (  # noqa: PLC0415 -- guarded behind the oidc extra
-            OidcDiscovery,
-        )
-
-        if self._issuer is None:
-            raise BadMethodCallError(
-                'The "issuer" of the authorization server is required to read its '
-                "metadata, since RFC 8414 Section 3 derives the metadata URL from it.",
-            )
-        if find_spec("joserfc") is None:  # pragma: no cover -- the extra carries it
-            raise ImportError(
-                "Verifying signed introspection responses needs joserfc; install the "
-                "'oidc' extra: uv add \"xtr-security-http[oidc]\".",
-            )
-        self._metadata_cache = cache
-        self._metadata_client = client
-        self._metadata_cache_key = cache_key
-        self._metadata = OidcDiscovery(
+        self._discovery = SignedResponseDiscovery(
+            self._issuer,
             client,
             cache,
-            _metadata_url(self._issuer),
-            self._issuer,
-            cache_key=f"{cache_key}.document",
-            checked_endpoints=("jwks_uri",),
+            cache_key,
+            self._clock,
         )
 
     async def get_user_badge_from(self, access_token: str) -> UserBadge:
@@ -459,7 +430,7 @@ class Oauth2TokenHandler:
         It can when a key set was pinned, or when the authorization server's
         metadata was given to read one from.
         """
-        return self._signature_keyset is not None or self._metadata is not None
+        return self._signature_keyset is not None or self._discovery is not None
 
     async def _resolve_signature_keyset(self) -> KeySet:
         """Return the keys a signed response is verified against.
@@ -469,54 +440,14 @@ class Oauth2TokenHandler:
         """
         if self._signature_keyset is not None:
             return self._signature_keyset
-        metadata_cache = self._metadata_cache
-        metadata_client = self._metadata_client
-        metadata = self._metadata
+        discovery = self._discovery
         # One of the two sources is set whenever a signed response is verified.
-        if (
-            metadata_cache is None or metadata_client is None or metadata is None
-        ):  # pragma: no cover
+        if discovery is None:  # pragma: no cover
             raise InvalidAccessTokenError(
                 "A signed introspection response cannot be verified: no key set and "
                 "no metadata to read one from.",
             )
-        keys = await metadata_cache.get(
-            self._metadata_cache_key or "",
-            self._compute_metadata_keys,
-        )
-        return _key_set(keys)
-
-    async def _compute_metadata_keys(self, item: ItemInterface) -> list[dict[str, object]]:
-        """Fetch the verifying keys off the ``jwks_uri`` the metadata announces.
-
-        The entry lives for what the response headers' freshness arithmetic
-        leaves, capped at what the JWKS reader allows, or the default when the
-        headers name nothing.
-        """
-        from xtr_security_http.oidc.oidc_jwks import (  # noqa: PLC0415 -- guarded behind the oidc extra
-            OidcJwks,
-        )
-
-        metadata = self._metadata
-        metadata_client = self._metadata_client
-        # The discovery path sets both.
-        if metadata is None or metadata_client is None:  # pragma: no cover
-            raise InvalidAccessTokenError(
-                "A signed introspection response cannot be verified: no metadata to "
-                "read the verifying keys from.",
-            )
-        jwks_uri = (await metadata.get_configuration()).get("jwks_uri")
-        keys, ttl = await OidcJwks.from_response(
-            await metadata_client.request(
-                "GET",
-                jwks_uri if isinstance(jwks_uri, str) else "",
-                max_redirects=0,
-            ),
-            enforce_key_usage_verification=True,
-            clock=self._clock,
-        )
-        _ = item.expires_after(min(ttl if ttl is not None else 3600, OidcJwks.MAX_TTL))
-        return keys
+        return await discovery.resolve_keyset()
 
     def _now(self) -> int:
         """Return the moment the clock reads, as a Unix timestamp."""
@@ -538,39 +469,3 @@ def _media_type(response: HttpResponseInterface) -> str:
     """
     values = response.get_header("content-type")
     return (values[0] if values else "").split(";", 1)[0].strip().lower()
-
-
-def _metadata_url(issuer: str) -> str:
-    """Build the RFC 8414 Section 3 metadata URL of an issuer.
-
-    The well-known path is inserted between the host component and the path
-    of the issuer identifier, so one host can serve the metadata of several
-    authorization servers.
-    """
-    from urllib.parse import (  # noqa: PLC0415 -- a stdlib import kept off the module head for the oidc-extra path
-        urlsplit,
-    )
-
-    from xtr_security_core.exception import (  # noqa: PLC0415 -- the discovery reader rides the oidc extra
-        BadMethodCallError,
-    )
-
-    parts = urlsplit(issuer.rstrip("/"))
-    if not parts.scheme or not parts.hostname:
-        raise BadMethodCallError(
-            'The "issuer" of the authorization server must be an absolute URL to '
-            f'read its metadata, "{issuer}" given.',
-        )
-    return f"{parts.scheme}://{parts.netloc}{_METADATA_PATH}{parts.path}"
-
-
-def _key_set(keys: object) -> KeySet:
-    """Turn the cached key dictionaries into the key set the verifier reads."""
-    from typing import cast  # noqa: PLC0415 -- the cast target is a typing-only name
-
-    from joserfc.jwk import (  # noqa: PLC0415 -- guarded behind the oidc extra
-        KeySet as JoserfcKeySet,
-    )
-
-    serialization = cast("KeySetSerialization", cast("object", {"keys": keys}))
-    return JoserfcKeySet.import_key_set(serialization)

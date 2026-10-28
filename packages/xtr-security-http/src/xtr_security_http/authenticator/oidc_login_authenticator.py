@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_clock import SystemClock
-from xtr_security_core.exception import AuthenticationError, InvalidArgumentError
+from xtr_security_core.exception import AuthenticationError
 
 from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http.entry_point.authentication_entry_point_interface import (
@@ -23,6 +23,7 @@ from ._oidc_login_authorization import OidcLoginAuthorization
 from ._oidc_login_callback import check_issuer, check_provider_error, read_callback
 from ._oidc_login_claims import build_passport, fetch_user_claims
 from ._oidc_login_options import OidcLoginOptions, managed_params_of
+from ._oidc_login_public_client import check_public_client
 from ._oidc_login_token import stamp_oidc_token
 from .abstract_authenticator import AbstractAuthenticator
 from .debug.unsupported_reasons import UnsupportedReasons
@@ -192,7 +193,7 @@ class OidcLoginAuthenticator(
     ) -> ResponseInterface:
         """Send the caller to the provider to authenticate."""
         del error
-        self._check_public_client()
+        check_public_client(self._oidc_client, self._options, self._signature_verifier)
         return await self._authorization.build(request, self._session_of(request))
 
     @override
@@ -215,7 +216,7 @@ class OidcLoginAuthenticator(
         check instead of quietly returning the stale authentication that was
         denied in the first place.
         """
-        self._check_public_client()
+        check_public_client(self._oidc_client, self._options, self._signature_verifier)
         forced_params: dict[str, str] = {"prompt": "login"}
         if token.has_attribute("oidc_id_token"):
             id_token = token.get_attribute("oidc_id_token")
@@ -242,7 +243,7 @@ class OidcLoginAuthenticator(
         Raises:
             AuthenticationError: When any step of the callback fails.
         """
-        self._check_public_client()
+        check_public_client(self._oidc_client, self._options, self._signature_verifier)
         session = self._session_of(request)
         attempts = OidcLoginAttempts(session, self._options.firewall_name)
         response = read_callback(request)
@@ -376,35 +377,3 @@ class OidcLoginAuthenticator(
                 "cannot be used with the session disabled, nor on a stateless firewall.",
             )
         return session
-
-    def _check_public_client(self) -> None:
-        """Refuse a public client that turns PKCE or the ID token signature check off.
-
-        Such a client, which authenticates with "none", sends no secret: PKCE
-        is then the only thing binding the authorization code to it, and the
-        ID token signature the only thing tying the token endpoint response
-        to the provider beyond the TLS verification.
-
-        This is checked when the authenticator is used rather than when it is
-        created, so that the client can be a lazy service.
-
-        Raises:
-            InvalidArgumentError: When the configuration a public client
-                cannot afford was given one.
-        """
-        if self._oidc_client.get_client_authentication_method() != "none":
-            return
-        if not self._options.pkce_enabled:
-            raise InvalidArgumentError(
-                "PKCE cannot be disabled for a public OIDC client, which authenticates "
-                'with "none": it is the only thing binding the authorization code to '
-                "this client.",
-            )
-        if self._signature_verifier is None:
-            raise InvalidArgumentError(
-                "The ID token signature must be verified for a public OIDC client, which "
-                'authenticates with "none": without the check, only the TLS verification '
-                "of the token request ties the ID token to the provider, which is too "
-                "little for a client that has nothing but PKCE protecting its code "
-                "exchange.",
-            )
