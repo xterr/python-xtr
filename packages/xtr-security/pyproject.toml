@@ -37,6 +37,9 @@ dependencies = [
     # the HTTP client contract and an in-memory cache pool.
     "xtr-http-client>=4.0,<5",
     "xtr-cache>=4.0,<5",
+    # The login-throttling wiring builds the two limiter factories a firewall's
+    # attempts count under, over the application's own storage service.
+    "xtr-rate-limiter>=4.0,<5",
     "typing-extensions>=4.12",
 ]
 

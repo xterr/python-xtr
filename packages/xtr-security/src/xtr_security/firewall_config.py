@@ -21,8 +21,14 @@ from xtr_http_foundation import (
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security.exception import InvalidConfigurationError
+from xtr_security.login_throttling_config import (  # noqa: TC001 -- a field type the kernel reads at runtime
+    LoginThrottlingConfig,
+)
 from xtr_security.logout_config import (  # noqa: TC001 -- a field type the kernel reads at runtime
     LogoutConfig,
+)
+from xtr_security.switch_user_config import (  # noqa: TC001 -- a field type the kernel reads at runtime
+    SwitchUserConfig,
 )
 
 if TYPE_CHECKING:
@@ -84,6 +90,14 @@ class FirewallConfig:
             fails the build.
         logout: The logout the firewall's requests can ask for, or ``None``
             when the firewall has none.
+        switch_user: The switch-user block the firewall's callers switch
+            by, or ``None`` when the firewall has none.
+        login_throttling: How the firewall's logins are counted and
+            refused, or ``None`` to let every attempt through uncounted.
+        re_authentication_entry_point: A service type implementing
+            :class:`~xtr_security_http.entry_point.re_authentication_entry_point_interface.ReAuthenticationEntryPointInterface`,
+            starting a fresh proof for a caller who is already
+            authenticated — or ``None`` for a plain ``403`` refusal.
         listeners: The qualifiers of the firewall's listener chain, each naming
             a listener aliased under
             :class:`~xtr_security_http.firewall.firewall_listener_interface.FirewallListenerInterface`.
@@ -115,6 +129,9 @@ class FirewallConfig:
     required_badges: tuple[type, ...] = field(default_factory=tuple)
     csrf_route_markers: bool = False
     logout: LogoutConfig | None = None
+    switch_user: SwitchUserConfig | None = None
+    login_throttling: LoginThrottlingConfig | None = None
+    re_authentication_entry_point: type | None = None
     listeners: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:

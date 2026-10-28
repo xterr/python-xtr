@@ -8,6 +8,7 @@ from xtr_dependency_injection import ServiceLocator, Target
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 from xtr_http_message_contracts.factory import ResponseFactoryInterface
+from xtr_logging_contracts import LoggerInterface
 from xtr_security_core import (
     AccessDecisionManagerInterface,
     AuthenticationTrustResolverInterface,
@@ -52,7 +53,7 @@ if TYPE_CHECKING:
 __all__ = ["register_context_factory"]
 
 
-def register_context_factory(  # noqa: PLR0913, PLR0915 -- a wiring call gathering one firewall's parts
+def register_context_factory(  # noqa: PLR0913, PLR0915, C901 -- one factory gathering one firewall's parts; each branch injects one part
     services: ServiceConfigurator,
     name: str,
     firewall: FirewallConfig,
@@ -64,6 +65,8 @@ def register_context_factory(  # noqa: PLR0913, PLR0915 -- a wiring call gatheri
     extra_listeners: tuple[str, ...] = (),
     context_listener: str | None = None,
     logout_listener: str | None = None,
+    channel_listener: str | None = None,
+    logging_active: bool = False,
 ) -> None:
     """Register the factory that gathers one firewall's parts into a context.
 
@@ -105,6 +108,13 @@ def register_context_factory(  # noqa: PLR0913, PLR0915 -- a wiring call gatheri
     the rest. ``logout_listener`` names the logout step a configured logout
     registered: the context carries it on its own logout slot, where the
     firewall runs it at its priority instead of the chain's ordering.
+
+    ``channel_listener`` names the channel step a firewall with channel rules
+    runs: parked first on the chain, ahead of the context step and the
+    manager's own, so a request arriving over the wrong scheme is redirected
+    before anything it carries is spent. ``logging_active`` hands the
+    exception listener the application's logger, the way the trust resolver
+    takes the application's clock while the clock bundle is active.
     """
     realm = realm_of(firewall)
     scope_settings = access_token_settings_of(firewall)
@@ -206,6 +216,7 @@ def register_context_factory(  # noqa: PLR0913, PLR0915 -- a wiring call gatheri
         scope_denied: object | None = None,
         scope_constraint: object | None = None,
         logout: object | None = None,
+        logger: LoggerInterface | None = None,
     ) -> FirewallContext:
         available = {
             qualifier: await authenticators.get(qualifier) for qualifier in auth_qualifiers
@@ -234,6 +245,8 @@ def register_context_factory(  # noqa: PLR0913, PLR0915 -- a wiring call gatheri
             entry_point=entry_point,
             access_denied_handler=cast("AccessDeniedHandlerInterface | None", denied),
             scope_denied_handler=scope_denied_handler,
+            stateless=firewall.stateless,
+            logger=logger,
         )
         return FirewallContext(
             name=name,
@@ -268,12 +281,16 @@ def register_context_factory(  # noqa: PLR0913, PLR0915 -- a wiring call gatheri
         ]
     if logout_listener is not None:
         annotations["logout"] = Annotated[LogoutListener, Target(logout_listener)]
+    if logging_active:
+        annotations["logger"] = LoggerInterface
     firewall_context.__annotations__ = annotations
     firewall_context.__name__ = f"firewall_context_{name}"
     firewall_context.__qualname__ = firewall_context.__name__
     chain = (listener_qualifier, access_listener_qualifier, *extra_listeners, *firewall.listeners)
     if context_listener is not None:
         chain = (context_listener, *chain)
+    if channel_listener is not None:
+        chain = (channel_listener, *chain)
     _ = services.set(firewall_context, qualifier=name, lifetime="scoped").set_argument(
         "listeners",
         chain,

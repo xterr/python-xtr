@@ -28,25 +28,35 @@ class AccessMap(AccessMapInterface):
     requires.
 
     :meth:`get_patterns` answers the rule's attribute as the one member of a
-    tuple, beside the channel the rule demands the request arrive over. No
-    rule carries a channel — the channel listener's rules, when they land,
-    are the ones that will — so the channel half of every answer is ``None``,
-    the answer a rule without a channel gives.
+    tuple, beside the channel the rule demands the request arrive over. A
+    rule added without a channel demands none — the channel half of its
+    answer is ``None`` — while one added with ``channel="https"`` is answered
+    with a redirect until the request arrives over it.
     """
 
     __slots__ = ("_rules",)
 
     def __init__(self) -> None:
         """Start with no rules; add each with :meth:`add`."""
-        self._rules: list[tuple[RequestMatcherInterface, str]] = []
+        self._rules: list[tuple[RequestMatcherInterface, str, str | None]] = []
 
-    def add(self, request_matcher: RequestMatcherInterface, attribute: str) -> None:
+    def add(
+        self,
+        request_matcher: RequestMatcherInterface,
+        attribute: str,
+        channel: str | None = None,
+    ) -> None:
         """Append a rule: ``attribute`` is required of a request ``request_matcher`` claims.
 
         One attribute per rule is deliberate — a rule that needs two conditions
         is two rules, or a single closure attribute.
+
+        ``channel`` names the scheme the rule demands the request arrive
+        over — ``"https"`` or ``"http"`` — or ``None`` to demand none; the
+        channel listener answers a request arriving over the wrong one with a
+        redirect to the same request over the scheme the rule demands.
         """
-        self._rules.append((request_matcher, attribute))
+        self._rules.append((request_matcher, attribute, channel))
 
     @override
     async def get_patterns(
@@ -55,10 +65,10 @@ class AccessMap(AccessMapInterface):
         """Return the first matching rule's attribute, and the channel it demands.
 
         The attribute rides out as the one member of a tuple, the shape the
-        deciding step hands the access decision manager; the channel is
-        ``None``, because no rule this map holds carries one.
+        deciding step hands the access decision manager; the channel is the
+        one the matching rule demands, or ``None`` when it demands none.
         """
-        for request_matcher, attribute in self._rules:
+        for request_matcher, attribute, channel in self._rules:
             if await request_matcher.matches(request):
-                return (attribute,), None
+                return (attribute,), channel
         return (), None

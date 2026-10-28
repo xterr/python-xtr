@@ -60,13 +60,20 @@ class AccessControlConfig:
         host: A regular expression matched against the request host, or ``None``.
         methods: The HTTP methods the rule applies to; every method when empty.
         ips: Client addresses the rule applies to; every address when empty.
+        channel: The scheme a matching request must arrive over —
+            ``"https"`` or ``"http"`` — or ``None`` to demand none; the
+            channel listener answers a request arriving over the wrong one
+            with a redirect to the same request over the scheme the rule
+            demands.
         firewall: The firewall the rule belongs to, or ``None`` for any.
 
     Raises:
-        InvalidArgumentError: When ``attribute`` is empty, ``path`` or ``host``
+            InvalidArgumentError: When ``attribute`` is empty, ``path`` or ``host``
             is not a valid regular expression, a ``methods`` entry is not an
             HTTP method token, or an ``ips`` entry is neither an address nor a
             CIDR network.
+            InvalidArgumentError: When ``channel`` names a scheme other than
+            ``"http"`` or ``"https"``.
     """
 
     path: str
@@ -74,6 +81,7 @@ class AccessControlConfig:
     host: str | None = None
     methods: tuple[str, ...] = ()
     ips: tuple[str, ...] = ()
+    channel: str | None = None
     firewall: str | None = None
 
     def __post_init__(self) -> None:
@@ -114,6 +122,10 @@ class AccessControlConfig:
                 raise InvalidArgumentError(
                     f"The access-control address {entry!r} is not a valid address or network.",
                 ) from error
+        if self.channel is not None and self.channel not in ("http", "https"):
+            raise InvalidArgumentError(
+                f'The access-control channel {self.channel!r} is neither "http" nor "https".',
+            )
 
     def to_matcher(self) -> RequestMatcherInterface:
         """Return the request matcher this configuration describes.

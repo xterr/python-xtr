@@ -71,3 +71,13 @@ async def test_csrf_route_markers_on_a_stateless_firewall_fail_the_build() -> No
     )
     with pytest.raises(InvalidConfigurationError, match="cross-site request forgery"):
         _ = kernel.build()
+
+
+async def test_a_switch_asking_for_a_csrf_check_on_a_stateless_firewall_fails_the_build() -> None:
+    kernel = Kernel(
+        "tests.fixtures.broken_apps.switch_user_csrf_on_stateless",
+        env="test",
+        bundles={SecurityBundle: {"all": True}},
+    )
+    with pytest.raises(InvalidConfigurationError, match="cross-site request forgery"):
+        _ = kernel.build()

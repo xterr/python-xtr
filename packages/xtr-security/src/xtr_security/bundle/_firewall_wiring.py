@@ -14,23 +14,37 @@ from xtr_security_http import (
 from xtr_security_http.firewall_map import FirewallMap as HttpFirewallMap
 
 from xtr_security.bundle._authenticator_wiring import register_authenticators
+from xtr_security.bundle._channel_wiring import register_channel_listener
 from xtr_security.bundle._context_wiring import register_context_factory
 from xtr_security.bundle._csrf_wiring import firewall_asks_for_csrf, register_csrf_token_manager
 from xtr_security.bundle._dispatcher_wiring import register_dispatcher, register_shared_listeners
+from xtr_security.bundle._firewall_refusals import (
+    refuse_a_back_channel_logout_on_a_stateless_firewall,
+    refuse_a_form_login_on_a_stateless_firewall,
+    refuse_csrf_route_markers_on_a_stateless_firewall,
+)
 from xtr_security.bundle._logout_wiring import (
     logout_context_key,
     register_logout,
     register_logout_url_generator,
+)
+from xtr_security.bundle._remember_me_wiring import (
+    register_remember_me_listeners,
+    register_remember_me_response_listener,
+    remember_me_settings_of,
 )
 from xtr_security.bundle._stateful_wiring import (
     register_context_listener,
     register_session_save_listener,
     register_session_strategy,
 )
-from xtr_security.bundle.authenticator_configs import FormLoginConfig
+from xtr_security.bundle._switch_user_wiring import (
+    register_impersonate_url_generator,
+    register_switch_user,
+)
+from xtr_security.bundle._throttling_wiring import register_login_throttling
 from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.bundle.oidc_configs import OidcLoginConfig
-from xtr_security.exception import InvalidConfigurationError
 from xtr_security.factory.oidc_login_factory import oidc_token_refresh_listener_name
 
 if TYPE_CHECKING:
@@ -45,6 +59,7 @@ if TYPE_CHECKING:
 
     from xtr_security.bundle.security_config import SecurityConfig
     from xtr_security.firewall_config import FirewallConfig
+    from xtr_security.switch_user_config import SwitchUserConfig
 
 __all__ = ["build_firewall_map"]
 
@@ -54,6 +69,7 @@ def build_firewall_map(
     config: SecurityConfig,
     *,
     clock_active: bool,
+    logging_active: bool = False,
 ) -> None:
     """Register a firewall context per firewall and the HTTP edge's firewall map.
 
@@ -80,18 +96,39 @@ def build_firewall_map(
     # application's session storage as the context step it serves.
     if any(firewall.security and not firewall.stateless for firewall in config.firewalls.values()):
         register_session_save_listener(services)
+    # The response half of a remember-me cookie: one listener for the
+    # application, on the main dispatcher, registered while any firewall's
+    # logins are remembered.
+    if any(
+        firewall.security and remember_me_settings_of(firewall.authenticators) is not None
+        for firewall in config.firewalls.values()
+    ):
+        register_remember_me_response_listener(services)
 
     matchers: dict[str, RequestMatcherInterface] = {}
     logout_registrations: dict[str, tuple[str, str | None]] = {}
+    switch_user_registrations: dict[str, SwitchUserConfig] = {}
     for name, firewall in config.firewalls.items():
         matchers[name] = firewall.to_matcher()
         _build_firewall_context(
-            services, config, name, firewall, logout_registrations, csrf_wired=csrf_wired
+            services,
+            config,
+            name,
+            firewall,
+            logout_registrations,
+            csrf_wired=csrf_wired,
+            logging_active=logging_active,
         )
+        if firewall.security and firewall.switch_user is not None:
+            switch_user_registrations[name] = firewall.switch_user
     if any(firewall.security for firewall in config.firewalls.values()):
         register_shared_listeners(services, clock_active=clock_active)
     if logout_registrations:
         register_logout_url_generator(services, logout_registrations)
+    if switch_user_registrations:
+        register_impersonate_url_generator(
+            services, switch_user_registrations, csrf_wired=csrf_wired
+        )
 
     _ = services.set(firewall_map_factory(matchers), lifetime="scoped")
     services.alias(FirewallMapInterface, HttpFirewallMap)
@@ -105,23 +142,35 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
     logout_registrations: dict[str, tuple[str, str | None]],
     *,
     csrf_wired: bool,
+    logging_active: bool = False,
 ) -> None:
     """Register everything one firewall needs: its dispatcher, authenticators and context."""
     if not firewall.security:
         _register_open_context(services, name, firewall)
     else:
-        _refuse_back_channel_logout_on_a_stateless_firewall(name, firewall)
-        _refuse_a_form_login_on_a_stateless_firewall(name, firewall)
-        _refuse_csrf_route_markers_on_a_stateless_firewall(name, firewall)
+        refuse_a_back_channel_logout_on_a_stateless_firewall(name, firewall)
+        refuse_a_form_login_on_a_stateless_firewall(name, firewall)
+        refuse_csrf_route_markers_on_a_stateless_firewall(name, firewall)
         provider_qualifier = firewall.provider
         register_dispatcher(services, name, firewall, provider_qualifier)
         auth_qualifiers, entry_point_qualifier = register_authenticators(
             services, config, name, firewall, provider_qualifier
         )
         access_map = AccessMap()
+        channel_rules = False
         for rule in config.access_control:
             if rule.firewall in (None, name):
-                access_map.add(rule.to_matcher(), rule.attribute)
+                access_map.add(rule.to_matcher(), rule.attribute, rule.channel)
+                channel_rules = channel_rules or rule.channel is not None
+        channel_listener = None
+        if channel_rules:
+            channel_listener = register_channel_listener(
+                services,
+                name,
+                access_map,
+                http_port=config.http_port,
+                https_port=config.https_port,
+            )
         context_listener = None
         logout_listener = None
         if not firewall.stateless:
@@ -135,6 +184,31 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
                 firewall.logout.path,
                 logout_context_key(name, firewall),
             )
+        remember_me = remember_me_settings_of(firewall.authenticators)
+        if remember_me is not None:
+            register_remember_me_listeners(services, name, remember_me)
+        if firewall.login_throttling is not None:
+            register_login_throttling(services, name, firewall.login_throttling)
+        extra_listeners = (
+            (oidc_token_refresh_listener_name(name),)
+            if any(
+                isinstance(authenticator, OidcLoginConfig)
+                for authenticator in firewall.authenticators
+            )
+            else ()
+        )
+        if firewall.switch_user is not None:
+            extra_listeners = (
+                *extra_listeners,
+                register_switch_user(
+                    services,
+                    name,
+                    firewall,
+                    firewall.switch_user,
+                    provider_qualifier,
+                    csrf_wired=csrf_wired,
+                ),
+            )
         register_context_factory(
             services,
             name,
@@ -143,85 +217,11 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
             entry_point_qualifier=entry_point_qualifier,
             access_map=access_map,
             expose=config.expose_security_errors,
-            extra_listeners=(
-                (oidc_token_refresh_listener_name(name),)
-                if any(
-                    isinstance(authenticator, OidcLoginConfig)
-                    for authenticator in firewall.authenticators
-                )
-                else ()
-            ),
+            extra_listeners=extra_listeners,
             context_listener=context_listener,
             logout_listener=logout_listener,
-        )
-
-
-def _refuse_back_channel_logout_on_a_stateless_firewall(
-    name: str,
-    firewall: FirewallConfig,
-) -> None:
-    """Refuse a back-channel logout a stateless firewall could never act on.
-
-    The ended sessions a back-channel logout records are acted on by the
-    refreshed-user check, which only a stateful firewall's context listener
-    announces: on a stateless firewall the recording would be machinery
-    nothing reads, reading as protection while refusing nothing.
-    """
-    for authenticator in firewall.authenticators:
-        if (
-            isinstance(authenticator, OidcLoginConfig)
-            and authenticator.backchannel_logout is not None
-            and authenticator.backchannel_logout.enable
-            and firewall.stateless
-        ):
-            raise InvalidConfigurationError(
-                f'The OIDC login of the firewall "{name}" asks for a back-channel '
-                "logout, which needs a stateful firewall; set stateless=False.",
-            )
-
-
-def _refuse_a_form_login_on_a_stateless_firewall(
-    name: str,
-    firewall: FirewallConfig,
-) -> None:
-    """Refuse a form login on a firewall that keeps no session.
-
-    The login's errors are stored on the session and its success rotates it;
-    on a stateless firewall both would silently go nowhere, reading as a
-    login while logging nothing in.
-
-    Raises:
-        InvalidConfigurationError: When a stateless firewall configures a
-            form login.
-    """
-    if firewall.stateless and any(
-        isinstance(authenticator, FormLoginConfig) for authenticator in firewall.authenticators
-    ):
-        raise InvalidConfigurationError(
-            f'The form login of the firewall "{name}" needs the session its errors '
-            "are stored in and its success rotates; set stateless=False.",
-        )
-
-
-def _refuse_csrf_route_markers_on_a_stateless_firewall(
-    name: str,
-    firewall: FirewallConfig,
-) -> None:
-    """Refuse route-marker tokens on a firewall that keeps no session.
-
-    The manager the markers resolve through keeps its tokens in the session
-    the request reattached; on a stateless firewall there is none, so the
-    markers would refuse every request they guard — protection that reads
-    as a refusal while proving nothing.
-
-    Raises:
-        InvalidConfigurationError: When a stateless firewall declares
-            ``csrf_route_markers``.
-    """
-    if firewall.stateless and firewall.csrf_route_markers:
-        raise InvalidConfigurationError(
-            f'The cross-site request forgery markers of the firewall "{name}" need '
-            "the session their tokens are stored in; set stateless=False.",
+            channel_listener=channel_listener,
+            logging_active=logging_active,
         )
 
 

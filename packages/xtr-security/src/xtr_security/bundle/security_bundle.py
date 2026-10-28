@@ -13,12 +13,10 @@ the firewall that matched each request, before routing.
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Mapping
 from dataclasses import replace
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-from xtr_clock import ClockInterface  # noqa: TC002 -- a factory signature the container reads
 from xtr_dependency_injection import (
     Bundle,
     PassStage,
@@ -26,55 +24,21 @@ from xtr_dependency_injection import (
     bundle_active,
     required_bundle,
 )
-from xtr_dependency_injection.decorator.remove_if_missing import (
-    REMOVE_IF_MISSING_TAG,
-    markers_of,
-)
 from xtr_dependency_injection.kernel.kernel import BUNDLE_PASS_PRIORITY
 from xtr_event_dispatcher.bundle import EventDispatcherBundle
-from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_kernel.bundle import HttpKernelBundle
-from xtr_http_message_contracts.factory import (  # noqa: TC002 -- a factory signature the container reads
-    ResponseFactoryInterface,
-)
 from xtr_security_core import (
     AccessDecisionManager,
-    AccessDecisionManagerInterface,
     AccessDecisionStrategyInterface,
-    AuthenticationTrustResolver,
-    AuthenticationTrustResolverInterface,
-    AuthorizationChecker,
-    AuthorizationCheckerInterface,
-    GuestAuthorizationCheckerInterface,
-    RoleHierarchy,
-    RoleHierarchyInterface,
-    TokenStorage,
-    TokenStorageInterface,
-    TraceableAccessDecisionManager,
-    TraceableVoter,
-    UserAuthorizationCheckerInterface,
     VoterInterface,
-)
-from xtr_security_http import (
-    CsrfTokenChecker,
-    HttpUtils,
-    IsGrantedChecker,
-    SecurityTokenResolver,
-    UserValueResolver,
 )
 
 from xtr_security.access_token import OidcTokenHandlerFactory
+from xtr_security.bundle._core_services_wiring import register_core_security_services
 from xtr_security.bundle.oidc_configs import OidcLoginConfig
 from xtr_security.bundle.security_config import SecurityConfig
-from xtr_security.security import Security
 
-from ._wiring import (
-    VOTER_TAG,
-    build_firewall_map,
-    register_hashers,
-    register_user_providers,
-    register_voters,
-)
+from ._wiring import VOTER_TAG, build_firewall_map
 from .make_firewalls_event_dispatcher_traceable_pass import (
     MakeFirewallsEventDispatcherTraceablePass,
 )
@@ -89,8 +53,6 @@ from .register_per_call_listeners_pass import RegisterPerCallListenersPass
 from .sort_firewall_listeners_pass import SortFirewallListenersPass
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
 
     from xtr_security.access_token.oidc_token_handler_factory import (
@@ -188,58 +150,19 @@ class SecurityBundle(Bundle[SecurityConfig]):
         )
         self._strategy = config.access_decision_manager.build()
 
-        _ = services.instance(RoleHierarchy(config.role_hierarchy))
-        services.alias(RoleHierarchyInterface, RoleHierarchy)
-        if bundle_active(builder, "clock"):
-            _ = services.set(_authentication_trust_resolver)
-        else:
-            _ = services.instance(AuthenticationTrustResolver())
-        services.alias(AuthenticationTrustResolverInterface, AuthenticationTrustResolver)
-
-        register_voters(services)
-        _ = services.set(
-            _access_decision_manager_factory(self._strategy, trace_votes=self._trace_votes)
-        ).set_argument("voter_qualifiers", ())
-        if self._trace_votes:
-            _ = services.set(_traceable_access_decision_manager, lifetime="scoped").add_tag(
-                "kernel.reset", method="reset"
-            )
-            services.alias(AccessDecisionManagerInterface, TraceableAccessDecisionManager)
-            services.load("xtr_security.event_listener.vote_listener")
-        else:
-            services.alias(AccessDecisionManagerInterface, AccessDecisionManager)
-
-        _ = services.set(TokenStorage, lifetime="scoped").add_tag("kernel.reset", method="reset")
-        services.alias(TokenStorageInterface, TokenStorage)
-        _ = services.set(_authorization_checker, lifetime="scoped")
-        services.alias(AuthorizationCheckerInterface, AuthorizationChecker)
-        services.alias(UserAuthorizationCheckerInterface, AuthorizationChecker)
-        services.alias(GuestAuthorizationCheckerInterface, AuthorizationChecker)
-        _ = services.set(_security_facade, lifetime="scoped")
-
-        # The route markers' enforcement services, over the same request-scoped
-        # storage and decision machinery. The CSRF checker carries its
-        # remove-if-missing marker on the class; the tag the pass reads goes
-        # on the definition, so the checker is dropped unless a token manager
-        # is wired.
-        _ = services.set(UserValueResolver, lifetime="scoped")
-        _ = services.set(SecurityTokenResolver, lifetime="scoped")
-        _ = services.set(IsGrantedChecker, lifetime="scoped")
-        csrf_checker = services.set(CsrfTokenChecker, lifetime="scoped")
-        for attributes in markers_of(CsrfTokenChecker):
-            _ = csrf_checker.add_tag(REMOVE_IF_MISSING_TAG, **attributes)
-
-        register_hashers(services, config)
-        register_user_providers(services, config)
-
-        # The redirect and URI helper the login flows answer through — one
-        # per application, over the response factory every answer builds on.
-        _ = services.set(_http_utils)
+        register_core_security_services(
+            services,
+            builder,
+            config,
+            strategy=self._strategy,
+            trace_votes=self._trace_votes,
+        )
 
         build_firewall_map(
             services,
             self._bind_oidc_closeables(config),
             clock_active=bundle_active(builder, "clock"),
+            logging_active=bundle_active(builder, "logging"),
         )
 
         # The firewall runs the chain of the firewall each request matched,
@@ -344,72 +267,6 @@ class SecurityBundle(Bundle[SecurityConfig]):
                 for factory in config.token_handler_factories
             ),
         )
-
-
-def _access_decision_manager_factory(
-    strategy: AccessDecisionStrategyInterface,
-    *,
-    trace_votes: bool,
-) -> Callable[..., Awaitable[AccessDecisionManager]]:
-    """Return a factory building the decision manager from the collected voters.
-
-    The voters are injected as a ``Mapping`` keyed by the qualifiers the bundle's
-    ``process`` hook aliased them under, given as a definition argument the same
-    hook fills; the dispatcher is injected only when tracing wraps each voter.
-    """
-
-    async def access_decision_manager(
-        voters: Mapping[Hashable, VoterInterface],
-        voter_qualifiers: tuple[str, ...],
-        dispatcher: object | None = None,
-    ) -> AccessDecisionManager:
-        collected: list[VoterInterface] = [voters[qualifier] for qualifier in voter_qualifiers]
-        if trace_votes:
-            resolved = cast("EventDispatcherInterface", dispatcher)
-            collected = [TraceableVoter(voter, resolved) for voter in collected]
-        return AccessDecisionManager(collected, strategy)
-
-    annotations: dict[str, object] = {
-        "voters": Mapping[Hashable, VoterInterface],
-        "return": AccessDecisionManager,
-    }
-    if trace_votes:
-        annotations["dispatcher"] = EventDispatcherInterface
-    access_decision_manager.__annotations__ = annotations
-    return access_decision_manager
-
-
-def _authorization_checker(
-    token_storage: TokenStorageInterface,
-    access_decision_manager: AccessDecisionManagerInterface,
-) -> AuthorizationChecker:
-    """Build the authorization checker over the request's storage and the manager."""
-    return AuthorizationChecker(token_storage, access_decision_manager)
-
-
-def _authentication_trust_resolver(clock: ClockInterface) -> AuthenticationTrustResolver:
-    """Build the trust resolver reading recency from the application's clock."""
-    return AuthenticationTrustResolver(clock=clock)
-
-
-def _traceable_access_decision_manager(
-    manager: AccessDecisionManager,
-) -> TraceableAccessDecisionManager:
-    """Build the request's traceable decision manager over the shared one."""
-    return TraceableAccessDecisionManager(manager)
-
-
-def _security_facade(
-    token_storage: TokenStorageInterface,
-    authorization_checker: AuthorizationCheckerInterface,
-) -> Security:
-    """Build the :class:`Security` facade over the request's storage and checker."""
-    return Security(token_storage, authorization_checker)
-
-
-def _http_utils(responses: ResponseFactoryInterface) -> HttpUtils:
-    """Build the redirect and URI helper the login flows answer through."""
-    return HttpUtils(responses)
 
 
 def _has_oidc_token_generators(config: SecurityConfig) -> bool:

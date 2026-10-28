@@ -38,8 +38,9 @@ def test_zero_config_gives_no_firewalls_and_the_built_in_factories() -> None:
 
     assert config.firewalls == {}
     # The OIDC login factory joins only when its extra is installed; the
-    # form and JSON logins are always there.
-    assert len(config.authenticator_factories) == (5 if _OIDC_AVAILABLE else 4)
+    # form, JSON, login-link, remember-me and pre-authenticated logins are
+    # always there.
+    assert len(config.authenticator_factories) == (9 if _OIDC_AVAILABLE else 8)
     assert len(config.user_provider_factories) == 3
     keys = {factory.key for factory in config.token_handler_factories}
     assert "id" in keys

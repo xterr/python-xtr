@@ -152,6 +152,7 @@ graph LR
     security --> clock
     security --> httpclient
     security --> cache
+    security --> ratelimiter
     security -. optional .-> console
     securityjwt[xtr-security-jwt] --> security
     securityjwt --> securitycore

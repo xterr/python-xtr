@@ -43,7 +43,13 @@ from xtr_security.factory import (
     FormLoginFactory,
     HttpBasicFactory,
     JsonLoginFactory,
+    LoginLinkFactory,
     OidcLoginFactory,
+    RememberMeFactory,
+)
+from xtr_security.factory.pre_authenticated_factory import (
+    RemoteUserFactory,
+    X509Factory,
 )
 from xtr_security.firewall_config import (
     FirewallConfig,  # noqa: TC001 -- field type read at runtime
@@ -90,6 +96,10 @@ def _default_authenticator_factories() -> tuple[AuthenticatorFactoryInterface, .
         FormLoginFactory(),
         HttpBasicFactory(),
         JsonLoginFactory(),
+        LoginLinkFactory(),
+        RememberMeFactory(),
+        RemoteUserFactory(),
+        X509Factory(),
     )
     if _oidc_extra_available():
         factories = (*factories, OidcLoginFactory())
@@ -139,6 +149,10 @@ class SecurityConfig:
         role_hierarchy: The roles each role reaches, expanding a token's roles.
         access_control: The access-control rules, tried in order.
         access_decision_manager: How the voters' answers become one decision.
+        http_port: The port plain ``http`` answers on, spelled out in a
+            channel redirect when it is not ``80``.
+        https_port: The port ``https`` answers on, spelled out in a channel
+            redirect when it is not ``443``.
         expose_security_errors: How much of an authentication failure reaches the
             client.
         trace_votes: Whether every vote is announced as an event; ``None`` follows
@@ -165,6 +179,8 @@ class SecurityConfig:
     access_decision_manager: AccessDecisionManagerConfig = field(
         default_factory=AccessDecisionManagerConfig
     )
+    http_port: int = 80
+    https_port: int = 443
     expose_security_errors: ExposeSecurityLevel = ExposeSecurityLevel.NONE
     trace_votes: bool | None = None
     authenticator_factories: tuple[AuthenticatorFactoryInterface, ...] = field(

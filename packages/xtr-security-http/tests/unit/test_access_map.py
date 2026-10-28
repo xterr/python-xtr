@@ -52,6 +52,22 @@ async def test_the_attribute_rides_out_as_the_one_member_of_a_tuple() -> None:
     assert isinstance(attributes, tuple)
 
 
+async def test_a_rule_added_with_a_channel_is_answered_with_it() -> None:
+    access_map = AccessMap()
+    access_map.add(PathRequestMatcher(r"^/admin"), "ROLE_ADMIN", channel="https")
+    message = make_message(path="/admin/panel")
+
+    assert await access_map.get_patterns(message) == (("ROLE_ADMIN",), "https")
+
+
+async def test_a_rule_added_without_a_channel_answers_none() -> None:
+    access_map = AccessMap()
+    access_map.add(PathRequestMatcher(r"^/admin"), "ROLE_ADMIN")
+    message = make_message(path="/admin/panel")
+
+    assert await access_map.get_patterns(message) == (("ROLE_ADMIN",), None)
+
+
 def test_the_map_satisfies_its_interface() -> None:
     assert isinstance(_map(), AccessMapInterface)
     assert AccessMapInterface in type(_map()).__mro__

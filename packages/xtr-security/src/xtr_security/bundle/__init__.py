@@ -24,11 +24,16 @@ from xtr_security.factory import (
     FormLoginFactory,
     HttpBasicFactory,
     JsonLoginFactory,
+    LoginLinkFactory,
     OidcLoginFactory,
+    RememberMeFactory,
 )
 from xtr_security.factory.add_authenticator_factory import add_authenticator_factory
+from xtr_security.factory.pre_authenticated_factory import RemoteUserFactory, X509Factory
 from xtr_security.firewall_config import FirewallConfig
+from xtr_security.login_throttling_config import LoginThrottlingConfig
 from xtr_security.logout_config import LogoutConfig
+from xtr_security.switch_user_config import SwitchUserConfig
 from xtr_security.user_provider import (
     ChainUserProviderFactory,
     InMemoryUserProviderFactory,
@@ -48,6 +53,7 @@ from .authenticator_configs import (
 from .firewall_access_listener_name import firewall_access_listener_name
 from .firewall_dispatcher_name import firewall_dispatcher_name
 from .firewall_manager_listener_name import firewall_manager_listener_name
+from .login_link_config import LoginLinkConfig
 from .make_firewalls_event_dispatcher_traceable_pass import (
     MakeFirewallsEventDispatcherTraceablePass,
 )
@@ -69,10 +75,12 @@ from .password_hasher_configs import (
     PlaintextHasherConfig,
     ServiceHasherConfig,
 )
+from .pre_authenticated_configs import RemoteUserConfig, X509Config
 from .refuse_stateful_firewalls_without_session_storage_pass import (
     RefuseStatefulFirewallsWithoutSessionStoragePass,
 )
 from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
+from .remember_me_config import RememberMeConfig
 from .security_bundle import SecurityBundle
 from .security_config import SecurityConfig
 from .sort_firewall_listeners_pass import SortFirewallListenersPass
@@ -111,6 +119,9 @@ __all__ = [
     "InvalidConfigurationError",
     "JsonLoginConfig",
     "JsonLoginFactory",
+    "LoginLinkConfig",
+    "LoginLinkFactory",
+    "LoginThrottlingConfig",
     "LogoutConfig",
     "MakeFirewallsEventDispatcherTraceablePass",
     "MakeFirewallsManagerListenerTraceablePass",
@@ -130,6 +141,10 @@ __all__ = [
     "PlaintextHasherConfig",
     "RefuseStatefulFirewallsWithoutSessionStoragePass",
     "RegisterGlobalSecurityEventListenersPass",
+    "RememberMeConfig",
+    "RememberMeFactory",
+    "RemoteUserConfig",
+    "RemoteUserFactory",
     "SecurityBundle",
     "SecurityConfig",
     "ServiceHasherConfig",
@@ -138,11 +153,14 @@ __all__ = [
     "ServiceUserProviderConfig",
     "ServiceUserProviderFactory",
     "SortFirewallListenersPass",
+    "SwitchUserConfig",
     "TokenEndpointAuthMethod",
     "TokenHandlerConfig",
     "TokenHandlerFactoryInterface",
     "UserProviderConfig",
     "UserProviderFactoryInterface",
+    "X509Config",
+    "X509Factory",
     "add_authenticator_factory",
     "add_token_handler_factory",
     "add_user_provider_factory",

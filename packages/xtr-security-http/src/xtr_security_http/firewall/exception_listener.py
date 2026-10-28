@@ -287,7 +287,11 @@ class ExceptionListener:
         them; a full-fledged caller is refused: the scope handler, the
         access-denied handler, the plain ``403``.
         """
-        token = state.token
+        # A step that decides against the token parks it on the state; the
+        # switch step runs before the access step that parks it, so a
+        # switch's denial weighs the token the storage restored — the same
+        # token the switch decided against — when no step parked one yet.
+        token = state.token if state.token is not None else self._token_storage.get_token()
         full_fledged = self._trust_resolver.is_full_fledged(token)
         re_authentication = self._re_authentication_entry_point
         if re_authentication is None and isinstance(

@@ -77,8 +77,11 @@ def register_authenticators(
         if user_provider is None and not config.providers
         else None
     )
-    keys: list[tuple[int, ServiceKey]] = []
-    kinds: list[str] = []
+    # Each entry is the priority the authenticator runs at, its service
+    # key, and how its challenge answers — kept together so the sort below
+    # cannot leave the kinds answering for authenticators they do not
+    # describe.
+    ordered_entries: list[tuple[int, ServiceKey, str]] = []
     for authenticator_config in firewall.authenticators:
         factory = match_authenticator_factory(factories, authenticator_config, name)
         prepared = prepare_factory(factory, token_handler_factories)
@@ -90,10 +93,11 @@ def register_authenticators(
             authenticator_config,
             user_provider if stateless or missing_user_provider is None else missing_user_provider,
         )
-        keys.extend((prepared.priority, key) for key in created)
-        kinds.extend(entry_point_kind(prepared, authenticator_config) for _ in created)
-    keys.sort(key=lambda entry: -entry[0])
-    ordered = [key for _, key in keys]
+        kind = entry_point_kind(prepared, authenticator_config)
+        ordered_entries.extend((prepared.priority, key, kind) for key in created)
+    ordered_entries.sort(key=lambda entry: -entry[0])
+    ordered = [key for _, key, _ in ordered_entries]
+    kinds = [kind for _, _, kind in ordered_entries]
 
     qualifiers: list[str] = []
     for index, key in enumerate(ordered):
