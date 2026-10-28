@@ -49,12 +49,18 @@ def test_an_annotation_only_the_type_checker_can_read_carries_no_marker() -> Non
             f"{_DECLARED}.TaskQueueWorkflow.QUEUE",
             (Transition(froms="new", tos="queued"),),
         ),
+        # The trait's own annotation, which only the type checker can read too.
+        MarkedConstant(
+            "_WorkflowTrait__workflow",
+            "xtr_workflow.workflow_trait.WorkflowTrait._WorkflowTrait__workflow",
+            (),
+        ),
     ]
 
 
 @deferred_annotations
 def test_a_deferred_annotation_only_the_type_checker_can_read_carries_no_marker() -> None:
-    current, _ = marked_constants(_deferred("DeferredTaskQueueWorkflow"))
+    current, _, _ = marked_constants(_deferred("DeferredTaskQueueWorkflow"))
 
     assert current == MarkedConstant(
         "_current", f"{_DEFERRED}.DeferredTaskQueueWorkflow._current", ()
@@ -63,7 +69,7 @@ def test_a_deferred_annotation_only_the_type_checker_can_read_carries_no_marker(
 
 @deferred_annotations
 def test_beside_it_a_deferred_marker_is_read_as_evaluated_even_holding_a_lambda() -> None:
-    _, queue = marked_constants(_deferred("DeferredTaskQueueWorkflow"))
+    _, queue, _ = marked_constants(_deferred("DeferredTaskQueueWorkflow"))
 
     (marker,) = queue.markers
     assert isinstance(marker, Transition)
