@@ -1,8 +1,10 @@
-"""A workflow's guards ask the security bundle about whoever is moving the subject."""
+"""A workflow's guards ask the security bundle about whoever is moving the subject.
+
+The application lists the security bundle beside the workflow bundle: listing
+the workflow bundle alone never brings it along.
+"""
 
 from __future__ import annotations
-
-import sys
 
 import pytest
 from xtr_dependency_injection import Kernel
@@ -10,6 +12,7 @@ from xtr_dependency_injection.testing import boot_for_test
 
 from tests.fixtures.subject import Subject
 from xtr_workflow import TransitionBlocker, WorkflowInterface
+from xtr_workflow.bundle import WorkflowBundle
 from xtr_workflow.exception import LogicError
 
 pytestmark = pytest.mark.anyio
@@ -41,16 +44,14 @@ async def test_a_guard_sees_no_token_outside_a_request() -> None:
     assert can_archive
 
 
-def test_guards_without_the_security_bundle_fail_the_build(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # The security bundle is installed here: make it one that cannot be imported.
-    monkeypatch.setitem(sys.modules, "xtr_security.bundle", None)
-    kernel = Kernel(_APPLICATION, env="test", debug=False)
+def test_guards_fail_the_build_when_the_application_does_not_list_the_security_bundle() -> None:
+    # xtr-security is installed here: listing the workflow bundle alone still leaves it out.
+    kernel = Kernel(_APPLICATION, env="test", debug=False, bundles={WorkflowBundle: {"all": True}})
 
     with pytest.raises(LogicError) as raised:
         _ = kernel.build()
 
     assert str(raised.value) == (
-        'The "security" bundle is needed to be able to use the workflow guard listener.'
+        'The "security" bundle is needed to be able to use the workflow guard listener: list '
+        "SecurityBundle, from xtr_security.bundle, in config/bundles.py."
     )

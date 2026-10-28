@@ -30,8 +30,8 @@ definition rather than a condition somewhere.
 - 📣 **Seven events per step** — `guard`, `leave`, `transition`, `enter`, `entered`, `completed`,
   `announce`, each under three names (every workflow, this one, this place or transition), through
   [xtr-event-dispatcher](../xtr-event-dispatcher).
-- 🛡️ **Guards are callables** — a transition carries a function taking a `GuardContext`; with
-  [xtr-security](../xtr-security) active it also carries the token, the user and the roles.
+- 🛡️ **Guards are callables** — a transition carries a function taking a `GuardContext`: the
+  subject, and the token, the user and the roles from the [xtr-security](../xtr-security) bundle.
 - 🏷️ **Declare it where you write it** — `@as_workflow` on a class, `Transition` and `Place`
   markers on its constants, listeners as decorated methods.
 - 🖼️ **Draw it** — Graphviz, PlantUML and Mermaid, from code or from the `workflow:dump` command.
@@ -49,7 +49,7 @@ validators, dumpers or the registry.
 ```sh
 uv add xtr-workflow
 uv add xtr-workflow xtr-dependency-injection   # + the container, for the WorkflowBundle
-uv add xtr-security                            # beside it: guards that read the security token
+uv add xtr-security                            # beside it, and list its bundle: guards reading the token
 uv add xtr-console                             # beside it: the workflow:dump command
 uv add xtr-logging                             # beside it: the audit trail's workflow channel
 ```
@@ -344,10 +344,13 @@ The context carries `subject`, `token` (`None` when no one is authenticated), `u
 and `trust_resolver`. Every guard of a transition runs, and each refusal adds a
 `BLOCKED_BY_EXPRESSION_GUARD_LISTENER` blocker naming the guard, so one call learns every reason.
 
-Guards read the security services, so the [security bundle](../xtr-security) must be active: a
-workflow with a guard and no security bundle fails the build. Importing `GuardContext` needs
-nothing — its security types are read by the type checker only — so a module of guards imports
-wherever the package does.
+Guards read the security services, so the application lists the
+[security bundle](../xtr-security#use-in-an-application) beside this one:
+`SecurityBundle: {"all": True}` in `BUNDLES`, imported from `xtr_security.bundle`. Listing the
+workflow bundle never activates it — it brings the http-kernel bundle and that bundle's peers with
+it — so a workflow with a guard, in an application that does not list it, fails the build with an
+error saying where to list it. Importing `GuardContext` needs nothing — its security types are
+read by the type checker only — so a module of guards imports wherever the package does.
 
 ## Dumping a definition
 
@@ -400,15 +403,20 @@ it undoes.
   it lists `WorkflowBundle` and writes `<app>/config/packages/workflow.py` holding the bundle's own
   defaults — no workflow — with a commented starter one. There is no environment variable and no
   ignore line to write; it prints the steps it cannot make, which are writing the workflows
-  themselves, and activating the security, console and logging bundles if guards, `workflow:dump`
-  or an audit trail are wanted.
+  themselves, listing the security bundle if a transition carries a guard, and activating the
+  console and logging bundles if `workflow:dump` or an audit trail are wanted.
 - **Activate** — `WorkflowBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
-  imported from `xtr_workflow.bundle`.
-- **Brings along** — nothing of its own. It reads the event dispatcher, logging, security and
-  console bundles when they are active: the dispatcher to send events and to let a listener declare
-  a workflow event by its class, logging for the `workflow` channel it adds, security for guards,
-  console for `workflow:dump`. None is required, and a workflow needing one that is missing fails
-  the build naming it.
+  imported from `xtr_workflow.bundle`. For guards, list `SecurityBundle: {"all": True}` beside it,
+  imported from `xtr_security.bundle`, and follow the
+  [security bundle's own steps](../xtr-security#use-in-an-application) — the recipe does not.
+- **Brings along** — the [event dispatcher](../xtr-event-dispatcher) bundle always, because every
+  workflow sends its events through it and a listener may declare a workflow event by its class;
+  the [logging](../xtr-logging) and [console](../xtr-console) bundles whenever those packages are
+  installed, for the audit trail's `workflow` channel and for `workflow:dump`. They are required
+  peers, pulled in and made active without being listed. The [security](../xtr-security) bundle
+  never comes along, though guards need it: it brings the http-kernel bundle and that bundle's
+  peers with it, so only an application listing it gets it. A workflow needing a bundle that is
+  not active fails the build naming it.
 - **Configure** — `<app>/config/packages/workflow.py`, where the workflows are configured as a
   `WorkflowConfig`; see [Kernel / bundle](#kernel--bundle). A workflow declared with
   `@as_workflow` needs no entry there, and a `WorkflowConfig()` with no workflow is valid.
@@ -428,9 +436,13 @@ not a dependency, and nothing outside `xtr_workflow.bundle` imports it — list 
 
 ```python
 # app/config/bundles.py
+from xtr_security.bundle import SecurityBundle
 from xtr_workflow.bundle import WorkflowBundle
 
-BUNDLES = {WorkflowBundle: {"all": True}}
+BUNDLES = {
+    WorkflowBundle: {"all": True},
+    SecurityBundle: {"all": True},  # for the guard below: it never comes along on its own
+}
 ```
 
 Then configure the workflows, or declare them with `@as_workflow` and configure nothing:
@@ -569,9 +581,9 @@ dump, compare the string.
   moved from a console command, or anywhere outside such a unit, opens one with nobody
   authenticated: `context.token` is `None`, `role_names` is empty, and a guard asking for a role
   refuses. Guard with the subject's own data where a transition must also run headless.
-- **The security bundle needs an HTTP-capable kernel.** Guards require it to be active, which in
-  turn requires its own peers; a worker or command-only application cannot take guards along for
-  the ride.
+- **Guards need an HTTP-capable kernel.** They need the security bundle listed, and it brings the
+  http-kernel bundle and that bundle's peers with it; a worker or command-only application cannot
+  have guards without them.
 - **A `@self` listener base class must stay abstract.** A concrete class carrying workflow listener
   declarations, inside a package the container scans, fails the build: its `workflow.@self.…`
   names have no workflow to resolve to. Make a shared listener base abstract, or keep it out of the

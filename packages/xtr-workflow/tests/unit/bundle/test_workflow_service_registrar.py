@@ -344,7 +344,8 @@ def test_guards_need_the_security_bundle() -> None:
         _ = _register("article", config)
 
     assert str(raised.value) == (
-        'The "security" bundle is needed to be able to use the workflow guard listener.'
+        'The "security" bundle is needed to be able to use the workflow guard listener: list '
+        "SecurityBundle, from xtr_security.bundle, in config/bundles.py."
     )
 
 

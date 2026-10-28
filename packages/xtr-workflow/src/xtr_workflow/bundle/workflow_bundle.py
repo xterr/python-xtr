@@ -9,8 +9,11 @@ when it says which subjects it moves, in the
 through the event dispatcher, where a listener declares a workflow event by
 its class as well as by its name; an audit trail writes to the logging
 bundle's ``workflow`` channel; guards ask the security bundle about whoever
-is moving the subject. In debug mode, every workflow is traced. With a
-console, ``workflow:dump`` draws any of them.
+is moving the subject. The event dispatcher, logging and console bundles come
+along whenever their packages are installed; the security bundle never does,
+as it brings an HTTP kernel with it, so an application with guards lists it.
+In debug mode, every workflow is traced. With a console, ``workflow:dump``
+draws any of them.
 """
 
 from __future__ import annotations
@@ -58,7 +61,6 @@ _PEERS: Final = ("event_dispatcher", "logging", "security")
 @required_bundle("xtr_event_dispatcher.bundle:EventDispatcherBundle", ignore_on_invalid=True)
 @required_bundle("xtr_console.bundle:ConsoleBundle", ignore_on_invalid=True)
 @required_bundle("xtr_logging.bundle:LoggingBundle", ignore_on_invalid=True)
-@required_bundle("xtr_security.bundle:SecurityBundle", ignore_on_invalid=True)
 @as_bundle("workflow", config=WorkflowConfig)
 class WorkflowBundle(Bundle[WorkflowConfig]):
     """Registers the configured and declared workflows, the registry, and their listeners."""

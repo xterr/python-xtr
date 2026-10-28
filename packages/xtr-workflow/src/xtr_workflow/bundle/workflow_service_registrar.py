@@ -260,11 +260,12 @@ class WorkflowServiceRegistrar:
         """Run the workflow's guards, each for the guard event of its transition.
 
         Raises:
-            LogicError: If the security bundle is not active.
+            LogicError: If the security bundle is not active: the application did not list it.
         """
         if "security" not in self._active:
             raise LogicError(
-                'The "security" bundle is needed to be able to use the workflow guard listener.'
+                'The "security" bundle is needed to be able to use the workflow guard listener: '
+                "list SecurityBundle, from xtr_security.bundle, in config/bundles.py."
             )
 
         module = importlib.import_module(_GUARD_LISTENER_MODULE)

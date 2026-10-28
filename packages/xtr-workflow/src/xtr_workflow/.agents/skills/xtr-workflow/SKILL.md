@@ -28,7 +28,8 @@ step through xtr-event-dispatcher; see the `xtr-event-dispatcher` skill for list
   [references/declaring-workflows.md](references/declaring-workflows.md).
 - Events, names and listener decorators: [references/events.md](references/events.md).
 - Guard a transition: a callable taking a `GuardContext` (`xtr_workflow.event_listener`), set as
-  `guard=` on a `TransitionConfig` or a `Transition` marker. Needs the security bundle active.
+  `guard=` on a `TransitionConfig` or a `Transition` marker. Needs `SecurityBundle` listed in
+  `config/bundles.py`: it never comes along with the workflow bundle.
 - Draw it: `GraphvizDumper`, `StateMachineGraphvizDumper`, `PlantUmlDumper`, `MermaidDumper` from
   `xtr_workflow.dumper`, or the `workflow:dump` command.
 - In an application, with xtr-dependency-injection installed beside the package (it is not a
@@ -142,8 +143,10 @@ def not_locked(context: GuardContext) -> bool:
 The context carries `subject`, `token` (`None` when no one is authenticated), `user`, `role_names`
 (the token's roles plus everything they reach), `authorization_checker` and `trust_resolver`.
 Importing it needs no security package. Running one does: set it with
-`TransitionConfig(..., guard=only_an_editor)` or `Transition(..., guard=only_an_editor)`, and
-activate the security bundle, or the build fails naming it.
+`TransitionConfig(..., guard=only_an_editor)` or `Transition(..., guard=only_an_editor)`, and list
+`SecurityBundle` (`from xtr_security.bundle import SecurityBundle`) in `BUNDLES` beside
+`WorkflowBundle`, or the build fails saying so. Listing the workflow bundle never activates it: it
+brings the http-kernel bundle and its peers with it.
 
 ## Draw the definition
 
@@ -203,16 +206,17 @@ async def test_a_draft_cannot_be_published() -> None:
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
 `WorkflowBundle` and writes `<app>/config/packages/workflow.py` with the bundle's own defaults — no
 workflow — and a commented starter one. That is the steps below a recipe can do; the workflows
-themselves it prints for you to make.
+themselves, and listing the security bundle for guards, it prints for you to make.
 
 1. **Install** — `uv add xtr-workflow xtr-dependency-injection`: the bundle needs the container
    installed beside it, never as an extra. Install xtr-security beside it for guards, xtr-console
    for `workflow:dump`, xtr-logging for the audit trail's `workflow` channel.
 2. **Activate** — `WorkflowBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
-   (`from xtr_workflow.bundle import WorkflowBundle`).
-3. **Brings along** — nothing of its own. The event dispatcher, logging, security and console
-   bundles are read where they are active; a workflow needing one that is missing fails the build
-   naming it.
+   (`from xtr_workflow.bundle import WorkflowBundle`). For guards, `SecurityBundle: {"all": True}`
+   too (`from xtr_security.bundle import SecurityBundle`), with the security bundle's own steps.
+3. **Brings along** — the event dispatcher bundle always; the logging and console bundles when
+   their packages are installed. Never the security bundle — guards need it listed. A workflow
+   needing a bundle that is not active fails the build naming it.
 4. **Configure** — `<app>/config/packages/workflow.py`. A workflow declared with `@as_workflow`
    needs no entry; `WorkflowConfig()` with no workflow is valid.
 
@@ -299,6 +303,8 @@ All derive from `WorkflowError` (`xtr_workflow.exception`):
 - Do not expect a guard to see a token outside a request or a message: the unit of work opened for
   a guard event in a console command has nobody authenticated, so a role check refuses. Guard on
   the subject's own data where a transition must run headless.
+- Do not expect listing `WorkflowBundle` to activate the security bundle, even with xtr-security
+  installed: guards need `SecurityBundle` listed beside it.
 - Do not leave a concrete class carrying `@self` workflow listeners inside a scanned package — the
   build fails with nothing to resolve the name to. Make a shared listener base abstract, or keep it
   out of the scan.

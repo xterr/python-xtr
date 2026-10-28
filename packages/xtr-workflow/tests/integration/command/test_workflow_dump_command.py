@@ -89,10 +89,8 @@ async def test_with_listeners_each_is_named_after_the_code_it_runs_and_a_guard_b
 async def test_without_an_event_dispatcher_listing_the_listeners_is_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Both are installed here: make them bundles that cannot be imported. The
-    # security bundle goes too, as it cannot do without the event dispatcher.
+    # It is installed here: make it a bundle that cannot be imported.
     monkeypatch.setitem(sys.modules, "xtr_event_dispatcher.bundle", None)
-    monkeypatch.setitem(sys.modules, "xtr_security.bundle", None)
 
     run = await _run("tests.fixtures.app_workflow", "article", "--with-listeners")
 

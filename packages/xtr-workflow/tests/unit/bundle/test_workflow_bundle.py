@@ -1,5 +1,9 @@
 """The workflow bundle builds and boots unconfigured, and traces workflows in debug mode only.
 
+Listed alone, it brings the event dispatcher, logging and console bundles of
+the packages installed beside it, and never the security bundle: guards need
+an application to list that one.
+
 With a console, it adds the dump command, built with the workflows and, when
 the event dispatcher is active, the dispatcher their listeners are on.
 """
@@ -44,6 +48,34 @@ async def test_with_no_configuration_the_registry_finds_no_workflow() -> None:
         _ = registry.get(object())
 
     assert str(raised.value) == 'Unable to find a workflow for class "object".'
+
+
+def _activated_by_listing_the_workflow_bundle_alone() -> dict[str, str]:
+    """Return each bundle the build activates, mapped to why: kernel, listed or required."""
+    # No resources: the bundle and the peers it pulls in are the whole build.
+    compiled = Kernel(
+        WorkflowBundle.__module__,
+        env="test",
+        bundles={WorkflowBundle: {"all": True}},
+        resources=(),
+    ).build()
+    return {
+        report.name: report.source for report in compiled.report.bundles if report.state == "active"
+    }
+
+
+def test_the_security_bundle_is_not_activated_unless_the_application_lists_it() -> None:
+    # xtr-security is installed here, as it is beside an application whose workflows have guards.
+    activated = _activated_by_listing_the_workflow_bundle_alone()
+
+    assert "security" not in activated
+
+
+@pytest.mark.parametrize("peer", ["event_dispatcher", "logging", "console"])
+def test_a_peer_whose_package_is_installed_comes_along_unlisted(peer: str) -> None:
+    activated = _activated_by_listing_the_workflow_bundle_alone()
+
+    assert activated[peer] == "required"
 
 
 @pytest.mark.parametrize("debug", [False, True])
