@@ -18,7 +18,9 @@ from .dumper import DumperInterface
 from .marking import Marking
 from .marking_store import MarkingStoreInterface
 from .metadata import MetadataStoreInterface
+from .registry import Registry
 from .state_machine import StateMachine
+from .support_strategy import WorkflowSupportStrategyInterface
 from .transition import Transition
 from .transition_blocker import TransitionBlocker
 from .transition_blocker_list import TransitionBlockerList
@@ -37,6 +39,7 @@ __all__ = [
     "Marking",
     "MarkingStoreInterface",
     "MetadataStoreInterface",
+    "Registry",
     "StateMachine",
     "Transition",
     "TransitionBlocker",
@@ -44,5 +47,6 @@ __all__ = [
     "Workflow",
     "WorkflowEvents",
     "WorkflowInterface",
+    "WorkflowSupportStrategyInterface",
     "WorkflowType",
 ]
