@@ -44,6 +44,7 @@ members = [
     "xtr-security-oauth2-server",
     "xtr-security-oauth2-server-core",
     "xtr-service-contracts",
+    "xtr-slack-notifier",
     "xtr-storage",
     "xtr-telegram-notifier",
     "xtr-webhook",
@@ -5727,6 +5728,47 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+]
+
+[[package]]
+name = "xtr-slack-notifier"
+version = "4.1.0"
+source = { editable = "packages/xtr-slack-notifier" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-client-contracts" },
+    { name = "xtr-notifier" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-http-client" },
+    { name = "xtr-recipes" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
+    { name = "xtr-notifier", editable = "packages/xtr-notifier" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
+    { name = "xtr-recipes", editable = "packages/xtr-recipes" },
 ]
 
 [[package]]

@@ -1,0 +1,23 @@
+# The recipe for xtr-slack-notifier: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+#
+# No [bundles] and no [files]: the package ships no bundle — the notifier's discovers its
+# factory by the DSN scheme — and the notifier's configuration module is the application's.
+
+[env]
+# The app's DSN. TOKEN is a bot (xoxb-), user (xoxp-) or app (xoxa-2) token; CHANNEL is the
+# channel a message naming none is posted to.
+SLACK_DSN = "slack://TOKEN@default?channel=CHANNEL"
+
+[gitignore]
+# Nothing of its own: a message is posted, never written to disk.
+lines = []
+
+[notes]
+steps = [
+  "Set SLACK_DSN to the app's DSN: slack://xoxb-...@default?channel=CHANNEL.",
+  "Add the transport to chatter_transports in config/notifier.py: slack=env(\"SLACK_DSN\").",
+]
+check = [
+  "<script> debug:config notifier — slack is listed under chatter_transports",
+]
