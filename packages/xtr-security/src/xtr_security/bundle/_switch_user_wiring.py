@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Annotated, cast, final
 
 from typing_extensions import override
 from xtr_dependency_injection import Target
+from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 from xtr_security_core import (
     AccessDecisionManagerInterface,
@@ -40,6 +41,7 @@ from xtr_security_http.security_request_attributes import (
     SecurityRequestAttributes,
 )
 
+from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 from xtr_security.exception import InvalidConfigurationError
 
 if TYPE_CHECKING:
@@ -78,7 +80,9 @@ def register_switch_user(  # noqa: PLR0913 -- one step built from its firewall's
     the chain beside the manager's own step; the sorting pass orders it
     after the manager through the class's own
     ``@FirewallListenerOrder`` declaration, so a switch begins from the
-    token the request already holds. A switch that asks for a forgery
+    token the request already holds. The step is handed the firewall's own
+    dispatcher, so the switch event it announces is heard where the
+    firewall's other events are. A switch that asks for a forgery
     token needs the session its tokens are stored in: a stateless firewall
     asking for one is refused, here, naming the firewall.
 
@@ -106,6 +110,7 @@ def register_switch_user(  # noqa: PLR0913 -- one step built from its firewall's
         decision_manager: AccessDecisionManagerInterface,
         bridge: StarletteHttpFactoryInterface,
         http_utils: HttpUtils,
+        dispatcher: EventDispatcherInterface,
         user_checker: UserCheckerInterface | None = None,
         csrf_token_manager: CsrfTokenManagerInterface | None = None,
     ) -> SwitchUserListener:
@@ -122,6 +127,7 @@ def register_switch_user(  # noqa: PLR0913 -- one step built from its firewall's
             http_utils,
             username_parameter=settings.parameter,
             role=settings.role,
+            dispatcher=dispatcher,
             stateless=firewall.stateless,
             path=settings.path,
             csrf_token_manager=csrf_token_manager,
@@ -139,6 +145,7 @@ def register_switch_user(  # noqa: PLR0913 -- one step built from its firewall's
         "decision_manager": AccessDecisionManagerInterface,
         "bridge": StarletteHttpFactoryInterface,
         "http_utils": HttpUtils,
+        "dispatcher": Annotated[EventDispatcherInterface, Target(firewall_dispatcher_name(name))],
         "return": SwitchUserListener,
     }
     if firewall.user_checker is not None:

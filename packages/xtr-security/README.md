@@ -206,7 +206,7 @@ else registers unconfigured: no firewall, no rule, no voter beyond the built-ins
 | `logout` | `None` | The logout the firewall's requests can ask for — see below |
 | `switch_user` | `None` | The switch-user block the firewall's callers switch by — see below |
 | `login_throttling` | `None` | How the firewall's logins are counted and refused — see below |
-| `re_authentication_entry_point` | `None` | A service type starting a fresh proof for an already-authenticated caller. **Declared, not wired in this version**: the bundle accepts the field but does not hand it to the exception listener yet, so a recency refusal is answered with the plain `403` |
+| `re_authentication_entry_point` | `None` | A service type starting a fresh proof for an already-authenticated caller — handed to the firewall's exception listener the way the denial handlers are, so a recency refusal is answered with a fresh proof instead of the plain `403` |
 | `listeners` | `()` | The qualifiers of the firewall's own listener chain, each naming a listener aliased under `FirewallListenerInterface`; the sorting pass orders them with the steps the bundle parks |
 
 The matchers those fields build come from [xtr-http-foundation](../xtr-http-foundation), and each
@@ -373,10 +373,10 @@ keep the tokens in. One scoped `ImpersonateUrlGenerator` service renders the add
 page switches by — the impersonation and exit paths, URLs and forms — reading the
 request's firewall's block through a lookup built from the firewall map.
 
-One honest gap in this version: the step announces `SwitchUserEvent` only when built with
-a dispatcher, and the bundle's wiring hands it none — so a wired switch works, but no
-switch event reaches a listener of it. Built by hand, the step takes the dispatcher as a
-constructor parameter.
+The bundle hands the step the firewall's own dispatcher, so the `SwitchUserEvent` it
+announces — before a switch settles, and before an exit restores the original token —
+reaches the listeners of `firewall_dispatcher_name(firewall)` beside the firewall's other
+events.
 
 ### Pre-authenticated
 
@@ -415,7 +415,8 @@ is this one resolves its entry point elsewhere.
 ### Cross-site request forgery
 
 The forgery machinery is opt-in: it is wired when a firewall's configuration asks for a token —
-a form login with `enable_csrf`, a logout with `enable_csrf` or `clear_csrf_tokens` — and nothing
+a form login with `enable_csrf`, a logout with `enable_csrf` or `clear_csrf_tokens`, a
+`switch_user` block with `enable_csrf` — and nothing
 registers without an ask. A firewall whose routes prove themselves with `IsCsrfTokenValid`
 markers asks the same way, with `csrf_route_markers` — the marker's checker answers through
 the manager, so the declaration wires it; the tokens travel in the session the request
@@ -699,8 +700,8 @@ until a request arrives.
 Each firewall dispatches its security events — `CheckPassportEvent`,
 `AuthenticationTokenCreatedEvent`, `AuthenticationSuccessEvent`, `InteractiveLoginEvent`,
 `LoginSuccessEvent`, `LoginFailureEvent`, `CheckRefreshedUserEvent`,
-`TokenDeauthenticatedEvent`, `LogoutEvent`, `OidcAuthorizationRequestEvent` — on a
-dispatcher of its own, named by
+`TokenDeauthenticatedEvent`, `SwitchUserEvent`, `LogoutEvent`,
+`OidcAuthorizationRequestEvent` — on a dispatcher of its own, named by
 `firewall_dispatcher_name(firewall)`.
 A listener of those events on the main dispatcher hears every firewall
 (`RegisterGlobalSecurityEventListenersPass` copies it onto each); one naming a firewall's

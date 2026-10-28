@@ -47,6 +47,9 @@ if TYPE_CHECKING:
     from xtr_security_http.entry_point.authentication_entry_point_interface import (
         AuthenticationEntryPointInterface,
     )
+    from xtr_security_http.entry_point.re_authentication_entry_point_interface import (
+        ReAuthenticationEntryPointInterface,
+    )
 
     from xtr_security.firewall_config import FirewallConfig
 
@@ -95,7 +98,8 @@ def register_context_factory(  # noqa: PLR0913, PLR0915, C901 -- one factory gat
     so the token its session carries is restored before anything
     authenticates. The exception listener is built per firewall, from the
     firewall's own parts — its name, its resolved entry point, its configured
-    denial handler, the scope handler over its realm — so a request's failure is
+    denial handler and re-authentication entry point, the scope handler over
+    its realm — so a request's failure is
     answered by the firewall that ran it. The scope handler reads its RFC 9728
     ``resource_metadata`` URI and its sender constraint off the firewall's
     first access-token authenticator, and its inner handler off the firewall's
@@ -126,6 +130,7 @@ def register_context_factory(  # noqa: PLR0913, PLR0915, C901 -- one factory gat
     )
     access_denied = firewall.access_denied_handler
     scope_denied = firewall.scope_denied_handler
+    re_authentication_entry_point = firewall.re_authentication_entry_point
     manager_qualifier = f"{name}#authenticator_manager"
     listener_qualifier = firewall_manager_listener_name(name)
     access_listener_qualifier = firewall_access_listener_name(name)
@@ -213,6 +218,7 @@ def register_context_factory(  # noqa: PLR0913, PLR0915, C901 -- one factory gat
         chain: ServiceLocator[FirewallListenerInterface],
         listeners: Sequence[str] = (),
         denied: object | None = None,
+        re_authentication: object | None = None,
         scope_denied: object | None = None,
         scope_constraint: object | None = None,
         logout: object | None = None,
@@ -247,6 +253,9 @@ def register_context_factory(  # noqa: PLR0913, PLR0915, C901 -- one factory gat
             scope_denied_handler=scope_denied_handler,
             stateless=firewall.stateless,
             logger=logger,
+            re_authentication_entry_point=cast(
+                "ReAuthenticationEntryPointInterface | None", re_authentication
+            ),
         )
         return FirewallContext(
             name=name,
@@ -273,6 +282,8 @@ def register_context_factory(  # noqa: PLR0913, PLR0915, C901 -- one factory gat
     }
     if access_denied is not None:
         annotations["denied"] = access_denied
+    if re_authentication_entry_point is not None:
+        annotations["re_authentication"] = re_authentication_entry_point
     if scope_denied is not None:
         annotations["scope_denied"] = scope_denied
     if scope_constraint_qualifier is not None:

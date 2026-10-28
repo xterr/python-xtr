@@ -691,6 +691,68 @@ def test_the_context_factory_annotates_the_denied_handler_it_is_given() -> None:
     assert factory.__annotations__["denied"] is _Handler
 
 
+async def test_the_configured_re_authentication_entry_point_reaches_the_exception_listener() -> (
+    None
+):
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False, re_authentication_entry_point=_ReAuthentication),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.NONE,
+    )
+    factory = cast("Callable[..., Awaitable[FirewallContext]]", services.set_targets[-1])
+
+    re_authentication = object()
+    context = await factory(
+        manager=cast("AuthenticatorManager", object()),
+        access_listener=cast("AccessListener", object()),
+        authenticators=_EmptyLocator(),
+        responses=ResponseFactory(),
+        storage=TokenStorage(),
+        trust_resolver=AuthenticationTrustResolver(),
+        bridge=StarletteHttpFactory(),
+        chain=_ChainLocator(),
+        re_authentication=re_authentication,
+    )
+
+    assert factory.__annotations__["re_authentication"] is _ReAuthentication
+    assert isinstance(context.exception_listener, ExceptionListener)
+    assert context.exception_listener._re_authentication_entry_point is re_authentication
+
+
+async def test_without_a_re_authentication_entry_point_the_listener_is_built_with_none() -> None:
+    services = _RecordingConfigurator()
+    _register_context_factory(
+        cast("ServiceConfigurator", cast("object", services)),
+        "api",
+        FirewallConfig(security=False),
+        auth_qualifiers=(),
+        entry_point_qualifier=None,
+        access_map=AccessMap(),
+        expose=ExposeSecurityLevel.NONE,
+    )
+    factory = cast("Callable[..., Awaitable[FirewallContext]]", services.set_targets[-1])
+
+    context = await factory(
+        manager=cast("AuthenticatorManager", object()),
+        access_listener=cast("AccessListener", object()),
+        authenticators=_EmptyLocator(),
+        responses=ResponseFactory(),
+        storage=TokenStorage(),
+        trust_resolver=AuthenticationTrustResolver(),
+        bridge=StarletteHttpFactory(),
+        chain=_ChainLocator(),
+    )
+
+    assert "re_authentication" not in factory.__annotations__
+    assert isinstance(context.exception_listener, ExceptionListener)
+    assert context.exception_listener._re_authentication_entry_point is None
+
+
 def test_the_scope_denied_handler_builds_bare_without_the_settings() -> None:
     services = _RecordingConfigurator()
     _register_context_factory(
@@ -710,6 +772,10 @@ def test_the_scope_denied_handler_builds_bare_without_the_settings() -> None:
 
 class _Inner:
     """A stand-in inner access-denied handler service."""
+
+
+class _ReAuthentication:
+    """A stand-in re-authentication entry-point service type."""
 
 
 class _Handler:
@@ -955,6 +1021,39 @@ def test_a_logout_asking_for_a_csrf_check_wires_the_manager_into_its_listener() 
         ),
     )
     assert logout_listener.__annotations__["csrf_token_manager"] is CsrfTokenManagerInterface
+
+
+def test_a_switch_asking_for_a_csrf_check_wires_the_manager_into_its_listener() -> None:
+    from xtr_security_csrf.csrf_token_manager_interface import CsrfTokenManagerInterface
+
+    from xtr_security.switch_user_config import SwitchUserConfig
+
+    services = _RecordingConfigurator()
+    firewall = FirewallConfig(
+        pattern=r"^/api",
+        stateless=False,
+        switch_user=SwitchUserConfig(enable_csrf=True),
+        authenticators=(_http_basic_config().authenticators[0],),
+    )
+
+    _build_firewall_context(
+        cast("ServiceConfigurator", cast("object", services)),
+        SecurityConfig(),
+        "main",
+        firewall,
+        {},
+        csrf_wired=True,
+    )
+
+    switch_listener = cast(
+        "Callable[..., object]",
+        next(
+            target
+            for target in services.set_targets
+            if getattr(target, "__name__", "") == "switch_user_listener_main"
+        ),
+    )
+    assert switch_listener.__annotations__["csrf_token_manager"] is CsrfTokenManagerInterface
 
 
 def test_the_logout_url_generator_registers_every_configured_firewall() -> None:

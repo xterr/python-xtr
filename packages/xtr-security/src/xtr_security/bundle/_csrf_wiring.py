@@ -175,18 +175,21 @@ def register_csrf_token_manager(services: ServiceConfigurator) -> None:
 def firewall_asks_for_csrf(firewall: FirewallConfig) -> bool:
     """Tell whether the firewall's configuration asks for a forgery token.
 
-    A form login whose form carries one, a logout that must be proven, and a
-    logout that drops its tokens — each needs the manager, so each wires it.
-    So do the routes that prove themselves with the marker: the firewall
-    declaring ``csrf_route_markers`` says its routes carry
-    ``IsCsrfTokenValid``, whose checker answers through the manager.
-    Nothing else does: the machinery is opt-in, the way the protection is.
+    A form login whose form carries one, a logout that must be proven, a
+    logout that drops its tokens, and a switch that asks for one — each
+    needs the manager, so each wires it. So do the routes that prove
+    themselves with the marker: the firewall declaring ``csrf_route_markers``
+    says its routes carry ``IsCsrfTokenValid``, whose checker answers
+    through the manager. Nothing else does: the machinery is opt-in, the
+    way the protection is.
     """
     if firewall.logout is not None and (
         firewall.logout.enable_csrf or firewall.logout.clear_csrf_tokens
     ):
         return True
     if firewall.csrf_route_markers:
+        return True
+    if firewall.switch_user is not None and firewall.switch_user.enable_csrf:
         return True
     return form_login_asks_for_csrf(firewall)
 

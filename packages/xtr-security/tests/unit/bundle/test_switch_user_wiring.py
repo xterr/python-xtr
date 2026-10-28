@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, Annotated, cast, final
 
 import pytest
+from xtr_dependency_injection import Target
+from xtr_event_dispatcher_contracts import EventDispatcherInterface
+from xtr_http_kernel.bridge import ResponseFactory, StarletteHttpFactory
 from xtr_http_message_contracts import ServerRequestInterface
+from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
+from xtr_security_core.authorization import AccessDecisionManager
+from xtr_security_http import HttpUtils
 
 from xtr_security.bundle._switch_user_wiring import (
     _FirewallConfigLookup,
@@ -13,6 +19,7 @@ from xtr_security.bundle._switch_user_wiring import (
     register_switch_user,
     switch_user_listener_name,
 )
+from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 from xtr_security.exception import InvalidConfigurationError
 from xtr_security.firewall_config import FirewallConfig
 from xtr_security.switch_user_config import SwitchUserConfig
@@ -23,6 +30,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from xtr_dependency_injection import ServiceKey
+    from xtr_security_core.user.user_provider_interface import UserProviderInterface
+    from xtr_security_http import SwitchUserListener
 
 
 @final
@@ -129,6 +138,53 @@ def test_a_switch_asking_for_a_forgery_check_on_a_stateless_firewall_is_refused(
             "users",
             csrf_wired=True,
         )
+
+
+def test_the_switch_step_is_annotated_with_the_firewalls_own_dispatcher() -> None:
+    recorder = _Recorder()
+
+    _ = register_switch_user(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        "main",
+        FirewallConfig(pattern=r"^/", security=False),
+        _switch_settings(),
+        None,
+        csrf_wired=False,
+    )
+
+    factory = recorder.factories[0]
+    assert (
+        factory.__annotations__["dispatcher"]
+        == Annotated[EventDispatcherInterface, Target(firewall_dispatcher_name("main"))]
+    )
+
+
+def test_the_built_switch_step_holds_the_dispatcher_it_is_handed() -> None:
+    recorder = _Recorder()
+    _ = register_switch_user(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        "main",
+        FirewallConfig(pattern=r"^/", security=False),
+        _switch_settings(),
+        None,
+        csrf_wired=False,
+    )
+    factory = recorder.factories[0]
+
+    dispatcher = cast("EventDispatcherInterface", object())
+    listener = cast(
+        "SwitchUserListener",
+        factory(
+            token_storage=TokenStorage(),
+            provider=cast("UserProviderInterface", object()),
+            decision_manager=AccessDecisionManager([]),
+            bridge=StarletteHttpFactory(),
+            http_utils=HttpUtils(ResponseFactory()),
+            dispatcher=dispatcher,
+        ),
+    )
+
+    assert listener._dispatcher is dispatcher
 
 
 async def test_the_lookup_answers_the_firewall_the_request_runs_in() -> None:

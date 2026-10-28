@@ -27,6 +27,7 @@ from xtr_security.bundle._csrf_wiring import (
 from xtr_security.bundle.authenticator_configs import FormLoginConfig
 from xtr_security.firewall_config import FirewallConfig
 from xtr_security.logout_config import LogoutConfig
+from xtr_security.switch_user_config import SwitchUserConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -149,7 +150,7 @@ def test_the_manager_registers_the_storages_interface_and_its_own() -> None:
     assert manager_factory.__annotations__["storage"] is ClearableTokenStorageInterface
 
 
-def test_a_firewall_asks_through_its_form_login_its_logout_its_markers_or_any_two() -> None:
+def test_a_firewall_asks_through_its_login_its_logout_its_markers_or_its_switch() -> None:
     assert firewall_asks_for_csrf(
         FirewallConfig(authenticators=(FormLoginConfig(login_path="/login", enable_csrf=True),))
     )
@@ -165,10 +166,22 @@ def test_a_firewall_asks_through_its_form_login_its_logout_its_markers_or_any_tw
     assert firewall_asks_for_csrf(
         FirewallConfig(authenticators=(_an_authenticator(),), csrf_route_markers=True)
     )
+    assert firewall_asks_for_csrf(
+        FirewallConfig(
+            authenticators=(_an_authenticator(),),
+            switch_user=SwitchUserConfig(enable_csrf=True),
+        )
+    )
     assert not firewall_asks_for_csrf(
         FirewallConfig(authenticators=(FormLoginConfig(login_path="/login"),))
     )
     assert not firewall_asks_for_csrf(FirewallConfig(authenticators=(_an_authenticator(),)))
+    assert not firewall_asks_for_csrf(
+        FirewallConfig(
+            authenticators=(_an_authenticator(),),
+            switch_user=SwitchUserConfig(),
+        )
+    )
 
 
 def test_a_form_login_asks_only_when_its_form_carries_a_token() -> None:
