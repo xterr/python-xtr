@@ -1,0 +1,31 @@
+# The recipe for xtr-notifier: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_notifier.bundle:NotifierBundle" = { all = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# Needed to send anything: with no transports the notifier has no channel.
+"config/notifier.py" = "files/config/notifier.py.tmpl"
+
+[env]
+# The transports the written configuration reads. null://null sends nowhere, so a
+# fresh application notifies without a provider until one is set here.
+NOTIFIER_CHATTER_DSN = "null://null"
+NOTIFIER_TEXTER_DSN = "null://null"
+
+[gitignore]
+# Nothing of its own: a notification is sent, never written to disk.
+lines = []
+
+[notes]
+steps = [
+  "Install a provider library — uv add xtr-telegram-notifier, say — and set NOTIFIER_CHATTER_DSN to its DSN; a provider library's own recipe adds its transport to config/notifier.py.",
+  "Route ChatMessage, SmsMessage and PushMessage to an asynchronous transport in config/messenger.py to send them from a worker instead of the request.",
+]
+check = [
+  "<script> debug:bundles — notifier is listed and active",
+  "<script> debug:config notifier — the transports, the channel policy and the admin recipients",
+]
