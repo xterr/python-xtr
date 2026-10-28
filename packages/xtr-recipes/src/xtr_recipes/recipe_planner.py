@@ -6,16 +6,19 @@ import hashlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, final
 
+from .compose_file_editor import ComposeFileEditor
 from .operation.delete_file import DeleteFile
 from .operation.keep_file import KeepFile
 from .operation.mint_key import MintKey
 from .operation.move_file import MoveFile
 from .operation.notes import Notes
 from .operation.put_block import PutBlock
+from .operation.put_compose_blocks import PutComposeBlocks
 from .operation.remove_block import RemoveBlock
 from .operation.write_file import WriteFile
 from .operation.write_new_file import WriteNewFile
 from .planned_recipe import PlannedRecipe
+from .recipe_config import COMPOSE_FILES
 from .recipe_lock import LockedFile
 from .safe_path import within
 
@@ -35,6 +38,7 @@ __all__ = ["RecipePlanner"]
 
 _ENV = ".env"
 _GITIGNORE = ".gitignore"
+_COMPOSE = ComposeFileEditor()
 _CONFIG_DIR = "config"
 # Where a package's configuration module goes, and where an earlier layout put
 # it: one is read off the other by dropping this segment.
@@ -164,7 +168,11 @@ class RecipePlanner:
         application would fail to load it; it is the owner's, so it is not
         deleted either, but renamed out of the way with its content intact.
         """
-        return (*self._dropped(prior, (), set_aside=True), *self._clear_blocks(package))
+        return (
+            *self._dropped(prior, (), set_aside=True),
+            *self._clear_blocks(package),
+            *self._compose(package, {}),
+        )
 
     def _target(self, recipe: Recipe, destination: str, template: str) -> _Destination:
         """Resolve one manifest entry against the project and render its template."""
@@ -309,8 +317,9 @@ class RecipePlanner:
         env_step, env, keys = self._env(recipe)
         ignore_step, gitignore = self._gitignore(recipe)
         blocks = tuple(step for step in (env_step, ignore_step) if step is not None)
+        compose = self._compose(recipe.distribution, recipe.config.compose)
         return PlannedRecipe(
-            operations=operations + blocks + keys,
+            operations=operations + blocks + compose + keys,
             notes=self._notes(recipe.config.notes),
             files=files,
             env=env,
@@ -425,6 +434,41 @@ class RecipePlanner:
             if self._editor.remove_block(text, package) != text:
                 steps.append(RemoveBlock(path, display, package))
         return tuple(steps)
+
+    def _compose(
+        self,
+        package: str,
+        compose: Mapping[str, Mapping[str, tuple[str, ...]]],
+    ) -> tuple[OperationInterface, ...]:
+        """Plan the package's blocks in each Compose file, clearing the ones it no longer writes.
+
+        Nothing is lost by not recording them in the lock: the markers alone
+        say which blocks are the package's, as they do in ``.env``.
+        """
+        steps: list[OperationInterface] = []
+        for name in COMPOSE_FILES:
+            sections = compose.get(name, {})
+            path, display = self._compose_path(name)
+            text = self._editor.read(path)
+            if not sections and not _COMPOSE.has_blocks(text, package):
+                continue
+            if _COMPOSE.put_blocks(text, package, sections) != text:
+                steps.append(PutComposeBlocks(path, display, package, sections))
+        return tuple(steps)
+
+    def _compose_path(self, name: str) -> tuple[Path, str]:
+        """Return the Compose file the project keeps for ``name``, or ``name`` when it has none.
+
+        Compose reads ``compose.yml`` and the older ``docker-compose.yaml`` and
+        ``docker-compose.yml`` as well, so a project already keeping its
+        services under one of those has them written there, not beside it.
+        """
+        base = name.removesuffix(".yaml")
+        for candidate in (name, f"{base}.yml", f"docker-{base}.yaml", f"docker-{base}.yml"):
+            path = within(self._project.project_dir, candidate)
+            if path.is_file():
+                return path, candidate
+        return within(self._project.project_dir, name), name
 
     def _notes(self, config: NotesConfig) -> Notes | None:
         """Return the recipe's notes with ``<script>`` resolved, or ``None`` when empty."""

@@ -15,14 +15,19 @@ from .secret_config import SecretConfig
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-__all__ = ["RecipeConfig"]
+__all__ = ["COMPOSE_FILES", "RecipeConfig"]
 
-_TABLES = frozenset({"bundles", "files", "env", "keys", "gitignore", "notes"})
+COMPOSE_FILES = ("compose.yaml", "compose.override.yaml")
+"""The Compose files a recipe may write into: the services, and their local-only overrides."""
+
+_TABLES = frozenset({"bundles", "files", "env", "keys", "gitignore", "compose", "notes"})
 _NOTES_KEYS = ("steps", "check", "run")
 _GITIGNORE_KEYS = frozenset({"lines"})
 _KEY_PAIR_KEYS = frozenset({"algorithm", "passphrase", "path_env"})
 # A bundle target is "<dotted module>:<ClassName>", exactly as it reads in BUNDLES.
 _BUNDLE_TARGET = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*")
+# A Compose top-level key: services, volumes, networks, configs, secrets.
+_COMPOSE_KEY = re.compile(r"[A-Za-z0-9_-]+")
 
 
 @final
@@ -49,6 +54,8 @@ class RecipeConfig:
         keys: Each private key to mint, relative to the project directory,
             mapped to its algorithm and the env key encrypting it.
         gitignore: The ``.gitignore`` lines the recipe contributes.
+        compose: Each Compose file, one of :data:`COMPOSE_FILES`, mapped to its
+            top-level keys, each mapped to the YAML lines the recipe puts under it.
         notes: What the recipe prints rather than does.
     """
 
@@ -58,6 +65,7 @@ class RecipeConfig:
     secrets: Mapping[str, SecretConfig] = field(default_factory=dict[str, SecretConfig])
     keys: Mapping[str, KeyPairConfig] = field(default_factory=dict[str, KeyPairConfig])
     gitignore: tuple[str, ...] = ()
+    compose: Mapping[str, Mapping[str, tuple[str, ...]]] = field(default_factory=dict)
     notes: NotesConfig = field(default_factory=NotesConfig)
 
     @classmethod
@@ -89,6 +97,7 @@ class RecipeConfig:
             secrets=generated,
             keys=_read_keys(package, data.get("keys"), env, generated),
             gitignore=_read_gitignore(package, data.get("gitignore")),
+            compose=_read_compose(package, data.get("compose")),
             notes=_read_notes(package, data.get("notes")),
         )
 
@@ -245,6 +254,30 @@ def _read_notes(package: str, value: object) -> NotesConfig:
         check=_read_str_list(package, "notes.check", table.get("check")),
         run=_read_str_list(package, "notes.run", table.get("run")),
     )
+
+
+def _read_compose(package: str, value: object) -> dict[str, dict[str, tuple[str, ...]]]:
+    """Parse the ``[compose]`` table: each file's top-level keys and the YAML under each.
+
+    The YAML is kept line for line, indentation and comments included, and is
+    never substituted: ``${POSTGRES_DB:-app}`` is Compose's own interpolation.
+    """
+    result: dict[str, dict[str, tuple[str, ...]]] = {}
+    for name, sections in _as_table(package, "compose", value).items():
+        if name not in COMPOSE_FILES:
+            raise InvalidManifestError(
+                package, f"compose.{name}", f"must be one of {', '.join(COMPOSE_FILES)}"
+            )
+        parsed: dict[str, tuple[str, ...]] = {}
+        for key, text in _as_table(package, f"compose.{name}", sections).items():
+            where = f"compose.{name}.{key}"
+            if _COMPOSE_KEY.fullmatch(key) is None:
+                raise InvalidManifestError(package, where, "must be a Compose top-level key")
+            if not isinstance(text, str) or not text.strip():
+                raise InvalidManifestError(package, where, "must be a non-empty string of YAML")
+            parsed[key] = tuple(text.rstrip().splitlines())
+        result[name] = parsed
+    return result
 
 
 def _read_str_list(package: str, key: str, value: object) -> tuple[str, ...]:

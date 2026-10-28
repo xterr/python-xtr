@@ -10,6 +10,7 @@ _EXPECTED = {
     "BundleState",
     "BundlesFile",
     "BundlesNotEditableError",
+    "ComposeFileEditor",
     "EntryPointRecipeSource",
     "InvalidManifestError",
     "KeyPairConfig",

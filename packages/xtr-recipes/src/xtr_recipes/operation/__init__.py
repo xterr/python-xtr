@@ -20,6 +20,7 @@ from .notes import Notes
 from .operation_interface import OperationInterface
 from .plan import Plan
 from .put_block import PutBlock
+from .put_compose_blocks import PutComposeBlocks
 from .remove_block import RemoveBlock
 from .section import Section
 from .write_bundles import WriteBundles
@@ -38,6 +39,7 @@ __all__ = [
     "OperationInterface",
     "Plan",
     "PutBlock",
+    "PutComposeBlocks",
     "RemoveBlock",
     "Section",
     "WriteBundles",

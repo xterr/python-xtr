@@ -162,7 +162,8 @@ Every error derives from `RecipesError` and names the package and the key or fil
 
 - Do not hand-edit `config/bundles.py` into a shape the tool cannot read: keep `BUNDLES` a literal mapping
   of imported bundle classes to literal flag mappings.
-- Do not hand-edit the `###> xtr-<name> ###` … `###< xtr-<name> ###` blocks in `.env` or `.gitignore`;
+- Do not hand-edit the `###> xtr-<name> ###` … `###< xtr-<name> ###` blocks in `.env`, `.gitignore`,
+  `compose.yaml` or `compose.override.yaml`;
   lines outside them are yours and are left alone.
 - Do not expect a recipe to edit application code — a `setup(app, kernel)` call, a middleware list,
   a firewall's authenticators are printed as `steps` for you to make.

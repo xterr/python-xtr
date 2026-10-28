@@ -158,6 +158,13 @@ MESSENGER_TOKEN = "%generate(secret, bytes=64, encoding=hex)%"
 [gitignore]
 lines = ["/secrets/*.pem"]
 
+[compose."compose.yaml"]
+# a Compose top-level key = the YAML under it, kept verbatim — ${...} is Compose's own
+services = '''
+  broker:
+    image: rabbitmq:4-management-alpine
+'''
+
 [notes]
 steps = []
 check = ["<script> debug:bundles — messenger is listed and active"]
@@ -203,6 +210,11 @@ run   = ["<script> messenger:consume <transport>"]
 - The three note lists stay apart because they are acted on differently: `steps` are changes to
   application code a declarative recipe cannot make, `check` shows the package working, `run` puts
   it to work. Notes are printed after a recipe is applied and never written to disk.
+- `[compose]` names `compose.yaml`, for the services an application runs beside it, or
+  `compose.override.yaml`, for what only a development machine needs — a published port, say.
+  Each key under it is a Compose top-level key — `services`, `volumes`, `networks` — and its
+  value the YAML that goes under that key, written as it ships: nothing in it is substituted.
+  See [Compose](#compose).
 - A package's configuration module goes in `config/packages/<name>.py`, a routes file in
   `config/routes/<name>.py`. A destination under `config/` also ensures every package between
   `config` and the file exists — `<app>/config/__init__.py`, and `<app>/config/packages/__init__.py`
@@ -294,6 +306,32 @@ is silently wrong. A value you fill in inside the block is kept when the recipe 
 A block an earlier release marked `# >>> xtr-messenger` … `# <<< xtr-messenger` is still read as
 the package's own and is rewritten with the current markers the next time the recipe is applied.
 Removing a package deletes its whole block and nothing else.
+
+## Compose
+
+A recipe's `[compose]` entries are written as marked blocks too, one under each top-level key
+the recipe writes under, at the end of what that key already holds; a missing key is added at
+the end of the file, and a missing file is created:
+
+```yaml
+services:
+###> xtr-orm ###
+  database:
+    image: postgres:${POSTGRES_VERSION:-16}-alpine
+###< xtr-orm ###
+
+volumes:
+###> xtr-orm ###
+  database_data:
+###< xtr-orm ###
+```
+
+The markers are YAML comments, so the file stays one Compose file every package shares. A
+project that keeps its services in `compose.yml`, `docker-compose.yaml` or `docker-compose.yml`
+has them written there instead. A block is indented the way the file already is, rewritten where
+it stands when the recipe changes, and removed with the package — taking with it a key it leaves
+empty, and the file when nothing is left in it. Like the `.env` blocks, the markers alone say
+what is the package's, so nothing about them is recorded in the lock.
 
 ## Adoption
 

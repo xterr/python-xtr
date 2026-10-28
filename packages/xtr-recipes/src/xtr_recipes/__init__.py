@@ -24,6 +24,7 @@ from .bundle_entry import BundleEntry
 from .bundle_planner import BundlePlanner
 from .bundle_requirements import BundleRequirements
 from .bundles_file import BundlesFile
+from .compose_file_editor import ComposeFileEditor
 from .entry_point_recipe_source import RECIPES_ENTRY_POINT_GROUP, EntryPointRecipeSource
 from .exception import (
     BundlesNotEditableError,
@@ -69,6 +70,7 @@ __all__ = [
     "BundleState",
     "BundlesFile",
     "BundlesNotEditableError",
+    "ComposeFileEditor",
     "EntryPointRecipeSource",
     "InvalidManifestError",
     "KeyPairConfig",

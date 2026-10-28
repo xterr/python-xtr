@@ -62,6 +62,34 @@ def test_it_rejects_an_unknown_notes_key() -> None:
     assert exc.value.key == "notes.wat"
 
 
+def test_it_reads_the_compose_blocks_line_for_line() -> None:
+    data: dict[str, object] = {
+        "compose": {"compose.yaml": {"services": "  database:\n    image: ${IMAGE:-pg}\n\n"}}
+    }
+
+    config = RecipeConfig.from_toml("xtr-orm", data)
+
+    assert config.compose == {
+        "compose.yaml": {"services": ("  database:", "    image: ${IMAGE:-pg}")}
+    }
+
+
+@pytest.mark.parametrize(
+    ("compose", "key"),
+    [
+        ({"docker-compose.yml": {"services": "  a:"}}, "compose.docker-compose.yml"),
+        ({"compose.yaml": {"services:": "  a:"}}, "compose.compose.yaml.services:"),
+        ({"compose.yaml": {"services": "  "}}, "compose.compose.yaml.services"),
+        ({"compose.yaml": {"services": ["  a:"]}}, "compose.compose.yaml.services"),
+    ],
+)
+def test_it_rejects_a_compose_entry_it_cannot_write(compose: object, key: str) -> None:
+    with pytest.raises(InvalidManifestError) as exc:
+        _ = RecipeConfig.from_toml("xtr-orm", {"compose": compose})
+
+    assert exc.value.key == key
+
+
 def test_it_rejects_an_unknown_gitignore_key() -> None:
     with pytest.raises(InvalidManifestError) as exc:
         _ = RecipeConfig.from_toml("xtr-x", {"gitignore": {"wat": []}})

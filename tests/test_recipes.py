@@ -211,6 +211,7 @@ def test_the_readme_names_what_the_recipe_writes(package_dir: Path) -> None:
     for config in _manifests(package_dir):
         unnamed += [key for key in config.env if key not in section]
         unnamed += [destination for destination in config.files if destination not in section]
+        unnamed += [name for name in config.compose if name not in section]
         unnamed += [
             line
             for line in config.gitignore

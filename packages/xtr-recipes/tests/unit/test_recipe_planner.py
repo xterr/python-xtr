@@ -15,6 +15,7 @@ from xtr_recipes.operation.mint_key import MintKey
 from xtr_recipes.operation.move_file import MoveFile
 from xtr_recipes.operation.notes import Notes
 from xtr_recipes.operation.put_block import PutBlock
+from xtr_recipes.operation.put_compose_blocks import PutComposeBlocks
 from xtr_recipes.operation.remove_block import RemoveBlock
 from xtr_recipes.operation.write_file import WriteFile
 from xtr_recipes.operation.write_new_file import WriteNewFile
@@ -57,6 +58,7 @@ def _recipe(
     env: Mapping[str, str] | None = None,
     gitignore: tuple[str, ...] = (),
     notes: NotesConfig | None = None,
+    compose: Mapping[str, Mapping[str, tuple[str, ...]]] | None = None,
 ) -> Recipe:
     return Recipe(
         distribution=_PACKAGE,
@@ -65,6 +67,7 @@ def _recipe(
             env=env or {},
             secrets=_secrets(env or {}),
             gitignore=gitignore,
+            compose=compose or {},
             notes=notes or NotesConfig(),
         ),
         templates={_TEMPLATE: _BODY.encode("utf-8")},
@@ -721,6 +724,55 @@ def test_an_adopted_file_in_the_earlier_layout_stays_where_it_is(
     assert all(not isinstance(step, MoveFile) for step in planned.operations)
     assert all(
         not (isinstance(step, WriteFile) and step.path == moved) for step in planned.operations
+    )
+
+
+_SERVICES = {"compose.yaml": {"services": ("  broker:",)}}
+_COMPOSE_BLOCK = f"services:\n###> {_PACKAGE} ###\n  broker:\n###< {_PACKAGE} ###\n"
+
+
+def test_configure_writes_the_compose_blocks(planner: RecipePlanner, project: Project) -> None:
+    planned = planner.configure(_recipe(files={}, compose=_SERVICES))
+
+    path = project.project_dir.resolve() / "compose.yaml"
+    assert planned.operations == (
+        PutComposeBlocks(path, "compose.yaml", _PACKAGE, _SERVICES["compose.yaml"]),
+    )
+
+
+def test_the_compose_file_the_project_already_keeps_is_written_into(
+    planner: RecipePlanner, project: Project
+) -> None:
+    _ = (project.project_dir / "docker-compose.yml").write_text("services:\n", encoding="utf-8")
+
+    planned = planner.configure(_recipe(files={}, compose=_SERVICES))
+
+    assert [step.render() for step in planned.operations] == [("  write docker-compose.yml",)]
+
+
+def test_compose_blocks_already_in_place_plan_nothing(
+    planner: RecipePlanner, project: Project
+) -> None:
+    _ = (project.project_dir / "compose.yaml").write_text(_COMPOSE_BLOCK, encoding="utf-8")
+
+    assert planner.configure(_recipe(files={}, compose=_SERVICES)).operations == ()
+
+
+def test_a_compose_file_without_the_packages_blocks_is_not_touched(
+    planner: RecipePlanner, project: Project
+) -> None:
+    # Not in the editor's canonical form: clearing nothing must not rewrite it anyway.
+    _ = (project.project_dir / "compose.yaml").write_text("services:\n\n\n", encoding="utf-8")
+
+    assert planner.configure(_recipe(files={})).operations == ()
+
+
+def test_unconfigure_clears_the_compose_blocks(planner: RecipePlanner, project: Project) -> None:
+    _ = (project.project_dir / "compose.yaml").write_text(_COMPOSE_BLOCK, encoding="utf-8")
+
+    path = project.project_dir.resolve() / "compose.yaml"
+    assert planner.unconfigure(_PACKAGE, LockEntry()) == (
+        PutComposeBlocks(path, "compose.yaml", _PACKAGE, {}),
     )
 
 

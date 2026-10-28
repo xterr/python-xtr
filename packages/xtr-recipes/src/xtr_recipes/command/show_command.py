@@ -117,6 +117,10 @@ def _detail(io: ConsoleStyle, survey: RecipeSurvey, package: str) -> None:
             *_group("env", list(config.env)),
             *_group("keys", [_key(*entry) for entry in config.keys.items()]),
             *_group("gitignore", config.gitignore),
+            *_group(
+                "compose",
+                [f"{name}: {key}" for name, keys in config.compose.items() for key in keys],
+            ),
             *Notes(steps=notes.steps, check=notes.check, run=notes.run).render(),
         ),
     )
