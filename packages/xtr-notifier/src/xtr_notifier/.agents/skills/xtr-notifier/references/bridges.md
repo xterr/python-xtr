@@ -46,6 +46,7 @@ it under `CHATTER_TRANSPORT_FACTORY_TAG` or `TEXTER_TRANSPORT_FACTORY_TAG`.
 from typing import ClassVar
 
 from typing_extensions import override
+from xtr_http_client_contracts.exception import TransportError as HttpTransportError
 
 from xtr_notifier.exception import TransportError, UnsupportedMessageTypeError
 from xtr_notifier.message import ChatMessage, MessageInterface, SentMessage
@@ -75,15 +76,28 @@ class AcmeTransport(AbstractTransport):
         if not isinstance(message, ChatMessage):
             raise UnsupportedMessageTypeError(str(self), "ChatMessage", message)
         url = f"{self._get_http_scheme()}://{self._get_endpoint()}/post"
-        response = await self._http_client.request("POST", url, json={"text": message.subject})
+        try:
+            response = await self._http_client.request("POST", url, json={"text": message.subject})
+        except HttpTransportError as error:
+            raise TransportError("Could not reach the remote Acme server.") from error
+        async with response:
+            answer = await response.to_array(throw=False)
         if response.get_status_code() != 200:
-            raise TransportError("Unable to post the Acme message.", response)
-        return SentMessage(message, str(self))
+            raise TransportError(
+                f"Unable to post the Acme message: {answer.get('error')}.", response
+            )
+        return SentMessage(message, str(self), message_id=str(answer.get("id")))
 ```
 
 - `send` is inherited: it announces the message, calls `_do_send`, and announces the outcome.
 - Raise `TransportError` for anything the provider refused or never answered — it is what
   failover moves on from — and `UnsupportedMessageTypeError` for a message of another kind.
+  A provider that never answered leaves no response: the client raised its own
+  `TransportError`, which becomes the cause.
+- Read the answer inside `async with response`, so the connection and the kept body are let go.
+- A file to upload stays a path in the options; open it `"rb"` in `_do_send`, send the fields as
+  `body=` — the client sends a mapping holding a file as `multipart/form-data` — and close it
+  in a `finally`.
 - The string form names the endpoint and the options, never a credential.
 
 ## The factory
@@ -178,4 +192,9 @@ headers and body, and every error the provider answers mapped to `TransportError
   install is named.
 - The root `pyproject.toml` workspace source, `CREDITS.md`, the root README table and graph.
 - A recipe: `[env] ACME_DSN = "acme://TOKEN@default?channel=CHANNEL"` and a `notes.steps` line
-  adding `acme=env("ACME_DSN")` to `chatter_transports` in `config/notifier.py`.
+  adding `acme=env("ACME_DSN")` to `chatter_transports` in `config/notifier.py` — no `[bundles]`,
+  no `[files]` — advertised as `[project.entry-points."xtr_recipes"] acme =
+  "xtr_acme_notifier.recipe"`. The README's *Use in an application* lists Install, Recipe,
+  Configure, Environment, Remove and Check, and points to xtr-notifier's for the rest.
+
+xtr-telegram-notifier is a complete example of all of the above.

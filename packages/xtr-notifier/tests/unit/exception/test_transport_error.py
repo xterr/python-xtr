@@ -22,3 +22,10 @@ def test_it_carries_the_response_and_its_debug_trace() -> None:
 
 def test_its_debug_trace_is_empty_when_the_client_kept_none() -> None:
     assert TransportError("failed", MockResponse()).debug == ""
+
+
+def test_it_carries_no_response_when_the_provider_never_answered() -> None:
+    error = TransportError("Could not reach the remote server.")
+
+    assert error.response is None
+    assert error.debug == ""

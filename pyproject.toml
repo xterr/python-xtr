@@ -47,6 +47,7 @@ xtr-security-oauth2-server = { workspace = true }
 xtr-security-oauth2-server-core = { workspace = true }
 xtr-service-contracts    = { workspace = true }
 xtr-storage              = { workspace = true }
+xtr-telegram-notifier    = { workspace = true }
 xtr-webhook              = { workspace = true }
 
 [dependency-groups]

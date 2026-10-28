@@ -10,6 +10,11 @@ def _installed(distribution: str) -> bool:
     return distribution.startswith("xtr-")
 
 
+def _absent(_distribution: str) -> bool:
+    # The workspace installs the provider libraries; these tests are about one that is missing.
+    return False
+
+
 def test_it_is_a_logic_error_of_this_package() -> None:
     assert issubclass(UnsupportedSchemeError, LogicError)
     assert issubclass(UnsupportedSchemeError, NotifierError)
@@ -19,7 +24,11 @@ def test_it_is_a_logic_error_of_this_package() -> None:
     ("scheme", "distribution"),
     [("telegram", "xtr-telegram-notifier"), ("slack", "xtr-slack-notifier")],
 )
-def test_it_names_the_library_to_install_for_a_known_scheme(scheme: str, distribution: str) -> None:
+def test_it_names_the_library_to_install_for_a_known_scheme(
+    scheme: str, distribution: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(module, "_installed", _absent)
+
     error = UnsupportedSchemeError(scheme)
 
     assert str(error) == (
@@ -28,7 +37,11 @@ def test_it_names_the_library_to_install_for_a_known_scheme(scheme: str, distrib
     )
 
 
-def test_it_reads_the_provider_before_a_plus_in_the_scheme() -> None:
+def test_it_reads_the_provider_before_a_plus_in_the_scheme(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(module, "_installed", _absent)
+
     error = UnsupportedSchemeError("telegram+api")
 
     assert 'via "telegram"' in str(error)

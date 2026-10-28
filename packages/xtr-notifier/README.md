@@ -255,7 +255,7 @@ Every error derives from `NotifierError`.
 | `UnsupportedOptionsError` | A transport is handed another provider's options |
 | `MultipleExclusiveOptionsUsedError` | Options a provider takes only one of were set together |
 | `LengthError` | A value is longer than the provider accepts |
-| `TransportError` | A provider could not be reached or refused a message (carries the response) |
+| `TransportError` | A provider could not be reached or refused a message (carries the response, when one came) |
 | `NotifierRuntimeError` | Every transport of a failover or round robin failed |
 
 ## Development
