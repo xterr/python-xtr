@@ -102,7 +102,7 @@ file to upload raises `LogicError` — the bot API takes a URL or a file id ther
 The text is sent as MarkdownV2 unless `parse_mode(...)` picks `TelegramOptions.PARSE_MODE_HTML`
 or `PARSE_MODE_MARKDOWN`. It is escaped first: the characters the bot API rejects unescaped
 (`.`, `!`, `#`, `+`, `-`, `=`, `|`, `{`, `}`, `>`) are escaped, while markup written on purpose —
-`*bold*`, `_italic_`, `` `code` ``, `~strike~`, `||spoiler||`, `[link](url)`, block quotations,
+`*bold*`, `_italic_`, `` `code` ``, `~strike~`, `||spoiler||`, `[link](https://example.com)`, block quotations,
 custom emojis — and characters already escaped are kept.
 
 Keyboards: `InlineKeyboardMarkup` with `InlineKeyboardButton`s (link, login URL, callback data,
