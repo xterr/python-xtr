@@ -49,7 +49,7 @@ validators, dumpers or the registry.
 ```sh
 uv add xtr-workflow
 uv add xtr-workflow xtr-dependency-injection   # + the container, for the WorkflowBundle
-uv add xtr-security                            # beside it, and list its bundle: guards reading the token
+uv add xtr-security                            # beside it, bundle listed: guards reading the token
 uv add xtr-console                             # beside it: the workflow:dump command
 uv add xtr-logging                             # beside it: the audit trail's workflow channel
 ```
@@ -216,8 +216,10 @@ class TaskStateMachine(WorkflowTrait):
   of those. Repeat `Transition(...)` inside one `Annotated` for several transitions of that name.
 - `places=` names a string enum whose every member is a place. Enum members carry no annotation of
   their own, so their `Place` markers go in `place_markers={Step.NEW: Place(...)}`; a `Place` on a
-  class constant valued with a place's name works the same way, and is how a place no transition
-  uses gets added.
+  class constant valued with a place's name works the same way. Without `places=`, such a constant
+  is how a place no transition uses gets added. With it, the enum is the whole list: a `Place`
+  constant, or a transition, naming a place outside it fails the build —
+  `The place "archived" of the workflow defined by "…" is not a case of "app.tasks.Step".`
 - `description=` on the workflow, a place or a transition is kept under the `description` key of
   its metadata — a dump shows it, and giving both raises.
 - The declaration belongs to the decorated class alone: a subclass declares no workflow unless it
@@ -341,8 +343,25 @@ def by_anyone(context: GuardContext) -> bool:
 
 The context carries `subject`, `token` (`None` when no one is authenticated), `user`, `role_names`
 (the token's roles and everything they reach through the role hierarchy), `authorization_checker`
-and `trust_resolver`. Every guard of a transition runs, and each refusal adds a
-`BLOCKED_BY_EXPRESSION_GUARD_LISTENER` blocker naming the guard, so one call learns every reason.
+and `trust_resolver`. Every guard of a transition runs, and each refusal adds a blocker, so one
+call learns every reason. Its code is `TransitionBlocker.BLOCKED_BY_EXPRESSION_GUARD_LISTENER`, its
+message `The expression blocks the transition.`, and `get_parameters()["expression"]` names the
+guard that refused — its module and qualified name, `"app.blog.only_an_editor"`:
+
+```python
+from xtr_workflow import TransitionBlocker
+
+blockers = await workflow.build_transition_blocker_list(article, "publish")
+refused_by = [
+    blocker.get_parameters()["expression"]
+    for blocker in blockers
+    if blocker.get_code() == TransitionBlocker.BLOCKED_BY_EXPRESSION_GUARD_LISTENER
+]
+```
+
+The names say *expression* although there is no expression language here — a guard is a callable.
+They are kept for parity: the code is a fixed UUID that code telling blockers apart compares
+against, and its name, its message and its parameter key come with it.
 
 Guards read the security services, so the application lists the
 [security bundle](../xtr-security#use-in-an-application) beside this one:
@@ -351,6 +370,32 @@ workflow bundle never activates it — it brings the http-kernel bundle and that
 it — so a workflow with a guard, in an application that does not list it, fails the build with an
 error saying where to list it. Importing `GuardContext` needs nothing — its security types are
 read by the type checker only — so a module of guards imports wherever the package does.
+
+### Guards outside a request
+
+A guard runs in the unit of work open where its guard event is dispatched — the request's, the
+message's — and reads the token there. Moved from a script or a console command, a subject has no
+one behind it: the unit opened for the guard event has nobody authenticated. To say who acts, open
+the unit yourself, put a token in its storage, and move the subject inside it:
+
+```python
+from xtr_dependency_injection import unit_of_work
+from xtr_security_core import TokenStorageInterface, UsernamePasswordToken
+
+from xtr_workflow import WorkflowInterface
+
+async with unit_of_work(container) as unit:
+    storage = await unit.get(TokenStorageInterface)
+    storage.set_token(UsernamePasswordToken(editor, "console", roles=editor.get_roles()))
+    blog = await unit.get(WorkflowInterface, "blog_publishing")
+    await blog.apply(article, "publish")  # only_an_editor sees the editor
+```
+
+`container` is the kernel's — `booted.container` in a script, as
+[xtr-dependency-injection](../xtr-dependency-injection#the-golden-path) boots one — and `editor` is
+any user, one your user provider loads, say. `"console"` stands where the name of the firewall that
+authenticated the user goes. The guards join that unit of work, so they see its token; once it is
+closed, a guard sees no one again.
 
 ## Dumping a definition
 
@@ -376,18 +421,24 @@ transition style — `STATEMACHINE_TRANSITION` / `TRANSITION_TYPE_STATEMACHINE` 
 drawing: `label`, `bg_color`, `description`, `color` and `arrow_color`, read where each dumper
 documents them.
 
-With the [console bundle](../xtr-console) active, `workflow:dump` does it from the command line:
+With the [console bundle](../xtr-console) active, `workflow:dump` does it from the command line —
+here `app/__main__.py` runs the console, as in
+[xtr-dependency-injection's golden path](../xtr-dependency-injection#the-golden-path):
 
 ```sh
-uv run python -m app.console workflow:dump blog_publishing --dump-format=mermaid
-uv run python -m app.console workflow:dump blog_publishing review --with-metadata --with-listeners
-uv run python -m app.console workflow:dump order_fulfilment -l "Order fulfilment" | dot -Tpng > wf.png
+uv run python -m app workflow:dump blog_publishing --dump-format=mermaid
+uv run python -m app workflow:dump order_fulfilment paid --with-metadata --with-listeners
+uv run python -m app workflow:dump order_fulfilment -l "Order fulfilment" | dot -Tpng > wf.png
 ```
 
-The places after the name are the marking to highlight. `-l` / `--label` titles the diagram,
-`--with-metadata` lists what the definition carries, `--with-listeners` lists who listens to each
-transition, and `--dump-format` picks `dot` (the default), `puml` or `mermaid`. The command writes
-the source unchanged, so piping it to `dot`, PlantUML or a file is the point.
+The places after the name are the marking to highlight. `--dump-format` picks `dot` (the default),
+`puml` or `mermaid`; any other value draws `dot` as well. The options are read by the Graphviz
+dumpers, so with `dot` only: `-l` / `--label` titles the diagram and `--with-metadata` lists what
+the definition carries, for a workflow and a state machine alike, while `--with-listeners` lists
+who listens to each transition of a workflow only — a state machine draws its transitions as
+arrows, with no node to list them on. PlantUML titles the diagram with the workflow's name and
+reads none of the three; Mermaid reads no option at all. The command writes the source unchanged,
+so piping it to `dot`, PlantUML or a file is the point.
 
 ## Use in an application
 
@@ -403,8 +454,9 @@ it undoes.
   it lists `WorkflowBundle` and writes `<app>/config/packages/workflow.py` holding the bundle's own
   defaults — no workflow — with a commented starter one. There is no environment variable and no
   ignore line to write; it prints the steps it cannot make, which are writing the workflows
-  themselves, listing the security bundle if a transition carries a guard, and activating the
-  console and logging bundles if `workflow:dump` or an audit trail are wanted.
+  themselves, listing the security bundle if a transition carries a guard, having the event
+  dispatcher and logging bundles active for an audit trail, and the console bundle for
+  `workflow:dump`.
 - **Activate** — `WorkflowBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
   imported from `xtr_workflow.bundle`. For guards, list `SecurityBundle: {"all": True}` beside it,
   imported from `xtr_security.bundle`, and follow the
@@ -529,7 +581,9 @@ class Publisher:
     ) -> None: ...
 ```
 
-Its `Definition` and its `InMemoryMetadataStore` are registered under the name too. A workflow
+Its `Definition` (`from xtr_workflow import Definition`) and its `InMemoryMetadataStore`
+(`from xtr_workflow.metadata import InMemoryMetadataStore`) are registered under the name too —
+`Annotated[InMemoryMetadataStore, Target("blog_publishing")]`. A workflow
 listing `supports` classes, or naming a `support_strategy` service, is in the `Registry`, where
 `get(subject)` or `get(subject, "blog_publishing")` finds it; one that says neither is reached by
 injection only. Every workflow carries the `workflow` tag (`WORKFLOW_TAG`) with its name, type,
@@ -540,11 +594,14 @@ A class declaring a workflow and mixing in `WorkflowTrait` is registered as a se
 and handed its workflow, so injecting `TaskStateMachine` gives something that both carries your
 methods and answers `apply(...)`.
 
-In debug mode every service tagged `workflow` is wrapped in a `TraceableWorkflow`, which records
-each call — method, duration, arguments,
-the marking before an `apply`, and what came back or was raised. That is why the injection key is
-the interface and not `Workflow` or `StateMachine`: code needing the concrete class calls
-`get_inner()` first, as `workflow:dump` does.
+In debug mode every service tagged `workflow` is wrapped in a `TraceableWorkflow`
+(`from xtr_workflow.debug import TraceableWorkflow`), which records each call that may ask a
+listener. `get_calls()` returns the records in the order the calls finished, each a dict: `method`,
+`duration` (in milliseconds), `args` (every argument, in order), `previous_marking` (the marking
+before an `apply`, `None` for any other method) and `return` — or `exception`, for a call that
+raised; `await reset()` forgets them. That is why the injection key is the interface and not
+`Workflow` or `StateMachine`: code needing the concrete class calls `get_inner()` first, as
+`workflow:dump` does.
 
 With `audit_trail=AuditTrailConfig(enabled=True)`, each workflow logs every place a subject leaves
 and enters and every transition it takes, on the `workflow` logging channel the bundle adds —
@@ -576,11 +633,13 @@ dump, compare the string.
 
 ## Known limitations
 
-- **Guards need a request, or they see no one.** A guard runs inside a unit of work opened for its
-  guard event, which reads the security token of the request or message being handled. A workflow
-  moved from a console command, or anywhere outside such a unit, opens one with nobody
-  authenticated: `context.token` is `None`, `role_names` is empty, and a guard asking for a role
-  refuses. Guard with the subject's own data where a transition must also run headless.
+- **Guards need a request, or they see no one.** A guard runs in the unit of work open where its
+  guard event is dispatched, and reads the security token of the request or message being handled
+  there. A workflow moved from a console command, or anywhere outside such a unit, opens one with
+  nobody authenticated: `context.token` is `None`, `role_names` is empty, and a guard asking for a
+  role refuses — unless the code says who acts, as
+  [Guards outside a request](#guards-outside-a-request) shows. Guard with the subject's own data
+  where a transition must also run headless.
 - **Guards need an HTTP-capable kernel.** They need the security bundle listed, and it brings the
   http-kernel bundle and that bundle's peers with it; a worker or command-only application cannot
   have guards without them.
@@ -611,7 +670,8 @@ Everything the library raises derives from `WorkflowError` (`xtr_workflow.except
 - `LogicError` — a state that cannot be: a marking with no initial place to fall back on, a place
   the definition lacks, a subject with neither accessor nor attribute for its marking, a class
   decorated `@as_workflow` twice, a workflow name already taken, a bundle a workflow needs that is
-  not active, a `WorkflowTrait` used before `set_workflow(...)`.
+  not active, a place outside the `places=` enum of an `@as_workflow` class, a `WorkflowTrait` used
+  before `set_workflow(...)`.
 - `InvalidDefinitionError` — a validator refused the definition.
 - `TransitionError` — a transition that did not happen, carrying the subject, the transition's
   name, the workflow and the context: `UndefinedTransitionError` (no transition of that name) and

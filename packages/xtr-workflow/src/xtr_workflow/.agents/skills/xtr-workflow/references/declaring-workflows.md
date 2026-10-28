@@ -73,7 +73,7 @@ class TaskStateMachine(WorkflowTrait):
 | `audit_trail=` | `True` logs every move on the `workflow` channel |
 | `events_to_dispatch=` | Which events ever go out; see `references/events.md` |
 | `definition_validators=` | Validators run on the definition besides the type's own |
-| `places=` | A string enum whose every member is a place |
+| `places=` | A string enum whose every member is a place, and outside which no place is named |
 | `place_markers=` | A `Place` per enum member that needs one, keyed by the member |
 
 - The derived name is the class's name snake-cased, without a `Workflow` or `StateMachine` suffix:
@@ -120,6 +120,10 @@ order of the places, or says something about one.
 ```python
 ARCHIVED: ClassVar[Annotated[str, Place(description="Kept, never shown")]] = "archived"
 ```
+
+That holds without `places=`. With it, the enum is the whole list: a `Place` constant — or a
+transition — naming a place outside it fails the build, the error saying the place
+`is not a case of` the enum. Value such a constant with one of the enum's members.
 
 | Argument | Does |
 | --- | --- |

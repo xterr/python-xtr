@@ -23,7 +23,7 @@ lines = []
 steps = [
   "Configure the workflows in <app>/config/packages/workflow.py, or declare them on classes with @as_workflow: the bundle registers nothing until one of the two says a workflow.",
   "If a transition carries a guard, list SecurityBundle, from xtr_security.bundle, in <app>/config/bundles.py and follow the security bundle's own steps: it never comes along with the workflow bundle.",
-  "Activate the logging bundle for an audit trail, and the console bundle for workflow:dump — a workflow needing a bundle that is not active fails the build naming it.",
+  "An audit trail needs the event dispatcher and logging bundles active, and workflow:dump the console bundle: the event dispatcher bundle always comes along, the other two once xtr-logging and xtr-console are installed. A workflow needing a bundle that is not active fails the build naming it.",
 ]
 check = [
   "<script> debug:bundles — workflow is listed and active",
