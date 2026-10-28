@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Sized
-from typing import Annotated, ClassVar
+from typing import TYPE_CHECKING, Annotated, ClassVar
 
 import pytest
 
@@ -11,6 +12,7 @@ from tests.fixtures import declared_workflows as declared
 from tests.fixtures import invalid_declared_workflows as invalid
 from tests.fixtures.definition_validator import DefinitionValidator
 from tests.fixtures.pull_request_state_machine import PullRequestStateMachine
+from tests.fixtures.scoped_listeners_workflow import ScopedListenersWorkflow
 from xtr_workflow import WorkflowType
 from xtr_workflow.bundle import (
     ArcConfig,
@@ -20,9 +22,12 @@ from xtr_workflow.bundle import (
     TransitionConfig,
     WorkflowDefinitionConfig,
 )
-from xtr_workflow.bundle._declared_workflows import workflows_declared_on
-from xtr_workflow.decorator import Transition, as_workflow
+from xtr_workflow.bundle._declared_workflows import misplaced_listeners_on, workflows_declared_on
+from xtr_workflow.decorator import Transition, as_guard_listener, as_workflow
 from xtr_workflow.exception import InvalidArgumentError, LogicError
+
+if TYPE_CHECKING:
+    from xtr_workflow.event import GuardEvent
 
 _INVALID = invalid.__name__
 
@@ -318,3 +323,47 @@ def test_a_function_declares_no_workflow() -> None:
 
 def test_an_instance_of_a_workflow_class_declares_no_workflow() -> None:
     assert workflows_declared_on(declared.TaskWorkflow()) == ()
+
+
+class OrphanListener:
+    @as_guard_listener(transition="go")
+    def guard(self, _event: GuardEvent) -> None: ...
+
+
+class AbstractListeners(ABC):
+    @as_guard_listener(transition="go")
+    def guard(self, event: GuardEvent) -> None:
+        del event
+
+    @abstractmethod
+    def describe(self) -> str: ...
+
+
+def test_a_class_listening_to_a_transition_of_no_workflow_is_refused() -> None:
+    with pytest.raises(LogicError) as raised:
+        _ = misplaced_listeners_on(OrphanListener)
+
+    assert str(raised.value) == (
+        f'The "guard()" listener of the "{__name__}.OrphanListener" service listens to a '
+        'transition or a place without defining the "workflow" argument of its decorator; set '
+        'it, or move the listener to a class using the "@as_workflow" decorator.'
+    )
+
+
+def test_an_abstract_class_only_lends_its_listeners() -> None:
+    assert misplaced_listeners_on(AbstractListeners) == ()
+
+
+def test_the_listeners_of_a_workflow_class_name_its_workflow() -> None:
+    assert misplaced_listeners_on(ScopedListenersWorkflow) == ()
+
+
+def test_a_listener_naming_its_workflow_is_left_alone() -> None:
+    @as_guard_listener("article", "go")
+    def guard(_event: GuardEvent) -> None: ...
+
+    assert misplaced_listeners_on(guard) == ()
+
+
+def test_anything_but_a_class_or_a_function_carries_no_listener() -> None:
+    assert misplaced_listeners_on(OrphanListener()) == ()

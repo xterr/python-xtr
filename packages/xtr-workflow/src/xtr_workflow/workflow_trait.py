@@ -34,7 +34,13 @@ class WorkflowTrait:
     this in is free to use ``_workflow`` for anything of its own.
     """
 
-    __workflow: WorkflowInterface | None = None
+    if TYPE_CHECKING:
+        # Annotated for the type checker only: the workflow bundle reads the
+        # annotations of a workflow class and its bases at runtime, where the
+        # interface named here is not imported.
+        __workflow: WorkflowInterface | None
+
+    __workflow = None
 
     def set_workflow(self, workflow: WorkflowInterface) -> None:
         """Answer for ``workflow`` from now on."""
