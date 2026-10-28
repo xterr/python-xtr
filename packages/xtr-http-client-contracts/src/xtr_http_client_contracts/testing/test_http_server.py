@@ -203,11 +203,17 @@ async def _end_everything_still_serving() -> None:
     the accepted socket and nothing that could close it; one turn lets it reach the transport,
     which cancelling then closes. After: losing a connection is a callback, and the sockets the
     cancelled tasks just abandoned are still waiting for it.
+
+    The listener is still open throughout, so a connection can be accepted while this waits —
+    a probe that connects and hangs up just before the shutdown does exactly that. Its task was
+    not among those cancelled, so the whole round repeats until no other task is left; the
+    caller closes the listener straight after, with no turn of the loop in between for another
+    accept to slip through.
     """
-    await asyncio.sleep(0)
     current = asyncio.current_task()
-    serving = [task for task in asyncio.all_tasks() if task is not current]
-    for task in serving:
-        _ = task.cancel()
-    _ = await asyncio.gather(*serving, return_exceptions=True)
-    await asyncio.sleep(0)
+    while serving := [task for task in asyncio.all_tasks() if task is not current]:
+        await asyncio.sleep(0)
+        for task in serving:
+            _ = task.cancel()
+        _ = await asyncio.gather(*serving, return_exceptions=True)
+        await asyncio.sleep(0)
