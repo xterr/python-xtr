@@ -9,7 +9,8 @@ from .transition_error import TransitionError
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .transition_error import NamedWorkflow
+    from xtr_workflow.transition_blocker_list import TransitionBlockerList
+    from xtr_workflow.workflow_interface import WorkflowInterface
 
 __all__ = ["NotEnabledTransitionError"]
 
@@ -21,14 +22,14 @@ class NotEnabledTransitionError(TransitionError):
     refused it; the blocker list it carries says which, and why.
     """
 
-    _transition_blocker_list: object
+    _transition_blocker_list: TransitionBlockerList
 
     def __init__(
         self,
         subject: object,
         transition_name: str,
-        workflow: NamedWorkflow,
-        transition_blocker_list: object,
+        workflow: WorkflowInterface,
+        transition_blocker_list: TransitionBlockerList,
         context: Mapping[str, object] | None = None,
     ) -> None:
         """Record the blocked call and what blocks it.
@@ -49,6 +50,6 @@ class NotEnabledTransitionError(TransitionError):
         )
         self._transition_blocker_list = transition_blocker_list
 
-    def get_transition_blocker_list(self) -> object:
+    def get_transition_blocker_list(self) -> TransitionBlockerList:
         """Return what blocks the transition."""
         return self._transition_blocker_list

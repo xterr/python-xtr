@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
+from tests.support.workflow_stub import WorkflowStub as _Workflow
 from xtr_workflow.exception import UndefinedTransitionError
-
-
-class _Workflow:
-    def get_name(self) -> str:
-        return "article"
 
 
 def test_it_names_the_transition_and_the_workflow() -> None:

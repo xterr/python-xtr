@@ -72,6 +72,22 @@ reportPrivateUsage = "error"
 # limit puts the break inside the string.
 reportImplicitStringConcatenation = "none"
 
+# The transition errors name the workflow interface, which names definitions
+# (built from arcs), markings and stores that raise those errors. The imports
+# are TYPE_CHECKING-only, so the cycle exists only in the static graph, never
+# at runtime.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_workflow/arc.py"
+reportImportCycles = "none"
+
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_workflow/definition.py"
+reportImportCycles = "none"
+
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_workflow/exception"
+reportImportCycles = "none"
+
 # Tests check state a class keeps to itself, for the same reason ruff's
 # SLF001 is off for tests.
 [[tool.basedpyright.executionEnvironments]]

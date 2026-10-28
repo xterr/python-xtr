@@ -18,6 +18,10 @@ from .marking import Marking
 from .marking_store import MarkingStoreInterface
 from .metadata import MetadataStoreInterface
 from .transition import Transition
+from .transition_blocker import TransitionBlocker
+from .transition_blocker_list import TransitionBlockerList
+from .workflow_events import WorkflowEvents
+from .workflow_interface import WorkflowInterface
 from .workflow_type import WorkflowType
 
 __all__ = [
@@ -28,5 +32,9 @@ __all__ = [
     "MarkingStoreInterface",
     "MetadataStoreInterface",
     "Transition",
+    "TransitionBlocker",
+    "TransitionBlockerList",
+    "WorkflowEvents",
+    "WorkflowInterface",
     "WorkflowType",
 ]

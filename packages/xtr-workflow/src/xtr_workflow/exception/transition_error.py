@@ -8,21 +8,8 @@ from .logic_error import LogicError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from typing import Protocol
 
-    # A protocol of its own rather than the workflow interface, which no
-    # module of this package declares yet.
-    class NamedWorkflow(Protocol):
-        """The workflow a transition error was raised for, as far as the errors read it.
-
-        They quote its name in their message and hand the workflow back to
-        whoever catches them; they read nothing else from it.
-        """
-
-        def get_name(self) -> str:
-            """Return the name the error's message quotes."""
-            ...
-
+    from xtr_workflow.workflow_interface import WorkflowInterface
 
 __all__ = ["TransitionError"]
 
@@ -37,14 +24,14 @@ class TransitionError(LogicError):
 
     _subject: object
     _transition_name: str
-    _workflow: NamedWorkflow
+    _workflow: WorkflowInterface
     _context: dict[str, object]
 
     def __init__(
         self,
         subject: object,
         transition_name: str,
-        workflow: NamedWorkflow,
+        workflow: WorkflowInterface,
         message: str,
         context: Mapping[str, object] | None = None,
     ) -> None:
@@ -71,7 +58,7 @@ class TransitionError(LogicError):
         """Return the name of the transition that could not be applied."""
         return self._transition_name
 
-    def get_workflow(self) -> NamedWorkflow:
+    def get_workflow(self) -> WorkflowInterface:
         """Return the workflow the transition was applied through."""
         return self._workflow
 

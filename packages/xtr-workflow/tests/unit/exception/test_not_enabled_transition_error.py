@@ -2,22 +2,19 @@
 
 from __future__ import annotations
 
+from tests.support.workflow_stub import WorkflowStub as _Workflow
+from xtr_workflow import TransitionBlockerList
 from xtr_workflow.exception import NotEnabledTransitionError
 
 
-class _Workflow:
-    def get_name(self) -> str:
-        return "article"
-
-
 def test_it_names_the_transition_and_the_workflow() -> None:
-    error = NotEnabledTransitionError(object(), "t2", _Workflow(), object())
+    error = NotEnabledTransitionError(object(), "t2", _Workflow(), TransitionBlockerList())
 
     assert str(error) == 'Cannot apply transition "t2" on workflow "article".'
 
 
 def test_it_keeps_what_blocks_the_transition() -> None:
-    blockers = object()
+    blockers = TransitionBlockerList()
 
     error = NotEnabledTransitionError(object(), "t2", _Workflow(), blockers)
 
@@ -28,7 +25,9 @@ def test_it_keeps_the_call_it_was_raised_for() -> None:
     subject = object()
     workflow = _Workflow()
 
-    error = NotEnabledTransitionError(subject, "t2", workflow, object(), {"lorem": "ipsum"})
+    error = NotEnabledTransitionError(
+        subject, "t2", workflow, TransitionBlockerList(), {"lorem": "ipsum"}
+    )
 
     assert error.get_subject() is subject
     assert error.get_transition_name() == "t2"

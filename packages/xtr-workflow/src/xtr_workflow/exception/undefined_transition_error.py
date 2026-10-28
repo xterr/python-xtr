@@ -9,7 +9,7 @@ from .transition_error import TransitionError
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .transition_error import NamedWorkflow
+    from xtr_workflow.workflow_interface import WorkflowInterface
 
 __all__ = ["UndefinedTransitionError"]
 
@@ -21,7 +21,7 @@ class UndefinedTransitionError(TransitionError):
         self,
         subject: object,
         transition_name: str,
-        workflow: NamedWorkflow,
+        workflow: WorkflowInterface,
         context: Mapping[str, object] | None = None,
     ) -> None:
         """Record the call naming a transition the definition does not have.
