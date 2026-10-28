@@ -7,7 +7,8 @@ is follows from which field is set: ``photo`` makes it ``sendPhoto``,
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import json
+from collections.abc import Mapping, Sequence
 from io import IOBase
 from typing import Final, cast
 
@@ -19,6 +20,7 @@ __all__ = [
     "build_input_media",
     "ensure_exclusive_options",
     "expand_options",
+    "form_fields",
     "method_for",
     "non_empty",
     "text_option_for",
@@ -166,3 +168,19 @@ def expand_options(options: Mapping[str, object], *keys: str) -> dict[str, objec
 def non_empty(options: Mapping[str, object]) -> dict[str, object]:
     """Drop the fields left empty — ``None``, ``False``, ``0``, ``""``, an empty collection."""
     return {key: value for key, value in options.items() if value}
+
+
+def form_fields(fields: Mapping[str, object]) -> dict[str, object]:
+    """Render ``fields`` for a multipart body: each nested value as JSON text.
+
+    A form part holds one scalar, so the bot API reads an object or a list sent
+    beside an upload — a reply markup, a media group — as JSON. Scalars and the
+    files are left as they are.
+    """
+    return {
+        key: json.dumps(value)
+        if isinstance(value, Mapping)
+        or (isinstance(value, Sequence) and not isinstance(value, (str, bytes)))
+        else value
+        for key, value in fields.items()
+    }

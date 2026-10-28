@@ -115,7 +115,8 @@ poll), `ReplyKeyboardRemove` and `ForceReply`.
 can be queued on a message bus. The transport opens each file when it sends the message, sends
 the fields as a form body — which the HTTP client sends as `multipart/form-data`, the file named
 after its path — and closes the files once the request is made, whether it succeeded or not.
-A message without an upload is sent as JSON.
+A field holding an object or a list, such as a reply markup, goes in that body as JSON text, the
+way the bot API reads it. A message without an upload is sent as JSON.
 
 ## Errors
 

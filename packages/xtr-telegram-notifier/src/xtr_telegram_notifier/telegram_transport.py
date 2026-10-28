@@ -21,6 +21,7 @@ from ._payload import (
     build_input_media,
     ensure_exclusive_options,
     expand_options,
+    form_fields,
     method_for,
     non_empty,
     text_option_for,
@@ -147,7 +148,7 @@ class TelegramTransport(AbstractTransport):
         url = f"{self._get_http_scheme()}://{self._get_endpoint()}/bot{self._token}/{method}"
         try:
             response = await (
-                self._http_client.request("POST", url, body=fields)
+                self._http_client.request("POST", url, body=form_fields(fields))
                 if uploading
                 else self._http_client.request("POST", url, json=fields)
             )

@@ -6,6 +6,7 @@ from xtr_telegram_notifier._payload import (
     action_for,
     build_input_media,
     expand_options,
+    form_fields,
     method_for,
     non_empty,
     text_option_for,
@@ -77,4 +78,16 @@ def test_empty_fields_are_dropped() -> None:
     assert non_empty({"a": None, "b": False, "c": 0, "d": "", "e": [], "f": "x", "g": True}) == {
         "f": "x",
         "g": True,
+    }
+
+
+def test_a_form_field_holding_a_mapping_or_a_list_becomes_json_text() -> None:
+    assert form_fields(
+        {"reply_markup": {"a": [1]}, "media": [{"x": 1}], "chat_id": "42", "flag": True, "n": 3}
+    ) == {
+        "reply_markup": '{"a": [1]}',
+        "media": '[{"x": 1}]',
+        "chat_id": "42",
+        "flag": True,
+        "n": 3,
     }
