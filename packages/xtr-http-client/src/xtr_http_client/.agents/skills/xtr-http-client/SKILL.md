@@ -77,6 +77,8 @@ with open("photo.png", "rb") as photo:
   `multipart/form-data`; without one it stays url-encoded.
 - Each file part is named after the file's `name` (`unknown` without one) and typed by
   `mimetypes.guess_type`, else `application/octet-stream`.
+- Beside a file, every value is a scalar or a list of scalars; a nested one raises
+  `InvalidArgumentError` naming the field — `json.dumps` it first.
 - A caller-set `Content-Type: multipart/form-data; boundary=...` keeps its boundary; do not set
   a multipart content type without one.
 - The file is read synchronously while the body is sent: keep the file open until `request()`

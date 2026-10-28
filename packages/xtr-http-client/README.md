@@ -121,7 +121,10 @@ with open("photo.png", "rb") as photo:
 ```
 
 A `Content-Type: multipart/form-data; boundary=...` set by the caller keeps its boundary. The
-file is read synchronously while the body is sent, which suits uploads of a modest size.
+file is read synchronously while the body is sent, which suits uploads of a modest size. A part
+holds one scalar — a string, bytes, a number, a boolean (`true`/`false`) or `None` — or a list of
+them, one part each; a nested value is refused with `InvalidArgumentError` naming the field, so
+encode it (as JSON, say) first.
 
 `with_options()` turns options into the defaults of another client of the same type, leaving
 the one everyone else holds as it was:

@@ -154,7 +154,9 @@ Each plain value becomes a part of its own; each file a part named after the las
 its `name` (`unknown` when it has none), typed by `mimetypes.guess_type` or else
 `application/octet-stream`. A `Content-Type: multipart/form-data; boundary=...` the caller set
 keeps its boundary. The file is read synchronously as the body goes out, so keep it to uploads
-of a modest size. A mapping without a file stays url-encoded.
+of a modest size. Every other value is a string, bytes, a number, a boolean (`true`/`false`),
+`None` or a list of them; a nested mapping or list is refused with `InvalidArgumentError` naming
+the field. A mapping without a file stays url-encoded.
 
 A name the contract does not list is refused rather than quietly obeyed, with
 `InvalidArgumentError`:

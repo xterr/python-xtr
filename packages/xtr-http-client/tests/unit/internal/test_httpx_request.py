@@ -229,6 +229,39 @@ async def test_a_file_with_no_name_goes_as_unknown_of_no_guessable_type() -> Non
     assert payload.files == {"data": ("unknown", file, "application/octet-stream")}
 
 
+@pytest.mark.parametrize(
+    ("value", "given"),
+    [({"a": 1}, "dict"), ([{"a": 1}], "list"), ((1, [2]), "tuple"), (object(), "object")],
+)
+async def test_a_multipart_body_refuses_a_value_no_part_can_hold(value: object, given: str) -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = await assemble_payload(
+            Request("POST", "/"), {"body": {"m": value, "data": io.BytesIO(b"x")}}, []
+        )
+
+    assert str(raised.value) == (
+        'Option "body" field "m" must be a string, a number, a boolean, None or a list of '
+        f'them when the body is multipart, "{given}" given.'
+    )
+
+
+async def test_a_multipart_body_takes_scalars_and_lists_of_them() -> None:
+    form: dict[str, object] = {"s": "x", "b": b"y", "n": 1, "f": 1.5, "t": True, "z": None}
+    form["l"] = ["a", 1, None]
+
+    payload = await assemble_payload(
+        Request("POST", "/"), {"body": {**form, "data": io.BytesIO(b"x")}}, []
+    )
+
+    assert payload.form == form
+
+
+async def test_a_url_encoded_body_keeps_its_values_as_given() -> None:
+    payload = await assemble_payload(Request("POST", "/"), {"body": {"m": {"a": 1}}}, [])
+
+    assert payload.form == {"m": {"a": 1}}
+
+
 async def test_a_multipart_content_type_naming_its_boundary_is_kept() -> None:
     headers = [("Content-Type", "multipart/form-data; boundary=xtr-boundary")]
 

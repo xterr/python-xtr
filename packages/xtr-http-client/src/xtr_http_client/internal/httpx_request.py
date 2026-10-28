@@ -54,6 +54,8 @@ _NO_BODY: Final = (None, b"", "")
 
 # Read the way the backend reads it: a boundary it cannot find here is one it would not use
 # either, and it would then write a body the caller's header does not describe.
+# What one multipart part holds; a boolean is an int, written "true" or "false".
+_PART_SCALARS: Final = (str, bytes, int, float)
 _NAMED_BOUNDARY: Final = re.compile(r'^multipart/form-data;.*\bboundary=(?:"[^"]+"|[^;\s"]+)')
 
 # What a file with no name of its own is sent as: a server reads a part without a file name
@@ -231,8 +233,31 @@ def _form(body: Mapping[str, object], headers: list[tuple[str, str]]) -> Payload
         headers[:] = [entry for entry in headers if entry[0].lower() != "content-type"]
 
     plain = {name: value for name, value in body.items() if name not in files}
+    for name, value in plain.items():
+        _check_part(name, value)
 
     return Payload(None, plain, None, files)
+
+
+def _check_part(name: str, value: object) -> None:
+    """Refuse a plain value of a multipart form that no part can hold.
+
+    A part holds one scalar, and a list or tuple of them is one part per item;
+    anything nested would otherwise fail deep inside the backend, naming no field.
+
+    Raises:
+        InvalidArgumentError: Naming the field and the type it was given.
+    """
+    given = debug_type(value)
+    items: Sequence[object] = (
+        cast("Sequence[object]", value) if isinstance(value, (list, tuple)) else (value,)
+    )
+    if all(isinstance(item, _PART_SCALARS) or item is None for item in items):
+        return
+    raise InvalidArgumentError(
+        f'Option "body" field "{name}" must be a string, a number, a boolean, None or a list '
+        f'of them when the body is multipart, "{given}" given.'
+    )
 
 
 def _file_part(file: BinaryIO) -> tuple[str, BinaryIO, str]:

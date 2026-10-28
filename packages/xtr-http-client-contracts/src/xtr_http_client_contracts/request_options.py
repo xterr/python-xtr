@@ -48,7 +48,11 @@ class RequestOptions(TypedDict, total=False):
             the caller keeps its boundary; any other content type is replaced
             by one naming the boundary the client picks. The file is read
             synchronously while the body is sent, which suits uploads of a
-            modest size. A mapping without a file stays url-encoded.
+            modest size. In such a body every other value is a string, bytes,
+            a number, a boolean (sent as ``true`` or ``false``), ``None`` or a
+            list of them, one part per item; a nested mapping or list is
+            refused with an ``InvalidArgumentError`` naming the field — encode
+            it, as JSON say, first. A mapping without a file stays url-encoded.
         json: A value to send as a JSON body. The client encodes it and sets
             a JSON content type unless ``headers`` already names one. Setting
             both this and ``body`` is refused.
