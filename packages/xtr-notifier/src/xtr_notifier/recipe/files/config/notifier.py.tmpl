@@ -21,9 +21,9 @@ def notifier() -> NotifierConfig:
         chatter_transports={"chat": env("NOTIFIER_CHATTER_DSN")},
         # The texter's transports: the "sms" and "push" channels send through them.
         texter_transports={"texter": env("NOTIFIER_TEXTER_DSN")},
-        # The channels a notification naming none is sent on, by its importance:
-        # channel_policy={"urgent": ["sms", "chat"], "high": ["chat"]},
-        # Who a message the bus gave up on is reported to (with the messenger
-        # and event dispatcher bundles, and notification_on_failed_messages=True):
-        # admin_recipients=[AdminRecipientConfig("ops@example.com")],
+        # The channels a notification naming none is sent on, by its importance, go in
+        # channel_policy: "urgent" to sms and chat, "high" to chat alone, say. Who a message
+        # the bus gave up on is reported to — with the messenger and event dispatcher
+        # bundles, and notification_on_failed_messages set — goes in admin_recipients, one
+        # AdminRecipientConfig each.
     )
