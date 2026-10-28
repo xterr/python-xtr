@@ -1,4 +1,4 @@
-"""A template that is neither shipped nor a directory holding one."""
+"""A template that does not ship with this tool."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ __all__ = ["UnknownTemplateError"]
 
 @final
 class UnknownTemplateError(CliError):
-    """``--template`` names no shipped template and no directory with a ``template.toml``.
+    """No template ships under the name asked for.
 
     Attributes:
-        template: The value given.
+        template: The name asked for.
         available: The names of the templates that ship with this tool.
     """
 
@@ -22,8 +22,8 @@ class UnknownTemplateError(CliError):
     available: tuple[str, ...]
 
     def __init__(self, template: str, available: tuple[str, ...]) -> None:
-        """Record the value and what could have been chosen instead."""
+        """Record the name and what could have been chosen instead."""
         self.template = template
         self.available = available
         choices = ", ".join(available)
-        super().__init__(f"no template {template!r}: choose {choices}, or a template directory")
+        super().__init__(f"no template {template!r}: choose {choices}")

@@ -1,6 +1,8 @@
 # A web application: the cli template, plus a FastAPI application served from the
-# same kernel through the http-kernel request lifecycle.
-summary = "A web application: FastAPI served from the kernel, with the console beside it."
+# same kernel through the http-kernel request lifecycle, and the packages a web
+# application is built on: logging, a database, a message bus, an HTTP client,
+# notifications and security.
+summary = "A web application: FastAPI served from the kernel, with the console, a database, a message bus and security."
 
 [dependencies]
 packages = [
@@ -9,6 +11,13 @@ packages = [
     "xtr-dotenv",
     "xtr-logging",
     "xtr-http-kernel",
+    # The recipes' DATABASE_URL and MESSENGER_DSN are a PostgreSQL and a RabbitMQ
+    # one, so these are the extras that reach them.
+    "xtr-orm[postgres]",
+    "xtr-messenger[amqp]",
+    "xtr-http-client",
+    "xtr-notifier",
+    "xtr-security",
     "fastapi",
     "uvicorn",
 ]

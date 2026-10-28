@@ -14,7 +14,6 @@ from .invalid_project_name_error import InvalidProjectNameError
 from .invalid_template_error import InvalidTemplateError
 from .project_not_found_error import ProjectNotFoundError
 from .step_failed_error import StepFailedError
-from .unknown_add_on_error import UnknownAddOnError
 from .unknown_template_error import UnknownTemplateError
 from .unsupported_python_error import UnsupportedPythonError
 from .web_entry_point_not_found_error import WebEntryPointNotFoundError
@@ -27,7 +26,6 @@ __all__ = [
     "InvalidTemplateError",
     "ProjectNotFoundError",
     "StepFailedError",
-    "UnknownAddOnError",
     "UnknownTemplateError",
     "UnsupportedPythonError",
     "WebEntryPointNotFoundError",

@@ -1,10 +1,12 @@
 # ${name}
 
-A web application on the xtr packages: FastAPI, served from the same kernel as its console.
+A web application on the xtr packages: FastAPI, served from the same kernel as its console, with
+a database, a message bus, an HTTP client, notifications and security configured.
 
 ## Run
 
 ```sh
+docker compose up -d database   # the PostgreSQL DATABASE_URL points at
 uv run ${name}-web              # serve on WEB_HOST:WEB_PORT, 127.0.0.1:8000 by default
 uv run ${name}                  # every console command
 uv run ${name} debug:router     # the routes
@@ -13,7 +15,9 @@ uv run ${name} debug:bundles    # the bundles and whether each is active
 
 The environment is read from `.env`, then `.env.local`, then `.env.<APP_ENV>` and
 `.env.<APP_ENV>.local`; a variable set in the shell wins. Keep machine-specific values in
-`.env.local`, which is not committed.
+`.env.local`, which is not committed. `DATABASE_URL` points at the PostgreSQL `compose.yaml`
+runs, published on this machine by `compose.override.yaml`; `MESSENGER_DSN` at a RabbitMQ on this
+machine. Nothing connects to either until it is used.
 
 ## Layout
 
@@ -34,7 +38,7 @@ src/${app}/
 ## Add a package
 
 ```sh
-uv run xtr-recipes recipes:add xtr-messenger
+uv run xtr-recipes recipes:add xtr-cache
 ```
 
 It installs the package and applies its recipe — the bundle, its configuration file, its

@@ -17,7 +17,7 @@ def _scaffolder(runner: RecordingRunner | None = None, version: str = "3.0.0") -
 
 
 def test_the_xtr_requirements_are_pinned_to_the_tools_major(tmp_path: Path) -> None:
-    plan = _scaffolder().plan(build_settings(tmp_path / "shop", add_ons="orm"))
+    plan = _scaffolder().plan(build_settings(tmp_path / "shop"))
 
     assert plan.commands[0] == (
         "uv",
@@ -26,9 +26,16 @@ def test_the_xtr_requirements_are_pinned_to_the_tools_major(tmp_path: Path) -> N
         "xtr-dependency-injection>=3.0,<4",
         "xtr-console>=3.0,<4",
         "xtr-dotenv>=3.0,<4",
-        "xtr-logging>=3.0,<4",
-        "xtr-orm[postgres]>=3.0,<4",
     )
+
+
+def test_a_requirement_with_extras_is_pinned_and_a_third_party_one_is_left_alone(
+    tmp_path: Path,
+) -> None:
+    plan = _scaffolder().plan(build_settings(tmp_path / "shop", template="webapp"))
+
+    assert "xtr-orm[postgres]>=3.0,<4" in plan.commands[0]
+    assert "fastapi" in plan.commands[0]
 
 
 def test_the_tools_are_added_as_development_dependencies_then_the_recipes_applied(

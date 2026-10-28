@@ -1,9 +1,8 @@
-"""TemplateCatalog: the templates shipped with this tool, and any directory holding one."""
+"""TemplateCatalog: the templates shipped with this tool."""
 
 from __future__ import annotations
 
 from importlib.resources import files
-from pathlib import Path
 from typing import TYPE_CHECKING, final
 
 from .exception import UnknownTemplateError
@@ -19,7 +18,7 @@ _SHIPPED = "xtr_cli.templates"
 
 @final
 class TemplateCatalog:
-    """Finds a template by the name it ships under, or by a directory on disk.
+    """Finds a template by the name it ships under.
 
     The shipped templates live inside this package, so they are the ones
     written for the packages of the same release.
@@ -47,16 +46,12 @@ class TemplateCatalog:
         )
 
     def load(self, template: str) -> Template:
-        """Return the shipped template called ``template``, or the one in that directory.
+        """Return the shipped template called ``template``.
 
         Raises:
-            UnknownTemplateError: When ``template`` is neither a shipped name
-                nor a directory holding a ``template.toml``.
-            InvalidTemplateError: When the template found cannot be read.
+            UnknownTemplateError: When no template ships under that name.
+            InvalidTemplateError: When the template cannot be read.
         """
-        if template in self.names():
-            return Template.load(self._root / template, template)
-        directory = Path(template).expanduser()
-        if directory.joinpath(MANIFEST).is_file():
-            return Template.load(directory, directory.resolve().name)
-        raise UnknownTemplateError(template, self.names())
+        if template not in self.names():
+            raise UnknownTemplateError(template, self.names())
+        return Template.load(self._root / template, template)

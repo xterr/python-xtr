@@ -82,9 +82,7 @@ class Scaffolder:
             files = tuple(
                 (path, text + sources if path == _PYPROJECT else text) for path, text in files
             )
-        dependencies = self._pinned(
-            (*template.dependencies, *(choice.requirement for choice in settings.add_ons))
-        )
+        dependencies = self._pinned(template.dependencies)
         dev_dependencies = self._pinned(template.dev_dependencies)
         commands: list[tuple[str, ...]] = []
         if dependencies:

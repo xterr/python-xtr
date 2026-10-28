@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 
-from tests.support import write_template
 from xtr_cli import TemplateCatalog, UnknownTemplateError
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 _VALUES = {"name": "web-shop", "app": "web_shop", "python": "3.13", "minor": "13"}
 
@@ -43,16 +37,28 @@ def test_the_web_template_keeps_the_console() -> None:
     assert 'web-shop-web = "web_shop.web.__main__:main"' in pyproject
 
 
-def test_a_directory_holding_a_template_is_loaded_under_its_own_name(tmp_path: Path) -> None:
-    directory = write_template(tmp_path / "mine", 'summary = "Mine."\n')
+def test_the_console_template_starts_with_the_kernel_the_console_and_the_environment() -> None:
+    template = TemplateCatalog.default().load("cli")
 
-    template = TemplateCatalog.default().load(str(directory))
-
-    assert (template.name, template.summary) == ("mine", "Mine.")
+    assert template.dependencies == ("xtr-dependency-injection", "xtr-console", "xtr-dotenv")
 
 
-def test_an_unknown_template_names_the_shipped_ones(tmp_path: Path) -> None:
+def test_the_web_template_starts_with_the_web_application_packages() -> None:
+    template = TemplateCatalog.default().load("webapp")
+
+    assert {
+        "xtr-logging",
+        "xtr-http-kernel",
+        "xtr-orm[postgres]",
+        "xtr-messenger[amqp]",
+        "xtr-http-client",
+        "xtr-notifier",
+        "xtr-security",
+    } <= set(template.dependencies)
+
+
+def test_an_unknown_template_names_the_shipped_ones() -> None:
     with pytest.raises(UnknownTemplateError, match="choose cli, webapp") as raised:
-        _ = TemplateCatalog.default().load(str(tmp_path / "nowhere"))
+        _ = TemplateCatalog.default().load("nowhere")
 
     assert raised.value.available == ("cli", "webapp")

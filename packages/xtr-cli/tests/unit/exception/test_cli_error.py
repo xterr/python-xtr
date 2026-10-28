@@ -10,7 +10,6 @@ from xtr_cli.exception import (
     InvalidProjectNameError,
     InvalidTemplateError,
     StepFailedError,
-    UnknownAddOnError,
     UnknownTemplateError,
     UnsupportedPythonError,
 )
@@ -23,7 +22,6 @@ from xtr_cli.exception import (
         InvalidProjectNameError("x", "why"),
         InvalidTemplateError("t", "why"),
         StepFailedError(("uv",), Path(), 1),
-        UnknownAddOnError("x", "why"),
         UnknownTemplateError("x", ("cli",)),
         UnsupportedPythonError("3.9"),
     ],

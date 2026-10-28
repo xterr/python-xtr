@@ -18,16 +18,17 @@ def tester() -> ApplicationTester:
     return build_tester()
 
 
-async def test_new_makes_the_project_then_installs_and_syncs_it(
+async def test_new_makes_a_console_application_then_installs_and_syncs_it_asking_nothing(
     tester: ApplicationTester, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = record_processes(monkeypatch)
     target = tmp_path / "shop"
 
-    code = await tester.execute(["new", str(target), "--python", "3.13"], interactive=False)
+    code = await tester.execute(["new", str(target), "--python", "3.13"])
 
     assert code == ExitCode.SUCCESS
     assert (target / "src" / "shop" / "__main__.py").is_file()
+    assert not (target / "src" / "shop" / "web").exists()
     assert [argv[:3] for argv, _ in runner.calls] == [
         ("uv", "add", "--"),
         ("uv", "add", "--dev"),
@@ -39,22 +40,19 @@ async def test_new_makes_the_project_then_installs_and_syncs_it(
     assert "uv run shop app:hello" in tester.display
 
 
-async def test_the_questions_fill_in_what_was_left_out(
+async def test_webapp_makes_a_web_application_with_the_web_packages(
     tester: ApplicationTester, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = record_processes(monkeypatch)
     target = tmp_path / "web-shop"
 
-    code = await tester.execute(
-        ["new", "--python", "3.13", "--no-git"],
-        inputs=[str(target), "webapp", "orm, security", "sqlite", "y"],
-    )
+    code = await tester.execute(["new", str(target), "--webapp", "--python", "3.13", "--no-git"])
 
     assert code == ExitCode.SUCCESS
-    assert "--template=webapp --with=orm:sqlite,security --python=3.13 --no-git -n" in (
-        tester.display
-    )
-    assert "xtr-orm[sqlite]>=3.0,<4" in runner.calls[0][0]
+    assert "the webapp template" in tester.display
+    assert "xtr-orm[postgres]>=3.0,<4" in runner.calls[0][0]
+    assert "xtr-security>=3.0,<4" in runner.calls[0][0]
+    assert all(argv[0] != "git" for argv, _ in runner.calls)
     assert (target / "src" / "web_shop" / "web" / "app.py").is_file()
 
 
@@ -74,31 +72,16 @@ async def test_a_dry_run_prints_the_plan_and_writes_nothing(
     assert not (tmp_path / "shop").exists()
 
 
-async def test_declining_writes_nothing(
-    tester: ApplicationTester, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    runner = record_processes(monkeypatch)
-
-    code = await tester.execute(
-        ["new", str(tmp_path / "shop"), "--template", "cli", "--with", "", "--python", "3.13"],
-        inputs=["n"],
-    )
-
-    assert code == ExitCode.SUCCESS
-    assert "Nothing was written" in tester.display
-    assert runner.calls == []
-    assert not (tmp_path / "shop").exists()
-
-
 async def test_no_directory_is_an_invalid_command_line(
     tester: ApplicationTester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _ = record_processes(monkeypatch)
+    runner = record_processes(monkeypatch)
 
-    code = await tester.execute(["new"], interactive=False)
+    code = await tester.execute(["new"])
 
     assert code == ExitCode.INVALID
-    assert "xtr new <directory>" in tester.display
+    assert "DIRECTORY requires an argument" in tester.error_display
+    assert runner.calls == []
 
 
 @pytest.mark.parametrize(
@@ -107,8 +90,6 @@ async def test_no_directory_is_an_invalid_command_line(
         (["--python", "3.10"], "give a version 3.11 or later"),
         (["--python", "three"], "give a version 3.11 or later"),
         (["--name", "json"], "would shadow the standard library"),
-        (["--template", "nope"], "no template 'nope'"),
-        (["--with", "queue"], "cannot add 'queue'"),
     ],
 )
 async def test_a_setting_it_cannot_use_fails_before_anything_is_written(

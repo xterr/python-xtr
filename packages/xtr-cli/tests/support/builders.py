@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from xtr_console import Application, ApplicationTester
 
-from xtr_cli import AddOnCatalog, ProjectName, ProjectSettings, TemplateCatalog
+from xtr_cli import ProjectName, ProjectSettings, TemplateCatalog
 from xtr_cli.command import InitCommand, NewCommand, ServeCommand
 
 if TYPE_CHECKING:
@@ -21,13 +21,11 @@ def build_tester() -> ApplicationTester:
     return ApplicationTester(Application("xtr", catch_exceptions=False), width=400)
 
 
-def build_settings(  # noqa: PLR0913 — every setting a test may vary.
+def build_settings(
     directory: Path,
     *,
     template: str = "cli",
-    add_ons: str = "",
     command: str = "new",
-    name_given: bool = False,
     git: bool = True,
     local_packages: Path | None = None,
 ) -> ProjectSettings:
@@ -37,10 +35,7 @@ def build_settings(  # noqa: PLR0913 — every setting a test may vary.
         directory=directory,
         name=ProjectName.parse(directory.name),
         template=TemplateCatalog.default().load(template),
-        template_source=template,
-        add_ons=AddOnCatalog.default().parse(add_ons, template),
         python="3.13",
-        name_given=name_given,
         git=git,
         local_packages=local_packages,
     )

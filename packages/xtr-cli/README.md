@@ -46,27 +46,14 @@ Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) on the `PATH`, and `g
 ## Quick start
 
 ```console
-$ uvx xtr-cli new shop
- • cli — A console application: a kernel, its commands, the layered .env files and logging.
- • webapp — A web application: FastAPI served from the kernel, with the console beside it.
- Template [cli/webapp] (cli): webapp
- • orm — Database engines, sessions per unit of work and versioned migrations.
- • messenger — A message bus: handlers, middleware, transports and consumers.
- …
- Add-ons, comma-separated (empty for none): orm, messenger
- Database drivers for orm — sqlite, postgres, mysql, joined with + (sqlite): sqlite+postgres
- Transports and serializers for messenger — amqp, pydantic, joined with +:
+$ uvx xtr-cli new shop --webapp
 
 shop — the webapp template
 --------------------------
 
  • directory: /home/ada/shop
- • add-ons:   orm (sqlite, postgres), messenger
  • python:    3.13
-The same, with no question asked:
-  uvx xtr-cli new shop --template=webapp --with=orm:sqlite+postgres,messenger --python=3.13 -n
 
- Create it? [y/n] (y):
 write pyproject.toml
 …
 run   uv add -- 'xtr-dependency-injection>=5.0,<6' …
@@ -87,26 +74,23 @@ uv run pytest
 ## Commands
 
 ```sh
-xtr project:new [<directory>] [options]   # alias: new — into a new or empty directory
-xtr project:init [options]                # alias: init — into the current directory
-xtr server:start [options]                # alias: serve — run the project's web application
+xtr project:new <directory> [options]   # alias: new — into a new or empty directory
+xtr project:init [options]              # alias: init — into the current directory
+xtr server:start [options]              # alias: serve — run the project's web application
 ```
 
 | Option | Default | |
 |---|---|---|
-| `--template` | asked; `cli` with `-n` | `cli`, `webapp`, or a directory holding a `template.toml` |
+| `--webapp` | | a web application rather than a console application — see [Templates](#templates) |
 | `--name` | the directory's name | the distribution and console script; dashes become underscores for the import package |
-| `--with` | asked; none with `-n` | add-ons, comma-separated: `orm:sqlite+postgres,messenger` |
 | `--python` | the Python running this tool | the `3.<minor>` the project is pinned to; 3.11 or later |
 | `--no-git` | | do not run `git init`; `init` never re-initialises an existing repository |
 | `--dry-run` | | print every file and command, and write nothing |
 | `--local-packages` | | install the xtr packages, editable, from a directory of their sources |
-| `-n` | | ask nothing: every question takes its default |
 
-**Questions fill in only what the command line left out**, and an option given is never asked.
-With `-n` — or wherever nothing can answer, such as CI — nothing is asked at all. Before anything
-is written the run prints the command that makes the same project with no question asked, so an
-answered run can be repeated in a script.
+**Nothing is asked.** Every option has a default, so the same command line makes the same project
+at a terminal, in a script or in CI. More packages are added afterwards, from inside the project,
+with `uv run xtr-recipes recipes:add <package>`.
 
 The directory must be missing, or hold nothing but `.git` and editor metadata: nothing is ever
 written over. A name that would not import — a keyword, a module of the standard library — is
@@ -115,8 +99,8 @@ refused before anything is written.
 ### What it runs
 
 1. Writes the template's files.
-2. `uv add` the template's packages and the add-ons; every unversioned xtr requirement is pinned
-   to this tool's major version, so the files and the packages are from the same release.
+2. `uv add` the template's packages; every unversioned xtr requirement is pinned to this tool's
+   major version, so the files and the packages are from the same release.
 3. `uv add --dev` the tools: `xtr-recipes`, `pytest`, `ruff`, `basedpyright`, `ty`.
 4. `uv run xtr-recipes recipes:sync` — each package's recipe writes `<app>/config/bundles.py`, its
    configuration files, its `.env` and `.gitignore` blocks, and `xtr.lock`; the steps it cannot
@@ -165,76 +149,24 @@ application's shutdown hooks run.
 
 ## Templates
 
-| Template | Packages | Scripts |
-|---|---|---|
-| `cli` | `xtr-dependency-injection`, `xtr-console`, `xtr-dotenv`, `xtr-logging` | `<name>` |
-| `webapp` | the same, `xtr-http-kernel`, `fastapi`, `uvicorn` | `<name>`, `<name>-web` |
+| Template | Made by | Packages | Scripts |
+|---|---|---|---|
+| `cli` | `xtr new <directory>` | `xtr-dependency-injection`, `xtr-console`, `xtr-dotenv` | `<name>` |
+| `webapp` | `xtr new <directory> --webapp` | the same, and `xtr-logging`, `xtr-http-kernel`, `xtr-orm[postgres]`, `xtr-messenger[amqp]`, `xtr-http-client`, `xtr-notifier`, `xtr-security`, `fastapi`, `uvicorn` | `<name>`, `<name>-web` |
 
 Both write `pyproject.toml` (with ruff, basedpyright, ty and pytest configured), `.python-version`,
 `.gitignore`, `README.md`, `src/<app>/kernel.py`, `src/<app>/__main__.py`, an example
 `app:hello` command and a test that builds the kernel. `webapp` adds `src/<app>/web/` — the
-FastAPI application served with `setup(app, kernel)`, its routes and a uvicorn entry point — and
-a test that requests the home page.
+FastAPI application served with `setup(app, kernel)`, its routes and a uvicorn entry point — a
+kernel built with `concurrent_scoped_access=True` for the security bundle, and a test that
+requests the home page.
 
-### A template of your own
-
-`--template=<directory>` takes any directory holding a `template.toml`:
-
-```toml
-summary = "What it makes, in one line."
-
-[dependencies]
-packages = ["xtr-console"]         # uv add
-dev = ["xtr-recipes", "pytest"]    # uv add --dev; with xtr-recipes, the recipes are applied
-
-[files]
-# destination in the project = file under the template directory
-"pyproject.toml" = "files/pyproject.toml.tmpl"
-"src/${app}/__main__.py" = "files/main.py.tmpl"
-
-[notes]
-next = ["uv run ${name} list"]     # printed once the project is made
-```
-
-Destinations, files and notes substitute `${name}` (the distribution), `${app}` (the import
-name), `${python}` (`3.13`) and `${minor}` (`13`); a literal `$` is written `$$`. An unknown
-placeholder, table or key is an `InvalidTemplateError` before anything is written. Write only
-what no recipe writes: the bundle list, `.env` and the ignore lines are the recipes'.
-
-## Add-ons
-
-Choosing an add-on only adds its requirement; the recipe the package ships configures it, the
-way it would for a package added later with `xtr-recipes recipes:add`.
-
-| Add-on | Installs | Variants |
-|---|---|---|
-| `orm` | `xtr-orm` | `postgres` (default), `sqlite`, `mysql` |
-| `messenger` | `xtr-messenger` | `amqp` (default), `pydantic` |
-| `scheduler` | `xtr-scheduler[cron]` | |
-| `event-dispatcher` | `xtr-event-dispatcher` | |
-| `cache` | `xtr-cache` | `redis` |
-| `lock` | `xtr-lock` | `redis` |
-| `rate-limiter` | `xtr-rate-limiter` | |
-| `storage` | `xtr-storage` | `s3`, `gcs` |
-| `http-client` | `xtr-http-client` | `http2` |
-| `security` | `xtr-security` — `webapp` only | |
-| `jwt` | `xtr-security-jwt` — `webapp` only; brings `security` | |
-| `oauth2` | `xtr-security-oauth2-server` — `webapp` only; brings `security` and `jwt` | |
-| `webhook` | `xtr-webhook` — `webapp` only; brings `messenger` | |
-
-Variants only pick third-party backends. Integrations between xtr packages turn on when both are
-installed: choose `orm` beside `oauth2` to keep its clients in a database, `http-client` beside
-`webhook` to send webhooks, `rate-limiter` beside `http-client` to pace requests.
-
-`jwt` and `oauth2` each have their recipe mint a development signing key under `secrets/`,
-encrypted with a pass phrase it generates in `.env` — and, for `oauth2`, the encryption key too.
-The keys are ignored: another checkout runs `uv run xtr-recipes recipes:install <package>` to
-mint its own, and production mounts the deployment's own key and sets its own secrets. `oauth2`
-still issues nothing until its issuer is configured.
-
-Variants follow the name after `:`, joined with `+`: `orm:sqlite+postgres`. A name alone takes
-the defaults; `messenger:` picks none. Asked interactively, an add-on with variants is followed by
-a question for them.
+Each package's recipe configures it: the `webapp` project starts with a `compose.yaml` running
+PostgreSQL — published on `5432` by `compose.override.yaml` — that `DATABASE_URL` points at,
+`MESSENGER_DSN` pointing at a RabbitMQ on this machine, and both notifier DSNs at `null://null`.
+Nothing connects until it is used, so the project boots and passes its tests with neither
+running. Every other package — `xtr-cache`, `xtr-scheduler`, `xtr-security-jwt` — is a
+`recipes:add` away.
 
 ## Errors
 
@@ -246,11 +178,10 @@ attributes. A command reports it and exits `1`.
 | `DirectoryNotEmptyError` | the directory is a file, or holds anything but version-control and editor metadata |
 | `AmbiguousWebEntryPointError` | `serve` found several web entry points, and no question may be asked |
 | `InvalidProjectNameError` | the name normalises to nothing, or to a keyword, a non-identifier or a standard-library module |
-| `InvalidTemplateError` | a `template.toml` does not parse, holds an unknown key, names a missing file, or a placeholder is unknown |
+| `InvalidTemplateError` | a shipped `template.toml` does not parse, holds an unknown key, names a missing file, or a placeholder is unknown |
 | `ProjectNotFoundError` | `serve` was run outside a project |
 | `StepFailedError` | `uv` or `git` exited with a failure; the later steps were not run |
-| `UnknownAddOnError` | `--with` names an unknown add-on, one the template cannot take, one twice, or an unknown variant |
-| `UnknownTemplateError` | `--template` is neither a shipped template nor a directory holding one |
+| `UnknownTemplateError` | `TemplateCatalog.load` is given a name no template ships under |
 | `UnsupportedPythonError` | `--python` is not `3.<minor>` with a minor of 11 or more |
 | `WebEntryPointNotFoundError` | the project has nothing to serve, or `--entrypoint` names nothing it has |
 
@@ -259,14 +190,11 @@ attributes. A command reports it and exits `1`.
 ```
 xtr_cli/
 ├── command/                 project:new, project:init and server:start
-├── command_support.py       what both commands share: questions, plan, apply, report
-├── project_questions.py     what the command line left out, asked
+├── command_support.py       what both commands share: settings, plan, apply, report
 ├── project_name.py          the distribution and import names
-├── project_settings.py      everything decided, and the command line repeating it
+├── project_settings.py      everything decided about the project
 ├── template.py              a template.toml and its files
-├── template_catalog.py      the shipped templates, or a directory
-├── add_on.py                one add-on: a name standing for a requirement
-├── add_on_catalog.py        the add-ons, and how --with names them
+├── template_catalog.py      the shipped templates
 ├── scaffolder.py            settings into a plan, a plan into a project
 ├── scaffold_plan.py         the files and commands, before anything is made
 ├── web_entry_point.py       what serves an application, and the command starting it

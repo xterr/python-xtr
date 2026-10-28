@@ -24,6 +24,9 @@ kernel: Final = Kernel(
     # ${app}.web.app builds the web application as it is imported, and that application is
     # served from this very kernel: scanning it would import it while the kernel builds.
     exclude=(*DEFAULT_EXCLUDES, "${app}.web.app"),
+    # Concurrent requests each keep their own scoped services — the security token storage
+    # among them.
+    concurrent_scoped_access=True,
 )
 
 
