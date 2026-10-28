@@ -158,7 +158,13 @@ include = ["src", "tests"]
 minversion = "8.0"
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-config", "--strict-markers"]
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # google.api_core announces that the interpreter nears its end of life — the
+    # Python the CI matrix runs, not a future this package controls; the gcs
+    # adapter's tests import the backend and would otherwise error on the warning.
+    "ignore:You are using a Python version .* which Google will stop supporting:FutureWarning",
+]
 
 [tool.coverage.run]
 source = ["src"]
