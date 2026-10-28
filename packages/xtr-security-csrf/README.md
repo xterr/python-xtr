@@ -159,6 +159,16 @@ The suite runs on `pytest` with `anyio`; the storages are exercised over a real
 persist-and-reattach path a request actually takes is what the tests prove — not a mock
 of it.
 
+## In an application
+
+This package works on its own and ships no bundle. The
+[`xtr-security`](../xtr-security#use-in-an-application) bundle wires it: a firewall that
+asks for a token — a form login with `enable_csrf`, a logout's `enable_csrf` or
+`clear_csrf_tokens`, or the firewall's `csrf_route_markers` for routes proving themselves
+with `IsCsrfTokenValid` — has the bundle build the manager over the session the request
+reattached, registered as the application's one `CsrfTokenManagerInterface` service. See
+that package's [Use in an application](../xtr-security#use-in-an-application).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

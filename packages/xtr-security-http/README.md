@@ -271,8 +271,9 @@ itself by default.
 
 The bundle's logout wiring — the configuration surface that builds the listener per firewall,
 parks it on the context's `logout_listener` slot, registers the event listeners on the
-firewall's dispatcher and registers each firewall with the generator — arrives with that
-configuration surface; the pieces above are what it will wire.
+firewall's dispatcher and registers each firewall with the generator — is the
+[xtr-security](../xtr-security) bundle's `LogoutConfig`, documented there; the pieces above
+are what it wires.
 
 ### Authenticators, passports, badges and credentials
 
@@ -328,8 +329,8 @@ Between the success handler and the login-success event, an authenticator that i
 **`InteractiveAuthenticatorInterface`** reporting `is_interactive()` announces the login through
 **`InteractiveLoginEvent`** — a user actively logging in, as opposed to a session or a bearer token
 re-establishing one — under the name `SecurityEvents.INTERACTIVE_LOGIN`. The form-login and
-JSON-login authenticators are interactive — a login through either announces itself; a login link
-brings the announcement with it when it lands.
+JSON-login authenticators are interactive — a login through either announces itself; so is the
+login-link one, the user having followed the link themselves.
 
 A lazy authenticator that raises a plain `BadCredentialsError` is read as *no credential
 presented* — it did not apply, so the next authenticator is tried. Any other failure is masked to
@@ -547,8 +548,8 @@ the event order:
 | `AuthenticationProofsListener` | nothing on a passport — records the authentication methods an interactive, non-remember-me login proved on its token, and carries the previous token's proofs over for the same user |
 
 The logout listeners — the ones answering `LogoutEvent` rather than a passport — have their own
-table under [Logout](#logout); the bundle's wiring for them arrives with the logout configuration
-surface. The remember-me pair runs on the login-success event at the priorities above; the
+table under [Logout](#logout); the [xtr-security](../xtr-security) bundle wires them from the
+firewall's `LogoutConfig`. The remember-me pair runs on the login-success event at the priorities above; the
 response listener that moves the staged cookie onto the response belongs to the kernel's response
 event, on the application's main dispatcher.
 
@@ -635,6 +636,16 @@ the firewall-run mark — so a response of a request another firewall ran is lef
 firewall's listener. The token is stored as the object it is: the session storage's own contract
 owns the wire format, and the lazy-object initialisation guard the upstream listener opens with
 has no lazy user to guard on this stack.
+
+The session itself reaches the storage through **`SaveSessionListener`** — the last word on
+the kernel's response event, at priority `-1000`, below every other listener, so the token
+the context step's response half wrote is in the session before the session is written. It
+saves the session the request's security state carries and places the cookie
+`staged_set_cookie()` returns on the response's `Set-Cookie` — a new or rotated ID being the
+only times one is staged, so an untouched session mints no cookie. A storage that fails
+fails the request loudly, before the head leaves, rather than losing the session quietly;
+the finish event saves what a request that failed without producing a response still wrote,
+skipping the ones the response half already saved.
 
 ### The session strategy: what a login does to the session it reattached
 
@@ -854,6 +865,74 @@ ever makes it: documentation.
 - **`IsCsrfTokenValid` answers `403` directly.** A request that fails the token
   check is refused with a plain `403` — the caller is already identified —
   rather than routed through the firewall's exception listener.
+- **The local hardenings are kept.** Four softenings upstream allows are not
+  taken here: a password passport naming an unknown user is still verified
+  against a dummy hash — the guard's own hasher a required constructor
+  parameter, the dummy computed once per listener — so a bad username and a
+  bad password cost the same time and neither reveals which was wrong; an
+  authentication failure is masked to the configured `ExposeSecurityLevel`,
+  so a refused credential reads the one message whatever part of it failed;
+  and the password-migrating listener takes its upgrader and its logger as
+  explicit constructor parameters rather than discovering them at runtime.
+  The form-body extractor's 64 KiB cap is measured on the body itself, not
+  trusted from the declared content length. None of the four changes what a
+  correct caller reads; each closes what a wrong one could measure.
+- **`PostAuthenticationToken` has no credentials to ask for.** Upstream's
+  token carries a `get_credentials` that answers an empty list; the local
+  token stack has no credentials concept — a password is a badge, consumed
+  at the passport check — so the method is not ported, and nothing calls
+  for one.
+- **Generated addresses are literal paths, or the application's own URIs.**
+  No routing component exists to turn a route name into an address, so the
+  logout URL generator, the login-link handler, the impersonate generator
+  and the default success handler's redirects all take literal paths —
+  route-name options are refused — and anything that writes an absolute URL
+  writes it through the injected URI builder, the path itself by default.
+  The per-feature bullets below record each refusal where it lives.
+- **No lazy response event.** The firewall subscriber runs every matched
+  request's chain eagerly, at the request event before routing, and the
+  token storage is written as the chain runs — there is no lazy token
+  storage for a lazy response event to serve, so the event is not ported
+  and the exception listener's lazy branch stays vacant, as its own
+  documentation says. A consequence: nothing defers a chain step to the
+  response phase; what a firewall does, it does before the route runs.
+- **The exception listener weighs a parked token first, the storage
+  second.** A chain step that parks the request's token — the access step
+  is the one that does — decides what a denial weighs; a step that runs
+  before it, like the switch's, has nothing parked, so the listener falls
+  back to the token the storage holds. Without the fallback a switch's
+  denial on a restored session would be read as an anonymous caller and
+  answered with the entry point's redirect instead of the `403` it earned.
+- **The chain's request carries its body unparsed.** The firewall runs at
+  the request event, where the served message is born with its body lazy:
+  `get_parsed_body()` answers what has been materialised so far, and nothing
+  in the chain materialises it — that happens where the route's own request
+  service is built. A reader that awaits the body (the form-encoded
+  access-token extractor) materialises it itself; the plain parameter
+  readers see nothing of the body at chain time, so a submission's fields
+  ride the query string, the fallback the landed readers document — a form
+  login with `post_only` off reads the query first, and the logout's, the
+  switch's and the login link's proofs all read the query string beside the
+  body. A login page's own route, running after the materialisation, reads
+  the body as ever.
+- **A route cannot read the chain's parked state through its own request
+  message.** What the chain parks — the session the context listener
+  reattached, the error a failed login left, the last username — lives on
+  the kernel event's state bag, handed to the chain's listeners on a
+  derived request; the request service a route resolves builds its own
+  message, without the state-bag attribute, so `parked_session_of` answers
+  `None` for it and an `AuthenticationUtils` built over it reads nothing.
+  The honest pattern for a login page today is to build a session view of
+  its own — `Session.from_request(request, storage)` over the application's
+  `SessionStorageInterface` service — and read the user-facing keys
+  (`_security.last_error`, `_security.last_username`,
+  `_security.re_authentication_attribute`) from it.
+- **`authenticate_user` hands its hooks the caller's request as it
+  arrived.** The manager's programmatic login takes no state, so the
+  success handlers it runs read no security state off the request they are
+  handed — a handler that stages on it, like the remember-me flow's, has
+  nothing to stage on unless the caller parked a state bag on the request
+  first.
 - **`failure_forward` is refused.** The default failure handler answers with
   the redirect only: this stack has no sub-request to hand the login page to,
   so a configuration asking for the forward is a wiring mistake reported where
@@ -915,6 +994,14 @@ ever makes it: documentation.
 - **A non-string `user` parameter is refused as missing.** Upstream would hand a repeated
   query parameter's array to the badge and fail later; the local authenticator answers the
   same "Missing user from link." error for a value that is not a string.
+- **A user named `"0"` is a user.** Upstream's truthiness reads the string `"0"` as empty,
+  so a link minted for such an identifier could never be consumed there; the local readers
+  test presence, not truthiness, and the identifier is loaded like any other.
+- **The login-link marker is a base class, not a protocol.** Every refusal the handler
+  raises — `InvalidLoginLinkError`, `ExpiredLoginLinkError` — inherits
+  `InvalidLoginLinkErrorInterface`, a plain `Exception` subclass, because the
+  authenticator catches it: a `Protocol` would answer a runtime check for anything, and a
+  catch must name a base the errors actually derive from.
 - **The switch listener takes its HTTP utilities and a bridge as required parameters.**
   Upstream takes its HTTP utilities optionally — needed only with a dedicated path — and
   builds the non-path redirect directly; here they are the one redirect builder — the
@@ -1025,10 +1112,26 @@ ever makes it: documentation.
   selects an algorithm by its JWA name, so `JwsAlgorithms` maps each name onto what it
   demands of its key — the key type, and the curve for ECDSA — which is what
   `check_key` reads.
-- **DPoP is deferred.** Upstream's `OAuth2/` also carries a DPoP token type (with
-  per-origin nonce memory and a retry on `use_dpop_nonce`) and a proof factory; neither
-  is landed here. The follow-up that lands them is the plan's deferred DPoP row, and the
-  client this suite serves works bearer-only until then.
+- **DPoP is deferred, and the seams it lands through are already here.**
+  Upstream's `OAuth2/` also carries a `DpopTokenType` — a per-origin nonce
+  memory and a retry on `use_dpop_nonce` — and a `Dpop/DpopProofFactory`,
+  minting a proof (`jti`/`htm`/`htu`/`iat`/`ath`, and the nonce the server
+  answered) in ES256 by default, its thumbprint binding the token. Neither is
+  landed, so every token this package asks for or challenges is a bearer one.
+  The follow-up that lands them plugs into what the landed code already
+  carries: a proof check is a `SenderConstraintInterface` — the async
+  `check(request, access_token, claims)` weighs the request against the
+  token's `cnf` before anything is loaded on the user's behalf, and the sync
+  `get_challenge(error)` names the scheme and the parameters every challenge
+  answers with, the access-token challenge builder letting the constraint's
+  parameters override its own; the nonce retry is the access token type's
+  `on_response(response, url)`, the one retry its contract names and the
+  bearer type answers `False` to; the client asks for a bound token by
+  holding the token type as a property — `OidcClient` keeps
+  `BearerTokenType` there today, the upstream client's optional
+  proof-factory parameter being the one seam not carried; and `dpop_jkt`
+  stays on the OIDC login's managed authorization parameters, guarded so no
+  configuration can set it, though nothing mints one yet.
 - **The ended-sessions key hashes the `sid` with SHA-256, not xxh128.** Upstream hashes the
   opaque `sid` with xxh128; the standard library offers no xxh128, and the family's keys —
   the discovery document's, the JWKS's — are SHA-256, so the ended-session key is too:
@@ -1517,10 +1620,18 @@ Everything this library raises derives from `SecurityError` (from
 |---|---|---|
 | `InvalidAccessTokenError` | `AuthenticationError` | a bearer token was present but could not be trusted — answered with an `invalid_token` challenge |
 | `InvalidCsrfTokenError` | `AuthenticationError` | a passport's cross-site request forgery token did not check out — the login it guards is refused |
+| `InvalidLoginLinkError` | `RuntimeError` | a login link did not check out — a parameter missing or malformed, a hash verifying under no secret, a user the provider does not know; one of the `InvalidLoginLinkErrorInterface` family the authenticator catches |
+| `ExpiredLoginLinkError` | `ExpiredSignatureError` (core) | the link checked out except its moment, which has passed; also an `InvalidLoginLinkErrorInterface` |
+| `InvalidLoginLinkAuthenticationError` | `AuthenticationError` | a login through a link failed — the authentication-layer answer to every refusal the handler raises |
+| `OidcInvalidGrantError` | `AuthenticationError` | the provider refused a refresh grant — the one error a caller of the OIDC client has to tell apart |
+| `OidcSessionEndedError` | `AuthenticationError` | the OIDC provider ended the session this login belongs to; deauthenticates on the next request |
+| `MissingClaimError` | `AuthenticationError` | the claim the user identifier is read from was absent from what the issuer answered |
 | `ImpersonationError` | `RuntimeError` | an impersonation address was asked for and could not be built — no firewall with a switch, a forgery-asking switch without a manager, or a dedicated path configured as a route name |
 | `InvalidSessionStrategyError` | `RuntimeError` | a session strategy was asked to act under a name that is none of its own; carries `strategy` |
 | `LogoutError` | `RuntimeError` | a logout request failed its cross-site request forgery proof |
 | `MissingSessionError` | `RuntimeError` | a session strategy was asked to move a request whose security state carries no session |
+| `MissingStateBagError` | `RuntimeError` | a firewall chain was asked about a request carrying no state bag — the caller running the chain must park the kernel event's bag on the request it hands over |
+| `OidcKeySetError` | — | the keys a token verifies against could not be fetched, discovered or read |
 | `UnknownFirewallError` | `LookupError` | a firewall was asked for by a name none is registered under; carries `name` and `configured` |
 
 ## Layout

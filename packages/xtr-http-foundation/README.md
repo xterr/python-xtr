@@ -226,6 +226,10 @@ nothing, so the code that saves every response needs no condition of its own. A 
 empty session deletes the stored entry rather than writing an empty one: a request that only
 consumed its session leaves none behind.
 
+`is_started()` reports that loading: `True` once the first attribute was read or written,
+`False` while the session was never touched. It is what a save-every-response pass asks
+before writing, so an untouched session saves nothing and mints no cookie.
+
 - **The ID** is 48 lowercase hex characters, made with `secrets.token_hex(24)` — an alphabet
   every storage accepts as a key. A cookie value that is no readable ID — misspelled, upper
   case, somebody else's format — is treated as no cookie at all: the stranger's cookie is
