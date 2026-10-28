@@ -36,8 +36,8 @@ an ID cookie, kept in whatever storage the application points at.
 - `Session.from_request(request, storage)` builds the session a request reattaches;
   `await session.get/set/has/remove/clear(...)`, `await session.migrate(destroy_old=False)`,
   `await session.invalidate()`, `await session.save()`, `session.get_id()`,
-  `session.staged_set_cookie()`. `SessionCookieConfig()` is the cookie's shape, and
-  `MemorySessionStorage` the storage that needs nothing else.
+  `session.staged_set_cookie()`, `session.is_started()`. `SessionCookieConfig()` is the
+  cookie's shape, and `MemorySessionStorage` the storage that needs nothing else.
 
 ## Claim the requests that are yours
 
@@ -222,6 +222,9 @@ staged = session.staged_set_cookie()  # the Set-Cookie value, or None when the I
 - Nothing is read from the storage until the first attribute is asked for; `save()` on a
   session that was never started does nothing, and a save of an empty session deletes the
   stored entry.
+- `is_started()` reports that loading: `True` once the first attribute was read or written,
+  `False` while the session was never touched — what a save-every-response pass asks before
+  writing, so an untouched session saves nothing and mints no cookie.
 - `migrate(destroy_old=True)` carries the attributes to a new ID and deletes the old entry —
   the rotate-on-login move; `invalidate()` empties the attributes and destroys the old entry.
   Both stage the cookie again under the new ID.
