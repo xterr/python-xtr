@@ -1,6 +1,6 @@
 [project]
 name = "xtr-password-hasher"
-version = "4.1.0"
+version = "5.0.0"
 description = "Password hashing behind one interface: argon2id by default, legacy hashes verified and upgraded."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -38,7 +38,7 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     "pwdlib[argon2,bcrypt]>=0.3",
-    "xtr-console>=4.0,<5",
+    "xtr-console>=5.0,<6",
 ]
 
 [build-system]

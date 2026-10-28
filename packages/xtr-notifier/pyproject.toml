@@ -1,6 +1,6 @@
 [project]
 name = "xtr-notifier"
-version = "4.1.0"
+version = "5.0.0"
 description = "Send notifications to chat, SMS and push channels — one notification, the channels its importance or its recipient call for, any provider configured by DSN."
 readme = "README.md"
 authors = [
@@ -23,22 +23,22 @@ classifiers = [
 dependencies = [
     "typing-extensions>=4.4",
     # What a round-robin or failover transport measures a dead transport's rest with.
-    "xtr-clock>=4.0,<5",
+    "xtr-clock>=5.0,<6",
     # Transports announce every message they send, and the failures, as events.
-    "xtr-event-dispatcher-contracts>=4.0,<5",
+    "xtr-event-dispatcher-contracts>=5.0,<6",
     # The client interface provider transports talk through; the client itself is
     # installed by the application.
-    "xtr-http-client-contracts>=4.0,<5",
+    "xtr-http-client-contracts>=5.0,<6",
     # A notification's importance can be read from a log level.
-    "xtr-logging-contracts>=4.0,<5",
-    "xtr-service-contracts>=4.0,<5",
+    "xtr-logging-contracts>=5.0,<6",
+    "xtr-service-contracts>=5.0,<6",
 ]
 
 [project.optional-dependencies]
 # Queue messages through the bus instead of sending them where they are made.
-messenger = ["xtr-messenger>=4.0,<5"]
+messenger = ["xtr-messenger>=5.0,<6"]
 # Wire the notifier from one configuration.
-di = ["xtr-dependency-injection>=4.0,<5"]
+di = ["xtr-dependency-injection>=5.0,<6"]
 
 # Provider factories advertise themselves here, keyed by the DSN scheme they serve so only
 # the matching library is ever imported: chat providers under the chatter's group, SMS and
@@ -66,11 +66,11 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "xtr-dependency-injection>=4.0,<5",
-    "xtr-event-dispatcher>=4.0,<5",
+    "xtr-dependency-injection>=5.0,<6",
+    "xtr-event-dispatcher>=5.0,<6",
     # MockHttpClient stands in for the network in transport tests.
-    "xtr-http-client>=4.0,<5",
-    "xtr-messenger>=4.0,<5",
+    "xtr-http-client>=5.0,<6",
+    "xtr-messenger>=5.0,<6",
 ]
 
 [build-system]

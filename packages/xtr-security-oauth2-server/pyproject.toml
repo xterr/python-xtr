@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-oauth2-server"
-version = "4.1.0"
+version = "5.0.0"
 description = "An OAuth 2.0 authorization server and resource-server authenticator for xtr security."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,26 +20,26 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-security-oauth2-server-core>=4.0,<5",
-    "xtr-security-core>=4.0,<5",
-    "xtr-security-http>=4.0,<5",
-    "xtr-security>=4.0,<5",
-    "xtr-security-jwt>=4.0,<5",
-    "xtr-password-hasher>=4.0,<5",
-    "xtr-clock>=4.0,<5",
-    "xtr-event-dispatcher-contracts>=4.0,<5",
-    "xtr-event-dispatcher>=4.0,<5",
+    "xtr-security-oauth2-server-core>=5.0,<6",
+    "xtr-security-core>=5.0,<6",
+    "xtr-security-http>=5.0,<6",
+    "xtr-security>=5.0,<6",
+    "xtr-security-jwt>=5.0,<6",
+    "xtr-password-hasher>=5.0,<6",
+    "xtr-clock>=5.0,<6",
+    "xtr-event-dispatcher-contracts>=5.0,<6",
+    "xtr-event-dispatcher>=5.0,<6",
     # The authorization endpoint reports a request that arrived with no
     # resource owner where the deployment can read it; the contract is all it
     # needs, and a deployment that logs nothing is left alone.
-    "xtr-logging-contracts>=4.0,<5",
-    "xtr-dependency-injection>=4.0,<5",
-    "xtr-http-message-contracts>=4.0,<5",
+    "xtr-logging-contracts>=5.0,<6",
+    "xtr-dependency-injection>=5.0,<6",
+    "xtr-http-message-contracts>=5.0,<6",
     # The endpoints are typed with the kernel's own response — the object an
     # application's container hands them is both an HTTP message and a response
     # the framework can send — and the authenticator turns the request being
     # served into a message through the kernel's bridge.
-    "xtr-http-kernel>=4.0,<5",
+    "xtr-http-kernel>=5.0,<6",
     # The endpoints are framework routes, contributed to the application's table.
     "fastapi>=0.123",
     "joserfc>=1.7",
@@ -69,9 +69,9 @@ dev = [
     "httpx>=0.27",
     # The library speaks the message contracts; the tests need messages to hand
     # it, which is what the implementation is for.
-    "xtr-http-message>=4.0,<5",
-    "xtr-console>=4.0,<5",
-    "xtr-orm>=4.0,<5",
+    "xtr-http-message>=5.0,<6",
+    "xtr-console>=5.0,<6",
+    "xtr-orm>=5.0,<6",
     # The stored managers are tested against a real database: a SQLite file in
     # the test's own directory, which needs an async driver for it.
     "aiosqlite>=0.20",

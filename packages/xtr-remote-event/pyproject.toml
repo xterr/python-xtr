@@ -1,6 +1,6 @@
 [project]
 name = "xtr-remote-event"
-version = "4.1.0"
+version = "5.0.0"
 description = "Events received from another system, as one value type, handed to the consumer registered under their source's name — directly or through a message bus."
 readme = "README.md"
 authors = [
@@ -22,8 +22,8 @@ classifiers = [
 ]
 dependencies = [
     "typing-extensions>=4.4",
-    "xtr-messenger>=4.0,<5",
-    "xtr-service-contracts>=4.0,<5",
+    "xtr-messenger>=5.0,<6",
+    "xtr-service-contracts>=5.0,<6",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -43,7 +43,7 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "xtr-dependency-injection>=4.0,<5",
+    "xtr-dependency-injection>=5.0,<6",
 ]
 
 [build-system]

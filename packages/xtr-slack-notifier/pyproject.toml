@@ -1,6 +1,6 @@
 [project]
 name = "xtr-slack-notifier"
-version = "4.1.0"
+version = "5.0.0"
 description = "Slack for xtr-notifier — chat messages posted, scheduled and updated in a channel, with Block Kit blocks, configured by DSN."
 readme = "README.md"
 authors = [
@@ -22,9 +22,9 @@ classifiers = [
 ]
 dependencies = [
     "typing-extensions>=4.4",
-    "xtr-notifier>=4.0,<5",
+    "xtr-notifier>=5.0,<6",
     # The Web API is reached through the application's client.
-    "xtr-http-client-contracts>=4.0,<5",
+    "xtr-http-client-contracts>=5.0,<6",
 ]
 
 # Found by the chatter when a DSN's scheme is slack, with no wiring.
@@ -44,9 +44,9 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     # MockHttpClient stands in for the Slack Web API in transport tests.
-    "xtr-http-client>=4.0,<5",
+    "xtr-http-client>=5.0,<6",
     # Read the shipped recipe with the parser recipes:sync uses.
-    "xtr-recipes>=4.0,<5",
+    "xtr-recipes>=5.0,<6",
 ]
 
 [build-system]

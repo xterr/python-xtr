@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-client"
-version = "4.1.0"
+version = "5.0.0"
 description = "An async HTTP client behind one interface: typed request options, bodies read on demand, scoped clients, a private-network guard and a mock client for tests."
 readme = "README.md"
 authors = [
@@ -27,11 +27,11 @@ dependencies = [
     "typing-extensions>=4.4",
     "anyio>=4.0",
     "httpx>=0.27",
-    "xtr-http-client-contracts>=4.0,<5",
-    "xtr-http-message>=4.0,<5",
-    "xtr-http-message-contracts>=4.0,<5",
-    "xtr-logging-contracts>=4.0,<5",
-    "xtr-service-contracts>=4.0,<5",
+    "xtr-http-client-contracts>=5.0,<6",
+    "xtr-http-message>=5.0,<6",
+    "xtr-http-message-contracts>=5.0,<6",
+    "xtr-logging-contracts>=5.0,<6",
+    "xtr-service-contracts>=5.0,<6",
 ]
 
 [project.optional-dependencies]
@@ -58,11 +58,11 @@ dev = [
     "anyio>=4.0",
     "h2>=4.0",
     "ty>=0.0.83",
-    "xtr-clock>=4.0,<5",
-    "xtr-dependency-injection>=4.0,<5",
+    "xtr-clock>=5.0,<6",
+    "xtr-dependency-injection>=5.0,<6",
     # The networks NoPrivateNetworkHttpClient refuses; optional for an application.
-    "xtr-http-foundation>=4.0,<5",
-    "xtr-rate-limiter>=4.0,<5",
+    "xtr-http-foundation>=5.0,<6",
+    "xtr-rate-limiter>=5.0,<6",
 ]
 
 [build-system]

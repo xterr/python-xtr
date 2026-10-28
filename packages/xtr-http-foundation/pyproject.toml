@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-foundation"
-version = "4.1.0"
+version = "5.0.0"
 description = "Matchers that answer one question each about a request that arrived — method, path, host, port, scheme, headers, query, client address, JSON body — the helpers that place an IP in a network, and the session a stateful request carries: attributes under an ID cookie, kept in whatever storage the application points at."
 readme = "README.md"
 authors = [
@@ -26,7 +26,7 @@ classifiers = [
 # built on the standard library's `ipaddress`.
 dependencies = [
     "typing-extensions>=4.4",
-    "xtr-http-message-contracts>=4.0,<5",
+    "xtr-http-message-contracts>=5.0,<6",
 ]
 
 # The cache-pool session storage is the one member that needs another package:
@@ -34,7 +34,7 @@ dependencies = [
 # what turns it on.
 [project.optional-dependencies]
 cache = [
-    "xtr-cache-contracts>=4.0,<5",
+    "xtr-cache-contracts>=5.0,<6",
 ]
 
 [dependency-groups]
@@ -46,9 +46,9 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     # The matchers' tests match real requests, so they build them.
-    "xtr-http-message>=4.0,<5",
+    "xtr-http-message>=5.0,<6",
     # The cache-pool session storage's tests exercise it over the caching contract.
-    "xtr-cache-contracts>=4.0,<5",
+    "xtr-cache-contracts>=5.0,<6",
 ]
 
 [build-system]

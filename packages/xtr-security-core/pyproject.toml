@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-core"
-version = "4.1.0"
+version = "5.0.0"
 description = "The security core for xtr applications: users, tokens, roles, voters and the authorization decision."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,10 +20,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-password-hasher>=4.0,<5",
-    "xtr-clock>=4.0,<5",
-    "xtr-event-dispatcher-contracts>=4.0,<5",
-    "xtr-service-contracts>=4.0,<5",
+    "xtr-password-hasher>=5.0,<6",
+    "xtr-clock>=5.0,<6",
+    "xtr-event-dispatcher-contracts>=5.0,<6",
+    "xtr-service-contracts>=5.0,<6",
     "typing-extensions>=4.12",
 ]
 

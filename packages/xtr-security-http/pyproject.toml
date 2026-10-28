@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-http"
-version = "4.1.0"
+version = "5.0.0"
 description = "The HTTP edge of xtr security: firewalls, authenticators, bearer access tokens and the request surface."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,24 +20,24 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-security-core>=4.0,<5",
-    "xtr-security-csrf>=4.0,<5",
-    "xtr-http-kernel>=4.0,<5",
-    "xtr-http-foundation>=4.0,<5",
-    "xtr-http-message-contracts>=4.0,<5",
+    "xtr-security-core>=5.0,<6",
+    "xtr-security-csrf>=5.0,<6",
+    "xtr-http-kernel>=5.0,<6",
+    "xtr-http-foundation>=5.0,<6",
+    "xtr-http-message-contracts>=5.0,<6",
     # The client interface the introspection endpoint is reached through; the client
     # itself is installed by the application that introspects.
-    "xtr-http-client-contracts>=4.0,<5",
+    "xtr-http-client-contracts>=5.0,<6",
     # The cache contract the introspection responses are cached under; the pool
     # behind it is the application's choice.
-    "xtr-cache-contracts>=4.0,<5",
-    "xtr-dependency-injection>=4.0,<5",
-    "xtr-event-dispatcher>=4.0,<5",
-    "xtr-event-dispatcher-contracts>=4.0,<5",
-    "xtr-clock>=4.0,<5",
-    "xtr-logging-contracts>=4.0,<5",
-    "xtr-password-hasher>=4.0,<5",
-    "xtr-rate-limiter>=4.0,<5",
+    "xtr-cache-contracts>=5.0,<6",
+    "xtr-dependency-injection>=5.0,<6",
+    "xtr-event-dispatcher>=5.0,<6",
+    "xtr-event-dispatcher-contracts>=5.0,<6",
+    "xtr-clock>=5.0,<6",
+    "xtr-logging-contracts>=5.0,<6",
+    "xtr-password-hasher>=5.0,<6",
+    "xtr-rate-limiter>=5.0,<6",
     "fastapi>=0.123",
     "starlette>=0.40",
     "anyio>=4.0",
@@ -59,12 +59,12 @@ dev = [
     "ty>=0.0.83",
     "joserfc>=1.7",
     # The tests match real requests, so they build the request messages.
-    "xtr-http-message>=4.0,<5",
+    "xtr-http-message>=5.0,<6",
     # The tests drive the introspection endpoint through the scripted client and
     # cache the responses in the in-memory pool.
-    "xtr-http-client>=4.0,<5",
-    "xtr-cache>=4.0,<5",
-    "xtr-console>=4.0,<5",
+    "xtr-http-client>=5.0,<6",
+    "xtr-cache>=5.0,<6",
+    "xtr-console>=5.0,<6",
 ]
 
 [build-system]

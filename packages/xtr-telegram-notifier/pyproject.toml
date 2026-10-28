@@ -1,6 +1,6 @@
 [project]
 name = "xtr-telegram-notifier"
-version = "4.1.0"
+version = "5.0.0"
 description = "Telegram for xtr-notifier — chat messages posted, edited and answered through a bot, with keyboards, media and file uploads, configured by DSN."
 readme = "README.md"
 authors = [
@@ -22,10 +22,10 @@ classifiers = [
 ]
 dependencies = [
     "typing-extensions>=4.4",
-    "xtr-notifier>=4.0,<5",
+    "xtr-notifier>=5.0,<6",
     # The bot API is reached through the application's client; uploads go as a multipart
     # body, which the client builds.
-    "xtr-http-client-contracts>=4.0,<5",
+    "xtr-http-client-contracts>=5.0,<6",
 ]
 
 # Found by the chatter when a DSN's scheme is telegram, with no wiring.
@@ -45,9 +45,9 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     # MockHttpClient stands in for the bot API in transport tests.
-    "xtr-http-client>=4.0,<5",
+    "xtr-http-client>=5.0,<6",
     # Read the shipped recipe with the parser recipes:sync uses.
-    "xtr-recipes>=4.0,<5",
+    "xtr-recipes>=5.0,<6",
 ]
 
 [build-system]
