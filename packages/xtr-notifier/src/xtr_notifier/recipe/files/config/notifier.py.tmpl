@@ -1,0 +1,29 @@
+"""Notifications: the providers each kind of message is sent through, and who to tell.
+
+A DSN carries a provider's credentials, so each is read from the environment
+when it is first used — never written here, never shown by a container report.
+Join two DSNs with `` || `` to fall over to the second, or `` && `` to take turns.
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure, env
+from xtr_notifier.bundle import NotifierConfig
+
+__all__ = ["notifier"]
+
+
+@configure
+def notifier() -> NotifierConfig:
+    """One chat transport and one SMS-and-push transport, both from the environment."""
+    return NotifierConfig(
+        # The chatter's transports: the "chat" channel sends through them.
+        chatter_transports={"chat": env("NOTIFIER_CHATTER_DSN")},
+        # The texter's transports: the "sms" and "push" channels send through them.
+        texter_transports={"texter": env("NOTIFIER_TEXTER_DSN")},
+        # The channels a notification naming none is sent on, by its importance:
+        # channel_policy={"urgent": ["sms", "chat"], "high": ["chat"]},
+        # Who a message the bus gave up on is reported to (with the messenger
+        # and event dispatcher bundles, and notification_on_failed_messages=True):
+        # admin_recipients=[AdminRecipientConfig("ops@example.com")],
+    )

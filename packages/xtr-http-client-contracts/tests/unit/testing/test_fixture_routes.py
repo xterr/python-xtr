@@ -241,6 +241,80 @@ def test_the_echo_lets_a_form_field_shadow_the_method() -> None:
     assert raw.json_body() == {"REQUEST_METHOD": "PUT"}
 
 
+MULTIPART_BODY = (
+    b"--b1\r\n"
+    b'Content-Disposition: form-data; name="caption"\r\n'
+    b"\r\n"
+    b"hello\r\n"
+    b"--b1\r\n"
+    b'Content-Disposition: form-data; name="photo"; filename="photo.png"\r\n'
+    b"Content-Type: image/png\r\n"
+    b"\r\n"
+    b"\x89PNG\r\n\x1a\n\r\n"
+    b"--b1--\r\n"
+)
+
+
+def _multipart(content_type: bytes, body: bytes) -> bytes:
+    return (
+        b"POST /multipart HTTP/1.1\r\n"
+        + HOST_HEAD
+        + b"Content-Type: "
+        + content_type
+        + b"\r\nContent-Length: "
+        + str(len(body)).encode()
+        + b"\r\n\r\n"
+        + body
+    )
+
+
+def test_the_multipart_echo_answers_every_part_it_received() -> None:
+    raw = exchange(_multipart(b"multipart/form-data; boundary=b1", MULTIPART_BODY))
+
+    assert raw.header("content-type") == "application/json"
+    assert raw.json_body() == {
+        "content-type": "multipart/form-data; boundary=b1",
+        "parts": [
+            {"name": "caption", "filename": None, "content-type": None, "content": "hello"},
+            {
+                "name": "photo",
+                "filename": "photo.png",
+                "content-type": "image/png",
+                "content": "\x89PNG\r\n\x1a\n",
+            },
+        ],
+    }
+
+
+def test_the_multipart_echo_reads_a_quoted_boundary() -> None:
+    raw = exchange(_multipart(b'multipart/form-data; boundary="b1"', MULTIPART_BODY))
+
+    assert raw.json_body() == {
+        "content-type": 'multipart/form-data; boundary="b1"',
+        "parts": [
+            {"name": "caption", "filename": None, "content-type": None, "content": "hello"},
+            {
+                "name": "photo",
+                "filename": "photo.png",
+                "content-type": "image/png",
+                "content": "\x89PNG\r\n\x1a\n",
+            },
+        ],
+    }
+
+
+def test_the_multipart_echo_answers_no_parts_for_a_form() -> None:
+    raw = exchange(_multipart(b"application/x-www-form-urlencoded", b"caption=hello"))
+
+    assert raw.json_body() == {"content-type": "application/x-www-form-urlencoded", "parts": []}
+
+
+def test_the_multipart_echo_answers_an_unknown_content_type_for_an_empty_body() -> None:
+    raw = exchange(b"GET /multipart HTTP/1.1\r\n" + HOST_HEAD + b"\r\n")
+
+    assert raw.json_body() == {"content-type": "?", "parts": []}
+
+
 def test_the_header_timeout_waits_before_answering_at_all() -> None:
     started = time.monotonic()
     raw = exchange(b"GET /timeout-header HTTP/1.1\r\n" + HOST_HEAD + b"\r\n")

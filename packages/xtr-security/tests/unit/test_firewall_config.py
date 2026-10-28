@@ -23,6 +23,13 @@ def test_an_open_firewall_needs_no_authenticator() -> None:
 
     assert firewall.security is False
     assert firewall.authenticators == ()
+    assert firewall.listeners == ()
+
+
+def test_a_firewall_keeps_its_listener_chain_qualifiers() -> None:
+    firewall = FirewallConfig(security=False, listeners=("late", "early"))
+
+    assert firewall.listeners == ("late", "early")
 
 
 def test_a_secured_firewall_needs_an_authenticator() -> None:
@@ -30,9 +37,38 @@ def test_a_secured_firewall_needs_an_authenticator() -> None:
         _ = FirewallConfig(pattern=r"^/api")
 
 
-def test_a_stateful_firewall_is_refused() -> None:
+def test_a_stateful_firewall_is_accepted() -> None:
+    firewall = FirewallConfig(pattern=r"^/api", stateless=False, authenticators=(_access_token(),))
+
+    assert firewall.stateless is False
+
+
+def test_an_empty_context_key_is_refused() -> None:
+    from xtr_security_core.exception import InvalidArgumentError
+
+    with pytest.raises(InvalidArgumentError):
+        _ = FirewallConfig(
+            pattern=r"^/api",
+            stateless=False,
+            context_key="",
+            authenticators=(_access_token(),),
+        )
+
+
+def test_an_unknown_session_strategy_is_refused() -> None:
     with pytest.raises(InvalidConfigurationError):
-        _ = FirewallConfig(pattern=r"^/api", stateless=False, authenticators=(_access_token(),))
+        _ = FirewallConfig(
+            pattern=r"^/api",
+            stateless=False,
+            session_strategy="rotate",
+            authenticators=(_access_token(),),
+        )
+
+
+def test_the_session_strategy_defaults_to_a_migration() -> None:
+    firewall = FirewallConfig(pattern=r"^/api", authenticators=(_access_token(),))
+
+    assert firewall.session_strategy == "migrate"
 
 
 def test_a_secured_firewall_keeps_its_authenticators() -> None:

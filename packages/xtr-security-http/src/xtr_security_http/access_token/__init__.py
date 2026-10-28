@@ -8,6 +8,7 @@ from .chain_access_token_extractor import ChainAccessTokenExtractor
 from .form_encoded_body_extractor import FormEncodedBodyExtractor
 from .header_access_token_extractor import HeaderAccessTokenExtractor
 from .query_access_token_extractor import QueryAccessTokenExtractor
+from .sender_constraint_interface import SenderConstraintInterface
 
 __all__ = [
     "AccessTokenExtractorInterface",
@@ -16,4 +17,5 @@ __all__ = [
     "FormEncodedBodyExtractor",
     "HeaderAccessTokenExtractor",
     "QueryAccessTokenExtractor",
+    "SenderConstraintInterface",
 ]

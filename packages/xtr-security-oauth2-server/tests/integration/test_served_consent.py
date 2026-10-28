@@ -12,7 +12,6 @@ from urllib.parse import parse_qsl, urlsplit
 
 import pytest
 from fastapi import FastAPI
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.oauth2_consent_app.config import USER_IDENTIFIER, USER_PASSWORD
 from tests.fixtures.oauth2_consent_app.listeners import CONSENT_PAGE, GRANTED
@@ -51,7 +50,6 @@ def _application() -> FastAPI:
     """Return the deployment whose listener shows a consent page."""
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_consent_app"),
-        dependencies=[Firewall()],
     )
 
 

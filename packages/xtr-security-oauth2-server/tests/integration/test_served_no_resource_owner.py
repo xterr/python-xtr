@@ -14,7 +14,6 @@ from urllib.parse import parse_qsl, urlsplit
 
 import pytest
 from fastapi import FastAPI
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.support.served import (
     CLIENT_ID,
@@ -42,7 +41,6 @@ def _application() -> FastAPI:
     """Return the deployment whose firewall leaves ``/authorize`` unclaimed."""
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_no_owner_app"),
-        dependencies=[Firewall()],
     )
 
 

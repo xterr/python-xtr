@@ -37,7 +37,9 @@ class ServerRequestInterface(RequestInterface, Protocol):
     a user. Those findings go in the attributes.
 
     Requests are immutable. Every ``with_*`` method keeps the instance it was
-    called on as it was and returns one carrying the change.
+    called on as it was and returns one carrying the change. A request built
+    over a connection materialises its body side lazily, and its sync getters
+    answer what materialisation has yielded so far.
     """
 
     def get_server_params(self) -> Mapping[str, object]:
@@ -147,7 +149,9 @@ class ServerRequestInterface(RequestInterface, Protocol):
         """Return the parameters found in the body of the request.
 
         A ``POST`` whose content type is form-encoded or a multipart form must
-        answer with the submitted form fields.
+        answer with the submitted form fields. A request built over a
+        connection answers them once its body has been read, or once it was
+        handed over with its body already materialised.
 
         Anything else may answer with whatever parsing the body yielded.
         Parsing yields structure, so what comes back is a mapping or an object

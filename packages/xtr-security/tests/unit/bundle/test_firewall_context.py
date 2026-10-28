@@ -3,25 +3,18 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
 
 import pytest
-from fastapi.security import HTTPBearer
 from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
 from xtr_security.bundle.firewall_context import FirewallContext
 
-if TYPE_CHECKING:
-    from fastapi.security.base import SecurityBase
-
 
 def _context(**overrides: object) -> FirewallContext:
-    scheme: SecurityBase = HTTPBearer(auto_error=False)
     fields: dict[str, object] = {
         "name": "api",
         "authenticator_manager": object(),
         "access_listener": object(),
-        "scheme": scheme,
     }
     fields.update(overrides)
     return FirewallContext(**fields)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
@@ -46,6 +39,14 @@ def test_it_defaults_security_on_and_the_handlers_off() -> None:
     assert context.entry_point is None
     assert context.access_denied_handler is None
     assert context.scope_denied_handler is None
+
+
+def test_it_defaults_the_chain_and_its_listeners_off() -> None:
+    context = _context()
+
+    assert context.listeners == ()
+    assert context.exception_listener is None
+    assert context.logout_listener is None
 
 
 def test_it_is_frozen() -> None:

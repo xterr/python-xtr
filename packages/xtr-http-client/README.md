@@ -111,6 +111,21 @@ the rest. An option this client does not know is refused with `InvalidArgumentEr
 the closest one it does, because an option spelled wrong that was quietly dropped is a setting
 that silently never applied.
 
+A `body` mapping holding a file opened `"rb"` is uploaded as `multipart/form-data` — plain
+values as `data`, each file as a part named after its file and typed from that name — and a
+mapping without one stays url-encoded:
+
+```python
+with open("photo.png", "rb") as photo:
+    response = await client.request("POST", "upload", body={"caption": "hi", "photo": photo})
+```
+
+A `Content-Type: multipart/form-data; boundary=...` set by the caller keeps its boundary. The
+file is read synchronously while the body is sent, which suits uploads of a modest size. A part
+holds one scalar — a string, bytes, a number, a boolean (`true`/`false`) or `None` — or a list of
+them, one part each; a nested value is refused with `InvalidArgumentError` naming the field, so
+encode it (as JSON, say) first.
+
 `with_options()` turns options into the defaults of another client of the same type, leaving
 the one everyone else holds as it was:
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from xtr_dependency_injection import Kernel
+from xtr_dependency_injection import Kernel, unit_of_work
 from xtr_dependency_injection.exception import ServiceResolutionError
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
@@ -71,11 +71,11 @@ async def test_kernel_builds_and_boots_with_env_placeholder_in_secret_key(
 
 
 async def test_manager_refuses_an_issuer_resolving_to_nothing(tmp_path: Path) -> None:
-    """An empty JWT_ISSUER is refused where the manager is built, not at the build.
+    """An empty JWT_ISSUER is refused where the manager is first used, not at the build.
 
     The placeholder carries no value while the container compiles, so the build
-    passes; the emptiness is caught when the manager is built and the
-    variable is finally read.
+    and the boot pass; the emptiness is caught when the manager is first
+    built — per firewall, per request — and the variable is finally read.
     """
     key_file = tmp_path / "private.pem"
     _ = key_file.write_text(RSA_PRIVATE_PEM)
@@ -83,5 +83,6 @@ async def test_manager_refuses_an_issuer_resolving_to_nothing(tmp_path: Path) ->
     compiled = _kernel(key_file, "").build()
     assert compiled is not None
 
-    with pytest.raises(ServiceResolutionError, match="issuer cannot be empty"):
-        _ = await compiled.boot()
+    async with await compiled.boot() as booted, unit_of_work(booted.container) as unit:
+        with pytest.raises(ServiceResolutionError, match="issuer cannot be empty"):
+            _ = await unit.get(JwtTokenManagerInterface)

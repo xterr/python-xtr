@@ -14,7 +14,6 @@ from urllib.parse import parse_qsl, urlsplit
 
 import pytest
 from fastapi import FastAPI
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.oauth2_auth_code_app.config import USER_IDENTIFIER, USER_PASSWORD
 from tests.support.served import (
@@ -65,7 +64,6 @@ def _application() -> FastAPI:
     """Return a deployment running the redirect flow, proof key required."""
     return served_application(
         oauth2_kernel("tests.fixtures.oauth2_auth_code_app"),
-        dependencies=[Firewall()],
     )
 
 

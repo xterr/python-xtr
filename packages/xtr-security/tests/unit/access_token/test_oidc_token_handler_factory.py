@@ -174,7 +174,7 @@ def test_a_static_key_set_provider_is_not_collected() -> None:
 
 
 def test_the_discovery_client_carries_an_explicit_timeout_and_connection_limit() -> None:
-    import httpx
+    from xtr_http_client import HttpxHttpClient
     from xtr_security_http.access_token.oidc import DiscoveryOidcKeySetProvider
 
     from xtr_security.access_token.oidc_token_handler_factory import (
@@ -187,16 +187,8 @@ def test_the_discovery_client_carries_an_explicit_timeout_and_connection_limit()
     _build_one(factory, "api_oidc", _discovery_config())
     provider = cast("DiscoveryOidcKeySetProvider", sink[0])
 
-    client = provider._http_client_factory()
-    transport = client._transport
-    assert isinstance(transport, httpx.AsyncHTTPTransport)
-    # The pool is the only place the limits survive; a proxy pool has no such
-    # attribute, so the default makes the assertion fail rather than pass blind.
-    max_connections = getattr(transport._pool, "_max_connections", 0)
+    client = provider._http_client
+    assert isinstance(client, HttpxHttpClient)
 
-    assert client.timeout == httpx.Timeout(_DISCOVERY_TIMEOUT)
-    # Equality with the constant alone would hold even if the factory passed no
-    # timeout at all, as long as the constant happened to match the library
-    # default. The second assertion is what proves the factory chose.
-    assert client.timeout != httpx.AsyncClient().timeout
-    assert max_connections == _DISCOVERY_MAX_CONNECTIONS
+    assert client._default_options["timeout"] == _DISCOVERY_TIMEOUT
+    assert client._clients._max_connections == _DISCOVERY_MAX_CONNECTIONS

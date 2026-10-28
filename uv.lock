@@ -29,6 +29,7 @@ members = [
     "xtr-logging",
     "xtr-logging-contracts",
     "xtr-messenger",
+    "xtr-notifier",
     "xtr-orm",
     "xtr-password-hasher",
     "xtr-rate-limiter",
@@ -37,12 +38,15 @@ members = [
     "xtr-scheduler",
     "xtr-security",
     "xtr-security-core",
+    "xtr-security-csrf",
     "xtr-security-http",
     "xtr-security-jwt",
     "xtr-security-oauth2-server",
     "xtr-security-oauth2-server-core",
     "xtr-service-contracts",
+    "xtr-slack-notifier",
     "xtr-storage",
+    "xtr-telegram-notifier",
     "xtr-webhook",
 ]
 
@@ -4541,6 +4545,11 @@ dependencies = [
     { name = "xtr-http-message-contracts" },
 ]
 
+[package.optional-dependencies]
+cache = [
+    { name = "xtr-cache-contracts" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "anyio" },
@@ -4549,14 +4558,17 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-cache-contracts" },
     { name = "xtr-http-message" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "packages/xtr-cache-contracts" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
 ]
+provides-extras = ["cache"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4566,6 +4578,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-cache-contracts", editable = "packages/xtr-cache-contracts" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 
@@ -4901,6 +4914,68 @@ dev = [
 ]
 
 [[package]]
+name = "xtr-notifier"
+version = "4.1.0"
+source = { editable = "packages/xtr-notifier" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-client-contracts" },
+    { name = "xtr-logging-contracts" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.optional-dependencies]
+di = [
+    { name = "xtr-dependency-injection" },
+]
+messenger = [
+    { name = "xtr-messenger" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher" },
+    { name = "xtr-http-client" },
+    { name = "xtr-messenger" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
+    { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-messenger", marker = "extra == 'messenger'", editable = "packages/xtr-messenger" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+provides-extras = ["messenger", "di"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
+    { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+]
+
+[[package]]
 name = "xtr-orm"
 version = "4.1.0"
 source = { editable = "packages/xtr-orm" }
@@ -5220,14 +5295,18 @@ version = "4.1.0"
 source = { editable = "packages/xtr-security" }
 dependencies = [
     { name = "typing-extensions" },
+    { name = "xtr-cache" },
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
+    { name = "xtr-http-client" },
     { name = "xtr-http-foundation" },
     { name = "xtr-http-kernel" },
     { name = "xtr-http-message-contracts" },
     { name = "xtr-password-hasher" },
+    { name = "xtr-rate-limiter" },
     { name = "xtr-security-core" },
+    { name = "xtr-security-csrf" },
     { name = "xtr-security-http" },
 ]
 
@@ -5250,14 +5329,18 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-cache", editable = "packages/xtr-cache" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-password-hasher", editable = "packages/xtr-password-hasher" },
+    { name = "xtr-rate-limiter", editable = "packages/xtr-rate-limiter" },
     { name = "xtr-security-core", editable = "packages/xtr-security-core" },
+    { name = "xtr-security-csrf", editable = "packages/xtr-security-csrf" },
     { name = "xtr-security-http", editable = "packages/xtr-security-http" },
 ]
 
@@ -5319,6 +5402,41 @@ dev = [
 ]
 
 [[package]]
+name = "xtr-security-csrf"
+version = "4.1.0"
+source = { editable = "packages/xtr-security-csrf" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-foundation" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+]
+
+[[package]]
 name = "xtr-security-http"
 version = "4.1.0"
 source = { editable = "packages/xtr-security-http" }
@@ -5327,20 +5445,24 @@ dependencies = [
     { name = "fastapi" },
     { name = "starlette" },
     { name = "typing-extensions" },
+    { name = "xtr-cache-contracts" },
+    { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-client-contracts" },
     { name = "xtr-http-foundation" },
     { name = "xtr-http-kernel" },
     { name = "xtr-http-message-contracts" },
     { name = "xtr-logging-contracts" },
     { name = "xtr-password-hasher" },
+    { name = "xtr-rate-limiter" },
     { name = "xtr-security-core" },
+    { name = "xtr-security-csrf" },
 ]
 
 [package.optional-dependencies]
 oidc = [
-    { name = "httpx" },
     { name = "joserfc" },
 ]
 
@@ -5348,12 +5470,14 @@ oidc = [
 dev = [
     { name = "anyio" },
     { name = "basedpyright" },
-    { name = "httpx" },
     { name = "joserfc" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-cache" },
+    { name = "xtr-console" },
+    { name = "xtr-http-client" },
     { name = "xtr-http-message" },
 ]
 
@@ -5361,19 +5485,23 @@ dev = [
 requires-dist = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "fastapi", specifier = ">=0.123" },
-    { name = "httpx", marker = "extra == 'oidc'", specifier = ">=0.27" },
     { name = "joserfc", marker = "extra == 'oidc'", specifier = ">=1.7" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "xtr-cache-contracts", editable = "packages/xtr-cache-contracts" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
     { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
     { name = "xtr-password-hasher", editable = "packages/xtr-password-hasher" },
+    { name = "xtr-rate-limiter", editable = "packages/xtr-rate-limiter" },
     { name = "xtr-security-core", editable = "packages/xtr-security-core" },
+    { name = "xtr-security-csrf", editable = "packages/xtr-security-csrf" },
 ]
 provides-extras = ["oidc"]
 
@@ -5381,12 +5509,14 @@ provides-extras = ["oidc"]
 dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
-    { name = "httpx", specifier = ">=0.27" },
     { name = "joserfc", specifier = ">=1.7" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-cache", editable = "packages/xtr-cache" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 
@@ -5396,12 +5526,12 @@ version = "4.1.0"
 source = { editable = "packages/xtr-security-jwt" }
 dependencies = [
     { name = "joserfc" },
-    { name = "starlette" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-message-contracts" },
     { name = "xtr-security" },
     { name = "xtr-security-core" },
     { name = "xtr-security-http" },
@@ -5419,17 +5549,18 @@ dev = [
     { name = "ty" },
     { name = "xtr-console" },
     { name = "xtr-http-kernel" },
+    { name = "xtr-http-message" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "joserfc", specifier = ">=1.7" },
-    { name = "starlette", specifier = ">=0.40" },
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-security", editable = "packages/xtr-security" },
     { name = "xtr-security-core", editable = "packages/xtr-security-core" },
     { name = "xtr-security-http", editable = "packages/xtr-security-http" },
@@ -5447,6 +5578,7 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
+    { name = "xtr-http-message", editable = "packages/xtr-http-message" },
 ]
 
 [[package]]
@@ -5599,6 +5731,47 @@ dev = [
 ]
 
 [[package]]
+name = "xtr-slack-notifier"
+version = "4.1.0"
+source = { editable = "packages/xtr-slack-notifier" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-client-contracts" },
+    { name = "xtr-notifier" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-http-client" },
+    { name = "xtr-recipes" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
+    { name = "xtr-notifier", editable = "packages/xtr-notifier" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
+    { name = "xtr-recipes", editable = "packages/xtr-recipes" },
+]
+
+[[package]]
 name = "xtr-storage"
 version = "4.1.0"
 source = { editable = "packages/xtr-storage" }
@@ -5652,6 +5825,47 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+
+[[package]]
+name = "xtr-telegram-notifier"
+version = "4.1.0"
+source = { editable = "packages/xtr-telegram-notifier" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "xtr-http-client-contracts" },
+    { name = "xtr-notifier" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-http-client" },
+    { name = "xtr-recipes" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
+    { name = "xtr-notifier", editable = "packages/xtr-notifier" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
+    { name = "xtr-recipes", editable = "packages/xtr-recipes" },
 ]
 
 [[package]]

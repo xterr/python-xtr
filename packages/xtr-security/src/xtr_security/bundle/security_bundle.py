@@ -3,21 +3,20 @@
 Reads a :class:`SecurityConfig` and puts the whole security machine under the
 container — the token storage and authorization checker scoped to a request, the
 voters and the decision manager, the user providers and password hashers, and,
-per firewall, its own event dispatcher, authenticators, access map and entry
-point, gathered into a :class:`FirewallMap`. The exception listener turns a
-security error into a response on the http-kernel lifecycle, and — at boot — the
-firewalls' OpenAPI schemes are filled into a per-kernel registry the generated
-schema reads.
+per firewall, its own event dispatcher, authenticators, access map, entry
+point and exception listener, gathered into a :class:`FirewallMap`. The
+exception listener — one per firewall, built from that firewall's parts —
+turns a security error into a response on the http-kernel lifecycle, and the
+firewall — a subscriber over the same lifecycle's events — runs the chain of
+the firewall that matched each request, before routing.
 """
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Mapping
 from dataclasses import replace
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-from xtr_clock import ClockInterface  # noqa: TC002 -- a factory signature the container reads
 from xtr_dependency_injection import (
     Bundle,
     PassStage,
@@ -26,54 +25,34 @@ from xtr_dependency_injection import (
     required_bundle,
 )
 from xtr_dependency_injection.kernel.kernel import BUNDLE_PASS_PRIORITY
-from xtr_event_dispatcher.bundle import LISTENER_TAG, EventDispatcherBundle
-from xtr_event_dispatcher_contracts import EventDispatcherInterface
-from xtr_http_kernel import ExceptionEvent
+from xtr_event_dispatcher.bundle import EventDispatcherBundle
 from xtr_http_kernel.bundle import HttpKernelBundle
 from xtr_security_core import (
     AccessDecisionManager,
-    AccessDecisionManagerInterface,
     AccessDecisionStrategyInterface,
-    AuthenticationTrustResolver,
-    AuthenticationTrustResolverInterface,
-    AuthorizationChecker,
-    AuthorizationCheckerInterface,
-    GuestAuthorizationCheckerInterface,
-    RoleHierarchy,
-    RoleHierarchyInterface,
-    TokenStorage,
-    TokenStorageInterface,
-    TraceableAccessDecisionManager,
-    TraceableVoter,
-    UserAuthorizationCheckerInterface,
     VoterInterface,
 )
-from xtr_security_http import (
-    ExceptionListener,
-    FirewallSchemeRegistry,
-)
-from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
 from xtr_security.access_token import OidcTokenHandlerFactory
+from xtr_security.bundle._core_services_wiring import register_core_security_services
+from xtr_security.bundle.oidc_configs import OidcLoginConfig
 from xtr_security.bundle.security_config import SecurityConfig
-from xtr_security.security import Security
 
-from ._firewall_scheme_middleware_factory import FirewallSchemeMiddlewareFactory
-from ._wiring import (
-    VOTER_TAG,
-    build_firewall_map,
-    register_hashers,
-    register_user_providers,
-    register_voters,
-)
+from ._wiring import VOTER_TAG, build_firewall_map
 from .make_firewalls_event_dispatcher_traceable_pass import (
     MakeFirewallsEventDispatcherTraceablePass,
 )
+from .make_firewalls_manager_listener_traceable_pass import (
+    MakeFirewallsManagerListenerTraceablePass,
+)
+from .refuse_stateful_firewalls_without_session_storage_pass import (
+    RefuseStatefulFirewallsWithoutSessionStoragePass,
+)
 from .register_global_security_event_listeners_pass import RegisterGlobalSecurityEventListenersPass
+from .register_per_call_listeners_pass import RegisterPerCallListenersPass
+from .sort_firewall_listeners_pass import SortFirewallListenersPass
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
 
     from xtr_security.access_token.oidc_token_handler_factory import (
@@ -82,14 +61,8 @@ if TYPE_CHECKING:
 
 __all__ = ["SecurityBundle"]
 
-_MIDDLEWARE_TAG = "http_kernel.middleware"
-"""The tag the http-kernel bundle orders middleware factories by."""
-
 _TRACEABLE_PASS_PRIORITY = 10
 """Ahead of the bundles' own passes, once autoconfiguration has run; decorations resolve later."""
-
-_SCHEME_MIDDLEWARE_PRIORITY = -4096
-"""The scheme-activating middleware sits innermost; it wraps only the schema read."""
 
 
 @final
@@ -103,9 +76,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
     """Configures the xtr security family from one :class:`SecurityConfig`."""
 
     def __init__(self) -> None:
-        """Start with a fresh per-kernel scheme registry to fill at boot."""
-        self._scheme_registry = FirewallSchemeRegistry()
-        self._firewall_names: tuple[str, ...] = ()
+        """Start with the strategy the configuration has not changed yet."""
         self._strategy: AccessDecisionStrategyInterface = (
             SecurityConfig().access_decision_manager.build()
         )
@@ -117,9 +88,15 @@ class SecurityBundle(Bundle[SecurityConfig]):
     def build(self, builder: ContainerBuilder) -> None:
         """Autoconfigure every application voter, and register the firewall dispatchers' passes.
 
-        The firewalls' dispatchers are traced before the decorations resolve,
-        and take the main dispatcher's security listeners once the event
-        dispatcher bundle's ``RegisterListenersPass`` has worked both out.
+        The firewalls' dispatchers and manager listeners are traced before the
+        decorations resolve, and take the main dispatcher's security listeners
+        once the event dispatcher bundle's ``RegisterListenersPass`` has worked
+        both out. The firewalls' listener chains are ordered after every
+        bundle's ``process`` hook, so a listener another bundle adds to one is
+        sorted with the rest.
+
+        The firewall itself runs as one listener per lifecycle event, loaded
+        here so the scan finds it whatever the application configures.
         """
         _ = builder.register_for_autoconfiguration(VoterInterface).add_tag(VOTER_TAG)
         builder.add_compiler_pass(
@@ -128,9 +105,34 @@ class SecurityBundle(Bundle[SecurityConfig]):
             priority=_TRACEABLE_PASS_PRIORITY,
         )
         builder.add_compiler_pass(
+            MakeFirewallsManagerListenerTraceablePass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=_TRACEABLE_PASS_PRIORITY,
+        )
+        builder.add_compiler_pass(
             RegisterGlobalSecurityEventListenersPass(),
             stage=PassStage.BEFORE_OPTIMIZATION,
             priority=BUNDLE_PASS_PRIORITY - 1,
+        )
+        # Between the container's remove-if-missing pass (priority 100) and
+        # the chain sorting below, so the refusal is heard first.
+        builder.add_compiler_pass(
+            RefuseStatefulFirewallsWithoutSessionStoragePass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=0,
+        )
+        builder.add_compiler_pass(
+            SortFirewallListenersPass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=BUNDLE_PASS_PRIORITY - 1,
+        )
+        # Behind the listener maps' own passes: the per-call listeners join
+        # the map every other listener has been placed in, at the positions
+        # they run in.
+        builder.add_compiler_pass(
+            RegisterPerCallListenersPass(),
+            stage=PassStage.BEFORE_OPTIMIZATION,
+            priority=BUNDLE_PASS_PRIORITY - 2,
         )
 
     @override
@@ -148,57 +150,33 @@ class SecurityBundle(Bundle[SecurityConfig]):
         )
         self._strategy = config.access_decision_manager.build()
 
-        _ = services.instance(RoleHierarchy(config.role_hierarchy))
-        services.alias(RoleHierarchyInterface, RoleHierarchy)
-        if bundle_active(builder, "clock"):
-            _ = services.set(_authentication_trust_resolver)
-        else:
-            _ = services.instance(AuthenticationTrustResolver())
-        services.alias(AuthenticationTrustResolverInterface, AuthenticationTrustResolver)
-
-        register_voters(services)
-        _ = services.set(
-            _access_decision_manager_factory(self._strategy, trace_votes=self._trace_votes)
-        ).set_argument("voter_qualifiers", ())
-        if self._trace_votes:
-            _ = services.set(_traceable_access_decision_manager, lifetime="scoped").add_tag(
-                "kernel.reset", method="reset"
-            )
-            services.alias(AccessDecisionManagerInterface, TraceableAccessDecisionManager)
-            services.load("xtr_security.event_listener.vote_listener")
-        else:
-            services.alias(AccessDecisionManagerInterface, AccessDecisionManager)
-
-        _ = services.set(TokenStorage, lifetime="scoped").add_tag("kernel.reset", method="reset")
-        services.alias(TokenStorageInterface, TokenStorage)
-        _ = services.set(_authorization_checker, lifetime="scoped")
-        services.alias(AuthorizationCheckerInterface, AuthorizationChecker)
-        services.alias(UserAuthorizationCheckerInterface, AuthorizationChecker)
-        services.alias(GuestAuthorizationCheckerInterface, AuthorizationChecker)
-        _ = services.set(_security_facade, lifetime="scoped")
-
-        register_hashers(services, config)
-        register_user_providers(services, config)
-
-        self._firewall_names = tuple(config.firewalls)
-        build_firewall_map(services, self._bind_oidc_closeables(config))
-
-        _ = services.set(ExceptionListener).add_tag(
-            LISTENER_TAG,
-            event=ExceptionEvent,
-            method="on_exception",
+        register_core_security_services(
+            services,
+            builder,
+            config,
+            strategy=self._strategy,
+            trace_votes=self._trace_votes,
         )
 
-        _ = services.instance(self._scheme_registry)
-        _ = services.set(_scheme_middleware_factory(self._scheme_registry)).add_tag(
-            _MIDDLEWARE_TAG, priority=_SCHEME_MIDDLEWARE_PRIORITY
+        build_firewall_map(
+            services,
+            self._bind_oidc_closeables(config),
+            clock_active=bundle_active(builder, "clock"),
+            logging_active=bundle_active(builder, "logging"),
         )
+
+        # The firewall runs the chain of the firewall each request matched,
+        # over the lifecycle's own events; the listeners resolve the map per
+        # call, from the request's scope.
+        services.load("xtr_security.event_listener.firewall_listener")
 
         if bundle_active(builder, "console"):
             self._user_classes = tuple(
                 key if isinstance(key, str) else f"{key.__module__}:{key.__qualname__}"
                 for key in config.password_hashers
             )
+            if _has_oidc_token_generators(config):
+                services.load("xtr_security_http.command.oidc_token_generate_command")
             # A scan finds what a module defines, not what it imports: the hasher
             # command is scanned where it is defined.
             services.load(
@@ -241,30 +219,6 @@ class SecurityBundle(Bundle[SecurityConfig]):
             _ = builder.get_definition(UserPasswordHashCommand).set_argument(
                 "user_classes", self._user_classes
             )
-
-    @override
-    async def boot(self) -> None:
-        """Fill this kernel's scheme registry from every firewall's OpenAPI scheme.
-
-        Read synchronously by the generated schema, so it is resolved once here:
-        each firewall's entry-point scheme model, keyed by the firewall name. The
-        firewall map is a scoped service, so it is resolved inside a unit of work.
-        """
-        from xtr_dependency_injection import unit_of_work  # noqa: PLC0415 -- boot-only
-
-        container = self.container
-        if container is None:  # pragma: no cover -- the kernel sets this before boot.
-            message = "SecurityBundle.boot ran without a container"
-            raise RuntimeError(message)
-        if not self._firewall_names:
-            return
-        async with unit_of_work(container) as unit:
-            firewall_map = await unit.get(FirewallMapInterface)
-            for name in self._firewall_names:
-                if not firewall_map.has(name):
-                    continue
-                context = firewall_map.get(name)
-                self._scheme_registry.register(name, context.scheme.model, scheme_name=name)
 
     @override
     async def shutdown(self) -> None:
@@ -315,73 +269,10 @@ class SecurityBundle(Bundle[SecurityConfig]):
         )
 
 
-def _access_decision_manager_factory(
-    strategy: AccessDecisionStrategyInterface,
-    *,
-    trace_votes: bool,
-) -> Callable[..., Awaitable[AccessDecisionManager]]:
-    """Return a factory building the decision manager from the collected voters.
-
-    The voters are injected as a ``Mapping`` keyed by the qualifiers the bundle's
-    ``process`` hook aliased them under, given as a definition argument the same
-    hook fills; the dispatcher is injected only when tracing wraps each voter.
-    """
-
-    async def access_decision_manager(
-        voters: Mapping[Hashable, VoterInterface],
-        voter_qualifiers: tuple[str, ...],
-        dispatcher: object | None = None,
-    ) -> AccessDecisionManager:
-        collected: list[VoterInterface] = [voters[qualifier] for qualifier in voter_qualifiers]
-        if trace_votes:
-            resolved = cast("EventDispatcherInterface", dispatcher)
-            collected = [TraceableVoter(voter, resolved) for voter in collected]
-        return AccessDecisionManager(collected, strategy)
-
-    annotations: dict[str, object] = {
-        "voters": Mapping[Hashable, VoterInterface],
-        "return": AccessDecisionManager,
-    }
-    if trace_votes:
-        annotations["dispatcher"] = EventDispatcherInterface
-    access_decision_manager.__annotations__ = annotations
-    return access_decision_manager
-
-
-def _authorization_checker(
-    token_storage: TokenStorageInterface,
-    access_decision_manager: AccessDecisionManagerInterface,
-) -> AuthorizationChecker:
-    """Build the authorization checker over the request's storage and the manager."""
-    return AuthorizationChecker(token_storage, access_decision_manager)
-
-
-def _authentication_trust_resolver(clock: ClockInterface) -> AuthenticationTrustResolver:
-    """Build the trust resolver reading recency from the application's clock."""
-    return AuthenticationTrustResolver(clock=clock)
-
-
-def _traceable_access_decision_manager(
-    manager: AccessDecisionManager,
-) -> TraceableAccessDecisionManager:
-    """Build the request's traceable decision manager over the shared one."""
-    return TraceableAccessDecisionManager(manager)
-
-
-def _security_facade(
-    token_storage: TokenStorageInterface,
-    authorization_checker: AuthorizationCheckerInterface,
-) -> Security:
-    """Build the :class:`Security` facade over the request's storage and checker."""
-    return Security(token_storage, authorization_checker)
-
-
-def _scheme_middleware_factory(
-    registry: FirewallSchemeRegistry,
-) -> Callable[[], FirewallSchemeMiddlewareFactory]:
-    """Return the middleware factory that activates ``registry`` per request."""
-
-    def firewall_scheme_middleware() -> FirewallSchemeMiddlewareFactory:
-        return FirewallSchemeMiddlewareFactory(registry)
-
-    return firewall_scheme_middleware
+def _has_oidc_token_generators(config: SecurityConfig) -> bool:
+    """Tell whether any firewall mints OIDC tokens through the command."""
+    return any(
+        isinstance(authenticator, OidcLoginConfig) and authenticator.token_generator is not None
+        for firewall in config.firewalls.values()
+        for authenticator in firewall.authenticators
+    )

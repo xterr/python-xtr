@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface
     from xtr_security_core.exception import AuthenticationError
 
 __all__ = ["JwtFailureEventInterface"]
@@ -20,7 +20,7 @@ class JwtFailureEventInterface(Protocol):
     may replace with one of its own.
     """
 
-    def get_response(self) -> Response:
+    def get_response(self) -> ResponseInterface:
         """Return the response that will answer the failed request."""
         ...
 
@@ -28,6 +28,6 @@ class JwtFailureEventInterface(Protocol):
         """Return the error that caused the failure."""
         ...
 
-    def set_response(self, response: Response) -> None:
+    def set_response(self, response: ResponseInterface) -> None:
         """Replace the response that will answer the failed request."""
         ...

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+import io
+import os
+from typing import TYPE_CHECKING, BinaryIO, cast
 
 import anyio.lowlevel
 import httpx
@@ -20,6 +22,7 @@ from xtr_http_client.internal.httpx_request import (
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Mapping, Sequence
+    from pathlib import Path
 
 pytestmark = pytest.mark.anyio
 
@@ -28,6 +31,11 @@ async def _pieces(*parts: bytes) -> AsyncIterator[bytes]:
     for part in parts:
         await anyio.lowlevel.checkpoint()
         yield part
+
+
+def _opened_by_bytes(path: Path) -> BinaryIO:
+    # A file opened by a bytes path carries its name as bytes, which is the subject here.
+    return open(os.fsencode(path), "rb")  # noqa: PTH123 -- a Path cannot be opened by bytes
 
 
 async def _not_bytes() -> AsyncIterator[bytes]:
@@ -179,7 +187,101 @@ async def test_a_mapping_body_is_sent_as_a_form_the_backend_encodes() -> None:
     payload = await assemble_payload(Request("POST", "/"), {"body": {"foo": "bar"}}, headers)
 
     assert payload.form == {"foo": "bar"}
+    assert payload.files is None
     assert headers == []
+
+
+async def test_a_mapping_holding_a_file_sends_the_file_apart_from_the_plain_values(
+    tmp_path: Path,
+) -> None:
+    photo = tmp_path / "photo.png"
+    _ = photo.write_bytes(b"\x89PNG")
+    headers: list[tuple[str, str]] = []
+
+    with photo.open("rb") as file:
+        payload = await assemble_payload(
+            Request("POST", "/"), {"body": {"caption": "hello", "photo": file}}, headers
+        )
+
+        assert payload.form == {"caption": "hello"}
+        assert payload.files == {"photo": ("photo.png", file, "image/png")}
+    assert headers == []
+
+
+async def test_a_file_opened_by_a_bytes_path_is_named_after_its_last_part(
+    tmp_path: Path,
+) -> None:
+    notes = tmp_path / "notes.txt"
+    _ = notes.write_bytes(b"hello")
+
+    with _opened_by_bytes(notes) as file:
+        payload = await assemble_payload(Request("POST", "/"), {"body": {"notes": file}}, [])
+
+        assert payload.files == {"notes": ("notes.txt", file, "text/plain")}
+
+
+async def test_a_file_with_no_name_goes_as_unknown_of_no_guessable_type() -> None:
+    file = io.BytesIO(b"plain bytes")
+
+    payload = await assemble_payload(Request("POST", "/"), {"body": {"data": file}}, [])
+
+    assert payload.form == {}
+    assert payload.files == {"data": ("unknown", file, "application/octet-stream")}
+
+
+@pytest.mark.parametrize(
+    ("value", "given"),
+    [({"a": 1}, "dict"), ([{"a": 1}], "list"), ((1, [2]), "tuple"), (object(), "object")],
+)
+async def test_a_multipart_body_refuses_a_value_no_part_can_hold(value: object, given: str) -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = await assemble_payload(
+            Request("POST", "/"), {"body": {"m": value, "data": io.BytesIO(b"x")}}, []
+        )
+
+    assert str(raised.value) == (
+        'Option "body" field "m" must be a string, a number, a boolean, None or a list of '
+        f'them when the body is multipart, "{given}" given.'
+    )
+
+
+async def test_a_multipart_body_takes_scalars_and_lists_of_them() -> None:
+    form: dict[str, object] = {"s": "x", "b": b"y", "n": 1, "f": 1.5, "t": True, "z": None}
+    form["l"] = ["a", 1, None]
+
+    payload = await assemble_payload(
+        Request("POST", "/"), {"body": {**form, "data": io.BytesIO(b"x")}}, []
+    )
+
+    assert payload.form == form
+
+
+async def test_a_url_encoded_body_keeps_its_values_as_given() -> None:
+    payload = await assemble_payload(Request("POST", "/"), {"body": {"m": {"a": 1}}}, [])
+
+    assert payload.form == {"m": {"a": 1}}
+
+
+async def test_a_multipart_content_type_naming_its_boundary_is_kept() -> None:
+    headers = [("Content-Type", "multipart/form-data; boundary=xtr-boundary")]
+
+    _ = await assemble_payload(Request("POST", "/"), {"body": {"data": io.BytesIO(b"x")}}, headers)
+
+    assert headers == [("Content-Type", "multipart/form-data; boundary=xtr-boundary")]
+
+
+@pytest.mark.parametrize(
+    "content_type",
+    ["multipart/form-data", "application/json", "Multipart/Form-Data; boundary=b1"],
+)
+async def test_a_content_type_naming_no_usable_boundary_is_left_for_the_backend_to_set(
+    content_type: str,
+) -> None:
+    headers = [("Content-Type", content_type), ("Accept", "*/*")]
+
+    _ = await assemble_payload(Request("POST", "/"), {"body": {"data": io.BytesIO(b"x")}}, headers)
+
+    assert headers == [("Accept", "*/*")]
 
 
 async def test_a_text_body_is_sent_as_it_is() -> None:
@@ -204,7 +306,7 @@ async def test_a_body_produced_in_pieces_is_sent_as_it_is_produced() -> None:
 async def test_a_body_with_nothing_in_it_sends_nothing(body: object) -> None:
     payload = await assemble_payload(Request("POST", "/"), {"body": body}, [])
 
-    assert payload == (None, None, None)
+    assert payload == (None, None, None, None)
 
 
 async def test_a_body_producing_anything_other_than_bytes_fails_the_request() -> None:

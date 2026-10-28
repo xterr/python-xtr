@@ -134,18 +134,20 @@ builds `"OAUTH2_SCOPE(books:read books:write)"`, which goes in an `AccessControl
 `IsGranted`; `parse_oauth2_scope(attribute)` — from `xtr_security_http.authorization` — reads the
 scopes back, or `None` for anything not shaped like one.
 
-On a route, prefer the firewall's own variant, which also adds the scopes to the generated schema:
+On a route, write the scope as the access rule that matches it:
 
 ```python
-api = Firewall("api")
-
-
-@router.get("/books", dependencies=[api.scoped("books:read")])
-async def books() -> list[str]: ...
+@configure
+def security() -> SecurityConfig:
+    return SecurityConfig(
+        firewalls={"api": FirewallConfig(pattern=r"^/api")},
+        access_control=(
+            AccessControlConfig(path=r"^/api/books", attribute=oauth2_scope("books:read")),
+        ),
+    )
 ```
 
-`api.scoped(...)` shares the one scheme with `api`, so the two are a single security scheme in the
-schema. An access-token authenticator copies the badge's granted `scope` onto the token, and
+An access-token authenticator copies the badge's granted `scope` onto the token, and
 `OAuth2ScopeVoter` reads it; a refused scope is answered `403` with an RFC 6750
 `insufficient_scope` challenge.
 

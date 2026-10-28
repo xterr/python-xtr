@@ -1,25 +1,16 @@
-"""The firewall-context contract the runner and exception listener read."""
+"""The firewall-context contract the firewall and the exception listener read."""
 
 from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
-from fastapi.security import HTTPBearer
 
 from tests.support.contexts import FakeFirewallContext
 from xtr_security_http.firewall_context_interface import FirewallContextInterface
 
-if TYPE_CHECKING:
-    from fastapi.security.base import SecurityBase
-
 
 def _context() -> FakeFirewallContext:
-    scheme: SecurityBase = HTTPBearer(auto_error=False)
     return FakeFirewallContext(
         name="api",
         authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        scheme=scheme,
     )
 
 

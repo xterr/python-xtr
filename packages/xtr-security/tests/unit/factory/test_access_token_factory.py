@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import pytest
 from typing_extensions import override
-from xtr_dependency_injection import Bundle, Kernel, as_bundle
+from xtr_dependency_injection import Bundle, Kernel, Target, as_bundle
+from xtr_http_kernel.bridge import ResponseFactory
+from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_security_http import AccessTokenAuthenticator
 
 from xtr_security.bundle import (
@@ -53,6 +55,8 @@ class _ProbeBundle(Bundle):
             {"id": ServiceTokenHandlerFactory()}
         )
         _ = services.instance(_Handler())
+        _ = services.instance(ResponseFactory())
+        services.alias(ResponseFactoryInterface, ResponseFactory)
         keys = factory.create_authenticator(
             services,
             builder,
@@ -85,6 +89,41 @@ def test_an_unknown_token_handler_config_fails() -> None:
             "api",
             AccessTokenConfig(token_handler=_Unknown()),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         )
+
+
+def test_it_answers_a_fallback_entry_point_kind() -> None:
+    """The bearer challenge never wins over a real one when both run."""
+    factory = AccessTokenFactory()
+
+    assert (
+        factory.entry_point_kind(
+            AccessTokenConfig(
+                token_handler=ServiceTokenHandlerConfig(_Handler),
+            )
+        )
+        == "fallback"
+    )
+
+
+def test_it_wires_the_sender_constraint_by_its_service_name() -> None:
+    from xtr_security_http import SenderConstraintInterface
+
+    from xtr_security.factory.access_token_factory import _authenticator_factory
+
+    factory = _authenticator_factory(
+        "api",
+        (object, "handler"),
+        (object, "extractor"),
+        None,
+        "api",
+        "/.well-known/oauth-protected-resource",
+        "api.constraint",
+    )
+
+    assert (
+        factory.__annotations__["constraint"]
+        == Annotated[SenderConstraintInterface, Target("api.constraint")]
+    )
 
 
 class _NoServices:

@@ -31,6 +31,7 @@ xtr-lock                 = { workspace = true }
 xtr-logging              = { workspace = true }
 xtr-logging-contracts    = { workspace = true }
 xtr-messenger            = { workspace = true }
+xtr-notifier             = { workspace = true }
 xtr-orm                  = { workspace = true }
 xtr-password-hasher      = { workspace = true }
 xtr-rate-limiter         = { workspace = true }
@@ -39,12 +40,15 @@ xtr-remote-event         = { workspace = true }
 xtr-scheduler            = { workspace = true }
 xtr-security             = { workspace = true }
 xtr-security-core        = { workspace = true }
+xtr-security-csrf        = { workspace = true }
 xtr-security-http        = { workspace = true }
 xtr-security-jwt         = { workspace = true }
 xtr-security-oauth2-server = { workspace = true }
 xtr-security-oauth2-server-core = { workspace = true }
 xtr-service-contracts    = { workspace = true }
+xtr-slack-notifier       = { workspace = true }
 xtr-storage              = { workspace = true }
+xtr-telegram-notifier    = { workspace = true }
 xtr-webhook              = { workspace = true }
 
 [dependency-groups]

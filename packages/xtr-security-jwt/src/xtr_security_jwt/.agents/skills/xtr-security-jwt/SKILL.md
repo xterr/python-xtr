@@ -32,10 +32,9 @@ Firewalls, access control, voters and user providers belong to the family: load 
 ```python
 from fastapi import FastAPI
 from xtr_dependency_injection import Injected
-from xtr_security_http import Firewall
 from xtr_security_jwt import JwtTokenManagerInterface
 
-app = FastAPI(dependencies=[Firewall()])
+app = FastAPI()
 
 
 @app.post("/token")

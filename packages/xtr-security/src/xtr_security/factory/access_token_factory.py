@@ -9,12 +9,14 @@ from typing_extensions import override
 # These annotate factory parameters and returns the container reads at runtime,
 # so the marker, the qualifier helper and the return types stay importable here.
 from xtr_dependency_injection import Target, named_factory
+from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_security_http import (
     AccessTokenAuthenticator,
     ChainAccessTokenExtractor,
     FormEncodedBodyExtractor,
     HeaderAccessTokenExtractor,
     QueryAccessTokenExtractor,
+    SenderConstraintInterface,
 )
 from xtr_security_http.access_token.access_token_extractor_interface import (  # noqa: TC002
     AccessTokenExtractorInterface,
@@ -91,6 +93,17 @@ class AccessTokenFactory(StatelessAuthenticatorFactoryInterface):
         """Return a copy that resolves token handlers through ``token_handler_factories``."""
         return AccessTokenFactory(token_handler_factories)
 
+    def entry_point_kind(self, config: object) -> str:
+        """Answer that the bearer challenge is a fallback, never a first choice.
+
+        The authenticator answers an unauthenticated request with a bare
+        ``401`` — no error detail, per RFC 6750 — so when a firewall runs it
+        beside an authenticator with a real challenge (a form login's
+        redirect), the wiring resolves that one as the entry point.
+        """
+        del config
+        return "fallback"
+
     @override
     def create_authenticator(
         self,
@@ -110,6 +123,8 @@ class AccessTokenFactory(StatelessAuthenticatorFactoryInterface):
             extractor_key,
             user_provider,
             settings.realm,
+            settings.resource_metadata_uri,
+            settings.sender_constraint,
         )
         key = services.set(authenticator, qualifier=firewall_name).key
         return (key,)
@@ -178,39 +193,51 @@ def _one_extractor(name: ExtractorName) -> AccessTokenExtractorInterface:
             assert_never(name)
 
 
-def _authenticator_factory(
+def _authenticator_factory(  # noqa: PLR0913, PLR0917 -- one authenticator from its firewall's parts
     firewall_name: str,
     handler_key: ServiceKey,
     extractor_key: ServiceKey,
     user_provider: ServiceKey | None,
     realm: str | None,
+    resource_metadata_uri: str | None,
+    sender_constraint: str | None,
 ) -> Callable[..., Awaitable[AccessTokenAuthenticator]]:
     """Return a factory building the access-token authenticator from injected services.
 
     The handler, the extractor and — when the firewall names one — its user
-    provider are each injected by their key with ``Target``, so the factory is
-    never handed the whole container.
+    provider are each injected by their key with ``Target``, and the sender
+    constraint — the qualifier of a registered
+    :class:`~xtr_security_http.SenderConstraintInterface` service — the same
+    way, so the factory is never handed the whole container.
     """
 
     async def access_token_authenticator(
         handler: object,
         extractor: object,
+        responses: ResponseFactoryInterface,
         provider: object | None = None,
+        constraint: object | None = None,
     ) -> AccessTokenAuthenticator:
         return AccessTokenAuthenticator(
             cast("AccessTokenHandlerInterface", handler),
             cast("AccessTokenExtractorInterface", extractor),
+            responses,
             user_provider=cast("UserProviderInterface | None", provider),
             realm=realm,
+            resource_metadata_uri=resource_metadata_uri,
+            sender_constraint=cast("SenderConstraintInterface | None", constraint),
         )
 
     annotations: dict[str, object] = {
         "handler": _qualified(handler_key),
         "extractor": _qualified(extractor_key),
+        "responses": ResponseFactoryInterface,
         "return": AccessTokenAuthenticator,
     }
     if user_provider is not None:
         annotations["provider"] = _qualified(user_provider)
+    if sender_constraint is not None:
+        annotations["constraint"] = _qualified((SenderConstraintInterface, sender_constraint))
     access_token_authenticator.__annotations__ = annotations
     return named_factory(access_token_authenticator, f"authenticator_{firewall_name}")
 

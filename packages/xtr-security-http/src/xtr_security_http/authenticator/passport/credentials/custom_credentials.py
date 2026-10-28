@@ -6,6 +6,7 @@ import inspect
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
+from xtr_security_core.exception import BadCredentialsError
 
 from .credentials_interface import CredentialsInterface
 
@@ -22,7 +23,8 @@ class CustomCredentials(CredentialsInterface):
     The escape hatch for a scheme the built-in credentials do not cover: the
     check is a callable given the credentials and the resolved user, returning
     whether they are valid — awaited when it returns an awaitable. The
-    credentials listener runs it, and a falsy result fails authentication.
+    credentials listener runs it through :meth:`execute_custom_checker`, which
+    fails authentication unless the callable returns strictly ``True``.
 
     Attributes:
         checker: The callable that verifies ``credentials`` for a user.
@@ -41,18 +43,27 @@ class CustomCredentials(CredentialsInterface):
         self._credentials = credentials
         self._resolved = False
 
-    async def verify(self, user: object) -> bool:
-        """Run the check for ``user`` and mark the credentials resolved.
+    async def execute_custom_checker(self, user: object) -> None:
+        """Run the check for ``user``, and resolve the credentials only on success.
 
         The checker is called with the credentials and the user; a result that
-        is an awaitable is awaited. Resolving happens whatever the outcome — a
-        credential is consumed by being checked, valid or not.
+        is an awaitable is awaited. A result other than strictly ``True`` —
+        the checker may also raise its own, more specific error — fails
+        authentication; the credentials are resolved only when the check
+        passed, so a failed attempt never reports itself verified.
+
+        Raises:
+            BadCredentialsError: When the checker returns anything but ``True``.
         """
         result = self._checker(self._credentials, user)
         if inspect.isawaitable(result):
             result = await result
+        if result is not True:
+            raise BadCredentialsError(
+                "The credentials check failed: the callable given to CustomCredentials "
+                "did not return True.",
+            )
         self._resolved = True
-        return bool(result)
 
     def get_credentials(self) -> object:
         """Return the credentials the checker verifies."""

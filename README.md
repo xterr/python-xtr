@@ -32,16 +32,20 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-event-dispatcher-contracts](packages/xtr-event-dispatcher-contracts) | The event dispatching interfaces alone, for libraries that emit events without choosing who hears them. |
 | [xtr-http-client](packages/xtr-http-client) | An async HTTP client behind one interface: typed options in, a response read on demand out, with scoped clients, retries, a pace, a trace, a private-network guard and a mock for tests. |
 | [xtr-http-client-contracts](packages/xtr-http-client-contracts) | The async HTTP client interfaces alone: a request call, a response read on demand, typed options, errors, and a conformance suite. |
-| [xtr-http-foundation](packages/xtr-http-foundation) | One question each about a request that arrived, composed into one matcher — and the helpers that place an IP in a network. |
+| [xtr-http-foundation](packages/xtr-http-foundation) | One question each about a request that arrived, composed into one matcher — the helpers that place an IP in a network, and the session a stateful request carries: attributes under an ID cookie, in whatever storage the application points at. |
 | [xtr-http-kernel](packages/xtr-http-kernel) | A request lifecycle for FastAPI applications: requests turned into responses through events, wired by a container. |
 | [xtr-http-message](packages/xtr-http-message) | The HTTP message interfaces implemented: requests, responses, streams, URIs, uploaded files and one factory for all six. |
 | [xtr-http-message-contracts](packages/xtr-http-message-contracts) | The HTTP message interfaces alone: requests, responses, streams, URIs, uploaded files and their factories. |
 | [xtr-logging](packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. |
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
+| [xtr-notifier](packages/xtr-notifier) | Notifications sent to chat, SMS and push channels — picked by the notification or its importance — through any provider configured by DSN, directly or through the message bus. |
+| [xtr-telegram-notifier](packages/xtr-telegram-notifier) | Telegram for xtr-notifier: chat messages posted, edited and answered through a bot, with keyboards, media and file uploads. |
+| [xtr-slack-notifier](packages/xtr-slack-notifier) | Slack for xtr-notifier: chat messages posted, scheduled and updated in a channel, laid out with Block Kit blocks. |
 | [xtr-orm](packages/xtr-orm) | Engines, sessions and versioned schema migrations for async applications, configured once per connection. |
 | [xtr-password-hasher](packages/xtr-password-hasher) | Password hashing behind one interface: argon2id by default, legacy hashes verified and upgraded. |
 | [xtr-security-core](packages/xtr-security-core) | The security core: users, tokens, roles, voters and the authorization decision. |
+| [xtr-security-csrf](packages/xtr-security-csrf) | Cross-site request forgery protection: a manager that mints and checks tokens by id, and the session storage that keeps them. |
 | [xtr-security-http](packages/xtr-security-http) | The HTTP edge of security: firewalls, authenticators, bearer access tokens and the request surface. |
 | [xtr-security-jwt](packages/xtr-security-jwt) | Self-issued JSON Web Tokens: key sets, an encoder and a token manager for a user. |
 | [xtr-security](packages/xtr-security) | The security bundle: the family facade and the container wiring that configures it. |
@@ -124,7 +128,9 @@ graph LR
     securitycore --> eventcon
     securitycore --> svccon
     securitycore --> clock
+    securitycsrf[xtr-security-csrf] --> httpfoundation
     securityhttp[xtr-security-http] --> securitycore
+    securityhttp --> securitycsrf
     securityhttp --> httpkernel
     securityhttp --> httpfoundation
     securityhttp --> httpmsgcon
@@ -133,8 +139,13 @@ graph LR
     securityhttp --> eventcon
     securityhttp --> logcon
     securityhttp --> passwordhasher
+    securityhttp --> ratelimiter
+    securityhttp --> clock
+    securityhttp --> httpclientcon
+    securityhttp --> cachecon
     security[xtr-security] --> securitycore
     security --> securityhttp
+    security --> securitycsrf
     security --> passwordhasher
     security --> di
     security --> events
@@ -142,10 +153,14 @@ graph LR
     security --> httpfoundation
     security --> httpmsgcon
     security --> clock
+    security --> httpclient
+    security --> cache
+    security --> ratelimiter
     security -. optional .-> console
     securityjwt[xtr-security-jwt] --> security
     securityjwt --> securitycore
     securityjwt --> securityhttp
+    securityjwt --> httpmsgcon
     securityjwt --> di
     securityjwt --> clock
     securityjwt --> events
@@ -191,6 +206,17 @@ graph LR
     webhook -. optional .-> httpclient
     webhook --> httpmsg
     remoteevent -. optional .-> di
+    notifier[xtr-notifier] --> clock
+    notifier --> eventcon
+    notifier --> httpclientcon
+    notifier --> logcon
+    notifier --> svccon
+    notifier -. optional .-> messenger
+    notifier -. optional .-> di
+    telegramnotifier[xtr-telegram-notifier] --> notifier
+    telegramnotifier --> httpclientcon
+    slacknotifier[xtr-slack-notifier] --> notifier
+    slacknotifier --> httpclientcon
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

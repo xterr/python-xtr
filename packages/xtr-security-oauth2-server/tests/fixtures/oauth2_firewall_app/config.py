@@ -16,6 +16,7 @@ from xtr_security.bundle import (
     InMemoryUserProviderConfig,
     SecurityConfig,
 )
+from xtr_security_http import oauth2_scope
 
 from tests.support.encryption import ENCRYPTION_KEY
 from tests.support.signing import ALGORITHM, ISSUER, SIGNING_KEY_PEM
@@ -74,5 +75,9 @@ def security() -> SecurityConfig:
                 authenticators=(OAuth2AuthenticatorConfig(),),
             ),
         },
-        access_control=(AccessControlConfig(path=r"^/api", attribute="IS_AUTHENTICATED"),),
+        access_control=(
+            # The scope a route asks for, decided by the OAuth2 scope voter.
+            AccessControlConfig(path=r"^/api/writable", attribute=oauth2_scope("write")),
+            AccessControlConfig(path=r"^/api", attribute="IS_AUTHENTICATED"),
+        ),
     )

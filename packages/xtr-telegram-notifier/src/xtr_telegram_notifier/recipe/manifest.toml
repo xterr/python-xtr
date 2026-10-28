@@ -1,0 +1,23 @@
+# The recipe for xtr-telegram-notifier: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+#
+# No [bundles] and no [files]: the package ships no bundle — the notifier's discovers its
+# factory by the DSN scheme — and the notifier's configuration module is the application's.
+
+[env]
+# The bot's DSN. TOKEN is the token the bot API hands out, BOT_ID:SECRET; CHAT_ID is the chat
+# a message naming none goes to.
+TELEGRAM_DSN = "telegram://TOKEN@default?channel=CHAT_ID"
+
+[gitignore]
+# Nothing of its own: a message is sent, never written to disk.
+lines = []
+
+[notes]
+steps = [
+  "Set TELEGRAM_DSN to the bot's DSN: telegram://BOT_ID:SECRET@default?channel=CHAT_ID.",
+  "Add the transport to chatter_transports in config/notifier.py: telegram=env(\"TELEGRAM_DSN\").",
+]
+check = [
+  "<script> debug:config notifier — telegram is listed under chatter_transports",
+]

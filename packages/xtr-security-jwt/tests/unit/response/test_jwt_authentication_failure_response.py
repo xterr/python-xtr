@@ -5,33 +5,41 @@ from __future__ import annotations
 import json
 from typing import cast
 
-from starlette.responses import JSONResponse
+import pytest
+from xtr_http_kernel.bridge import ResponseFactory
 
 from xtr_security_jwt.response.jwt_authentication_failure_response import (
-    JwtAuthenticationFailureResponse,
+    jwt_authentication_failure_response,
 )
 
-
-def test_it_is_a_json_response() -> None:
-    assert JSONResponse in JwtAuthenticationFailureResponse.__mro__
+pytestmark = pytest.mark.anyio
 
 
-def test_it_defaults_to_401_with_a_bearer_challenge() -> None:
-    response = JwtAuthenticationFailureResponse("JWT Token not found")
+async def test_it_defaults_to_401_with_a_bearer_challenge() -> None:
+    response = await jwt_authentication_failure_response(
+        ResponseFactory(),
+        "JWT Token not found",
+    )
 
-    assert response.status_code == 401
-    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.get_status_code() == 401
+    assert response.get_header_line("www-authenticate") == "Bearer"
 
 
-def test_its_body_is_the_code_and_message() -> None:
-    response = JwtAuthenticationFailureResponse("Invalid JWT Token")
+async def test_its_body_is_the_code_and_message() -> None:
+    response = await jwt_authentication_failure_response(
+        ResponseFactory(),
+        "Invalid JWT Token",
+    )
 
-    body = cast("dict[str, object]", json.loads(bytes(response.body)))
+    body = cast("dict[str, object]", json.loads(await response.get_body().get_contents()))
     assert body == {"code": 401, "message": "Invalid JWT Token"}
 
 
-def test_it_forbids_every_cache_from_keeping_the_refusal() -> None:
-    response = JwtAuthenticationFailureResponse("Invalid JWT Token")
+async def test_it_forbids_every_cache_from_keeping_the_refusal() -> None:
+    response = await jwt_authentication_failure_response(
+        ResponseFactory(),
+        "Invalid JWT Token",
+    )
 
-    assert response.headers["cache-control"] == "no-store"
-    assert response.headers["pragma"] == "no-cache"
+    assert response.get_header_line("cache-control") == "no-store"
+    assert response.get_header_line("pragma") == "no-cache"

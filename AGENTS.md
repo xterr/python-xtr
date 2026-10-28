@@ -205,6 +205,16 @@ into an application.
 - Every module starts with `from __future__ import annotations`, a module docstring, and
   declares `__all__`.
 - Prefer `@final` on public classes not meant to be subclassed, and `__slots__` where cheap.
+- Anything involving a clock ALWAYS uses `xtr-clock`: declare it as a dependency of the
+  package, take `clock: ClockInterface | None = None` defaulting to `SystemClock()` (the
+  shape the core `SignatureHasher` uses), and freeze a `MockClock` in tests. Never
+  hand-roll a time reader, a `_clock` module, or scattered `datetime.now()` / `time()`
+  calls.
+- Name every parameter for exactly what it holds — never for what it produces, never a
+  shortening of it: a factory parameter ends in `_factory` and matches its interface
+  (`stream_factory: StreamFactoryInterface`, not `streams`); mass-noun names for typed
+  collaborators (`streams`, `messages`, `responses`, `uris`) are banned; anything else
+  carries its full role name.
 - Google-style docstrings; explain **why**, not what the code obviously does.
 - Ruff `select = ["ALL"]`; basedpyright `typeCheckingMode = "all"`; `ty` as a second opinion.
 - No `# type: ignore` and no `# noqa` without a comment stating the reason.

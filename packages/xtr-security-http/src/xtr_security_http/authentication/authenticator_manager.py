@@ -6,32 +6,48 @@ from typing import TYPE_CHECKING, cast, final
 
 from typing_extensions import override
 from xtr_security_core.event.authentication_success_event import AuthenticationSuccessEvent
-from xtr_security_core.exception import AuthenticationError, BadCredentialsError
+from xtr_security_core.exception import (
+    AuthenticationError,
+    BadCredentialsError,
+    InvalidArgumentError,
+)
 
 from xtr_security_http.authentication._sensitive import mask
 from xtr_security_http.authentication.expose_security_level import ExposeSecurityLevel
+from xtr_security_http.authentication.user_authenticator_interface import UserAuthenticatorInterface
+from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
+from xtr_security_http.authenticator.debug.traceable_authenticator import TraceableAuthenticator
+from xtr_security_http.authenticator.interactive_authenticator_interface import (
+    InteractiveAuthenticatorInterface,
+)
+from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.event.authentication_token_created_event import (
     AuthenticationTokenCreatedEvent,
 )
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
+from xtr_security_http.event.interactive_login_event import InteractiveLoginEvent
 from xtr_security_http.event.login_failure_event import LoginFailureEvent
 from xtr_security_http.event.login_success_event import LoginSuccessEvent
+from xtr_security_http.security_events import SecurityEvents
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from .authenticator_manager_interface import AuthenticatorManagerInterface
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
-    from starlette.requests import Request
-    from starlette.responses import Response
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_logging_contracts import LoggerInterface
+    from xtr_logging_contracts.context import Context
     from xtr_security_core.authentication.token.storage.token_storage_interface import (
         TokenStorageInterface,
     )
     from xtr_security_core.authentication.token.token_interface import TokenInterface
+    from xtr_security_core.user.user_interface import UserInterface
 
-    from xtr_security_http.authenticator.authenticator_interface import AuthenticatorInterface
+    from xtr_security_http._security_state import SecurityState
     from xtr_security_http.authenticator.passport.badge.badge_interface import BadgeInterface
     from xtr_security_http.authenticator.passport.passport import Passport
 
@@ -42,33 +58,39 @@ _ABSTAINED: object = object()
 
 
 @final
-class AuthenticatorManager(AuthenticatorManagerInterface):
+class AuthenticatorManager(AuthenticatorManagerInterface, UserAuthenticatorInterface):
     """Runs the authenticators of one firewall and dispatches the events around each step.
 
     The order is fixed and is the whole contract of this class:
 
-    1. the first authenticator whose :meth:`supports` is not ``False`` reads
-       the request into a passport;
+    1. a supports pass asks every authenticator, parking the supporters and
+        the skipped on the request's security state; the first supporter
+        that still applies reads the request into a passport;
     2. a :class:`~xtr_security_http.event.check_passport_event.CheckPassportEvent`
-       lets listeners resolve the badges — set the user loader, verify a
-       password;
+        lets listeners resolve the badges — set the user loader, verify a
+        password;
     3. every badge must report itself resolved, and every required badge must
-       be present, or a
-       :class:`~xtr_security_core.exception.BadCredentialsError` is raised;
+        be present, or a
+        :class:`~xtr_security_core.exception.BadCredentialsError` is raised;
     4. the user is loaded and a token is created, then an
-       :class:`~xtr_security_http.event.authentication_token_created_event.AuthenticationTokenCreatedEvent`
-       lets a listener replace it;
+        :class:`~xtr_security_http.event.authentication_token_created_event.AuthenticationTokenCreatedEvent`
+        lets a listener replace it;
     5. an
-       :class:`~xtr_security_core.event.authentication_success_event.AuthenticationSuccessEvent`
-       runs the post-authentication account check;
-    6. the token is stored, the authenticator's success handler runs, and a
-       :class:`~xtr_security_http.event.login_success_event.LoginSuccessEvent`
-       lets a listener migrate a password or replace the response.
+        :class:`~xtr_security_core.event.authentication_success_event.AuthenticationSuccessEvent`
+        runs the post-authentication account check;
+    6. the token is stored, the authenticator's success handler runs, an
+        interactive authenticator announces the login through an
+        :class:`~xtr_security_http.event.interactive_login_event.InteractiveLoginEvent`,
+        and a
+        :class:`~xtr_security_http.event.login_success_event.LoginSuccessEvent`
+        lets a listener migrate a password or replace the response.
 
-    A failure anywhere is masked to the configured level, announced as a
-    :class:`~xtr_security_http.event.login_failure_event.LoginFailureEvent`,
-    offered to the authenticator's failure handler, and — if nobody answered —
-    re-raised for the firewall's entry point to turn into a challenge.
+    A failure anywhere never raises: the error is masked to the configured
+    level, the authenticator's failure handler runs, and a
+    :class:`~xtr_security_http.event.login_failure_event.LoginFailureEvent`
+    lets a listener answer the request. A response from any of them is
+    returned for the firewall to send; the lack of one means the request goes
+    on anonymous — the access decision is what turns that into a challenge.
     """
 
     __slots__ = (
@@ -101,97 +123,277 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
         self._required_badges = tuple(required_badges)
 
     @override
-    def supports(self, request: Request) -> bool | None:
-        """Tell whether an authenticator handles ``request``: ``True``, ``None`` or ``False``."""
-        lazy = False
+    def supports(self, request: ServerRequestInterface, state: SecurityState) -> bool | None:
+        """Tell whether an authenticator handles ``request``: ``True``, ``None`` or ``False``.
+
+        Every authenticator is asked — the pass records the complete picture,
+        parking the supporters and the skipped on ``state`` for the pass that
+        authenticates, so none is asked twice within one pass. ``True`` means
+        an authenticator definitely applies; ``None`` that only lazy ones do,
+        none of them sure a credential is present; ``False`` that none
+        applies.
+
+        Raises:
+            InvalidArgumentError: When one of the authenticators is no
+                :class:`~xtr_security_http.authenticator.authenticator_interface.AuthenticatorInterface`
+                — a wiring mistake, not a request failure.
+        """
+        lazy = True
+        skipped: list[AuthenticatorInterface] = []
+        authenticators: list[AuthenticatorInterface] = []
         for authenticator in self._authenticators:
+            # The sequence is typed, but nothing stops a caller from wiring a
+            # duck-typed impostor in; the pass refuses one here, where the
+            # mistake is about to cost a request.
+            if not isinstance(  # pyright: ignore[reportUnnecessaryIsInstance]
+                authenticator,
+                AuthenticatorInterface,
+            ):
+                raise InvalidArgumentError(
+                    f'The authenticator "{type(authenticator).__name__}" does not implement '
+                    f"AuthenticatorInterface.",
+                )
             supported = authenticator.supports(request)
-            if supported is True:
-                return True
-            if supported is None:
-                lazy = True
-        return None if lazy else False
+            if supported is False:
+                self._debug(
+                    'Authenticator "{authenticator}" does not support the request.',
+                    {
+                        "firewall": self._firewall_name,
+                        "authenticator": type(authenticator).__name__,
+                    },
+                )
+                skipped.append(authenticator)
+            else:
+                self._debug(
+                    'Authenticator "{authenticator}" supports the request.',
+                    {
+                        "firewall": self._firewall_name,
+                        "authenticator": type(authenticator).__name__,
+                    },
+                )
+                authenticators.append(authenticator)
+                lazy = supported is None and lazy
+        state.attributes[SecurityRequestAttributes.SKIPPED_AUTHENTICATORS] = tuple(skipped)
+        state.attributes[SecurityRequestAttributes.AUTHENTICATORS] = tuple(authenticators)
+        if not authenticators:
+            return False
+        self._debug(
+            'Authenticators "{authenticators}" support the request.',
+            {
+                "firewall": self._firewall_name,
+                "authenticators": [
+                    type(authenticator).__name__ for authenticator in authenticators
+                ],
+            },
+        )
+        return None if lazy else True
 
     @override
-    async def authenticate_request(self, request: Request) -> Response | None:
-        """Authenticate ``request`` through the first supporting authenticator.
+    async def authenticate_request(
+        self,
+        request: ServerRequestInterface,
+        state: SecurityState,
+    ) -> ResponseInterface | None:
+        """Authenticate ``request`` through the supporters the supports pass recorded.
+
+        The pass hands its findings over through ``state`` — read and removed
+        here, once — so a second call over the same request finds nothing
+        parked and leaves it anonymous. Nothing parked at all means no
+        supports pass ran: the request stays anonymous too.
 
         A lazy authenticator — one whose :meth:`supports` returned ``None`` —
         that raises a plain
         :class:`~xtr_security_core.exception.BadCredentialsError` is read as "no
         credential presented": it did not apply, so the next authenticator is
-        tried and, failing that, the request stays anonymous. Any other failure
-        from it, and every failure from an eager authenticator, is a real
-        authentication failure the firewall turns into a challenge.
+        tried. Any other failure is a real one, handled without raising: the
+        request goes on anonymous, and the access decision is what turns that
+        into a challenge.
         """
-        for authenticator in self._authenticators:
+        parked = state.attributes.pop(SecurityRequestAttributes.AUTHENTICATORS, None)
+        _ = state.attributes.pop(SecurityRequestAttributes.SKIPPED_AUTHENTICATORS, None)
+        if not parked:
+            return None
+        return await self.execute_authenticators(
+            cast("tuple[AuthenticatorInterface, ...]", parked),
+            request,
+            state,
+        )
+
+    async def execute_authenticators(
+        self,
+        authenticators: Sequence[AuthenticatorInterface],
+        request: ServerRequestInterface,
+        state: SecurityState,
+    ) -> ResponseInterface | None:
+        """Run the handed-off authenticators in order, re-checking each first.
+
+        The re-check is per authenticator — never the full supports pass
+        again — because what the request carries may have changed between
+        the pass and now. A re-check that turned ``False`` skips its
+        authenticator with a note. Only a response ends the run — once one
+        authenticator answered, no later one is called; an outcome of
+        ``None``, from a success or a handled failure that answered nothing,
+        lets the run go on to the next authenticator, and a lazy abstain
+        (no credential presented) does the same.
+        """
+        for authenticator in authenticators:
             supported = authenticator.supports(request)
             if supported is False:
+                self._debug(
+                    'Authenticator "{authenticator}" no longer supports the request.',
+                    {
+                        "firewall": self._firewall_name,
+                        "authenticator": type(self._named(authenticator)).__name__,
+                    },
+                )
                 continue
-            outcome = await self._authenticate(authenticator, request, lazy=supported is None)
-            if outcome is not _ABSTAINED:
-                return cast("Response | None", outcome)
+            outcome = await self.execute_authenticator(
+                authenticator, request, state, lazy=supported is None
+            )
+            if outcome is _ABSTAINED or outcome is None:
+                continue
+            response = cast("ResponseInterface", outcome)
+            self._debug(
+                'Authenticator "{authenticator}" set the response.',
+                {
+                    "firewall": self._firewall_name,
+                    "authenticator": type(self._named(authenticator)).__name__,
+                },
+            )
+            return response
         return None
 
-    async def _authenticate(
+    async def execute_authenticator(
         self,
         authenticator: AuthenticatorInterface,
-        request: Request,
+        request: ServerRequestInterface,
+        state: SecurityState,
         *,
         lazy: bool,
-    ) -> Response | object | None:
+    ) -> ResponseInterface | object | None:
         """Carry one authenticator through the sequence, or abstain when it does not apply."""
         passport: Passport | None = None
+        # Read before the run stores anything, so the login-success event can
+        # tell a listener what the storage held before this login replaced it.
+        previous_token = self._token_storage.get_token()
         try:
             passport = await authenticator.authenticate(request)
-            _ = await self._event_dispatcher.dispatch(CheckPassportEvent(authenticator, passport))
+            _ = await self._event_dispatcher.dispatch(
+                CheckPassportEvent(authenticator, passport, request)
+            )
             self._ensure_resolved(passport)
             _ = await passport.get_user()
             token = await authenticator.create_token(passport, self._firewall_name)
-            token = await self._token_created(token, passport)
+            token = (
+                await self._event_dispatcher.dispatch(
+                    AuthenticationTokenCreatedEvent(token, passport)
+                )
+            ).get_authenticated_token()
             _ = await self._event_dispatcher.dispatch(AuthenticationSuccessEvent(token))
+            self._info(
+                "Authenticator successful!",
+                {
+                    "firewall": self._firewall_name,
+                    "authenticator": type(self._named(authenticator)).__name__,
+                },
+            )
         except BadCredentialsError as error:
             if lazy and passport is None:
                 return _ABSTAINED
-            return await self._on_failure(authenticator, request, passport, error)
-        except AuthenticationError as error:
-            return await self._on_failure(authenticator, request, passport, error)
-        return await self._on_success(authenticator, request, passport, token)
-
-    def _ensure_resolved(self, passport: Passport) -> None:
-        """Raise when a badge is unresolved or a required badge is absent."""
-        passport.check_if_completely_resolved()
-        for badge in self._required_badges:
-            if not passport.has_badge(badge):
-                raise BadCredentialsError(
-                    f"The passport is missing the required badge {badge.__name__}.",
-                )
-
-    async def _token_created(self, token: TokenInterface, passport: Passport) -> TokenInterface:
-        """Announce the created token and return whichever token a listener settled on."""
-        event = AuthenticationTokenCreatedEvent(token, passport)
-        _ = await self._event_dispatcher.dispatch(event)
-        return event.get_authenticated_token()
-
-    async def _on_success(
-        self,
-        authenticator: AuthenticatorInterface,
-        request: Request,
-        passport: Passport,
-        token: TokenInterface,
-    ) -> Response | None:
-        """Store the token, run the success handler, then announce the login."""
-        self._token_storage.set_token(token)
-        if self._logger is not None:
-            self._logger.info(
-                "Authenticated the request.",
-                {"firewall": self._firewall_name, "user": token.get_user_identifier()},
+            return await self.handle_authentication_failure(
+                error, request, authenticator, passport, state
             )
+        except AuthenticationError as error:
+            return await self.handle_authentication_failure(
+                error, request, authenticator, passport, state
+            )
+        response = await self.handle_authentication_success(
+            token, passport, request, authenticator, previous_token
+        )
+        if response is not None:
+            return response
+        self._debug(
+            "Authenticator set no success response: request continues.",
+            {
+                "firewall": self._firewall_name,
+                "authenticator": type(self._named(authenticator)).__name__,
+            },
+        )
+        return None
+
+    @override
+    async def authenticate_user(
+        self,
+        user: UserInterface,
+        authenticator: AuthenticatorInterface,
+        request: ServerRequestInterface,
+        badges: Sequence[BadgeInterface] = (),
+        attributes: Mapping[str, object] | None = None,
+    ) -> ResponseInterface | None:
+        """Log ``user`` in through ``authenticator``, skipping every check.
+
+        The caller vouches for the user, so there is nothing to verify: no
+        passport check, no badge validation, no post-authentication account
+        check. A self-validating passport is built around the user — a loader
+        that hands them back — carrying the extra ``badges`` and
+        ``attributes`` as given, the authenticator turns it into a token, and
+        the login finishes exactly as a request-driven one does: the token is
+        announced, stored, the success handler runs and the login-success
+        event carries what the storage held before.
+        """
+
+        def _handed_back(*arguments: object) -> UserInterface:
+            # The badge calls its loader with the identifier, and with the
+            # attributes when it takes them; the user is already loaded, so
+            # every spelling of the call hands the same one back.
+            del arguments
+            return user
+
+        passport = SelfValidatingPassport(
+            UserBadge(user.get_user_identifier(), user_loader=_handed_back),
+            badges,
+        )
+        for name, value in (attributes or {}).items():
+            passport.set_attribute(name, value)
+        _ = await passport.get_user()
+        token = await authenticator.create_token(passport, self._firewall_name)
+        token = (
+            await self._event_dispatcher.dispatch(AuthenticationTokenCreatedEvent(token, passport))
+        ).get_authenticated_token()
+        return await self.handle_authentication_success(
+            token, passport, request, authenticator, self._token_storage.get_token()
+        )
+
+    async def handle_authentication_success(
+        self,
+        token: TokenInterface,
+        passport: Passport,
+        request: ServerRequestInterface,
+        authenticator: AuthenticatorInterface,
+        previous_token: TokenInterface | None,
+    ) -> ResponseInterface | None:
+        """Store the token, run the success handler, then announce the login.
+
+        An authenticator that reports itself interactive — one a user actively
+        logs in through, as opposed to a token re-establishing one — announces
+        the login between the success handler and the login-success event,
+        under the name
+        :attr:`~xtr_security_http.security_events.SecurityEvents.INTERACTIVE_LOGIN`.
+        """
+        self._token_storage.set_token(token)
         response = await authenticator.on_authentication_success(
             request,
             token,
             self._firewall_name,
         )
+        if (
+            isinstance(authenticator, InteractiveAuthenticatorInterface)
+            and authenticator.is_interactive()
+        ):
+            _ = await self._event_dispatcher.dispatch(
+                InteractiveLoginEvent(request, token),
+                SecurityEvents.INTERACTIVE_LOGIN,
+            )
         event = LoginSuccessEvent(
             authenticator,
             passport,
@@ -199,34 +401,92 @@ class AuthenticatorManager(AuthenticatorManagerInterface):
             request,
             response,
             self._firewall_name,
+            previous_token,
         )
         _ = await self._event_dispatcher.dispatch(event)
         return event.get_response()
 
-    async def _on_failure(
+    async def handle_authentication_failure(
         self,
-        authenticator: AuthenticatorInterface,
-        request: Request,
-        passport: Passport | None,
         error: AuthenticationError,
-    ) -> Response | None:
-        """Mask the error, announce the failure, offer it to the handler, then re-raise.
+        request: ServerRequestInterface,
+        authenticator: AuthenticatorInterface,
+        passport: Passport | None,
+        state: SecurityState,
+    ) -> ResponseInterface | None:
+        """Answer a failed authentication without ever raising.
 
-        Raises:
-            AuthenticationError: The masked error, when no listener or handler
-                answered it — the firewall turns it into a challenge.
+        The error is masked to the configured level, the authenticator's
+        failure handler runs first — its answer is what the event carries —
+        and a listener may replace that answer through the event. A response
+        from either is returned for the firewall to send; the lack of one
+        means the request goes on anonymous, and the access decision is what
+        turns that into a challenge — reading the masked error back off
+        ``state``, where this step parked it, so the entry point's challenge
+        can still name what went wrong.
         """
         masked = mask(error, self._expose_security_errors)
-        if self._logger is not None:
-            self._logger.info(
-                "Authentication failed.",
-                {"firewall": self._firewall_name, "error": type(error).__name__},
-            )
-        event = LoginFailureEvent(masked, authenticator, request, passport, self._firewall_name)
-        _ = await self._event_dispatcher.dispatch(event)
-        if event.get_response() is not None:
-            return event.get_response()
+        state.attributes[SecurityRequestAttributes.AUTHENTICATION_ERROR] = masked
+        self._info(
+            "Authentication failed.",
+            {"firewall": self._firewall_name, "error": type(error).__name__},
+        )
         response = await authenticator.on_authentication_failure(request, masked)
         if response is not None:
-            return response
-        raise masked
+            self._debug(
+                'Authenticator "{authenticator}" set the failure response.',
+                {
+                    "firewall": self._firewall_name,
+                    "authenticator": type(self._named(authenticator)).__name__,
+                },
+            )
+        event = LoginFailureEvent(
+            masked,
+            authenticator,
+            request,
+            response,
+            self._firewall_name,
+            passport,
+        )
+        _ = await self._event_dispatcher.dispatch(event)
+        return event.get_response()
+
+    def _ensure_resolved(self, passport: Passport) -> None:
+        """Raise when a badge is unresolved or a required badge is absent.
+
+        An unresolved badge fails fast, naming the first one the passport
+        carries; the required ones are checked as a group, so one error names
+        every badge the firewall asked for and the passport lacks.
+        """
+        for badge in passport.get_badges().values():
+            if not badge.is_resolved():
+                raise BadCredentialsError(
+                    f"The badge {type(badge).__name__} was not resolved by the passport check.",
+                )
+        missing = [badge for badge in self._required_badges if not passport.has_badge(badge)]
+        if missing:
+            raise BadCredentialsError(
+                "The passport is missing the required badges: "
+                + ", ".join(badge.__name__ for badge in missing)
+                + ".",
+            )
+
+    def _named(self, authenticator: AuthenticatorInterface) -> AuthenticatorInterface:
+        """Return the authenticator a log or a record should name.
+
+        A traceable wrapper is what the wiring runs, but its name explains
+        nothing; the wrapped one is what a reader is looking for.
+        """
+        if isinstance(authenticator, TraceableAuthenticator):
+            return authenticator.get_authenticator()
+        return authenticator
+
+    def _debug(self, message: str, context: Context) -> None:
+        """Log ``message`` at debug level, when a logger was given."""
+        if self._logger is not None:
+            self._logger.debug(message, context)
+
+    def _info(self, message: str, context: Context) -> None:
+        """Log ``message`` at info level, when a logger was given."""
+        if self._logger is not None:
+            self._logger.info(message, context)

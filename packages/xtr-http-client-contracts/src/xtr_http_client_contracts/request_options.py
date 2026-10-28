@@ -37,7 +37,22 @@ class RequestOptions(TypedDict, total=False):
         body: What to send as the request body. Bytes or text go as they are;
             a mapping is sent as an HTML form; an async iterable of bytes is
             sent as it is produced, which is how a body too large to hold is
-            uploaded.
+            uploaded. A mapping holding a binary file object among its values
+            — what ``open(path, "rb")`` returns, or an ``io.BytesIO`` — is
+            sent as ``multipart/form-data`` instead: each plain value as a
+            part of its own, each file as a part whose file name is the last
+            component of the file's ``name`` (``unknown`` when it has none)
+            and whose content type is guessed from that name by
+            ``mimetypes.guess_type``, else ``application/octet-stream``. A
+            ``Content-Type: multipart/form-data; boundary=...`` header set by
+            the caller keeps its boundary; any other content type is replaced
+            by one naming the boundary the client picks. The file is read
+            synchronously while the body is sent, which suits uploads of a
+            modest size. In such a body every other value is a string, bytes,
+            a number, a boolean (sent as ``true`` or ``false``), ``None`` or a
+            list of them, one part per item; a nested mapping or list is
+            refused with an ``InvalidArgumentError`` naming the field — encode
+            it, as JSON say, first. A mapping without a file stays url-encoded.
         json: A value to send as a JSON body. The client encodes it and sets
             a JSON content type unless ``headers`` already names one. Setting
             both this and ``body`` is refused.

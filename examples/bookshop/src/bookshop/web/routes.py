@@ -40,7 +40,7 @@ from xtr_security_core.exception import (
     UserNotFoundError,
 )
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import CurrentUser, Firewall, IsGranted
+from xtr_security_http import CurrentUser, IsGranted
 from xtr_security_jwt import JwtTokenManagerInterface
 
 from bookshop.catalog import Book, BookCatalogInterface, Genre
@@ -66,10 +66,10 @@ _QUEUED = ("jobs", "audit", "outbox")
 # string is one indivisible token, so it cannot be wrapped under the line length.
 _DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$csBCmuUDDdOHBAwK4xX+lA$0YF1rPunzp1YVD+n8Nv5+KjL0faOrgKXKbXhOVSOXxE"  # noqa: E501
 
-# Limited before its routes are added, then guarded by the matched firewall: each route copies
-# the router's dependencies, so every route authenticates once and is checked against the
-# access-control map of config/security.py.
-router = Firewall()(RateLimited("api", expose_headers=True)(APIRouter()))
+# Limited before its routes are added; the firewall — a subscriber over the kernel
+# lifecycle's events — guards every route the access-control map of
+# config/security.py claims, before routing and hence before this limit.
+router = RateLimited("api", expose_headers=True)(APIRouter())
 
 
 class OrderRequest(BaseModel):

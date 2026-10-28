@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import json
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 import pytest
-from starlette.requests import Request
 from typing_extensions import override
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server_core.resource_server import ResourceServer
 
-from tests.support.messages import server_request
+from tests.support.messages import document_of, server_request
 from tests.support.repositories import InMemoryAccessTokenRepository
 from tests.support.users import SecurityUser
 from xtr_security_oauth2_server.security.authentication.token.oauth2_token import OAuth2Token
@@ -27,9 +26,7 @@ from xtr_security_oauth2_server.security.user.client_credentials_user import Cli
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from starlette.responses import Response
-    from xtr_http_kernel.bridge import ServedRequest
-    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
+    from xtr_http_message_contracts import ServerRequestInterface
     from xtr_security_core.user.user_interface import UserInterface
 
 pytestmark = pytest.mark.anyio
@@ -73,29 +70,6 @@ class _RefuseToken:
 
 
 @final
-class _SameRequest:
-    """The bridge, standing still: the message a test built is handed straight on."""
-
-    def __init__(self, message: ServerRequestInterface) -> None:
-        self._message = message
-
-    async def create_request(self, request: Request) -> ServerRequestInterface:
-        del request
-
-        return self._message
-
-    def create_response(self, response: Response) -> ResponseInterface:
-        del response
-
-        raise AssertionError("the authenticator builds no response message")  # pragma: no cover
-
-    def serve(self, request: Request) -> ServedRequest:
-        del request
-
-        raise AssertionError("the authenticator serves no request")  # pragma: no cover
-
-
-@final
 class _KnownUsers:
     """A provider that knows one resource owner by name."""
 
@@ -116,20 +90,17 @@ class _KnownUsers:
         return user
 
 
-def _served(headers: Mapping[str, str] | None = None) -> Request:
-    """Return the framework's own request, which the authenticator only reads headers off."""
-    raw = [(name.lower().encode(), value.encode()) for name, value in (headers or {}).items()]
-
-    return Request({"type": "http", "method": "GET", "path": "/api/me", "headers": raw})
+def _message(headers: Mapping[str, str] | None = None) -> ServerRequestInterface:
+    """Return the request message carrying ``headers``, and nothing else."""
+    return server_request("GET", "/api/me", headers=headers)
 
 
 def _authenticator(attributes: Mapping[str, object]) -> OAuth2Authenticator:
     """Return the authenticator over a resource server answering with ``attributes``."""
-    message = server_request("GET", "/api/me")
     validator = _ReadToken(attributes)
 
     return OAuth2Authenticator(
-        _SameRequest(message),
+        ResponseFactory(),
         ResourceServer(InMemoryAccessTokenRepository(), validator),
         _KnownUsers(),
         ROLE_PREFIX,
@@ -140,9 +111,9 @@ def _authenticator(attributes: Mapping[str, object]) -> OAuth2Authenticator:
 def test_it_handles_only_a_request_carrying_a_bearer_token() -> None:
     authenticator = _authenticator({})
 
-    assert authenticator.supports(_served({"Authorization": "Bearer abc"})) is True
-    assert authenticator.supports(_served({"Authorization": "Basic abc"})) is False
-    assert authenticator.supports(_served()) is False
+    assert authenticator.supports(_message({"Authorization": "Bearer abc"})) is True
+    assert authenticator.supports(_message({"Authorization": "Basic abc"})) is False
+    assert authenticator.supports(_message()) is False
 
 
 def test_the_scheme_is_claimed_whatever_case_it_was_written_in() -> None:
@@ -151,11 +122,11 @@ def test_the_scheme_is_claimed_whatever_case_it_was_written_in() -> None:
     # ``Bearer`` differently is still presenting a bearer token.
     authenticator = _authenticator({})
 
-    assert authenticator.supports(_served({"Authorization": "bearer abc"})) is True
-    assert authenticator.supports(_served({"Authorization": "BEARER abc"})) is True
+    assert authenticator.supports(_message({"Authorization": "bearer abc"})) is True
+    assert authenticator.supports(_message({"Authorization": "BEARER abc"})) is True
     # The scheme and nothing after it is not a token, and neither is a name
     # that only begins like the scheme.
-    assert authenticator.supports(_served({"Authorization": "Bearerish abc"})) is False
+    assert authenticator.supports(_message({"Authorization": "Bearerish abc"})) is False
 
 
 async def test_a_token_naming_a_resource_owner_loads_them_through_the_provider() -> None:
@@ -168,7 +139,7 @@ async def test_a_token_naming_a_resource_owner_loads_them_through_the_provider()
         },
     )
 
-    passport = await authenticator.authenticate(_served({"Authorization": "Bearer abc"}))
+    passport = await authenticator.authenticate(_message({"Authorization": "Bearer abc"}))
     _ = await passport.get_user_badge().get_user()
     token = await authenticator.create_token(passport, "api")
 
@@ -187,7 +158,7 @@ async def test_a_token_issued_to_a_client_for_itself_names_the_client_as_the_cal
         },
     )
 
-    passport = await authenticator.authenticate(_served({"Authorization": "Bearer abc"}))
+    passport = await authenticator.authenticate(_message({"Authorization": "Bearer abc"}))
     loaded = await passport.get_user_badge().get_user()
 
     assert isinstance(loaded, ClientCredentialsUser)
@@ -205,7 +176,7 @@ async def test_the_scopes_are_read_whether_they_arrive_as_a_string_or_a_list() -
         },
     )
 
-    passport = await spaced.authenticate(_served({"Authorization": "Bearer abc"}))
+    passport = await spaced.authenticate(_message({"Authorization": "Bearer abc"}))
     _ = await passport.get_user_badge().get_user()
     token = await spaced.create_token(passport, "api")
 
@@ -220,7 +191,7 @@ async def test_a_token_naming_neither_an_owner_nor_a_client_is_refused() -> None
     authenticator = _authenticator({"oauth_access_token_id": TOKEN_ID})
 
     with pytest.raises(OAuth2AuthenticationFailedError) as refused:
-        _ = await authenticator.authenticate(_served({"Authorization": "Bearer abc"}))
+        _ = await authenticator.authenticate(_message({"Authorization": "Bearer abc"}))
 
     # What the caller is told is the same for every unusable token; which it
     # was stays in the exception, for a log.
@@ -230,7 +201,7 @@ async def test_a_token_naming_neither_an_owner_nor_a_client_is_refused() -> None
 
 async def test_a_token_the_resource_server_will_not_accept_is_refused() -> None:
     authenticator = OAuth2Authenticator(
-        _SameRequest(server_request("GET", "/api/me")),
+        ResponseFactory(),
         ResourceServer(InMemoryAccessTokenRepository(), _RefuseToken()),
         _KnownUsers(),
         ROLE_PREFIX,
@@ -238,36 +209,35 @@ async def test_a_token_the_resource_server_will_not_accept_is_refused() -> None:
     )
 
     with pytest.raises(OAuth2AuthenticationFailedError):
-        _ = await authenticator.authenticate(_served({"Authorization": "Bearer abc"}))
+        _ = await authenticator.authenticate(_message({"Authorization": "Bearer abc"}))
 
 
 async def test_a_request_that_proved_nothing_is_challenged_with_a_bearer_scheme() -> None:
-    answered = await _authenticator({}).start(_served())
+    answered = await _authenticator({}).start(_message())
 
-    assert answered.status_code == HTTPStatus.UNAUTHORIZED
+    assert answered.get_status_code() == HTTPStatus.UNAUTHORIZED
     # "This scheme MUST be followed by one or more auth-param values"
     # (RFC 6750 section 3), and section 3.1 asks that a request lacking any
     # authentication information be told no error code — so the realm is all
     # the challenge names.
-    assert answered.headers["WWW-Authenticate"] == f'Bearer realm="{FIREWALL}"'
-    assert "error" not in answered.headers["WWW-Authenticate"]
+    assert answered.get_header_line("WWW-Authenticate") == f'Bearer realm="{FIREWALL}"'
+    assert "error" not in answered.get_header_line("WWW-Authenticate")
     # A refusal must never be kept by a cache: a proxy answering another
     # caller with it would tell the wrong person about the right one.
-    assert answered.headers["Cache-Control"] == "no-store"
+    assert answered.get_header_line("Cache-Control") == "no-store"
 
 
 async def test_a_refusal_of_this_package_is_answered_with_what_it_carries() -> None:
     failure = OAuth2AuthenticationFailedError.create("Nope.")
 
-    answered = await _authenticator({}).on_authentication_failure(_served(), failure)
+    answered = await _authenticator({}).on_authentication_failure(_message(), failure)
 
     assert answered is not None
     # "in case of any failure in the validation checks listed above, the
     # authorization server response MUST include the error code
     # "invalid_token"" (RFC 9068 section 4).
-    assert 'error="invalid_token"' in answered.headers["WWW-Authenticate"]
-    body = json.loads(bytes(answered.body))  # pyright: ignore[reportAny] -- what a JSON document decodes to
-    assert isinstance(body, dict)
+    assert 'error="invalid_token"' in answered.get_header_line("WWW-Authenticate")
+    body = cast("dict[str, object]", await document_of(answered))
     assert body["message"] == "The access token could not be accepted."
     assert body["code"] == HTTPStatus.UNAUTHORIZED
 
@@ -276,7 +246,7 @@ async def test_a_failure_from_somewhere_else_is_left_to_the_firewall() -> None:
     from xtr_security_core.exception import AuthenticationError  # noqa: PLC0415 -- used only here
 
     answered = await _authenticator({}).on_authentication_failure(
-        _served(),
+        _message(),
         AuthenticationError("something else"),
     )
 

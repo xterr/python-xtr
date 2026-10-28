@@ -6,7 +6,7 @@ from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
-from xtr_security_http.authenticator.passport.passport import Passport
+from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.authenticator.token.post_authentication_token import PostAuthenticationToken
 from xtr_security_http.event.authentication_token_created_event import (
     AuthenticationTokenCreatedEvent,
@@ -14,7 +14,7 @@ from xtr_security_http.event.authentication_token_created_event import (
 
 
 def test_it_replaces_the_token() -> None:
-    passport = Passport(UserBadge("alice"))
+    passport = SelfValidatingPassport(UserBadge("alice"))
     first = NullToken()
     replacement = PostAuthenticationToken(InMemoryUser("alice"), "api", ())
 

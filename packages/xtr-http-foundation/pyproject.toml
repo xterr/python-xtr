@@ -1,7 +1,7 @@
 [project]
 name = "xtr-http-foundation"
 version = "4.1.0"
-description = "Matchers that answer one question each about a request that arrived — method, path, host, port, scheme, headers, query, client address, JSON body — and the helpers that place an IP in a network."
+description = "Matchers that answer one question each about a request that arrived — method, path, host, port, scheme, headers, query, client address, JSON body — the helpers that place an IP in a network, and the session a stateful request carries: attributes under an ID cookie, kept in whatever storage the application points at."
 readme = "README.md"
 authors = [
     { name = "Xterr", email = "me@xterr.dev" }
@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
-keywords = ["http", "request-matcher", "ip", "subnet", "asyncio"]
+keywords = ["http", "request-matcher", "ip", "subnet", "session", "asyncio"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Framework :: AsyncIO",
@@ -29,6 +29,14 @@ dependencies = [
     "xtr-http-message-contracts>=4.0,<5",
 ]
 
+# The cache-pool session storage is the one member that needs another package:
+# the caching contract every pool answers. Reaching for its module by name is
+# what turns it on.
+[project.optional-dependencies]
+cache = [
+    "xtr-cache-contracts>=4.0,<5",
+]
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",
@@ -39,6 +47,8 @@ dev = [
     "ty>=0.0.83",
     # The matchers' tests match real requests, so they build them.
     "xtr-http-message>=4.0,<5",
+    # The cache-pool session storage's tests exercise it over the caching contract.
+    "xtr-cache-contracts>=4.0,<5",
 ]
 
 [build-system]

@@ -6,7 +6,7 @@ contributors.
 
 | Project | Translated into |
 |---|---|
-| [Symfony](https://symfony.com) | xtr-cache, xtr-cache-contracts, xtr-clock, xtr-console, xtr-dependency-injection, xtr-dotenv, xtr-event-dispatcher, xtr-event-dispatcher-contracts, xtr-http-client, xtr-http-client-contracts, xtr-http-foundation, xtr-http-kernel, xtr-lock, xtr-logging, xtr-messenger, xtr-orm, xtr-password-hasher, xtr-rate-limiter, xtr-recipes, xtr-remote-event, xtr-scheduler, xtr-security, xtr-security-core, xtr-security-http, xtr-service-contracts, xtr-webhook |
+| [Symfony](https://symfony.com) | xtr-cache, xtr-cache-contracts, xtr-clock, xtr-console, xtr-dependency-injection, xtr-dotenv, xtr-event-dispatcher, xtr-event-dispatcher-contracts, xtr-http-client, xtr-http-client-contracts, xtr-http-foundation, xtr-http-kernel, xtr-lock, xtr-logging, xtr-messenger, xtr-notifier, xtr-orm, xtr-password-hasher, xtr-rate-limiter, xtr-recipes, xtr-remote-event, xtr-scheduler, xtr-security, xtr-security-core, xtr-security-csrf, xtr-security-http, xtr-service-contracts, xtr-slack-notifier, xtr-telegram-notifier, xtr-webhook |
 | [Monolog](https://github.com/Seldaek/monolog) | xtr-logging |
 | [PSR-3 Logger Interface](https://github.com/php-fig/log) (PHP-FIG) | xtr-logging-contracts |
 | [PSR-7 HTTP Message Interfaces](https://github.com/php-fig/http-message) and [PSR-17 HTTP Factories](https://github.com/php-fig/http-factory) (PHP-FIG) | xtr-http-message-contracts |

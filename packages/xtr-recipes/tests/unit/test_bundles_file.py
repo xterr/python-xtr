@@ -70,6 +70,7 @@ def test_it_reads_every_entry_an_application_lists() -> None:
         "xtr_security_jwt.bundle:JwtBundle",
         "bookshop.dev_tools:DevToolsBundle",
         "xtr_storage.bundle:StorageBundle",
+        "xtr_webhook.bundle:WebhookBundle",
     ]
 
 

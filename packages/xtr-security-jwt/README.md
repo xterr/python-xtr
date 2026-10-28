@@ -115,12 +115,12 @@ from fastapi import FastAPI
 from xtr_dependency_injection import Injected, Kernel
 from xtr_http_kernel import setup
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import CurrentUser, Firewall
+from xtr_security_http import CurrentUser
 from xtr_security_jwt import JwtTokenManagerInterface
 
 from app.bundles import BUNDLES
 
-app = FastAPI(dependencies=[Firewall()])
+app = FastAPI()
 
 
 @app.post("/token")
@@ -140,6 +140,10 @@ async def me(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
 kernel = Kernel("app", concurrent_scoped_access=True)
 setup(app, kernel)
 ```
+
+The firewalls written in step 2 run as the firewall — a subscriber the security bundle
+registers over the kernel lifecycle's events — so the routes carry no firewall dependency of
+their own: every request the configuration's firewall claims is authenticated before routing.
 
 The token manager assembles the registered claims and signs them; it never reads any of the
 token from client input. The application authenticates the user before calling `create`, the

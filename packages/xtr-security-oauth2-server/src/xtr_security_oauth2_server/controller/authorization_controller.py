@@ -54,12 +54,12 @@ _NOBODY_TO_ASK: Final = (
 
 #: What is written where the deployment can read it. The client is told
 #: nothing about how this server is put together, so this is the only place
-#: the commonest cause of a refusal — no firewall in front of the
-#: authorization endpoint — can be named.
+#: the commonest cause of a refusal — no firewall claiming the authorization
+#: endpoint — can be named.
 _UNCLAIMED_ENDPOINT: Final = (
     "An authorization request reached this server with no resource owner authenticated, so "
-    "consent was never asked for and the request was refused. Put an application-level "
-    "Firewall() on the application serving these endpoints, so the authorization endpoint "
+    "consent was never asked for and the request was refused. Configure a firewall claiming "
+    "the authorization endpoint in config/security.py, so the authorization endpoint "
     "establishes the resource owner; see this package's 'Use in an application' section."
 )
 

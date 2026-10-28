@@ -22,6 +22,10 @@ classifiers = [
 dependencies = [
     "xtr-security-core>=4.0,<5",
     "xtr-security-http>=4.0,<5",
+    # The bundle owns the forgery-token manager wiring: it builds the csrf
+    # package's manager and session token storage itself, so it declares the
+    # package rather than reaching through security-http's own dependency.
+    "xtr-security-csrf>=4.0,<5",
     "xtr-password-hasher>=4.0,<5",
     "xtr-clock>=4.0,<5",
     "xtr-dependency-injection>=4.0,<5",
@@ -29,6 +33,13 @@ dependencies = [
     "xtr-http-kernel>=4.0,<5",
     "xtr-http-foundation>=4.0,<5",
     "xtr-http-message-contracts>=4.0,<5",
+    # The OIDC token-handler factory builds the discovery key-set provider on
+    # the HTTP client contract and an in-memory cache pool.
+    "xtr-http-client>=4.0,<5",
+    "xtr-cache>=4.0,<5",
+    # The login-throttling wiring builds the two limiter factories a firewall's
+    # attempts count under, over the application's own storage service.
+    "xtr-rate-limiter>=4.0,<5",
     "typing-extensions>=4.12",
 ]
 

@@ -8,5 +8,6 @@ from __future__ import annotations
 
 from .http_foundation_error import HttpFoundationError
 from .invalid_argument_error import InvalidArgumentError
+from .session_error import SessionError
 
-__all__ = ["HttpFoundationError", "InvalidArgumentError"]
+__all__ = ["HttpFoundationError", "InvalidArgumentError", "SessionError"]

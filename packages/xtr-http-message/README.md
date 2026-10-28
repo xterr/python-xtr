@@ -2,7 +2,7 @@
 
 # xtr-http-message
 
-**The HTTP message contract, implemented — six small classes, one factory, and no web framework anywhere in sight.**
+**The HTTP message contract, implemented — six small classes, one factory, a request that can be born connected, and no web framework anywhere in sight.**
 
 <img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
 <img alt="core dependencies: 3" src="https://img.shields.io/badge/core%20deps-3-3FB950">
@@ -24,9 +24,12 @@ besides.
   header taken from the URI and sent in front of every other header.
 - 📥 **`ServerRequest`** — a request that arrived: the environment parameters, the cookies, the
   query string parsed, the files that came with it, the parsed body, and the attributes a
-  handler annotates it with.
+  handler annotates it with. Born complete — or born connected over a `RequestSource`, its body
+  side arriving as it is read.
 - 📤 **`Response`** — a status code, the reason phrase recommended for it, headers and a body.
 - 🌊 **`Stream`** — a body, as a cursor over bytes behind an open binary file object.
+- 🌊 **`LazyStream`** — a body that stands in unread: the whole of it is read once, on the first
+  read, and buffered after.
 - 🔗 **`Uri`** — a URI taken apart into components and put back together as text, read as
   RFC 3986 defines one.
 - 📎 **`UploadedFile`** — one file that came in, movable once.
@@ -85,12 +88,15 @@ application that is [xtr-http-kernel](../xtr-http-kernel)'s
 | `ServerRequest` | `ServerRequestInterface` |
 | `Response` | `ResponseInterface` |
 | `Stream` | `StreamInterface` |
+| `LazyStream` | `StreamInterface` |
 | `Uri` | `UriInterface` |
 | `UploadedFile` | `UploadedFileInterface` |
 | `HttpFactory` | all six factory interfaces |
 
 Each one names its interface as its last base class, so `isinstance` and a container
-registration both work without a plugin registry in between.
+registration both work without a plugin registry in between. `RequestSource` is the one
+protocol among them: not a message, but where a connected request reads its late answers
+from.
 
 ### The rules that hold across all of them
 
@@ -134,6 +140,63 @@ the stream itself is collected, so a file object you still hold is yours to clos
 
 `get_metadata()` reports three entries — `mode`, `seekable` and `uri`, the last being the path
 the file was opened on when it has one.
+
+`LazyStream` is a stream that stands in for a body nobody has read: built with an async
+callable that returns the bytes, it holds nothing until the first `read` or `get_contents`
+calls it, then buffers what came back and serves every later read out of the buffer —
+seekable, rewindable, and closing it before the first read is a no-op rather than a read.
+
+### A request born connected
+
+A request that arrived is not always known in full when it becomes a message: a connection
+hands over its head at once, but its body is still on the wire. `ServerRequest.over()` builds
+the one class both ways — born complete through the constructor, born connected through a
+`RequestSource`:
+
+```python
+from collections.abc import Mapping
+
+from xtr_http_message import RequestSource, ServerRequest
+
+
+class Connection(RequestSource):
+    """Reads the body off the wire, parses it, answers the late side."""
+
+    async def materialise(self) -> bytes: ...  # runs at most once, memoised
+
+    def parsed_body(self) -> object | None: ...  # a sync peek; None until materialised
+    def uploaded_files(self) -> Mapping[str, object]: ...  # a sync peek; {} until then
+    def attributes(self) -> Mapping[str, object]: ...  # live; routing fills it late
+
+
+served = ServerRequest.over(
+    "POST",
+    "https://example.com/orders",
+    source=Connection(),
+    headers={"host": "example.com"},
+    cookies={"session": "abc"},
+    query={"page": "2"},
+)
+```
+
+The head is passed eagerly — it costs no input and never changes mid-request — and the body
+side comes from the source:
+
+- **The body is one lazy stream** (`LazyStream` over `source.materialise`), handed out however
+  many times it is asked for; the first read materialises the whole body once, and every later
+  read is served out of the buffer.
+- **The parsed body and the uploaded files answer what materialisation has yielded so far** —
+  `None` and an empty mapping until the body has been read. `await served.ensure_parsed()`
+  materialises it at the one seam that can still await, before the message is handed on.
+- **The attributes are live**, read off the source each time: the named parameters a matched
+  route fills in are there as soon as routing has filled them.
+- **The `with_*` members detach.** The copy is a plain eager request — the attributes frozen to
+  the current snapshot, the parsed body and files to the current peek, the body the one shared
+  lazy stream — so a change a handler makes never reaches the connection, and the copy never
+  reads the source again.
+
+`body=` is refused alongside `source=` — one owner of the body. A header the message grammar
+refuses is left out rather than refusing the request: a connection let it through.
 
 ### URIs
 

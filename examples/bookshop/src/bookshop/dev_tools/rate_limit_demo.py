@@ -49,8 +49,10 @@ _MAX_WAIT: Final = 5.0
 _HEADERS: Final = ["Claim", "Result", "Observed"]
 
 _OK: Final = HTTPStatus.OK
+_UNAUTHORIZED: Final = HTTPStatus.UNAUTHORIZED
 _NOT_FOUND: Final = HTTPStatus.NOT_FOUND
 _TOO_MANY: Final = HTTPStatus.TOO_MANY_REQUESTS
+_API_LIMIT: Final = 120
 
 
 @final
@@ -92,6 +94,7 @@ async def rate_limit(io: ConsoleStyle, container: Injected[ContainerInterface]) 
     io.section("The web application — served in process")
     first = len(checks.rows)
     await _reset_web_counts(container)
+    await _ordering(checks)
     await _web(checks)
     io.table(_HEADERS, checks.rows[first:])
 
@@ -288,6 +291,54 @@ async def _web(checks: _Checks) -> None:
         "POST /orders: the route's compound limit, three in a burst",
         fourth.status_code == _TOO_MANY and _json(fourth).get("limiter") == "ordering",
         f"{_json(fourth)}",
+    )
+
+
+async def _ordering(checks: _Checks) -> None:
+    """The firewall runs before routing, so before the route-level limiter.
+
+    The documented deviation: an unauthenticated request to a limited route is
+    challenged before any limiter is consulted — it consumes none of the
+    route's budget and its 401 carries no ``X-RateLimit-*`` headers — while an
+    authenticated request to the same route is limited exactly as before.
+    """
+    # Imported here: importing it builds the application, which serves from its own kernel.
+    from bookshop.web.app import app  # noqa: PLC0415
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app, client=(_CLIENT, 51234))
+        async with httpx.AsyncClient(transport=transport, base_url="http://bookshop") as client:
+            await _ordering_claims(client, checks)
+
+
+async def _ordering_claims(client: httpx.AsyncClient, checks: _Checks) -> None:
+    """The deviation's claims, over one application life of fresh counts."""
+    challenged = await client.get("/me")
+    checks.check(
+        "GET /me without a token: challenged before the limiter, no X-RateLimit-*",
+        challenged.status_code == _UNAUTHORIZED
+        and _header(challenged, "x-ratelimit-limit") is None,
+        f"{challenged.status_code}, no rate-limit headers",
+    )
+    minted = await client.post(
+        "/token", json={"identifier": "ada@example.com", "password": "s3cret"}
+    )
+    token = cast("str", _json(minted)["access_token"])
+    bearer = {"Authorization": f"Bearer {token}"}
+    answered = await client.get("/me", headers=bearer)
+    checks.check(
+        "GET /me without a token: consumed none of the route's budget",
+        answered.status_code == _OK
+        and _header(answered, "x-ratelimit-remaining") == str(_API_LIMIT - 1),
+        f"{_header(answered, 'x-ratelimit-remaining')} left with a token",
+    )
+    limited = [await client.get("/search", params={"q": "pride"}, headers=bearer) for _ in range(6)]
+    checks.check(
+        "GET /search with a token: limited exactly as before, 429 with Retry-After",
+        [response.status_code for response in limited] == [_OK] * _SEARCHES + [_TOO_MANY]
+        and "retry-after" in limited[-1].headers
+        and _header(limited[-1], "x-ratelimit-limit") is not None,
+        " ".join(str(response.status_code) for response in limited),
     )
 
 

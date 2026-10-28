@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Annotated, final
 # These annotate factory parameters and returns the container reads at runtime,
 # so the marker, the qualifier helper and the types stay importable here.
 from xtr_dependency_injection import Target, named_factory
-from xtr_http_kernel.bridge import HttpMessageFactoryInterface
+from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 from xtr_security_oauth2_server_core.resource_server import ResourceServer
 
@@ -88,10 +88,10 @@ def _authenticator_factory(
 ) -> Callable[..., Awaitable[OAuth2Authenticator]]:
     """Return a factory building the authenticator from injected services.
 
-    The bridge that turns the request into a message, the resource server that
-    reads the token, the deployment's configuration and the firewall's own user
-    provider are each injected by their type or key, so the factory is never
-    handed the whole container.
+    The response factory that builds the refusal responses, the resource
+    server that reads the token, the deployment's configuration and the
+    firewall's own user provider are each injected by their type or key, so
+    the factory is never handed the whole container.
 
     The firewall's name is closed over rather than injected: it is what the
     bearer challenge names as its protection space, and it is known here
@@ -99,13 +99,13 @@ def _authenticator_factory(
     """
 
     async def oauth2_authenticator(
-        messages: HttpMessageFactoryInterface,
+        responses: ResponseFactoryInterface,
         resource_server: ResourceServer,
         provider: UserProviderInterface,
         config: OAuth2ServerConfig,
     ) -> OAuth2Authenticator:
         return OAuth2Authenticator(
-            messages,
+            responses,
             resource_server,
             provider,
             config.role_prefix,
@@ -113,7 +113,7 @@ def _authenticator_factory(
         )
 
     oauth2_authenticator.__annotations__ = {
-        "messages": HttpMessageFactoryInterface,
+        "responses": ResponseFactoryInterface,
         "resource_server": ResourceServer,
         "provider": _qualified(user_provider)
         if user_provider is not None

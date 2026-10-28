@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from xtr_http_kernel.bridge import ResponseFactory
+
 from tests.support.http import FakeAccessTokenHandler
 from xtr_security_http.access_token.header_access_token_extractor import HeaderAccessTokenExtractor
 from xtr_security_http.authenticator.access_token_authenticator import AccessTokenAuthenticator
@@ -12,6 +14,7 @@ def test_the_access_token_authenticator_satisfies_the_interface() -> None:
     authenticator = AccessTokenAuthenticator(
         FakeAccessTokenHandler({}),
         HeaderAccessTokenExtractor(),
+        ResponseFactory(),
     )
 
     assert isinstance(authenticator, AuthenticatorInterface)

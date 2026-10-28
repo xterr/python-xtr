@@ -156,6 +156,7 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface):
             url,
             content=payload.content,
             data=payload.form,
+            files=payload.files,
             json=payload.document,
             headers=headers,
             extensions=extensions,

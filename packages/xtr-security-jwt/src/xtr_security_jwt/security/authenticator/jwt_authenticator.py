@@ -1,8 +1,17 @@
-"""The authenticator that proves a caller by a self-issued token."""
+"""The authenticator that proves a caller by a self-issued token.
+
+The per-request token extraction is memoised in a module-level weak-key
+mapping keyed by the request message itself: one served message stands for
+one request, so its identity is a per-request key, and the mapping lets the
+memo go with the message when the request is collected. The attribute
+handoff planned as P1.2 — the security state parked on the request's state
+bag — supersedes this memo, and this is the interim carrier.
+"""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, TypeGuard, cast, final
+from weakref import WeakKeyDictionary
 
 from typing_extensions import override
 from xtr_security_core.exception import AuthenticationError, UserNotFoundError
@@ -25,7 +34,7 @@ from xtr_security_jwt.exception.invalid_token_error import InvalidTokenError
 from xtr_security_jwt.exception.jwt_decode_failure_error import JwtDecodeFailureError
 from xtr_security_jwt.exception.missing_token_error import MissingTokenError
 from xtr_security_jwt.response.jwt_authentication_failure_response import (
-    JwtAuthenticationFailureResponse,
+    jwt_authentication_failure_response,
 )
 from xtr_security_jwt.security.authenticator.token.jwt_post_authentication_token import (
     JwtPostAuthenticationToken,
@@ -34,9 +43,9 @@ from xtr_security_jwt.security.authenticator.token.jwt_post_authentication_token
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from starlette.requests import Request
-    from starlette.responses import Response
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
+    from xtr_http_message_contracts.factory import ResponseFactoryInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.user.user_interface import UserInterface
     from xtr_security_core.user.user_provider_interface import UserProviderInterface
@@ -53,8 +62,13 @@ _PAYLOAD_ATTRIBUTE: str = "payload"
 #: The passport and token attribute the raw compact token is stashed under.
 _TOKEN_ATTRIBUTE: str = "token"  # noqa: S105 -- an attribute name, not a secret
 
-#: Where the per-request token extractions are memoised on ``request.state``.
-_EXTRACTION_MEMO: str = "xtr_jwt_extractions"
+#: The per-request token extractions, keyed by the request message itself.
+#: One served message stands for one request, so its identity keys the
+#: extractions of that request; the weak mapping lets the memo go with the
+#: message when the request is collected.
+_EXTRACTION_MEMO: WeakKeyDictionary[ServerRequestInterface, dict[str, str | None]] = (
+    WeakKeyDictionary()
+)
 
 
 @final
@@ -77,15 +91,17 @@ class JwtAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface)
         "_event_dispatcher",
         "_firewall_name",
         "_jwt_manager",
+        "_responses",
         "_token_extractor",
         "_user_provider",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917 -- a wiring constructor; the container fills every peer
         self,
         jwt_manager: JwtTokenManagerInterface,
         event_dispatcher: EventDispatcherInterface,
         token_extractor: TokenExtractorInterface,
+        responses: ResponseFactoryInterface,
         user_provider: UserProviderInterface,
         firewall_name: str,
     ) -> None:
@@ -93,15 +109,18 @@ class JwtAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface)
 
         ``firewall_name`` names the firewall this authenticator belongs to, and
         is the key its per-request token extraction is memoised under.
+        ``responses`` builds the failure responses the entry point answers
+        with, so the authenticator names no response class.
         """
         self._jwt_manager = jwt_manager
         self._event_dispatcher = event_dispatcher
         self._token_extractor = token_extractor
+        self._responses = responses
         self._user_provider = user_provider
         self._firewall_name = firewall_name
 
     @override
-    def supports(self, request: Request) -> bool | None:
+    def supports(self, request: ServerRequestInterface) -> bool | None:
         """Handle the request only when the extractor finds a token in it.
 
         The extraction is memoised on ``request.state``, so the token is read out
@@ -111,7 +130,7 @@ class JwtAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface)
         return self._extract_once(request) is not None
 
     @override
-    async def authenticate(self, request: Request) -> SelfValidatingPassport:
+    async def authenticate(self, request: ServerRequestInterface) -> SelfValidatingPassport:
         """Verify the token and build a self-validating passport for its user.
 
         Raises:
@@ -136,17 +155,20 @@ class JwtAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface)
         passport.set_attribute(_TOKEN_ATTRIBUTE, token)
         return passport
 
-    def _extract_once(self, request: Request) -> str | None:
+    def _extract_once(self, request: ServerRequestInterface) -> str | None:
         """Return the token extracted from ``request``, reading it at most once.
 
-        The outcome is cached on ``request.state`` under the firewall this
-        authenticator belongs to, so ``supports`` and ``authenticate`` — and two
-        authenticators sharing a request — each extract their own token exactly
-        once. The firewall's name is the key because it is stable for the life of
-        the application, where the identity of an extractor object is not.
+        The outcome is cached in the module-level weak-key mapping under the
+        firewall this authenticator belongs to, so ``supports`` and
+        ``authenticate`` — and two authenticators sharing a request — each
+        extract their own token exactly once. The firewall's name is the key
+        because it is stable for the life of the application, where the
+        identity of an extractor object is not.
         """
-        memo: dict[str, str | None] = getattr(request.state, _EXTRACTION_MEMO, None) or {}
-        setattr(request.state, _EXTRACTION_MEMO, memo)
+        memo = _EXTRACTION_MEMO.get(request)
+        if memo is None:
+            memo = {}
+            _EXTRACTION_MEMO[request] = memo
         key = self._firewall_name
         if key not in memo:
             memo[key] = self._token_extractor.extract(request)
@@ -222,10 +244,10 @@ class JwtAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface)
     @override
     async def on_authentication_success(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         token: TokenInterface,
         firewall_name: str,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Answer nothing: the success response is built by the firewall's handler."""
         del request, token, firewall_name
         return None
@@ -233,11 +255,14 @@ class JwtAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface)
     @override
     async def on_authentication_failure(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Answer a refused token with a ``401``, drawing the expired or invalid event."""
-        response = JwtAuthenticationFailureResponse(error.get_message_key())
+        response = await jwt_authentication_failure_response(
+            self._responses,
+            error.get_message_key(),
+        )
         if isinstance(error, ExpiredTokenError):
             expired = JwtExpiredEvent(error, response, request)
             _ = await self._event_dispatcher.dispatch(expired)
@@ -249,9 +274,9 @@ class JwtAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface)
     @override
     async def start(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError | None = None,
-    ) -> Response:
+    ) -> ResponseInterface:
         """Answer a request that carried no token with a ``401`` naming it missing.
 
         The error that drew the challenge, when one is given, is kept as the cause
@@ -261,7 +286,10 @@ class JwtAuthenticator(AbstractAuthenticator, AuthenticationEntryPointInterface)
         missing = MissingTokenError("JWT Token not found")
         if error is not None:
             missing.__cause__ = error
-        response = JwtAuthenticationFailureResponse(missing.get_message_key())
+        response = await jwt_authentication_failure_response(
+            self._responses,
+            missing.get_message_key(),
+        )
         event = JwtNotFoundEvent(missing, response, request)
         _ = await self._event_dispatcher.dispatch(event)
         return event.get_response()

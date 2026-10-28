@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
+from .oidc_back_channel_logout_handler import OidcBackChannelLogoutHandler
 from .security import Security
 
-__all__ = ["Security", "__version__"]
+__all__ = ["OidcBackChannelLogoutHandler", "Security", "__version__"]
 
 try:
     __version__ = version("xtr-security")

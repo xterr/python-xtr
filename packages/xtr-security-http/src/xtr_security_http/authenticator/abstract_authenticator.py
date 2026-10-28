@@ -11,8 +11,7 @@ from xtr_security_http.authenticator.token.post_authentication_token import Post
 from .authenticator_interface import AuthenticatorInterface
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.exception import AuthenticationError
 
@@ -38,19 +37,19 @@ class AbstractAuthenticator(  # pyright: ignore[reportImplicitAbstractClass]  --
     async def create_token(self, passport: Passport, firewall_name: str) -> TokenInterface:
         """Build a post-authentication token for the passport's user and roles.
 
-        The user is read from the passport's user badge, which the passport
+        The user is read through the passport, which caches what the passport
         check already loaded, so this call does no I/O.
         """
-        user = passport.get_user_badge().get_loaded_user()
+        user = await passport.get_user()
         return PostAuthenticationToken(user, firewall_name, user.get_roles())
 
     @override
     async def on_authentication_success(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         token: TokenInterface,
         firewall_name: str,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Answer nothing: the request goes on to its endpoint."""
         del request, token, firewall_name
         return None
@@ -58,9 +57,9 @@ class AbstractAuthenticator(  # pyright: ignore[reportImplicitAbstractClass]  --
     @override
     async def on_authentication_failure(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> Response | None:
+    ) -> ResponseInterface | None:
         """Answer nothing: the failure is turned into a challenge elsewhere."""
         del request, error
         return None

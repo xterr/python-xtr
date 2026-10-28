@@ -20,3 +20,13 @@ def test_it_exports_the_matcher_contract_and_the_chain() -> None:
     assert {"RequestMatcherInterface", "ChainRequestMatcher", "IpUtils"} <= set(
         xtr_http_foundation.__all__
     )
+
+
+def test_it_exports_the_session_surface() -> None:
+    assert {
+        "Session",
+        "SessionCookieConfig",
+        "SessionInterface",
+        "MemorySessionStorage",
+        "SessionStorageInterface",
+    } <= set(xtr_http_foundation.__all__)

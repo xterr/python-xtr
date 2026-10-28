@@ -18,7 +18,9 @@ from importlib.util import find_spec
 from xtr_security_http import ExposeSecurityLevel
 
 from xtr_security.access_token import (
+    Oauth2TokenHandlerFactory,
     OidcTokenHandlerFactory,
+    OidcUserInfoTokenHandlerFactory,
     ServiceTokenHandlerFactory,
     TokenHandlerFactoryInterface,
 )
@@ -35,7 +37,20 @@ from xtr_security.bundle.user_provider_configs import (
     UserProviderConfig,
 )
 from xtr_security.exception import InvalidConfigurationError
-from xtr_security.factory import AccessTokenFactory, AuthenticatorFactoryInterface
+from xtr_security.factory import (
+    AccessTokenFactory,
+    AuthenticatorFactoryInterface,
+    FormLoginFactory,
+    HttpBasicFactory,
+    JsonLoginFactory,
+    LoginLinkFactory,
+    OidcLoginFactory,
+    RememberMeFactory,
+)
+from xtr_security.factory.pre_authenticated_factory import (
+    RemoteUserFactory,
+    X509Factory,
+)
 from xtr_security.firewall_config import (
     FirewallConfig,  # noqa: TC001 -- field type read at runtime
 )
@@ -70,8 +85,25 @@ def _no_role_hierarchy() -> dict[str, Sequence[str]]:
 
 
 def _default_authenticator_factories() -> tuple[AuthenticatorFactoryInterface, ...]:
-    """The authenticator factories every application starts with."""
-    return (AccessTokenFactory(),)
+    """The authenticator factories every application starts with.
+
+    The OIDC login factory joins only when its extra is installed, so an
+    application without joserfc and httpx carries no factory that would
+    import them.
+    """
+    factories: tuple[AuthenticatorFactoryInterface, ...] = (
+        AccessTokenFactory(),
+        FormLoginFactory(),
+        HttpBasicFactory(),
+        JsonLoginFactory(),
+        LoginLinkFactory(),
+        RememberMeFactory(),
+        RemoteUserFactory(),
+        X509Factory(),
+    )
+    if _oidc_extra_available():
+        factories = (*factories, OidcLoginFactory())
+    return factories
 
 
 def _oidc_extra_available() -> bool:
@@ -82,12 +114,16 @@ def _oidc_extra_available() -> bool:
 def _default_token_handler_factories() -> tuple[TokenHandlerFactoryInterface, ...]:
     """The token-handler factories every application starts with.
 
-    The OIDC handler joins only when its extra is installed, so an application
-    without joserfc and httpx carries no factory that would import them.
+    The OIDC and userinfo handlers join only when their extra is installed, so
+    an application without joserfc and httpx carries no factory that would
+    import them; the introspection handler needs neither.
     """
-    factories: tuple[TokenHandlerFactoryInterface, ...] = (ServiceTokenHandlerFactory(),)
+    factories: tuple[TokenHandlerFactoryInterface, ...] = (
+        ServiceTokenHandlerFactory(),
+        Oauth2TokenHandlerFactory(),
+    )
     if _oidc_extra_available():
-        factories = (*factories, OidcTokenHandlerFactory())
+        factories = (*factories, OidcTokenHandlerFactory(), OidcUserInfoTokenHandlerFactory())
     return factories
 
 
@@ -113,6 +149,10 @@ class SecurityConfig:
         role_hierarchy: The roles each role reaches, expanding a token's roles.
         access_control: The access-control rules, tried in order.
         access_decision_manager: How the voters' answers become one decision.
+        http_port: The port plain ``http`` answers on, spelled out in a
+            channel redirect when it is not ``80``.
+        https_port: The port ``https`` answers on, spelled out in a channel
+            redirect when it is not ``443``.
         expose_security_errors: How much of an authentication failure reaches the
             client.
         trace_votes: Whether every vote is announced as an event; ``None`` follows
@@ -139,6 +179,8 @@ class SecurityConfig:
     access_decision_manager: AccessDecisionManagerConfig = field(
         default_factory=AccessDecisionManagerConfig
     )
+    http_port: int = 80
+    https_port: int = 443
     expose_security_errors: ExposeSecurityLevel = ExposeSecurityLevel.NONE
     trace_votes: bool | None = None
     authenticator_factories: tuple[AuthenticatorFactoryInterface, ...] = field(

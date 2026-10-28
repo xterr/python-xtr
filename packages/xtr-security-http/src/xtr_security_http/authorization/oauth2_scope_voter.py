@@ -52,6 +52,23 @@ class OAuth2ScopeVoter(CacheableVoterInterface):
 
     SCOPE_ATTRIBUTE: ClassVar[str] = "oauth2_scope"
 
+    @staticmethod
+    def get_required_scopes(attribute: str) -> tuple[str, ...] | None:
+        """Read the scopes an attribute requires, all of which are required.
+
+        The one reader of the scope-request shape: the vote below, the
+        exception listener and the insufficient-scope handler all ask it here,
+        so they agree on what a scope request is. An attribute that is not
+        shaped like one — or names no scopes, which would grant every scoped
+        token vacuously — reads as ``None``, so a caller leaves another
+        voter's attribute alone and abstains on a malformed one rather than
+        silently honouring it.
+        """
+        if not attribute.startswith(_PREFIX) or not attribute.endswith(_SUFFIX):
+            return None
+        scopes = attribute[len(_PREFIX) : -len(_SUFFIX)].split()
+        return tuple(scopes) or None
+
     @override
     async def vote(
         self,
@@ -63,23 +80,35 @@ class OAuth2ScopeVoter(CacheableVoterInterface):
         """Grant when the token holds every asked-for scope; deny when it falls short."""
         del subject
         result = Access.ABSTAIN
+        held = self._held_scopes(token)
+        missing: list[str] = []
         for attribute in attributes:
             scopes = parse_oauth2_scope(attribute)
             if scopes is None:
                 continue
             result = Access.DENIED
-            held = self._held_scopes(token)
-            missing = [scope for scope in scopes if scope not in held]
-            if not missing:
+            attribute_missing = [scope for scope in scopes if scope not in held]
+            if not attribute_missing:
+                if vote is not None:
+                    vote.add_reason(f"The access token was granted {', '.join(scopes)}.")
                 return Access.GRANTED
-            if vote is not None:
-                vote.add_reason(f"The token is missing the scope(s): {', '.join(missing)}.")
+            missing.extend(attribute_missing)
+        if result is Access.DENIED and vote is not None:
+            vote.add_reason(
+                f"The access token was not granted {', '.join(dict.fromkeys(missing))}."
+            )
         return result
 
     @override
     def supports_attribute(self, attribute: str) -> bool:
-        """Tell whether ``attribute`` is a scope request ``parse_oauth2_scope`` would read."""
-        return parse_oauth2_scope(attribute) is not None
+        """Tell whether ``attribute`` asks for OAuth2 scopes, by its prefix alone.
+
+        The prefix is all a firewall needs to know — that this attribute is
+        one this voter reads, not another voter's — so a malformed scope
+        request still routes here and is abstained on by the vote, rather
+        than being routed nowhere and silently honoured.
+        """
+        return attribute.startswith(_PREFIX)
 
     @override
     def supports_type(self, subject_type: str) -> bool:
@@ -107,21 +136,12 @@ class OAuth2ScopeVoter(CacheableVoterInterface):
 def parse_oauth2_scope(attribute: object) -> tuple[str, ...] | None:
     """Read the scopes out of an ``OAUTH2_SCOPE(...)`` attribute, or ``None``.
 
-    The one reader of the attribute :func:`oauth2_scope` writes, shared by the
-    voter, the exception listener and the insufficient-scope handler so they
-    agree on what a scope request is. A request that names no scopes —
-    ``OAUTH2_SCOPE()`` or only whitespace inside — or anything not shaped like
-    the attribute reads as ``None``, so the voter abstains rather than granting
-    every scoped token vacuously.
+    The module-level spelling of
+    :meth:`OAuth2ScopeVoter.get_required_scopes`, kept for the callers that
+    hold a plain attribute rather than the voter: the exception listener, and
+    anything an application writes itself. Anything not a string reads as
+    ``None``.
     """
-    if (
-        not isinstance(attribute, str)
-        or not attribute.startswith(_PREFIX)
-        or not attribute.endswith(_SUFFIX)
-    ):
+    if not isinstance(attribute, str):
         return None
-    inner = attribute[len(_PREFIX) : -len(_SUFFIX)]
-    scopes = tuple(inner.split())
-    if not scopes:
-        return None
-    return scopes
+    return OAuth2ScopeVoter.get_required_scopes(attribute)

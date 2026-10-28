@@ -13,6 +13,9 @@ A request is also measured: a request rate limiter counts it under the limits it
 names — the account it carries, the address it came from — and answers with the strictest of
 them, without this library prescribing where the count is kept. And a response is helped
 along too, with the header value that sets a cookie on the client, or clears one.
+
+A request can also be stateful: a session carries attributes under an ID cookie, kept in
+whatever storage the application points at.
 """
 
 from __future__ import annotations
@@ -41,6 +44,8 @@ from .request_matcher import (
 )
 from .request_matcher_interface import RequestMatcherInterface
 from .response_cookie import cleared_cookie_header_value, cookie_header_value
+from .session import Session, SessionCookieConfig, SessionInterface
+from .session.storage import MemorySessionStorage, SessionStorageInterface
 
 __all__ = [
     "AbstractRequestRateLimiter",
@@ -52,6 +57,7 @@ __all__ = [
     "IpUtils",
     "IpsRequestMatcher",
     "IsJsonRequestMatcher",
+    "MemorySessionStorage",
     "MethodRequestMatcher",
     "PathRequestMatcher",
     "PeekableRequestRateLimiterInterface",
@@ -62,6 +68,10 @@ __all__ = [
     "RequestRateLimitInterface",
     "RequestRateLimiterInterface",
     "SchemeRequestMatcher",
+    "Session",
+    "SessionCookieConfig",
+    "SessionInterface",
+    "SessionStorageInterface",
     "cleared_cookie_header_value",
     "cookie_header_value",
 ]

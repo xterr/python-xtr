@@ -103,6 +103,11 @@ curl -i 'localhost:8080/search?q=a'     # 429 {"error": "too many requests", "li
 - a refusal is answered in the shop's own shape by two exception handlers in `web/app.py`, and
   written to the `security` channel by `observability/rate_limit_audit.py`, which hears the
   `RateLimitExceededEvent` every refusing route dispatches.
+- **A documented deviation in the ordering.** The firewall runs before routing, hence before
+  the route-level `RateLimited` dependencies: an unauthenticated request to a limited route is
+  challenged *before* any limiter is consulted — it consumes none of the route's budget, and
+  its `401` carries no `X-RateLimit-*` headers — while an authenticated request to the same
+  route is limited exactly as before. `demo:rate-limit` pins all three claims.
 
 Limits are not only for routes: `send_receipt` (`messaging/handlers.py`) reserves a slot of the
 mail provider's ten a minute (`outbound_mail`) and waits for it — or, past half a minute, raises
@@ -136,8 +141,10 @@ ADMIN=$(curl -s -X POST localhost:8080/token \
 curl -s -H "Authorization: Bearer $ADMIN" localhost:8080/admin/stats # 200 {"orders": N}
 ```
 
-- `web/routes.py` puts `Firewall()` on the router, so every route authenticates once and is
-  checked against the access-control map; `/token` verifies the password with
+- `web/routes.py` carries no firewall dependency of its own: the firewalls `config/security.py`
+  matches run as the firewall — a subscriber the security bundle registers over the kernel
+  lifecycle's events, before routing — so every route authenticates once and is checked against
+  the access-control map; `/token` verifies the password with
   `UserPasswordHasherInterface` (a dummy hash burned for an unknown identifier, so the timing
   gives nothing away), then signs a token with `JwtTokenManagerInterface`, throttled by the
   `orders_per_email` limiter;
@@ -321,7 +328,7 @@ own, keep every secret out of the repository too.
 | orm | a command and a route reading through repositories; a rolled-back message reported | `commands/order_commands.py`, `web/routes.py`, `web/app.py` |
 | orm | a generated revision | `migrations/` |
 | security | `SecurityConfig` — inline users, `password_hashers`, `role_hierarchy`, one firewall, `access_control` | `config/security.py` |
-| security | `Firewall()` on a router; `CurrentUser()`; `@IsGranted("ROLE_ADMIN")`; `Security.deny_access_unless_granted` in a body | `web/routes.py` |
+| security | `CurrentUser()`; `@IsGranted("ROLE_ADMIN")`; `Security.deny_access_unless_granted` in a body | `web/routes.py` |
 | security | a `Voter` subclass granting `ORDER_VIEW` to an order's owner, gathered by the `security.voter` tag | `ordering/order_voter.py` |
 | security | `UserPasswordHasherInterface` verifying a password, with a dummy-hash timing guard | `web/routes.py` |
 | security | `debug:firewall`, `security:hash-password` | the bundle registers them |

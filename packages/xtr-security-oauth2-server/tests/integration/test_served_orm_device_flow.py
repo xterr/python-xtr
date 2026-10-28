@@ -16,7 +16,6 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from xtr_security_http.firewall.firewall import Firewall
 from xtr_security_oauth2_server_core.oauth2_grants import OAuth2Grants
 
 from tests.support.orm_app import orm_kernel, stored_tables, stored_url
@@ -42,7 +41,7 @@ pytestmark = pytest.mark.anyio
 
 def _application(tmp_path: Path) -> FastAPI:
     """Return the served application of the stored deployment."""
-    return served_application(orm_kernel(tmp_path), dependencies=[Firewall()])
+    return served_application(orm_kernel(tmp_path))
 
 
 async def _device_code(client: httpx.AsyncClient) -> str:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from starlette.responses import JSONResponse
+from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.exception import AuthenticationError
 
 from xtr_security_jwt.event.authentication_failure_event import AuthenticationFailureEvent
@@ -17,7 +17,7 @@ def test_it_derives_from_the_failure_base_and_the_interface() -> None:
 
 def test_it_carries_its_exception_and_response() -> None:
     error = AuthenticationError("gone")
-    response = JSONResponse({})
+    response = ResponseFactory().create_response(401)
     event = JwtExpiredEvent(error, response)
 
     assert event.get_exception() is error

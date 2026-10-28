@@ -6,6 +6,7 @@ from xtr_http_foundation.exception import HttpFoundationError
 _EXPORTED: tuple[type[HttpFoundationError], ...] = (
     exception.HttpFoundationError,
     exception.InvalidArgumentError,
+    exception.SessionError,
 )
 
 

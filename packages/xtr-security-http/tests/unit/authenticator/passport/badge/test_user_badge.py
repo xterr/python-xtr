@@ -8,7 +8,6 @@ import pytest
 from xtr_security_core.exception import (
     AuthenticationServiceError,
     BadCredentialsError,
-    InvalidArgumentError,
 )
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
@@ -53,14 +52,14 @@ def test_an_empty_identifier_is_refused() -> None:
 
 
 def test_an_over_long_identifier_is_refused() -> None:
-    with pytest.raises(InvalidArgumentError):
+    with pytest.raises(BadCredentialsError):
         _ = UserBadge("x" * (MAX_USERNAME_LENGTH + 1))
 
 
-def test_it_is_unresolved_without_a_loader_and_resolves_with_one() -> None:
+def test_it_is_resolved_from_the_start_whatever_a_loader() -> None:
     badge = UserBadge("alice")
 
-    assert badge.is_resolved() is False
+    assert badge.is_resolved() is True
     badge.set_user_loader(InMemoryUser)
     assert badge.is_resolved() is True
 

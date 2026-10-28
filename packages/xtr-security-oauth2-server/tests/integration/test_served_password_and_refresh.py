@@ -12,7 +12,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from xtr_dependency_injection import Injected, Kernel
 from xtr_security import Security
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.oauth2_password_app.config import USER_IDENTIFIER, USER_PASSWORD
 from tests.fixtures.oauth2_password_app.listeners import ISSUED
@@ -36,8 +35,7 @@ pytestmark = pytest.mark.anyio
 
 def _api(app: FastAPI) -> None:
     """Mount one route behind the firewall that reads this server's tokens."""
-    api = Firewall("api")
-    router = APIRouter(prefix="/api", dependencies=[api])
+    router = APIRouter(prefix="/api")
 
     @router.get("/me")
     async def me(security: Injected[Security]) -> dict[str, object]:

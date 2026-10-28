@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
+from xtr_clock import MockClock
 from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user.attributes_based_user_provider_interface import (
     AttributesBasedUserProviderInterface,
@@ -31,6 +33,12 @@ from xtr_security_http.authenticator.oidc.oidc_jwks import (
     OidcKeySetProviderInterface,
 )
 from xtr_security_http.exception import InvalidAccessTokenError
+
+
+def _at(moment: int) -> MockClock:
+    """Freeze a clock at the Unix timestamp ``moment`` names."""
+    return MockClock(datetime.fromtimestamp(moment, UTC))
+
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -61,7 +69,7 @@ def _handler(  # noqa: PLR0913 -- a test builder; every knob defaults
         claim=claim,
         leeway=leeway,
         enforce_at_jwt_type=enforce_at_jwt_type,
-        clock=lambda: now,
+        clock=_at(now),
         user_provider=user_provider,
     )
 
@@ -210,7 +218,7 @@ def test_no_trusted_issuer_is_refused() -> None:
             _provider_for(key),
             issuers=(),
             audience=AUDIENCE,
-            clock=lambda: NOW,
+            clock=_at(NOW),
         )
 
 
@@ -372,7 +380,7 @@ async def test_an_unknown_kid_triggers_one_refetch_then_verifies() -> None:
         provider,
         issuers=(ISSUER,),
         audience=AUDIENCE,
-        clock=lambda: NOW,
+        clock=_at(NOW),
     )
     token = mint(rotated)
 
@@ -398,7 +406,7 @@ async def test_an_unknown_kid_that_stays_unknown_is_refused() -> None:
         _Stubborn(),
         issuers=(ISSUER,),
         audience=AUDIENCE,
-        clock=lambda: NOW,
+        clock=_at(NOW),
     )
 
     with pytest.raises(InvalidAccessTokenError):

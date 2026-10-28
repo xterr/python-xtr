@@ -9,7 +9,7 @@ from typing_extensions import override
 from .token_extractor_interface import TokenExtractorInterface
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
+    from xtr_http_message_contracts import ServerRequestInterface
 
 __all__ = ["QueryParameterTokenExtractor"]
 
@@ -29,6 +29,9 @@ class QueryParameterTokenExtractor(TokenExtractorInterface):
         self._parameter_name = parameter_name
 
     @override
-    def extract(self, request: Request) -> str | None:
+    def extract(self, request: ServerRequestInterface) -> str | None:
         """Return the token in the query parameter, or ``None`` when it is absent."""
-        return request.query_params.get(self._parameter_name) or None
+        value = request.get_query_params().get(self._parameter_name)
+        if not isinstance(value, str) or not value:
+            return None
+        return value

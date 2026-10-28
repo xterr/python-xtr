@@ -158,10 +158,12 @@ async def test_the_token_manager_is_injectable(client: httpx.AsyncClient) -> Non
     assert response.json() == {"manager": "JwtManager"}
 
 
-async def test_the_openapi_schema_names_a_bearer_scheme(client: httpx.AsyncClient) -> None:
+async def test_the_openapi_schema_carries_no_scheme_the_routes_do_not_declare(
+    client: httpx.AsyncClient,
+) -> None:
+    """The firewall contributes no scheme: a route declares security natively or not at all."""
     response = await client.get("/openapi.json")
 
     document = cast("dict[str, object]", response.json())
-    components = cast("dict[str, object]", document["components"])
-    schemes = cast("dict[str, dict[str, object]]", components["securitySchemes"])
-    assert any(scheme.get("scheme") == "bearer" for scheme in schemes.values())
+    components = cast("dict[str, object]", document.get("components", {}))
+    assert "securitySchemes" not in components

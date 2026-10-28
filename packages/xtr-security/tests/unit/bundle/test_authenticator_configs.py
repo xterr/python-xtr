@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from xtr_security.bundle import AccessTokenConfig, ServiceTokenHandlerConfig
+from xtr_security.bundle import (
+    AccessTokenConfig,
+    FormLoginConfig,
+    HttpBasicConfig,
+    JsonLoginConfig,
+    ServiceTokenHandlerConfig,
+)
 from xtr_security.exception import InvalidConfigurationError
 
 
@@ -27,6 +33,41 @@ def test_it_accepts_the_known_extractors() -> None:
     assert config.token_extractors == ("header", "query", "body")
 
 
+def test_it_defaults_to_no_resource_metadata_and_no_sender_constraint() -> None:
+    config = AccessTokenConfig(token_handler=ServiceTokenHandlerConfig(_Handler))
+
+    assert config.resource_metadata_uri is None
+    assert config.sender_constraint is None
+
+
+def test_it_keeps_the_resource_metadata_uri_and_the_sender_constraint_name() -> None:
+    config = AccessTokenConfig(
+        token_handler=ServiceTokenHandlerConfig(_Handler),
+        resource_metadata_uri="/.well-known/oauth-protected-resource",
+        sender_constraint="api.constraint",
+    )
+
+    assert config.resource_metadata_uri == "/.well-known/oauth-protected-resource"
+    assert config.sender_constraint == "api.constraint"
+
+
+def test_an_http_basic_authenticator_defaults_to_the_secured_realm() -> None:
+    config = HttpBasicConfig()
+
+    assert config.realm == "Secured"
+
+
+def test_an_http_basic_authenticator_keeps_its_realm() -> None:
+    config = HttpBasicConfig(realm="api")
+
+    assert config.realm == "api"
+
+
+def test_an_http_basic_authenticator_needs_a_realm() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = HttpBasicConfig(realm="")
+
+
 def test_it_refuses_no_extractor() -> None:
     with pytest.raises(InvalidConfigurationError):
         _ = AccessTokenConfig(
@@ -41,3 +82,13 @@ def test_it_refuses_an_unknown_extractor() -> None:
             token_handler=ServiceTokenHandlerConfig(_Handler),
             token_extractors=("cookie",),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  -- a bad name is rejected at runtime
         )
+
+
+def test_a_form_login_needs_the_path_of_its_page() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = FormLoginConfig(login_path="")
+
+
+def test_a_json_login_refuses_a_check_path_that_names_nothing() -> None:
+    with pytest.raises(InvalidConfigurationError):
+        _ = JsonLoginConfig(check_path="")

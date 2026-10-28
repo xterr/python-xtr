@@ -5,14 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
+from xtr_http_kernel.bridge import ResponseFactory
 
 from xtr_security_http.authentication.authentication_failure_handler_interface import (
     AuthenticationFailureHandlerInterface,
 )
 
 if TYPE_CHECKING:
-    from starlette.requests import Request
-    from starlette.responses import Response
+    from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.exception import AuthenticationError
 
 
@@ -20,11 +20,11 @@ class _Failure(AuthenticationFailureHandlerInterface):
     @override
     async def on_authentication_failure(
         self,
-        request: Request,
+        request: ServerRequestInterface,
         error: AuthenticationError,
-    ) -> Response | None:
+    ) -> ResponseInterface:
         del request, error
-        return None
+        return ResponseFactory().create_response(401)
 
 
 def test_a_conforming_handler_satisfies_the_interface() -> None:

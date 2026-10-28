@@ -21,14 +21,23 @@ classifiers = [
 ]
 dependencies = [
     "xtr-security-core>=4.0,<5",
+    "xtr-security-csrf>=4.0,<5",
     "xtr-http-kernel>=4.0,<5",
     "xtr-http-foundation>=4.0,<5",
     "xtr-http-message-contracts>=4.0,<5",
+    # The client interface the introspection endpoint is reached through; the client
+    # itself is installed by the application that introspects.
+    "xtr-http-client-contracts>=4.0,<5",
+    # The cache contract the introspection responses are cached under; the pool
+    # behind it is the application's choice.
+    "xtr-cache-contracts>=4.0,<5",
     "xtr-dependency-injection>=4.0,<5",
     "xtr-event-dispatcher>=4.0,<5",
     "xtr-event-dispatcher-contracts>=4.0,<5",
+    "xtr-clock>=4.0,<5",
     "xtr-logging-contracts>=4.0,<5",
     "xtr-password-hasher>=4.0,<5",
+    "xtr-rate-limiter>=4.0,<5",
     "fastapi>=0.123",
     "starlette>=0.40",
     "anyio>=4.0",
@@ -38,7 +47,6 @@ dependencies = [
 [project.optional-dependencies]
 oidc = [
     "joserfc>=1.7",
-    "httpx>=0.27",
 ]
 
 [dependency-groups]
@@ -49,10 +57,14 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "httpx>=0.27",
     "joserfc>=1.7",
     # The tests match real requests, so they build the request messages.
     "xtr-http-message>=4.0,<5",
+    # The tests drive the introspection endpoint through the scripted client and
+    # cache the responses in the in-memory pool.
+    "xtr-http-client>=4.0,<5",
+    "xtr-cache>=4.0,<5",
+    "xtr-console>=4.0,<5",
 ]
 
 [build-system]
@@ -74,6 +86,14 @@ reportPrivateUsage = "error"
 # An error message long enough to be useful has to wrap, and a 100-column
 # limit puts the break inside the string.
 reportImplicitStringConcatenation = "none"
+
+# The per-request state names the firewall context it records, the context
+# names the manager that authenticates, and the manager interface takes the
+# state its passes hand each other. The imports are TYPE_CHECKING-only, so no
+# cycle exists at runtime — only in the static graph.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_security_http"
+reportImportCycles = "none"
 
 # Tests reach into what a class keeps to itself, for the same reason ruff's
 # SLF001 is off for tests; the extra path lets them import the support package.

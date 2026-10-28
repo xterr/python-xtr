@@ -16,7 +16,6 @@ from urllib.parse import parse_qsl, urlsplit
 import pytest
 from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
-from xtr_security_http.firewall.firewall import Firewall
 
 from tests.fixtures.extension_app.bundle import OWN_ACCESS_TOKEN_TTL, ExtensionBundle
 from tests.fixtures.extension_app.config import (
@@ -98,15 +97,15 @@ def _mount_the_add_ons_route(app: FastAPI) -> None:
 def _application(env: str = "test") -> FastAPI:
     """Return the served application of the add-on's deployment.
 
-    The firewall goes on the application, unbound, so it stands in front of
-    both the authorization endpoint — where the resource owner is established
-    before anybody is asked to approve — and the add-on's own route. The token
-    endpoint stays outside it, as always.
+    The firewalls the configuration matches run as the firewall — a subscriber
+    over the kernel lifecycle's events — so they stand in front of both the
+    authorization endpoint — where the resource owner is established before
+    anybody is asked to approve — and the add-on's own route. The token
+    endpoint stays outside them, as always.
     """
     return served_application(
         _kernel(env),
         _mount_the_add_ons_route,
-        dependencies=[Firewall()],
     )
 
 
