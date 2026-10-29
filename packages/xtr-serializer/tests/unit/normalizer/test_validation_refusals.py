@@ -2,16 +2,70 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, NamedTuple, final
 
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic_core import ErrorDetails
+from typing_extensions import override
 
 from xtr_serializer.exception import ExtraAttributesError, NotNormalizableValueError
 from xtr_serializer.normalizer._validation_refusals import refusals_of
 
 PLANTED_VALUE = "s3cr3t-t0ken-4f9a"
+
+
+@final
+class Lazy:
+    """An object holding ``method`` behind a property, which counts its reads."""
+
+    def __init__(self) -> None:
+        self.reads: int = 0
+
+    @property
+    def method(self) -> object:
+        self.reads += 1
+        return {"store": 1}
+
+
+@final
+class Slotted:
+    """An object holding ``method`` in a slot."""
+
+    __slots__: ClassVar[tuple[str, ...]] = ("method",)
+
+    method: object
+
+    def __init__(self, *method: object) -> None:
+        if method:
+            [self.method] = method
+
+
+class Pair(NamedTuple):
+    """A tuple subclass whose items are read by index."""
+
+    first: object
+    second: object
+
+
+class Lines(list[object]):
+    """A list subclass whose length raises."""
+
+    @override
+    def __len__(self) -> int:
+        raise RuntimeError(PLANTED_VALUE)
+
+
+class Key:
+    """A key equal to ``"price"`` by hash, whose comparison raises."""
+
+    @override
+    def __hash__(self) -> int:
+        return hash("price")
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        raise RuntimeError(PLANTED_VALUE)
 
 
 class Line(BaseModel):
@@ -100,3 +154,63 @@ def test_the_words_of_a_validator_are_passed_on(error_type: str, message: str) -
     [refusal] = refusals_of([detail], {"end": 1})
 
     assert (refusal.path, refusal.error_type, refusal.message) == ("end", error_type, message)
+
+
+def string_error_at(*loc: str | int) -> ErrorDetails:
+    return ErrorDetails(type="string_type", loc=loc, msg="Input should be a valid string", input=1)
+
+
+def test_an_attribute_behind_a_property_is_located_but_not_read() -> None:
+    data = Lazy()
+
+    [refusal] = refusals_of([string_error_at("method", "Pickup", "store")], data)
+
+    assert refusal.path == "method"
+    assert data.reads == 0
+
+
+def test_an_attribute_in_a_slot_is_walked_through() -> None:
+    data = Slotted({"store": 1})
+
+    [refusal] = refusals_of([string_error_at("method", "Pickup", "store")], data)
+
+    assert refusal.path == "method.store"
+
+
+def test_a_slot_never_set_holds_no_step() -> None:
+    [refusal] = refusals_of([string_error_at("method")], Slotted())
+
+    assert refusal.path is None
+
+
+@pytest.mark.parametrize(
+    "data",
+    [Pair("a", {"store": 1}), Lines(["a", {"store": 1}])],
+    ids=["tuple-subclass", "list-subclass"],
+)
+def test_a_sequence_subclass_is_indexed_as_the_built_in(data: object) -> None:
+    [refusal] = refusals_of([string_error_at(1, "store")], data)
+
+    assert refusal.path == "[1].store"
+
+
+def test_a_field_missing_behind_a_property_ends_the_path_at_the_property() -> None:
+    detail = ErrorDetails(type="missing", loc=("method", "store"), msg="Field required", input={})
+
+    [refusal] = refusals_of([detail], Lazy())
+
+    assert refusal.path == "method"
+
+
+def test_a_value_with_no_fields_holds_no_step() -> None:
+    [refusal] = refusals_of([string_error_at("upper")], "text")
+
+    assert refusal.path is None
+
+
+def test_a_walk_the_data_breaks_off_stops_where_it_was() -> None:
+    data = {"items": {Key(): 1}}
+
+    [refusal] = refusals_of([string_error_at("items", "price")], data)
+
+    assert refusal.path == "items"

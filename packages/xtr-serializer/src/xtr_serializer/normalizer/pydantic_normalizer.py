@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Final, Literal, TypeVar, cast, final, get_args
 
 from pydantic import ConfigDict, TypeAdapter, ValidationError
 from pydantic.errors import PydanticSchemaGenerationError, PydanticUndefinedAnnotation
-from pydantic_core import to_json
+from pydantic_core import from_json, to_json
 from typing_extensions import TypeAliasType, override
 
 from xtr_serializer.exception import (
@@ -35,6 +35,8 @@ from .pydantic_normalizer_keys import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from pydantic_core import ErrorDetails
 
     from xtr_serializer.context.context import Context
     from xtr_serializer.normalized_value import NormalizedValue
@@ -193,7 +195,8 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         by_name = _flag(context, POPULATE_BY_NAME) if by_alias else True
         from_attributes = _flag(context, FROM_ATTRIBUTES) is True
         collect = _flag(context, COLLECT_DENORMALIZATION_ERRORS) is True
-        refusals: list[NotNormalizableValueError] = []
+        details: list[ErrorDetails] = []
+        text: bytes | None = None
         cyclic = False
         try:
             if from_attributes:
@@ -217,11 +220,15 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
                 context=context,
             )
         except ValidationError as error:
-            refusals = refusals_of(error.errors(include_url=False, include_context=False), data)
+            details = error.errors(include_url=False, include_context=False)
         except ValueError as error:  # data holding what has no JSON form, or holding itself
             cyclic = _is_cycle(error)
+        # Located and raised outside the handlers, so no exception holding the data is chained.
         if cyclic:
             raise CircularReferenceError("the data contains itself")
+        # Read as JSON, the data is located in the JSON pydantic read, never in the caller's
+        # object, whose code could run, or which a generator or a set cannot be indexed into.
+        refusals = refusals_of(details, data if text is None else _parsed(text)) if details else []
         if not refusals:
             raise NotNormalizableValueError(
                 "the data holds a value that is not plain data, or is nested too deep",
@@ -297,6 +304,17 @@ def _build_adapter(type_: object) -> TypeAdapter[object] | str:
 def _is_cycle(error: ValueError) -> bool:
     """Tell pydantic's refusal of a value that contains itself, which has no type of its own."""
     return str(error) in _CYCLE_WORDS
+
+
+def _parsed(text: bytes) -> object:
+    """Parse the JSON pydantic read, or give ``None`` when it is nested past what parsing takes.
+
+    pydantic reports such JSON as invalid as a whole, at no path, so nothing is lost.
+    """
+    try:
+        return cast("object", from_json(text))
+    except ValueError:
+        return None
 
 
 def _flag(context: Context, key: str) -> bool | None:

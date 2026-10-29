@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from inspect import getattr_static
+from types import MemberDescriptorType
 from typing import TYPE_CHECKING, Final, cast
 
 from xtr_serializer._loc_path import render_path
@@ -39,7 +39,10 @@ _FIXED_MESSAGES: Final = {
 # What pydantic puts after a mapping key it refused.
 _KEY: Final = "[key]"
 
+# What a step finds when the value does not hold it, and when the value holds it behind code of
+# the data's own — a property, a descriptor — that the walk does not run.
 _ABSENT: Final = object()
+_OPAQUE: Final = object()
 
 
 def refusals_of(details: list[ErrorDetails], data: object) -> list[NotNormalizableValueError]:
@@ -56,6 +59,10 @@ def refusals_of(details: list[ErrorDetails], data: object) -> list[NotNormalizab
     pydantic reports each field an object should not have on its own; they are reported as one
     error naming them all, where the first of them was, as a reader would want to hear about a
     misspelled object. An error pydantic reports once per union member it tried is reported once.
+
+    ``data`` is walked without running any of its code: a dict or a list is looked into as one,
+    whatever its class overrides, and an object only through the attributes it stores. A step
+    held behind a property ends the path there, as does a step whose lookup fails.
     """
     located = [(detail, _steps(detail, data)) for detail in details]
     extras: dict[str | None, list[str]] = {}
@@ -99,7 +106,8 @@ def _steps(detail: ErrorDetails, data: object) -> list[str | int]:
     """Keep the keys and indexes of the error's location that lead through ``data``.
 
     A step the data does not hold names the union member pydantic tried, unless it is the last
-    one of a field the data lacks. A refused key is left out with its marker.
+    one of a field the data lacks. A refused key is left out with its marker. The walk stops at
+    a value it cannot look into, keeping the steps that led there.
     """
     loc = detail["loc"]
     if loc[-1:] == (_KEY,):
@@ -107,28 +115,56 @@ def _steps(detail: ErrorDetails, data: object) -> list[str | int]:
     steps: list[str | int] = []
     current = data
     for index, step in enumerate(loc, start=1):
-        if _holds(current, step):
+        if current is _OPAQUE:
+            break
+        try:
+            found = _value_at(current, step)
+        except Exception:  # noqa: BLE001 - a key's own comparison failed; the path ends here
+            break
+        if found is not _ABSENT:
             steps.append(step)
-            if index < len(loc):  # an object's attribute is read only on the way to another
-                current = _value_at(current, step)
+            current = found
         elif index == len(loc) and detail["type"] == "missing":
             steps.append(step)
     return steps
 
 
-def _holds(value: object, step: str | int) -> bool:
-    """Tell whether ``value`` has ``step`` as a key, an index or an attribute, reading nothing."""
-    if isinstance(value, Mapping):
-        return step in cast("Mapping[object, object]", value)
-    if isinstance(value, list | tuple):
-        return isinstance(step, int) and 0 <= step < len(cast("Sequence[object]", value))
-    return isinstance(step, str) and getattr_static(value, step, _ABSENT) is not _ABSENT
-
-
 def _value_at(value: object, step: str | int) -> object:
-    """Read what ``value`` holds at ``step``, which :func:`_holds` found there."""
-    if isinstance(value, Mapping):
-        return cast("Mapping[object, object]", value)[step]
-    if isinstance(step, int):
-        return cast("Sequence[object]", value)[step]
-    return cast("object", getattr(value, step))
+    """Find what ``value`` holds at ``step`` as a key, an index or a stored attribute.
+
+    The built-in lookups are called directly, so a subclass overriding them is not run.
+    """
+    kind = type(value)
+    if issubclass(kind, dict):
+        return dict[object, object].get(cast("dict[object, object]", value), step, _ABSENT)
+    if issubclass(kind, list | tuple):
+        items = _items_of(cast("list[object] | tuple[object, ...]", value))
+        return items[step] if isinstance(step, int) and 0 <= step < len(items) else _ABSENT
+    if value is None or issubclass(kind, str | bytes | int | float) or not isinstance(step, str):
+        return _ABSENT
+    return _attribute_at(value, step)
+
+
+def _items_of(value: list[object] | tuple[object, ...]) -> list[object] | tuple[object, ...]:
+    """Give a plain list or tuple of the items, copied by the built-in when a subclass holds them.
+
+    Data read as JSON holds plain ones, indexed as they are.
+    """
+    if type(value) is list or type(value) is tuple:
+        return value
+    if isinstance(value, list):
+        return list[object].copy(value)
+    return tuple[object, ...].__getitem__(value, slice(None))
+
+
+def _attribute_at(value: object, step: str) -> object:
+    """Find the attribute ``step`` that ``value`` stores, or :data:`_OPAQUE` behind code."""
+    attribute = cast("object", getattr_static(value, step, _ABSENT))
+    if type(attribute) is MemberDescriptorType:  # a slot, read by the interpreter alone
+        try:
+            return cast("object", attribute.__get__(value))
+        except AttributeError:  # a slot never set
+            return _ABSENT
+    if getattr_static(type(attribute), "__get__", _ABSENT) is not _ABSENT:
+        return _OPAQUE
+    return attribute

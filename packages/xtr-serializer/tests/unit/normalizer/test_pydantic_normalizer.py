@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from pydantic import ImportString, TypeAdapter
 from pydantic_core import to_json
+from typing_extensions import override
 
 from tests.fixtures.orders import (
     Cart,
@@ -77,6 +78,32 @@ TOO_DEEP = "Circular reference detected (depth exceeded)"
 
 class Opaque:
     """A class pydantic has no schema for."""
+
+
+class Trap(dict[str, object]):
+    """A dict whose lookups raise, as code the data carries may."""
+
+    @override
+    def __contains__(self, key: object) -> bool:
+        raise RuntimeError(PLANTED_VALUE)
+
+    @override
+    def __getitem__(self, key: str) -> object:
+        raise RuntimeError(PLANTED_VALUE)
+
+
+class Row:
+    """An object whose ``method`` can be read once, as a stream or a lazy load may."""
+
+    def __init__(self) -> None:
+        self.reads: int = 0
+
+    @property
+    def method(self) -> object:
+        self.reads += 1
+        if self.reads > 1:
+            raise RuntimeError(PLANTED_VALUE)
+        return SimpleNamespace(kind="pickup", store=1)
 
 
 def chain_of_nodes(depth: int) -> Node:
@@ -613,6 +640,49 @@ def test_it_reports_a_refused_key_at_its_mapping_without_the_key() -> None:
 
 
 @pytest.mark.parametrize(
+    "context", [{}, {FROM_ATTRIBUTES: True}], ids=["read-as-json", "read-from-attributes"]
+)
+def test_it_locates_an_error_without_running_the_lookups_of_the_data(context: Context) -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize(Trap(sku="A", price="1"), Item, context=context)
+
+    assert raised.value.path == "price"
+    assert raised.value.__context__ is None
+
+
+def test_it_reads_an_attribute_of_refused_data_once() -> None:
+    row = Row()
+
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize(row, Dispatch, context={FROM_ATTRIBUTES: True})
+
+    assert row.reads == 1
+    assert raised.value.path == "method"
+    assert raised.value.__context__ is None
+
+
+@pytest.mark.parametrize(
+    ("data", "type_", "paths"),
+    [
+        ((price for price in ("a", "b")), list[int], {"[0]", "[1]"}),
+        (frozenset({"a", "b"}), frozenset[int], {"[0]", "[1]"}),
+        ({1: "a", 2: "b"}, dict[int, int], {"1", "2"}),
+    ],
+    ids=["generator", "set", "integer-keys"],
+)
+def test_it_locates_each_error_where_the_data_read_as_json_has_it(
+    data: object, type_: object, paths: set[str]
+) -> None:
+    with pytest.raises(PartialDenormalizationError) as raised:
+        _ = PydanticNormalizer().denormalize(
+            data, type_, context={COLLECT_DENORMALIZATION_ERRORS: True}
+        )
+
+    assert {error.path for error in raised.value.errors} == paths
+    assert len(raised.value.errors) == 2
+
+
+@pytest.mark.parametrize(
     ("type_", "error_type", "message"),
     [
         (Slot, "value_error", "Value error, end must follow start"),
@@ -669,6 +739,14 @@ def test_it_refuses_to_read_data_too_deep_to_read_without_calling_it_circular() 
         _ = PydanticNormalizer().denormalize(nested_lists(1000), list[object])
 
     assert type(raised.value) is NotNormalizableValueError
+
+
+def test_it_refuses_data_too_deep_to_parse_back_as_a_whole() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize(nested_lists(250), list[object])
+
+    assert (raised.value.error_type, raised.value.path) == ("json_invalid", None)
+    assert raised.value.__context__ is None
 
 
 def test_a_value_quoting_the_words_of_a_cycle_is_not_a_cycle() -> None:
