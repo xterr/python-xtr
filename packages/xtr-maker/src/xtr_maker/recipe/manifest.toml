@@ -9,7 +9,12 @@
 # No [files], [env] or [gitignore]: the makers need no configuration, read no
 # variable and write nothing a repository should not track.
 
+# No [notes] steps: listing the bundle is every step *Use in an application* asks
+# for. Installing is the one thing before it, and `uv add --dev xtr-maker` is what
+# brought this recipe here.
+
 [notes]
 check = [
+  "<script> debug:bundles — maker is listed and active in dev",
   "<script> list make — the make:* commands, one for each library whose bundle is active",
 ]
