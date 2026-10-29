@@ -11,6 +11,7 @@ from email_validator import EmailNotValidError, validate_email
 from typing_extensions import override
 
 from ._engine import Mailbox, encode_idn_address, header_body
+from ._lone_surrogate import LONE_SURROGATE
 from .exception import InvalidArgumentError, RfcComplianceError
 
 if TYPE_CHECKING:
@@ -21,9 +22,6 @@ __all__ = ["Address"]
 _TRIMMED: Final = " \t\n\r\0\x0b"
 _NAME_CONTROL_CHARACTERS: Final = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
 _ADDRESS_CONTROL_CHARACTERS: Final = re.compile(r"[\x00-\x1f\x7f]")
-# A byte that failed to decode survives in a str as a lone surrogate: it is not text, and the
-# engine of some Python versions cannot write one in a quoted name.
-_LONE_SURROGATE: Final = re.compile(r"[\ud800-\udfff]")
 
 # `Name <address>`: everything between the first "<" and the last ">" is the address, so a
 # quoted local part may hold angle brackets; whatever follows the last ">" is dropped.
@@ -99,7 +97,7 @@ class Address:
             raise RfcComplianceError(
                 f'Email "{address}" does not comply with addr-spec of RFC 5322.'
             )
-        if _LONE_SURROGATE.search(self._name):
+        if LONE_SURROGATE.search(self._name):
             raise RfcComplianceError(
                 f"The display name {name!r} holds a lone surrogate, left by a byte that did not "
                 "decode; a name must be text."

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Final, final
 
+from ._lone_surrogate import LONE_SURROGATE
 from .address import Address
 from .exception import InvalidArgumentError, RfcComplianceError
 
@@ -14,8 +15,6 @@ if TYPE_CHECKING:
 __all__ = ["Group"]
 
 _CONTROL_CHARACTERS: Final = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
-# A byte that failed to decode survives in a str as a lone surrogate: it is not text.
-_LONE_SURROGATE: Final = re.compile(r"[\ud800-\udfff]")
 
 
 @final
@@ -41,7 +40,7 @@ class Group:
         self._name = _CONTROL_CHARACTERS.sub("", name).strip(" \t\n\r\0\x0b")
         if not self._name:
             raise InvalidArgumentError("A group must have a display name.")
-        if _LONE_SURROGATE.search(self._name):
+        if LONE_SURROGATE.search(self._name):
             raise RfcComplianceError(
                 f"The group name {name!r} holds a lone surrogate, left by a byte that did not "
                 "decode; a name must be text."

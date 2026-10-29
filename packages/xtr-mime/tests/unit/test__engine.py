@@ -418,11 +418,10 @@ def test_an_identifier_outside_the_msg_id_grammar_is_refused(identifier: str) ->
         _engine.check_message_id(identifier)
 
 
-def test_a_quoted_pair_in_an_identifier_would_not_read_back_canary() -> None:
-    """Why an id holds no quoted pair: the engine reads ``\\<`` back as ``<``, another id."""
-    raw = b'Message-ID: <"a\\<\\>b"@c>\r\n\r\n'
-
-    assert BytesParser(policy=stdlib_policy.default).parsebytes(raw)["Message-ID"] == '<"a<>b"@c>'
+def test_an_identifier_holding_a_quoted_pair_never_reaches_the_wire() -> None:
+    """Why an id holds no quoted pair: it reads back without its backslash, as another id."""
+    with pytest.raises(RfcComplianceError, match="identifier"):
+        _ = _render_with("Message-ID", MessageIds(('"a\\<\\>b"@c',)))
 
 
 def test_an_identifier_header_needs_at_least_one_identifier() -> None:
@@ -466,18 +465,25 @@ def test_a_path_that_is_not_an_address_is_refused(address: str) -> None:
         _ = _engine.fold_header("Return-Path", Path(address))
 
 
-def test_the_bare_engine_still_mangles_a_unicode_domain_gh_83938_canary() -> None:
-    """CPython gh-83938: the engine writes a raw Unicode domain as an encoded word.
+@pytest.mark.parametrize(
+    ("value", "written"),
+    [
+        ([Mailbox("Alice", "alice@dømi.fo")], "To: Alice <alice@xn--dmi-0na.fo>"),
+        (
+            [MailboxGroup("Team", (Mailbox("Alice", "alice@dømi.fo"),))],
+            "To: Team: Alice <alice@xn--dmi-0na.fo>;",
+        ),
+    ],
+)
+def test_a_unicode_domain_never_reaches_the_wire_as_an_encoded_word(
+    value: HeaderValue, written: str
+) -> None:
+    """CPython gh-83938: the package writes a raw Unicode domain as an encoded word.
 
-    When this starts failing the engine renders the domain correctly by itself and the
-    punycoding in ``encode_idn_address`` (and its call in the address rendering) can go.
+    No server accepts that address. Whether or not the release still does it, the engine
+    punycodes every domain before the package sees it, a group member's included.
     """
-    message = EmailMessage(policy=_engine.POLICY)
-    message["From"] = Address("Alice", addr_spec="alice@dømi.fo")
-
-    field = message.as_bytes().split(b"\r\n\r\n", 1)[0].decode("ascii")
-
-    assert "alice@=?utf-8?" in field.lower()
+    assert _render_with("To", value).startswith(f"{written}\r\n".encode())
 
 
 def test_a_unicode_domain_is_punycoded_before_the_engine_sees_it() -> None:
@@ -689,15 +695,18 @@ def test_the_engine_written_address_list_keeps_a_raw_utf8_name_raw() -> None:
     )
 
 
-def test_the_engine_still_writes_a_decoded_display_name_as_an_address_canary() -> None:
-    """Why names are kept literal: the bare engine turns this one into another recipient."""
-    message = EmailMessage(policy=_engine.POLICY)
-    message["Reply-To"] = Address(ENCODED_WORD_NAME, addr_spec="real@example.com")
+def test_the_header_some_releases_write_for_an_encoded_word_name_is_refused() -> None:
+    """Why names are kept literal: some releases write this one decoded and unquoted.
 
-    parsed = HeaderParser(policy=stdlib_policy.default).parsestr(message.as_string())
+    3.11.5 and 3.12.0 among them write the header below, which reads as another recipient.
+    Whatever the release, the engine refuses the name before the package sees it, and would
+    refuse that header too.
+    """
+    given = [Address(ENCODED_WORD_NAME, addr_spec="real@example.com")]
+    written = "Reply-To: evil@attacker.com <evil@attacker.com> <real@example.com>\r\n"
 
-    header = cast("AddressHeader", parsed["Reply-To"])
-    assert header.addresses[0].addr_spec == "evil@attacker.com"
+    with pytest.raises(RfcComplianceError, match="read back"):
+        _engine._check_reads_back("Reply-To", given, written)
 
 
 def test_a_folded_address_header_reading_back_to_other_addresses_is_refused() -> None:
@@ -935,10 +944,11 @@ def test_a_media_type_part_that_is_not_a_token_is_refused(token: str) -> None:
 
 
 def test_a_binary_quoted_printable_line_may_run_to_77_characters() -> None:
-    """The engine's binary quoted-printable writer (``binascii.b2a_qp``) breaks the 76 limit.
+    """The engine's binary quoted-printable writer (``binascii.b2a_qp``) may break the 76 limit.
 
     A line feed right after 76 bytes gets a soft break after the 76th character, so that line
-    is 77 long. Readers accept it; when this starts failing the engine keeps the limit itself.
+    is 77 long. Readers accept it; whether or not the release still does it, no line runs
+    longer and the body decodes back.
     """
     content = b"a" * 76 + b"\n"
     leaf = BinaryLeaf(
@@ -948,7 +958,7 @@ def test_a_binary_quoted_printable_line_may_run_to_77_characters() -> None:
     raw = _engine.to_bytes(_engine.build_binary(leaf))
 
     body = raw.split(b"\r\n\r\n", 1)[1]
-    assert max(len(line) for line in body.split(b"\r\n")) == 77
+    assert max(len(line) for line in body.split(b"\r\n")) <= 77
     assert quopri.decodestring(body) == content
 
 
