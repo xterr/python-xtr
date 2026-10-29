@@ -109,6 +109,18 @@ def test_configure_locks_the_content_it_wrote(planner: RecipePlanner) -> None:
     assert planned.files == {_LOCKED: LockedFile(_sha256(_RENDERED), adopted=False)}
 
 
+def test_configure_renders_a_nested_application_by_its_dotted_name(tmp_path: Path) -> None:
+    nested = build_project(tmp_path, app="acme.shop", dependencies=[_PACKAGE])
+
+    planned = RecipePlanner(nested, MarkedBlockEditor()).configure(_recipe())
+
+    assert planned.files == {
+        "src/acme/shop/config/messenger.py": LockedFile(
+            _sha256("MESSENGER = acme.shop\n"), adopted=False
+        ),
+    }
+
+
 def test_configure_creates_the_config_package_once(planner: RecipePlanner) -> None:
     first = planner.configure(_recipe())
     second = planner.configure(_recipe(files={"config/orm.py": _TEMPLATE}))

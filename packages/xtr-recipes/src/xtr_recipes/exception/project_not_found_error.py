@@ -16,18 +16,18 @@ __all__ = ["ProjectNotFoundError"]
 class ProjectNotFoundError(RecipesError):
     """The project, or the application package inside it, is not where expected.
 
-    Raised in two situations: no ``pyproject.toml`` lies at or above the
-    directory searched, or the application import name — from
-    ``[tool.xtr-recipes] app`` when set, otherwise ``[project].name``
-    normalised — resolves to neither ``src/<app>/`` nor ``<app>/``. The
-    setting that chose the name is named, so the fix is to correct that
-    setting rather than to guess where the application lives.
+    Raised when no ``pyproject.toml`` lies at or above the directory
+    searched; when not exactly one package under ``src/`` or the project root
+    holds a ``kernel.py`` — the file that marks the application package; and
+    when ``pyproject.toml`` still carries a setting that once named that
+    package and is no longer read, so the owner deletes it rather than
+    believing it still applies.
 
     Attributes:
         directory: The directory that was searched.
         reason: What was looked for and not found.
-        setting: The setting the application name came from, or ``None`` when
-            no project file was found at all.
+        setting: The ``pyproject.toml`` setting at fault, or ``None`` when no
+            setting is.
     """
 
     directory: Path
@@ -41,5 +41,5 @@ class ProjectNotFoundError(RecipesError):
         self.setting = setting
         message = f"no application project at {directory}: {reason}"
         if setting is not None:
-            message = f"{message} (from {setting})"
+            message = f"{message} (setting: {setting})"
         super().__init__(message)
