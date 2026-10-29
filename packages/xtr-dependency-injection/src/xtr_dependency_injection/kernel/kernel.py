@@ -1,6 +1,7 @@
 r"""The kernel: one line for the application, the whole build behind it.
 
-``Kernel("app")`` does no work; it is a recipe. ``build()`` runs every step
+``Kernel(__package__)``, in the application package's ``kernel.py``, does no
+work; it is a recipe. ``build()`` runs every step
 below, in order, and returns a compiled container — each call independent of
 the last, so tests and several kernels in one process never share a
 container. The steps are:
@@ -54,6 +55,7 @@ from xtr_dependency_injection.decorator.lifecycle import on_boot_of, on_shutdown
 from xtr_dependency_injection.diagnostics import DefinitionReport
 from xtr_dependency_injection.diagnostics.report import KernelReport, ReportBuilder
 from xtr_dependency_injection.exception import (
+    InvalidArgumentError,
     InvalidArgumentTypeError,
     InvalidEnvironmentError,
     InvalidEnvironmentVariableError,
@@ -118,7 +120,7 @@ class Kernel:
 
     def __init__(  # noqa: PLR0913 — each argument is a separate, optional decision.
         self,
-        package: str | ModuleType,
+        package: str | ModuleType | None,
         /,
         *,
         env: str | None = None,
@@ -134,7 +136,9 @@ class Kernel:
         """Store the kernel's recipe.
 
         Args:
-            package: The application package, scanned recursively.
+            package: The application package, scanned recursively: its dotted
+                name or the module. ``Kernel(__package__)`` in the package's
+                own ``kernel.py`` names it once, where it cannot drift.
             env: The environment; default ``APP_ENV``, else ``"dev"``.
             debug: Debug mode; default ``APP_DEBUG``, else true outside
                 ``"prod"``.
@@ -156,8 +160,19 @@ class Kernel:
             environ: Where ``APP_ENV``, ``APP_DEBUG`` and every ``env(...)``
                 placeholder are read; ``None`` reads the live process
                 environment. A test gives each kernel its own.
+
+        Raises:
+            InvalidArgumentError: If ``package`` is ``None`` or empty — what
+                ``__package__`` is in a script run on its own, outside any
+                package.
         """
-        self._package = package
+        if package is None or package == "":
+            msg = (
+                f"Kernel was given {package!r} as the application package; put kernel.py "
+                "inside the application package and build the kernel with Kernel(__package__)"
+            )
+            raise InvalidArgumentError(msg)
+        self._package: str | ModuleType = package
         self._env = env
         self._debug = debug
         self._name = name
@@ -173,7 +188,12 @@ class Kernel:
     @property
     def name(self) -> str:
         """The application's name."""
-        return self._name if self._name is not None else self._package_name.rsplit(".", 1)[-1]
+        return self._name if self._name is not None else self.package.rsplit(".", 1)[-1]
+
+    @property
+    def package(self) -> str:
+        """The application package, dotted."""
+        return self._package if isinstance(self._package, str) else self._package.__name__
 
     @property
     def environment(self) -> str:
@@ -239,11 +259,10 @@ class Kernel:
         """Run steps 1 to 6 and return the compiled container, not yet booted."""
         environment, debug = self.environment, self.debug
         _check_environment(environment, self._allowed_envs)
-        listed = (
-            self._bundles if self._bundles is not None else load_bundle_list(self._package_name)
-        )
+        listed = self._bundles if self._bundles is not None else load_bundle_list(self.package)
         prepared = prepare(
             name=self.name,
+            package=self.package,
             environment=environment,
             debug=debug,
             project_dir=self.project_dir,
@@ -296,10 +315,6 @@ class Kernel:
             raise InvalidArgumentTypeError(msg)
         return result
 
-    @property
-    def _package_name(self) -> str:
-        return self._package if isinstance(self._package, str) else self._package.__name__
-
 
 @dataclass(frozen=True, slots=True)
 class Assembly:
@@ -321,6 +336,7 @@ class Assembly:
 def assemble(  # noqa: PLR0913 — steps 3 to 5 need all of these.
     *,
     name: str,
+    package: str,
     bundles: Sequence[AnyBundle],
     active: Sequence[str],
     inactive_config_owners: Mapping[type, str],
@@ -348,6 +364,7 @@ def assemble(  # noqa: PLR0913 — steps 3 to 5 need all of these.
     _register_kernel_parameters(
         state,
         name=name,
+        package=package,
         environment=environment,
         debug=debug,
         project_dir=project_dir,
@@ -413,6 +430,7 @@ class Prepared:
 def prepare(  # noqa: PLR0913 — each input is a separate build decision.
     *,
     name: str,
+    package: str,
     environment: str,
     debug: bool,
     project_dir: Path,
@@ -430,7 +448,9 @@ def prepare(  # noqa: PLR0913 — each input is a separate build decision.
     do differently.
     """
     core = KernelBundle()
-    core.info.identify(name=name, environment=environment, debug=debug, project_dir=project_dir)
+    core.info.identify(
+        name=name, package=package, environment=environment, debug=debug, project_dir=project_dir
+    )
     report = ReportBuilder()
     resolved = resolve_bundles(core=core, listed=listed, env=environment)
     active = [type(bundle).metadata().name for bundle in resolved.bundles]
@@ -439,6 +459,7 @@ def prepare(  # noqa: PLR0913 — each input is a separate build decision.
     inactive_config_owners = _inactive_config_owners(listed, active)
     assembly = assemble(
         name=name,
+        package=package,
         bundles=resolved.bundles,
         active=active,
         inactive_config_owners=inactive_config_owners,
@@ -518,10 +539,11 @@ def _prepare_container(
         compiler.add_pass(pass_class(), marker.stage, marker.priority, origin=origin)
 
 
-def _register_kernel_parameters(  # noqa: PLR0913 — the kernel identity is a fixed 5-field shape.
+def _register_kernel_parameters(  # noqa: PLR0913 — the kernel identity is a fixed 6-field shape.
     state: BuildState,
     *,
     name: str,
+    package: str,
     environment: str,
     debug: bool,
     project_dir: Path,
@@ -529,10 +551,10 @@ def _register_kernel_parameters(  # noqa: PLR0913 — the kernel identity is a f
 ) -> None:
     """Register the ``kernel.*`` parameters into ``state`` before any bundle's ``build`` runs.
 
-    The kernel exposes ``kernel.name``, ``kernel.environment``, ``kernel.debug``,
-    ``kernel.project_dir``, ``kernel.share_dir`` and ``kernel.bundles`` (name →
-    class) from the very beginning of the container build; every bundle's hook
-    may read them.
+    The kernel exposes ``kernel.name``, ``kernel.package``, ``kernel.environment``,
+    ``kernel.debug``, ``kernel.project_dir``, ``kernel.share_dir`` and
+    ``kernel.bundles`` (name → class) from the very beginning of the container
+    build; every bundle's hook may read them.
     """
     bundles_map = {type(bundle).metadata().name: qualified_name(type(bundle)) for bundle in bundles}
     state.add_parameters(
@@ -540,6 +562,7 @@ def _register_kernel_parameters(  # noqa: PLR0913 — the kernel identity is a f
         {
             KERNEL_BUNDLE: {
                 "name": name,
+                "package": package,
                 "environment": environment,
                 "debug": debug,
                 "project_dir": str(project_dir),
