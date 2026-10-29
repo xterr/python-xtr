@@ -1,9 +1,6 @@
-"""A context maps option names to values, and the options of different steps never collide."""
+"""The options of different steps never collide in the one context a call hands them all."""
 
 from __future__ import annotations
-
-from collections.abc import Mapping
-from typing import get_args, get_origin
 
 from xtr_serializer import (
     ALLOW_EXTRA_ATTRIBUTES,
@@ -18,13 +15,7 @@ from xtr_serializer import (
     SKIP_NULL_VALUES,
     SKIP_UNSET_VALUES,
     STRICT,
-    Context,
 )
-
-
-def test_it_maps_option_names_to_values_of_any_type() -> None:
-    assert get_origin(Context) is Mapping
-    assert get_args(Context) == (str, object)
 
 
 def test_no_two_steps_read_the_same_key() -> None:

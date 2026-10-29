@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final, final
 
-from pydantic import ConfigDict, JsonValue, TypeAdapter, ValidationError
+from pydantic import ConfigDict, TypeAdapter, ValidationError
 from pydantic_core import PydanticSerializationError, from_json, to_json
 from typing_extensions import override
 
@@ -14,6 +14,7 @@ from xtr_serializer.exception import (
     NotEncodableValueError,
     UnsupportedFormatError,
 )
+from xtr_serializer.normalized_value import NormalizedValue
 
 from .decoder_interface import DecoderInterface
 from .encoder_interface import EncoderInterface
@@ -21,13 +22,12 @@ from .json_encoder_keys import JSON_INDENT
 
 if TYPE_CHECKING:
     from xtr_serializer.context.context import Context
-    from xtr_serializer.normalized_value import NormalizedValue
 
 __all__ = ["JsonEncoder"]
 
 # Strict: only JSON's own types pass, not a tuple or a set. Finite: NaN and infinity are refused.
-_JSON_VALUE: Final[TypeAdapter[JsonValue]] = TypeAdapter(
-    JsonValue, config=ConfigDict(strict=True, allow_inf_nan=False)
+_JSON_VALUE: Final[TypeAdapter[NormalizedValue]] = TypeAdapter(
+    NormalizedValue, config=ConfigDict(strict=True, allow_inf_nan=False)
 )
 
 # Wider reads no easier. And the writer lays out the whole indent before it writes a byte: a count

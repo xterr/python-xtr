@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from tests.support.round_trips import round_trips
 from xtr_serializer.exception import LogicError, MappingError, SerializerError
-
-from .round_trips import round_trips
 
 if TYPE_CHECKING:
     from collections.abc import Callable

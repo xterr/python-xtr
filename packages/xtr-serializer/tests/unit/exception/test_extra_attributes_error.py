@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.support.round_trips import round_trips
 from xtr_serializer.exception import (
     ExtraAttributesError,
     InvalidArgumentError,
@@ -13,8 +14,6 @@ from xtr_serializer.exception import (
     SerializerError,
     UnexpectedValueError,
 )
-
-from .round_trips import round_trips
 
 if TYPE_CHECKING:
     from collections.abc import Callable

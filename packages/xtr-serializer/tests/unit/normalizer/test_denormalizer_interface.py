@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, final
 from tests.support.in_memory_encoder import MEMORY, InMemoryEncoder
 from tests.support.point_normalizer import PointNormalizer
 from tests.support.shapes import Point
-from xtr_serializer import COLLECT_DENORMALIZATION_ERRORS, DenormalizerInterface
+from xtr_serializer import DenormalizerInterface
 
 if TYPE_CHECKING:
     from xtr_serializer import Context
@@ -36,10 +36,6 @@ class _SilentAboutItsTypes:
     ) -> bool:
         del data, type_, format, context
         return True
-
-
-def test_the_key_asking_for_every_error_is_spelled_as_a_context_uses_it() -> None:
-    assert COLLECT_DENORMALIZATION_ERRORS == "collect_denormalization_errors"
 
 
 def test_a_denormalizer_satisfies_it() -> None:

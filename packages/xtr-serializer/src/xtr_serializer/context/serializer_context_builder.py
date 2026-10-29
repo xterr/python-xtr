@@ -2,35 +2,26 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import final
 
 from xtr_serializer.normalizer.denormalizer_interface import COLLECT_DENORMALIZATION_ERRORS
 
-if TYPE_CHECKING:
-    from .context import Context
+from ._context_builder_trait import ContextBuilderTrait
 
 __all__ = ["SerializerContextBuilder"]
 
 
 @final
-class SerializerContextBuilder:
+class SerializerContextBuilder(ContextBuilderTrait):
     """Builds the options that concern a whole call rather than one normalizer or encoder.
 
     Immutable: setting an option returns a new builder and leaves this one as it was, so a
     builder holding an application's defaults can be extended for one call without that call's
-    options reaching the next.
+    options reaching the next. Nothing a caller does to the context it starts from, or to the
+    one it returns, reaches it.
     """
 
-    __slots__ = ("_context",)
-
-    def __init__(self, context: Context | None = None) -> None:
-        """Start from the options in ``context``, or from none.
-
-        Args:
-            context: The options to start from — an application's defaults, or what another
-                builder built. Copied, so a later change to it does not reach this builder.
-        """
-        self._context: dict[str, object] = dict(context or {})
+    __slots__ = ()
 
     def with_collect_denormalization_errors(
         self,
@@ -40,10 +31,4 @@ class SerializerContextBuilder:
 
         Sets :data:`~xtr_serializer.COLLECT_DENORMALIZATION_ERRORS`.
         """
-        return SerializerContextBuilder(
-            {**self._context, COLLECT_DENORMALIZATION_ERRORS: collect_denormalization_errors},
-        )
-
-    def to_dict(self) -> dict[str, object]:
-        """Return the options built so far, as a new dictionary to pass to a call."""
-        return dict(self._context)
+        return self._with(COLLECT_DENORMALIZATION_ERRORS, collect_denormalization_errors)
