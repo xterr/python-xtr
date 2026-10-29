@@ -50,7 +50,11 @@ _ATTEMPTS: Final = 3
 """How many times a question is asked: an input that has ended answers empty every time."""
 
 _LINE_LENGTH: Final = 88
-"""The formatter's default line length: a longer line is written the way it splits it."""
+"""The formatter's default line length: a longer line is split with a trailing comma.
+
+The comma keeps the split as it is whatever line length the application allows;
+without it, the formatter would join the line back wherever lines may be longer.
+"""
 
 _INDENT: Final = "    "
 
@@ -331,21 +335,18 @@ def _literal(value: str) -> str:
 
 
 def _decorator(decorator: str, argument: str) -> str:
-    """Return ``@decorator(argument)`` for a method, split the way the formatter splits it."""
+    """Return ``@decorator(argument)`` for a method, split with a trailing comma when long."""
     line = f"@{decorator}({argument})"
     if len(_INDENT + line) <= _LINE_LENGTH:
         return line
-    return f"@{decorator}(\n{_INDENT * 2}{argument}\n{_INDENT})"
+    return f"@{decorator}(\n{_INDENT * 2}{argument},\n{_INDENT})"
 
 
 def _signature(method: str, event_type: str) -> str:
-    """Return the method's ``async def`` line, split the way the formatter splits it."""
+    """Return the method's ``async def`` line, one parameter per line when long."""
     line = f"async def {method}(self, event: {event_type}) -> None:"
     if len(_INDENT + line) <= _LINE_LENGTH:
         return line
-    parameters = f"{_INDENT * 2}self, event: {event_type}"
-    if len(parameters) <= _LINE_LENGTH:
-        return f"async def {method}(\n{parameters}\n{_INDENT}) -> None:"
     return (
         f"async def {method}(\n{_INDENT * 2}self,\n{_INDENT * 2}event: {event_type},\n"
         f"{_INDENT}) -> None:"
@@ -353,9 +354,9 @@ def _signature(method: str, event_type: str) -> str:
 
 
 def _subscribed(key: str, method: str) -> str:
-    """Return the ``return`` of ``get_subscribed_events``, split the way the formatter splits it."""
+    """Return the ``return`` of ``get_subscribed_events``, split with a trailing comma when long."""
     entry = f"{key}: {_literal(method)}"
     line = f"return {{{entry}}}"
     if len(_INDENT * 2 + line) <= _LINE_LENGTH:
         return line
-    return f"return {{\n{_INDENT * 3}{entry}\n{_INDENT * 2}}}"
+    return f"return {{\n{_INDENT * 3}{entry},\n{_INDENT * 2}}}"

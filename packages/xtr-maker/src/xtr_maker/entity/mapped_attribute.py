@@ -34,15 +34,14 @@ class MappedAttribute:
         """Return the statement, without its indentation, ending with a newline.
 
         It is written on one line when that line, ``indent`` columns in, fits
-        ``line_length``; otherwise the arguments go on a line of their own,
-        and when even that is too long, one per line with a trailing comma —
-        what the formatter writes, so the file needs no formatting.
+        ``line_length``; otherwise one argument per line with a trailing
+        comma, which the formatter keeps as it is whatever line length the
+        application allows — a split without that comma would be joined back
+        wherever lines may be longer.
         """
         head = f"{self.name}: {self.mapped}[{self.annotation}] = {self.call}("
         joined = ", ".join(self.arguments)
         if indent + len(head) + len(joined) + 1 <= line_length:
             return f"{head}{joined})\n"
-        if indent + len(_INDENT) + len(joined) <= line_length:
-            return f"{head}\n{_INDENT}{joined}\n)\n"
         lines = "".join(f"{_INDENT}{argument},\n" for argument in self.arguments)
         return f"{head}\n{lines})\n"

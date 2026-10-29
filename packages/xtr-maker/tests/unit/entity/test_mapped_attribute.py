@@ -14,7 +14,7 @@ def test_a_short_attribute_is_one_line() -> None:
     assert attribute.render() == "title: Mapped[str] = mapped_column(String(120))\n"
 
 
-def test_a_long_attribute_puts_its_arguments_on_a_line_of_their_own() -> None:
+def test_a_long_attribute_puts_each_argument_on_a_line_with_a_trailing_comma() -> None:
     attribute = MappedAttribute(
         "published_at",
         "datetime | None",
@@ -24,7 +24,8 @@ def test_a_long_attribute_puts_its_arguments_on_a_line_of_their_own() -> None:
 
     assert attribute.render() == (
         "published_at: Mapped[datetime | None] = mapped_column(\n"
-        "    DateTimeUTC(timezone=True), nullable=True\n"
+        "    DateTimeUTC(timezone=True),\n"
+        "    nullable=True,\n"
         ")\n"
     )
 

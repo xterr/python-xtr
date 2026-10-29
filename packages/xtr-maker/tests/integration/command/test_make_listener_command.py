@@ -137,9 +137,12 @@ async def test_the_generated_files_pass_every_lint_rule_and_the_formatter(
 
     checked = _ruff(app, "check", "--select", "ALL", "--ignore", _RUFF_IGNORED, *paths)
     formatted = _ruff(app, "format", "--check", *paths)
+    # An application allowing longer lines must find the split ones as they are, too.
+    wide = _ruff(app, "format", "--check", "--line-length", "120", *paths)
 
     assert checked.returncode == 0, checked.stdout
     assert formatted.returncode == 0, formatted.stdout
+    assert wide.returncode == 0, wide.stdout
 
 
 async def test_the_maker_is_listed_with_the_event_dispatcher_bundle(app: TemporaryApp) -> None:

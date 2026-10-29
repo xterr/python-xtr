@@ -58,6 +58,7 @@ _GENERATED = (
     "repository/author_repository.py",
     "repository/book_repository.py",
     "entity/tag.py",
+    "entity/review.py",
 )
 _EVERY_TYPE = [
     "make:entity",
@@ -191,16 +192,24 @@ async def test_every_field_type_maps_and_creates_its_table(app: TemporaryApp) ->
 async def test_the_generated_files_pass_every_lint_rule_and_the_formatter(
     app: TemporaryApp,
 ) -> None:
-    for argv in (_AUTHOR, _BOOK, ["make:entity", "Tag", "--id", "bigint", "--no-audit", "-n"]):
+    for argv in (
+        _AUTHOR,
+        _BOOK,
+        ["make:entity", "Tag", "--id", "bigint", "--no-audit", "-n"],
+        # A key past 88 columns but within 100: split, it must stay split at any width.
+        ["make:entity", "Review", "--relation", "reviewing_author:many_to_one:Author?", "-n"],
+    ):
         code, output = await app.run(argv)
         assert code == ExitCode.SUCCESS, output
     paths = [str(app.package_dir / path) for path in _GENERATED]
 
     checked = _ruff(app, "check", "--select", "ALL", "--ignore", _RUFF_IGNORED, *paths)
     formatted = _ruff(app, "format", "--check", *paths)
+    wide = _ruff(app, "format", "--check", "--line-length", "100", *paths)
 
     assert checked.returncode == 0, checked.stdout
     assert formatted.returncode == 0, formatted.stdout
+    assert wide.returncode == 0, wide.stdout
     assert "class Tag(BigIntBase):" in app.read("entity/tag.py")
 
 
