@@ -31,7 +31,7 @@ from xtr_maker.bundle import MakerConfig
 
 @configure
 def maker() -> MakerConfig:
-    return MakerConfig(root_package="other")
+    return MakerConfig(root_package="{other}")
 '''
 
 
@@ -52,17 +52,18 @@ class _Application:
 def application(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Application:
     """An application whose uniquely named package sits under ``src/``, importable.
 
-    It also holds an ``other`` package at the project root, and a settings module
-    pointing the makers at it, for a kernel to scan when the test wants it.
+    It also holds another importable package under ``lib/``, and a settings
+    module pointing the makers at it, for a kernel to scan when the test wants it.
     """
     name = f"maker_app_{uuid4().hex}"
     _ = (tmp_path / "pyproject.toml").write_text('[project]\nname = "app"\n', encoding="utf-8")
     package = tmp_path / "src" / name
     package.mkdir(parents=True)
     _ = (package / "__init__.py").write_text('"""An application."""\n', encoding="utf-8")
-    _ = (package / "maker_settings.py").write_text(_SETTINGS, encoding="utf-8")
-    (tmp_path / "other").mkdir()
-    monkeypatch.setattr(sys, "path", [str(tmp_path / "src"), *sys.path])
+    settings = _SETTINGS.replace("{other}", f"{name}_other")
+    _ = (package / "maker_settings.py").write_text(settings, encoding="utf-8")
+    (tmp_path / "lib" / f"{name}_other").mkdir(parents=True)
+    monkeypatch.setattr(sys, "path", [str(tmp_path / "src"), str(tmp_path / "lib"), *sys.path])
     importlib.invalidate_caches()
     return _Application(tmp_path.resolve(), name)
 
@@ -106,4 +107,22 @@ async def test_a_configured_root_package_replaces_the_kernel_package(
     async with await kernel.boot() as booted:
         manager = await booted.container.get(FileManager)
 
-    assert manager.package_dir == application.project_dir / "other"
+    assert manager.package_dir == application.project_dir / "lib" / f"{application.package}_other"
+
+
+async def test_the_kernel_package_is_used_whatever_the_kernel_is_named(
+    application: _Application,
+) -> None:
+    kernel = Kernel(
+        application.package,
+        name="shop",
+        env="test",
+        bundles={MakerBundle: {"all": True}},
+        resources=(),
+    )
+
+    async with await kernel.boot() as booted:
+        manager = await booted.container.get(FileManager)
+
+    assert manager.root_package == application.package
+    assert manager.package_dir == application.project_dir / "src" / application.package

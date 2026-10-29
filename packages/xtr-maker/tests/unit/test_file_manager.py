@@ -7,35 +7,48 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.support.captured_style import CapturedStyle
+from tests.support.import_path import prepend_import_path
 from xtr_maker import AppPackageNotFoundError, FileManager, UnsafePathError
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_the_package_is_found_under_src(project: Path) -> None:
+def test_the_package_is_found_where_it_is_imported_from(project: Path) -> None:
     assert FileManager(project, "app").package_dir == project.resolve() / "src" / "app"
 
 
-def test_the_package_is_found_at_the_project_root(tmp_path: Path) -> None:
-    (tmp_path / "app").mkdir()
+@pytest.mark.usefixtures("importable")
+def test_the_package_is_found_at_the_project_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "flat_app").mkdir()
+    prepend_import_path(monkeypatch, tmp_path)
 
-    assert FileManager(tmp_path, "app").package_dir == tmp_path.resolve() / "app"
-
-
-def test_a_dotted_package_is_a_folder_per_part(tmp_path: Path) -> None:
-    (tmp_path / "src" / "acme" / "shop").mkdir(parents=True)
-
-    assert FileManager(tmp_path, "acme.shop").package_dir == tmp_path.resolve() / "src/acme/shop"
+    assert FileManager(tmp_path, "flat_app").package_dir == tmp_path.resolve() / "flat_app"
 
 
-def test_a_package_found_nowhere_names_the_setting_to_change(tmp_path: Path) -> None:
-    manager = FileManager(tmp_path, "app")
+@pytest.mark.usefixtures("importable")
+def test_a_dotted_package_is_found_in_its_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "src" / "acme_maker" / "shop").mkdir(parents=True)
+    _ = (tmp_path / "src" / "acme_maker" / "shop" / "__init__.py").write_text("", encoding="utf-8")
+    prepend_import_path(monkeypatch, tmp_path / "src")
+
+    manager = FileManager(tmp_path, "acme_maker.shop")
+
+    assert manager.package_dir == tmp_path.resolve() / "src/acme_maker/shop"
+
+
+@pytest.mark.parametrize("package", ["no_such_maker_app", "no_such_maker_app.shop", "json.decoder"])
+def test_a_package_not_importable_names_the_setting_to_change(tmp_path: Path, package: str) -> None:
+    manager = FileManager(tmp_path, package)
 
     with pytest.raises(AppPackageNotFoundError, match=r"MakerConfig\.root_package") as raised:
         _ = manager.package_dir
 
-    assert raised.value.root_package == "app"
+    assert raised.value.root_package == package
 
 
 def test_a_relative_path_is_taken_from_the_project(project: Path) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
 from typing import TYPE_CHECKING, Final, final
 
 from xtr_console import escape
@@ -9,8 +11,6 @@ from xtr_console import escape
 from .exception import AppPackageNotFoundError, UnsafePathError
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from xtr_console import ConsoleStyle
 
 __all__ = ["FileManager"]
@@ -22,9 +22,8 @@ _INIT: Final = "__init__.py"
 class FileManager:
     """The project directory, the application package in it, and the files makers write there.
 
-    The application package is found the way an application is laid out:
-    ``src/<package>/`` when that is where it is, otherwise ``<package>/`` at
-    the project root, a dotted package being the folders below. It is looked
+    The application package is found where the import system finds it — the
+    very folder the kernel scans — whatever the project's layout. It is looked
     for when a maker first needs it, never when the manager is built, so a
     console whose package cannot be found still starts.
 
@@ -61,17 +60,20 @@ class FileManager:
         """The application package's directory.
 
         Raises:
-            AppPackageNotFoundError: When the package is neither under ``src/``
-                nor at the project root.
+            AppPackageNotFoundError: When the import system finds no package
+                of that name.
         """
-        parts = self._root_package.split(".")
-        for candidate in (
-            self._project_dir.joinpath("src", *parts),
-            self._project_dir.joinpath(*parts),
-        ):
-            if candidate.is_dir():
-                return candidate
-        raise AppPackageNotFoundError(self._root_package, str(self._project_dir))
+        try:
+            found = importlib.util.find_spec(self._root_package)
+        # A missing parent package raises ImportError; a module whose
+        # ``__spec__`` is None raises ValueError: neither is a package to write into.
+        except (ImportError, ValueError):
+            found = None
+        locations = found.submodule_search_locations if found is not None else None
+        location = next(iter(locations or ()), None)
+        if location is None:
+            raise AppPackageNotFoundError(self._root_package, str(self._project_dir))
+        return Path(location).resolve()
 
     def absolute(self, path: Path | str) -> Path:
         """Return ``path`` — relative to the project directory, or absolute — as an absolute path.

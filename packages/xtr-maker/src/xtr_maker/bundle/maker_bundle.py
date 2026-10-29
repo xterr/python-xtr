@@ -101,8 +101,8 @@ def _template_renderer() -> TemplateRenderer:
 
 
 def _file_manager(kernel: KernelInterface, config: MakerConfig) -> FileManager:
-    """Write into the configured package, else the one the kernel is named after."""
-    return FileManager(kernel.project_dir, config.root_package or kernel.name)
+    """Write into the configured package, else the kernel's own."""
+    return FileManager(kernel.project_dir, config.root_package or kernel.package)
 
 
 def _generator(
