@@ -42,6 +42,7 @@ _MAKERS: Final[tuple[tuple[str, str | None], ...]] = (
     ("xtr_maker.command.make_entity_command", "orm"),
     ("xtr_maker.command.make_command_command", None),
     ("xtr_maker.command.make_listener_command", "event_dispatcher"),
+    ("xtr_maker.command.make_migration_command", "orm"),
 )
 """Each maker's command module, and the bundle that must be active for it (``None``: none)."""
 

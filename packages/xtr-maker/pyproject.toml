@@ -56,7 +56,7 @@ dev = [
     # Every peer a maker writes code for, so each maker's tests run against its library.
     "xtr-event-dispatcher>=5.0,<6",
     "xtr-messenger>=5.0,<6",
-    # With its SQLite driver: the entity maker's tests store a row in a temporary database.
+    # With its SQLite driver: the entity and migration makers' tests use a SQLite database.
     "xtr-orm[sqlite]>=5.0,<6",
     "xtr-scheduler>=5.0,<6",
     "xtr-webhook>=5.0,<6",
