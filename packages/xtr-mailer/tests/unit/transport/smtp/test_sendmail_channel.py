@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import shlex
+import socket
 import sys
 from pathlib import Path
 
@@ -40,6 +42,23 @@ async def test_a_message_is_delivered_through_the_child(tmp_path: Path) -> None:
 
     assert reply == "250 2.0.0 Ok: queued as FAKE42"
     assert record.read_bytes() == b"Subject: hi\r\n\r\n.body\r\n"
+    assert exit_code == 0
+
+
+async def test_every_message_of_a_session_is_delivered_through_the_child(tmp_path: Path) -> None:
+    # The child answers from its own process the moment a message ends, so a client
+    # that yields between its last write and arming the reply read loses the reply.
+    record = tmp_path / "mail.eml"
+    messages = [f"Subject: {index}\r\n".encode() for index in range(20)]
+    channel = SendmailChannel(_command("--record", str(record)))
+    client = await _start(channel)
+
+    replies = [await client.data(message) for message in messages]
+    await client.quit()
+    exit_code = await channel.close()
+
+    assert replies == ["250 2.0.0 Ok: queued as FAKE42"] * 20
+    assert record.read_bytes() == b"".join(messages)
     assert exit_code == 0
 
 
@@ -113,6 +132,17 @@ async def test_an_open_channel_refuses_to_open_again() -> None:
     exit_code = await channel.close()
 
     assert exit_code == 0
+
+
+async def test_opening_twice_at_once_starts_one_child() -> None:
+    channel = SendmailChannel(_command())
+
+    outcomes = await asyncio.gather(channel.open(), channel.open(), return_exceptions=True)
+    exit_code = await channel.close()
+
+    assert [isinstance(outcome, socket.socket) for outcome in outcomes] == [True, False]
+    assert isinstance(outcomes[1], LogicError)
+    assert exit_code is not None  # the one child started was waited for
 
 
 async def test_a_closed_channel_can_open_again() -> None:

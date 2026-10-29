@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.support.scripted_smtp_server import ScriptedSmtpServer
+from tests.support.threaded_smtp_server import ThreadedSmtpServer
 from xtr_mailer.exception import (
     InvalidArgumentError,
     LogicError,
@@ -121,6 +122,21 @@ async def test_a_message_is_handed_over_with_its_leading_periods_stuffed() -> No
     assert server.commands[-1] == "QUIT"
     assert server.messages == [b"Subject: hi\r\n\r\n.leading\r\nbare\r\n"]
     assert not client.is_connected
+
+
+async def test_every_message_is_accepted_by_a_server_answering_from_another_thread() -> None:
+    # The server replies the moment it reads the end of a message, so a client that
+    # yields between its last write and arming the reply read loses the reply.
+    messages = [f"Subject: {index}\r\n".encode() for index in range(20)]
+    with ThreadedSmtpServer() as server:
+        client = SmtpClient(Config(server.host, server.port, timeout=0.5))
+        _ = await client.connect()
+
+        replies = [await client.data(message) for message in messages]
+        await client.quit()
+
+    assert replies == [f"250 2.0.0 Ok: queued as {index}" for index in range(1, 21)]
+    assert server.messages == messages
 
 
 async def test_a_recipient_the_server_cannot_verify_is_accepted() -> None:
@@ -468,6 +484,28 @@ async def test_a_server_that_resets_the_connection_mid_message_raises_a_transpor
     assert not client.is_connected
 
 
+async def test_a_tls_record_that_cannot_be_decrypted_mid_message_raises_a_transport_error(
+    certificate: Certificate,
+) -> None:
+    forged = b"\x17\x03\x03\x00\x20" + bytes(32)
+    with ThreadedSmtpServer(
+        tls_context=certificate.server_context(), forged_record=forged
+    ) as server:
+        client = SmtpClient(
+            Config("localhost", server.port, tls=True, validate_certs=False, timeout=2.0)
+        )
+        _ = await client.connect()
+
+        with pytest.raises(TransportError) as caught:
+            _ = await client.data(b"x" * (16 * 1024 * 1024))
+
+    assert str(caught.value) == (
+        f'Connection to "ssl://localhost:{server.port}" has been closed unexpectedly.'
+    )
+    assert caught.value.debug == "> [message]\n"
+    assert not client.is_connected
+
+
 async def test_a_server_that_hangs_up_before_greeting_raises_a_transport_error() -> None:
     def hang_up(_reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         writer.close()
@@ -796,8 +834,5 @@ async def test_a_tls_server_that_hangs_up_before_its_fingerprint_is_read_raises_
 
     assert failures
     assert set(failures) == {
-        (
-            f'Connection could not be established with host "ssl://localhost:{port}": '
-            "peer fingerprint match failure"
-        )
+        f'Connection to "ssl://localhost:{port}" has been closed unexpectedly.',
     }

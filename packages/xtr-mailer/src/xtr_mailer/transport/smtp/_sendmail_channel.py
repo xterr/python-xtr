@@ -23,7 +23,7 @@ class SendmailChannel:
     through one, so nothing in it is expanded.
     """
 
-    __slots__ = ("_arguments", "_child", "_command", "_timeout")
+    __slots__ = ("_arguments", "_child", "_command", "_lock", "_timeout")
 
     def __init__(self, command: str, timeout: float = 60.0) -> None:
         """Prepare to run ``command``; ``timeout`` bounds the wait for it to exit.
@@ -43,6 +43,9 @@ class SendmailChannel:
         self._arguments = arguments
         self._timeout = timeout
         self._child: tuple[asyncio.subprocess.Process, socket.socket] | None = None
+        # Opening awaits the child's start; without it, two opens at once would both
+        # find the channel closed and start a child each, the first never waited for.
+        self._lock = asyncio.Lock()
 
     @property
     def description(self) -> str:
@@ -56,6 +59,23 @@ class SendmailChannel:
             LogicError: The channel is already open; close it first.
             TransportError: The system is not POSIX, or the command could not be started.
         """
+        async with self._lock:
+            return await self._open()
+
+    async def close(self) -> int | None:
+        """Close the socket and wait for the child, killing it if it outlives the timeout.
+
+        Call it after the client closed its session. In SMTP mode the child's exit
+        status says nothing the session did not, so it is returned, not raised.
+
+        Returns:
+            The child's exit status (negative when it was killed), or ``None`` when
+            the channel was never opened.
+        """
+        async with self._lock:
+            return await self._close()
+
+    async def _open(self) -> socket.socket:
         if self._child is not None:
             # A second child would replace the first, which would then never be waited for.
             raise LogicError("The sendmail channel is already open.")
@@ -77,16 +97,7 @@ class SendmailChannel:
         self._child = (process, ours)
         return ours
 
-    async def close(self) -> int | None:
-        """Close the socket and wait for the child, killing it if it outlives the timeout.
-
-        Call it after the client closed its session. In SMTP mode the child's exit
-        status says nothing the session did not, so it is returned, not raised.
-
-        Returns:
-            The child's exit status (negative when it was killed), or ``None`` when
-            the channel was never opened.
-        """
+    async def _close(self) -> int | None:
         if self._child is None:
             return None
         process, ours = self._child

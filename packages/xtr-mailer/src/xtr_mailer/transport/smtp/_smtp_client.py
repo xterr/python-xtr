@@ -104,9 +104,8 @@ class SmtpClient:
         self._description = self._config.description
         self._smtp = self._session(None)
         greeting = await self._open()
-        if self._config.tls and not self._peer_matches():
-            self.close()
-            raise TransportError(self._unreachable("peer fingerprint match failure"))
+        if self._config.tls:
+            self._check_peer(self._unreachable("peer fingerprint match failure"))
         return greeting
 
     async def connect_socket(self, sock: socket.socket, description: str) -> str:
@@ -156,9 +155,7 @@ class SmtpClient:
         """
         _ = await self._exchange("STARTTLS", (220,), self._upgrade)
         self._capabilities = {}
-        if not self._peer_matches():
-            self.close()
-            raise TransportError("Unable to connect with STARTTLS: peer fingerprint match failure")
+        self._check_peer("Unable to connect with STARTTLS: peer fingerprint match failure")
 
     async def execute(self, command: str, expected_codes: Sequence[int]) -> str:
         """Send ``command``, without its line ending, and return the reply.
@@ -301,10 +298,14 @@ class SmtpClient:
         payload = memoryview(_LEADING_PERIOD.sub(b"..", content) + b".\r\n")
         try:
             # The timeout bounds each write, not the whole upload: a slow server still
-            # reading a large message is healthy, one that stops reading is not.
+            # reading a large message is healthy, one that stops reading is not. Only
+            # the writes before the last are waited for: aiosmtplib drops a reply that
+            # arrives while no read is pending, so nothing may yield between the final
+            # write and read_response, which marks its read pending before it awaits.
             for start in range(0, len(payload), _CHUNK_SIZE):
+                if start:
+                    await self._drained(protocol)
                 protocol.write(bytes(payload[start : start + _CHUNK_SIZE]))
-                await self._drained(protocol)
             response = await protocol.read_response(timeout=self._config.timeout)
         except (aiosmtplib.SMTPServerDisconnected, aiosmtplib.SMTPTimeoutError):
             self._smtp.close()
@@ -317,31 +318,38 @@ class SmtpClient:
         """Wait until the connection has taken what was written, within the timeout."""
         try:
             # aiosmtplib's protocol has flow control but no public drain; pinned below 6.
+            # Polling the transport's write buffer instead would trade this wake-up on
+            # resume, and the error on a lost connection, for a sleep interval.
             await wait_for(protocol._drain_helper(), self._config.timeout)  # noqa: SLF001 — see above  # pyright: ignore[reportPrivateUsage] — see above
         except TimeoutError:
             raise aiosmtplib.SMTPTimeoutError("Timed out writing the message") from None
-        except ConnectionError:
+        except OSError:
+            # A lost connection, or a TLS layer that failed (ssl.SSLError).
             raise aiosmtplib.SMTPServerDisconnected("Connection lost") from None
 
-    def _peer_matches(self) -> bool:
+    def _check_peer(self, mismatch: str) -> None:
+        """Close the session and raise ``mismatch`` unless the certificate is the pinned one."""
         fingerprint = self._config.peer_fingerprint
         if fingerprint is None:
-            return True
+            return
         try:
             ssl_object: object = self._smtp.get_transport_info("ssl_object")  # pyright: ignore[reportAny] — aiosmtplib types transport info as Any
-        except aiosmtplib.SMTPException:
-            # The server hung up before its certificate could be read: nothing to match.
-            return False
+        except aiosmtplib.SMTPException as error:
+            # The server hung up before its certificate could be read.
+            self.close()
+            raise self._failure(error) from None
         certificate = (
             ssl_object.getpeercert(binary_form=True)
             if isinstance(ssl_object, ssl.SSLObject)
             else None
         )
         algorithm = DIGEST_ALGORITHMS[len(fingerprint)]
-        return certificate is not None and hmac.compare_digest(
+        if certificate is None or not hmac.compare_digest(
             hashlib.new(algorithm, certificate, usedforsecurity=False).hexdigest(),
             fingerprint.lower(),
-        )
+        ):
+            self.close()
+            raise TransportError(mismatch)
 
     def _shown(self, command: str) -> str:
         if self._authenticating:
