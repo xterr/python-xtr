@@ -94,6 +94,7 @@ __all__ = [
     "header_body",
     "parse",
     "render",
+    "set_fields",
     "to_bytes",
     "to_string",
 ]
@@ -243,13 +244,14 @@ class BinaryLeaf:
     """A part whose bytes are written as they are, in the transfer encoding asked for.
 
     Also a text part with no charset: its bytes are not the engine's to interpret.
-    ``content_id`` is the bare identifier, written ``<content_id>``.
+    ``content_id`` is the bare identifier, written ``<content_id>``. In ``8bit`` and
+    ``binary`` the line breaks are written as CRLF, the only line end SMTP carries.
     """
 
     content: bytes
     maintype: str
     subtype: str
-    transfer_encoding: TransferEncoding
+    transfer_encoding: TransferEncoding | Literal["binary"]
     parameters: Mapping[str, str] = field(default_factory=dict[str, str])
     disposition: Parameterized | None = None
     content_id: str | None = None
@@ -455,6 +457,31 @@ def build_message(headers: Sequence[tuple[str, HeaderValue]], body: EnginePart) 
     message.preamble = body.preamble
     message.epilogue = body.epilogue
     return message
+
+
+def set_fields(part: EnginePart, fields: Sequence[str]) -> None:
+    """Replace every header of ``part`` with ``fields``, in order.
+
+    Each field is ``Name: body`` as :func:`fold_header` writes it, without the final CRLF:
+    a part's typed headers are rendered one by one, and the part carries them as written
+    instead of the ones its builder wrote. A field goes through the same checks as one the
+    engine folds.
+
+    Raises:
+        RfcComplianceError: A field has no header name, or a line of it is not a
+            continuation of it, holds a control character, a line separator or a lone
+            surrogate, or is longer than 998 octets.
+    """
+    for name in {name.lower() for name in part}:
+        del part[name]
+    for field_text in fields:
+        name, colon, rest = field_text.partition(":")
+        _check_name(name)
+        if not colon:
+            raise RfcComplianceError(f"{field_text!r} is not a header field: Name: body.")
+        folded = f"{field_text}\r\n"
+        _check_folded(folded)
+        part.set_raw(name, _FoldedHeader(name, _SOURCE_FOLD.sub("", rest).strip(" \t"), folded))
 
 
 def render(part: EnginePart) -> Iterator[bytes]:

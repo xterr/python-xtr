@@ -60,16 +60,9 @@ def test_form_data_names_have_quotes_and_line_breaks_escaped() -> None:
     assert parameters == {"filename": "déjà%%22%0A%0D.txt", "name": "a%22b"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the engine writes a non-ASCII parameter in RFC 2231 form, never raw UTF-8",
-)
-def test_form_data_utf8_is_written_raw() -> None:
-    header = ParameterizedHeader("Content-Disposition", "form-data")
-
-    header.set_parameters({"filename": 'déjà%"\n\r.txt'})
-
-    assert header.get_body_as_string() == 'form-data; filename="déjà%%22%0A%0D.txt"'
+# Upstream's testFormDataUtf8 — a raw UTF-8 form-data filename — is a FormDataPart case here
+# (tests/unit/part/multipart/test_form_data_part.py): the form writes its fields itself, the
+# engine writes a non-ASCII parameter only in RFC 2231 form.
 
 
 def test_long_parameters_are_broken_into_multiple_attribute_strings() -> None:

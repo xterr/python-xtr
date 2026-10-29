@@ -26,3 +26,8 @@ def test_the_package_exports_mime_type_guessing() -> None:
 def test_the_package_exports_the_headers() -> None:
     assert set(xtr_mime.header.__all__) <= set(xtr_mime.__all__)
     assert xtr_mime.Headers is xtr_mime.header.Headers
+
+
+def test_the_package_exports_the_parts() -> None:
+    assert set(xtr_mime.part.__all__) <= set(xtr_mime.__all__)
+    assert xtr_mime.FormDataPart is xtr_mime.part.multipart.FormDataPart
