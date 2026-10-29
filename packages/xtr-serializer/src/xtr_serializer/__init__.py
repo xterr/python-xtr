@@ -8,4 +8,30 @@ types, and a value that cannot make the round trip is refused rather than change
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .exception import (
+    CircularReferenceError,
+    ExtraAttributesError,
+    InvalidArgumentError,
+    LogicError,
+    MappingError,
+    NotEncodableValueError,
+    NotNormalizableValueError,
+    PartialDenormalizationError,
+    SerializerError,
+    UnexpectedValueError,
+    UnsupportedFormatError,
+)
+
+__all__ = [
+    "CircularReferenceError",
+    "ExtraAttributesError",
+    "InvalidArgumentError",
+    "LogicError",
+    "MappingError",
+    "NotEncodableValueError",
+    "NotNormalizableValueError",
+    "PartialDenormalizationError",
+    "SerializerError",
+    "UnexpectedValueError",
+    "UnsupportedFormatError",
+]
