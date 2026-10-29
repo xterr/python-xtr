@@ -68,12 +68,11 @@ class AccessControlConfig:
         firewall: The firewall the rule belongs to, or ``None`` for any.
 
     Raises:
-            InvalidArgumentError: When ``attribute`` is empty, ``path`` or ``host``
+        InvalidArgumentError: When ``attribute`` is empty, ``path`` or ``host``
             is not a valid regular expression, a ``methods`` entry is not an
-            HTTP method token, or an ``ips`` entry is neither an address nor a
-            CIDR network.
-            InvalidArgumentError: When ``channel`` names a scheme other than
-            ``"http"`` or ``"https"``.
+            HTTP method token, an ``ips`` entry is neither an address nor a
+            CIDR network, or ``channel`` names a scheme other than ``"http"``
+            or ``"https"``.
     """
 
     path: str

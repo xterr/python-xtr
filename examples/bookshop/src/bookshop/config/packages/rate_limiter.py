@@ -2,8 +2,8 @@
 
 Every limiter is a ``RateLimiterFactoryInterface`` qualified by its name. The web routes name
 theirs in ``RateLimited(...)`` (``web/routes.py``); a handler and a route ask for one with
-``Target(...)`` (``messaging/handlers.py``, ``web/routes.py``). ``demo:rate-limit`` runs every
-one of them.
+``Target(...)`` (``message_handler/send_receipt_handler.py``, ``web/routes.py``).
+``demo:rate-limit`` runs every one of them.
 
 Where the state lives:
 
