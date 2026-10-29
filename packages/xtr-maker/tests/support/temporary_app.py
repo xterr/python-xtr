@@ -48,7 +48,8 @@ class TemporaryApp:
     ``bundles``, in every environment. ``modules`` are written into the package
     first, keyed by their dotted name inside it (``"config.packages.messenger"``),
     their packages created; the kernel scans the whole package, so an
-    ``@configure`` among them applies.
+    ``@configure`` among them applies. The kernel reads its environment
+    variables from ``environ`` alone, never the process's.
 
     Leaving the block takes the project off ``sys.path`` and forgets every
     module of the package, so the next test imports its own.
@@ -60,6 +61,7 @@ class TemporaryApp:
         *,
         bundles: Sequence[type[AnyBundle]] = (),
         modules: Mapping[str, str] | None = None,
+        environ: Mapping[str, str] | None = None,
     ) -> None:
         """Write the application into ``root``.
 
@@ -67,10 +69,12 @@ class TemporaryApp:
             root: The project directory, typically the test's ``tmp_path``.
             bundles: The bundles to activate beside the maker bundle.
             modules: Source of extra modules, by dotted name inside the package.
+            environ: The environment variables the kernel reads.
         """
         self.project_dir = root.resolve()
         self.package = f"maker_app_{uuid4().hex}"
         self.package_dir = self.project_dir / "src" / self.package
+        self.environ = dict(environ or {})
         self._bundles: dict[type[AnyBundle], Mapping[str, bool]] = {
             bundle: {"all": True} for bundle in (MakerBundle, *bundles)
         }
@@ -110,8 +114,8 @@ class TemporaryApp:
             os.environ[SHELL_VERBOSITY] = self._verbosity
 
     def kernel(self) -> Kernel:
-        """Return the application's kernel, in ``test``, reading no process environment."""
-        return Kernel(self.package, env="test", bundles=self._bundles, environ={})
+        """Return the application's kernel, in ``test``, reading ``environ`` only."""
+        return Kernel(self.package, env="test", bundles=self._bundles, environ=self.environ)
 
     async def boot(self) -> BootedKernel:
         """Boot the kernel over what the package holds now, written files included."""

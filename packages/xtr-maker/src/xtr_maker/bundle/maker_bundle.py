@@ -38,6 +38,7 @@ __all__ = ["MakerBundle"]
 _MAKERS: Final[tuple[tuple[str, str | None], ...]] = (
     ("xtr_maker.command.make_message_command", "messenger"),
     ("xtr_maker.command.make_schedule_command", "scheduler"),
+    ("xtr_maker.command.make_webhook_command", "webhook"),
 )
 """Each maker's command module, and the bundle that must be active for it (``None``: none)."""
 
@@ -64,9 +65,30 @@ class MakerBundle(Bundle[MakerConfig]):
         _ = services.set(_template_renderer)
         _ = services.set(_file_manager)
         _ = services.set(_generator, lifetime="scoped")
+        if bundle_active(builder, "webhook"):
+            _set_routed_webhook_types(builder)
         for module, peer in _MAKERS:
             if peer is None or bundle_active(builder, peer):
                 services.load(module)
+
+
+def _set_routed_webhook_types(builder: ContainerBuilder) -> None:
+    """Give ``make:webhook`` the types the webhook configuration routes, read as it is built.
+
+    Read here rather than injected: the configuration a service is given has
+    every secret resolved, so an application whose secrets are not set yet
+    could not make its next webhook.
+    """
+    # Imported only now: xtr-webhook is optional, and only an active webhook bundle
+    # gets the maker's module loaded.
+    from xtr_webhook.bundle import WebhookConfig  # noqa: PLC0415 — optional, see above.
+
+    from xtr_maker.command.make_webhook_command import (  # noqa: PLC0415 — see above.
+        ROUTED_TYPES_PARAMETER,
+    )
+
+    config = builder.get_extension_config(WebhookConfig)
+    builder.set_parameter(ROUTED_TYPES_PARAMETER, sorted(config.routing))
 
 
 def _template_renderer() -> TemplateRenderer:

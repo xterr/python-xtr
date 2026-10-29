@@ -1,0 +1,19 @@
+"""The consumer of the events ``{{ name }}`` webhooks carry."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+@as_remote_event_consumer({{ name_literal }})
+class {{ class_name }}:
+    """Acts on the events ``{{ name }}`` webhooks carry."""
+
+    async def consume(self, event: RemoteEvent) -> None:
+        """Act on ``event``."""
+        del event  # Replace with what an event from this sender leads to.

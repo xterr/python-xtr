@@ -1,0 +1,60 @@
+"""Reads ``acme-pay`` webhooks into remote events."""
+
+from __future__ import annotations
+
+from hmac import compare_digest
+from typing import TYPE_CHECKING, Final, final
+
+from typing_extensions import override
+from xtr_http_foundation import (
+    ChainRequestMatcher,
+    HeaderRequestMatcher,
+    MethodRequestMatcher,
+)
+from xtr_remote_event import RemoteEvent
+from xtr_webhook.client import AbstractRequestParser
+from xtr_webhook.exception import RejectWebhookError
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from xtr_http_foundation import RequestMatcherInterface
+    from xtr_http_message_contracts import ServerRequestInterface
+
+__all__ = ["AcmePayRequestParser"]
+
+_SIGNATURE_HEADER: Final = "Acme-Pay-Signature"
+"""The header the sender's shared secret travels in."""
+
+
+@final
+class AcmePayRequestParser(AbstractRequestParser):
+    """Reads what ``acme-pay`` sends; describe the sender here."""
+
+    @override
+    def get_request_matcher(self) -> RequestMatcherInterface:
+        """Claim only the requests ``acme-pay`` sends."""
+        return ChainRequestMatcher(
+            [
+                MethodRequestMatcher("POST"),
+                HeaderRequestMatcher(_SIGNATURE_HEADER),
+            ],
+        )
+
+    @override
+    async def do_parse(
+        self,
+        request: ServerRequestInterface,
+        secret: str,
+    ) -> RemoteEvent | Sequence[RemoteEvent] | None:
+        """Check that the request is genuine, then read the event it carries."""
+        # Comparing the secret sent as it is is the simplest check: replace it with
+        # the one the sender's protocol asks for, such as an HMAC of read_body().
+        signature = request.get_header_line(_SIGNATURE_HEADER)
+        if not secret or not compare_digest(signature.encode(), secret.encode()):
+            raise RejectWebhookError(message="The signature does not match.")
+        payload = await self.read_json(request)
+        event_id = payload.get("id")
+        if not isinstance(event_id, str):
+            raise RejectWebhookError(message="The payload carries no id.")
+        return RemoteEvent("acme-pay", event_id, payload)

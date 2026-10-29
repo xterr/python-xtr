@@ -1,0 +1,40 @@
+"""Reads ``{{ name }}`` webhooks into remote events."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+_SIGNATURE_HEADER: Final = {{ signature_header }}
+"""The header the sender's shared secret travels in."""
+
+
+{% if final_classes %}
+@final
+{% endif %}
+class {{ class_name }}(AbstractRequestParser):
+    """Reads what ``{{ name }}`` sends; describe the sender here."""
+
+    @override
+    def get_request_matcher(self) -> RequestMatcherInterface:
+        """Claim only the requests ``{{ name }}`` sends."""
+{{ request_matcher }}
+
+    @override
+    async def do_parse(
+        self,
+        request: ServerRequestInterface,
+        secret: str,
+    ) -> RemoteEvent | Sequence[RemoteEvent] | None:
+        """Check that the request is genuine, then read the event it carries."""
+        # Comparing the secret sent as it is is the simplest check: replace it with
+        # the one the sender's protocol asks for, such as an HMAC of read_body().
+        signature = request.get_header_line(_SIGNATURE_HEADER)
+        if not secret or not compare_digest(signature.encode(), secret.encode()):
+            raise RejectWebhookError(message="The signature does not match.")
+        payload = await self.read_json(request)
+        event_id = payload.get("id")
+        if not isinstance(event_id, str):
+            raise RejectWebhookError(message="The payload carries no id.")
+        return RemoteEvent({{ name_literal }}, event_id, payload)

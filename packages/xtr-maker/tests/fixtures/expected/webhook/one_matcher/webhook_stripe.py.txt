@@ -1,0 +1,27 @@
+"""The ``stripe`` webhook route: its parser and its secret."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+from xtr_dependency_injection import configure, env
+from xtr_webhook.bundle import RouteConfig, WebhookConfig
+
+from app.webhook.stripe_request_parser import StripeRequestParser
+
+__all__ = ["webhook_stripe"]
+
+
+@configure
+def webhook_stripe(config: WebhookConfig) -> WebhookConfig:
+    """Add the route to whatever routing is configured, in every environment.
+
+    The secret is a placeholder, read when the endpoint is built: set
+    ``STRIPE_WEBHOOK_SECRET`` in ``.env.local``, never here.
+    """
+    route = RouteConfig(
+        parser=StripeRequestParser,
+        secret=env("STRIPE_WEBHOOK_SECRET"),
+    )
+    routing = {**config.routing, "stripe": route}
+    return replace(config, routing=routing)

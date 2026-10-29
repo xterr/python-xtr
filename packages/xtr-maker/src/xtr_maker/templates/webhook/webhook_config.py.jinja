@@ -1,0 +1,22 @@
+"""The ``{{ name }}`` webhook route: its parser and its secret."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ function_name }}"]
+
+
+@configure
+def {{ function_name }}(config: WebhookConfig) -> WebhookConfig:
+    """Add the route to whatever routing is configured, in every environment.
+
+    The secret is a placeholder, read when the endpoint is built: set
+    ``{{ env_name }}`` in ``.env.local``, never here.
+    """
+    route = RouteConfig(
+        parser={{ parser_class }},
+        secret=env({{ env_literal }}),
+    )
+    routing = {**config.routing, {{ name_literal }}: route}
+    return replace(config, routing=routing)
