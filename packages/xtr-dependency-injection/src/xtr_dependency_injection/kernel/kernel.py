@@ -8,7 +8,8 @@ container. The steps are:
 
 1. environment — ``APP_ENV`` / ``APP_DEBUG`` or the arguments;
 2. bundles — activation from ``config/bundles.py`` + ``@required_bundle``, in order;
-3. early scan — the application's resources and the bundles';
+3. early scan — the application's resources, the current environment's
+   folders last, then the bundles';
 4. prepare — every bundle overriding ``process`` becomes a compiler pass, every
    bundle's ``build(builder)`` runs, then the scanned ``@compiler_pass``
    classes are registered;
@@ -161,7 +162,9 @@ class Kernel:
                 ``"<package>.scripts"`` — whatever ``resources`` names.
             default_excludes: Whether ``DEFAULT_EXCLUDES`` applies; false
                 leaves ``exclude`` alone.
-            allowed_envs: The only environments the kernel accepts.
+            allowed_envs: The only environments the kernel accepts, and the
+                only names a folder under ``config/packages/`` or
+                ``config/routes/`` may take.
             concurrent_scoped_access: Passed to wireup.
             environ: Where ``APP_ENV``, ``APP_DEBUG`` and every ``env(...)``
                 placeholder are read; ``None`` reads the live process
@@ -277,6 +280,7 @@ class Kernel:
             listed=listed,
             resources=self._resources if self._resources is not None else (self._package,),
             exclude=self._scan_excludes,
+            allowed_envs=self._allowed_envs,
             environ=self._environ,
         )
         state = prepared.assembly.state
@@ -364,6 +368,7 @@ def assemble(  # noqa: PLR0913 — steps 3 to 5 need all of these.
     project_dir: Path,
     exclude: Sequence[str],
     report: ReportBuilder,
+    allowed_envs: Sequence[str] | None = None,
     given: Sequence[object] = (),
     environ: Mapping[str, str] | None = None,
 ) -> Assembly:
@@ -372,7 +377,7 @@ def assemble(  # noqa: PLR0913 — steps 3 to 5 need all of these.
     Shared by :func:`prepare`, which computes ``active`` once for both the
     report and this call.
     """
-    scanner = Scanner(env=environment, exclude=exclude)
+    scanner = Scanner(env=environment, exclude=exclude, package=package, allowed_envs=allowed_envs)
     early = _early_scan(scanner, resources, bundles)
     state = BuildState(
         env=environment, debug=debug, bundles=tuple(active), configs={}, environ=environ
@@ -455,6 +460,7 @@ def prepare(  # noqa: PLR0913 — each input is a separate build decision.
     listed: ListedBundles,
     resources: Sequence[str | ModuleType],
     exclude: Sequence[str],
+    allowed_envs: Sequence[str] | None = None,
     given: Sequence[object] = (),
     environ: Mapping[str, str] | None = None,
 ) -> Prepared:
@@ -487,6 +493,7 @@ def prepare(  # noqa: PLR0913 — each input is a separate build decision.
         project_dir=project_dir,
         exclude=exclude,
         report=report,
+        allowed_envs=allowed_envs,
         given=given,
         environ=environ,
     )
