@@ -124,12 +124,13 @@ with `Run orm:migrations:migrate -n first.` Nothing differing writes nothing and
 
 ## Use in an application
 
-1. **Install** — `uv add --dev xtr-maker`. Add extras for libraries the application has not got
+1. **Install** — `uv run xtr-recipes recipes:add --dev xtr-maker` (or `uv add --dev xtr-maker`,
+   then `uv run xtr-recipes recipes:sync`). Add extras for libraries the application has not got
    yet: `"xtr-maker[messenger,scheduler,webhook,orm,event-dispatcher]"`.
-2. **Recipe** — the recipe shipped here does step 3 and nothing else. `recipes:sync` only applies
-   recipes of `[project]` dependencies, so for this development dependency do step 3 by hand.
+2. **Recipe** — the recipe shipped here does step 3 and nothing else; the sync lists the bundles
+   of a development dependency for `dev` only.
 3. **Activate** — `MakerBundle: {"dev": True}` in `BUNDLES` in `<app>/config/bundles.py`
-   (`from xtr_maker.bundle import MakerBundle`).
+   (`from xtr_maker.bundle import MakerBundle`), which the recipe writes.
 4. **Brings along** — the console bundle. The messenger, scheduler, webhook, orm and event
    dispatcher bundles are read, never required: each decides which makers exist.
 5. **Configure** — optional. With none the code goes into the kernel's own package and classes
@@ -148,8 +149,9 @@ with `Run orm:migrations:migrate -n first.` Nothing differing writes nothing and
 
 6. **Environment** — nothing. A maker that needs a secret prints the variable to set.
 7. **Ignore** — nothing: what the makers write is code to commit.
-8. **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/maker.py` if you wrote
-   one, then `uv remove --dev xtr-maker`. The generated code stays yours.
+8. **Remove** — `uv run xtr-recipes recipes:remove xtr-maker`: `uv remove --dev xtr-maker`, then a
+   sync that drops the `BUNDLES` entry. Delete `<app>/config/packages/maker.py` if you wrote one.
+   The generated code stays yours.
 9. **Check** — `debug:bundles` lists `maker` as active in `dev`; `list make` shows the makers.
 
 ## Errors

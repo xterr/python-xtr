@@ -407,13 +407,13 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what removing
 it undoes.
 
-- **Install** — `uv add --dev xtr-maker`: the makers write code while you develop, so they are a
+- **Install** — `uv run xtr-recipes recipes:add --dev xtr-maker`, or `uv add --dev xtr-maker`
+  then `uv run xtr-recipes recipes:sync`: the makers write code while you develop, so they are a
   development dependency, never a runtime one. Add the extras of the libraries you want makers
   for if the application has not got them yet.
-- **Recipe** — the recipe does the *Activate* step below, and only that: it lists `MakerBundle`
-  for the `dev` environment. There is nothing for it to configure, no variable to write and
-  nothing to ignore. `recipes:sync` applies the recipes of `[project]` dependencies only, so for
-  this development dependency make the *Activate* step yourself; `recipes:sync` keeps the entry.
+- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below, and only that: it
+  lists `MakerBundle` for the `dev` environment, as it lists the bundles of every development
+  dependency. There is nothing for it to configure, no variable to write and nothing to ignore.
 - **Activate** — `MakerBundle: {"dev": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_maker.bundle`.
 - **Brings along** — the console bundle, which the makers are commands of. The messenger,
@@ -436,8 +436,9 @@ it undoes.
 - **Environment** — nothing. A maker that needs a secret prints the variable to set in
   `.env.local` rather than reading one itself.
 - **Ignore** — nothing: what the makers write is code to commit.
-- **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/maker.py` if you wrote
-  one, then `uv remove --dev xtr-maker`. The code the makers wrote stays yours.
+- **Remove** — `uv run xtr-recipes recipes:remove xtr-maker`: it runs `uv remove --dev xtr-maker`,
+  and the sync after it drops the `BUNDLES` entry. Delete `<app>/config/packages/maker.py` if you
+  wrote one. The code the makers wrote stays yours.
 - **Check** — `debug:bundles` lists `maker` as active in `dev`; `list make` shows one `make:*`
   command for each library whose bundle is active.
 
