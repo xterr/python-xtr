@@ -1,0 +1,51 @@
+"""The ``app:send-report`` console command."""
+
+from __future__ import annotations
+
+from http import (  # noqa: TC003 — the console reads annotations at runtime.
+    HTTPMethod,
+    HTTPStatus,
+)
+from typing import final
+
+from xtr_console import ConsoleStyle, ExitCode, as_command, escape
+
+__all__ = ["SendReportCommand"]
+
+
+@final
+@as_command("app:send-report", description="Describe what app:send-report does.")
+class SendReportCommand:
+    """Runs ``app:send-report``; describe what it is for here."""
+
+    async def __call__(  # noqa: PLR0913 — one parameter per argument and option.
+        self,
+        io: ConsoleStyle,
+        recipient: str,
+        method: HTTPMethod,
+        cc: list[str] | None = None,
+        *,
+        dry_run: bool = False,
+        limit: int | None = None,
+        status: HTTPStatus | None = None,
+    ) -> int:
+        """Run ``app:send-report``.
+
+        Args:
+            io: Where the command writes.
+            recipient: Recipient.
+            method: Method.
+            cc: Cc.
+            dry_run: Dry run.
+            limit: Limit.
+            status: Status.
+
+        """
+        io.text(escape(f"{recipient=}"))
+        io.text(escape(f"{method=}"))
+        io.text(escape(f"{cc=}"))
+        io.text(escape(f"{dry_run=}"))
+        io.text(escape(f"{limit=}"))
+        io.text(escape(f"{status=}"))
+        io.success("app:send-report ran.")
+        return ExitCode.SUCCESS

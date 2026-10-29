@@ -40,6 +40,7 @@ _MAKERS: Final[tuple[tuple[str, str | None], ...]] = (
     ("xtr_maker.command.make_schedule_command", "scheduler"),
     ("xtr_maker.command.make_webhook_command", "webhook"),
     ("xtr_maker.command.make_entity_command", "orm"),
+    ("xtr_maker.command.make_command_command", None),
 )
 """Each maker's command module, and the bundle that must be active for it (``None``: none)."""
 
