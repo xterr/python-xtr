@@ -62,6 +62,7 @@ To use a package alone, install it with `uv add` and read its README.
 | [xtr-storage](https://github.com/xterr/python-xtr/tree/main/packages/xtr-storage) | Files on a local disk, in memory or in object stores, behind one async interface. | [API](https://xterr.github.io/python-xtr/api/xtr_storage/) |
 | [xtr-lock](https://github.com/xterr/python-xtr/tree/main/packages/xtr-lock) | Exclusive and shared locks in memory, in files, in Redis or in more than one store. | [API](https://xterr.github.io/python-xtr/api/xtr_lock/) |
 | [xtr-rate-limiter](https://github.com/xterr/python-xtr/tree/main/packages/xtr-rate-limiter) | Limits on how often an action can occur, by fixed window, sliding window or token bucket. | [API](https://xterr.github.io/python-xtr/api/xtr_rate_limiter/) |
+| [xtr-serializer](https://github.com/xterr/python-xtr/tree/main/packages/xtr-serializer) | Changes objects to JSON and JSON to objects. It refuses each value that it cannot change back to an equal value. | [API](https://xterr.github.io/python-xtr/api/xtr_serializer/) |
 
 ## Notifications
 

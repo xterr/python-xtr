@@ -45,6 +45,7 @@ members = [
     "xtr-security-jwt",
     "xtr-security-oauth2-server",
     "xtr-security-oauth2-server-core",
+    "xtr-serializer",
     "xtr-service-contracts",
     "xtr-slack-notifier",
     "xtr-storage",
@@ -6124,6 +6125,47 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
+]
+
+[[package]]
+name = "xtr-serializer"
+version = "5.2.1"
+source = { editable = "packages/xtr-serializer" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-clock" },
+    { name = "xtr-console" },
+    { name = "xtr-dependency-injection" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.11,<3" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
 ]
 
 [[package]]
