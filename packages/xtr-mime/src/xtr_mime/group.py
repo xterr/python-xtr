@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-import re
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, final
 
-from ._lone_surrogate import LONE_SURROGATE
+from ._display_name import clean_display_name
 from .address import Address
-from .exception import InvalidArgumentError, RfcComplianceError
+from .exception import InvalidArgumentError
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
 __all__ = ["Group"]
-
-_CONTROL_CHARACTERS: Final = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
 
 
 @final
@@ -37,14 +34,9 @@ class Group:
             RfcComplianceError: ``name`` holds a lone surrogate — what a byte that did not
                 decode leaves in a str — or a member is not a valid email address.
         """
-        self._name = _CONTROL_CHARACTERS.sub("", name).strip(" \t\n\r\0\x0b")
+        self._name = clean_display_name(name, "The group name")
         if not self._name:
             raise InvalidArgumentError("A group must have a display name.")
-        if LONE_SURROGATE.search(self._name):
-            raise RfcComplianceError(
-                f"The group name {name!r} holds a lone surrogate, left by a byte that did not "
-                "decode; a name must be text."
-            )
         self._addresses = tuple(Address.create_array(addresses))
 
     def get_name(self) -> str:

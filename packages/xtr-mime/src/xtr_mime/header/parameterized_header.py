@@ -20,18 +20,13 @@ __all__ = ["ParameterizedHeader"]
 # RFC 2231's token: printable ASCII but space and the tspecials.
 _TOKEN: Final = re.compile(r"[\x21\x23-\x27\x2a\x2b\x2d\x2e\x30-\x39\x41-\x5a\x5e-\x7e]+")
 
-# WHATWG HTML, form submission: a form-data name or filename has these three replaced, and
-# nothing else escaped.
-_FORM_DATA_ESCAPES: Final = str.maketrans({'"': "%22", "\r": "%0D", "\n": "%0A"})
-
 
 @final
 class ParameterizedHeader(UnstructuredHeader):
     """A header written ``value; name="value"``, as Content-Type and Content-Disposition are.
 
     A parameter that is not ASCII, or too long for a line, is written in RFC 2231 form by the
-    engine. A parameter set to ``None`` is kept but not written. In a ``form-data``
-    Content-Disposition, ``name`` and ``filename`` get the escaping a browser applies.
+    engine. A parameter set to ``None`` is kept but not written.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = ("_parameters",)
@@ -83,16 +78,6 @@ class ParameterizedHeader(UnstructuredHeader):
     @override
     def _engine_value(self) -> Parameterized:
         written = {
-            parameter: self._escape(parameter, value)
-            for parameter, value in self._parameters.items()
-            if value is not None
+            parameter: value for parameter, value in self._parameters.items() if value is not None
         }
         return Parameterized(self.get_value(), written)
-
-    def _escape(self, parameter: str, value: str) -> str:
-        is_form_data = (
-            self.get_value() == "form-data" and self.get_name().lower() == "content-disposition"
-        )
-        if is_form_data and parameter in {"name", "filename"}:
-            return value.translate(_FORM_DATA_ESCAPES)
-        return value

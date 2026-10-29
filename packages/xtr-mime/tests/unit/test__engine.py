@@ -30,6 +30,7 @@ from xtr_mime._engine import (
     Path,
     TextLeaf,
 )
+from xtr_mime._header_reader import read_unstructured
 from xtr_mime.exception import (
     InvalidArgumentError,
     MimeError,
@@ -164,11 +165,34 @@ def test_a_header_name_that_is_not_printable_ascii_is_refused(name: str) -> None
         _ = _engine.fold_header(name, "value")
 
 
-@pytest.mark.parametrize("name", ["h:Sender", "o:tag", "v:version", "h:X-Mailgun-Variables"])
-def test_a_header_name_holding_a_colon_is_written_as_given(name: str) -> None:
-    raw = _render_with(name, '{"a":1}')
+# A reader ends a name at its first colon: the last one would be read as a Bcc header.
+COLON_NAMES = ["h:Sender", "o:tag", "v:version", "Bcc:victim@example.com,x"]
 
-    assert raw.startswith(f'{name}: {{"a":1}}\r\n'.encode())
+
+@pytest.mark.parametrize("name", COLON_NAMES)
+def test_a_header_name_holding_a_colon_is_never_folded_for_the_wire(name: str) -> None:
+    with pytest.raises(RfcComplianceError, match=re.escape(repr(name))):
+        _ = _engine.fold_header(name, "value")
+
+
+@pytest.mark.parametrize("name", COLON_NAMES)
+def test_a_header_name_holding_a_colon_is_never_added_to_a_part(name: str) -> None:
+    with pytest.raises(RfcComplianceError, match=re.escape(repr(name))):
+        _ = _render_with(name, "value")
+
+
+@pytest.mark.parametrize("name", COLON_NAMES)
+def test_a_header_name_holding_a_colon_is_never_rendered(name: str) -> None:
+    part = _engine.build_text(_text())
+    part.set_raw(name, "value")
+
+    with pytest.raises(RfcComplianceError, match=re.escape(repr(name))):
+        _ = _engine.to_bytes(part)
+
+
+@pytest.mark.parametrize("name", COLON_NAMES)
+def test_the_body_of_a_header_named_with_a_colon_is_rendered_for_a_transport(name: str) -> None:
+    assert _engine.header_body(name, '{"a":1}') == '{"a":1}'
 
 
 def test_a_continuation_line_without_leading_space_is_refused() -> None:
@@ -1050,6 +1074,31 @@ def test_add_header_appends_a_typed_header_to_a_part() -> None:
     assert part["X-Tag"] == "Héllo"
 
 
+def test_set_fields_carries_each_field_as_written_in_place_of_the_part_headers() -> None:
+    part = _engine.build_text(_text())
+
+    _engine.set_fields(part, ["X-Written: as\r\n given", "Content-Type: text/plain"])
+
+    rendered = _engine.to_bytes(part)
+    assert rendered.startswith(b"X-Written: as\r\n given\r\nContent-Type: text/plain\r\n\r\n")
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        pytest.param("X-Written", id="no colon"),
+        pytest.param("X Written: value", id="not a name"),
+        pytest.param("X-Written: a\r\nInjected: 1", id="a line of its own"),
+        pytest.param("X-Written: a\x00b", id="a control character"),
+    ],
+)
+def test_set_fields_refuses_a_field_that_is_not_one(field: str) -> None:
+    part = _engine.build_text(_text())
+
+    with pytest.raises(RfcComplianceError):
+        _engine.set_fields(part, [field])
+
+
 def test_a_message_puts_its_own_headers_before_the_body_headers() -> None:
     body = _engine.build_text(_text())
 
@@ -1160,6 +1209,74 @@ def test_a_parsed_header_with_a_name_that_is_not_one_is_refused_when_rendered() 
 
     with pytest.raises(RfcComplianceError, match="header name"):
         _ = _engine.to_bytes(parsed)
+
+
+def test_a_parsed_multipart_with_an_empty_boundary_is_refused_when_rendered() -> None:
+    """The engine would make up a boundary and rewrite Content-Type from what it decoded."""
+    parsed = _engine.parse(
+        b'Content-Type: multipart/mixed; boundary=""; name="=?utf-8?q?a=00b?="\r\n\r\n'
+        b"--\r\nContent-Type: text/plain\r\n\r\nhi\r\n----\r\n"
+    )
+
+    with pytest.raises(RfcComplianceError, match="boundary"):
+        _ = _engine.to_bytes(parsed)
+
+
+def test_a_multipart_whose_fields_drop_the_boundary_is_refused_when_rendered() -> None:
+    multipart = _engine.build_multipart("mixed", "b", [_engine.build_text(_text())])
+    _engine.set_fields(multipart, ["Content-Type: multipart/mixed"])
+
+    with pytest.raises(RfcComplianceError, match="boundary"):
+        _ = _engine.to_bytes(multipart)
+
+
+def test_a_header_line_under_multipart_signed_is_kept_within_998_octets() -> None:
+    """The engine writes a signed subtree unfolded, so the line is checked as written."""
+    leaf = _engine.build_text(_text(parameters={"name": "a" * 2000}))
+
+    with pytest.raises(RfcComplianceError, match="998"):
+        _ = _engine.to_bytes(_engine.build_multipart("signed", "b", [leaf]))
+
+
+def test_a_multipart_signed_renders_its_parts_as_built() -> None:
+    leaf = _engine.build_text(_text(LONG_SUBJECT))
+
+    rendered = _engine.to_bytes(_engine.build_multipart("signed", "b", [leaf]))
+
+    assert _engine.to_bytes(leaf) in rendered
+
+
+def test_a_parsed_address_header_is_written_as_read() -> None:
+    """Some releases refold it by decoding the name: it then reads as another address."""
+    field = f"Reply-To: {ENCODED_WORD_NAME} <real@example.com>".encode()
+    parsed = _engine.parse(field + b"\r\nContent-Type: text/plain\r\n\r\nhi\r\n")
+
+    rendered = _engine.to_bytes(parsed)
+
+    assert rendered.startswith(field + b"\r\n")
+    reply_to = _engine.parse(rendered)["Reply-To"]
+    assert [a.addr_spec for a in cast("AddressHeader", reply_to).addresses] == ["real@example.com"]
+
+
+def test_a_parsed_address_header_written_as_other_addresses_is_refused() -> None:
+    with pytest.raises(RfcComplianceError, match="addresses"):
+        _engine._check_addresses_kept(
+            "Reply-To", "evil <real@example.com>", "Reply-To: evil@attacker.com\r\n"
+        )
+
+
+def test_a_parsed_address_header_written_as_the_same_addresses_is_kept() -> None:
+    _engine._check_addresses_kept(
+        "Reply-To", "Name <real@example.com>", "Reply-To:\r\n Name <real@example.com>\r\n"
+    )
+
+
+def test_an_encoded_word_naming_a_codec_that_is_not_text_is_written_as_the_text_it_is() -> None:
+    value = "=?utf-8?q?=3D=3Fzlib=3Fq=3Fx=3F=3D?="
+
+    field = _engine.fold_header("Subject", value)
+
+    assert read_unstructured(field.removeprefix("Subject:")) == value
 
 
 @pytest.mark.parametrize(

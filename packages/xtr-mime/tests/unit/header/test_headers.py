@@ -489,3 +489,11 @@ def test_a_header_given_to_the_constructor_is_added() -> None:
     header = cast("HeaderInterface", UnstructuredHeader("X-Foo", "bar"))
 
     assert Headers(header).get("x-foo") is header
+
+
+def test_a_header_named_with_a_colon_is_held_for_a_transport_but_never_rendered() -> None:
+    headers = Headers().add_text_header("Bcc:victim@example.com,x", "value")
+
+    assert headers.get_header_body("Bcc:victim@example.com,x") == "value"
+    with pytest.raises(RfcComplianceError, match="colon"):
+        _ = headers.to_string()

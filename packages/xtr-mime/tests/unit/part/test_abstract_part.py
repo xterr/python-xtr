@@ -7,30 +7,8 @@ through the simplest part.
 
 from __future__ import annotations
 
-from typing import final
-
-import pytest
-from typing_extensions import override
-
 from tests.support.wire import decode_parameters
-from xtr_mime.exception import RfcComplianceError
-from xtr_mime.header import UnstructuredHeader
 from xtr_mime.part import AbstractPart, TextPart
-
-
-@final
-class _WrittenHeader(UnstructuredHeader):
-    """A header that writes itself as given, as a header class of the caller's may."""
-
-    __slots__ = ("_written",)
-
-    def __init__(self, written: str) -> None:
-        super().__init__("X-Written", "value")
-        self._written = written
-
-    @override
-    def to_string(self) -> str:
-        return self._written
 
 
 def test_a_content_type_parameter_creates_the_header_on_the_part() -> None:
@@ -60,27 +38,3 @@ def test_the_part_renders_as_headers_a_blank_line_and_the_body() -> None:
 
 def test_the_debug_string_is_the_media_type() -> None:
     assert TextPart("content", None).as_debug_string() == "text/plain"
-
-
-def test_a_header_written_by_the_caller_is_carried_as_written() -> None:
-    part = TextPart("content")
-    _ = part.get_headers().add(_WrittenHeader("X-Written: as\r\n given"))
-
-    assert part.to_string().startswith("X-Written: as\r\n given\r\nContent-Type: ")
-
-
-@pytest.mark.parametrize(
-    "written",
-    [
-        pytest.param("X-Written value", id="no colon"),
-        pytest.param("X Written: value", id="not a name"),
-        pytest.param("X-Written: a\r\nInjected: 1", id="a line of its own"),
-        pytest.param("X-Written: a\x00b", id="a control character"),
-    ],
-)
-def test_a_header_that_is_not_a_field_is_refused(written: str) -> None:
-    part = TextPart("content")
-    _ = part.get_headers().add(_WrittenHeader(written))
-
-    with pytest.raises(RfcComplianceError):
-        _ = part.to_string()

@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 
 __all__ = ["AbstractHeader"]
 
-# RFC 5322, 2.2: printable ASCII. A colon is kept: an API reading prefixed names
-# (``h:Sender``, ``o:tag``) gets them as given, and a reader ends the name at the first one.
+# RFC 5322, 2.2: printable ASCII. A colon is kept for a transport reading prefixed names
+# (``h:Sender``, ``o:tag``) as form fields; such a header is never written as a field.
 _NAME: Final = re.compile(r"[!-~]+")
 
 
@@ -26,6 +26,11 @@ class AbstractHeader(metaclass=ABCMeta):
     are the engine's. The charset, language and line length are kept for the code that reads
     them, but the engine writes every encoded word and parameter in UTF-8, without a language,
     folded at 76 columns.
+
+    A name may hold a colon (``h:Sender``): such a header exists only for a transport that
+    reads it as a form field, through :meth:`get_body_as_string`. A reader ends a name at its
+    first colon — ``Bcc:victim@example.com,x`` would be read as a Bcc header — so
+    :meth:`to_string` refuses it, and no message carries it.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = ("_charset", "_language", "_line_length", "_name")
@@ -97,16 +102,17 @@ class AbstractHeader(metaclass=ABCMeta):
         """Return the whole field as the engine writes it, folded, without the final CRLF.
 
         Raises:
-            RfcComplianceError: The engine refuses the value: a control character, an address
-                that would not read back, a parameter or identifier the grammar refuses.
+            RfcComplianceError: The name holds a colon, or the engine refuses the value: a
+                control character, an address that would not read back, a parameter or
+                identifier the grammar refuses.
         """
         return fold_header(self._name, self._engine_value())
 
     def get_body_as_string(self) -> str:
-        """Return the body as the engine writes it, joined back onto one line.
+        """Return the body as the engine writes it, joined back onto one line, whatever the name.
 
         Raises:
-            RfcComplianceError: As :meth:`to_string` does.
+            RfcComplianceError: The engine refuses the value, as :meth:`to_string` says.
         """
         return header_body(self._name, self._engine_value()).replace("\r\n", "")
 

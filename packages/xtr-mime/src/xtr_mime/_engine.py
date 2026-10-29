@@ -22,10 +22,20 @@ Some of the package's habits are worked around rather than accepted:
 Header injection is refused here, not left to the package: whether it keeps a line break out
 of a header depends on its patch level (the CVE-2024-6923 fix is missing from 3.11.0-3.11.9
 and 3.12.0-3.12.4). Every value is refused if it holds a control character other than TAB, a
-line separator or a lone surrogate; every field written — a parsed part's included, when the
-message is rendered — is checked to continue only on lines starting with a space or a tab, to
-hold none of those characters and to keep its lines within 998 octets; and an address header
-must read back to the addresses it was given.
+line separator or a lone surrogate; every field is checked as the package's generator writes
+it — a parsed part's included, and inside ``multipart/signed``, which it writes unfolded — to
+carry a name without a colon, to continue only on lines starting with a space or a tab, to hold
+none of those characters and to keep its lines within 998 octets; and an address header must
+read back to the addresses it was given. A parsed part's header is written as it was read, and
+an address header among them must still read as the addresses it held: some releases refold
+it by decoding a name into what reads as another address. A multipart is written only with
+the boundary it carries; the generator would otherwise make one up and rewrite Content-Type
+from the parameters it decoded.
+
+A header name holding a colon (``h:Sender``) exists only for a transport that reads it as a
+form field: a reader ends a name at its first colon, so ``Bcc:victim@example.com,x`` would be
+read as a Bcc header. :func:`header_body` renders the body of such a header; nothing that
+writes a field takes its name.
 
 A header must also read back to the text it was given, as a mail client reads RFC 2047 — not
 as the package's own lenient reader does. Python 3.11 and 3.12.0 fold a long name so a client
@@ -42,7 +52,6 @@ import re
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from email import policy as email_policy
 from email.errors import HeaderParseError, MessageError, NonASCIILocalPartDefect
 from email.generator import BytesGenerator
 from email.header import Header
@@ -59,10 +68,12 @@ from email.headerregistry import (
 )
 from email.message import EmailMessage
 from email.parser import BytesParser
+from email.policy import EmailPolicy
 from email.utils import quote
 from typing import TYPE_CHECKING, Final, Literal, TypeAlias, cast, final
 
 import idna
+from typing_extensions import override
 
 from ._header_reader import ReadGroup, read_address_list, read_unstructured
 from .exception import InvalidArgumentError, MimeError, MimeRuntimeError, RfcComplianceError
@@ -70,6 +81,11 @@ from .exception import InvalidArgumentError, MimeError, MimeRuntimeError, RfcCom
 if TYPE_CHECKING:
     from email.headerregistry import BaseHeader
     from typing import Self
+
+    # The stubs make the policy generic in the message class it builds; the class is not.
+    _EmailPolicy = EmailPolicy[EmailMessage]
+else:
+    _EmailPolicy = EmailPolicy
 
 __all__ = [
     "POLICY",
@@ -103,8 +119,39 @@ _FOLD_WIDTH: Final = 76
 # RFC 5322, 2.1.1: the hard limit on a line, whatever folding allows.
 _MAX_LINE_LENGTH: Final = 998
 
-POLICY: Final = email_policy.SMTP.clone(max_line_length=_FOLD_WIDTH)
-"""CRLF line ends and 76-column folding: what SMTP expects and what mail clients read."""
+
+# Not final: its base declares the attributes its constructor sets, which a final class would
+# be required to initialise itself.
+class _WirePolicy(_EmailPolicy):
+    """The engine's policy: every header field is checked as the generator writes it.
+
+    The generator writes each field through :meth:`fold_binary` — with this policy, or with a
+    clone of it that writes a ``multipart/signed`` subtree unfolded — so the check sees the
+    bytes that reach the wire, whoever built the header.
+    """
+
+    @override
+    def fold_binary(self, name: str, value: str) -> bytes:
+        _check_name(name)
+        # A parsed part's header holds the bytes the parser read, undecoded: it is checked as
+        # the text they are, its folds taken out, and written as read.
+        is_parsed = not hasattr(value, "name")
+        if is_parsed:
+            _refuse_forbidden(f"The {name} header", _parsed_text(name, value))
+        try:
+            written = super().fold_binary(name, value)
+        except _PACKAGE_FAILURES as error:
+            raise RfcComplianceError(f"The {name} header cannot be written: {error}.") from error
+        _check_folded(written.decode("utf-8", "surrogateescape"))
+        if is_parsed and name.lower() in _ADDRESS_HEADERS:
+            _check_addresses_kept(name, value, written.decode("ascii", "surrogateescape"))
+        return written
+
+
+POLICY: Final = _WirePolicy(
+    linesep="\r\n", max_line_length=_FOLD_WIDTH, mangle_from_=False, refold_source="none"
+)
+"""CRLF line ends and 76-column folding, what SMTP expects; a parsed header is written as read."""
 
 _UTF8_POLICY: Final = POLICY.clone(utf8=True)
 
@@ -127,14 +174,17 @@ _PARAMETERIZED: Final = HeaderRegistry(
     default_class=cast("type[UnstructuredHeader]", ContentDispositionHeader),
     use_default_map=False,
 )
+# The headers the package reads as addresses.
+_ADDRESS_HEADERS: Final = frozenset(
+    name for name, kind in HeaderRegistry().registry.items() if issubclass(kind, AddressHeader)
+)
 
 # Every C0 control but TAB, DEL, the C1 controls (NEL among them), the line and paragraph
 # separators and a lone surrogate: a line break would start a new header, some readers end a
 # line at any of the others, and a lone surrogate is a byte that was never text.
 _FORBIDDEN: Final = re.compile(r"[\x00-\x08\x0a-\x1f\x7f-\x9f\u2028\u2029\ud800-\udfff]")
-# RFC 5322, 2.2: printable ASCII. A colon is kept — a reader ends the name at the first one —
-# so an API reading prefixed names (``h:Sender``) gets them as given.
-_FIELD_NAME: Final = re.compile(r"[!-~]+")
+# RFC 5322, 2.2: printable ASCII but the colon, which ends the name.
+_FIELD_NAME: Final = re.compile(r"[!-9;-~]+")
 # RFC 2045, 5.1: printable ASCII but space and the tspecials.
 _TOKEN: Final = re.compile(r"[!#$%&'*+\-.^_`{|}~0-9A-Za-z]+")
 # RFC 2231, 7: a token without "*", "'" and "%", which carry the parameter's own encoding.
@@ -161,8 +211,6 @@ _PHRASE: Final = re.compile(rf"{_ATOM}(?: {_ATOM})*")
 # What the package raises on a value it cannot handle, rather than an error of its own.
 _PACKAGE_FAILURES: Final = (
     AttributeError,
-    IndexError,
-    KeyError,
     LookupError,
     RecursionError,
     TypeError,
@@ -325,23 +373,25 @@ def fold_header(name: str, value: HeaderValue) -> str:
     A header holding a non-ASCII local part comes back as the UTF-8 text it is written in.
 
     Raises:
-        RfcComplianceError: ``name`` is not a header name, or ``value`` is not allowed in a
-            header: a control character, an address that is not one or would not read back,
-            a parameter or identifier the grammar refuses.
+        RfcComplianceError: ``name`` is not a header name — a colon in it among others — or
+            ``value`` is not allowed in a header: a control character, an address that is not
+            one or would not read back, a parameter or identifier the grammar refuses.
     """
-    header = _make_header(name, value)
-    if isinstance(header, _FoldedHeader):
-        return header.folded.removesuffix("\r\n")
-    return header.fold(policy=POLICY).removesuffix("\r\n")
+    _check_name(name)
+    return _fold(name, value).removesuffix("\r\n")
 
 
 def header_body(name: str, value: HeaderValue) -> str:
-    """Render the body of one header field: :func:`fold_header` without ``name:``.
+    """Render the body of one header field: what :func:`fold_header` writes after ``name:``.
 
     When the engine folds before the first word, that leading fold goes too, so the body
-    always starts with its content.
+    always starts with its content. ``name`` may hold a colon: the body of a header a
+    transport reads as a form field (``h:Sender``) is rendered too, though no field is.
+
+    Raises:
+        RfcComplianceError: ``value`` is not allowed in a header, as :func:`fold_header` says.
     """
-    body = fold_header(name, value)[len(name) + 1 :]
+    body = _body_of(name, _fold(name, value))
     return body.removeprefix("\r\n").removeprefix(" ")
 
 
@@ -351,6 +401,7 @@ def add_header(part: EnginePart, name: str, value: HeaderValue) -> None:
     Raises:
         RfcComplianceError: As :func:`fold_header` does.
     """
+    _check_name(name)
     part.set_raw(name, _make_header(name, value))
 
 
@@ -417,12 +468,7 @@ def build_multipart(subtype: str, boundary: str, children: Sequence[EnginePart])
             boundary characters ending in one that is not a space, or holds ``=?``.
     """
     _check_token("media subtype", subtype)
-    # "=?" opens an encoded word: the engine would take such a boundary for one and replace it.
-    if not _BOUNDARY.fullmatch(boundary) or "=?" in boundary:
-        raise RfcComplianceError(
-            f"The boundary {boundary!r} is not 1 to 70 RFC 2046 boundary characters ending in "
-            'one that is not a space, without "=?".'
-        )
+    _check_boundary(boundary)
     part: EnginePart = EmailMessage(policy=POLICY)
     part.set_raw(
         "Content-Type", _make_header("Content-Type", Parameterized(f"multipart/{subtype}"))
@@ -487,21 +533,28 @@ def set_fields(part: EnginePart, fields: Sequence[str]) -> None:
 def render(part: EnginePart) -> Iterator[bytes]:
     """Render ``part`` as the bytes a mail server accepts, in the pieces the engine writes.
 
-    Every header of every part is checked as it will be written first, those of a parsed part
-    included: a header the engine did not build itself may hold what one it builds may not.
+    Every header of every part is checked as it is written, those of a parsed part included:
+    a header the engine did not build itself may hold what one it builds may not. Every
+    multipart must carry its boundary.
 
     Raises:
         RfcComplianceError: A header is refused: its name is not one, or what is written of
             it holds a control character, a line separator or a lone surrogate, starts a line
-            of its own or has a line longer than 998 octets.
+            of its own, has a line longer than 998 octets or reads as other addresses than a
+            parsed one held; or a multipart has no boundary RFC 2046 allows.
         MimeRuntimeError: The engine fails to write the part.
     """
     for sub_part in part.walk():
-        for name, value in sub_part.raw_items():
-            _check_written(name, value)
+        # A multipart the parser read as text is written as such, without boundaries.
+        if sub_part.get_content_maintype() == "multipart" and not isinstance(
+            sub_part.get_payload(), str
+        ):
+            _check_boundary(sub_part.get_boundary() or "")
     sink = _ChunkSink()
     try:
         BytesGenerator(sink, mangle_from_=False, policy=POLICY).flatten(part)
+    except MimeError:
+        raise
     except _PACKAGE_FAILURES as error:
         raise MimeRuntimeError(f"The message cannot be written: {error}.") from error
     yield from sink.chunks
@@ -562,7 +615,6 @@ def check_message_id(identifier: str) -> None:
 
 
 def _make_header(name: str, value: HeaderValue) -> BaseHeader | _FoldedHeader:
-    _check_name(name)
     try:
         header = _build_header(name, value)
         folded = header.folded if isinstance(header, _FoldedHeader) else header.fold(policy=POLICY)
@@ -574,27 +626,35 @@ def _make_header(name: str, value: HeaderValue) -> BaseHeader | _FoldedHeader:
     return header
 
 
+def _fold(name: str, value: HeaderValue) -> str:
+    header = _make_header(name, value)
+    return header.folded if isinstance(header, _FoldedHeader) else header.fold(policy=POLICY)
+
+
 def _check_name(name: str) -> None:
     if not _FIELD_NAME.fullmatch(name):
-        raise RfcComplianceError(f"{name!r} is not a header name: printable ASCII, no space.")
+        raise RfcComplianceError(
+            f"{name!r} is not a header name: printable ASCII, without a space or a colon — a "
+            "reader ends the name at its first colon."
+        )
 
 
-def _check_written(name: str, value: str) -> None:
-    """Check one header of a part the way the generator will write it."""
-    _check_name(name)
-    if not hasattr(value, "name"):
-        # A parsed part's header holds the bytes the parser read, undecoded: it is checked as
-        # the text they are, its folds taken out.
-        try:
-            text = value.encode("utf-8", "surrogateescape").decode("utf-8", "surrogateescape")
-        except UnicodeError as error:
-            raise RfcComplianceError(f"The {name} header is not text: {error}.") from error
-        _refuse_forbidden(f"The {name} header", _SOURCE_FOLD.sub("", text))
+def _parsed_text(name: str, value: str) -> str:
+    """Read a parsed header's undecoded bytes as the UTF-8 text they are, unfolded."""
     try:
-        written = POLICY.fold_binary(name, value)
-    except _PACKAGE_FAILURES as error:
-        raise RfcComplianceError(f"The {name} header cannot be written: {error}.") from error
-    _check_folded(written.decode("utf-8", "surrogateescape"))
+        text = value.encode("utf-8", "surrogateescape").decode("utf-8", "surrogateescape")
+    except UnicodeError as error:
+        raise RfcComplianceError(f"The {name} header is not text: {error}.") from error
+    return _SOURCE_FOLD.sub("", text)
+
+
+def _check_boundary(boundary: str) -> None:
+    # "=?" opens an encoded word: the engine would take such a boundary for one and replace it.
+    if not _BOUNDARY.fullmatch(boundary) or "=?" in boundary:
+        raise RfcComplianceError(
+            f"The boundary {boundary!r} is not 1 to 70 RFC 2046 boundary characters ending in "
+            'one that is not a space, without "=?".'
+        )
 
 
 def _build_header(name: str, value: HeaderValue) -> BaseHeader | _FoldedHeader:
@@ -838,21 +898,33 @@ def _check_reads_back(name: str, items: Sequence[Address | Group], folded: str) 
     comes out as plain text, where it reads as an address. Names are kept literal before they
     get here; this catches whatever other reading the engine may make of a value.
     """
-    read = _as_address_header(_ADDRESS(name, folded[len(name) + 1 :].replace("\r\n", "")))
     given = [
         (True, tuple(a.addr_spec for a in item.addresses))
         if isinstance(item, Group)
         else (False, (item.addr_spec,))
         for item in items
     ]
-    found = [
-        (group.display_name is not None, tuple(a.addr_spec for a in group.addresses))
-        for group in read.groups
-    ]
-    if found != given:
+    if _address_groups(name, _body_of(name, folded)) != given:
         raise RfcComplianceError(
             f"The {name} header would not read back to the addresses it was given: {folded!r}."
         )
+
+
+def _check_addresses_kept(name: str, source: str, written: str) -> None:
+    """Refuse a parsed address header written as other addresses than the ones it holds."""
+    if _address_groups(name, source) != _address_groups(name, _body_of(name, written)):
+        raise RfcComplianceError(
+            f"The {name} header would not read back to the addresses it holds: {written!r}."
+        )
+
+
+def _address_groups(name: str, body: str) -> list[tuple[bool, tuple[str, ...]]]:
+    """Read ``body`` as the engine does: each item a group or not, and its addresses."""
+    read = _as_address_header(_ADDRESS(name, _SOURCE_FOLD.sub("", body)))
+    return [
+        (group.display_name is not None, tuple(a.addr_spec for a in group.addresses))
+        for group in read.groups
+    ]
 
 
 def _check_literal_name(display_name: str) -> None:

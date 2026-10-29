@@ -50,6 +50,17 @@ def test_an_encoded_word_that_does_not_decode_is_a_value_error(body: str) -> Non
         _ = read_unstructured(body)
 
 
+@pytest.mark.parametrize(
+    "charset", ["zlib", "zlib_codec", "bz2", "base64", "hex", "uu", "quopri", "rot13"]
+)
+def test_an_encoded_word_in_a_codec_that_is_not_a_text_encoding_does_not_decode(
+    charset: str,
+) -> None:
+    """Such a codec turns bytes into other bytes — a decompressor among them — never text."""
+    with pytest.raises(ValueError, match="encoded word"):
+        _ = read_unstructured(f"=?{charset}?q?QUFB?=")
+
+
 _ADDRESS_LISTS: list[tuple[str, list[ReadGroup]]] = [
     ("a@example.com", [(None, [""])]),
     ("<a@example.com>", [(None, [""])]),

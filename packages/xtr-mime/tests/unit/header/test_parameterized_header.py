@@ -50,17 +50,7 @@ def test_form_data_results_in_a_quoted_string() -> None:
     assert header.get_body_as_string() == 'form-data; filename="file.txt"'
 
 
-def test_form_data_names_have_quotes_and_line_breaks_escaped() -> None:
-    header = ParameterizedHeader("Content-Disposition", "form-data")
-
-    header.set_parameters({"filename": 'déjà%"\n\r.txt', "name": 'a"b'})
-
-    # Adapted (D1): decode and compare; the escaping is the one upstream applies.
-    parameters = decode_parameters(header.to_string())
-    assert parameters == {"filename": "déjà%%22%0A%0D.txt", "name": "a%22b"}
-
-
-# Upstream's testFormDataUtf8 — a raw UTF-8 form-data filename — is a FormDataPart case here
+# A form-data name or filename — escaped as browsers do, raw UTF-8 — is a FormDataPart case
 # (tests/unit/part/multipart/test_form_data_part.py): the form writes its fields itself, the
 # engine writes a non-ASCII parameter only in RFC 2231 form.
 

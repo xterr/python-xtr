@@ -9,35 +9,35 @@ from xtr_mime.header import MailboxListHeader
 
 
 def test_a_mailbox_is_set_for_an_address() -> None:
-    header = MailboxListHeader("From", [Address("chris@swiftmailer.org")])
+    header = MailboxListHeader("From", [Address("chris@example.org")])
 
-    assert header.get_address_strings() == ["chris@swiftmailer.org"]
+    assert header.get_address_strings() == ["chris@example.org"]
 
 
 def test_a_mailbox_is_rendered_for_a_name_and_address() -> None:
-    header = MailboxListHeader("From", [Address("chris@swiftmailer.org", "Chris Corbyn")])
+    header = MailboxListHeader("From", [Address("chris@example.org", "Chris Corbyn")])
 
-    assert header.get_address_strings() == ["Chris Corbyn <chris@swiftmailer.org>"]
+    assert header.get_address_strings() == ["Chris Corbyn <chris@example.org>"]
 
 
 def test_the_address_can_be_returned() -> None:
-    addresses = [Address("chris@swiftmailer.org")]
+    addresses = [Address("chris@example.org")]
 
     assert MailboxListHeader("From", addresses).get_addresses() == addresses
 
 
 def test_quotes_in_the_name_are_quoted() -> None:
-    header = MailboxListHeader("From", [Address("chris@swiftmailer.org", 'Chris Corbyn, "DHE"')])
+    header = MailboxListHeader("From", [Address("chris@example.org", 'Chris Corbyn, "DHE"')])
 
-    assert header.get_address_strings() == ['"Chris Corbyn, \\"DHE\\"" <chris@swiftmailer.org>']
+    assert header.get_address_strings() == ['"Chris Corbyn, \\"DHE\\"" <chris@example.org>']
 
 
 def test_escape_characters_in_the_name_are_quoted() -> None:
-    address = Address("chris@swiftmailer.org", "Chris Corbyn, \\escaped\\")
+    address = Address("chris@example.org", "Chris Corbyn, \\escaped\\")
 
     strings = MailboxListHeader("From", [address]).get_address_strings()
 
-    assert strings == ['"Chris Corbyn, \\\\escaped\\\\" <chris@swiftmailer.org>']
+    assert strings == ['"Chris Corbyn, \\\\escaped\\\\" <chris@example.org>']
 
 
 def test_parentheses_in_the_name_are_quoted() -> None:
@@ -53,71 +53,71 @@ def test_utf8_characters_in_the_domain_are_idn_encoded() -> None:
 
 
 def test_utf8_characters_in_the_local_part_are_written_raw() -> None:
-    header = MailboxListHeader("From", [Address("chrïs@swiftmailer.org", "Chris Corbyn")])
+    header = MailboxListHeader("From", [Address("chrïs@example.org", "Chris Corbyn")])
 
-    assert header.get_address_strings() == ["Chris Corbyn <chrïs@swiftmailer.org>"]
+    assert header.get_address_strings() == ["Chris Corbyn <chrïs@example.org>"]
 
 
 def test_get_addresses_returns_the_addresses_with_their_names() -> None:
-    addresses = [Address("chris@swiftmailer.org", "Chris Corbyn, DHE")]
+    addresses = [Address("chris@example.org", "Chris Corbyn, DHE")]
 
     assert MailboxListHeader("From", addresses).get_addresses() == addresses
 
 
 def test_multiple_addresses_as_mailbox_strings() -> None:
-    addresses = [Address("chris@swiftmailer.org"), Address("mark@swiftmailer.org")]
+    addresses = [Address("chris@example.org"), Address("mark@example.org")]
 
     strings = MailboxListHeader("From", addresses).get_address_strings()
 
-    assert strings == ["chris@swiftmailer.org", "mark@swiftmailer.org"]
+    assert strings == ["chris@example.org", "mark@example.org"]
 
 
 def test_a_non_ascii_name_is_encoded() -> None:
     # Adapted: upstream's iso-8859-1 byte 0x8F is a C1 control as a character, refused here.
-    header = MailboxListHeader("From", [Address("chris@swiftmailer.org", "Chris C\xf8rbyn")])
+    header = MailboxListHeader("From", [Address("chris@example.org", "Chris C\xf8rbyn")])
     header.set_charset("iso-8859-1")
 
     (string,) = header.get_address_strings()
 
     # Adapted (D1): decode and compare; the engine writes UTF-8 whatever charset is set.
     assert string.isascii()
-    assert decode_addresses(f"From: {string}") == [("Chris C\xf8rbyn", "chris@swiftmailer.org")]
+    assert decode_addresses(f"From: {string}") == [("Chris C\xf8rbyn", "chris@example.org")]
 
 
 def test_encoding_line_length_calculations() -> None:
     name = "Chris C\xf8rbyn " * 8
-    header = MailboxListHeader("From", [Address("chris@swiftmailer.org", name)])
+    header = MailboxListHeader("From", [Address("chris@example.org", name)])
 
     rendered = header.to_string()
 
     # Adapted (D1): a name long enough to fold, then the folding rules and the name read back.
     assert_folded(rendered)
-    assert decode_words(rendered) == f"{name.strip()} <chris@swiftmailer.org>"
+    assert decode_words(rendered) == f"{name.strip()} <chris@example.org>"
 
 
 def test_the_body_is_the_mailbox_string() -> None:
-    header = MailboxListHeader("From", [Address("chris@swiftmailer.org", "Chris Corbyn")])
+    header = MailboxListHeader("From", [Address("chris@example.org", "Chris Corbyn")])
 
-    assert header.get_body_as_string() == "Chris Corbyn <chris@swiftmailer.org>"
+    assert header.get_body_as_string() == "Chris Corbyn <chris@example.org>"
 
 
 def test_the_body_joins_multiple_mailboxes() -> None:
     header = MailboxListHeader(
         "From",
         [
-            Address("chris@swiftmailer.org", "Chris Corbyn"),
-            Address("mark@swiftmailer.org", "Mark Corbyn"),
+            Address("chris@example.org", "Chris Corbyn"),
+            Address("mark@example.org", "Mark Corbyn"),
         ],
     )
 
     assert header.get_body_as_string() == (
-        "Chris Corbyn <chris@swiftmailer.org>, Mark Corbyn <mark@swiftmailer.org>"
+        "Chris Corbyn <chris@example.org>, Mark Corbyn <mark@example.org>"
     )
 
 
 def test_set_body() -> None:
     header = MailboxListHeader("From", [])
-    addresses = [Address("chris@swiftmailer.org")]
+    addresses = [Address("chris@example.org")]
 
     header.set_body(addresses)
 
@@ -128,13 +128,13 @@ def test_set_body_refuses_what_is_not_a_list_of_addresses() -> None:
     header = MailboxListHeader("From", [])
 
     with pytest.raises(InvalidArgumentError):
-        header.set_body("chris@swiftmailer.org")
+        header.set_body("chris@example.org")
     with pytest.raises(InvalidArgumentError):
-        header.set_body(["chris@swiftmailer.org"])
+        header.set_body(["chris@example.org"])
 
 
 def test_get_body() -> None:
-    addresses = [Address("chris@swiftmailer.org")]
+    addresses = [Address("chris@example.org")]
 
     assert MailboxListHeader("From", addresses).get_body() == addresses
 

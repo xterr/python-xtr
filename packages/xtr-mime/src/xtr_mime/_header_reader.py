@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import base64
 import binascii
-import codecs
 import re
 from typing import Final, Literal, TypeAlias, final
 
@@ -215,8 +214,10 @@ def _encoded_bytes(word: str) -> tuple[str, bytes]:
 def _text_of(word: str, data: bytes, charset: str) -> str:
     if not data:
         return ""
+    # Only a text encoding decodes here: a codec turning bytes into other bytes — zlib, bz2,
+    # base64 — is refused as unknown, and never runs on what a header holds.
     try:
-        return codecs.decode(data, codecs.lookup(charset).name)
+        return data.decode(charset)
     except (LookupError, UnicodeError) as error:
         raise _undecodable(word) from error
 

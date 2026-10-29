@@ -10,8 +10,8 @@ import idna
 from email_validator import EmailNotValidError, validate_email
 from typing_extensions import override
 
+from ._display_name import TRIMMED, clean_display_name
 from ._engine import Mailbox, encode_idn_address, header_body
-from ._lone_surrogate import LONE_SURROGATE
 from .exception import InvalidArgumentError, RfcComplianceError
 
 if TYPE_CHECKING:
@@ -19,8 +19,6 @@ if TYPE_CHECKING:
 
 __all__ = ["Address"]
 
-_TRIMMED: Final = " \t\n\r\0\x0b"
-_NAME_CONTROL_CHARACTERS: Final = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
 _ADDRESS_CONTROL_CHARACTERS: Final = re.compile(r"[\x00-\x1f\x7f]")
 
 # `Name <address>`: everything between the first "<" and the last ">" is the address, so a
@@ -45,7 +43,10 @@ _LOCAL_PART: Final = re.compile(r"(?P<local>[^@]*)@(?P<domain>.*)", re.DOTALL)
 # A domain literal, optionally followed by a comment of printable ASCII but "(", ")" and "\".
 # Only an RFC 5321 address literal is taken between the brackets (see _is_address_literal):
 # the address goes into an SMTP envelope, which carries nothing else.
-_DOMAIN_LITERAL: Final = re.compile(r"\[(?P<literal>[!-Z^-~]*)\](?P<comment> *\([ -'*-\[\]-~]*\))?")
+_LITERAL_COMMENT: Final = r" *\([ -'*-\[\]-~]*\)"
+_DOMAIN_LITERAL: Final = re.compile(rf"\[(?P<literal>[!-Z^-~]*)\](?:{_LITERAL_COMMENT})?")
+# Nothing but a domain literal's comment can end a valid address with a parenthesis.
+_TRAILING_COMMENT: Final = re.compile(rf"{_LITERAL_COMMENT}\Z")
 # RFC 5321, 4.1.3: a general address literal is "tag:content", the tag a letter-digit-hyphen
 # string. Its content is printable ASCII but "[", "]" and "\" there; the characters an address
 # list gives a meaning to — '"', "(", ")", ",", ";", "<", ">" — are refused too, so a literal
@@ -89,19 +90,14 @@ class Address:
             RfcComplianceError: The address is not a valid email address, or the name holds
                 a lone surrogate — what a byte that did not decode leaves in a str.
         """
-        self._address = address.strip(_TRIMMED)
-        self._name = _NAME_CONTROL_CHARACTERS.sub("", name).strip(_TRIMMED)
+        self._address = address.strip(TRIMMED)
         if _ADDRESS_CONTROL_CHARACTERS.search(self._address):
             raise InvalidArgumentError("Email address contains control characters.")
         if not _is_valid(self._address):
             raise RfcComplianceError(
                 f'Email "{address}" does not comply with addr-spec of RFC 5322.'
             )
-        if LONE_SURROGATE.search(self._name):
-            raise RfcComplianceError(
-                f"The display name {name!r} holds a lone surrogate, left by a byte that did not "
-                "decode; a name must be text."
-            )
+        self._name = clean_display_name(name, "The display name")
 
     @classmethod
     def create(cls, address: Address | str) -> Address:
@@ -260,13 +256,7 @@ def _is_address_literal(literal: str) -> bool:
 
 def _without_comment(address: str) -> str:
     """Drop the comment a domain literal may be followed by; it is no part of the address."""
-    parts = _QUOTED_LOCAL_PART.fullmatch(address) or _LOCAL_PART.fullmatch(address)
-    if parts is None:
-        return address
-    literal = _DOMAIN_LITERAL.fullmatch(parts["domain"])
-    if literal is None or literal["comment"] is None:
-        return address
-    return f"{parts['local']}@[{literal['literal']}]"
+    return _TRAILING_COMMENT.sub("", address)
 
 
 def _unfold(rendered: str) -> str:

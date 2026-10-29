@@ -76,10 +76,16 @@ def test_valid_names_are_accepted(name: str) -> None:
     assert _TextHeader(name, "value").get_name() == name
 
 
-def test_a_name_holding_a_colon_is_rendered_as_given() -> None:
-    assert _TextHeader("h:X-Mailgun-Variables", '{"a":1}').to_string() == (
-        'h:X-Mailgun-Variables: {"a":1}'
-    )
+def test_a_name_holding_a_colon_gives_its_body_to_a_transport_reading_fields() -> None:
+    assert _TextHeader("h:X-Mailgun-Variables", '{"a":1}').get_body_as_string() == '{"a":1}'
+
+
+@pytest.mark.parametrize("name", ["h:Sender", "Bcc:victim@example.com,x"])
+def test_a_name_holding_a_colon_is_never_rendered_as_a_field(name: str) -> None:
+    header = _TextHeader(name, "value")
+
+    with pytest.raises(RfcComplianceError, match="colon"):
+        _ = header.to_string()
 
 
 def test_the_charset_defaults_to_utf_8_and_can_be_set() -> None:
