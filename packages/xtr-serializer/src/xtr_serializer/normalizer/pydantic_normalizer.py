@@ -15,8 +15,10 @@ from xtr_serializer.exception import (
     InvalidArgumentError,
     NotNormalizableValueError,
     PartialDenormalizationError,
+    SerializerError,
 )
 
+from ._read_back import read_back_refusal
 from ._validation_refusals import refusals_of
 from .denormalizer_interface import COLLECT_DENORMALIZATION_ERRORS, DenormalizerInterface
 from .normalizer_interface import NormalizerInterface
@@ -88,6 +90,24 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     declares those settings itself. The :data:`~xtr_serializer.STRICT` key overrides strictness
     for every type.
 
+    What is written is read back before it is returned, under the same context, and refused if
+    it would not come back equal: pydantic writes without a word a decimal NaN, a set, tuple or
+    model in a field declaring no type (a bare ``list``, ``dict``, ``object``), a key that is not
+    a string, and a tuple in a ``Sequence`` field — none of which reads back as it was. A value
+    is written by its field's declared type, so one of a subclass reads back as that type, equal:
+    a ``DatePoint`` in a ``datetime`` field as a ``datetime``, ``True`` in an ``int`` field as
+    ``1``. A value on its own is declared by its class, so a list or a typed dict on its own is
+    one that declares nothing about what it holds. A plain ``datetime`` field keeps an offset but
+    not a zone's name, and refuses a time in an hour the clocks repeat, which only compares equal
+    in its own zone; :data:`~xtr_serializer.ZonedDateTime` keeps both. Equality is the test, so a
+    type that does not compare by value is refused. A partial write — some attributes, or values
+    skipped — is not read back: it is not meant to read back whole.
+
+    A refusal found by reading back says where, as reading does. One raised while writing does
+    not: pydantic names no place for it, only, at times, a field name inside a message that also
+    quotes the value. A serializer that refuses a value in this package's words is passed on as
+    it raised it.
+
     Data is read as JSON: strict pydantic takes a date or a UUID from a string, a tuple from a
     list, an enum from its value, only in JSON, so the data is handed to it as JSON text. The
     data is what a decoder returns — dicts, lists, strings, numbers, booleans and ``None``; any
@@ -121,9 +141,18 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         exclude_none = _flag(context, SKIP_NULL_VALUES) is True
         exclude_unset = _flag(context, SKIP_UNSET_VALUES) is True
         exclude_defaults = _flag(context, SKIP_DEFAULT_VALUES) is True
+        partial = (
+            include is not None
+            or exclude is not None
+            or exclude_none
+            or exclude_unset
+            or exclude_defaults
+        )
+        refusal: SerializerError | None = None
+        cyclic = False
         try:
             # Dumped in JSON mode, the result holds only what JSON does.
-            return cast(
+            written = cast(
                 "NormalizedValue",
                 adapter.dump_python(
                     data,
@@ -139,8 +168,24 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
                 ),
             )
         except ValueError as error:  # pydantic's message quotes the value, so it is not passed on
+            # A serializer refusing in this package's words is believed; pydantic chains it.
+            cause = error.__cause__
+            refusal = cause if isinstance(cause, SerializerError) else None
             cyclic = _is_cycle(error)
+        else:
+            if not partial:
+                refusal = read_back_refusal(
+                    data,
+                    written,
+                    lambda text: adapter.validate_json(
+                        text, by_alias=by_alias, by_name=None if by_alias else True, context=context
+                    ),
+                )
+            if refusal is None:
+                return written
         # Raised outside the handler, so no exception holding the data is chained to it.
+        if refusal is not None:
+            raise refusal from None
         if cyclic:
             raise CircularReferenceError("the value contains itself")
         raise NotNormalizableValueError(

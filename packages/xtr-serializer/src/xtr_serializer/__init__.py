@@ -56,6 +56,7 @@ from .normalizer import (
 from .serializer_aware_interface import SerializerAwareInterface
 from .serializer_interface import SerializerInterface
 from .supported_types import SupportedTypes
+from .zoned_datetime import ZonedDateTime
 
 __all__ = [
     "ALLOW_EXTRA_ATTRIBUTES",
@@ -98,4 +99,5 @@ __all__ = [
     "SupportedTypes",
     "UnexpectedValueError",
     "UnsupportedFormatError",
+    "ZonedDateTime",
 ]

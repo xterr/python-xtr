@@ -16,7 +16,18 @@ import pytest
 from pydantic import ImportString, TypeAdapter
 from pydantic_core import to_json
 from typing_extensions import override
+from xtr_clock import DatePoint
 
+from tests.fixtures.exact_values import (
+    Amount,
+    Count,
+    Filed,
+    Loose,
+    Meeting,
+    Refusing,
+    Series,
+    Stamp,
+)
 from tests.fixtures.orders import (
     Cart,
     CartItem,
@@ -183,11 +194,11 @@ def test_it_is_a_normalizer_and_a_denormalizer() -> None:
     [
         (ORDER, Order),
         (SHIPMENT, Shipment),
-        (RECEIPT, Receipt),
+        (Filed(RECEIPT), Filed),
         (Status.SHIPPED, Status),
-        ([Item(sku="A-1", price=1), Item(sku="B-2", price=2)], list[Item]),
+        ([1, "two", None], list[object]),
     ],
-    ids=["model", "dataclass", "typed-dict", "enum", "list-of-models"],
+    ids=["model", "dataclass", "typed-dict", "enum", "list-of-plain-values"],
 )
 def test_a_value_reads_back_equal_through_json(value: object, type_: object) -> None:
     assert round_trip(value, type_) == value
@@ -756,6 +767,115 @@ def test_a_value_quoting_the_words_of_a_cycle_is_not_a_cycle() -> None:
         _ = PydanticNormalizer().normalize(misfit)
 
     assert type(raised.value) is NotNormalizableValueError
+
+
+# Exact values: what would read back changed is refused when written.
+
+BUCHAREST = ZoneInfo("Europe/Bucharest")
+REPEATED_HOUR = datetime(2026, 10, 25, 3, 30, fold=1, tzinfo=BUCHAREST)
+
+
+@pytest.mark.parametrize("value", [Decimal("NaN"), Decimal("-Infinity"), Decimal("sNaN")])
+def test_it_refuses_to_write_what_would_not_read_back_saying_where(value: Decimal) -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Amount(value))
+
+    assert raised.value.path == "value"
+    assert raised.value.error_type == "finite_number"
+    assert raised.value.message.startswith("it would not read back: ")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        Loose(items=[], mapping={1: "one"}),
+        Loose(items=[{1, 2}], mapping={}),
+        Loose(items=[(1, 2)], mapping={}),
+        Loose(items=[Item(sku="A", price=1)], mapping={}),
+        Series((1, 2)),
+        Stamp(REPEATED_HOUR),
+        [Item(sku="A", price=1)],
+        RECEIPT,
+    ],
+    ids=[
+        "int-key",
+        "set-in-a-list",
+        "tuple-in-a-list",
+        "model-in-a-list",
+        "tuple-as-a-sequence",
+        "zone-in-the-repeated-hour",
+        "list-of-models",
+        "typed-dict-on-its-own",
+    ],
+)
+def test_it_refuses_to_write_what_would_read_back_changed(value: object) -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(value)
+
+    assert raised.value.error_type == "not_exact"
+    assert raised.value.path is None
+    assert raised.value.current_type == type(value).__qualname__
+
+
+def test_a_zoned_datetime_field_reads_back_the_repeated_hour_in_its_zone() -> None:
+    read = round_trip(Meeting(REPEATED_HOUR), Meeting)
+
+    assert read == Meeting(REPEATED_HOUR)
+    assert isinstance(read, Meeting)
+    assert (read.starts_at.tzinfo, read.starts_at.fold) == (BUCHAREST, 1)
+
+
+def test_a_plain_datetime_field_keeps_the_offset_of_a_zone_but_not_its_name() -> None:
+    summer = datetime(2026, 7, 1, 12, tzinfo=BUCHAREST)
+
+    read = round_trip(Stamp(summer), Stamp)
+
+    assert isinstance(read, Stamp)
+    assert read == Stamp(summer)
+    assert read.value.utcoffset() == timedelta(hours=3)
+    assert not isinstance(read.value.tzinfo, ZoneInfo)
+
+
+@pytest.mark.parametrize(
+    ("value", "type_", "declared"),
+    [
+        (Stamp(DatePoint(2026, 3, 1, 9, tzinfo=UTC)), Stamp, datetime),
+        (Stamp(DatePoint(2026, 3, 1, 9, tzinfo=BUCHAREST)), Stamp, datetime),
+        (Meeting(DatePoint(2026, 10, 25, 3, 30, tzinfo=BUCHAREST, fold=1)), Meeting, datetime),
+        (Count(True), Count, int),
+    ],
+    ids=["date-point", "date-point-in-a-zone", "date-point-zoned", "bool-as-an-int"],
+)
+def test_a_value_of_a_subclass_reads_back_equal_as_the_declared_type(
+    value: object, type_: type[object], declared: type[object]
+) -> None:
+    read = round_trip(value, type_)
+
+    assert read == value
+    [field] = cast("dict[str, object]", vars(read)).values()
+    assert type(field) is declared
+
+
+def test_a_partial_write_is_not_read_back() -> None:
+    data = PydanticNormalizer().normalize(
+        Amount(Decimal("NaN")), context={IGNORED_ATTRIBUTES: {"other"}}
+    )
+
+    assert data == {"value": "NaN"}
+
+
+def test_a_refusal_a_serializer_raises_in_this_package_words_is_passed_on() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Refusing(1))
+
+    assert (raised.value.path, raised.value.error_type) == ("value", "refused")
+    assert raised.value.__cause__ is None
+    assert raised.value.__suppress_context__
+
+
+def test_a_zoned_datetime_without_a_named_zone_is_refused_in_words_saying_why() -> None:
+    with pytest.raises(NotNormalizableValueError, match="naive"):
+        _ = PydanticNormalizer().normalize(Meeting(datetime(2026, 1, 1)))  # noqa: DTZ001 - the point
 
 
 # pydantic's words for a value that contains itself and for one too deep: the only way to tell
