@@ -147,6 +147,18 @@ async def test_a_pending_revision_must_be_migrated_first(app: TemporaryApp) -> N
     assert len(_revisions(app)) == 2
 
 
+async def test_a_pending_revision_is_reported_before_the_message_is_asked(
+    app: TemporaryApp,
+) -> None:
+    _ = await app.run(["make:migration", "-n"])
+
+    code, output = await app.run(["make:migration"], inputs=["add authors"])
+
+    assert code == ExitCode.FAILURE
+    assert "The revision's message" not in output
+    assert len(_revisions(app)) == 1
+
+
 async def test_the_maker_is_listed_with_the_orm_bundle(app: TemporaryApp) -> None:
     _, listed = await app.run(["list"])
 

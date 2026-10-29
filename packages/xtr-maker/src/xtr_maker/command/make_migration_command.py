@@ -69,23 +69,25 @@ class MakeMigrationCommand:
             )
             io.error(escape(str(unknown)))
             return ExitCode.INVALID
-        typed = (
-            message if message is not None else io.ask("The revision's message", _DEFAULT_MESSAGE)
-        )
-        described = typed.strip()
-        if not described:
-            io.error("The revision's message cannot be empty.")
-            return ExitCode.INVALID
         migrator = await self._connections.migrator(connection)
         try:
             # Read before comparing: a database behind its revisions cannot be
             # compared with the table definitions, and telling it apart up front
-            # names the fix.
+            # names the fix — before the message is asked, which would go unused.
             pending = len((await migrator.status()).new)
             if pending:
                 io.error(_behind(pending))
                 io.text(_MIGRATE_FIRST)
                 return ExitCode.FAILURE
+            typed = (
+                message
+                if message is not None
+                else io.ask("The revision's message", _DEFAULT_MESSAGE)
+            )
+            described = typed.strip()
+            if not described:
+                io.error("The revision's message cannot be empty.")
+                return ExitCode.INVALID
             written = await migrator.diff(described)
         except MigrationError as error:
             io.error(escape(error.reason))
