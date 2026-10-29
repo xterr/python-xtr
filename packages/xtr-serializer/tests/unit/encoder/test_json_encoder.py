@@ -6,6 +6,7 @@ import math
 from typing import TYPE_CHECKING
 
 import pytest
+from pydantic_core import from_json
 
 from xtr_serializer.encoder.json_encoder import JsonEncoder
 from xtr_serializer.exception import (
@@ -24,6 +25,10 @@ PLANTED_VALUE = "s3cr3t-t0ken-4f9a"
 # 4,310 digits, more than the parser reads, in a run of them no message could hold by chance.
 PLANTED_DIGITS = "8106234957"
 PLANTED_INTEGER = int(PLANTED_DIGITS * 430) * 10**10 + int(PLANTED_DIGITS)
+
+# The longest integer the parser reads, behind a minus sign. Whether the parser counts the sign
+# towards its limit depends on its version; the locked one does.
+LONGEST_NEGATIVE_TEXT = "[-" + "9" * 4300 + "]"
 
 # Where a float sits in the data, and how its refusal names that place.
 FLOAT_PLACES: list[tuple[Callable[[float], NormalizedValue], str]] = [
@@ -51,6 +56,14 @@ def nested_dicts(depth: int) -> dict[str, NormalizedValue]:
         current["a"] = child
         current = child
     return root
+
+
+def parser_reads(text: str) -> bool:
+    try:
+        from_json(text)
+    except ValueError:
+        return False
+    return True
 
 
 def test_its_format_is_json() -> None:
@@ -290,8 +303,7 @@ def test_it_refuses_to_write_nesting_deeper_than_it_reads(
     with pytest.raises(NotEncodableValueError) as raised:
         _ = JsonEncoder().encode(nest(depth), "json")
 
-    message = str(raised.value)
-    assert message.startswith("the JSON written would not read back: recursion limit exceeded at ")
+    assert str(raised.value) == "the JSON written would not read back: recursion limit exceeded"
     assert raised.value.__context__ is None
 
 
@@ -326,23 +338,18 @@ def test_it_refuses_to_write_an_integer_longer_than_it_reads(number: int) -> Non
     with pytest.raises(NotEncodableValueError) as raised:
         _ = JsonEncoder().encode({"count": [number]}, "json")
 
-    message = str(raised.value)
-    assert message.startswith("the JSON written would not read back: number out of range at ")
+    assert str(raised.value) == "the JSON written would not read back: number out of range"
     assert raised.value.__context__ is None
 
 
-def test_it_writes_a_minus_sign_before_the_longest_integer_only_if_it_reads_back() -> None:
-    # Whether the parser counts the sign towards its limit depends on its version. Where it does,
-    # the integer is refused; where it does not, the integer is written and reads back.
-    encoder = JsonEncoder()
-    number = -(10**4300 - 1)
+@pytest.mark.skipif(
+    parser_reads(LONGEST_NEGATIVE_TEXT), reason="this parser leaves a minus sign out of its limit"
+)
+def test_it_refuses_a_minus_sign_before_the_longest_integer_where_the_parser_counts_it() -> None:
+    with pytest.raises(NotEncodableValueError) as raised:
+        _ = JsonEncoder().encode([-(10**4300 - 1)], "json")
 
-    try:
-        text = encoder.encode([number], "json")
-    except NotEncodableValueError:
-        return
-
-    assert encoder.decode(text, "json") == [number]
+    assert str(raised.value) == "the JSON written would not read back: number out of range"
 
 
 def test_its_refusal_of_a_long_integer_never_quotes_it() -> None:

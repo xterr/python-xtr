@@ -75,6 +75,8 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     Models, dataclasses, typed dicts, enums, dates, decimals, UUIDs, bytes, tuples and sets, and
     containers of them. pydantic does the converting; this maps a call's context onto pydantic's
     options and pydantic's errors onto this package's, with their paths and never their values.
+    A validator's message is passed on as the validator worded it: those are the application's
+    words, not the data's, so a validator must not quote the value it refuses.
 
     Each type is read and written under one configuration — strict, finite, bytes as base64,
     durations in ISO 8601 — so a value reads back as it was written. It governs the dataclasses,

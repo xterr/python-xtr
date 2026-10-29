@@ -18,20 +18,22 @@ __all__ = ["refusals_of"]
 # typed dict, and for a dataclass.
 _EXTRA: Final = frozenset({"extra_forbidden", "unexpected_keyword_argument"})
 
-# The errors whose message pydantic builds from the data — a union's tag, a validator's own
-# words, what an object raised as it was read — said in words of their own. The others describe
-# the type; the most they let through is a count of items, or the one character a UUID stops
-# parsing at.
+# The errors whose message pydantic builds from the data — a union's tag, what an object raised
+# as it was read, a time zone, a byte unit or an import path it could not make out — said in words
+# of their own. The others describe the type; the most they let through is a count of items, or
+# the one character a UUID stops parsing at. Or they are a validator's: its message is the words
+# of the application that wrote it, not the data's, and is passed on as written.
 _FIXED_MESSAGES: Final = {
     "union_tag_invalid": "Input tag does not match any of the expected tags",
     "bytes_invalid_encoding": "Data should be valid in its declared encoding",
-    "value_error": "Value error",
-    "assertion_error": "Assertion failed",
     "get_attribute_error": "Error extracting attribute",
     "iteration_error": "Error iterating over object",
     "mapping_type": "Input should be a valid mapping",
     "datetime_object_invalid": "Invalid datetime object",
     "timezone_offset": "Timezone offset does not match the one required",
+    "zoneinfo_str": "invalid timezone",
+    "byte_size_unit": "could not interpret byte unit",
+    "import_error": "Invalid python path",
 }
 
 # What pydantic puts after a mapping key it refused.
@@ -45,8 +47,11 @@ def refusals_of(details: list[ErrorDetails], data: object) -> list[NotNormalizab
 
     Each keeps pydantic's message, which describes the type rather than the value — or words of
     its own where pydantic's quote the data —, its error type, the name of the type the value
-    had, and where it sits in ``data``. pydantic also names the union member it tried and marks a
-    refused key; the path leaves out both, and the refused key itself, which is the value.
+    had, and where it sits in ``data``. The message of a validator — a ``ValueError``, an
+    assertion, a ``PydanticCustomError`` it raised — is kept as the validator worded it, which is
+    why a validator must not quote the value it refuses. pydantic also names the union member it
+    tried and marks a refused key; the path leaves out both, and the refused key itself, which is
+    the value.
 
     pydantic reports each field an object should not have on its own; they are reported as one
     error naming them all, where the first of them was, as a reader would want to hear about a

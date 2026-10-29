@@ -64,13 +64,14 @@ def test_the_extra_fields_of_one_object_are_one_error() -> None:
     [
         "union_tag_invalid",
         "bytes_invalid_encoding",
-        "value_error",
-        "assertion_error",
         "get_attribute_error",
         "iteration_error",
         "mapping_type",
         "datetime_object_invalid",
         "timezone_offset",
+        "zoneinfo_str",
+        "byte_size_unit",
+        "import_error",
     ],
 )
 def test_a_message_pydantic_builds_from_the_data_is_replaced(error_type: str) -> None:
@@ -82,3 +83,20 @@ def test_a_message_pydantic_builds_from_the_data_is_replaced(error_type: str) ->
 
     assert PLANTED_VALUE not in refusal.message
     assert (refusal.path, refusal.error_type) == ("x", error_type)
+
+
+@pytest.mark.parametrize(
+    ("error_type", "message"),
+    [
+        ("value_error", "Value error, end must follow start"),
+        ("assertion_error", "Assertion failed, end must follow start"),
+        ("slot_order", "end must follow start"),
+    ],
+    ids=["value-error", "assertion", "custom-error"],
+)
+def test_the_words_of_a_validator_are_passed_on(error_type: str, message: str) -> None:
+    detail = ErrorDetails(type=error_type, loc=("end",), msg=message, input=1)
+
+    [refusal] = refusals_of([detail], {"end": 1})
+
+    assert (refusal.path, refusal.error_type, refusal.message) == ("end", error_type, message)

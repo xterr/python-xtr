@@ -10,16 +10,17 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated, cast
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import pytest
-from pydantic import TypeAdapter
+from pydantic import ImportString, TypeAdapter
 from pydantic_core import to_json
 
 from tests.fixtures.orders import (
     Cart,
     CartItem,
+    CheckedSlot,
     ClosedParcel,
-    Coupon,
     Customer,
     Dispatch,
     Handover,
@@ -33,8 +34,10 @@ from tests.fixtures.orders import (
     Parcel,
     Receipt,
     Shipment,
+    Slot,
     Status,
     StrictCart,
+    TaggedSlot,
     Ticket,
 )
 from xtr_serializer.encoder.json_encoder import JsonEncoder
@@ -609,6 +612,24 @@ def test_it_reports_a_refused_key_at_its_mapping_without_the_key() -> None:
     assert raised.value.message.startswith("a key: ")
 
 
+@pytest.mark.parametrize(
+    ("type_", "error_type", "message"),
+    [
+        (Slot, "value_error", "Value error, end must follow start"),
+        (CheckedSlot, "assertion_error", "Assertion failed, end must follow start"),
+        (TaggedSlot, "slot_order", "end must follow start"),
+    ],
+    ids=["value-error", "assertion", "custom-error"],
+)
+def test_the_words_of_a_validator_reach_its_refusal(
+    type_: object, error_type: str, message: str
+) -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize({"start": 2, "end": 1}, type_)
+
+    assert (raised.value.error_type, raised.value.message) == (error_type, message)
+
+
 def test_it_refuses_to_read_data_that_is_not_plain() -> None:
     with pytest.raises(NotNormalizableValueError) as raised:
         _ = PydanticNormalizer().denormalize({"sku": object(), "price": 1}, Item)
@@ -694,10 +715,21 @@ def test_pydantic_words_data_it_cannot_write_as_json(data: object, words: str) -
         (PLANTED_VALUE, UUID, {}),
         (f"2026-13-01T{PLANTED_VALUE}", datetime, {}),
         ({"method": {"kind": PLANTED_VALUE, "store": "S"}}, Dispatch, {}),
-        ({"code": PLANTED_VALUE}, Coupon, {}),
+        (f"Mars/{PLANTED_VALUE}", ZoneInfo, {}),
+        (PLANTED_VALUE, ImportString, {}),
         ({PLANTED_VALUE: 1}, dict[int, int], {}),
     ],
-    ids=["field", "extra-key", "collected", "uuid", "datetime", "union-tag", "validator", "key"],
+    ids=[
+        "field",
+        "extra-key",
+        "collected",
+        "uuid",
+        "datetime",
+        "union-tag",
+        "time-zone",
+        "import-path",
+        "key",
+    ],
 )
 def test_no_error_quotes_the_data_or_chains_what_does(
     data: object, type_: object, context: Context

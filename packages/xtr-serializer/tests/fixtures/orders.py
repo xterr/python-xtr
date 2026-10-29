@@ -9,7 +9,16 @@ from enum import Enum
 from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, cast
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, with_config
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+    with_config,
+)
+from pydantic_core import PydanticCustomError
 from typing_extensions import TypedDict  # pydantic reads typing's only from Python 3.12
 
 if TYPE_CHECKING:
@@ -18,8 +27,8 @@ if TYPE_CHECKING:
 __all__ = [
     "Cart",
     "CartItem",
+    "CheckedSlot",
     "ClosedParcel",
-    "Coupon",
     "Customer",
     "Delivery",
     "Dispatch",
@@ -35,8 +44,10 @@ __all__ = [
     "Pickup",
     "Receipt",
     "Shipment",
+    "Slot",
     "Status",
     "StrictCart",
+    "TaggedSlot",
     "Ticket",
 ]
 
@@ -152,15 +163,42 @@ class Ticket(BaseModel):
         return f"{context.get('prefix', '')}{value}"
 
 
-class Coupon(BaseModel):
-    """A validator whose message quotes the value it refuses."""
+class Slot(BaseModel):
+    """A delivery slot whose validator refuses in words of its own, quoting no value."""
 
-    code: str
+    start: int
+    end: int
 
-    @field_validator("code")
-    @classmethod
-    def _known(cls, value: str) -> str:
-        raise ValueError(f"unknown coupon {value}")
+    @model_validator(mode="after")
+    def _ordered(self) -> Slot:
+        if self.end <= self.start:
+            raise ValueError("end must follow start")
+        return self
+
+
+class CheckedSlot(BaseModel):
+    """A delivery slot whose validator refuses with an assertion."""
+
+    start: int
+    end: int
+
+    @model_validator(mode="after")
+    def _ordered(self) -> CheckedSlot:
+        assert self.end > self.start, "end must follow start"
+        return self
+
+
+class TaggedSlot(BaseModel):
+    """A delivery slot whose validator refuses with an error type of its own."""
+
+    start: int
+    end: int
+
+    @model_validator(mode="after")
+    def _ordered(self) -> TaggedSlot:
+        if self.end <= self.start:
+            raise PydanticCustomError("slot_order", "end must follow start")
+        return self
 
 
 class Invoice(BaseModel):

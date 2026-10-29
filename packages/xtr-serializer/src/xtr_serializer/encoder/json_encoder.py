@@ -45,10 +45,14 @@ class JsonEncoder(EncoderInterface, DecoderInterface):
     nesting deeper than the parser goes, an integer longer than it reads. Reading refuses text
     that is not JSON, ``NaN`` and the infinities included.
 
-    Each refusal is a :class:`NotEncodableValueError` saying where and what is wrong. Where is
-    the path of keys and indexes leading to the refused value: the keys of a mapping are the
-    data's structure, as the names of attributes are, so they are shown — a value never is, nor
-    a key that is itself what is refused. A call's context wins over the default one.
+    Each refusal is a :class:`NotEncodableValueError` saying what is wrong, never quoting the
+    data. A refusal by the check also says where: the path of keys and indexes leading to the
+    refused value — the keys of a mapping are the data's structure, as the names of attributes
+    are, so they are shown, but not a key that is itself what is refused. A refusal of text that
+    would not read back gives the parser's reason alone: the place the parser names is in text
+    the caller never sees, and how far into it that place is would tell how long the values
+    before it are. Text that is read is refused saying where in it the parser stopped. A call's
+    context wins over the default one.
     """
 
     FORMAT: Final = "json"
@@ -81,8 +85,9 @@ class JsonEncoder(EncoderInterface, DecoderInterface):
             refusal = _refusal(error)
         except PydanticSerializationError:  # past the check, only a lone surrogate fails here
             refusal = "a string in the data has no UTF-8 form"
-        except ValueError as error:  # the parser says why and where, never what the text was
-            refusal = f"the JSON written would not read back: {error}"
+        except ValueError as error:  # the parser says why, then the line and column it stopped at
+            reason, _, _ = str(error).partition(" at line ")
+            refusal = f"the JSON written would not read back: {reason}"
         else:
             return text.decode()
         # Raised outside the handler, so no exception holding the data is chained to it.
