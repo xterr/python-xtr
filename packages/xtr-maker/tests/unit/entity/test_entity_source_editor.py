@@ -182,6 +182,26 @@ def test_the_edited_module_passes_the_import_sorting_and_the_formatter(tmp_path:
     assert formatted.returncode == 0, formatted.stdout
 
 
+def test_an_entity_imported_for_annotations_lets_the_import_cycle_through_once() -> None:
+    editor = _editor()
+    for name, entity in (("customer", "Customer"), ("courier", "Courier")):
+        imports = editor.imports()
+        target = imports.add(f"app.entity.{name}", entity, type_checking=True)
+        editor.add_attribute(
+            MappedAttribute(name, target, imports.add("sqlalchemy.orm", "relationship")), imports
+        )
+
+    assert editor.source.count("# pyright: reportImportCycles=false\nif TYPE_CHECKING:\n") == 1
+
+
+def test_a_field_leaves_the_import_cycle_comment_out() -> None:
+    editor = _editor()
+
+    _add(editor, EntityField("note", FieldType.TEXT))
+
+    assert "reportImportCycles" not in editor.source
+
+
 def _ruff(*arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603 — fixed arguments, the interpreter running the tests.
         [sys.executable, "-m", "ruff", *arguments, "--isolated"],

@@ -220,6 +220,22 @@ async def test_answers_write_the_entity_without_flags(app: TemporaryApp) -> None
     assert "    label: Mapped[str] = mapped_column(String(40))\n" in app.read("entity/shelf.py")
 
 
+async def test_entities_related_both_ways_pass_the_strictest_type_checking(
+    app: TemporaryApp,
+) -> None:
+    for argv in (_AUTHOR, _BOOK):
+        code, output = await app.run(argv)
+        assert code == ExitCode.SUCCESS, output
+    _ = (app.project_dir / "pyrightconfig.json").write_text(
+        '{"typeCheckingMode": "all"}\n', encoding="utf-8"
+    )
+    paths = [str(app.package_dir / "entity" / name) for name in ("author.py", "book.py")]
+
+    checked = _basedpyright(app, *paths)
+
+    assert checked.returncode == 0, checked.stdout
+
+
 async def test_the_maker_is_listed_with_the_orm_bundle(app: TemporaryApp) -> None:
     _, listed = await app.run(["list"])
 
@@ -237,6 +253,17 @@ def _ruff(app: TemporaryApp, *arguments: str) -> subprocess.CompletedProcess[str
     """Run the linter as an application would, with its defaults rather than this package's."""
     return subprocess.run(  # noqa: S603 — fixed arguments, the interpreter running the tests.
         [sys.executable, "-m", "ruff", *arguments, "--isolated"],
+        cwd=app.project_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _basedpyright(app: TemporaryApp, *paths: str) -> subprocess.CompletedProcess[str]:
+    """Type-check ``paths`` with the application's configuration and this interpreter's packages."""
+    return subprocess.run(  # noqa: S603 — fixed arguments, the interpreter running the tests.
+        [sys.executable, "-m", "basedpyright", "--pythonpath", sys.executable, *paths],
         cwd=app.project_dir,
         capture_output=True,
         text=True,

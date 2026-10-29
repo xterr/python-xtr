@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Final, final
 
 import libcst as cst
 from libcst.helpers import get_full_name_for_node
@@ -11,6 +11,7 @@ from xtr_maker.exception import InvalidArgumentError
 from xtr_maker.import_collector import ImportCollector
 
 from .import_merger import ImportMerger
+from .needed_import import NeededImport
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -20,6 +21,9 @@ if TYPE_CHECKING:
     from .mapped_attribute import MappedAttribute
 
 __all__ = ["EntitySourceEditor"]
+
+_CYCLES_ALLOWED: Final = "# pyright: reportImportCycles=false"
+_CYCLES_REASON: Final = "# The entities imported here may import this one back, for type checking."
 
 
 @final
@@ -34,6 +38,12 @@ class EntitySourceEditor:
     An attribute goes after the class's last ``Mapped`` one, or, when it has
     none, after its docstring and ``__tablename__``. A name the class already
     has is refused.
+
+    An attribute naming another of the application's entities imports it
+    under ``if TYPE_CHECKING:``. When the other entity names this one back,
+    the two modules import each other: nothing runs that cycle, but a type
+    checker reporting import cycles would, so the block is preceded by the
+    comment telling it not to.
     """
 
     __slots__ = ("_entity", "_line_length", "_merger", "_module", "_names")
@@ -125,7 +135,15 @@ class EntitySourceEditor:
         body = list(self._module.body)
         body[index] = definition.with_changes(body=block.with_changes(body=statements))
         self._module = self._merger.merge(self._module.with_changes(body=body), imports)
+        if self._imports_an_entity(imports):
+            self._module = _allow_import_cycles(self._module)
         self._names.add(attribute.name)
+
+    def _imports_an_entity(self, imports: ImportCollector) -> bool:
+        """Report whether ``imports`` names a module of the application for annotations only."""
+        root = self._entity.root_package.split(".", 1)[0]
+        _, annotations = NeededImport.read(imports.render())
+        return any(needed.module.split(".", 1)[0] == root for needed in annotations)
 
     def _class(self) -> tuple[int, cst.ClassDef]:
         """Return the entity class and its index among the module's statements.
@@ -141,6 +159,27 @@ class EntitySourceEditor:
         raise InvalidArgumentError(
             f"{self._entity.path} defines no class {self._entity.short_name}."
         )
+
+
+def _allow_import_cycles(module: cst.Module) -> cst.Module:
+    """Return ``module`` with the import-cycle comment before its ``if TYPE_CHECKING:`` block.
+
+    Left as it is when the comment is anywhere in the module already.
+    """
+    if _CYCLES_ALLOWED in module.code:
+        return module
+    body = list(module.body)
+    for index, statement in enumerate(body):
+        if isinstance(statement, cst.If) and _full_name(statement.test).endswith("TYPE_CHECKING"):
+            comments = tuple(
+                cst.EmptyLine(indent=False, comment=cst.Comment(text))
+                for text in (_CYCLES_REASON, _CYCLES_ALLOWED)
+            )
+            body[index] = statement.with_changes(
+                leading_lines=(*statement.leading_lines, *comments)
+            )
+            return module.with_changes(body=body)
+    return module
 
 
 def _insertion_point(statements: Sequence[cst.BaseStatement]) -> tuple[int, bool]:

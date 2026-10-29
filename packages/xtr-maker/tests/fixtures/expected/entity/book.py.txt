@@ -12,6 +12,8 @@ from advanced_alchemy.types import DateTimeUTC
 from sqlalchemy import ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+# The entities imported here may import this one back, for type checking.
+# pyright: reportImportCycles=false
 if TYPE_CHECKING:
     from app.entity.author import Author
 
