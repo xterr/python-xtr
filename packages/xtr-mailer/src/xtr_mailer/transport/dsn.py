@@ -26,6 +26,7 @@ from xtr_mailer.exception import InvalidArgumentError
 
 if TYPE_CHECKING:
     from re import Pattern
+    from urllib.parse import SplitResult
 
 __all__ = ["Dsn", "DsnOption"]
 
@@ -99,12 +100,10 @@ class Dsn:
                 scheme, carries whitespace inside its scheme, or carries no host.
         """
         dsn = dsn.strip()
-        try:
-            split = urlsplit(dsn)
-            port = split.port
-        except ValueError:
-            # The stdlib error quotes the netloc, credentials included.
-            raise InvalidArgumentError("The mailer DSN is invalid.") from None
+        parts = _split_or_none(dsn)
+        if parts is None:
+            raise InvalidArgumentError("The mailer DSN is invalid.")
+        split, port = parts
         if not split.scheme:
             raise InvalidArgumentError("The mailer DSN must contain a scheme.")
         # urlsplit lowercases the scheme and drops tabs and newlines; the DSN as written
@@ -191,10 +190,30 @@ class Dsn:
     @override
     def __repr__(self) -> str:
         """Render without the credentials, which a traceback or a log would otherwise leak."""
+        # A named option is shown as the plain dict it holds, not as its read-only view.
+        options = {
+            key: dict(value) if isinstance(value, Mapping) else value
+            for key, value in self._options.items()
+        }
         return (
             f"{type(self).__name__}(scheme={self._scheme!r}, host={self._host!r}, "
-            f"port={self._port!r}, options={dict(self._options)!r})"
+            f"port={self._port!r}, options={options!r})"
         )
+
+
+def _split_or_none(dsn: str) -> tuple[SplitResult, int | None] | None:
+    """Split ``dsn`` and read its port, or return ``None`` when the URL is malformed.
+
+    The stdlib error quotes the netloc, credentials included, so it is dropped here: the
+    caller raises its own error once this has returned, outside any handler, so no error
+    is chained as the context of the one it raises.
+    """
+    try:
+        split = urlsplit(dsn)
+        port = split.port
+    except ValueError:
+        return None
+    return split, port
 
 
 def _host_of(netloc: str) -> str:

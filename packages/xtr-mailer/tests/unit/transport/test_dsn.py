@@ -193,7 +193,7 @@ def test_it_keeps_the_credentials_out_of_the_error_chain(
         _ = Dsn.from_string(raw)
 
     assert caught.value.__cause__ is None
-    assert caught.value.__suppress_context__
+    assert caught.value.__context__ is None
     rendered = "".join(traceback.format_exception(caught.value))
     for credential in credentials:
         assert credential not in rendered
@@ -246,3 +246,10 @@ def test_it_never_shows_the_credentials() -> None:
         assert "s3cr3t" not in shown
         assert "example.com" in shown
         assert "verify_peer" in shown
+
+
+def test_its_representation_renders_a_named_option_as_a_plain_dict() -> None:
+    shown = repr(Dsn("scheme", "localhost", options={"b": {"k": "v"}}))
+
+    assert "options={'b': {'k': 'v'}}" in shown
+    assert "mappingproxy" not in shown

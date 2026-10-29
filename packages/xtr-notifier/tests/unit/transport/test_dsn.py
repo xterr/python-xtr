@@ -212,10 +212,16 @@ def test_its_representation_never_shows_the_credentials() -> None:
     ("raw", "user", "password"),
     [
         pytest.param(
-            "slack://user:hunter#x@default", "user", "hunter", id="fragment-after-password"
+            "slack://s3cr3t-user:hunter#x@default",
+            "s3cr3t-user",
+            "hunter",
+            id="fragment-after-password",
         ),
         pytest.param(
-            "slack://user:s3cr3t\uff20x@default", "user", "s3cr3t", id="full-width-at-sign"
+            "slack://s3cr3t-user:s3cr3t\uff20x@default",
+            "s3cr3t-user",
+            "s3cr3t",
+            id="full-width-at-sign",
         ),
     ],
 )
@@ -228,7 +234,7 @@ def test_it_keeps_the_credentials_out_of_the_error_chain(
     error = caught.value
     assert str(error) == "The notifier DSN is invalid."
     assert error.__cause__ is None
-    assert error.__suppress_context__ is True
+    assert error.__context__ is None
     shown = "".join(traceback.format_exception(error))
     assert user not in shown
     assert password not in shown
