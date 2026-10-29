@@ -1,0 +1,35 @@
+"""The ``{{ schedule }}`` schedule."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+{{ as_schedule }}
+class {{ class_name }}({{ provider_interface }}):
+    """The ``{{ schedule }}`` schedule; describe what it sends here."""
+
+{% if parameters %}
+    def __init__(
+        self,
+{% for parameter in parameters %}
+        {{ parameter }},
+{% endfor %}
+    ) -> None:
+{% else %}
+    def __init__(self) -> None:
+{% endif %}
+        """{{ init_docstring }}"""
+{% for line in body %}
+        {{ line }}
+{% endfor %}
+
+    @{{ override }}
+    def get_schedule(self) -> {{ schedule_class }}:
+        """Return the schedule built once, with the provider."""
+        return self._schedule

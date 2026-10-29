@@ -1,0 +1,27 @@
+"""The ``default`` schedule."""
+
+from __future__ import annotations
+
+from typing import final
+
+from typing_extensions import override
+from xtr_scheduler import Schedule, ScheduleProviderInterface
+from xtr_scheduler.decorator import as_schedule
+
+__all__ = ["ReportSchedule"]
+
+
+@final
+@as_schedule("default")
+class ReportSchedule(ScheduleProviderInterface):
+    """The ``default`` schedule; describe what it sends here."""
+
+    def __init__(self) -> None:
+        """Build the schedule."""
+        # Add what it sends, such as RecurringMessage.every("1 hour", PlaceOrder()).
+        self._schedule = Schedule()
+
+    @override
+    def get_schedule(self) -> Schedule:
+        """Return the schedule built once, with the provider."""
+        return self._schedule

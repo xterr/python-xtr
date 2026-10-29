@@ -1,0 +1,43 @@
+"""The ``reports`` schedule."""
+
+from __future__ import annotations
+
+from typing import Annotated, final
+
+from typing_extensions import override
+from xtr_cache_contracts import CacheInterface
+from xtr_dependency_injection import Target
+from xtr_lock import LockFactory
+from xtr_scheduler import RecurringMessage, Schedule, ScheduleProviderInterface
+from xtr_scheduler.decorator import as_schedule
+
+from app.message.restock_check import RestockCheck
+
+__all__ = ["ReportSchedule"]
+
+
+@final
+@as_schedule("reports")
+class ReportSchedule(ScheduleProviderInterface):
+    """The ``reports`` schedule; describe what it sends here."""
+
+    def __init__(
+        self,
+        cache: Annotated[CacheInterface, Target("scheduler")],
+        lock_factory: LockFactory,
+    ) -> None:
+        """Build the schedule, its state in ``cache``, under a ``lock_factory`` lock."""
+        self._schedule = (
+            Schedule(
+                RecurringMessage.every("1 hour", RestockCheck()),
+            )
+            # Keep what ran in the scheduler cache pool, so a restart resumes.
+            .stateful(cache)
+            # Send from one worker only: the one holding the lock.
+            .lock(lock_factory.create_lock("scheduler-reports"))
+        )
+
+    @override
+    def get_schedule(self) -> Schedule:
+        """Return the schedule built once, with the provider."""
+        return self._schedule
