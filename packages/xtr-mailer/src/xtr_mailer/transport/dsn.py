@@ -77,7 +77,13 @@ class Dsn:
         self._user = user
         self._password = password
         self._port = port
-        self._options: Mapping[str, DsnOption | None] = MappingProxyType(dict(options or {}))
+        # A named option is copied into a read-only view: nothing handed in or out can change it.
+        self._options: Mapping[str, DsnOption | None] = MappingProxyType(
+            {
+                key: MappingProxyType(dict(value)) if isinstance(value, Mapping) else value
+                for key, value in (options or {}).items()
+            }
+        )
 
     @classmethod
     def from_string(cls, dsn: str) -> Dsn:
@@ -85,19 +91,27 @@ class Dsn:
 
         Args:
             dsn: The DSN as configured. It carries credentials: it is never kept,
-                and no error raised here quotes it.
+                and no error raised here quotes it or chains an error that does.
+                Whitespace around it is ignored, as an environment file often adds some.
 
         Raises:
             InvalidArgumentError: If ``dsn`` cannot be read as a URL, carries no
-                scheme, or carries no host.
+                scheme, carries whitespace inside its scheme, or carries no host.
         """
+        dsn = dsn.strip()
         try:
             split = urlsplit(dsn)
             port = split.port
-        except ValueError as error:
-            raise InvalidArgumentError("The mailer DSN is invalid.") from error
+        except ValueError:
+            # The stdlib error quotes the netloc, credentials included.
+            raise InvalidArgumentError("The mailer DSN is invalid.") from None
         if not split.scheme:
             raise InvalidArgumentError("The mailer DSN must contain a scheme.")
+        # urlsplit lowercases the scheme and drops tabs and newlines; the DSN as written
+        # keeps the case, and a scheme it had to mend is refused rather than guessed at.
+        scheme = dsn.partition(":")[0]
+        if scheme.lower() != split.scheme:
+            raise InvalidArgumentError("The mailer DSN is invalid.")
         if not (split.netloc or split.path or split.query):
             # Nothing at all after the scheme: there is no URL here to read a host from.
             raise InvalidArgumentError("The mailer DSN is invalid.")
@@ -106,9 +120,8 @@ class Dsn:
             raise InvalidArgumentError(
                 'The mailer DSN must contain a host (use "default" by default).'
             )
-        # urlsplit lowercases the scheme; the DSN as written keeps the case.
         return cls(
-            dsn[: len(split.scheme)],
+            scheme,
             host,
             unquote(split.username) if split.username else None,
             unquote(split.password) if split.password else None,

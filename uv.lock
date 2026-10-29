@@ -5318,6 +5318,7 @@ smime = [
 dev = [
     { name = "anyio" },
     { name = "basedpyright" },
+    { name = "cryptography" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -5349,6 +5350,7 @@ provides-extras = ["messenger", "rate-limiter", "console", "dkim", "smime", "di"
 dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
+    { name = "cryptography", specifier = ">=45" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },

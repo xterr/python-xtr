@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import traceback
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 
 import pytest
@@ -80,8 +82,34 @@ def test_it_reads_every_part_of_the_dsn(case: _Case) -> None:
     assert dsn.user == case.user
     assert dsn.password == case.password
     assert dsn.get_port() == case.port
-    for key, value in case.options.items():
-        assert dsn.get_option(key) == value
+    assert dsn._options == case.options
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        pytest.param(" smtp://example.com ", id="spaces"),
+        pytest.param("\tsmtp://example.com\n", id="tab-and-newline"),
+    ],
+)
+def test_it_ignores_whitespace_around_the_dsn(raw: str) -> None:
+    dsn = Dsn.from_string(raw)
+
+    assert (dsn.scheme, dsn.host) == ("smtp", "example.com")
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        pytest.param("sm\ttp://example.com", id="tab"),
+        pytest.param("smtp\n://example.com", id="newline"),
+    ],
+)
+def test_it_refuses_whitespace_inside_the_scheme(raw: str) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = Dsn.from_string(raw)
+
+    assert str(caught.value) == "The mailer DSN is invalid."
 
 
 def test_it_is_built_from_its_parts() -> None:
@@ -111,6 +139,22 @@ def test_it_reads_an_option_or_its_default() -> None:
     assert dsn.get_option("not_existent_property") is None
 
 
+def test_it_hands_out_a_named_option_that_cannot_be_changed() -> None:
+    dsn = Dsn.from_string("scheme://localhost?b[k]=v")
+
+    assert not isinstance(dsn.get_option("b"), MutableMapping)
+
+
+def test_it_keeps_a_named_option_apart_from_the_mapping_it_was_built_from() -> None:
+    named = {"k": "v"}
+    dsn = Dsn("smtp", "example.com", options={"b": named})
+
+    named["k"] = "changed"
+
+    assert dsn.get_option("b") == {"k": "v"}
+    assert not isinstance(dsn.get_option("b"), MutableMapping)
+
+
 @pytest.mark.parametrize(
     ("raw", "message"),
     [
@@ -125,6 +169,34 @@ def test_it_refuses_a_dsn_it_cannot_read(raw: str, message: str) -> None:
         _ = Dsn.from_string(raw)
 
     assert str(caught.value) == message
+
+
+@pytest.mark.parametrize(
+    ("raw", "credentials"),
+    [
+        # The fragment cuts the netloc at "#", leaving the password where the port goes.
+        pytest.param(
+            "smtp://s3cr3t-user:hunter#x@example.com", ("s3cr3t-user", "hunter"), id="port"
+        ),
+        # A full-width "@" fails normalisation, and the stdlib quotes the whole netloc.
+        pytest.param(
+            "smtp://s3cr3t-user:pa55\uff20x@example.com",
+            ("s3cr3t-user", "pa55"),
+            id="normalisation",
+        ),
+    ],
+)
+def test_it_keeps_the_credentials_out_of_the_error_chain(
+    raw: str, credentials: tuple[str, str]
+) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = Dsn.from_string(raw)
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__
+    rendered = "".join(traceback.format_exception(caught.value))
+    for credential in credentials:
+        assert credential not in rendered
 
 
 @pytest.mark.parametrize(
