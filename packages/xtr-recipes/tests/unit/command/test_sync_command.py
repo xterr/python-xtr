@@ -151,13 +151,12 @@ async def test_a_project_whose_package_is_missing_is_reported(
 ) -> None:
     install_recipes(monkeypatch, {})
     _ = build_project(tmp_path)
-    (tmp_path / "src" / "app" / "__init__.py").unlink()
-    (tmp_path / "src" / "app").rmdir()
+    (tmp_path / "src" / "app" / "kernel.py").unlink()
 
     code = await tester.execute(_argv(tmp_path))
 
     assert code == ExitCode.FAILURE
-    assert "resolves to neither" in tester.display
+    assert "no kernel.py was found" in tester.display
 
 
 _KEYED_MANIFEST = """\

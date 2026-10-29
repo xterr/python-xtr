@@ -135,9 +135,10 @@ A clean project prints `recipes are in sync` and exits 0.
 ## Use in an application
 
 1. **Install** — `uv add --dev xtr-recipes`.
-2. **Configure the project** — the application package is `[project].name` normalised to an import
-   name, or set `[tool.xtr-recipes] app = "<import name>"`; it must resolve to `src/<app>/` or
-   `<app>/`.
+2. **Configure the project** — nothing to set: the application package is the one package holding
+   `kernel.py`, searched under `src/` first, then the project root, through packages only
+   (`src/acme/shop/kernel.py` is `acme.shop`). Nothing in `pyproject.toml` names it; delete a
+   leftover `[tool.xtr-recipes] app`, which is refused.
 3. **Add packages through it** — `uv run xtr-recipes recipes:add "<requirement>"`, then do the
    steps it prints under `steps`, and confirm with `debug:bundles`. A development tool takes
    `--dev`: it goes in the `dev` group, and its bundles are listed for the environments its
@@ -152,9 +153,9 @@ the application's kernel, because the application may not build before or after 
 
 Every error derives from `RecipesError` and names the package and the key or file at fault:
 
-- `ProjectNotFoundError` — no `pyproject.toml` at or above the directory, or the application
-  package resolves to neither `src/<app>/` nor `<app>/`; it names the setting the app name came
-  from.
+- `ProjectNotFoundError` — no `pyproject.toml` at or above the directory; no package under `src/`
+  or the project root holds a `kernel.py`, or several do (it lists them); or `pyproject.toml` still
+  sets `[tool.xtr-recipes] app`, which is no longer read — delete it.
 - `InvalidManifestError` — a recipe's `manifest.toml` has an unknown table or key, a malformed
   `"<module>:<Class>"` target, a value of the wrong type, or a template with an unknown placeholder.
 - `BundlesNotEditableError` — `config/bundles.py` was not written in the form the tool can read back; it
