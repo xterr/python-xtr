@@ -113,6 +113,7 @@ unfixable = []
     "SLF001",  # tests reach into privates
     "D",       # test names are the docs
     "FBT003",  # a scripted outcome is a value, not a flag
+    "A002",    # a fake names its parameter `format`, as the interface it implements does
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -157,4 +158,7 @@ exclude_lines = [
     "raise NotImplementedError",
     # A Protocol body states a contract; there is nothing there to run.
     "^\\s*\\.\\.\\.$",
+    # An overload only states a signature for the type checker; the
+    # implementation after it is what runs.
+    "^\\s*@overload$",
 ]
