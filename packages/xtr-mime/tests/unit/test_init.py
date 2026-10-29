@@ -21,3 +21,8 @@ def test_the_package_exports_mime_type_guessing() -> None:
         "MimeTypes",
         "MimeTypesInterface",
     } <= set(xtr_mime.__all__)
+
+
+def test_the_package_exports_the_headers() -> None:
+    assert set(xtr_mime.header.__all__) <= set(xtr_mime.__all__)
+    assert xtr_mime.Headers is xtr_mime.header.Headers

@@ -20,21 +20,45 @@ from .exception import (
     RfcComplianceError,
 )
 from .group import Group
+from .header import (
+    AbstractHeader,
+    DateHeader,
+    HeaderInterface,
+    HeaderKind,
+    Headers,
+    IdentificationHeader,
+    MailboxHeader,
+    MailboxListHeader,
+    ParameterizedHeader,
+    PathHeader,
+    UnstructuredHeader,
+)
 from .magic_mime_type_guesser import MagicMimeTypeGuesser
 from .mime_type_guesser_interface import MimeTypeGuesserInterface
 from .mime_types import MimeTypes
 from .mime_types_interface import MimeTypesInterface
 
 __all__ = [
+    "AbstractHeader",
     "Address",
+    "DateHeader",
     "Group",
+    "HeaderInterface",
+    "HeaderKind",
+    "Headers",
+    "IdentificationHeader",
     "InvalidArgumentError",
     "LogicError",
     "MagicMimeTypeGuesser",
+    "MailboxHeader",
+    "MailboxListHeader",
     "MimeError",
     "MimeRuntimeError",
     "MimeTypeGuesserInterface",
     "MimeTypes",
     "MimeTypesInterface",
+    "ParameterizedHeader",
+    "PathHeader",
     "RfcComplianceError",
+    "UnstructuredHeader",
 ]
