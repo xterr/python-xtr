@@ -15,11 +15,11 @@ __all__ = ["render_reply", "unexpected_response"]
 def render_reply(code: int, text: str) -> str:
     """Rebuild a reply from its code and its lines, joined by CRLF.
 
-    A reply that could not be parsed has no code (``0`` or less); ``text`` then
-    says why, and is returned as it is.
+    A reply that could not be parsed has no code (``0`` or less); ``text`` is then
+    what the server sent, and is returned trimmed.
     """
     if code <= 0:
-        return text
+        return text.strip()
     lines = text.split("\n")
     rendered = [f"{code}-{line}" for line in lines[:-1]]
     rendered.append(f"{code} {lines[-1]}")

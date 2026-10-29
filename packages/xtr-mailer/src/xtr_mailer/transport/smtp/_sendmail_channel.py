@@ -8,7 +8,7 @@ import socket
 import sys
 from typing import final
 
-from xtr_mailer.exception import InvalidArgumentError, TransportError
+from xtr_mailer.exception import InvalidArgumentError, LogicError, TransportError
 
 __all__ = ["SendmailChannel"]
 
@@ -53,8 +53,12 @@ class SendmailChannel:
         """Start the child and return the socket its standard streams are connected to.
 
         Raises:
+            LogicError: The channel is already open; close it first.
             TransportError: The system is not POSIX, or the command could not be started.
         """
+        if self._child is not None:
+            # A second child would replace the first, which would then never be waited for.
+            raise LogicError("The sendmail channel is already open.")
         if sys.platform == "win32":
             raise TransportError(
                 "The sendmail transport needs a POSIX system: it runs sendmail over a socket pair."

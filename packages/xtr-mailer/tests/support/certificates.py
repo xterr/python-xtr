@@ -13,6 +13,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from xtr_clock import SystemClock
 
 __all__ = ["Certificate", "make_certificate"]
 
@@ -37,7 +38,8 @@ def make_certificate(directory: Path) -> Certificate:
     """Write a certificate for ``localhost`` and ``127.0.0.1`` signed by its own key."""
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
-    now = datetime.datetime.now(datetime.UTC)
+    # cryptography needs a plain datetime: it cannot strip the zone of the clock's subclass.
+    now = datetime.datetime.fromtimestamp(SystemClock("UTC").now().timestamp(), datetime.UTC)
     certificate = (
         x509.CertificateBuilder()
         .subject_name(name)

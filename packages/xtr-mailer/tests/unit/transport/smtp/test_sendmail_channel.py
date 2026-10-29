@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from xtr_mailer.exception import InvalidArgumentError, TransportError
+from xtr_mailer.exception import InvalidArgumentError, LogicError, TransportError
 from xtr_mailer.transport.smtp._sendmail_channel import SendmailChannel
 from xtr_mailer.transport.smtp._smtp_client import SmtpClient
 from xtr_mailer.transport.smtp._smtp_connection_config import SmtpConnectionConfig
@@ -101,6 +101,30 @@ async def test_an_empty_command_is_refused() -> None:
 
 async def test_closing_a_channel_never_opened_does_nothing() -> None:
     assert await SendmailChannel(_command()).close() is None
+
+
+async def test_an_open_channel_refuses_to_open_again() -> None:
+    channel = SendmailChannel(_command())
+    client = await _start(channel)
+
+    with pytest.raises(LogicError, match=r"^The sendmail channel is already open\.$"):
+        _ = await channel.open()
+    client.close()
+    exit_code = await channel.close()
+
+    assert exit_code == 0
+
+
+async def test_a_closed_channel_can_open_again() -> None:
+    channel = SendmailChannel(_command())
+    client = await _start(channel)
+    client.close()
+    _ = await channel.close()
+
+    client = await _start(channel)
+    client.close()
+
+    assert await channel.close() == 0
 
 
 async def test_it_needs_a_posix_system(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -4,6 +4,7 @@ import asyncio
 import base64
 import hashlib
 import socket
+import struct
 from typing import TYPE_CHECKING
 
 import pytest
@@ -245,6 +246,50 @@ async def test_a_malformed_reply_is_an_empty_code() -> None:
     assert caught.value.code == 0
 
 
+async def test_a_malformed_reply_is_named_by_its_own_text_trimmed() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["NOOP"] = ["  hello there  "]
+        client = await _connected(server)
+
+        with pytest.raises(UnexpectedResponseError) as caught:
+            _ = await client.noop()
+        client.close()
+
+    assert str(caught.value) == (
+        'Expected response code "250" but got empty code, with message "hello there".'
+    )
+    assert caught.value.debug == "> NOOP\n< hello there\n"
+
+
+async def test_a_reply_too_long_to_read_is_an_empty_code() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["NOOP"] = ["250 " + "x" * 9000]
+        client = await _connected(server)
+
+        with pytest.raises(UnexpectedResponseError) as caught:
+            _ = await client.noop()
+        client.close()
+
+    assert str(caught.value) == (
+        'Expected response code "250" but got empty code, with message "Response too long".'
+    )
+    assert caught.value.code == 0
+    assert caught.value.debug == "> NOOP\n< Response too long\n"
+
+
+async def test_a_blank_reply_adds_no_empty_debug_line() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["NOOP"] = ["   "]
+        client = await _connected(server)
+
+        with pytest.raises(UnexpectedResponseError) as caught:
+            _ = await client.noop()
+        client.close()
+
+    assert str(caught.value) == 'Expected response code "250" but got empty code.'
+    assert caught.value.debug == "> NOOP\n"
+
+
 async def test_a_refused_data_command_names_the_start_of_input_code() -> None:
     async with ScriptedSmtpServer() as server:
         server.replies["DATA"] = ["554 5.5.1 No valid recipients"]
@@ -357,6 +402,69 @@ async def test_a_message_that_is_never_accepted_times_out_and_closes() -> None:
 
     assert str(caught.value) == f'Connection to "127.0.0.1:{server.port}" timed out.'
     assert caught.value.debug == "> [message]\n"
+    assert not client.is_connected
+
+
+async def test_a_slow_server_still_reading_a_large_message_does_not_time_out() -> None:
+    line = b"x" * 1022 + b"\r\n"
+    message = line * 4096
+    async with ScriptedSmtpServer() as server:
+        # About 3 MB/s: the 4 MiB upload outlasts the timeout, while what the buffers
+        # still hold after the last write is read well within it.
+        server.throttle = (32 * 1024, 0.01)
+        client = _client(server, timeout=1.0)
+        _ = await client.connect()
+        # A small send buffer too, so the upload's pace is the server's, not the kernel's.
+        sock: socket.socket = client._smtp.get_transport_info("socket")  # pyright: ignore[reportAny] — aiosmtplib types transport info as Any
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 32 * 1024)
+
+        started = asyncio.get_running_loop().time()
+        reply = await client.data(message)
+        elapsed = asyncio.get_running_loop().time() - started
+        client.close()
+
+    assert reply == "250 2.0.0 Ok: queued as 1A2B3C"
+    assert server.messages == [message]
+    assert elapsed > 1.0  # the whole upload outlasted the timeout, each write did not
+
+
+async def test_a_server_that_stops_reading_a_message_times_out_and_closes() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.stall.add("DATA_BODY")
+        client = _client(server, timeout=0.2)
+        _ = await client.connect()
+
+        with pytest.raises(TransportError) as caught:
+            _ = await client.data(b"x" * (16 * 1024 * 1024))
+
+    assert str(caught.value) == f'Connection to "127.0.0.1:{server.port}" timed out.'
+    assert caught.value.debug == "> [message]\n"
+    assert not client.is_connected
+
+
+async def test_a_server_that_resets_the_connection_mid_message_raises_a_transport_error() -> None:
+    async def reset_at_data(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        writer.write(b"220 localhost ESMTP ready\r\n")
+        _ = await reader.readline()
+        writer.write(b'354 End data with "." on a line by itself\r\n')
+        await writer.drain()
+        await asyncio.sleep(0.05)
+        sock: socket.socket = writer.get_extra_info("socket")  # pyright: ignore[reportAny] — get_extra_info() is Any in typeshed
+        # A zero linger turns the close into a reset, as a crashing server's would be.
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        writer.transport.abort()
+
+    server = await asyncio.start_server(reset_at_data, "127.0.0.1", 0)
+    port = int(server.sockets[0].getsockname()[1])  # pyright: ignore[reportAny] — getsockname() is Any in typeshed
+    client = SmtpClient(Config("127.0.0.1", port, timeout=2.0))
+    _ = await client.connect()
+
+    with pytest.raises(TransportError) as caught:
+        _ = await client.data(b"x" * (16 * 1024 * 1024))
+    server.close()
+    await server.wait_closed()
+
+    assert str(caught.value) == f'Connection to "127.0.0.1:{port}" has been closed unexpectedly.'
     assert not client.is_connected
 
 
@@ -657,3 +765,39 @@ async def test_a_peer_fingerprint_is_not_checked_on_a_plain_connection() -> None
 
         assert client.is_connected
         client.close()
+
+
+async def test_a_tls_server_that_hangs_up_before_its_fingerprint_is_read_raises_a_transport_error(
+    certificate: Certificate,
+) -> None:
+    def greet_and_hang_up(_reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        writer.write(b"220 localhost ESMTP ready\r\n")
+        writer.close()
+
+    server = await asyncio.start_server(
+        greet_and_hang_up, "127.0.0.1", 0, ssl=certificate.server_context()
+    )
+    port = int(server.sockets[0].getsockname()[1])  # pyright: ignore[reportAny] — getsockname() is Any in typeshed
+    fingerprint = hashlib.sha256(certificate.der).hexdigest()
+    client = SmtpClient(
+        Config("localhost", port, tls=True, validate_certs=False, peer_fingerprint=fingerprint)
+    )
+    failures: list[str] = []
+
+    # The hang-up races the fingerprint read; enough attempts make it lose at least once.
+    for _ in range(30):
+        try:
+            _ = await client.connect()
+        except TransportError as error:
+            failures.append(str(error))
+        client.close()
+    server.close()
+    await server.wait_closed()
+
+    assert failures
+    assert set(failures) == {
+        (
+            f'Connection could not be established with host "ssl://localhost:{port}": '
+            "peer fingerprint match failure"
+        )
+    }

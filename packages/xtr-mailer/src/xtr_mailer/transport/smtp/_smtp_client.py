@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import re
 import ssl
+from asyncio import wait_for
 from typing import TYPE_CHECKING, Final, final
 
 import aiosmtplib
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     import socket
     from collections.abc import Awaitable, Callable, Sequence
 
+    from aiosmtplib.protocol import SMTPProtocol
+
     from ._smtp_connection_config import SmtpConnectionConfig
 
 __all__ = ["SmtpClient"]
@@ -41,6 +44,8 @@ _SERVICE_CLOSING: Final = 421
 _AUTH_CONTINUE: Final = 334
 _REDACTED: Final = "[redacted]"
 _MESSAGE: Final = "[message]"
+_CHUNK_SIZE: Final = 64 * 1024
+_MALFORMED_LINE: Final = "Malformed SMTP response line: "
 
 
 @final
@@ -293,8 +298,13 @@ class SmtpClient:
         content = _LINE_ENDINGS.sub(b"\r\n", message)
         if not content.endswith(b"\r\n"):
             content += b"\r\n"
+        payload = memoryview(_LEADING_PERIOD.sub(b"..", content) + b".\r\n")
         try:
-            protocol.write(_LEADING_PERIOD.sub(b"..", content) + b".\r\n")
+            # The timeout bounds each write, not the whole upload: a slow server still
+            # reading a large message is healthy, one that stops reading is not.
+            for start in range(0, len(payload), _CHUNK_SIZE):
+                protocol.write(bytes(payload[start : start + _CHUNK_SIZE]))
+                await self._drained(protocol)
             response = await protocol.read_response(timeout=self._config.timeout)
         except (aiosmtplib.SMTPServerDisconnected, aiosmtplib.SMTPTimeoutError):
             self._smtp.close()
@@ -303,11 +313,25 @@ class SmtpClient:
             self._smtp.close()
         return response
 
+    async def _drained(self, protocol: SMTPProtocol) -> None:
+        """Wait until the connection has taken what was written, within the timeout."""
+        try:
+            # aiosmtplib's protocol has flow control but no public drain; pinned below 6.
+            await wait_for(protocol._drain_helper(), self._config.timeout)  # noqa: SLF001 — see above  # pyright: ignore[reportPrivateUsage] — see above
+        except TimeoutError:
+            raise aiosmtplib.SMTPTimeoutError("Timed out writing the message") from None
+        except ConnectionError:
+            raise aiosmtplib.SMTPServerDisconnected("Connection lost") from None
+
     def _peer_matches(self) -> bool:
         fingerprint = self._config.peer_fingerprint
         if fingerprint is None:
             return True
-        ssl_object: object = self._smtp.get_transport_info("ssl_object")  # pyright: ignore[reportAny] — aiosmtplib types transport info as Any
+        try:
+            ssl_object: object = self._smtp.get_transport_info("ssl_object")  # pyright: ignore[reportAny] — aiosmtplib types transport info as Any
+        except aiosmtplib.SMTPException:
+            # The server hung up before its certificate could be read: nothing to match.
+            return False
         certificate = (
             ssl_object.getpeercert(binary_form=True)
             if isinstance(ssl_object, ssl.SSLObject)
@@ -338,7 +362,8 @@ class SmtpClient:
         error = unexpected_response(expected_codes, response.code, reply)
         if shown is not None:
             error.append_debug(f"> {shown}\n")
-        error.append_debug("".join(f"< {line}\n" for line in reply.split("\r\n")))
+        if reply:
+            error.append_debug("".join(f"< {line}\n" for line in reply.split("\r\n")))
         return error
 
     def _failure(self, error: aiosmtplib.SMTPException) -> TransportError:
@@ -368,5 +393,12 @@ class SmtpClient:
 
 
 def _response(error: aiosmtplib.SMTPResponseException) -> aiosmtplib.SMTPResponse:
-    """The reply aiosmtplib raised over; one it could not parse has code ``-1``."""
-    return aiosmtplib.SMTPResponse(error.code, error.message)
+    """The reply aiosmtplib raised over; one it could not parse has code ``-1``.
+
+    An unparsable line is given back as the server sent it, trimmed, not wrapped in
+    aiosmtplib's explanation.
+    """
+    message = error.message
+    if error.code <= 0:
+        message = message.removeprefix(_MALFORMED_LINE).strip()
+    return aiosmtplib.SMTPResponse(error.code, message)

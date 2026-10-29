@@ -18,7 +18,11 @@ def test_a_reply_with_no_text_is_its_code() -> None:
 
 
 def test_a_reply_with_no_code_is_its_text() -> None:
-    assert render_reply(-1, "Malformed SMTP response line: x") == "Malformed SMTP response line: x"
+    assert render_reply(-1, "hello there") == "hello there"
+
+
+def test_a_reply_with_no_code_is_trimmed() -> None:
+    assert render_reply(-1, " hello there\r\n") == "hello there"
 
 
 def test_an_unexpected_reply_names_the_codes_it_was_expected_with() -> None:
