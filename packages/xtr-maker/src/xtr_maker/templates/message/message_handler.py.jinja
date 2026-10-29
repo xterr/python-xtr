@@ -1,0 +1,19 @@
+"""The handler of ``{{ message_class }}``."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+@as_message_handler({{ message_class }})
+class {{ class_name }}:
+    """Handles ``{{ message_class }}``; describe what follows from one here."""
+
+    async def __call__(self, message: {{ message_class }}) -> None:
+        """Handle ``message``."""
+        del message  # Replace with what handling the message does.

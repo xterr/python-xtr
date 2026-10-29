@@ -8,6 +8,7 @@ application with the name `shop`. To make this application, do the steps in
 |---|---|
 | [Configure a bundle](configuration.md) | Change the configuration of a bundle, for each environment. |
 | [Add a console command](console-commands.md) | Write a command and run it from the console. |
+| [Generate code](generate-code.md) | Write the first files of an entity, a message or a listener with the `make:*` commands. |
 | [Build a web application](web-application.md) | Add routes and use services from the container in a route. |
 | [Send and handle messages](messages.md) | Send a message to a handler now, or later through a transport. |
 | [Protect a web application](security.md) | Add a firewall, users and access rules. |

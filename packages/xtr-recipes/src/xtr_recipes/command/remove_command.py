@@ -12,9 +12,13 @@ from xtr_recipes.exception import RecipesError
 
 __all__ = ["RemoveCommand"]
 
+_UV_REMOVE = ("uv", "remove")
+# A package depended on for development only is in the ``dev`` group, which a
+# plain ``uv remove`` does not look in.
+_DEV = "--dev"
 # ``--`` ends uv's own options, so a package name that begins with a dash is
 # passed through as a package, not parsed as a flag of ``uv remove``.
-_UV_REMOVE = ("uv", "remove", "--")
+_END_OF_OPTIONS = "--"
 
 
 @as_command("recipes:remove")
@@ -39,7 +43,8 @@ class RemoveCommand:
 
         Args:
             io: Where a failure is reported.
-            package: The distribution to remove.
+            package: The distribution to remove; one the project depends on for
+                development only is taken out of the dev dependency group.
             project_dir: The project to remove it from; the nearest one at or
                 above the current directory by default.
 
@@ -50,4 +55,7 @@ class RemoveCommand:
             project = command_support.load_project(project_dir)
         except RecipesError as error:
             return command_support.failed(io, error)
-        return command_support.change_dependency(io, project, (*_UV_REMOVE, package))
+        dev_only = command_support.normalise(package) in project.dev_dependencies
+        group = (_DEV,) if dev_only else ()
+        argv = (*_UV_REMOVE, *group, _END_OF_OPTIONS, package)
+        return command_support.change_dependency(io, project, argv)

@@ -101,7 +101,7 @@ curl -i 'localhost:8080/search?q=a'     # 429 {"error": "too many requests", "li
   injected by name, since the address is in the body: a third order from one address in an
   hour is 429 `{"error": "too many orders from this address"}`, raised by `ensure_accepted()`;
 - a refusal is answered in the shop's own shape by two exception handlers in `web/app.py`, and
-  written to the `security` channel by `observability/rate_limit_audit.py`, which hears the
+  written to the `security` channel by `event_listener/audit_refused_request_listener.py`, which hears the
   `RateLimitExceededEvent` every refusing route dispatches.
 - **A documented deviation in the ordering.** The firewall runs before routing, hence before
   the route-level `RateLimited` dependencies: an unauthenticated request to a limited route is
@@ -109,7 +109,7 @@ curl -i 'localhost:8080/search?q=a'     # 429 {"error": "too many requests", "li
   its `401` carries no `X-RateLimit-*` headers — while an authenticated request to the same
   route is limited exactly as before. `demo:rate-limit` pins all three claims.
 
-Limits are not only for routes: `send_receipt` (`messaging/handlers.py`) reserves a slot of the
+Limits are not only for routes: `send_receipt` (`message_handler/send_receipt_handler.py`) reserves a slot of the
 mail provider's ten a minute (`outbound_mail`) and waits for it — or, past half a minute, raises
 so the worker retries the message later.
 
@@ -151,7 +151,7 @@ curl -s -H "Authorization: Bearer $ADMIN" localhost:8080/admin/stats # 200 {"ord
 - `/me` injects the caller with `CurrentUser()`; `/admin/stats` carries `@IsGranted("ROLE_ADMIN")`,
   granted to `root@example.com` and, through the role hierarchy (`ROLE_ADMIN` reaches `ROLE_USER`),
   to nothing less;
-- `GET /orders/{number}` is a customer's own order: `ordering/order_voter.py`'s `OrderViewVoter`
+- `GET /orders/{number}` is a customer's own order: `security/voter/order_view_voter.py`'s `OrderViewVoter`
   grants `ORDER_VIEW` to the user whose identifier is the order's `email`, checked in the body
   with `Security.deny_access_unless_granted` — another customer is answered 403;
 - the three inline users (`ada@example.com`, `lin@example.com`, `root@example.com`) and their
@@ -193,7 +193,7 @@ def webhook(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
   nothing is routed to, `404` — that URL does not exist, from the sender's side.
 - The endpoint answers the sender *now* — `202` — and leaves the payload to the bus:
   `PaymentWebhookConsumer` (`@as_remote_event_consumer("payments")`, in
-  `messaging/handlers.py`) puts every arrived event on the audit trail, in a worker. A
+  `remote_event/payment_webhook_consumer.py`) puts every arrived event on the audit trail, in a worker. A
   sender waiting on a handler is a sender that times out and sends the webhook again.
 
 ## Layout
@@ -212,9 +212,13 @@ examples/bookshop/
         ├── kernel.py     the Kernel recipe, the scan exclusions, load_environment()
         ├── config/       bundles.py, the root bundles per environment; packages/, one
         │                 @configure module per bundle; plus @parameters
-        ├── scheduling/   the schedule, its tasks, and who hears about each run
         ├── __main__.py   console entry · web/ the web application · worker.py worker entry
-        └── …             one package per concern, below
+        ├── dev_tools/    an in-app bundle, active in dev and test · env/ env processors and loaders
+        ├── diagnostics/  deliberately broken modules demo:errors builds on their own
+        └── …             one folder per kind of class, one public class or function per module:
+                          command/ entity/ event/ event_listener/ event_subscriber/ exception/
+                          message/ message_handler/ middleware/ remote_event/ repository/
+                          scheduler/ security/voter/ stamp/ transport/ — and service/ for the rest
 ```
 
 `.env.prod` and `secrets/SHOP_VAULT_TOKEN` are committed on purpose, so the example runs as
@@ -233,7 +237,7 @@ own, keep every secret out of the repository too.
 |---|---|
 | `Kernel(package, name=, allowed_envs=, exclude=)`; env and debug from `APP_ENV` / `APP_DEBUG` | `bookshop/kernel.py` |
 | `kernel.run(console)` · `setup(app, kernel)` — build, lifespan and request scopes in one call · `kernel.boot()` | `__main__.py` · `web/app.py` · `worker.py` |
-| `Kernel(environ=)`, `kernel.with_env()`, `engine_container()` | `dev_tools/commands.py`, `commands/demo_errors.py` |
+| `Kernel(environ=)`, `kernel.with_env()`, `engine_container()` | `dev_tools/commands.py`, `command/demo_errors_command.py` |
 | `BUNDLES` with `{"all": True}` and `{"dev": True, "test": True}` | `bookshop/config/bundles.py` |
 | A bundle with every hook: `build`, `prepend_extension`, `load_extension`, `process`, `boot`, `shutdown` | `fulltext/bundle/fulltext_bundle.py` |
 | `@as_bundle(name, config=, resources=)`; `@required_bundle` by class, by `"module:Class"`, `ignore_on_invalid` | `fulltext/bundle/fulltext_bundle.py`, `dev_tools/dev_tools_bundle.py` |
@@ -243,7 +247,7 @@ own, keep every secret out of the repository too.
 | `prepend_extension_config(LoggingConfig, …)` with `LoggingConfig.with_channels` | `fulltext/bundle/fulltext_bundle.py` |
 | `services.set / instance / alias / load`, `.set_argument`, `.add_tag("kernel.reset", method=)`, `.set_decorated_service` | `fulltext/bundle/fulltext_bundle.py` |
 | `builder.get_extension_config`, `find_tagged_service_ids`, `get_definition`, `log` | `fulltext/bundle/analyzer_pipeline_pass.py` |
-| `ServiceLocator` inside a factory | `fulltext/bundle/fulltext_bundle.py`, `reporting/export_registry.py` |
+| `ServiceLocator` inside a factory | `fulltext/bundle/fulltext_bundle.py`, `service/export_registry.py` |
 | `AliasOf` — a config field forwarded to another bundle | `fulltext/bundle/fulltext_config.py`, `config/packages/fulltext.py`, `config/packages/clock.py` |
 | `assert_zero_config` · `boot_for_test(overrides=)` | `dev_tools/commands.py` |
 | `integration.wireup`: `create_container`, `injectables`, `engine_container` | `dev_tools/commands.py` |
@@ -252,84 +256,84 @@ own, keep every secret out of the repository too.
 
 | Decorator | File |
 |---|---|
-| `@as_service` bare, on a factory, `lifetime="scoped"` (a generator), `"transient"`, `qualifier=` | `catalog/in_memory_book_catalog.py`, `ordering/unit_of_work.py`, `ordering/order_number.py`, `notifications/notifiers.py`, `observability/logging_services.py` |
-| `@as_alias(T)`, `@as_alias(T, qualifier=)` | `notifications/notifiers.py`, `observability/logging_services.py` |
-| `@as_tagged_item(index=, priority=, before=, after=)` + `@as_alias(Base, qualifier=)` → an ordered `Sequence[Base]` / `Mapping[Hashable, Base]` | `pricing/rules.py`, `pricing/price_calculator.py` |
-| `@as_tagged_item(before=, after=)` on class keys → emission order, read back from the report | `health/checks.py`, followed by `lifecycle.run_startup_checks` |
-| `@autoconfigure(tags=[(name, callable)])`, `(lifetime=)`, `(factory=)` | `health/startup_check.py`, `ordering/request_scoped.py`, `reporting/exporters.py` |
-| `@autoconfigure_tag(name, **attrs)`, repeated, and without a name | `pricing/pricing_rule.py` |
-| `@as_decorator(T, priority=)` stacked; `qualifier=`; `OnInvalid.IGNORE`; `OnInvalid.NULL` | `catalog/catalog_decorators.py`, `notifications/notifiers.py`, `payments/payment_gateway.py`, `payments/fraud_check.py` |
-| `@remove_if_missing(service=, qualifier=)`, `(class_=)`, `(package=)`, repeated | `observability/security_audit_trail.py`, `notifications/notifiers.py`, `catalog/redis_catalog_warmer.py`, `payments/payment_gateway.py` |
-| `@when(...)`, `@when_not(...)`, `@when` repeated | `notifications/notifiers.py`, `payments/payment_gateway.py`, `lifecycle.py`, `config/*.py` |
-| `@exclude` | `kernel.py`, `messaging/outbox_transport.py` |
-| `@on_boot`, `@on_boot(priority=)`, `@on_shutdown(priority=)` | `lifecycle.py` |
-| `@compiler_pass`, `(stage=, priority=)` at `BEFORE_OPTIMIZATION`, `OPTIMIZE`, `AFTER_REMOVING` | `compiler_passes.py` |
+| `@as_service` bare, on a factory, `lifetime="scoped"` (a generator), `"transient"`, `qualifier=` | `service/in_memory_book_catalog.py`, `service/unit_of_work.py`, `service/order_number.py`, `service/log_notifier.py`, `service/ops_notifier.py`, `service/memory_handler.py` |
+| `@as_alias(T)`, `@as_alias(T, qualifier=)` | `service/log_notifier.py`, `service/smtp_notifier.py`, `service/request_id_processor.py` |
+| `@as_tagged_item(index=, priority=, before=, after=)` + `@as_alias(Base, qualifier=)` → an ordered `Sequence[Base]` / `Mapping[Hashable, Base]` | `service/pricing_rule.py` (the order), `service/vat_rule.py`, `service/bulk_rule.py`, `service/rounding_rule.py`, `service/member_rule.py`, `service/price_calculator.py` |
+| `@as_tagged_item(before=, after=)` on class keys → emission order, read back from the report | `service/startup_check.py` (the order), `service/*_check.py`, followed by `service/run_startup_checks.py` |
+| `@autoconfigure(tags=[(name, callable)])`, `(lifetime=)`, `(factory=)` | `service/startup_check.py`, `service/request_scoped.py`, `service/exporter.py`, `service/markdown_exporter.py` |
+| `@autoconfigure_tag(name, **attrs)`, repeated, and without a name | `service/pricing_rule.py` |
+| `@as_decorator(T, priority=)` stacked; `qualifier=`; `OnInvalid.IGNORE`; `OnInvalid.NULL` | `service/caching_book_catalog.py`, `service/audited_book_catalog.py`, `service/urgent_notifier.py`, `service/retrying_payment_gateway.py`, `service/limit_fraud_check.py` |
+| `@remove_if_missing(service=, qualifier=)`, `(class_=)`, `(package=)`, repeated | `service/security_audit_trail.py`, `service/sms_notifier.py`, `service/redis_catalog_warmer.py`, `service/refund_service.py` |
+| `@when(...)`, `@when_not(...)`, `@when` repeated | `service/log_notifier.py`, `service/smtp_notifier.py`, `service/http_payment_gateway.py`, `service/describe_development_environment.py`, `config/*.py` |
+| `@exclude` | `kernel.py`, `transport/unused_transport_factory.py` |
+| `@on_boot`, `@on_boot(priority=)`, `@on_shutdown(priority=)` | `service/announce_boot.py`, `service/run_startup_checks.py`, `service/describe_development_environment.py`, `service/wire_console_hooks.py`, `service/reset_between_units_of_work.py`, `service/goodbye.py` |
+| `@compiler_pass`, `(stage=, priority=)` at `BEFORE_OPTIMIZATION`, `OPTIMIZE`, `AFTER_REMOVING` | `service/tag_application_services_pass.py`, `service/exporter_registry_pass.py`, `service/compilation_summary_pass.py` |
 | `@configure` base, transform, `(priority=)`, under `@when` | `config/*.py` |
 | `@parameters`; `%param%`, `%%`, `"%env(int:X)%"`; `env()` in every spelling | `config/packages/parameters.py` |
 | `Injected[T]`, `Autowire(param=)`, `Autowire(env=)`, `Target(q)`, `AutowireDecorated` | throughout; `env/env_showcase.py` for `env=` |
 | `EnvVarProcessorInterface` · `EnvVarLoaderInterface` | `env/rot13_processor.py` · `env/secrets_directory_loader.py` |
-| `ContainerInterface`, `ContainerBagInterface`, `KernelInterface`, `ServicesResetter`, `bind_callable` | `commands/showcase_commands.py`, `lifecycle.py` |
+| `ContainerInterface`, `ContainerBagInterface`, `KernelInterface`, `ServicesResetter`, `bind_callable` | `command/container_showcase_command.py`, `command/clear_caches_command.py`, `service/run_startup_checks.py` |
 | The markers as the web framework's own dependencies, in a route signature | `web/routes.py` |
 
 ### The other packages
 
 | Package | Feature | File |
 |---|---|---|
-| console | `@as_command` bare, named, `aliases=`, `description=`, `hidden=`; function and class commands; sync and async | `commands/*.py`, `fulltext/command/` |
-| console | `Argument(...)`, `Option(alias=, count=, negative=, name=, env_var=, validator=)`, `Range`, `escape` | `commands/catalog_commands.py`, `commands/order_commands.py`, `commands/style_commands.py` |
-| console | every `ConsoleStyle` method, questions, verbosity, exit codes | `commands/style_commands.py` |
-| console | `Application.on_configure / on_startup / on_shutdown`, from a boot hook | `lifecycle.py` |
+| console | `@as_command` bare, named, `aliases=`, `description=`, `hidden=`; function and class commands; sync and async | `command/*_command.py`, `fulltext/command/` |
+| console | `Argument(...)`, `Option(alias=, count=, negative=, name=, env_var=, validator=)`, `Range`, `escape` | `command/list_books_command.py`, `command/price_book_command.py`, `command/add_book_command.py`, `command/place_order_command.py`, `command/echo_command.py` |
+| console | every `ConsoleStyle` method, questions, verbosity, exit codes | `command/demo_style_command.py` |
+| console | `Application.on_configure / on_startup / on_shutdown`, from a boot hook | `service/wire_console_hooks.py` |
 | console | `Application`, `CommandsLocator`, `CommandTester`, `ApplicationTester` without a kernel | `dev_tools/commands.py` |
-| messenger | `@as_message` in every form; dataclass and pydantic messages | `messaging/messages.py` |
-| messenger | `@as_message_handler` on functions and classes, `Envelope`, several handlers per message | `messaging/handlers.py` |
-| messenger | `@as_middleware`, repeated; a middleware instance in the config; custom stamps | `messaging/middleware.py`, `messaging/stamps.py` |
+| messenger | `@as_message(name=, transport=)` — pinned wire names, one transport or a list; dataclass and pydantic messages | `message/*.py` |
+| messenger | `@as_message_handler` on functions and classes, `Envelope`, several handlers per message | `message_handler/*_handler.py` (`SendReceipt`: `send_receipt_handler.py`, `receipt_counter_handler.py`) |
+| messenger | `@as_middleware`, repeated; a middleware instance in the config; custom stamps | `middleware/*_middleware.py`, `stamp/*.py` |
 | messenger | every `MessageBusConfig` / `TransportConfig` field; `sync://`, `in-memory://`; AMQP in prod | `config/packages/messenger.py` |
-| messenger | an application transport factory, found by the bundle | `messaging/outbox_transport.py` |
+| messenger | an application transport factory, found by the bundle | `transport/outbox_transport_factory.py`, `transport/outbox_transport.py` |
 | logging | every handler, processor and formatter configuration; capture (dev) and a stdlib handler (prod) | `config/packages/logging.py` |
-| logging | service ids for a handler, formatter, processor and activation strategy | `observability/logging_services.py` |
-| logging | `@as_processor(channel=, handler=, priority=)` on classes and on a function | `observability/processors.py` |
+| logging | service ids for a handler, formatter, processor and activation strategy | `service/memory_handler.py`, `service/audit_formatter.py`, `service/request_id_processor.py`, `service/security_strategy.py` |
+| logging | `@as_processor(channel=, handler=, priority=)` on classes and on a function | `service/shop_name_processor.py`, `service/orders_component_processor.py`, `service/environment_processor.py`, `service/mark_http_requests.py` |
 | logging | `bound_context`, context vars; `Logger` / `LoggerFactory` without a kernel | `dev_tools/commands.py` |
-| messenger | `@as_stamp` — a stamp of its own restored after a serializing transport | `messaging/stamps.py`, `messaging/handlers.py` |
-| messenger | `DispatchAfterCurrentBusStamp` — follow-ups held back until the message that asked for them committed | `messaging/handlers.py` |
-| messenger | a handler's return value, on its `HandledStamp` | `messaging/handlers.py`, `commands/order_commands.py` |
-| messenger | worker events — started, stopped, a message failed — heard by listeners | `scheduling/listeners.py` |
-| messenger | `RedispatchMessage` — a scheduled message sent on through routing | `scheduling/shop_schedule.py` |
+| messenger | `@as_stamp` — a stamp of its own restored after a serializing transport | `stamp/origin_stamp.py`, `message_handler/send_receipt_handler.py` |
+| messenger | `DispatchAfterCurrentBusStamp` — follow-ups held back until the message that asked for them committed | `message_handler/place_order_handler.py` |
+| messenger | a handler's return value, on its `HandledStamp` | `message_handler/place_order_handler.py`, `service/describe_envelope.py` |
+| messenger | worker events — started, stopped, a message failed — heard by listeners | `event_listener/report_worker_started_listener.py`, `event_listener/report_worker_stopped_listener.py`, `event_listener/report_failed_message_listener.py` |
+| messenger | `RedispatchMessage` — a scheduled message sent on through routing | `scheduler/shop_schedule.py` |
 | messenger | a receiver registered as a service (`scheduler_<name>`, by the scheduler bundle), consumable with no transport configured | `config/packages/messenger.py` names none |
-| scheduler | `@as_schedule` — the README's starter schedule: `stateful` on the `scheduler` pool, a lock, `process_only_last_missed_run`, a schedule-local `before` listener | `scheduling/shop_schedule.py` |
-| scheduler | `RecurringMessage.cron` hashed (`#hourly`), `.every(...).with_jitter`, a message of its own with a result | `scheduling/shop_schedule.py`, `scheduling/messages.py`, `scheduling/handlers.py` |
-| scheduler | `@as_periodic_task` / `@as_cron_task` on a function, a class (`method=`), methods, with `arguments=`, `jitter=`, `env=`, `transports=` | `scheduling/tasks.py` |
-| scheduler | `PostRunEvent`, `FailureEvent` heard application-wide | `scheduling/listeners.py` |
+| scheduler | `@as_schedule` — the README's starter schedule: `stateful` on the `scheduler` pool, a lock, `process_only_last_missed_run`, a schedule-local `before` listener | `scheduler/shop_schedule.py` |
+| scheduler | `RecurringMessage.cron` hashed (`#hourly`), `.every(...).with_jitter`, a message of its own with a result | `scheduler/shop_schedule.py`, `message/restock_check.py`, `message_handler/check_restock_handler.py` |
+| scheduler | `@as_periodic_task` / `@as_cron_task` on a function, a class (`method=`), methods, with `arguments=`, `jitter=`, `env=`, `transports=` | `scheduler/*_task.py` |
+| scheduler | `PostRunEvent`, `FailureEvent` heard application-wide | `event_listener/report_run_listener.py`, `event_listener/report_failed_run_listener.py` |
 | scheduler | `SchedulerConfig` | `config/packages/scheduler.py` |
 | http-kernel | `setup(app, kernel)` — one kernel per application life, one scope per request | `web/app.py` |
 | http-kernel | `HttpKernelConfig(app=)`, read by `debug:router` and `router:match` | `config/packages/http_kernel.py` |
 | http-kernel | the request lifecycle listed as a bundle: a fresh `X-Request-Id` per request, an uncaught exception on the `request` channel | `config/bundles.py` |
 | http-kernel | `RateLimited` on a router, as a decorator, in a route's `dependencies`; `TooManyRequestsError` reshaped by an exception handler | `web/routes.py`, `web/app.py` |
 | webhook | registration is a routes file: `config/routes/webhook.py` includes the contributed `webhook` resource — routing is never imported automatically; `WebhookConfig` names each sender's type and secret | `config/routes/webhook.py`, `config/packages/webhook.py` |
-| remote-event | `@as_remote_event_consumer("payments")` hands an arrived webhook's event to the bus, off the request | `messaging/handlers.py` |
+| remote-event | `@as_remote_event_consumer("payments")` hands an arrived webhook's event to the bus, off the request | `remote_event/payment_webhook_consumer.py` |
 | rate-limiter | every policy — `sliding_window`, `fixed_window` (and on a calendar, `anchor_at`), `token_bucket`, `compound` with a shared key; in-memory, cache-pool and (prod) Redis storage | `config/packages/rate_limiter.py`, `.env.prod` |
-| rate-limiter | a limiter injected by name (`Target`), `consume()` and `ensure_accepted()` in a route, `reserve(max_time=)` and `wait()` in a handler | `web/routes.py`, `messaging/handlers.py` |
-| rate-limiter | `RateLimitExceededEvent` heard by a listener; `RateLimiterBuilder`; `reset()`; every limit checked under `mock_time` | `observability/rate_limit_audit.py`, `dev_tools/rate_limit_demo.py` |
-| event-dispatcher | a domain event (`Event`), `EventDispatcherInterface` injected, `@as_event_listener(priority=)`, an `EventSubscriberInterface` | `ordering/order_placed.py`, `ordering/order_service.py`, `ordering/order_listeners.py` |
-| lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `ordering/order_service.py`, `config/packages/lock.py` |
-| lock | the default `LockFactory`, a lock kept between runs | `scheduling/shop_schedule.py` |
+| rate-limiter | a limiter injected by name (`Target`), `consume()` and `ensure_accepted()` in a route, `reserve(max_time=)` and `wait()` in a handler | `web/routes.py`, `message_handler/send_receipt_handler.py` |
+| rate-limiter | `RateLimitExceededEvent` heard by a listener; `RateLimiterBuilder`; `reset()`; every limit checked under `mock_time` | `event_listener/audit_refused_request_listener.py`, `dev_tools/rate_limit_demo.py` |
+| event-dispatcher | a domain event (`Event`), `EventDispatcherInterface` injected, `@as_event_listener(priority=)`, an `EventSubscriberInterface` | `event/order_placed.py`, `service/order_service.py`, `event_listener/log_order_placed_listener.py`, `event_subscriber/sales_tally_subscriber.py` |
+| lock | a qualified `LockFactory` (`Target("stock")`), `async with lock` | `service/order_service.py`, `config/packages/lock.py` |
+| lock | the default `LockFactory`, a lock kept between runs | `scheduler/shop_schedule.py` |
 | cache | `CacheConfig` with a pool of its own, `@when("test")` in memory | `config/packages/cache.py` |
-| cache | a qualified `CacheInterface`, fetch-or-compute with a callback | `commands/catalog_commands.py` |
+| cache | a qualified `CacheInterface`, fetch-or-compute with a callback | `command/price_book_command.py` |
 | storage | `StorageConfig` — the `default` storage and a prefixed `reports` one, in memory under `@when("test")` | `config/packages/storage.py` |
-| storage | a qualified `StorageOperatorInterface` (`Target("reports")`) written to and asked for a file's size | `commands/catalog_commands.py` |
-| clock | `ClockInterface` injected, `Clock`, `MockClock`, `MonotonicClock`, `mock_time`, `DatePoint`, `ClockAwareMixin` | `ordering/order_number.py`, `fulltext/bundle/timed_search_engine.py`, `dev_tools/commands.py` |
+| storage | a qualified `StorageOperatorInterface` (`Target("reports")`) written to and asked for a file's size | `command/export_books_command.py` |
+| clock | `ClockInterface` injected, `Clock`, `MockClock`, `MonotonicClock`, `mock_time`, `DatePoint`, `ClockAwareMixin` | `service/order_number.py`, `fulltext/bundle/timed_search_engine.py`, `dev_tools/commands.py` |
 | dotenv | `Dotenv().boot_env()` at the entry point; `parse / load / overload / populate / load_env` | `kernel.py`, `dev_tools/commands.py` |
-| dotenv | `DotenvSettings` — typed settings from the same cascade | `settings.py` |
-| service-contracts | `ResetInterface` (nominal) and an explicit `kernel.reset` tag | `catalog/catalog_decorators.py`, `fulltext/query_log.py` |
+| dotenv | `DotenvSettings` — typed settings from the same cascade | `service/shop_settings.py` |
+| service-contracts | `ResetInterface` (nominal) and an explicit `kernel.reset` tag | `service/caching_book_catalog.py`, `fulltext/query_log.py` |
 | orm | `OrmConfig` with one connection: the URL from `env("resolve:...")`, engine and session options, migrations under the project | `config/packages/orm.py` |
 | orm | engine and session options in the URL's query — `pool_pre_ping`, `expire_on_commit`, `pool_size` — taking precedence over the config | `.env`, `.env.prod` |
-| orm | advanced-alchemy models, and repositories as scoped services on the unit of work's session | `ordering/order.py`, `ordering/receipt.py`, `ordering/order_repository.py`, `ordering/receipt_repository.py` |
+| orm | advanced-alchemy models, and repositories as scoped services on the unit of work's session | `entity/order.py`, `entity/receipt.py`, `repository/order_repository.py`, `repository/receipt_repository.py` |
 | orm | `orm_close_connection`, `orm_transaction`, `orm_open_transaction_logger` with named arguments, in the order they need | `config/packages/messenger.py` |
-| orm | handlers sharing a message's session, a refusal rolling back what they wrote, the transport a receipt came through | `messaging/handlers.py` |
-| orm | a command and a route reading through repositories; a rolled-back message reported | `commands/order_commands.py`, `web/routes.py`, `web/app.py` |
+| orm | handlers sharing a message's session, a refusal rolling back what they wrote, the transport a receipt came through | `message_handler/place_order_handler.py`, `message_handler/send_receipt_handler.py` |
+| orm | a command and a route reading through repositories; a rolled-back message reported | `command/orders_list_command.py`, `command/place_order_command.py`, `web/routes.py`, `web/app.py` |
 | orm | a generated revision | `migrations/` |
 | security | `SecurityConfig` — inline users, `password_hashers`, `role_hierarchy`, one firewall, `access_control` | `config/packages/security.py` |
 | security | `CurrentUser()`; `@IsGranted("ROLE_ADMIN")`; `Security.deny_access_unless_granted` in a body | `web/routes.py` |
-| security | a `Voter` subclass granting `ORDER_VIEW` to an order's owner, gathered by the `security.voter` tag | `ordering/order_voter.py` |
+| security | a `Voter` subclass granting `ORDER_VIEW` to an order's owner, gathered by the `security.voter` tag | `security/voter/order_view_voter.py` |
 | security | `UserPasswordHasherInterface` verifying a password, with a dummy-hash timing guard | `web/routes.py` |
 | security | `debug:firewall`, `security:hash-password` | the bundle registers them |
 | jwt | `JwtConfig` — the signing key from `env("resolve:...")`, the `issuer` and `audience` every token is checked against, `token_ttl`, `user_id_claim` | `config/packages/jwt.py` |

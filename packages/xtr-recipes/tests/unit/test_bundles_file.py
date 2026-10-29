@@ -71,6 +71,7 @@ def test_it_reads_every_entry_an_application_lists() -> None:
         "bookshop.dev_tools:DevToolsBundle",
         "xtr_storage.bundle:StorageBundle",
         "xtr_webhook.bundle:WebhookBundle",
+        "xtr_maker.bundle:MakerBundle",
     ]
 
 

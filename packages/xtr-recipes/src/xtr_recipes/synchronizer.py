@@ -58,7 +58,7 @@ class _Current:
 
 @final
 class Synchronizer:
-    """Brings a project in line with the recipes of its direct dependencies.
+    """Brings a project in line with the recipes of its runtime and development dependencies.
 
     The work is a diff: what is installed against what the lock records.
     Nothing cares how a package arrived or left, so the same run configures
@@ -170,16 +170,21 @@ class Synchronizer:
 
         An application whose bundle list is still where an earlier layout kept
         it, ``<app>/bundles.py``, is read from there; the plan then moves it.
+
+        A recipe counts when its distribution is one the project depends on,
+        at runtime or for development; a transitive package is never
+        configured on its own.
         """
         bundles_path = self._project.package_dir / _BUNDLES_NAME
         earlier = self._project.package_dir / _EARLIER_BUNDLES_NAME
         earlier_bundles = earlier if not bundles_path.is_file() and earlier.is_file() else None
         source = earlier_bundles if earlier_bundles is not None else bundles_path
         bundles = BundlesFile.read(source)
+        depended = {*self._project.dependencies, *self._project.dev_dependencies}
         installed: dict[str, Recipe] = {}
         unloadable: dict[str, tuple[str, ...]] = {}
         for recipe in self._loader.load():
-            if recipe.distribution not in self._project.dependencies:
+            if recipe.distribution not in depended:
                 continue
             absent = tuple(
                 target
@@ -237,6 +242,11 @@ class Synchronizer:
         included: whether a bundle is left out because something else requires
         it depends on the whole list, so it is decided afresh each time rather
         than carried over from the lock.
+
+        A development dependency's bundles are put forward like a runtime
+        dependency's, with the environments its recipe declares: the recipe is
+        what knows the package is meant for development, and says so with
+        ``dev``.
         """
         candidates: dict[str, Mapping[str, bool]] = {}
         for name in (*selection.configure, *selection.update, *selection.unchanged):

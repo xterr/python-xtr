@@ -11,6 +11,7 @@ from tests.support import (
     MESSENGER_MANIFEST,
     TARGET,
     TEMPLATE,
+    build_project,
     build_tester,
     install_recipes,
     messenger_project,
@@ -100,6 +101,20 @@ async def test_show_lists_a_recipe_the_lock_has_never_recorded(
     install_recipes(monkeypatch, {MESSENGER: MESSENGER_MANIFEST})
 
     code = await tester.execute(_argv(project_dir))
+
+    assert code == ExitCode.SUCCESS
+    assert "not configured" in tester.display
+
+
+async def test_show_lists_the_recipe_of_a_dev_dependency(
+    tester: ApplicationTester,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ = build_project(tmp_path, dev_dependencies=[MESSENGER])
+    install_recipes(monkeypatch, {MESSENGER: MESSENGER_MANIFEST})
+
+    code = await tester.execute(_argv(tmp_path))
 
     assert code == ExitCode.SUCCESS
     assert "not configured" in tester.display

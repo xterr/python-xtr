@@ -54,8 +54,8 @@ uv run xtr-recipes recipes:sync --check            # exit 1 if a sync would chan
 uv run xtr-recipes recipes:sync --dry-run          # print what it would do; writes nothing
 uv run xtr-recipes recipes:show [<package>]        # the project's recipes, or one recipe in full
 uv run xtr-recipes recipes:install <package> [--force]   # re-apply one; --force overwrites edited files
-uv run xtr-recipes recipes:add <requirement>       # uv add <requirement>, then sync afresh
-uv run xtr-recipes recipes:remove <package>        # uv remove <package>, then sync afresh
+uv run xtr-recipes recipes:add <requirement> [--dev]   # uv add [--dev] <requirement>, then sync afresh
+uv run xtr-recipes recipes:remove <package>        # uv remove [--dev] <package>, then sync afresh
 ```
 
 ### `recipes:sync`
@@ -66,9 +66,11 @@ writes nothing and exits non-zero when the plan would change the project, which 
 continuous integration job asks. A plan made only of headings, kept files and bundle notes has
 something to say and nothing to do, so `--check` passes on it.
 
-A sync does three things to the recipes of the project's direct dependencies
-(`[project].dependencies` only; dependency groups are left out, and so is a transitive package
-the application did not choose):
+A sync does three things to the recipes of the project's direct dependencies: the packages in
+`[project].dependencies` and in the `dev` dependency group — `[dependency-groups].dev`, and uv's
+earlier `[tool.uv].dev-dependencies` with it. No other group counts, not even one the `dev` group
+pulls in with `{include-group = ...}`, and neither does a transitive package the application did
+not choose:
 
 - **configure** a dependency not yet in the lock — write its files, add its env and ignore
   blocks, mint its keys, list its bundle, print its notes;
@@ -77,6 +79,12 @@ the application did not choose):
 - **unconfigure** a locked package no longer depended on — delete the files it wrote, move an
   edited or adopted one to `<file>.removed`, clear its blocks, remove its bundle entry, drop its
   lock entry.
+
+A package in the `dev` group and not in `[project].dependencies` is a development dependency. Its
+recipe is applied like any other — files, blocks, keys, notes and bundles alike. Each bundle it
+lists goes into `BUNDLES` with the environments its manifest's `[bundles]` declares, exactly as a
+runtime dependency's does: the recipe is what knows a package is meant for development, and such
+a package declares `{ dev = true }` there.
 
 A plan reads as one block per package, under a heading naming the action:
 
@@ -122,8 +130,10 @@ beside it as `<file>.new`; `--force` overwrites the file instead.
 ### `recipes:add` / `recipes:remove`
 
 Convenience over two steps: `recipes:add` runs `uv add <requirement>` then syncs; `recipes:remove`
-runs `uv remove <package>` then syncs. `uv` is found on `PATH` and run in the project directory;
-a non-zero exit from it stops before the sync. The sync runs as a fresh process
+runs `uv remove <package>` then syncs. `recipes:add --dev` adds the requirement to the `dev` group
+instead, with `uv add --dev`, and `recipes:remove` passes `--dev` itself for a development
+dependency, which a plain `uv remove` would not find. `uv` is found on `PATH` and run in the
+project directory; a non-zero exit from it stops before the sync. The sync runs as a fresh process
 (`uv run xtr-recipes recipes:sync`), because installing or removing has changed the environment
 under the running interpreter.
 
@@ -284,8 +294,9 @@ A recipe's bundle is **left out when another bundle in the final list requires i
 hard or soft, through the `@required_bundle` declarations
 [xtr-dependency-injection](../xtr-dependency-injection) reads. This is recomputed every sync, so a
 bundle recorded as `required` becomes `listed` again once the bundle that required it is removed.
-Only a requirer listed for every environment counts: one limited to `dev` and `test` would leave
-its peers inactive in `prod`, so the recipe's bundle is listed anyway.
+Only a requirer listed for every environment counts, by the flags `BUNDLES` gives it when it is
+already there: one limited to `dev` and `test` would leave its peers inactive in `prod`, so the
+recipe's bundle is listed anyway.
 A bundle whose class cannot be imported — a broken installation, a module it needs missing — is
 skipped with a message saying so; the package is not locked, so the next sync retries once the
 bundle loads. A package already configured whose bundle stops importing is left exactly

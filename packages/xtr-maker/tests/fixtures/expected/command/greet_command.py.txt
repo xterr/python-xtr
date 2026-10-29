@@ -1,0 +1,29 @@
+"""The ``app:greet`` console command."""
+
+from __future__ import annotations
+
+from typing import final
+
+from xtr_console import ConsoleStyle, ExitCode, as_command, escape
+
+__all__ = ["GreetCommand"]
+
+
+@final
+@as_command("app:greet", description="Describe what app:greet does.")
+class GreetCommand:
+    """Runs ``app:greet``; describe what it is for here."""
+
+    async def __call__(self, io: ConsoleStyle, name: str, *, yell: bool = False) -> int:
+        """Run ``app:greet``.
+
+        Args:
+            io: Where the command writes.
+            name: Name.
+            yell: Yell.
+
+        """
+        io.text(escape(f"{name=}"))
+        io.text(escape(f"{yell=}"))
+        io.success("app:greet ran.")
+        return ExitCode.SUCCESS

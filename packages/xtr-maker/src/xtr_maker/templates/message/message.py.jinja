@@ -1,0 +1,18 @@
+"""The ``{{ class_name }}`` message."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+{{ as_message }}
+@dataclass(frozen=True, slots=True)
+class {{ class_name }}:
+    """Asks for what handling ``{{ class_name }}`` does; describe it here."""
+
+    # Add one field per value its handler needs, such as ``order_id: UUID``.

@@ -101,6 +101,39 @@ DATABASE_URL=postgresql+asyncpg://app:!ChangeMe!@127.0.0.1:5432/app
 Git must track this file. `recipes:sync --check` compares the application with
 the lock file.
 
+## The folders of your code
+
+Each class goes in the folder named after what the class is, under
+`src/shop/`. One module holds one public class.
+
+| Folder | What it holds |
+|---|---|
+| `entity/` | the table definitions of the database |
+| `repository/` | the queries of each entity |
+| `message/` | the messages of the message bus |
+| `message_handler/` | the handler of each message |
+| `scheduler/` | the provider of each schedule |
+| `command/` | the console commands |
+| `event/` | the events of the application |
+| `event_listener/` | a class that reacts to one event |
+| `event_subscriber/` | a class that reacts to more than one event |
+| `remote_event/` | the consumer of the events of each other system |
+| `webhook/` | the request parser of each webhook |
+| `middleware/` | the middleware of the message bus |
+| `stamp/` | the stamps of an envelope |
+| `transport/` | the transports of the message bus |
+| `security/voter/` | the voters of the access decisions |
+| `service/` | the other services of the application |
+| `exception/` | the errors of the application |
+
+The template makes only the folders that its own files need. Create a folder
+when you write the first class for it. A folder must have an `__init__.py`
+file, because the kernel imports each module by its dotted name.
+
+The `make:*` commands of `xtr-maker` write into these folders, and they create
+the folder and the `__init__.py` file when neither is there. The
+[Generate code](../guides/generate-code.md) guide shows one flow.
+
 ## The console commands
 
 The commands of the application are in `src/shop/command/`. The

@@ -1,0 +1,22 @@
+"""A listener of ``order.placed``."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, final
+
+from xtr_event_dispatcher import as_event_listener
+
+if TYPE_CHECKING:
+    from xtr_event_dispatcher import Event
+
+__all__ = ["AuditOrderListener"]
+
+
+@final
+class AuditOrderListener:
+    """Reacts to ``order.placed``."""
+
+    @as_event_listener("order.placed")
+    async def on_order_placed(self, event: Event) -> None:
+        """Handle ``event``."""
+        del event  # Replace with what reacting to the event does.

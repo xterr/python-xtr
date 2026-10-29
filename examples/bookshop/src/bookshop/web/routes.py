@@ -43,18 +43,18 @@ from xtr_security_core.user.user_interface import UserInterface
 from xtr_security_http import CurrentUser, IsGranted
 from xtr_security_jwt import JwtTokenManagerInterface
 
-from bookshop.catalog import Book, BookCatalogInterface, Genre
-from bookshop.ordering import (
-    ORDER_VIEW,
-    Order,
-    OrderNumber,
-    OrderRepository,
-    OrderService,
-    ShoppingCart,
-    UnitOfWork,
-)
-from bookshop.ordering.errors import UnknownBookError
-from bookshop.pricing import PriceCalculator
+from bookshop.entity.order import Order
+from bookshop.exception.unknown_book_error import UnknownBookError
+from bookshop.repository.order_repository import OrderRepository
+from bookshop.security.voter.order_view_voter import ORDER_VIEW
+from bookshop.service.book import Book
+from bookshop.service.book_catalog_interface import BookCatalogInterface
+from bookshop.service.genre import Genre
+from bookshop.service.order_number import OrderNumber
+from bookshop.service.order_service import OrderService
+from bookshop.service.price_calculator import PriceCalculator
+from bookshop.service.shopping_cart import ShoppingCart
+from bookshop.service.unit_of_work import UnitOfWork
 from fulltext import SearchEngineInterface
 
 __all__ = ["OrderRequest", "router"]

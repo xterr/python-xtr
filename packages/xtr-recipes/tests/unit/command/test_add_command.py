@@ -53,6 +53,18 @@ async def test_add_installs_the_requirement_then_syncs_in_a_fresh_process(
     assert code == _SYNC_CODE
 
 
+async def test_add_with_dev_adds_the_requirement_to_the_dev_group(
+    tester: ApplicationTester,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorder = record_processes(monkeypatch, 0, _SYNC_CODE)
+
+    _ = await tester.execute([*_argv(project_dir), "--dev"])
+
+    assert recorder.calls[0] == (("uv", "add", "--dev", "--", _REQUIREMENT), project_dir)
+
+
 async def test_add_stops_before_the_sync_when_the_install_failed(
     tester: ApplicationTester,
     project_dir: Path,

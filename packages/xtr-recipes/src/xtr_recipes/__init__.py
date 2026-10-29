@@ -6,9 +6,9 @@ ignore lines to add. A recipe is declarative, so the same description that
 configures an application also says, read backwards, how to unconfigure it.
 
 The command ``xtr-recipes recipes:sync`` reads the recipes of the application's
-direct dependencies, diffs them against a committed lock file, and applies the
-difference: nothing cares how a package arrived, and running it twice changes
-nothing the second time.
+runtime and development dependencies, diffs them against a committed lock file,
+and applies the difference: nothing cares how a package arrived, and running it
+twice changes nothing the second time.
 
 This module exposes the pieces that read a project, parse a recipe, read or
 write the lock, and compute the plan that applies the difference. The commands

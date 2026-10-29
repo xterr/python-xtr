@@ -1,0 +1,30 @@
+"""``Book`` rows, read and written on the unit of work's session."""
+
+from __future__ import annotations
+
+from typing import final
+
+from advanced_alchemy.repository import SQLAlchemyAsyncRepository
+from sqlalchemy.ext.asyncio import AsyncSession
+from xtr_dependency_injection import as_service
+
+from app.entity.book import Book
+
+__all__ = ["BookRepository", "book_repository"]
+
+
+@final
+class BookRepository(SQLAlchemyAsyncRepository[Book]):
+    """Every repository method — ``add``, ``get_one_or_none``, ``list`` — on Book."""
+
+    model_type = Book
+
+
+@as_service(lifetime="scoped")
+def book_repository(session: AsyncSession) -> BookRepository:
+    """One repository per unit of work, on that unit's session.
+
+    Scoped like the session it wraps: everything one message, command or
+    request does shares it, so one commit covers all of it.
+    """
+    return BookRepository(session=session)

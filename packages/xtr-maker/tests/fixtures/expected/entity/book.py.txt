@@ -1,0 +1,40 @@
+"""The ``Book`` entity."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING, final
+from uuid import UUID
+
+from advanced_alchemy.base import UUIDAuditBase
+from advanced_alchemy.types import DateTimeUTC
+from sqlalchemy import ForeignKey, Numeric, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+# The entities imported here may import this one back, for type checking.
+# pyright: reportImportCycles=false
+if TYPE_CHECKING:
+    from app.entity.author import Author
+
+__all__ = ["Book"]
+
+
+@final
+class Book(UUIDAuditBase):
+    """One book: a row of ``books``.
+
+    Its ``id``, ``created_at`` and ``updated_at`` come from the base; describe
+    what else it holds here.
+    """
+
+    __tablename__ = "books"
+
+    title: Mapped[str] = mapped_column(String(120))
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTimeUTC(timezone=True),
+        nullable=True,
+    )
+    author_id: Mapped[UUID] = mapped_column(ForeignKey("authors.id"))
+    author: Mapped[Author] = relationship(back_populates="books")

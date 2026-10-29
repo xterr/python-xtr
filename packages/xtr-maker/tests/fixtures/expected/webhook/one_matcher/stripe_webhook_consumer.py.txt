@@ -1,0 +1,22 @@
+"""The consumer of the events ``stripe`` webhooks carry."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, final
+
+from xtr_remote_event import as_remote_event_consumer
+
+if TYPE_CHECKING:
+    from xtr_remote_event import RemoteEvent
+
+__all__ = ["StripeWebhookConsumer"]
+
+
+@final
+@as_remote_event_consumer("stripe")
+class StripeWebhookConsumer:
+    """Acts on the events ``stripe`` webhooks carry."""
+
+    async def consume(self, event: RemoteEvent) -> None:
+        """Act on ``event``."""
+        del event  # Replace with what an event from this sender leads to.

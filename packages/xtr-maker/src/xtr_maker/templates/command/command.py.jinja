@@ -1,0 +1,30 @@
+"""The ``{{ command_name }}`` console command."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+{{ as_command }}
+class {{ class_name }}:
+    """Runs ``{{ command_name }}``; describe what it is for here."""
+
+{{ signature }}
+        """Run ``{{ command_name }}``.
+
+        Args:
+{% for line in arguments %}
+{{ line }}
+{% endfor %}
+
+        """
+{% for line in body %}
+        {{ line }}
+{% endfor %}
+        {{ success }}
+        return {{ exit_code }}.SUCCESS

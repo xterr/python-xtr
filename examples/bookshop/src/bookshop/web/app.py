@@ -24,8 +24,10 @@ from xtr_http_kernel.exception import TooManyRequestsError
 from xtr_messenger import HandlersFailedError
 from xtr_rate_limiter import RateLimitExceededError
 
+from bookshop.exception.order_error import OrderError
+from bookshop.exception.order_refused_error import OrderRefusedError
+from bookshop.exception.unknown_book_error import UnknownBookError
 from bookshop.kernel import kernel
-from bookshop.ordering.errors import OrderError, OrderRefusedError, UnknownBookError
 
 from .routes import router
 

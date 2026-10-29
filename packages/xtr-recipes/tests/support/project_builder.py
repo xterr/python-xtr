@@ -16,6 +16,7 @@ def build_project(
     *,
     name: str = "app",
     dependencies: Sequence[str] = (),
+    dev_dependencies: Sequence[str] = (),
     script: str | None = "app",
 ) -> Project:
     """Write the smallest application a sync can run against, and load it."""
@@ -24,6 +25,9 @@ def build_project(
     body = f'[project]\nname = "{name}"\ndependencies = [{listed}]\n'
     if script is not None:
         body += f'\n[project.scripts]\n{script} = "{app}.__main__:main"\n'
+    if dev_dependencies:
+        dev = ", ".join(f'"{dependency}"' for dependency in dev_dependencies)
+        body += f"\n[dependency-groups]\ndev = [{dev}]\n"
     _ = (directory / "pyproject.toml").write_text(body, encoding="utf-8")
     package = directory / "src" / app
     package.mkdir(parents=True, exist_ok=True)

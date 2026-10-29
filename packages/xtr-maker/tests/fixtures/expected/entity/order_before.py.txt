@@ -1,0 +1,31 @@
+"""A placed order, persisted: one table row per order."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import final
+
+from advanced_alchemy.base import UUIDAuditBase
+from sqlalchemy import Numeric, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+__all__ = ["Order"]
+
+
+@final
+class Order(UUIDAuditBase):
+    """One placed order.
+
+    Attributes:
+        number: The human-readable number.
+        total: What it costs.
+    """
+
+    __tablename__ = "orders"
+
+    number: Mapped[str] = mapped_column(String(32), unique=True)  # shown to the customer
+    total: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+
+    def label(self) -> str:
+        """Return the number as printed on the receipt."""
+        return f"#{self.number}"

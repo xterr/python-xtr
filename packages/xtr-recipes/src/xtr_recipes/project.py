@@ -37,7 +37,16 @@ class Project:
             at the project root.
         dependencies: The PEP 503-normalised names of the direct dependencies
             (``[project].dependencies``), with extras, markers and versions
-            removed; dependency groups are not included.
+            removed.
+        dev_dependencies: The development dependencies, read the same way from
+            the ``dev`` dependency group (``[dependency-groups].dev``) and from
+            the list uv kept before dependency groups existed,
+            ``[tool.uv].dev-dependencies``; uv installs the two as one group.
+            A name already in :attr:`dependencies` is left out: the application
+            runs with that package, so it is a runtime dependency. An
+            ``{include-group = ...}`` entry is not followed — these are the
+            names ``uv add --dev`` writes and ``uv remove --dev`` takes out,
+            and an included group is a table of its own.
         script: The first ``[project.scripts]`` name, or ``None`` when none is
             declared.
     """
@@ -45,6 +54,7 @@ class Project:
     project_dir: Path
     app: str
     dependencies: tuple[str, ...]
+    dev_dependencies: tuple[str, ...]
     script: str | None
 
     @property
@@ -107,10 +117,12 @@ class Project:
                 f"{app!r} resolves to neither src/{app}/ nor {app}/",
                 setting,
             )
+        dependencies = _dependencies(data)
         return cls(
             project_dir=project_dir,
             app=app,
-            dependencies=_dependencies(data),
+            dependencies=dependencies,
+            dev_dependencies=_dev_dependencies(data, dependencies),
             script=_script(data),
         )
 
@@ -160,9 +172,28 @@ def _package_dir(project_dir: Path, app: str) -> Path | None:
 def _dependencies(data: dict[str, object]) -> tuple[str, ...]:
     """Return the direct dependency names, normalised, each kept once in order."""
     project = data.get("project")
-    if not isinstance(project, dict):
-        return ()
-    raw = project.get("dependencies")
+    return _names(project.get("dependencies") if isinstance(project, dict) else None)
+
+
+def _dev_dependencies(data: dict[str, object], runtime: tuple[str, ...]) -> tuple[str, ...]:
+    """Return the development dependency names not in ``runtime``, each kept once in order."""
+    groups = data.get("dependency-groups")
+    tool = data.get("tool")
+    settings = tool.get("uv") if isinstance(tool, dict) else None
+    names = (
+        *_names(groups.get("dev") if isinstance(groups, dict) else None),
+        *_names(settings.get("dev-dependencies") if isinstance(settings, dict) else None),
+    )
+    return tuple(name for name in dict.fromkeys(names) if name not in runtime)
+
+
+def _names(raw: object) -> tuple[str, ...]:
+    """Return the names a list of requirement strings holds, normalised, each kept once in order.
+
+    Whatever else the list holds is skipped — a dependency group's
+    ``{include-group = ...}`` table among them — and so is a value that is not
+    a list.
+    """
     if not isinstance(raw, list):
         return ()
     names: list[str] = []
