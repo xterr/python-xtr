@@ -26,7 +26,8 @@ class Generator:
     A maker renders all its files before any is written: a name already
     taken, or a template that renders broken source, then stops the run with
     nothing on disk. A file that exists, or one already queued, is refused —
-    makers add code, they never replace it.
+    makers add code, they never replace it — unless the maker read that file
+    and asks to write it back edited, with :meth:`dump_file`'s ``replace``.
 
     Every template receives ``final_classes``: whether a generated class is
     marked ``@final``. :meth:`generate_class` adds the class's ``class_name``
@@ -106,16 +107,28 @@ class Generator:
         values = {"final_classes": self._final_classes, **(context or {})}
         return self._queue(target, self._template_renderer.render(template, values))
 
-    def dump_file(self, path: Path | str, contents: str) -> Path:
+    def dump_file(self, path: Path | str, contents: str, *, replace: bool = False) -> Path:
         """Queue ``path`` — relative to the project directory, or absolute — with ``contents``.
+
+        Args:
+            path: The file to write.
+            contents: What it holds once written.
+            replace: Whether a file already at ``path`` is written over: the
+                maker read it and is writing it back edited.
 
         Returns:
             The file's absolute path.
 
         Raises:
-            TargetExistsError: When the file exists or is already queued.
+            TargetExistsError: When the file is already queued, or exists and
+                ``replace`` is off.
         """
-        return self._queue(self._free(path), contents)
+        if not replace:
+            return self._queue(self._free(path), contents)
+        target = self._file_manager.absolute(path)
+        if target in self._pending:
+            raise TargetExistsError(self._file_manager.relative(target))
+        return self._queue(target, contents)
 
     def has_pending_operations(self) -> bool:
         """Report whether a file is queued and not yet written."""

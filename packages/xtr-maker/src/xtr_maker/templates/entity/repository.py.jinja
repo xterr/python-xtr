@@ -1,0 +1,26 @@
+"""``{{ entity_class }}`` rows, read and written on the unit of work's session."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}", "{{ factory }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+class {{ class_name }}({{ repository_base }}[{{ entity_class }}]):
+    """Every repository method — ``add``, ``get_one_or_none``, ``list`` — on {{ entity_class }}."""
+
+    model_type = {{ entity_class }}
+
+
+@{{ as_service }}(lifetime="scoped")
+def {{ factory }}(session: {{ session }}) -> {{ class_name }}:
+    """One repository per unit of work, on that unit's session.
+
+    Scoped like the session it wraps: everything one message, command or
+    request does shares it, so one commit covers all of it.
+    """
+    return {{ class_name }}(session=session)

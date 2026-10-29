@@ -1,0 +1,20 @@
+"""The ``{{ class_name }}`` entity."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+class {{ class_name }}({{ base }}):
+    """One {{ readable_name }}: a row of ``{{ table }}``.
+
+    Its {{ provided }} from the base; describe
+    what else it holds here.
+    """
+
+    __tablename__ = "{{ table }}"

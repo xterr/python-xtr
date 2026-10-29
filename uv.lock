@@ -5010,7 +5010,7 @@ dev = [
     { name = "xtr-event-dispatcher" },
     { name = "xtr-lock" },
     { name = "xtr-messenger" },
-    { name = "xtr-orm" },
+    { name = "xtr-orm", extra = ["sqlite"] },
     { name = "xtr-scheduler" },
     { name = "xtr-webhook" },
 ]
@@ -5042,7 +5042,7 @@ dev = [
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-lock", editable = "packages/xtr-lock" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
-    { name = "xtr-orm", editable = "packages/xtr-orm" },
+    { name = "xtr-orm", extras = ["sqlite"], editable = "packages/xtr-orm" },
     { name = "xtr-scheduler", editable = "packages/xtr-scheduler" },
     { name = "xtr-webhook", editable = "packages/xtr-webhook" },
 ]

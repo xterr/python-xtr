@@ -113,6 +113,25 @@ def test_a_file_already_queued_is_refused(project: Path) -> None:
         _ = generator.generate_class(_handler(), "class.py.jinja")
 
 
+def test_replace_writes_an_existing_file_over(project: Path) -> None:
+    generator = _generator(project)
+    style = CapturedStyle()
+
+    _ = generator.dump_file("src/app/__init__.py", '"""Edited."""\n', replace=True)
+    generator.write_changes(style.io)
+
+    assert (project / "src/app/__init__.py").read_text(encoding="utf-8") == '"""Edited."""\n'
+    assert "updated: src/app/__init__.py" in style.output
+
+
+def test_replace_still_refuses_a_file_already_queued(project: Path) -> None:
+    generator = _generator(project)
+    _ = generator.dump_file("src/app/__init__.py", "x = 1\n", replace=True)
+
+    with pytest.raises(TargetExistsError):
+        _ = generator.dump_file("src/app/__init__.py", "x = 2\n", replace=True)
+
+
 def test_broken_source_is_refused_before_anything_is_queued(project: Path) -> None:
     generator = _generator(project)
 

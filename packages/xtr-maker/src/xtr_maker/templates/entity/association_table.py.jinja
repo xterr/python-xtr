@@ -1,0 +1,15 @@
+"""The ``{{ table }}`` table, pairing ``{{ owner_table }}`` rows with ``{{ target_table }}`` rows."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ variable }}"]
+
+{{ variable }} = {{ table_class }}(
+    "{{ table }}",
+    {{ metadata }},
+{% for type, name, key in columns %}
+    {{ column }}[{{ type }}]({{ name }}, {{ foreign_key }}({{ key }}), primary_key=True),
+{% endfor %}
+)

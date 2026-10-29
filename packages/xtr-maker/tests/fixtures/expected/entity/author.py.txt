@@ -1,0 +1,28 @@
+"""The ``Author`` entity."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, final
+
+from advanced_alchemy.base import UUIDAuditBase
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+if TYPE_CHECKING:
+    from app.entity.book import Book
+
+__all__ = ["Author"]
+
+
+@final
+class Author(UUIDAuditBase):
+    """One author: a row of ``authors``.
+
+    Its ``id``, ``created_at`` and ``updated_at`` come from the base; describe
+    what else it holds here.
+    """
+
+    __tablename__ = "authors"
+
+    name: Mapped[str] = mapped_column(String(120))
+    books: Mapped[list[Book]] = relationship(back_populates="author")
