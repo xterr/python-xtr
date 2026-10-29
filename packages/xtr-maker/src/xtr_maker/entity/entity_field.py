@@ -48,7 +48,9 @@ _COLUMN_TYPES: Final[dict[FieldType, tuple[str, str]]] = {
     FieldType.DATE: ("sqlalchemy", "Date"),
     FieldType.DATETIME: ("advanced_alchemy.types", "DateTimeUTC"),
     FieldType.TIME: ("sqlalchemy", "Time"),
-    FieldType.JSON: ("advanced_alchemy.types", "JsonB"),
+    # SQLAlchemy's own JSON, which every dialect stores: the toolkit's JsonB cannot be put
+    # in a table at all under SQLAlchemy 2.1, so an entity holding one would not import.
+    FieldType.JSON: ("sqlalchemy", "JSON"),
     FieldType.UUID: ("advanced_alchemy.types", "GUID"),
     FieldType.ENUM: ("sqlalchemy", "Enum"),
     FieldType.BINARY: ("sqlalchemy", "LargeBinary"),

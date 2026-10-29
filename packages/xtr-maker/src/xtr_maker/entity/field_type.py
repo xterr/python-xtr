@@ -14,7 +14,7 @@ class FieldType(StrEnum):
     Each one is a Python type on the attribute and a column type in the
     database: ``string`` is ``str`` in a ``String(length)``, ``datetime`` a
     timezone-aware ``datetime`` in a ``DateTimeUTC`` column, ``json`` a
-    ``dict[str, object]`` in a ``JsonB`` one.
+    ``dict[str, object]`` in a ``JSON`` one.
     """
 
     STRING = "string"

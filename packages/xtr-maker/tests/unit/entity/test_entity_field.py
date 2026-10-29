@@ -83,7 +83,7 @@ def test_a_nullable_field_is_optional_and_says_so_to_the_column() -> None:
         (FieldType.TEXT, "str", "Text"),
         (FieldType.BIG_INTEGER, "int", "BigInteger"),
         (FieldType.DATETIME, "datetime", "DateTimeUTC(timezone=True)"),
-        (FieldType.JSON, "dict[str, object]", "JsonB"),
+        (FieldType.JSON, "dict[str, object]", "JSON"),
         (FieldType.UUID, "UUID", "GUID"),
         (FieldType.BINARY, "bytes", "LargeBinary"),
     ],

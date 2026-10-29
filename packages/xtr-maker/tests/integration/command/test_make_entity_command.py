@@ -59,6 +59,42 @@ _GENERATED = (
     "repository/book_repository.py",
     "entity/tag.py",
 )
+_EVERY_TYPE = [
+    "make:entity",
+    "Parcel",
+    "--field",
+    "label:string:40",
+    "--field",
+    "notes:text?",
+    "--field",
+    "count:integer",
+    "--field",
+    "serial:big_integer",
+    "--field",
+    "rank:small_integer",
+    "--field",
+    "is_fragile:boolean",
+    "--field",
+    "weight:float",
+    "--field",
+    "price:decimal:8:3",
+    "--field",
+    "sent_on:date",
+    "--field",
+    "sent_at:datetime",
+    "--field",
+    "slot:time",
+    "--field",
+    "details:json",
+    "--field",
+    "tracking_id:uuid",
+    "--field",
+    "status:enum:http.HTTPStatus",
+    "--field",
+    "scan:binary?",
+    "-n",
+]
+"""One field of every type ``make:entity`` writes."""
 
 _RUFF_IGNORED = "CPY001,D203,D213,COM812,ISC001,TC001,TC002,TC003"
 """What an application selecting every rule turns off: no copyright header, the formatter's
@@ -134,6 +170,22 @@ async def test_the_entities_map_migrate_and_store_a_row(app: TemporaryApp) -> No
 
     assert stored == 1
     assert joined == 1
+
+
+async def test_every_field_type_maps_and_creates_its_table(app: TemporaryApp) -> None:
+    kept = frozenset(orm_registry.metadata.tables)
+    code, output = await app.run(_EVERY_TYPE)
+    assert code == ExitCode.SUCCESS, output
+    _restart(app, kept)
+
+    _ = app.import_generated("entity.parcel")
+    configure_mappers()
+    async with await app.boot() as booted:
+        engine = await booted.container.get(AsyncEngine)
+        async with engine.begin() as connection:
+            await connection.run_sync(orm_registry.metadata.create_all)
+
+    assert {"details", "status", "sent_at"} <= set(orm_registry.metadata.tables["parcels"].c.keys())
 
 
 async def test_the_generated_files_pass_every_lint_rule_and_the_formatter(
