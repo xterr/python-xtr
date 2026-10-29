@@ -126,7 +126,7 @@
       }
     },
     "gitignore": [],
-    "recipe": "08f2aa6000a5de344b635af4f03971c897f8a5b9a432caf63b254046a5afca37"
+    "recipe": "60317eede235a925e4fe979359cfcec6d4817629aae6d1da8053535f4bb4974c"
   },
   "xtr-rate-limiter": {
     "bundles": {

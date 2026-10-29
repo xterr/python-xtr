@@ -1,6 +1,6 @@
 """The database: one connection, its URL from the environment, its revisions in migrations/.
 
-The models are advanced-alchemy's (``ordering/order.py``), so the table definitions a diff
+The models are advanced-alchemy's (``entity/order.py``), so the table definitions a diff
 compares with are the ones advanced-alchemy registers — nothing to name here. The URL is read
 when a connection is first used — a command that never touches the database never reads it —
 and its query's engine and session options are merged over the ones below.

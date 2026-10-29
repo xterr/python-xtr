@@ -357,7 +357,8 @@ The application reads `SHOP_*`, `SEARCH_*`, `DATABASE_URL`, `APP_TIMEZONE`, `WEB
 `WEB_PORT`, and in prod `MESSENGER_DSN`, `MAILER_DSN`, `SHOP_PAYMENT_API_KEY`,
 `SHOP_RATE_LIMIT_STORAGE` (a Redis DSN for the `orders` limiter; `cache` when unset).
 `SHOP_DATABASE_URL` is the database — a SQLite file per environment in dev and test,
-PostgreSQL in prod; `DATABASE_URL` only shows the env processors.
+PostgreSQL in prod, which `docker compose up -d database` runs locally with the `POSTGRES_*`
+values in `.env`; `DATABASE_URL` only shows the env processors.
 `SHOP_VAULT_TOKEN` is set nowhere on purpose: the secrets-directory loader supplies it.
 `JWT_SECRET_KEY_PATH` points `config/packages/jwt.py` at the PEM that signs self-issued tokens — the
 key `jwt:generate-keypair` minted under `secrets/`; `config/packages/jwt.py` reads it with `env("resolve:...")` so

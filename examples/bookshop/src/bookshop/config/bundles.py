@@ -31,7 +31,7 @@ What each entry brings:
 - ``WebhookBundle`` — brings ``RemoteEventBundle`` with it: the endpoint webhooks arrive at —
   a route resource that ``config/routes/webhook.py`` registers, routing never being imported
   automatically — the parser verifying each sender's signature, and the bus handoff of what
-  a webhook carried to its consumer in ``messaging/handlers.py``.
+  a webhook carried to its consumer in ``remote_event/payment_webhook_consumer.py``.
 - ``MakerBundle`` — the ``make:*`` commands, which write application code; dev only, like
   the dependency it comes from. Where the development dependencies are not installed, a
   deployment's, the kernel stands in for it, inactive there, and never needs its package.
