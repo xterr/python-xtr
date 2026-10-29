@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from http import (  # noqa: TC003 — the console reads annotations at runtime.
-    HTTPMethod,
-    HTTPStatus,
-)
+from http import HTTPMethod, HTTPStatus
 from typing import final
 
 from xtr_console import ConsoleStyle, ExitCode, as_command, escape

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 import textwrap
 from typing import TYPE_CHECKING, Final, final
 
@@ -23,12 +22,6 @@ _LINE_LENGTH: Final = 88
 _MAX_ARGUMENTS: Final = 5
 """The most parameters the linter lets a function take before it asks for a reason."""
 
-_RUNTIME: Final = "the console reads annotations at runtime."
-"""Why an import used only in an annotation stays outside ``if TYPE_CHECKING:``."""
-
-_IMPORTED_AT_RUNTIME: Final = frozenset({"typing", "xtr_console"})
-"""Modules the command imports names from that run: the linter flags none of their names."""
-
 _INDENT: Final = "    "
 
 
@@ -45,6 +38,11 @@ class CommandSource:
     reads: the imports, the ``@as_command`` line, the ``__call__`` signature,
     its docstring's ``Args:`` lines and a body echoing every parameter, each
     written the way the formatter and the linter want it.
+
+    An enum class is imported at runtime, with the other imports: the console
+    evaluates a command's annotations to read its command line, so it cannot
+    sit under ``if TYPE_CHECKING:`` — which is why an application declaring
+    commands turns the linter's rules moving it there off.
     """
 
     __slots__ = ("_arguments", "_description", "_name", "_options")
@@ -84,18 +82,15 @@ class CommandSource:
         style = imports.add("xtr_console", "ConsoleStyle")
         exit_code = imports.add("xtr_console", "ExitCode")
         escape = imports.add("xtr_console", "escape") if self._parameters else ""
-        codes: dict[str, str] = {}
         type_names: dict[str, str] = {}
         for parameter in self._parameters:
             found = parameter.enum_class
             if found is not None:
                 type_names[parameter.value_type] = imports.add(*found)
-                if found[0] not in _IMPORTED_AT_RUNTIME:
-                    codes[found[0]] = _type_checking_code(found[0], root_package)
         arguments = [f"description={_literal(self._description)}"]
         return {
             "command_name": self._name,
-            "imports": _mark_runtime(imports.render(), codes),
+            "imports": imports.render(),
             "as_command": _call(decorator, [_literal(self._name), *arguments]),
             "signature": self._signature(style, type_names),
             "arguments": self._docstring_arguments(),
@@ -176,41 +171,6 @@ def _check_together(
                 f"Required argument {argument.name!r} cannot follow optional"
                 f" argument {optional.name!r}."
             )
-
-
-def _type_checking_code(module: str, root_package: str) -> str:
-    """Return the rule the linter reports an annotation-only import of ``module`` under."""
-    top = module.split(".", 1)[0]
-    if top == root_package.split(".", 1)[0]:
-        return "TC001"
-    if top in sys.stdlib_module_names:
-        return "TC003"
-    return "TC002"
-
-
-def _mark_runtime(rendered: str, codes: dict[str, str]) -> str:
-    """Return the imports with each module in ``codes`` kept at runtime with a ``noqa``.
-
-    The console evaluates a command's annotations to read its command line, so
-    a class used only there must be imported at runtime; the linter, which
-    cannot know, is told why. The statement is written one name per line with
-    a trailing comma: the shape both the import sorter and the formatter keep.
-    """
-    lines: list[str] = []
-    for line in rendered.split("\n"):
-        module = next((m for m in codes if line.startswith(f"from {m} import ")), None)
-        if module is None:
-            lines.append(line)
-            continue
-        prefix = f"from {module} import "
-        comment = f"  # noqa: {codes[module]} — {_RUNTIME}"
-        names = line.removeprefix(prefix)
-        if names == "(":
-            lines.append(f"{prefix}({comment}")
-        else:
-            members = "".join(f"{_INDENT}{name},\n" for name in names.split(", "))
-            lines.append(f"{prefix}({comment}\n{members})")
-    return "\n".join(lines)
 
 
 def _literal(value: str) -> str:

@@ -29,9 +29,10 @@ class Color(Enum):
     GREEN = "green"
 '''
 
-_RUFF_IGNORED = "CPY001,D203,D213,COM812,ISC001"
+_RUFF_IGNORED = "CPY001,D203,D213,COM812,ISC001,TC001,TC002,TC003"
 """What an application selecting every rule turns off: no copyright header, the formatter's
-conflicts, and one of each pair of docstring conventions that exclude each other."""
+conflicts, one of each pair of docstring conventions that exclude each other — and moving
+imports under TYPE_CHECKING, since the console reads a command's annotations at runtime."""
 
 
 @pytest.fixture

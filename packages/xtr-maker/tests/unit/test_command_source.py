@@ -129,30 +129,16 @@ def test_a_command_without_parameters_imports_no_escape() -> None:
     assert context["body"] == []
 
 
-@pytest.mark.parametrize(
-    ("root_package", "code"),
-    [("app", "TC003"), ("http", "TC001")],
-)
-def test_an_enum_class_is_imported_at_runtime_with_the_reason(root_package: str, code: str) -> None:
+def test_an_enum_class_is_imported_at_runtime_without_a_linter_directive() -> None:
     status = CommandParameter("status", "http.HTTPStatus")
 
-    imports = str(_context([status], root_package=root_package)["imports"])
+    imports = str(_context([status])["imports"])
 
-    assert f"from http import (  # noqa: {code} — the console reads annotations at runtime.\n" in (
-        imports
-    )
-    assert "    HTTPStatus,\n)" in imports
+    assert "from http import HTTPStatus\n" in imports
+    assert "noqa" not in imports
 
 
-def test_a_third_party_enum_class_is_reported_as_third_party() -> None:
-    stage = CommandParameter("stage", "xtr_dependency_injection.compiler.pass_stage.PassStage")
-
-    imports = str(_context([stage])["imports"])
-
-    assert "from xtr_dependency_injection.compiler.pass_stage import (  # noqa: TC002" in imports
-
-
-def test_an_enum_from_a_module_already_imported_needs_no_reason() -> None:
+def test_an_enum_from_a_module_already_imported_joins_its_statement() -> None:
     level = _option("level", "xtr_console.Verbosity")
 
     context = _context([], [level])
