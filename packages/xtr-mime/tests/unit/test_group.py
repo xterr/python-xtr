@@ -55,6 +55,12 @@ def test_control_characters_are_stripped_from_the_name() -> None:
     assert Group("a\x00b").get_name() == "ab"
 
 
+def test_a_name_holding_a_lone_surrogate_is_refused() -> None:
+    # A byte that failed to decode survives in a str as a lone surrogate, which is not text.
+    with pytest.raises(RfcComplianceError, match="surrogate"):
+        _ = Group("Friends \udcb1 \\ Family")
+
+
 def test_the_members_cannot_be_changed_through_the_returned_list() -> None:
     group = Group("Friends", ["fabien@example.com"])
 

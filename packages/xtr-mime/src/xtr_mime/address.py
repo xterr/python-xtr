@@ -20,6 +20,9 @@ __all__ = ["Address"]
 _TRIMMED: Final = " \t\n\r\0\x0b"
 _NAME_CONTROL_CHARACTERS: Final = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
 _ADDRESS_CONTROL_CHARACTERS: Final = re.compile(r"[\x00-\x1f\x7f]")
+# A byte that failed to decode survives in a str as a lone surrogate: it is not text, and the
+# engine of some Python versions cannot write one in a quoted name.
+_LONE_SURROGATE: Final = re.compile(r"[\ud800-\udfff]")
 
 # `Name <address>`: everything between the first "<" and the last ">" is the address, so a
 # quoted local part may hold angle brackets; whatever follows the last ">" is dropped.
@@ -27,9 +30,12 @@ _FROM_STRING: Final = re.compile(r"(?P<display_name>[^<]*)<(?P<address>.*)>[^>]*
 
 # Most addresses are dot-atoms of letters, digits, "_", "+" and "-" on a plain host name; this
 # settles them without the full grammar, which is the main cost of building a simple email.
+# A label with hyphens in its third and fourth places ("xn--" among them) is left to the IDNA
+# check, so this accepts no address the full grammar refuses.
 _SIMPLE_ADDRESS: Final = re.compile(
     r"(?=[^@]{1,64}@[^@]{1,63}\Z)[a-zA-Z0-9_+-]++(?:\.[a-zA-Z0-9_+-]++)*+"
-    r"@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,28}[a-zA-Z0-9])?\.)++[a-zA-Z](?:[a-zA-Z0-9-]{0,28}[a-zA-Z0-9])?"
+    r"@(?:(?![a-zA-Z0-9-]{2}--)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,28}[a-zA-Z0-9])?\.)++"
+    r"(?![a-zA-Z0-9-]{2}--)[a-zA-Z](?:[a-zA-Z0-9-]{0,28}[a-zA-Z0-9])?"
 )
 
 # A quoted local part may hold "@", so the split is after its closing quote; an unquoted one
@@ -37,8 +43,10 @@ _SIMPLE_ADDRESS: Final = re.compile(
 _QUOTED_LOCAL_PART: Final = re.compile(r'(?P<local>"(?:[^"\\]|\\.)*")@(?P<domain>.*)', re.DOTALL)
 _LOCAL_PART: Final = re.compile(r"(?P<local>[^@]*)@(?P<domain>.*)", re.DOTALL)
 
-# Printable ASCII but "[", "]" and "\" between brackets, optionally followed by a comment.
-_DOMAIN_LITERAL: Final = re.compile(r"\[[!-Z^-~]+\](?: *\([^()\\]*\))?")
+# Printable ASCII but "[", "]" and "\" between brackets, optionally followed by a comment of
+# printable ASCII but "(", ")" and "\": a domain is written in ASCII, and a literal has no
+# IDNA form to take.
+_DOMAIN_LITERAL: Final = re.compile(r"\[[!-Z^-~]+\](?: *\([ -'*-\[\]-~]*\))?")
 
 # The validator judges the local part against a neutral domain: it refuses names reserved for
 # special use (localhost, .local, .invalid, ...), which are valid in an address and do receive
@@ -72,7 +80,8 @@ class Address:
 
         Raises:
             InvalidArgumentError: The address contains a control character.
-            RfcComplianceError: The address is not a valid email address.
+            RfcComplianceError: The address is not a valid email address, or the name holds
+                a lone surrogate — what a byte that did not decode leaves in a str.
         """
         self._address = address.strip(_TRIMMED)
         self._name = _NAME_CONTROL_CHARACTERS.sub("", name).strip(_TRIMMED)
@@ -81,6 +90,11 @@ class Address:
         if not _is_valid(self._address):
             raise RfcComplianceError(
                 f'Email "{address}" does not comply with addr-spec of RFC 5322.'
+            )
+        if _LONE_SURROGATE.search(self._name):
+            raise RfcComplianceError(
+                f"The display name {name!r} holds a lone surrogate, left by a byte that did not "
+                "decode; a name must be text."
             )
 
     @classmethod
@@ -214,14 +228,13 @@ def _is_valid_local_part(local: str) -> bool:
 def _is_valid_domain(domain: str) -> bool:
     if domain.startswith("["):
         return _DOMAIN_LITERAL.fullmatch(domain) is not None
-    # The IDNA codec accepts a final dot (the DNS root); an address does not.
-    if domain.endswith("."):
-        return False
     try:
-        _ = idna.encode(domain, uts46=True, std3_rules=True)
+        encoded = idna.encode(domain, uts46=True, std3_rules=True)
     except idna.IDNAError:
         return False
-    return True
+    # The IDNA codec takes a final full stop, in any of its four forms, for the DNS root and
+    # writes it as "."; an address has no such dot.
+    return not encoded.endswith(b".")
 
 
 def _unfold(rendered: str) -> str:

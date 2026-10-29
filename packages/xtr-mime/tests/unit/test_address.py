@@ -7,7 +7,6 @@ encoded-word form the engine picks is its business, not this class's.
 from __future__ import annotations
 
 from email import policy as stdlib_policy
-from email.header import decode_header, make_header
 from email.headerregistry import AddressHeader, BaseHeader
 from typing import cast
 
@@ -28,6 +27,44 @@ def _read(rendered: str) -> tuple[str, str]:
 
 def _read_name(encoded_name: str) -> str:
     return _read(f"{encoded_name} <someone@example.com>")[0]
+
+
+_VALID_ADDRESSES = (
+    "user@example.com",
+    "first.last+tag@mail.example.co.uk",
+    "o_k-1@a-b.io",
+    "0123456789abcdef0123456789abcdef@example.com",
+    "o'brien@example.com",
+    "user@localhost",
+    "user@[127.0.0.1]",
+)
+
+# Every address the tests here build: an address that builds must render too.
+_ACCEPTED_ADDRESSES = (
+    *_VALID_ADDRESSES,
+    "fabien@exämple.com",
+    "fabien@example.com",
+    "helene@example.com",
+    "example@example.com",
+    "mail@example.org",
+    "real@example.com",
+    "a@example.com",
+    "b@example.com",
+    "Fabien@Example.COM",
+    '"em@il"@example.test',
+    "user@[em@il]",
+    '"em@il"@[em@il]',
+    "user@[em@il] (comment)",
+    '"ex<ample"@example.com',
+    '"ex<amp>le"@example.com',
+    '"ex<am  p>le"@example.com',
+    "info@dømi.fo",
+    "dømi@dømi.fo",
+    "alice@dømi.fo",
+    "test@fußball.test",
+    "user@xn--exmple-cua.com",
+    "o'b@xn--exmple-cua.com",
+)
 
 
 def test_an_international_domain_is_kept_and_rendered_in_ascii() -> None:
@@ -52,20 +89,19 @@ def test_an_address_with_spaces_in_the_local_part_is_refused() -> None:
         _ = Address("fab   pot@example.com")
 
 
-@pytest.mark.parametrize(
-    "value",
-    [
-        "user@example.com",
-        "first.last+tag@mail.example.co.uk",
-        "o_k-1@a-b.io",
-        "0123456789abcdef0123456789abcdef@example.com",
-        "o'brien@example.com",
-        "user@localhost",
-        "user@[127.0.0.1]",
-    ],
-)
+@pytest.mark.parametrize("value", _VALID_ADDRESSES)
 def test_a_valid_address_is_kept_as_given(value: str) -> None:
     assert Address(value).get_address() == value
+
+
+@pytest.mark.parametrize("value", _ACCEPTED_ADDRESSES)
+def test_every_accepted_address_renders(value: str) -> None:
+    address = Address(value, "Jane Doe")
+
+    rendered = address.to_string()
+    encoded = address.get_encoded_address()
+
+    assert _read(rendered) == ("Jane Doe", _read(encoded)[1])
 
 
 @pytest.mark.parametrize(
@@ -89,6 +125,21 @@ def test_a_valid_address_is_kept_as_given(value: str) -> None:
 def test_an_invalid_address_is_refused(value: str) -> None:
     with pytest.raises(RfcComplianceError):
         _ = Address(value)
+
+
+@pytest.mark.parametrize(
+    "full_stop",
+    [
+        pytest.param(".", id="full-stop"),
+        pytest.param("\u3002", id="ideographic-full-stop"),
+        pytest.param("\uff0e", id="fullwidth-full-stop"),
+        pytest.param("\uff61", id="halfwidth-ideographic-full-stop"),
+    ],
+)
+def test_a_domain_ending_in_any_full_stop_is_refused(full_stop: str) -> None:
+    # IDNA reads all four as the dot between two labels, and a final one as the DNS root.
+    with pytest.raises(RfcComplianceError):
+        _ = Address(f"user@example.com{full_stop}")
 
 
 def test_an_unquoted_at_sign_in_the_local_part_is_refused_naming_the_address() -> None:
@@ -120,6 +171,11 @@ def test_quoted_at_signs_in_both_the_local_part_and_a_domain_literal_are_accepte
 
 def test_a_comment_after_a_domain_literal_is_accepted_and_kept() -> None:
     assert Address("user@[em@il] (comment)").get_address() == "user@[em@il] (comment)"
+
+
+def test_a_comment_after_a_domain_literal_outside_printable_ascii_is_refused() -> None:
+    with pytest.raises(RfcComplianceError):
+        _ = Address("user@[1.2.3.4] (ü)")
 
 
 @pytest.mark.parametrize(
@@ -259,12 +315,18 @@ def test_a_name_with_backslashes_reads_back_unchanged(name: str) -> None:
     assert _read(address.to_string()) == (name, "fabien@example.com")
 
 
-def test_a_name_holding_undecodable_bytes_reads_back_unchanged() -> None:
-    # A str cannot hold invalid UTF-8; a byte that failed to decode survives as a lone surrogate.
-    name = "Fabien \udcb1 \\ Potencier"
-    address = Address("fabien@example.com", name)
-
-    assert _read(address.to_string()) == (name, "fabien@example.com")
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param("Fabien \udcb1 Potencier", id="plain"),
+        pytest.param("Fabien \udcb1 \\ Potencier", id="quoted"),
+    ],
+)
+def test_a_name_holding_a_lone_surrogate_is_refused(name: str) -> None:
+    # A str cannot hold invalid UTF-8: a byte that failed to decode survives as a lone
+    # surrogate, which is not text, and which some Python versions cannot write when quoted.
+    with pytest.raises(RfcComplianceError, match="surrogate"):
+        _ = Address("fabien@example.com", name)
 
 
 def test_get_encoded_address_writes_an_international_domain_in_punycode() -> None:
@@ -279,6 +341,27 @@ def test_get_encoded_address_leaves_an_ascii_address_alone() -> None:
 def test_a_domain_that_is_not_a_valid_international_name_is_refused() -> None:
     with pytest.raises(RfcComplianceError):
         _ = Address("user@ab--cé.com")
+
+
+# "user" is settled by the quick check for common addresses, "o'b" by the full grammar.
+@pytest.mark.parametrize("local_part", ["user", "o'b"])
+@pytest.mark.parametrize(
+    "domain",
+    [
+        pytest.param("ab--cd.com", id="hyphens-in-third-and-fourth-place"),
+        pytest.param("xn--abc.com", id="invalid-a-label"),
+    ],
+)
+def test_a_domain_is_refused_whatever_the_local_part(local_part: str, domain: str) -> None:
+    with pytest.raises(RfcComplianceError):
+        _ = Address(f"{local_part}@{domain}")
+
+
+@pytest.mark.parametrize("local_part", ["user", "o'b"])
+def test_an_a_label_domain_is_accepted_whatever_the_local_part(local_part: str) -> None:
+    value = f"{local_part}@xn--exmple-cua.com"
+
+    assert Address(value).get_address() == value
 
 
 def test_a_name_outside_ascii_reads_back_unchanged() -> None:
@@ -301,9 +384,13 @@ def test_a_long_name_renders_on_one_line() -> None:
 
     assert "\r" not in rendered
     assert "\n" not in rendered
-    # Read with the RFC 2047 decoder: the header parser keeps the space between two encoded
-    # words, which the RFC says a reader drops.
-    assert str(make_header(decode_header(rendered))) == f"{name} <fabien@example.com>"
+    # Compared word by word. Python 3.11 and early 3.12 releases write the space between two
+    # words between two encoded words, where an RFC 2047 reader drops it; later ones write it
+    # inside an encoded word. The header parser keeps a space between encoded words, so the
+    # words read back on every version, one or two spaces apart.
+    read_name, read_address = _read(rendered)
+    assert read_name.split() == name.split()
+    assert read_address == "fabien@example.com"
 
 
 def test_to_string_is_what_the_engine_writes_for_an_ascii_local_part() -> None:
