@@ -225,7 +225,7 @@ also makes the attribute `T | None`:
 | `decimal[:precision[:scale]]` | `Decimal` | `Numeric(precision, scale)`, `10, 2` by default |
 | `date`, `time` | `date`, `time` | `Date`, `Time` |
 | `datetime` | `datetime` | `DateTimeUTC(timezone=True)` |
-| `json` | `dict[str, object]` | `JsonB` |
+| `json` | `dict[str, object]` | `JSON` |
 | `uuid` | `UUID` | `GUID` |
 | `enum:<dotted class>` | the enum class | `Enum(<class>)` |
 | `binary` | `bytes` | `LargeBinary` |
@@ -381,25 +381,25 @@ Next:
 
 ## Generated code and the linters
 
-Every module is written the way the formatter would write it: 88-column lines, double quotes,
-imports grouped standard library, third-party then the application's own package and sorted the
-way the import rules sort them, a statement too long for one line wrapped with a trailing comma.
+Every module is written the way the formatter would write it: lines of at most 88 columns,
+double quotes, imports grouped standard library, third-party then the application's own package
+and sorted the way the import rules sort them, a statement too long for one line wrapped with a
+trailing comma.
 Each file opens with a docstring, `from __future__ import annotations` and its `__all__`.
 
 Two things to know when the project's own settings are stricter:
 
 - **Annotations read at runtime.** A console command's parameter types, and a container-hydrated
-  constructor's, are read at runtime, so they cannot move into `if TYPE_CHECKING:`. `make:command`
-  writes the `# noqa: TC001`, `TC002` or `TC003` — with the reason — on the imports that would
-  otherwise be flagged. Everything genuinely used for annotations only is already in a
-  `TYPE_CHECKING` block.
+  constructor's, and an entity's column types, are read at runtime, so they cannot move into
+  `if TYPE_CHECKING:`. The rules that would move them (`TC001`, `TC002`, `TC003`) have to be off
+  for such modules, as they are in an application on the container. Everything genuinely used for
+  annotations only is already in a `TYPE_CHECKING` block.
 - **Two-way relations.** `make:entity` writes each side's import of the other under
-  `TYPE_CHECKING`; basedpyright's `reportImportCycles` sees the pair as a cycle all the same. It
-  is the shape SQLAlchemy relationships take: silence the rule for the entities, or keep the
-  inverse out with `inverse=none`.
+  `TYPE_CHECKING`, which basedpyright's `reportImportCycles` sees as a cycle all the same. The
+  entity therefore carries `# pyright: reportImportCycles=false`, with the reason, above that block.
 
-A project whose formatter runs at a different line length should simply run it over what was
-written; nothing in the generated code depends on the width.
+A statement split over lines ends with a trailing comma, so a formatter set to a wider line length
+keeps it split: the output passes `ruff format --check` at any width from 88 up.
 
 ## Use in an application
 
@@ -410,10 +410,10 @@ it undoes.
 - **Install** — `uv add --dev xtr-maker`: the makers write code while you develop, so they are a
   development dependency, never a runtime one. Add the extras of the libraries you want makers
   for if the application has not got them yet.
-- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below, and only that:
-  it lists `MakerBundle` for the `dev` environment. There is nothing for it to configure, no
-  variable to write and nothing to ignore, so it prints no step for you to make. Run it after
-  `uv add --dev`: `recipes:add` installs a runtime dependency, which this is not.
+- **Recipe** — the recipe does the *Activate* step below, and only that: it lists `MakerBundle`
+  for the `dev` environment. There is nothing for it to configure, no variable to write and
+  nothing to ignore. `recipes:sync` applies the recipes of `[project]` dependencies only, so for
+  this development dependency make the *Activate* step yourself; `recipes:sync` keeps the entry.
 - **Activate** — `MakerBundle: {"dev": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_maker.bundle`.
 - **Brings along** — the console bundle, which the makers are commands of. The messenger,

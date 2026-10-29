@@ -10,8 +10,8 @@
 # variable and write nothing a repository should not track.
 
 # No [notes] steps: listing the bundle is every step *Use in an application* asks
-# for. Installing is the one thing before it, and `uv add --dev xtr-maker` is what
-# brought this recipe here.
+# for. Installing is the one thing before it: `uv add --dev xtr-maker`. A development
+# dependency's recipe is not applied by recipes:sync, so that step is made by hand.
 
 [notes]
 check = [

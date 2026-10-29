@@ -116,17 +116,18 @@ with `Run orm:migrations:migrate -n first.` Nothing differing writes nothing and
   no terminal nothing is asked, so the run never blocks.
 - Templates are rendered and then parsed, so a template that produces broken Python fails loudly
   with `GeneratedSourceError` rather than writing a file.
-- Run the project's own gate over what was written; it is already formatted for 88 columns and
-  sorted imports, so it should pass unchanged. Two caveats: the `# noqa: TC001`/`TC002`/`TC003`
-  comments `make:command` writes are deliberate — those annotations are read at runtime — and a
-  two-way relation's pair of `TYPE_CHECKING` imports trips basedpyright's `reportImportCycles`.
+- Run the project's own gate over what was written; it is formatted (split statements keep a
+  trailing comma, so any line length from 88 up accepts them) with sorted imports, so it passes
+  unchanged. It assumes `TC001`/`TC002`/`TC003` are off: command parameters, constructor
+  parameters and entity columns are annotations read at runtime. A two-way relation's entities
+  carry `# pyright: reportImportCycles=false` above their `TYPE_CHECKING` imports of each other.
 
 ## Use in an application
 
 1. **Install** — `uv add --dev xtr-maker`. Add extras for libraries the application has not got
    yet: `"xtr-maker[messenger,scheduler,webhook,orm,event-dispatcher]"`.
-2. **Recipe** — `uv run xtr-recipes recipes:sync` applies the recipe shipped here, which does
-   step 3 and nothing else.
+2. **Recipe** — the recipe shipped here does step 3 and nothing else. `recipes:sync` only applies
+   recipes of `[project]` dependencies, so for this development dependency do step 3 by hand.
 3. **Activate** — `MakerBundle: {"dev": True}` in `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_maker.bundle import MakerBundle`).
 4. **Brings along** — the console bundle. The messenger, scheduler, webhook, orm and event
