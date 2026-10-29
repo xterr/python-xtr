@@ -133,6 +133,10 @@ class Address:
 
         Quoted when it holds a special character, as encoded words when it is not ASCII — the
         engine's choice, on one line.
+
+        Raises:
+            RfcComplianceError: The name holds an encoded word, which a reader would show
+                decoded rather than as the text it is.
         """
         if not self._name:
             return ""
@@ -142,14 +146,15 @@ class Address:
     def to_string(self) -> str:
         """Return the address as written in a header: ``name <address>``, or the address alone.
 
-        Rendered on one line, the domain in ASCII. A non-ASCII local part is written as it is
-        (RFC 6532), the form an SMTPUTF8 session carries; without SMTPUTF8 such an address
-        cannot be sent at all.
+        Rendered by the engine, on one line, the domain in ASCII. An address with a non-ASCII
+        local part is written in raw UTF-8 (RFC 6532), its name included — the form an SMTPUTF8
+        session carries; without SMTPUTF8 such an address cannot be sent at all.
+
+        Raises:
+            RfcComplianceError: The name holds an encoded word, which a reader would show
+                decoded rather than as the text it is.
         """
-        encoded_address = self.get_encoded_address()
-        if not self._name:
-            return encoded_address
-        return f"{self.get_encoded_name()} <{encoded_address}>"
+        return _unfold(header_body("To", [Mailbox(self._name, self._address)]))
 
     def has_unicode_localpart(self) -> bool:
         """Tell whether the local part holds a non-ASCII character.

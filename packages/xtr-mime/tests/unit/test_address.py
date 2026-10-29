@@ -319,8 +319,16 @@ def test_a_unicode_local_part_renders_as_is_for_an_smtputf8_session() -> None:
     address = Address("dømi@dømi.fo", "Dømi")
 
     assert Address("dømi@dømi.fo").to_string() == "dømi@xn--dmi-0na.fo"
-    assert address.to_string().endswith(" <dømi@xn--dmi-0na.fo>")
+    # The whole header is raw UTF-8 then, so the name is too.
+    assert address.to_string() == "Dømi <dømi@xn--dmi-0na.fo>"
     assert _read_name(address.get_encoded_name()) == "Dømi"
+
+
+def test_a_name_holding_an_encoded_word_cannot_be_rendered() -> None:
+    address = Address("real@example.com", "=?utf-8?q?evil=40attacker.com?=")
+
+    with pytest.raises(RfcComplianceError, match="literal"):
+        _ = address.to_string()
 
 
 def test_addresses_with_the_same_address_and_name_are_equal() -> None:
