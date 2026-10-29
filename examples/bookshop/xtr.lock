@@ -91,6 +91,15 @@
     "gitignore": [],
     "recipe": "e63443155bfa0c97582cb1a858103c878ed4128b92c03d333bf1aefe4ec80db4"
   },
+  "xtr-maker": {
+    "bundles": {
+      "xtr_maker.bundle:MakerBundle": "adopted"
+    },
+    "env": [],
+    "files": {},
+    "gitignore": [],
+    "recipe": "b0757db4933411a78f6cdc30569aea6eaa42188327fadff20287a1b76b19fcb9"
+  },
   "xtr-messenger": {
     "bundles": {
       "xtr_messenger.bundle:MessengerBundle": "adopted"
