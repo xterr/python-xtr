@@ -17,8 +17,9 @@ class SerializerContextBuilder(ContextBuilderTrait):
 
     Immutable: setting an option returns a new builder and leaves this one as it was, so a
     builder holding an application's defaults can be extended for one call without that call's
-    options reaching the next. Nothing a caller does to the context it starts from, or to the
-    one it returns, reaches it.
+    options reaching the next. Nothing a caller does to the plain dictionaries, lists, tuples and
+    sets of the context it starts from, or of the one it returns, reaches it; any other value is
+    handed on as it is.
     """
 
     __slots__ = ()
