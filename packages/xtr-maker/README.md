@@ -412,13 +412,10 @@ it undoes.
   development dependency, never a runtime one. Add the extras of the libraries you want makers
   for if the application has not got them yet.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below, and only that: it
-  lists `MakerBundle` for the `dev` environment, by name, as it lists the bundles of every
-  development dependency. There is nothing for it to configure, no variable to write and nothing
-  to ignore.
-- **Activate** — `"xtr_maker.bundle:MakerBundle": {"dev": True}` in `BUNDLES` in
-  `<app>/config/bundles.py`: the bundle named, not imported. A deployment does not install a
-  development dependency, and `from xtr_maker.bundle import MakerBundle` at the top of the file
-  would stop the application loading there; listed by name, the bundle is imported only in `dev`.
+  lists `MakerBundle` for the `dev` environment, as it lists the bundles of every development
+  dependency. There is nothing for it to configure, no variable to write and nothing to ignore.
+- **Activate** — `MakerBundle: {"dev": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
+  from `xtr_maker.bundle`.
 - **Brings along** — the console bundle, which the makers are commands of. The messenger,
   scheduler, webhook, orm and event dispatcher bundles are not brought along: each is read, not
   required, and decides which makers are registered.
@@ -442,8 +439,7 @@ it undoes.
 - **Remove** — `uv run xtr-recipes recipes:remove xtr-maker`: it runs `uv remove --dev xtr-maker`,
   and the sync after it drops the `BUNDLES` entry. Delete `<app>/config/packages/maker.py` if you
   wrote one. The code the makers wrote stays yours.
-- **Check** — `debug:bundles` lists `maker` as active in `dev`, and anywhere else
-  `xtr_maker.bundle:MakerBundle` as `env_disabled`, never imported; `list make` shows one `make:*`
+- **Check** — `debug:bundles` lists `maker` as active in `dev`; `list make` shows one `make:*`
   command for each library whose bundle is active.
 
 ## Kernel / bundle

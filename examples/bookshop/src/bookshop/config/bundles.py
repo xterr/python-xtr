@@ -33,9 +33,7 @@ What each entry brings:
   automatically — the parser verifying each sender's signature, and the bus handoff of what
   a webhook carried to its consumer in ``messaging/handlers.py``.
 - ``MakerBundle`` — the ``make:*`` commands, which write application code; dev only, like
-  the dependency it comes from. Listed by name, ``"xtr_maker.bundle:MakerBundle"``, rather than
-  imported: the kernel imports it only where it is active, so a deployment, which installs no
-  development dependency, never reaches for it.
+  the dependency it comes from.
 
 Not listed, and active anyway:
 
@@ -53,6 +51,7 @@ from xtr_event_dispatcher.bundle import EventDispatcherBundle
 from xtr_http_kernel.bundle import HttpKernelBundle
 from xtr_lock.bundle import LockBundle
 from xtr_logging.bundle import LoggingBundle
+from xtr_maker.bundle import MakerBundle
 from xtr_messenger.bundle import MessengerBundle
 from xtr_orm.bundle import OrmBundle
 from xtr_rate_limiter.bundle import RateLimiterBundle
@@ -83,5 +82,5 @@ BUNDLES = {
     DevToolsBundle: {"dev": True, "test": True},
     StorageBundle: {"all": True},
     WebhookBundle: {"all": True},
-    "xtr_maker.bundle:MakerBundle": {"dev": True},
+    MakerBundle: {"dev": True},
 }

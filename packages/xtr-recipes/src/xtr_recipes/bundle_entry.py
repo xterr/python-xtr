@@ -25,17 +25,10 @@ class BundleEntry:
         flags: Each environment name mapped to whether the bundle is active in
             it; ``{"all": True}`` means every environment. The order is kept,
             because it is the order the rendered line shows.
-        by_name: Whether the line names the bundle by ``target`` itself, as a
-            string key, rather than importing its class. The kernel imports a
-            bundle listed by name only in an environment its flags activate it
-            in, which is how a development dependency's bundle is listed: a
-            deployment does not install the dependency, and an import at the
-            top of the file would stop the application loading there.
     """
 
     target: str
     flags: Mapping[str, bool]
-    by_name: bool = False
 
     @property
     def module(self) -> str:
@@ -44,5 +37,5 @@ class BundleEntry:
 
     @property
     def class_name(self) -> str:
-        """The bundle class's own name, as the mapping key spells it when the class is imported."""
+        """The bundle class's own name, as the mapping key spells it."""
         return self.target.partition(":")[2]

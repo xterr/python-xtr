@@ -87,23 +87,6 @@ _MESSENGER_BUNDLES = (
     '    MessengerBundle: {"all": True},\n'
     "}\n"
 )
-
-
-def _named_bundles(flags: str) -> str:
-    """The bundle list naming the messenger bundle, with ``flags``, and importing nothing."""
-    return (
-        f'"""{_DEFAULT_DOCSTRING}"""\n'
-        "\n"
-        "from __future__ import annotations\n"
-        "\n"
-        '__all__ = ["BUNDLES"]\n'
-        "\n"
-        "BUNDLES = {\n"
-        f'    "{_MESSENGER_TARGET}": {flags},\n'
-        "}\n"
-    )
-
-
 _OWN_BUNDLES = (
     (
         f'"""{_DEFAULT_DOCSTRING}"""\n'
@@ -503,22 +486,7 @@ def test_a_dev_dependencys_bundle_is_listed_for_dev_only_whatever_its_recipe_say
 
     synchronizer.apply(synchronizer.plan())
 
-    assert [entry.flags for entry in _listed(tmp_path)] == [{"dev": True}]
-
-
-def test_a_dev_dependencys_bundle_is_listed_by_name_and_not_imported(tmp_path: Path) -> None:
-    synchronizer = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
-
-    synchronizer.apply(synchronizer.plan())
-
-    assert _read(tmp_path, _BUNDLES) == _named_bundles('{"dev": True}')
-
-
-def test_a_second_sync_of_a_dev_dependency_finds_nothing_to_do(tmp_path: Path) -> None:
-    synchronizer = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
-    synchronizer.apply(synchronizer.plan())
-
-    assert synchronizer.plan().render() == ()
+    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"dev": True}),)
 
 
 def test_a_dev_dependencys_recipe_writes_what_any_other_does(tmp_path: Path) -> None:
@@ -541,32 +509,8 @@ def test_a_dev_dependencys_bundle_already_listed_keeps_the_flags_it_has(tmp_path
 
     synchronizer.apply(synchronizer.plan())
 
-    assert [entry.flags for entry in _listed(tmp_path)] == [{"all": True}]
+    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"all": True}),)
     assert _entry(tmp_path, _MESSENGER).bundles == {_MESSENGER_TARGET: "adopted"}
-
-
-def test_a_dev_dependencys_bundle_already_imported_is_rewritten_by_name(tmp_path: Path) -> None:
-    # What an earlier sync wrote, before a development dependency's bundle was listed by name.
-    project = _dev_project(tmp_path)
-    imported = _MESSENGER_BUNDLES.replace('{"all": True}', '{"dev": True}')
-    (tmp_path / _BUNDLES).parent.mkdir(parents=True)
-    _ = (tmp_path / _BUNDLES).write_text(imported, encoding="utf-8")
-    synchronizer = _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST})
-
-    synchronizer.apply(synchronizer.plan())
-
-    assert _read(tmp_path, _BUNDLES) == _named_bundles('{"dev": True}')
-
-
-def test_a_runtime_dependencys_bundle_listed_by_name_stays_listed_by_name(tmp_path: Path) -> None:
-    project = _messenger_project(tmp_path)
-    (tmp_path / _BUNDLES).parent.mkdir(parents=True)
-    _ = (tmp_path / _BUNDLES).write_text(_named_bundles('{"all": True}'), encoding="utf-8")
-    synchronizer = _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST})
-
-    synchronizer.apply(synchronizer.plan())
-
-    assert _read(tmp_path, _BUNDLES) == _named_bundles('{"all": True}')
 
 
 def test_promoting_a_dev_dependency_leaves_its_bundle_listed_for_dev(tmp_path: Path) -> None:
@@ -576,9 +520,7 @@ def test_promoting_a_dev_dependency_leaves_its_bundle_listed_for_dev(tmp_path: P
 
     promoted.apply(promoted.plan())
 
-    assert _listed(tmp_path) == (
-        BundleEntry(target=_MESSENGER_TARGET, flags={"dev": True}, by_name=True),
-    )
+    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"dev": True}),)
 
 
 def test_a_dev_dependencys_bundle_does_not_stand_in_for_a_bundle_it_requires(
@@ -592,7 +534,7 @@ def test_a_dev_dependencys_bundle_does_not_stand_in_for_a_bundle_it_requires(
 
     assert _listed(tmp_path) == (
         BundleEntry(target=_CLOCK_TARGET, flags={"all": True}),
-        BundleEntry(target=_LOGGING_TARGET, flags={"dev": True}, by_name=True),
+        BundleEntry(target=_LOGGING_TARGET, flags={"dev": True}),
     )
 
 

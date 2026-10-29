@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, final
 
 from .bundle_entry import BundleEntry
 from .exception import BundlesNotEditableError
-from .recipe_config import BUNDLE_TARGET
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Mapping, Sequence
@@ -21,9 +20,7 @@ _ALL = "__all__"
 _FILE_NAME = "bundles.py"
 _FUTURE = "__future__"
 _DEFAULT_DOCSTRING = "The root bundles, each mapped to the environments it is active in."
-_NOT_IMPORTED = (
-    'is neither a class imported with `from <module> import <Class>` nor a "<module>:<Class>" name'
-)
+_NOT_IMPORTED = "is not a class imported with `from <module> import <Class>`"
 
 
 @final
@@ -33,11 +30,9 @@ class BundlesFile:
 
     The file is parsed with :mod:`ast` and never imported, so reading it costs
     nothing and cannot run application code. What is kept is what the generated
-    form holds: the module docstring and the ordered entries, each in the form
-    it is written in — a class imported at the top, or listed by name as its
-    ``"module:Class"`` string. Per-entry comments are not kept, which is why the
-    file is regenerated rather than patched — a shape this reader cannot
-    account for raises
+    form holds: the module docstring and the ordered entries. Per-entry
+    comments are not, which is why the file is regenerated rather than patched
+    — a shape this reader cannot account for raises
     :class:`~xtr_recipes.exception.BundlesNotEditableError` instead of being
     rewritten and losing something.
 
@@ -103,20 +98,6 @@ class BundlesFile:
             entries=tuple(entry for entry in self.entries if entry.target not in removed),
         )
 
-    def listing_by_name(self, targets: Collection[str]) -> BundlesFile:
-        """Return a copy listing by name every entry whose target is in ``targets``.
-
-        Only the form changes: the flags beside each entry are the application
-        owner's, and stay as they are.
-        """
-        return replace(
-            self,
-            entries=tuple(
-                replace(entry, by_name=True) if entry.target in targets else entry
-                for entry in self.entries
-            ),
-        )
-
     def render(self, first_party: Collection[str]) -> str:
         """Render the canonical file, ready for ``ruff check`` and ``ruff format``.
 
@@ -143,11 +124,10 @@ class BundlesFile:
         return "\n\n".join(blocks) + "\n"
 
     def _import_blocks(self, first_party: Collection[str]) -> tuple[str, str]:
-        """Group the imported entries into the two import blocks, sorted by module."""
+        """Group the entries into the two import blocks, sorted by module."""
         modules: dict[str, list[str]] = {}
         origin: dict[str, str] = {}
-        imported = (entry for entry in self.entries if not entry.by_name)
-        for entry in imported:
+        for entry in self.entries:
             known = origin.setdefault(entry.class_name, entry.module)
             if known != entry.module:
                 raise BundlesNotEditableError(
@@ -167,30 +147,17 @@ class BundlesFile:
 
 
 def _read_entries(path: Path, tree: ast.Module) -> tuple[BundleEntry, ...]:
-    """Read the entries of the one module-level ``BUNDLES`` mapping.
-
-    A key is an imported class, read as the target it was imported from, or a
-    string naming the target itself, read as an entry listed by name.
-    """
+    """Read the entries of the one module-level ``BUNDLES`` mapping."""
     imported = _imported_names(tree)
     mapping = _bundles_mapping(path, tree)
     entries: list[BundleEntry] = []
     for key, value in zip(mapping.keys, mapping.values, strict=True):
-        named = _named_target(key)
-        target = imported.get(key.id) if isinstance(key, ast.Name) else named
+        target = imported.get(key.id) if isinstance(key, ast.Name) else None
         if target is None:
             shown = "a `**` unpacking" if key is None else ast.unparse(key)
             raise BundlesNotEditableError(path, f"{_BUNDLES} key {shown} {_NOT_IMPORTED}", ())
-        flags = _read_flags(path, value, target)
-        entries.append(BundleEntry(target=target, flags=flags, by_name=named is not None))
+        entries.append(BundleEntry(target=target, flags=_read_flags(path, value, target)))
     return tuple(entries)
-
-
-def _named_target(key: ast.expr | None) -> str | None:
-    """Return the target a string key names, or ``None`` when the key is no such string."""
-    if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
-        return None
-    return key.value if BUNDLE_TARGET.fullmatch(key.value) else None
 
 
 def _docstring_source(source: str, tree: ast.Module) -> str | None:
@@ -292,17 +259,11 @@ def _docstring_block(docstring: str | None) -> str:
 
 
 def _mapping_block(entries: Sequence[BundleEntry]) -> str:
-    """Render the ``BUNDLES`` assignment, one line per entry, keyed the way each is listed."""
+    """Render the ``BUNDLES`` assignment, one line per entry."""
     if not entries:
         return f"{_BUNDLES} = {{}}"
-    lines = "".join(f"    {_line(entry)},\n" for entry in entries)
+    lines = "".join(f"    {entry.class_name}: {_flags_source(entry.flags)},\n" for entry in entries)
     return f"{_BUNDLES} = {{\n{lines}}}"
-
-
-def _line(entry: BundleEntry) -> str:
-    """Render one entry, keyed by its imported class's name or by the string it is listed by."""
-    key = f'"{entry.target}"' if entry.by_name else entry.class_name
-    return f"{key}: {_flags_source(entry.flags)}"
 
 
 def _flags_source(flags: Mapping[str, bool]) -> str:

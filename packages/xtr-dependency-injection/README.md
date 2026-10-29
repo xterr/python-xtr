@@ -167,7 +167,7 @@ independent.
 | `package` | — | The application package, scanned recursively |
 | `env` / `debug` | `APP_ENV` or `"dev"` / `APP_DEBUG` or "not prod" | The environment built for |
 | `name` | last component of `package` | The application's name |
-| `bundles` | `<package>.config.bundles.BUNDLES` when defined — else `<package>.bundles.BUNDLES`, the earlier layout — else `{}` | Root bundles — classes, or `"module:Class"` strings — mapped to per-environment activity flags |
+| `bundles` | `<package>.config.bundles.BUNDLES` when defined — else `<package>.bundles.BUNDLES`, the earlier layout — else `{}` | Root bundle classes mapped to per-environment activity flags |
 | `resources` | `(package,)` | What to scan instead of `package` |
 | `exclude` | `DEFAULT_EXCLUDES` | `fnmatch` patterns of modules never imported |
 | `allowed_envs` | `None` | Refuse any other environment |
@@ -194,28 +194,6 @@ BUNDLES = {
     DebugBundle: {"dev": True, "test": True},
 }
 ```
-
-A bundle may also be listed by name — the `"module:Class"` string a `@required_bundle` target
-takes — instead of being imported. It is imported only in an environment its flags activate it
-in; anywhere else it is reported `env_disabled` under that string, and its module is never
-imported. That is how an application lists the bundle of a development dependency: a deployment
-does not install one, and an import at the top of `bundles.py` would stop the whole application
-loading there.
-
-```python
-# app/config/bundles.py
-from acme_mail.bundle import MailBundle
-
-BUNDLES = {
-    MailBundle: {"all": True},
-    "acme_tools.bundle:ToolsBundle": {"dev": True},
-}
-```
-
-Where its flags do activate it, a bundle listed by name that cannot be imported is a
-`MissingBundleError` naming it and the environment: in `dev` above, the tools package is not
-installed. A bundle listed twice — as its class and its string, or under two strings — is a
-`DuplicateBundleError` once both entries resolve.
 
 A bundle declares peers with the repeatable `@required_bundle` decorator. Required bundles
 are pulled in recursively; a required class
@@ -1236,7 +1214,7 @@ Everywhere else, the public API stays behind `ContainerInterface`.
 |---|---|---|
 | Bundle | `Bundle[ConfigT]` + `@as_bundle(...)`: `build` / `prepend_extension` / `load_extension` / `process` | One integration seam per library |
 | Required peer | `@required_bundle(target, ignore_on_invalid=...)` | Pull another bundle in recursively |
-| Root bundle list | `<package>/config/bundles.py` `BUNDLES = {Bundle: {"env": True}}`, or `{"module:Class": {"env": True}}` to import it only where active | The application picks its bundles, per environment |
+| Root bundle list | `<package>/config/bundles.py` `BUNDLES = {Bundle: {"env": True}}` | The application picks its bundles, per environment |
 | Bundle config | A typed config class buildable with no arguments; `__post_init__` validates | Configuration is Python, not files |
 | Application config | `@configure` functions | Provide or transform a bundle's config |
 | Environment gate | `@when("prod")` / `@when_not("prod")` | Skip a scanned object outside its environment |
@@ -1301,8 +1279,8 @@ Every error derives from `DependencyInjectionError` and carries its data as type
 | Error | Raised when |
 |---|---|
 | `BundleDefinitionError` | A bad `@as_bundle` / `@required_bundle`, a reserved name, a bundle or config not buildable with no arguments, two bundles sharing a config type, a bad `"module:Class"` target |
-| `DuplicateBundleError` | Two bundles share a name, or one bundle is listed twice |
-| `MissingBundleError` | A required bundle is absent, skipped, excluded or disabled, or a bundle listed by name does not import where its flags activate it |
+| `DuplicateBundleError` | Two bundles share a name |
+| `MissingBundleError` | A required bundle is absent, skipped, excluded or disabled |
 | `CircularBundleDependencyError` | Bundle dependencies loop |
 | `InvalidEnvironmentError` | The environment is not in `allowed_envs` |
 | `ResourceImportError` | A scanned module failed to import |

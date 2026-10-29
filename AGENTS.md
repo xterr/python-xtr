@@ -192,9 +192,7 @@ into an application.
 - Start with `uv run xtr-recipes recipes:add <requirement>` (or `uv run xtr-recipes recipes:sync`
   after a plain `uv add`): it applies what the package's **Use in an application** *Activate*,
   *Configure*, *Environment* and *Ignore* bullets list, and prints the steps it cannot make.
-- A development-only package takes `recipes:add --dev`: its bundles are listed for `dev` only, and
-  by name (`"module:Class": {"dev": True}`), so a deployment, which does not install it, never
-  imports them.
+- A development-only package takes `recipes:add --dev`: its bundles are listed for `dev` only.
 - Do the steps the recipe prints under `steps`, and any remaining **Use in an application** bullet
   the recipe does not cover; do not invent steps the README does not list.
 - Confirm with `debug:bundles`: the bundle is `active`, and nothing you meant to activate is

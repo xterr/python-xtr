@@ -59,8 +59,8 @@ Every error derives from `DependencyInjectionError` and carries its data as type
 
 | Error | Raised when |
 | --- | --- |
-| `DuplicateBundleError` | Two bundles share a name, or one bundle is listed twice |
-| `MissingBundleError` | A required bundle is absent, skipped, excluded or disabled, or a bundle listed by name does not import where its flags activate it |
+| `DuplicateBundleError` | Two bundles share a name |
+| `MissingBundleError` | A required bundle is absent, skipped, excluded or disabled |
 | `CircularBundleDependencyError` | Bundle requirements loop, or an `AliasOf` forward does |
 | `InvalidEnvironmentError` | The environment is not in `allowed_envs` |
 | `ResourceImportError` | A scanned module failed to import |

@@ -118,7 +118,6 @@ class Synchronizer:
             self._candidates(selection, current),
             _recorded_required(current) if current.unloadable else (),
         )
-        bundles = bundles.listing_by_name(self._development_bundles(selection, current))
         draft = SyncDraft(
             selection=selection,
             installed=current.installed,
@@ -260,23 +259,6 @@ class Synchronizer:
             else:
                 candidates.update(bundles)
         return candidates
-
-    def _development_bundles(self, selection: SyncSelection, current: _Current) -> frozenset[str]:
-        """Return the bundles the run puts forward for development dependencies, to list by name.
-
-        A deployment does not install a development dependency, so a bundle of
-        one imported at the top of the application's bundle list would stop the
-        application loading there. Listed by name, it is imported only in an
-        environment its flags activate it in. An entry already listed for one is
-        rewritten that way too, its flags kept: imported — by an earlier sync,
-        or by hand — it breaks a deployment all the same.
-        """
-        return frozenset(
-            target
-            for name in (*selection.configure, *selection.update, *selection.unchanged)
-            if name in self._project.dev_dependencies
-            for target in current.installed[name].config.bundles
-        )
 
     def _write_steps(
         self,

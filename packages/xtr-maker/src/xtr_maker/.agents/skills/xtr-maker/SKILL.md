@@ -128,11 +128,9 @@ with `Run orm:migrations:migrate -n first.` Nothing differing writes nothing and
    then `uv run xtr-recipes recipes:sync`). Add extras for libraries the application has not got
    yet: `"xtr-maker[messenger,scheduler,webhook,orm,event-dispatcher]"`.
 2. **Recipe** — the recipe shipped here does step 3 and nothing else; the sync lists the bundles
-   of a development dependency for `dev` only, by name.
-3. **Activate** — `"xtr_maker.bundle:MakerBundle": {"dev": True}` in `BUNDLES` in
-   `<app>/config/bundles.py`, which the recipe writes: named, not imported, because a deployment
-   does not install a development dependency, and the kernel imports a bundle listed by name only
-   in an environment its flags activate it in.
+   of a development dependency for `dev` only.
+3. **Activate** — `MakerBundle: {"dev": True}` in `BUNDLES` in `<app>/config/bundles.py`
+   (`from xtr_maker.bundle import MakerBundle`), which the recipe writes.
 4. **Brings along** — the console bundle. The messenger, scheduler, webhook, orm and event
    dispatcher bundles are read, never required: each decides which makers exist.
 5. **Configure** — optional. With none the code goes into the kernel's own package and classes
@@ -154,8 +152,7 @@ with `Run orm:migrations:migrate -n first.` Nothing differing writes nothing and
 8. **Remove** — `uv run xtr-recipes recipes:remove xtr-maker`: `uv remove --dev xtr-maker`, then a
    sync that drops the `BUNDLES` entry. Delete `<app>/config/packages/maker.py` if you wrote one.
    The generated code stays yours.
-9. **Check** — `debug:bundles` lists `maker` as active in `dev`, and elsewhere
-   `xtr_maker.bundle:MakerBundle` as `env_disabled`; `list make` shows the makers.
+9. **Check** — `debug:bundles` lists `maker` as active in `dev`; `list make` shows the makers.
 
 ## Errors
 
@@ -177,8 +174,7 @@ revision that could not be written, `ExitCode.SUCCESS` otherwise — nothing to 
 ## Do not
 
 - Do not install it as a runtime dependency, and do not list `MakerBundle` for `all`: the makers
-  belong in `dev`. Do not import it at the top of `bundles.py` either: where the dependency is not
-  installed, the application would not load.
+  belong in `dev`.
 - Do not expect a maker to overwrite a file, or to edit configuration. `make:webhook` adds a
   transform module; `make:entity` is the only maker that writes an existing file, and only to add
   properties to it.

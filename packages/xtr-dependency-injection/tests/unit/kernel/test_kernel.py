@@ -24,7 +24,6 @@ from xtr_dependency_injection.exception import (
     DuplicateServiceError,
     InvalidEnvironmentError,
     KernelAlreadyBootedError,
-    MissingBundleError,
     ResourceImportError,
 )
 from xtr_dependency_injection.kernel import Kernel, KernelInterface
@@ -34,7 +33,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from xtr_dependency_injection.bundle.bundle import AnyBundle
-    from xtr_dependency_injection.bundle.bundle_resolver import ListedBundles
 
 pytestmark = pytest.mark.anyio
 
@@ -54,7 +52,7 @@ def _clear_events() -> None:
 def _kernel(
     env: str = "dev",
     *,
-    bundles: ListedBundles | None = None,
+    bundles: Mapping[type[AnyBundle], Mapping[str, bool]] | None = None,
     name: str | None = None,
     allowed_envs: tuple[str, ...] | None = None,
 ) -> Kernel:
@@ -356,35 +354,6 @@ def test_a_bundles_module_failing_on_a_deeper_import_names_itself() -> None:
         _ = kernel.build()
 
     assert "tests.fixtures.bundles_modules.deep_import.bundles" in str(caught.value)
-
-
-def test_a_bundles_module_may_name_a_bundle_it_does_not_import() -> None:
-    compiled = Kernel("tests.fixtures.bundles_modules.by_name", env="prod", resources=()).build()
-
-    states = {report.name: report.state for report in compiled.report.bundles}
-
-    assert states == {
-        "kernel": "active",
-        "echo": "active",
-        "xtr_not_installed_anywhere.bundle:DevToolsBundle": "env_disabled",
-    }
-
-
-def test_a_bundle_named_in_a_bundles_module_is_imported_where_it_is_active() -> None:
-    kernel = Kernel("tests.fixtures.bundles_modules.by_name", env="dev", resources=())
-
-    with pytest.raises(MissingBundleError) as caught:
-        _ = kernel.build()
-
-    assert caught.value.name == "xtr_not_installed_anywhere.bundle:DevToolsBundle"
-
-
-def test_a_kernel_given_a_bundle_by_name_imports_it_where_it_is_active() -> None:
-    kernel = _kernel(
-        bundles={EchoBundle: {"all": True}, "tests.support.bundles:DevOnlyBundle": {"dev": True}}
-    )
-
-    assert DevOnlyBundle in {type(bundle) for bundle in kernel.build()._bundles}
 
 
 @pytest.mark.parametrize(

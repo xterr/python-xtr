@@ -19,9 +19,3 @@ def test_it_keeps_the_flags_it_was_given() -> None:
     entry = BundleEntry("a.b:C", {"dev": True, "prod": False})
 
     assert entry.flags == {"dev": True, "prod": False}
-
-
-def test_it_imports_its_class_unless_told_to_list_it_by_name() -> None:
-    entry = BundleEntry("a.b:C", {"all": True})
-
-    assert not entry.by_name

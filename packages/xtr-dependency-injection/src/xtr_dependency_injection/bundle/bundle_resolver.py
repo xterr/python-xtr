@@ -6,15 +6,6 @@ resolver starts from that mapping (plus the always-active ``KernelBundle``)
 and walks each active bundle's ``@required_bundle`` declarations recursively,
 importing string targets lazily. Only active bundle classes are instantiated
 (lazy instantiation: a disabled bundle's class is never constructed).
-
-A listed bundle may be named rather than imported, by the ``"module:Class"``
-string a ``@required_bundle`` target takes:
-``BUNDLES = {"acme_debug.bundle:DebugBundle": {"dev": True}}``. It is imported
-only in an environment its flags activate it in. Anywhere else it is reported
-as disabled under that string and its module is never imported, so a bundle
-of a development dependency can be listed without a deployment — which does
-not install that dependency — ever reaching for it.
-
 Every bundle considered — active, disabled by the environment or skipped for
 an invalid ``ignore_on_invalid`` target — is reported.
 """
@@ -23,9 +14,8 @@ from __future__ import annotations
 
 import heapq
 import importlib
-from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from xtr_dependency_injection.diagnostics import BundleReport
 from xtr_dependency_injection.exception import (
@@ -38,27 +28,16 @@ from xtr_dependency_injection.exception._naming import qualified_name
 
 from .bundle import KERNEL_BUNDLE, METADATA_ATTRIBUTE, AnyBundle, Bundle, NoConfig
 from .bundle_metadata import BundleMetadata
-from .required_bundle import STRING_TARGET
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from .required_bundle import RequiredBundle
 
-__all__ = ["ListedBundles", "ResolvedBundles", "resolve_bundles"]
+__all__ = ["ResolvedBundles", "resolve_bundles"]
 
 Source = Literal["kernel", "listed", "required"]
 State = Literal["active", "skipped", "env_disabled"]
-
-ListedBundles: TypeAlias = (
-    Mapping[type[AnyBundle], Mapping[str, bool]]
-    | Mapping[str, Mapping[str, bool]]
-    | Mapping[type[AnyBundle] | str, Mapping[str, bool]]
-)
-"""What an application lists: bundle classes, their ``"module:Class"`` strings, or both.
-
-Each is mapped to its per-environment activity flags. A mapping's key type is
-invariant, so the three shapes are spelt out: a list of classes alone, typed
-the way such a list always was, is still one.
-"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,34 +70,31 @@ class _Candidate:
 def resolve_bundles(
     *,
     core: AnyBundle,
-    listed: ListedBundles,
+    listed: Mapping[type[AnyBundle], Mapping[str, bool]],
     env: str,
 ) -> ResolvedBundles:
     """Return the bundles active in ``env``, ordered, with a report on each.
 
     Args:
         core: The ``kernel`` bundle; always active and always first.
-        listed: The bundles the application declared in ``config/bundles.py`` —
-            each a class or its ``"module:Class"`` string — mapped to their
-            per-environment activity flags.
+        listed: The bundles the application declared in ``config/bundles.py``, mapped
+            to their per-environment activity flags.
         env: The environment being built.
 
     Raises:
-        DuplicateBundleError: If two different classes share one bundle name,
-            or one bundle is listed twice: as its class and its string, or
-            under two strings.
+        DuplicateBundleError: If two different classes share one bundle name.
         MissingBundleError: If a required bundle cannot be imported (and its
-            declaration is not ``ignore_on_invalid``), or a bundle listed by
-            name cannot be imported in an environment it is active in.
-        BundleDefinitionError: If a required class, or one listed by name, is
-            not a decorated :class:`Bundle`, a name is not ``"module:Class"``,
-            two active bundles share a non-``NoConfig`` config type, or a
-            listed bundle raises when instantiated.
+            declaration is not ``ignore_on_invalid``).
+        BundleDefinitionError: If a required class is not a decorated
+            :class:`Bundle`, or two active bundles share a non-``NoConfig``
+            config type, or a listed bundle raises when instantiated.
         CircularBundleDependencyError: If the required graph loops.
     """
     candidates: dict[str, _Candidate] = {}
     _ = _register_class(candidates, type(core), source="kernel", active=True)
-    _register_listed(candidates, listed, env)
+    for bundle_type, flags in listed.items():
+        active = _is_active_in(env, flags)
+        _ = _register_class(candidates, bundle_type, source="listed", active=active)
     _close_over_required(candidates)
     for candidate in candidates.values():
         if not candidate.active and candidate.state == "active":
@@ -144,73 +120,6 @@ def _is_active_in(env: str, flags: Mapping[str, bool]) -> bool:
     if env in flags:
         return flags[env]
     return flags.get("all", False)
-
-
-def _register_listed(candidates: dict[str, _Candidate], listed: ListedBundles, env: str) -> None:
-    """Register every listed bundle, importing one listed by name only where it is active.
-
-    A bundle listed twice is refused once both entries resolve to its class,
-    as two classes claiming one name are: the two entries' flags would
-    disagree about where it is active.
-    """
-    spellings: dict[str, str] = {}
-    for entry, flags in listed.items():
-        active = _is_active_in(env, flags)
-        if isinstance(entry, str):
-            if not STRING_TARGET.match(entry):
-                raise BundleDefinitionError(entry, "a bundle listed by name is 'module:Class'")
-            if not active:
-                candidates[entry] = _not_imported(entry, env)
-                continue
-            bundle_type, spelling = _import_listed(entry, env), entry
-        else:
-            bundle_type, spelling = entry, qualified_name(entry)
-        candidate = _register_class(candidates, bundle_type, source="listed", active=active)
-        name = candidate.metadata.name
-        if name in spellings:
-            raise DuplicateBundleError(name, spellings[name], spelling)
-        spellings[name] = spelling
-
-
-def _import_listed(target: str, env: str) -> type[AnyBundle]:
-    """Import the bundle class ``target`` names, listed by name and active in ``env``.
-
-    Raises:
-        MissingBundleError: If the import fails. A bundle is listed by name
-            so that environments without its package never import it, so the
-            likely cause is a development dependency this one does not install.
-        BundleDefinitionError: If ``target`` names something that is not a
-            :class:`Bundle` subclass.
-    """
-    try:
-        loaded = _import_target(target)
-    except (ImportError, AttributeError) as error:
-        reason = (
-            f"its flags make it active in {env!r}, but importing it failed ({error}) — "
-            "it is probably a development dependency that is not installed"
-        )
-        raise MissingBundleError(target, None, reason) from error
-    if not (isinstance(loaded, type) and issubclass(loaded, Bundle)):
-        raise BundleDefinitionError(target, f"listed in BUNDLES: {target} is not a Bundle subclass")
-    return cast("type[AnyBundle]", loaded)
-
-
-def _not_imported(target: str, env: str) -> _Candidate:
-    """Return the entry of a bundle listed by name and inactive in ``env``.
-
-    A bundle's name and config are read off its class, and nothing imports the
-    class where it is inactive — its package may not even be installed there —
-    so the entry knows it by the string it is listed under.
-    """
-    return _Candidate(
-        bundle_type=cast("type[AnyBundle]", Bundle),
-        metadata=BundleMetadata(name=target, config=NoConfig),
-        qualname=target,
-        source="listed",
-        active=False,
-        state="env_disabled",
-        reason=f"not active in {env!r}; listed by name, so never imported",
-    )
 
 
 def _register_class(
@@ -297,8 +206,10 @@ def _resolve_target(
                 f"required by {requirer.metadata.name}: it is not a Bundle subclass",
             )
         return target, ""
+    module_name, _, class_name = target.partition(":")
     try:
-        loaded = _import_target(target)
+        module = importlib.import_module(module_name)
+        loaded = cast("object", getattr(module, class_name))
     except (ImportError, AttributeError) as error:
         if declaration.ignore_on_invalid:
             return None, str(error)
@@ -309,18 +220,6 @@ def _resolve_target(
             f"required by {requirer.metadata.name}: {target} is not a Bundle subclass",
         )
     return cast("type[AnyBundle]", loaded), ""
-
-
-def _import_target(target: str) -> object:
-    """Import the module of a ``"module:Class"`` target, and return what it names there.
-
-    Raises:
-        ImportError: If the module cannot be imported.
-        AttributeError: If the module defines no such name.
-    """
-    module_name, _, class_name = target.partition(":")
-    module = importlib.import_module(module_name)
-    return cast("object", getattr(module, class_name))
 
 
 def _register_from_required(

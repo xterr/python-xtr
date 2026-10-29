@@ -17,11 +17,10 @@ class BundlesNotEditableError(RecipesError):
     """A ``bundles.py`` is shaped in a way its reader cannot edit in place.
 
     The bundle list is read and rewritten mechanically; a file that builds its
-    mapping some other way — a key that is neither an imported name nor a
-    ``"module:Class"`` string, non-literal flags, or no single ``BUNDLES``
-    assignment — cannot be changed without risking what it already holds.
-    Rather than guess, the error reports the entries to add by hand so the
-    application owner stays in control.
+    mapping some other way — a key that is not an imported name, non-literal
+    flags, or no single ``BUNDLES`` assignment — cannot be changed without
+    risking what it already holds. Rather than guess, the error reports the
+    entries to add by hand so the application owner stays in control.
 
     Attributes:
         path: The ``bundles.py`` that could not be rewritten.

@@ -82,16 +82,11 @@ not choose:
 
 A package in the `dev` group and not in `[project].dependencies` is a development dependency. Its
 recipe is applied like any other — files, blocks, keys and notes alike — but each bundle it lists
-goes into `BUNDLES` as `{"dev": True}`, whatever the manifest says, and by name:
-`"xtr_maker.bundle:MakerBundle": {"dev": True}`, with no import for it at the top of the file. The
-package is a tool for working on the application, left out of a deployment, and the kernel
-imports a bundle listed by name only in an environment its flags activate it in — so a deployment
-never reaches for the package it does not have, where an import would stop the application
-loading. An entry already in `BUNDLES` keeps the flags it has, so moving a package between
-`[project].dependencies` and the `dev` group changes no flags: change them yourself when you
-promote it. A development dependency's entry that imports its class — written by hand, or by an
-earlier sync — is rewritten by name, its flags kept; every other entry keeps the form it is
-written in.
+goes into `BUNDLES` as `{"dev": True}`, whatever the manifest says: the package is a tool for
+working on the application, left out of a deployment, where a bundle listed for `prod` would not
+even import. An entry already in `BUNDLES` keeps the flags it has, so moving a package between
+`[project].dependencies` and the `dev` group rewrites no entry: change its flags yourself when you
+promote it.
 
 A plan reads as one block per package, under a heading naming the action:
 
@@ -289,15 +284,13 @@ it diffs cleanly; a sync rewrites it only when it actually changed.
 `<app>/bundles.py` has it read from there, written to `config/bundles.py`, and the earlier file
 deleted, on the next sync. It is read with the standard library's `ast`:
 each `from <module> import <Class>` maps a name, and the single `BUNDLES = {...}` assignment gives
-the ordered entries with their flags from `ast.literal_eval` — each key an imported name, or a
-`"<module>:<Class>"` string listing the bundle by name. A `BUNDLES` built any other way, a key
-that is neither, non-literal flags, or any statement besides the docstring, imports, `__all__` and
-`BUNDLES` raises `BundlesNotEditableError` rather than deleting it. The file is rewritten in a
-canonical form — the docstring exactly as written, `from __future__ import annotations`, one
-import per entry that imports its class, in import order, `__all__ = ["BUNDLES"]`, and the
-`BUNDLES` mapping, each entry keyed the way it is listed — that passes `ruff check` and
-`ruff format --check`; an unchanged entry set leaves the file alone. Comments on entries are not
-kept.
+the ordered entries with their flags from `ast.literal_eval`. A `BUNDLES` built any other way, a
+key that is not an imported name, non-literal flags, or any statement besides the docstring,
+imports, `__all__` and `BUNDLES` raises `BundlesNotEditableError` rather than deleting it. The file
+is rewritten in a canonical form — the docstring exactly as written,
+`from __future__ import annotations`, one import per entry in import order, `__all__ = ["BUNDLES"]`,
+and the `BUNDLES` mapping — that passes `ruff check` and `ruff format --check`; an unchanged entry
+set leaves the file alone. Comments on entries are not kept.
 
 A recipe's bundle is **left out when another bundle in the final list requires it**, transitively,
 hard or soft, through the `@required_bundle` declarations
