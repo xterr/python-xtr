@@ -14,6 +14,10 @@ wheels/
 # Virtual environments
 .venv
 
+# The documentation site zensical builds from docs/, and its cache.
+/site/
+/.cache/
+
 # What an application writes while it runs: kernel.share_dir is var/share.
 var/
 

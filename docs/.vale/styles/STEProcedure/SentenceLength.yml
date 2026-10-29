@@ -1,0 +1,7 @@
+# A sentence in a procedure has a maximum of 20 words.
+extends: occurrence
+message: "This sentence has %s words. A procedure permits a maximum of 20."
+level: error
+scope: sentence
+max: 20
+token: '[\w''’-]+'

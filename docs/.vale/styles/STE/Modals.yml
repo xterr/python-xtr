@@ -1,0 +1,13 @@
+# "must" gives a requirement and "can" gives a possibility. Other modal verbs are not clear.
+extends: substitution
+message: "Use '%s', not '%s'."
+level: error
+ignorecase: true
+swap:
+  shall: must
+  should: must
+  ought to: must
+  may: can
+  might: can
+  could: can
+  would: will

@@ -1,0 +1,7 @@
+# Use an -ing word only as part of a technical name. A tagger finds them,
+# so this rule makes mistakes: it suggests, it does not fail the check.
+extends: sequence
+message: "'%s' is an -ing form. Use a verb in the present tense, or a noun."
+level: suggestion
+tokens:
+  - tag: VBG
