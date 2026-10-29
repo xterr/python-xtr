@@ -127,10 +127,12 @@ with `Run orm:migrations:migrate -n first.` Nothing differing writes nothing and
 1. **Install** — `uv run xtr-recipes recipes:add --dev xtr-maker` (or `uv add --dev xtr-maker`,
    then `uv run xtr-recipes recipes:sync`). Add extras for libraries the application has not got
    yet: `"xtr-maker[messenger,scheduler,webhook,orm,event-dispatcher]"`.
-2. **Recipe** — the recipe shipped here does step 3 and nothing else; the sync lists the bundles
-   of a development dependency for `dev` only.
-3. **Activate** — `MakerBundle: {"dev": True}` in `BUNDLES` in `<app>/config/bundles.py`
-   (`from xtr_maker.bundle import MakerBundle`), which the recipe writes.
+2. **Recipe** — the recipe shipped here does step 3 and nothing else; it lists the bundle for
+   `dev`.
+3. **Activate** — `from xtr_maker.bundle import MakerBundle` at the top of
+   `<app>/config/bundles.py`, and `MakerBundle: {"dev": True}` in `BUNDLES`, which the recipe
+   writes. Production without the development dependencies still starts: the kernel stands in for
+   the bundle there, which is not active, and never needs its package.
 4. **Brings along** — the console bundle. The messenger, scheduler, webhook, orm and event
    dispatcher bundles are read, never required: each decides which makers exist.
 5. **Configure** — optional. With none the code goes into the kernel's own package and classes

@@ -33,7 +33,8 @@ What each entry brings:
   automatically — the parser verifying each sender's signature, and the bus handoff of what
   a webhook carried to its consumer in ``messaging/handlers.py``.
 - ``MakerBundle`` — the ``make:*`` commands, which write application code; dev only, like
-  the dependency it comes from.
+  the dependency it comes from. Where the development dependencies are not installed, a
+  deployment's, the kernel stands in for it, inactive there, and never needs its package.
 
 Not listed, and active anyway:
 

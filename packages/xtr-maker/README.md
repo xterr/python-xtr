@@ -412,10 +412,22 @@ it undoes.
   development dependency, never a runtime one. Add the extras of the libraries you want makers
   for if the application has not got them yet.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below, and only that: it
-  lists `MakerBundle` for the `dev` environment, as it lists the bundles of every development
-  dependency. There is nothing for it to configure, no variable to write and nothing to ignore.
-- **Activate** — `MakerBundle: {"dev": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
-  from `xtr_maker.bundle`.
+  lists `MakerBundle` for the `dev` environment, which is what this package's recipe declares.
+  There is nothing for it to configure, no variable to write and nothing to ignore.
+- **Activate** — import the bundle at the top of `<app>/config/bundles.py`, like every other one,
+  and list it for `dev`:
+
+  ```python
+  # <app>/config/bundles.py
+  from xtr_maker.bundle import MakerBundle
+
+  BUNDLES = {
+      MakerBundle: {"dev": True},
+  }
+  ```
+
+  Production still starts without the development dependencies installed: there the kernel stands
+  in for the bundle, which is not active, and never needs its package.
 - **Brings along** — the console bundle, which the makers are commands of. The messenger,
   scheduler, webhook, orm and event dispatcher bundles are not brought along: each is read, not
   required, and decides which makers are registered.
