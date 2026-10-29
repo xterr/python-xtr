@@ -149,7 +149,7 @@ testpaths = ["tests"]
 addopts = ["-ra", "--strict-config", "--strict-markers"]
 filterwarnings = [
     "error",
-    # The orm bundle comes along when xtr-orm is installed, and its database layer still
+    # The tests that activate the orm bundle import its database layer, which still
     # decorates its mixins with a marker SQLAlchemy 2.1 deprecated; it warns once, on
     # import, and changes nothing. Matched by message alone: naming SQLAlchemy's category
     # would break the run where xtr-orm is not installed.

@@ -2,8 +2,9 @@
 
 Each maker writes code for one library, so its command is registered only when
 that library's bundle is active: an application never sees a maker for a
-library it does not use. The bundles are required with ``ignore_on_invalid``,
-so they come along when their package is installed and are skipped when not.
+library it does not use. Those bundles are not required from here: making code
+for a library is no reason to switch its bundle on, so the maker only reads
+which bundles the application activated.
 
 Nothing touches the disk until a maker runs: the application package is
 looked for the first time a maker needs it.
@@ -40,11 +41,6 @@ _MAKERS: Final[tuple[tuple[str, str | None], ...]] = ()
 
 @final
 @required_bundle(ConsoleBundle)
-@required_bundle("xtr_messenger.bundle:MessengerBundle", ignore_on_invalid=True)
-@required_bundle("xtr_scheduler.bundle:SchedulerBundle", ignore_on_invalid=True)
-@required_bundle("xtr_webhook.bundle:WebhookBundle", ignore_on_invalid=True)
-@required_bundle("xtr_orm.bundle:OrmBundle", ignore_on_invalid=True)
-@required_bundle("xtr_event_dispatcher.bundle:EventDispatcherBundle", ignore_on_invalid=True)
 @as_bundle("maker", config=MakerConfig)
 class MakerBundle(Bundle[MakerConfig]):
     """Registers the generator, and the makers whose library's bundle is active."""
