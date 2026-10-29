@@ -94,6 +94,24 @@ Each package with a bundle declares the bundle in an entry point of its
 each installed bundle that the application does not list, under the title
 **Installed, not active**.
 
+## A bundle for development only
+
+A bundle can be active in some environments only. The flags `{"dev": True}`
+make a bundle active in development and nowhere else. `config/bundles.py`
+imports such a bundle like every other one. The bundle of `xtr-maker`, which
+adds the `make:*` commands, is one example.
+
+A deployment that installs no development dependencies still loads the list.
+When the list cannot import a package, the kernel reads the list again and
+substitutes that package. Where the flags leave the bundle
+inactive, nothing needs it, and `debug:bundles` reports it as `env_disabled`.
+Where the flags make it active, the build stops with `MissingBundleError`, and
+the error names the bundle.
+
+> [!NOTE]
+> The kernel substitutes only the imports of `config/bundles.py`. An
+> application module that needs the missing package still fails to import.
+
 ## More information
 
 The

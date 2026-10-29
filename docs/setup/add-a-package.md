@@ -61,6 +61,44 @@ requirement:
 uv run xtr-recipes recipes:add "xtr-cache[redis]"
 ```
 
+## Add a package for development only
+
+A tool that you use while you write code belongs in the `dev` dependency group.
+The `--dev` option of `recipes:add` puts it there.
+
+1. Add the package with the option. This example adds `xtr-maker`:
+
+   ```sh
+   uv run xtr-recipes recipes:add --dev xtr-maker
+   ```
+
+   The command runs `uv add --dev xtr-maker`, and then it applies the recipe.
+2. Read the entry that the recipe wrote in `src/shop/config/bundles.py`:
+
+   ```python
+   from xtr_maker.bundle import MakerBundle
+
+   BUNDLES = {
+       MakerBundle: {"dev": True},
+   }
+   ```
+
+   The recipe lists the bundle with the environments that its manifest
+   declares. The manifest of `xtr-maker` declares `{ dev = true }`.
+3. Run the check that the output shows:
+
+   ```sh
+   uv run shop debug:bundles
+   ```
+
+   The table shows `maker` with the state `active`.
+
+> [!NOTE]
+> A deployment that installs no development dependencies still starts. The
+> kernel substitutes a bundle that the list cannot import, and `debug:bundles`
+> reports it as `env_disabled`. The build stops with `MissingBundleError` only
+> when the flags make such a bundle active.
+
 ## Remove a package
 
 1. Remove the package and undo its recipe:
@@ -69,6 +107,7 @@ uv run xtr-recipes recipes:add "xtr-cache[redis]"
    uv run xtr-recipes recipes:remove xtr-storage
    ```
 
+   For a package in the `dev` group, the command passes `--dev` to uv itself.
 2. If the output has a `steps` list, do each step in the list.
 3. Run `uv run shop debug:bundles`. The bundle of the package is not in the
    table.
@@ -81,6 +120,9 @@ recipes of all the direct dependencies, run this command:
 ```sh
 uv run xtr-recipes recipes:sync
 ```
+
+The direct dependencies are the packages in `[project].dependencies` and the
+packages in the `dev` dependency group. No other group counts.
 
 ## Next step
 

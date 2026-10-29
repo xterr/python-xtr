@@ -25,7 +25,7 @@ console scripts, because they change the project and do not need its kernel.
 | `xtr new` (`project:new`) | `xtr-cli` | Makes an application in a new directory. |
 | `xtr init` (`project:init`) | `xtr-cli` | Makes an application in the current directory. |
 | `xtr serve` (`server:start`) | `xtr-cli` | Serves the web application of the current project. |
-| `recipes:add` | `xtr-recipes` | Adds a requirement to the project, then applies the recipes that it brings. |
+| `recipes:add` | `xtr-recipes` | Adds a requirement to the project, then applies the recipes that it brings. The `--dev` option puts the requirement in the `dev` group. |
 | `recipes:remove` | `xtr-recipes` | Removes a dependency, then undoes its recipe. |
 | `recipes:sync` | `xtr-recipes` | Applies new recipes, applies changed recipes again and undoes the recipes of removed packages. |
 | `recipes:install` | `xtr-recipes` | Applies the recipe of one package again. |
@@ -56,6 +56,29 @@ after `uv tool install xtr-cli`. Run the `xtr-recipes` commands with
 | `router:match` | `xtr-http-kernel` | Shows the route that a path and a method find. It does not serve a request. |
 | `messenger:consume` | `xtr-messenger` | Receives messages from the transports that you name, until you stop it. |
 | `workflow:dump` | `xtr-workflow` | Writes a workflow as the source of a diagram. |
+
+## Code generators
+
+All these commands are in the `xtr-maker` package. The package is a development
+dependency, so a deployment without the development dependencies has none of
+these commands. Each command is in the console only when the bundle of its
+library is active.
+
+| Command | What it writes |
+|---|---|
+| `make:message` | A message, and the handler of that message. |
+| `make:schedule` | The provider of a schedule. |
+| `make:webhook` | The parser of a webhook, the consumer of its events, and its route. |
+| `make:entity` | An entity and its repository, or new properties on an entity that exists. |
+| `make:command` | A console command class. |
+| `make:listener` | A listener of one event, or a subscriber of one event. |
+| `make:migration` | A revision of the differences between the database and the table definitions. |
+
+`make:command` needs only the console bundle. The six other commands need the
+bundle of the library that they write code for. The
+[Generate code](../guides/generate-code.md) guide shows one flow, and the
+[xtr-maker README](https://github.com/xterr/python-xtr/tree/main/packages/xtr-maker)
+describes each argument and each option.
 
 ## Cache
 
