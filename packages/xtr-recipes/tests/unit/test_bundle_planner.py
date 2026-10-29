@@ -95,6 +95,14 @@ def test_a_candidate_an_already_listed_bundle_requires_is_left_out() -> None:
     assert states == {_CLOCK: "required"}
 
 
+def test_a_listed_requirer_counts_where_its_entry_is_active_not_where_its_recipe_says() -> None:
+    existing = BundlesFile(entries=(BundleEntry(target=_LOGGING, flags={"dev": True}),))
+
+    _, states = _planner().finalize(existing, set(), {_LOGGING: _ALL, _CLOCK: _ALL})
+
+    assert states == {_LOGGING: "adopted", _CLOCK: "listed"}
+
+
 def test_a_candidate_is_listed_once_its_requirer_is_removed() -> None:
     new_file, states = _planner().finalize(_file(_LOGGING), {_LOGGING}, {_CLOCK: _ALL})
 

@@ -15,6 +15,8 @@ It is a developer and CI tool, so install it as a dev dependency.
 
 - Install once: `uv add --dev xtr-recipes`.
 - Add a package and apply its recipe: `uv run xtr-recipes recipes:add xtr-messenger`.
+- Add a development tool into the `dev` group the same way, its bundles listed for `dev` only:
+  `uv run xtr-recipes recipes:add --dev xtr-maker`.
 - After a plain `uv add`, catch up with: `uv run xtr-recipes recipes:sync`.
 - Remove a package and undo its recipe: `uv run xtr-recipes recipes:remove xtr-messenger`.
 - See what is configured and what a sync would do: `uv run xtr-recipes recipes:show`.
@@ -33,6 +35,9 @@ It is a developer and CI tool, so install it as a dev dependency.
 # add the dependency and apply whatever recipe arrived with it, in one step
 uv run xtr-recipes recipes:add xtr-messenger
 
+# a tool for working on the application goes in the dev group, its bundles listed for dev only
+uv run xtr-recipes recipes:add --dev xtr-maker
+
 # or, if you already ran `uv add`, bring the project in line
 uv run xtr-recipes recipes:sync
 
@@ -40,10 +45,15 @@ uv run xtr-recipes recipes:sync
 uv run xtr-recipes recipes:remove xtr-messenger
 ```
 
-`recipes:add` runs `uv add` then syncs as a fresh process; `recipes:remove` runs `uv remove` then
-syncs. Both read only the project's direct dependencies (`[project].dependencies`), so a transitive
-package is never configured on its own. A sync **configures** a new dependency, **updates** one
-whose recipe changed, and **unconfigures** one no longer depended on, recording each in the
+`recipes:add` runs `uv add` (`uv add --dev` with `--dev`) then syncs as a fresh process;
+`recipes:remove` runs `uv remove`, with `--dev` for a package only the `dev` group lists, then
+syncs. A sync reads only the project's direct dependencies — `[project].dependencies` and the `dev`
+dependency group, `[dependency-groups].dev` or uv's earlier `[tool.uv].dev-dependencies` — so a
+transitive package is never configured on its own. A development dependency's recipe is applied in
+full, but its bundles are listed as `{"dev": True}` whatever the manifest says; an entry already in
+`config/bundles.py` keeps its flags, so change them yourself when you move a package between
+`[project].dependencies` and the `dev` group. A sync **configures** a new dependency, **updates**
+one whose recipe changed, and **unconfigures** one no longer depended on, recording each in the
 committed `xtr.lock`. Read the plan before trusting it:
 
 ```sh
@@ -130,7 +140,8 @@ A clean project prints `recipes are in sync` and exits 0.
    name, or set `[tool.xtr-recipes] app = "<import name>"`; it must resolve to `src/<app>/` or
    `<app>/`.
 3. **Add packages through it** — `uv run xtr-recipes recipes:add "<requirement>"`, then do the
-   steps it prints under `steps`, and confirm with `debug:bundles`.
+   steps it prints under `steps`, and confirm with `debug:bundles`. A development tool takes
+   `--dev`: it goes in the `dev` group, and its bundles are listed for `dev` only.
 4. **Commit** `xtr.lock` alongside `config/bundles.py` and the generated config files.
 5. **Guard** — add `uv run xtr-recipes recipes:sync --check` to CI.
 

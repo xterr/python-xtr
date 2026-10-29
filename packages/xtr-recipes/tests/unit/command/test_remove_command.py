@@ -5,7 +5,13 @@ from typing import TYPE_CHECKING
 import pytest
 from xtr_console import ExitCode
 
-from tests.support import MESSENGER, build_tester, messenger_project, record_processes
+from tests.support import (
+    MESSENGER,
+    build_project,
+    build_tester,
+    messenger_project,
+    record_processes,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -50,6 +56,32 @@ async def test_remove_drops_the_package_then_syncs_in_a_fresh_process(
         ),
     ]
     assert code == _SYNC_CODE
+
+
+async def test_remove_drops_a_dev_dependency_from_the_dev_group(
+    tester: ApplicationTester,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ = build_project(tmp_path, dev_dependencies=[MESSENGER])
+    recorder = record_processes(monkeypatch, 0, _SYNC_CODE)
+
+    _ = await tester.execute(_argv(tmp_path))
+
+    assert recorder.calls[0] == (("uv", "remove", "--dev", "--", MESSENGER), tmp_path)
+
+
+async def test_remove_finds_a_dev_dependency_however_it_is_spelled(
+    tester: ApplicationTester,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ = build_project(tmp_path, dev_dependencies=[MESSENGER])
+    recorder = record_processes(monkeypatch, 0, _SYNC_CODE)
+
+    _ = await tester.execute(["recipes:remove", "XTR_Messenger", "--project-dir", str(tmp_path)])
+
+    assert recorder.calls[0] == (("uv", "remove", "--dev", "--", "XTR_Messenger"), tmp_path)
 
 
 async def test_remove_stops_before_the_sync_when_the_removal_failed(

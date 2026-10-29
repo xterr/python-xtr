@@ -34,12 +34,12 @@ class RecipeSurvey:
     The same reading a sync starts from, stopped before anything is planned:
     enough to report a project, not enough to change it. A command that only
     tells the application owner what is configured reads this, so the rule for
-    which recipes count — the direct dependencies, minus the ones whose bundle
-    class the installation does not carry — is stated once.
+    which recipes count — the runtime and development dependencies, minus the
+    ones whose bundle class the installation does not carry — is stated once.
 
     Attributes:
-        installed: Each recipe of a direct dependency whose bundles all load,
-            keyed by distribution.
+        installed: Each recipe of a runtime or development dependency whose
+            bundles all load, keyed by distribution.
         skipped: Each package left out because its bundle class does not
             load, mapped to the targets that could not be loaded.
         selection: Where each of them stands — never configured, configured

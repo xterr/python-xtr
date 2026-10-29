@@ -38,7 +38,7 @@ class SyncCommand:
         dry_run: bool = False,
         project_dir: Path | None = None,
     ) -> int:
-        """Apply every recipe the project's direct dependencies ship.
+        """Apply every recipe the project's runtime and development dependencies ship.
 
         Args:
             io: Where the plan is reported.

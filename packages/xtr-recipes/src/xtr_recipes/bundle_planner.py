@@ -64,14 +64,11 @@ class BundlePlanner:
         """
         kept_entries = tuple(entry for entry in existing.entries if entry.target not in removed)
         base = tuple(entry.target for entry in kept_entries)
-        everywhere = [
-            target
-            for target, flags in (
-                *((entry.target, entry.flags) for entry in kept_entries),
-                *candidates.items(),
-            )
-            if _everywhere(flags)
-        ]
+        # A bundle already listed is active where its entry says, whatever its
+        # recipe would list it with: a package promoted out of the dev group
+        # keeps the `dev` entry it had, and an entry narrowed by hand stays narrow.
+        active = {**candidates, **{entry.target: entry.flags for entry in kept_entries}}
+        everywhere = [target for target, flags in active.items() if _everywhere(flags)]
         required = self._requirements.required((*base, *candidates), everywhere)
         kept = set(base)
         states: dict[str, BundleState] = {}

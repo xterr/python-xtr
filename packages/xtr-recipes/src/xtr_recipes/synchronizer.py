@@ -40,6 +40,8 @@ _BUNDLES_NAME = "config/bundles.py"
 # Where an earlier layout kept it; read when the first is absent, and moved.
 _EARLIER_BUNDLES_NAME = "bundles.py"
 _SRC = "src"
+# The one environment a development dependency's bundles are listed for.
+_DEV = "dev"
 
 
 @final
@@ -58,7 +60,7 @@ class _Current:
 
 @final
 class Synchronizer:
-    """Brings a project in line with the recipes of its direct dependencies.
+    """Brings a project in line with the recipes of its runtime and development dependencies.
 
     The work is a diff: what is installed against what the lock records.
     Nothing cares how a package arrived or left, so the same run configures
@@ -170,16 +172,21 @@ class Synchronizer:
 
         An application whose bundle list is still where an earlier layout kept
         it, ``<app>/bundles.py``, is read from there; the plan then moves it.
+
+        A recipe counts when its distribution is one the project depends on,
+        at runtime or for development; a transitive package is never
+        configured on its own.
         """
         bundles_path = self._project.package_dir / _BUNDLES_NAME
         earlier = self._project.package_dir / _EARLIER_BUNDLES_NAME
         earlier_bundles = earlier if not bundles_path.is_file() and earlier.is_file() else None
         source = earlier_bundles if earlier_bundles is not None else bundles_path
         bundles = BundlesFile.read(source)
+        depended = {*self._project.dependencies, *self._project.dev_dependencies}
         installed: dict[str, Recipe] = {}
         unloadable: dict[str, tuple[str, ...]] = {}
         for recipe in self._loader.load():
-            if recipe.distribution not in self._project.dependencies:
+            if recipe.distribution not in depended:
                 continue
             absent = tuple(
                 target
@@ -237,10 +244,20 @@ class Synchronizer:
         included: whether a bundle is left out because something else requires
         it depends on the whole list, so it is decided afresh each time rather
         than carried over from the lock.
+
+        A development dependency's bundles are put forward for ``dev`` alone,
+        whatever its recipe lists them with: the package is a tool for working
+        on the application, left out of a deployment, where a bundle listed for
+        ``prod`` would not even import. Listed for one environment, such a
+        bundle also never stands in for a peer it requires.
         """
         candidates: dict[str, Mapping[str, bool]] = {}
         for name in (*selection.configure, *selection.update, *selection.unchanged):
-            candidates.update(current.installed[name].config.bundles)
+            bundles = current.installed[name].config.bundles
+            if name in self._project.dev_dependencies:
+                candidates.update({target: {_DEV: True} for target in bundles})
+            else:
+                candidates.update(bundles)
         return candidates
 
     def _write_steps(

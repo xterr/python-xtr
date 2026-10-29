@@ -31,9 +31,76 @@ app = "app.__main__:main"
 app-web = "app.web:main"
 """
 
+_DEV_GROUP = """\
+[project]
+name = "app"
+
+[dependency-groups]
+dev = ["Ruff>=0.8", "xtr_maker[orm] ; python_version >= '3.11'"]
+"""
+
+_LEGACY_DEV = """\
+[project]
+name = "app"
+
+[tool.uv]
+dev-dependencies = ["pytest>=8"]
+"""
+
+_BOTH_DEV_LISTS = """\
+[project]
+name = "app"
+
+[dependency-groups]
+dev = ["ruff", "xtr-maker"]
+
+[tool.uv]
+dev-dependencies = ["pytest", "Ruff"]
+"""
+
+_ALSO_AT_RUNTIME = """\
+[project]
+name = "app"
+dependencies = ["xtr-maker"]
+
+[dependency-groups]
+dev = ["xtr_maker", "ruff"]
+"""
+
+_INCLUDED_GROUP = """\
+[project]
+name = "app"
+
+[dependency-groups]
+dev = [{include-group = "lint"}, "xtr-maker"]
+lint = ["ruff"]
+"""
+
+_OTHER_GROUP = """\
+[project]
+name = "app"
+
+[dependency-groups]
+test = ["pytest"]
+"""
+
+_MALFORMED_DEV_LISTS = {
+    "groups not a table": 'dependency-groups = "oops"\n\n[project]\nname = "app"\n',
+    "dev not a list": '[project]\nname = "app"\n\n[dependency-groups]\ndev = "oops"\n',
+    "no string in dev": '[project]\nname = "app"\n\n[dependency-groups]\ndev = [1, true]\n',
+    "uv not a table": '[project]\nname = "app"\n\n[tool]\nuv = "oops"\n',
+    "legacy not a list": '[project]\nname = "app"\n\n[tool.uv]\ndev-dependencies = "oops"\n',
+}
+
 
 def _write(directory: Path, body: str) -> None:
     _ = (directory / "pyproject.toml").write_text(body, encoding="utf-8")
+
+
+def _load(directory: Path, body: str) -> Project:
+    _write(directory, body)
+    (directory / "src" / "app").mkdir(parents=True)
+    return Project.load(directory)
 
 
 def test_load_resolves_the_app_from_the_project_name(tmp_path: Path) -> None:
@@ -68,7 +135,13 @@ def test_the_package_dir_is_the_flat_layout_package(tmp_path: Path) -> None:
 
 
 def test_the_package_dir_of_a_package_that_is_gone_is_at_the_project_root(tmp_path: Path) -> None:
-    project = Project(project_dir=tmp_path, app="ghost", dependencies=(), script=None)
+    project = Project(
+        project_dir=tmp_path,
+        app="ghost",
+        dependencies=(),
+        dev_dependencies=(),
+        script=None,
+    )
 
     assert project.package_dir == tmp_path / "ghost"
 
@@ -129,6 +202,41 @@ def test_it_skips_a_non_string_dependency_entry(tmp_path: Path) -> None:
     (tmp_path / "src" / "app").mkdir(parents=True)
 
     assert Project.load(tmp_path).dependencies == ("xtr-foo",)
+
+
+def test_it_reads_the_dev_group_stripped_and_normalised(tmp_path: Path) -> None:
+    assert _load(tmp_path, _DEV_GROUP).dev_dependencies == ("ruff", "xtr-maker")
+
+
+def test_it_reads_the_dev_dependencies_uv_listed_before_dependency_groups(tmp_path: Path) -> None:
+    assert _load(tmp_path, _LEGACY_DEV).dev_dependencies == ("pytest",)
+
+
+def test_it_reads_both_dev_lists_each_name_once_in_order(tmp_path: Path) -> None:
+    assert _load(tmp_path, _BOTH_DEV_LISTS).dev_dependencies == ("ruff", "xtr-maker", "pytest")
+
+
+def test_a_runtime_dependency_is_not_also_a_dev_dependency(tmp_path: Path) -> None:
+    project = _load(tmp_path, _ALSO_AT_RUNTIME)
+
+    assert project.dependencies == ("xtr-maker",)
+    assert project.dev_dependencies == ("ruff",)
+
+
+def test_it_does_not_follow_a_group_the_dev_group_includes(tmp_path: Path) -> None:
+    assert _load(tmp_path, _INCLUDED_GROUP).dev_dependencies == ("xtr-maker",)
+
+
+def test_another_dependency_group_holds_no_dev_dependency(tmp_path: Path) -> None:
+    assert _load(tmp_path, _OTHER_GROUP).dev_dependencies == ()
+
+
+@pytest.mark.parametrize("body", _MALFORMED_DEV_LISTS.values(), ids=_MALFORMED_DEV_LISTS.keys())
+def test_it_returns_no_dev_dependencies_when_a_dev_list_is_malformed(
+    tmp_path: Path,
+    body: str,
+) -> None:
+    assert _load(tmp_path, body).dev_dependencies == ()
 
 
 def test_it_reads_the_first_script_name(tmp_path: Path) -> None:

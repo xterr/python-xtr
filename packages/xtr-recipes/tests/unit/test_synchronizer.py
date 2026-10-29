@@ -7,7 +7,9 @@ import pytest
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 
 from tests.support import FakeRecipeSource, build_project, recipe_content
+from xtr_recipes.bundle_entry import BundleEntry
 from xtr_recipes.bundle_requirements import BundleRequirements
+from xtr_recipes.bundles_file import BundlesFile
 from xtr_recipes.exception import BundlesNotEditableError, RecipeNotInstalledError
 from xtr_recipes.file_write import write_text
 from xtr_recipes.project import Project
@@ -165,6 +167,11 @@ def _bare_project(directory: Path) -> Project:
     return build_project(directory, dependencies=[])
 
 
+def _dev_project(directory: Path) -> Project:
+    """The application depending on the messenger package for development only."""
+    return build_project(directory, dev_dependencies=[_MESSENGER])
+
+
 def _snapshot(directory: Path) -> dict[str, str]:
     return {
         str(path.relative_to(directory)): path.read_text(encoding="utf-8")
@@ -195,6 +202,10 @@ def _entry(directory: Path, package: str) -> LockEntry:
 
 def _read(directory: Path, name: str) -> str:
     return (directory / name).read_text(encoding="utf-8")
+
+
+def _listed(directory: Path) -> tuple[BundleEntry, ...]:
+    return BundlesFile.read(directory / _BUNDLES).entries
 
 
 def test_a_fresh_sync_plans_every_step_in_order(tmp_path: Path) -> None:
@@ -468,6 +479,75 @@ def test_a_recipe_of_a_package_that_is_not_a_dependency_is_ignored(tmp_path: Pat
     assert _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST}).plan().render() == ()
 
 
+def test_a_dev_dependencys_bundle_is_listed_for_dev_only_whatever_its_recipe_says(
+    tmp_path: Path,
+) -> None:
+    synchronizer = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
+
+    synchronizer.apply(synchronizer.plan())
+
+    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"dev": True}),)
+
+
+def test_a_dev_dependencys_recipe_writes_what_any_other_does(tmp_path: Path) -> None:
+    synchronizer = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
+
+    synchronizer.apply(synchronizer.plan())
+
+    entry = _entry(tmp_path, _MESSENGER)
+    assert entry.bundles == {_MESSENGER_TARGET: "listed"}
+    assert entry.files == {_CONFIG: LockedFile(_sha256(_RENDERED), adopted=False)}
+    assert entry.env == ("MESSENGER_DSN",)
+    assert entry.gitignore == ("/var/messenger",)
+
+
+def test_a_dev_dependencys_bundle_already_listed_keeps_the_flags_it_has(tmp_path: Path) -> None:
+    project = _dev_project(tmp_path)
+    (tmp_path / _BUNDLES).parent.mkdir(parents=True)
+    _ = (tmp_path / _BUNDLES).write_text(_MESSENGER_BUNDLES, encoding="utf-8")
+    synchronizer = _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST})
+
+    synchronizer.apply(synchronizer.plan())
+
+    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"all": True}),)
+    assert _entry(tmp_path, _MESSENGER).bundles == {_MESSENGER_TARGET: "adopted"}
+
+
+def test_promoting_a_dev_dependency_leaves_its_bundle_listed_for_dev(tmp_path: Path) -> None:
+    first = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
+    first.apply(first.plan())
+    promoted = _synchronizer(_messenger_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
+
+    promoted.apply(promoted.plan())
+
+    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"dev": True}),)
+
+
+def test_a_dev_dependencys_bundle_does_not_stand_in_for_a_bundle_it_requires(
+    tmp_path: Path,
+) -> None:
+    project = build_project(tmp_path, dependencies=[_CLOCK], dev_dependencies=[_LOGGING])
+    manifests = {_CLOCK: _CLOCK_MANIFEST, _LOGGING: _LOGGING_MANIFEST}
+    synchronizer = _synchronizer(project, manifests)
+
+    synchronizer.apply(synchronizer.plan())
+
+    assert _listed(tmp_path) == (
+        BundleEntry(target=_CLOCK_TARGET, flags={"all": True}),
+        BundleEntry(target=_LOGGING_TARGET, flags={"dev": True}),
+    )
+
+
+def test_dropping_a_dev_dependency_undoes_its_recipe(tmp_path: Path) -> None:
+    first = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
+    first.apply(first.plan())
+    undoing = _undoing(tmp_path)
+
+    plan = undoing.plan()
+
+    assert plan.render()[0] == f"unconfigure {_MESSENGER}"
+
+
 def test_removing_the_dependency_undoes_the_recipe(tmp_path: Path) -> None:
     _ = _configured(tmp_path)
     undoing = _undoing(tmp_path)
@@ -610,6 +690,12 @@ def test_a_survey_sorts_an_installed_recipe_the_lock_has_never_recorded(tmp_path
     survey = _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST}).survey()
 
     assert tuple(survey.installed) == (_MESSENGER,)
+    assert survey.selection.configure == (_MESSENGER,)
+
+
+def test_a_survey_counts_the_recipe_of_a_dev_dependency(tmp_path: Path) -> None:
+    survey = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST}).survey()
+
     assert survey.selection.configure == (_MESSENGER,)
 
 
