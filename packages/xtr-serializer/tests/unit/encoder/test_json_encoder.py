@@ -21,6 +21,10 @@ if TYPE_CHECKING:
 
 PLANTED_VALUE = "s3cr3t-t0ken-4f9a"
 
+# 4,310 digits, more than the parser reads, in a run of them no message could hold by chance.
+PLANTED_DIGITS = "8106234957"
+PLANTED_INTEGER = int(PLANTED_DIGITS * 430) * 10**10 + int(PLANTED_DIGITS)
+
 # Where a float sits in the data, and how its refusal names that place.
 FLOAT_PLACES: list[tuple[Callable[[float], NormalizedValue], str]] = [
     (lambda value: value, ""),
@@ -35,6 +39,16 @@ def nested_lists(depth: int) -> list[NormalizedValue]:
     for _ in range(depth - 1):
         child: list[NormalizedValue] = []
         current.append(child)
+        current = child
+    return root
+
+
+def nested_dicts(depth: int) -> dict[str, NormalizedValue]:
+    root: dict[str, NormalizedValue] = {}
+    current = root
+    for _ in range(depth - 1):
+        child: dict[str, NormalizedValue] = {}
+        current["a"] = child
         current = child
     return root
 
@@ -138,6 +152,18 @@ def test_it_refuses_an_indent_that_is_not_a_count_of_spaces(indent: object) -> N
         _ = JsonEncoder().encode({"a": 1}, "json", {"json_indent": indent})
 
 
+def test_it_indents_by_ten_spaces_at_most() -> None:
+    text = JsonEncoder().encode({"a": 1}, "json", {"json_indent": 10})
+
+    assert text == '{\n          "a": 1\n}'
+
+
+@pytest.mark.parametrize("indent", [11, 2**64 - 1, 2**64], ids=["11", "2**64-1", "2**64"])
+def test_it_refuses_an_indent_wider_than_ten_spaces(indent: int) -> None:
+    with pytest.raises(InvalidArgumentError, match="json_indent"):
+        _ = JsonEncoder().encode({"a": 1}, "json", {"json_indent": indent})
+
+
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf], ids=repr)
 @pytest.mark.parametrize(("make", "location"), FLOAT_PLACES, ids=["root", "list", "nested"])
 def test_it_refuses_a_float_json_has_no_form_for(
@@ -228,6 +254,15 @@ def test_it_refuses_to_read_text_with_no_utf8_form() -> None:
     assert raised.value.__context__ is None
 
 
+def test_it_refuses_to_read_what_is_not_text() -> None:
+    with pytest.raises(NotEncodableValueError) as raised:
+        # Data that is not text is the case under test.
+        _ = JsonEncoder().decode(12, "json")  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+
+    assert str(raised.value) == "only str or bytes can be read, not 'int'"
+    assert raised.value.__context__ is None
+
+
 def test_it_refuses_data_that_contains_itself() -> None:
     looped: list[NormalizedValue] = []
     looped.append(looped)
@@ -239,16 +274,82 @@ def test_it_refuses_data_that_contains_itself() -> None:
     assert str(raised.value).endswith(" [type=recursion_loop]")
 
 
-def test_it_refuses_nesting_deeper_than_it_checks() -> None:
+@pytest.mark.parametrize("nest", [nested_lists, nested_dicts], ids=["lists", "dicts"])
+def test_it_reads_back_nesting_as_deep_as_it_reads(nest: Callable[[int], NormalizedValue]) -> None:
+    encoder = JsonEncoder()
+    value = nest(201)
+
+    assert encoder.decode(encoder.encode(value, "json"), "json") == value
+
+
+@pytest.mark.parametrize("depth", [202, 255])
+@pytest.mark.parametrize("nest", [nested_lists, nested_dicts], ids=["lists", "dicts"])
+def test_it_refuses_to_write_nesting_deeper_than_it_reads(
+    nest: Callable[[int], NormalizedValue], depth: int
+) -> None:
+    with pytest.raises(NotEncodableValueError) as raised:
+        _ = JsonEncoder().encode(nest(depth), "json")
+
+    message = str(raised.value)
+    assert message.startswith("the JSON written would not read back: recursion limit exceeded at ")
+    assert raised.value.__context__ is None
+
+
+@pytest.mark.parametrize("nest", [nested_lists, nested_dicts], ids=["lists", "dicts"])
+def test_it_refuses_nesting_deeper_than_it_checks(nest: Callable[[int], NormalizedValue]) -> None:
     with pytest.raises(NotEncodableValueError, match=r" \[type=recursion_loop\]$"):
-        _ = JsonEncoder().encode(nested_lists(1000), "json")
+        _ = JsonEncoder().encode(nest(256), "json")
 
 
-def test_it_refuses_to_read_nesting_deeper_than_it_parses() -> None:
-    depth = 1000
+def test_it_refuses_to_read_nesting_deeper_than_it_reads() -> None:
+    depth = 202
 
     with pytest.raises(NotEncodableValueError, match="not valid JSON"):
         _ = JsonEncoder().decode("[" * depth + "]" * depth, "json")
+
+
+@pytest.mark.parametrize(
+    "number", [10**4300 - 1, -(10**4299 - 1)], ids=["4300-digits", "minus-4299-digits"]
+)
+def test_it_reads_back_an_integer_as_long_as_it_reads(number: int) -> None:
+    encoder = JsonEncoder()
+
+    assert encoder.decode(encoder.encode([number], "json"), "json") == [number]
+
+
+@pytest.mark.parametrize(
+    "number",
+    [10**4300, -(10**4300), 10**5000, PLANTED_INTEGER],
+    ids=["4301-digits", "minus-4301-digits", "5001-digits", "4310-digits"],
+)
+def test_it_refuses_to_write_an_integer_longer_than_it_reads(number: int) -> None:
+    with pytest.raises(NotEncodableValueError) as raised:
+        _ = JsonEncoder().encode({"count": [number]}, "json")
+
+    message = str(raised.value)
+    assert message.startswith("the JSON written would not read back: number out of range at ")
+    assert raised.value.__context__ is None
+
+
+def test_it_writes_a_minus_sign_before_the_longest_integer_only_if_it_reads_back() -> None:
+    # Whether the parser counts the sign towards its limit depends on its version. Where it does,
+    # the integer is refused; where it does not, the integer is written and reads back.
+    encoder = JsonEncoder()
+    number = -(10**4300 - 1)
+
+    try:
+        text = encoder.encode([number], "json")
+    except NotEncodableValueError:
+        return
+
+    assert encoder.decode(text, "json") == [number]
+
+
+def test_its_refusal_of_a_long_integer_never_quotes_it() -> None:
+    with pytest.raises(NotEncodableValueError) as raised:
+        _ = JsonEncoder().encode(PLANTED_INTEGER, "json")
+
+    assert PLANTED_DIGITS not in str(raised.value)
 
 
 def test_it_reads_bytes() -> None:
@@ -265,9 +366,10 @@ def test_it_reads_escapes() -> None:
     assert JsonEncoder().decode('"\\u00e9\\n\\ud83d\\ude00"', "json") == "é\n\U0001f600"
 
 
-def test_it_refuses_to_read_nan_and_infinity_by_default() -> None:
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity"])
+def test_it_refuses_to_read_nan_and_infinity(literal: str) -> None:
     with pytest.raises(NotEncodableValueError, match="not valid JSON"):
-        _ = JsonEncoder().decode("[NaN]", "json")
+        _ = JsonEncoder().decode(f"[{literal}]", "json")
 
 
 def test_it_refuses_to_read_a_number_too_large_for_a_float() -> None:
@@ -276,26 +378,6 @@ def test_it_refuses_to_read_a_number_too_large_for_a_float() -> None:
 
     assert str(raised.value) == "at 'a[0]': Input should be a finite number [type=finite_number]"
     assert raised.value.__context__ is None
-
-
-def test_it_reads_nan_and_infinity_when_allowed() -> None:
-    decoded = JsonEncoder().decode("[NaN, -Infinity]", "json", {"json_allow_inf_nan": True})
-
-    assert isinstance(decoded, list)
-    assert [repr(number) for number in decoded] == ["nan", "-inf"]
-
-
-def test_the_call_context_wins_over_the_default_context_when_reading() -> None:
-    encoder = JsonEncoder({"json_allow_inf_nan": True})
-
-    with pytest.raises(NotEncodableValueError):
-        _ = encoder.decode("[NaN]", "json", {"json_allow_inf_nan": False})
-
-
-@pytest.mark.parametrize("allow", [1, "yes", None], ids=repr)
-def test_it_refuses_an_allow_inf_nan_that_is_not_a_bool(allow: object) -> None:
-    with pytest.raises(InvalidArgumentError, match="json_allow_inf_nan"):
-        _ = JsonEncoder().decode("[]", "json", {"json_allow_inf_nan": allow})
 
 
 @pytest.mark.parametrize(

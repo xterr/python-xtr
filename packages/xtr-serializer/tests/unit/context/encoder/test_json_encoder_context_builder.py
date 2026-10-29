@@ -8,7 +8,6 @@ import pytest
 
 from xtr_serializer import (
     COLLECT_DENORMALIZATION_ERRORS,
-    JSON_ALLOW_INF_NAN,
     JSON_INDENT,
     STRICT,
     JsonEncoderContextBuilder,
@@ -26,7 +25,6 @@ _START: Context = {STRICT: True, COLLECT_DENORMALIZATION_ERRORS: True}
 _SETTINGS: list[tuple[str, _Setting, str, object]] = [
     ("indented", lambda builder: builder.with_indent(2), JSON_INDENT, 2),
     ("on-one-line", lambda builder: builder.with_indent(None), JSON_INDENT, None),
-    ("inf-nan-allowed", lambda builder: builder.with_allow_inf_nan(True), JSON_ALLOW_INF_NAN, True),
 ]
 
 
@@ -60,6 +58,6 @@ def test_setting_an_option_again_replaces_its_value() -> None:
 
 
 def test_the_context_it_built_starts_an_equal_builder() -> None:
-    built = JsonEncoderContextBuilder(_START).with_indent(2).with_allow_inf_nan(True).to_dict()
+    built = JsonEncoderContextBuilder(_START).with_indent(2).to_dict()
 
     assert JsonEncoderContextBuilder(built).to_dict() == built

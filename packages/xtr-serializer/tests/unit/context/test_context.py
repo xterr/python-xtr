@@ -12,7 +12,6 @@ from xtr_serializer import (
     COLLECT_DENORMALIZATION_ERRORS,
     FROM_ATTRIBUTES,
     IGNORED_ATTRIBUTES,
-    JSON_ALLOW_INF_NAN,
     JSON_INDENT,
     POPULATE_BY_NAME,
     SKIP_DEFAULT_VALUES,
@@ -42,7 +41,6 @@ def test_no_two_steps_read_the_same_key() -> None:
         FROM_ATTRIBUTES,
         POPULATE_BY_NAME,
         JSON_INDENT,
-        JSON_ALLOW_INF_NAN,
     ]
 
     assert len(set(keys)) == len(keys)

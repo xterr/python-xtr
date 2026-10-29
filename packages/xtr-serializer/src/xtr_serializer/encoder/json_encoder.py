@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, final
 
 from pydantic import ConfigDict, JsonValue, TypeAdapter, ValidationError
 from pydantic_core import PydanticSerializationError, from_json, to_json
@@ -17,7 +17,7 @@ from xtr_serializer.exception import (
 
 from .decoder_interface import DecoderInterface
 from .encoder_interface import EncoderInterface
-from .json_encoder_keys import JSON_ALLOW_INF_NAN, JSON_INDENT
+from .json_encoder_keys import JSON_INDENT
 
 if TYPE_CHECKING:
     from xtr_serializer.context.context import Context
@@ -30,20 +30,28 @@ _JSON_VALUE: Final[TypeAdapter[JsonValue]] = TypeAdapter(
     JsonValue, config=ConfigDict(strict=True, allow_inf_nan=False)
 )
 
+# Wider reads no easier. And the writer lays out the whole indent before it writes a byte: a count
+# too large to lay out does not raise an error, it panics or ends the process.
+_MAX_INDENT: Final = 10
+
 
 @final
 class JsonEncoder(EncoderInterface, DecoderInterface):
     """Writes plain data as JSON text and reads it back, refusing what JSON cannot carry exactly.
 
     A looser writer puts down NaN as ``NaN``, the key ``1`` as ``"1"``, a tuple as a list, and the
-    data reads back changed. Here pydantic's JSON check refuses those, cycles and nesting too deep
-    to check, and reading refuses text that is not JSON, each with :class:`NotEncodableValueError`
-    saying where and what is wrong, never the value. A call's context wins over the default one.
+    data reads back changed. Here pydantic's JSON check refuses those and cycles, and the text
+    written is read once before it is returned, so what would not read back is refused too:
+    nesting deeper than the parser goes, an integer longer than it reads. Reading refuses text
+    that is not JSON, ``NaN`` and the infinities included.
+
+    Each refusal is a :class:`NotEncodableValueError` saying where and what is wrong. Where is
+    the path of keys and indexes leading to the refused value: the keys of a mapping are the
+    data's structure, as the names of attributes are, so they are shown — a value never is, nor
+    a key that is itself what is refused. A call's context wins over the default one.
     """
 
     FORMAT: Final = "json"
-
-    __slots__ = ("_default_context",)
 
     def __init__(self, default_context: Context | None = None) -> None:
         """Keep a copy of ``default_context``, so later changes to it are not picked up."""
@@ -62,14 +70,21 @@ class JsonEncoder(EncoderInterface, DecoderInterface):
         if format != self.FORMAT:
             raise UnsupportedFormatError(format)
         indent = {**self._default_context, **(context or {})}.get(JSON_INDENT)
-        if indent is not None and (type(indent) is not int or indent < 0):
-            raise InvalidArgumentError(f"{JSON_INDENT!r} must be a count of spaces or None")
+        if indent is not None and (type(indent) is not int or not 0 <= indent <= _MAX_INDENT):
+            raise InvalidArgumentError(
+                f"{JSON_INDENT!r} must be a count of spaces from 0 to {_MAX_INDENT}, or None"
+            )
         try:
-            return to_json(_JSON_VALUE.validate_python(data), indent=indent).decode()
+            text = to_json(_JSON_VALUE.validate_python(data), indent=indent)
+            from_json(text)  # the check passes nesting and integers the parser cannot read
         except ValidationError as error:
             refusal = _refusal(error)
         except PydanticSerializationError:  # past the check, only a lone surrogate fails here
             refusal = "a string in the data has no UTF-8 form"
+        except ValueError as error:  # the parser says why and where, never what the text was
+            refusal = f"the JSON written would not read back: {error}"
+        else:
+            return text.decode()
         # Raised outside the handler, so no exception holding the data is chained to it.
         raise NotEncodableValueError(refusal) from None
 
@@ -79,20 +94,19 @@ class JsonEncoder(EncoderInterface, DecoderInterface):
     ) -> NormalizedValue:
         if format != self.FORMAT:
             raise UnsupportedFormatError(format)
-        allow = {**self._default_context, **(context or {})}.get(JSON_ALLOW_INF_NAN, False)
-        if not isinstance(allow, bool):
-            raise InvalidArgumentError(f"{JSON_ALLOW_INF_NAN!r} must be a bool")
         try:
-            # Typed as returning anything, the parser returns plain JSON data and nothing else.
-            decoded = cast("NormalizedValue", from_json(data, allow_inf_nan=allow))
-            if not allow:  # refusing the literals does not stop 1e999 from reading as infinity
-                decoded = _JSON_VALUE.validate_python(decoded)
+            # The parser refuses the literals NaN and Infinity; the check, 1e999 read as infinity.
+            decoded = _JSON_VALUE.validate_python(from_json(data, allow_inf_nan=False))
         except ValidationError as error:
             refusal = _refusal(error)
         except ValueError as error:  # the parser says why and where, never what the text was
             refusal = f"the text is not valid JSON: {error}"
-        except TypeError:  # the parser takes no str holding a lone surrogate
-            refusal = "the text has no UTF-8 form"
+        except TypeError:  # the parser takes no str holding a lone surrogate, and nothing but text
+            refusal = (
+                "the text has no UTF-8 form"
+                if isinstance(data, str)
+                else f"only str or bytes can be read, not {type(data).__qualname__!r}"
+            )
         else:
             return decoded
         raise NotEncodableValueError(refusal) from None

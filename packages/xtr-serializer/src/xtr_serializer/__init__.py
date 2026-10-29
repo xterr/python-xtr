@@ -16,7 +16,6 @@ from .context import (
     SerializerContextBuilder,
 )
 from .encoder import (
-    JSON_ALLOW_INF_NAN,
     JSON_INDENT,
     DecoderInterface,
     EncoderInterface,
@@ -65,7 +64,6 @@ __all__ = [
     "COLLECT_DENORMALIZATION_ERRORS",
     "FROM_ATTRIBUTES",
     "IGNORED_ATTRIBUTES",
-    "JSON_ALLOW_INF_NAN",
     "JSON_INDENT",
     "POPULATE_BY_NAME",
     "SKIP_DEFAULT_VALUES",
