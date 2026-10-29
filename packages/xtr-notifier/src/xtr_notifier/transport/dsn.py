@@ -66,8 +66,9 @@ class Dsn:
         try:
             split = urlsplit(dsn)
             port = split.port
-        except ValueError as error:
-            raise InvalidArgumentError("The notifier DSN is invalid.") from error
+        except ValueError:
+            # The stdlib message quotes the netloc, credentials included: drop the cause.
+            raise InvalidArgumentError("The notifier DSN is invalid.") from None
         if not split.scheme:
             raise InvalidArgumentError("The notifier DSN must contain a scheme.")
         if not (split.netloc or split.path or split.query):
