@@ -84,7 +84,7 @@ FROM_ATTRIBUTES: Final = "from_attributes"
 attribute of the same name.
 
 For turning one object into another — a database row into the model an answer is written
-from. When absent, the type's own pydantic configuration decides.
+from. Off when absent: the data is read as JSON.
 """
 
 POPULATE_BY_NAME: Final = "populate_by_name"

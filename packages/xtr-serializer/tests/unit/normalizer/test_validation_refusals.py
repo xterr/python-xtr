@@ -6,9 +6,12 @@ from typing import ClassVar
 
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic_core import ErrorDetails
 
 from xtr_serializer.exception import ExtraAttributesError, NotNormalizableValueError
 from xtr_serializer.normalizer._validation_refusals import refusals_of
+
+PLANTED_VALUE = "s3cr3t-t0ken-4f9a"
 
 
 class Line(BaseModel):
@@ -28,9 +31,10 @@ def details_of(data: object) -> ValidationError:
 
 
 def test_a_value_that_does_not_fit_keeps_its_path_type_and_message() -> None:
-    error = details_of({"lines": [{"price": "1"}]})
+    data = {"lines": [{"price": "1"}]}
+    error = details_of(data)
 
-    [refusal] = refusals_of(error.errors())
+    [refusal] = refusals_of(error.errors(), data)
 
     assert type(refusal) is NotNormalizableValueError
     assert (refusal.path, refusal.error_type, refusal.current_type) == (
@@ -42,9 +46,10 @@ def test_a_value_that_does_not_fit_keeps_its_path_type_and_message() -> None:
 
 
 def test_the_extra_fields_of_one_object_are_one_error() -> None:
-    error = details_of({"lines": [{"price": 1, "a": 0, "b": 0}, {"price": 1, "c": 0}]})
+    data = {"lines": [{"price": 1, "a": 0, "b": 0}, {"price": 1, "c": 0}]}
+    error = details_of(data)
 
-    refusals = refusals_of(error.errors())
+    refusals = refusals_of(error.errors(), data)
 
     assert [
         (refusal.path, refusal.extra_attributes)
@@ -52,3 +57,28 @@ def test_the_extra_fields_of_one_object_are_one_error() -> None:
         if isinstance(refusal, ExtraAttributesError)
     ] == [("lines[0]", ("a", "b")), ("lines[1]", ("c",))]
     assert len(refusals) == 2
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        "union_tag_invalid",
+        "bytes_invalid_encoding",
+        "value_error",
+        "assertion_error",
+        "get_attribute_error",
+        "iteration_error",
+        "mapping_type",
+        "datetime_object_invalid",
+        "timezone_offset",
+    ],
+)
+def test_a_message_pydantic_builds_from_the_data_is_replaced(error_type: str) -> None:
+    detail = ErrorDetails(
+        type=error_type, loc=("x",), msg=f"refused {PLANTED_VALUE}", input=PLANTED_VALUE
+    )
+
+    [refusal] = refusals_of([detail], {"x": PLANTED_VALUE})
+
+    assert PLANTED_VALUE not in refusal.message
+    assert (refusal.path, refusal.error_type) == ("x", error_type)

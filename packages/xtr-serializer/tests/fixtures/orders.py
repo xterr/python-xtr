@@ -6,10 +6,10 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, cast
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, with_config
 from typing_extensions import TypedDict  # pydantic reads typing's only from Python 3.12
 
 if TYPE_CHECKING:
@@ -18,11 +18,21 @@ if TYPE_CHECKING:
 __all__ = [
     "Cart",
     "CartItem",
+    "ClosedParcel",
+    "Coupon",
     "Customer",
+    "Delivery",
+    "Dispatch",
+    "Handover",
+    "Invoice",
     "Item",
     "LaxItem",
+    "Letter",
     "Node",
     "Order",
+    "Packet",
+    "Parcel",
+    "Pickup",
     "Receipt",
     "Shipment",
     "Status",
@@ -140,3 +150,73 @@ class Ticket(BaseModel):
     def _prefix(cls, value: str, info: ValidationInfo) -> str:
         context = cast("Mapping[str, str]", info.context or {})
         return f"{context.get('prefix', '')}{value}"
+
+
+class Coupon(BaseModel):
+    """A validator whose message quotes the value it refuses."""
+
+    code: str
+
+    @field_validator("code")
+    @classmethod
+    def _known(cls, value: str) -> str:
+        raise ValueError(f"unknown coupon {value}")
+
+
+class Invoice(BaseModel):
+    """A field whose type is imported for type checkers only, so pydantic cannot resolve it."""
+
+    lines: Mapping[str, int]
+
+
+@dataclass
+class Parcel:
+    """A dataclass with no configuration of its own, for the extra-attributes option."""
+
+    weight: int
+
+
+@with_config(ConfigDict(extra="forbid"))
+@dataclass
+class ClosedParcel:
+    """A dataclass whose own configuration refuses fields it does not declare."""
+
+    weight: int
+
+
+class Pickup(BaseModel):
+    """One way to hand an order over, told apart from the other by ``kind``."""
+
+    kind: Literal["pickup"]
+    store: str
+
+
+class Delivery(BaseModel):
+    """The other way to hand an order over."""
+
+    kind: Literal["delivery"]
+    address: str
+
+
+class Dispatch(BaseModel):
+    """A union pydantic picks a member of by the tag the data carries."""
+
+    method: Annotated[Pickup | Delivery, Field(discriminator="kind")]
+
+
+class Handover(BaseModel):
+    """A union pydantic tries member by member."""
+
+    method: Pickup | Delivery
+
+
+class Letter(BaseModel):
+    """Read from the same data as :class:`Packet`, so a union of both takes its first member."""
+
+    weight: int
+
+
+class Packet(BaseModel):
+    """Read from the same data as :class:`Letter`."""
+
+    weight: int

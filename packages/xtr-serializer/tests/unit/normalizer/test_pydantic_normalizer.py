@@ -3,22 +3,34 @@
 from __future__ import annotations
 
 import math
+import re
 import traceback
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Annotated
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Annotated, cast
 from uuid import UUID
 
 import pytest
+from pydantic import TypeAdapter
+from pydantic_core import to_json
 
 from tests.fixtures.orders import (
     Cart,
     CartItem,
+    ClosedParcel,
+    Coupon,
     Customer,
+    Dispatch,
+    Handover,
+    Invoice,
     Item,
     LaxItem,
+    Letter,
     Node,
     Order,
+    Packet,
+    Parcel,
     Receipt,
     Shipment,
     Status,
@@ -53,15 +65,45 @@ from xtr_serializer.normalizer import pydantic_normalizer as module
 from xtr_serializer.normalizer.pydantic_normalizer import PydanticNormalizer
 
 if TYPE_CHECKING:
-    from pydantic import TypeAdapter
-
     from xtr_serializer.context.context import Context
 
 PLANTED_VALUE = "s3cr3t-t0ken-4f9a"
+CYCLE = "Circular reference detected (id repeated)"
+TOO_DEEP = "Circular reference detected (depth exceeded)"
 
 
 class Opaque:
     """A class pydantic has no schema for."""
+
+
+def chain_of_nodes(depth: int) -> Node:
+    root = node = Node()
+    for _ in range(depth):
+        node.children.append(child := Node())
+        node = child
+    return root
+
+
+def nested_lists(depth: int) -> list[object]:
+    root: list[object] = []
+    inner = root
+    for _ in range(depth):
+        deeper: list[object] = []
+        inner.append(deeper)
+        inner = deeper
+    return root
+
+
+def looped_node() -> Node:
+    node = Node()
+    node.children.append(node)
+    return node
+
+
+def looped_list() -> list[object]:
+    looped: list[object] = []
+    looped.append(looped)
+    return looped
 
 
 ORDER = Order(
@@ -161,7 +203,7 @@ def built(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     types: list[object] = []
     build = module._build_adapter
 
-    def counting_build(type_: object) -> TypeAdapter[object] | None:
+    def counting_build(type_: object) -> TypeAdapter[object] | str:
         types.append(type_)
         return build(type_)
 
@@ -196,6 +238,26 @@ def test_it_reads_a_type_expression_that_cannot_be_hashed(built: list[object]) -
     assert len(built) == 2
 
 
+def test_it_takes_the_members_of_a_union_in_the_order_written() -> None:
+    normalizer = PydanticNormalizer()
+
+    assert type(normalizer.denormalize({"weight": 1}, Letter | Packet)) is Letter
+    assert type(normalizer.denormalize({"weight": 1}, Packet | Letter)) is Packet
+    assert normalizer.denormalize([{"weight": 1}], list[Packet | Letter]) == [Packet(weight=1)]
+
+
+def test_it_forgets_the_adapter_used_least_recently(
+    built: list[object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(module, "_CACHE_SIZE", 2)
+    normalizer = PydanticNormalizer()
+
+    for type_ in (int, str, int, float, int, str):
+        assert normalizer.supports_denormalization(None, type_)
+
+    assert built == [int, str, float, str]
+
+
 def test_it_refuses_to_normalize_what_it_cannot_build() -> None:
     with pytest.raises(InvalidArgumentError, match="'Opaque'"):
         _ = PydanticNormalizer().normalize(Opaque())
@@ -204,6 +266,24 @@ def test_it_refuses_to_normalize_what_it_cannot_build() -> None:
 def test_it_refuses_to_denormalize_into_what_it_cannot_build() -> None:
     with pytest.raises(InvalidArgumentError, match="'Opaque'"):
         _ = PydanticNormalizer().denormalize({}, Opaque)
+
+
+def test_it_refuses_to_read_into_a_type_it_cannot_resolve_naming_what_is_undefined() -> None:
+    with pytest.raises(InvalidArgumentError, match=r"'Invoice'.*'Mapping' is not defined"):
+        _ = PydanticNormalizer().denormalize({"lines": {}}, Invoice)
+
+
+def test_it_refuses_to_write_a_value_whose_type_it_cannot_resolve() -> None:
+    with pytest.raises(InvalidArgumentError, match="'Mapping' is not defined"):
+        _ = PydanticNormalizer().normalize(Invoice.model_construct(lines={}))
+
+
+def test_it_does_not_support_a_type_it_cannot_resolve(built: list[object]) -> None:
+    normalizer = PydanticNormalizer()
+
+    assert not normalizer.supports_denormalization({}, Invoice)
+    assert not normalizer.supports_normalization(Invoice.model_construct(lines={}))
+    assert built == [Invoice]
 
 
 def test_it_handles_every_type_and_its_answer_rests_on_the_type_alone() -> None:
@@ -291,6 +371,7 @@ def test_it_refuses_the_name_of_an_aliased_field_by_default() -> None:
 
     assert raised.value.path == "fullName"
     assert raised.value.error_type == "missing"
+    assert raised.value.current_type is None
 
 
 def test_it_reads_under_the_name_when_aliases_are_off() -> None:
@@ -384,6 +465,27 @@ def test_it_locates_extra_attributes_inside_the_data() -> None:
     assert raised.value.extra_attributes == ("coupon",)
 
 
+@pytest.mark.parametrize(
+    ("type_", "context"),
+    [(Parcel, {ALLOW_EXTRA_ATTRIBUTES: False}), (ClosedParcel, {})],
+    ids=["refused-by-the-context", "refused-by-its-configuration"],
+)
+def test_it_refuses_the_extra_attributes_of_a_dataclass_as_one_error(
+    type_: object, context: Context
+) -> None:
+    data = {"weight": 1, "a": PLANTED_VALUE, "b": PLANTED_VALUE}
+
+    with pytest.raises(PartialDenormalizationError) as raised:
+        _ = PydanticNormalizer().denormalize(
+            data, type_, context={**context, COLLECT_DENORMALIZATION_ERRORS: True}
+        )
+
+    [error] = raised.value.errors
+    assert isinstance(error, ExtraAttributesError)
+    assert error.extra_attributes == ("a", "b")
+    assert error.path is None
+
+
 def test_it_reads_from_the_attributes_of_an_object_when_asked() -> None:
     row = CartItem(sku="A", price=1)
 
@@ -465,6 +567,48 @@ def test_it_reports_a_value_that_does_not_fit_as_a_whole_without_a_path() -> Non
     assert raised.value.current_type == "str"
 
 
+def test_it_locates_an_error_inside_a_union_where_the_data_has_it() -> None:
+    with pytest.raises(PartialDenormalizationError) as raised:
+        _ = PydanticNormalizer().denormalize(
+            {"method": {"store": 1}}, Handover, context={COLLECT_DENORMALIZATION_ERRORS: True}
+        )
+
+    assert sorted(
+        (str(error.path), str(error.error_type), str(error.current_type))
+        for error in raised.value.errors
+    ) == [
+        ("method.address", "missing", "None"),
+        ("method.kind", "missing", "None"),
+        ("method.store", "string_type", "int"),
+    ]
+
+
+def test_it_locates_an_error_inside_a_tagged_union_without_the_tag() -> None:
+    data = {"method": {"kind": "delivery", "address": 1}}
+
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize(data, Dispatch)
+
+    assert raised.value.path == "method.address"
+
+
+def test_it_locates_an_error_inside_a_union_read_from_attributes() -> None:
+    row = SimpleNamespace(method=SimpleNamespace(kind="pickup", store=1))
+
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize(row, Handover, context={FROM_ATTRIBUTES: True})
+
+    assert raised.value.path == "method.store"
+
+
+def test_it_reports_a_refused_key_at_its_mapping_without_the_key() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize([{"x": 1}], list[dict[int, int]])
+
+    assert raised.value.path == "[0]"
+    assert raised.value.message.startswith("a key: ")
+
+
 def test_it_refuses_to_read_data_that_is_not_plain() -> None:
     with pytest.raises(NotNormalizableValueError) as raised:
         _ = PydanticNormalizer().denormalize({"sku": object(), "price": 1}, Item)
@@ -483,19 +627,62 @@ def test_it_refuses_to_write_a_value_that_does_not_fit_its_declared_type() -> No
 
 
 def test_it_refuses_to_write_a_value_that_contains_itself() -> None:
-    node = Node()
-    node.children.append(node)
-
     with pytest.raises(CircularReferenceError):
-        _ = PydanticNormalizer().normalize(node)
+        _ = PydanticNormalizer().normalize(looped_node())
 
 
 def test_it_refuses_to_read_data_that_contains_itself() -> None:
-    looped: list[object] = []
-    looped.append(looped)
-
     with pytest.raises(CircularReferenceError):
-        _ = PydanticNormalizer().denormalize(looped, list[object])
+        _ = PydanticNormalizer().denormalize(looped_list(), list[object])
+
+
+def test_it_refuses_to_write_a_value_too_deep_to_write_without_calling_it_circular() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(chain_of_nodes(1000))
+
+    assert type(raised.value) is NotNormalizableValueError
+
+
+def test_it_refuses_to_read_data_too_deep_to_read_without_calling_it_circular() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize(nested_lists(1000), list[object])
+
+    assert type(raised.value) is NotNormalizableValueError
+
+
+def test_a_value_quoting_the_words_of_a_cycle_is_not_a_cycle() -> None:
+    misfit = Item.model_construct(sku="A", price=CYCLE)
+
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(misfit)
+
+    assert type(raised.value) is NotNormalizableValueError
+
+
+# pydantic's words for a value that contains itself and for one too deep: the only way to tell
+# them apart, so a pydantic release that rewords them fails here first.
+
+
+@pytest.mark.parametrize(
+    ("node", "words"),
+    [(looped_node(), CYCLE), (chain_of_nodes(1000), TOO_DEEP)],
+    ids=["cycle", "too-deep"],
+)
+def test_pydantic_words_a_value_it_cannot_write(node: Node, words: str) -> None:
+    with pytest.raises(ValueError, match=rf"^{re.escape(words)}$"):
+        _ = cast("object", TypeAdapter(Node).dump_python(node, mode="json"))
+
+
+@pytest.mark.parametrize(
+    ("data", "words"),
+    [(looped_list(), CYCLE), (nested_lists(1000), TOO_DEEP)],
+    ids=["cycle", "too-deep"],
+)
+def test_pydantic_words_data_it_cannot_write_as_json(data: object, words: str) -> None:
+    with pytest.raises(
+        ValueError, match=rf"^Error serializing to JSON: ValueError: {re.escape(words)}$"
+    ):
+        _ = to_json(data)
 
 
 @pytest.mark.parametrize(
@@ -506,8 +693,11 @@ def test_it_refuses_to_read_data_that_contains_itself() -> None:
         ({"items": [{"price": PLANTED_VALUE}]}, Cart, {COLLECT_DENORMALIZATION_ERRORS: True}),
         (PLANTED_VALUE, UUID, {}),
         (f"2026-13-01T{PLANTED_VALUE}", datetime, {}),
+        ({"method": {"kind": PLANTED_VALUE, "store": "S"}}, Dispatch, {}),
+        ({"code": PLANTED_VALUE}, Coupon, {}),
+        ({PLANTED_VALUE: 1}, dict[int, int], {}),
     ],
-    ids=["field", "extra-key", "collected", "uuid", "datetime"],
+    ids=["field", "extra-key", "collected", "uuid", "datetime", "union-tag", "validator", "key"],
 )
 def test_no_error_quotes_the_data_or_chains_what_does(
     data: object, type_: object, context: Context

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Set as AbstractSet
-from typing import TYPE_CHECKING, Final, Literal, TypeVar, cast, final, overload
+from typing import TYPE_CHECKING, Final, Literal, TypeVar, cast, final, get_args, overload
 
 from pydantic import ConfigDict, TypeAdapter, ValidationError
 from pydantic.errors import PydanticSchemaGenerationError, PydanticUndefinedAnnotation
@@ -58,6 +58,15 @@ _EXACT: Final = ConfigDict(
 # type is a value known at run time, which is what TypeAliasType takes there.
 _alias_of: Final = cast("Callable[[str, object], object]", TypeAliasType)
 
+# How many types an instance keeps the adapter of. A type expression built per call, such as
+# Annotated[int, Field(ge=0)], is a new key each time; the least recently used goes first.
+_CACHE_SIZE: Final = 256
+
+# pydantic's words for a value that contains itself: a plain ValueError when dumping, wrapped
+# when writing JSON. Its "(depth exceeded)" is a value nested too deep, which is no cycle.
+_CYCLE: Final = "Circular reference detected (id repeated)"
+_CYCLE_WORDS: Final = frozenset({_CYCLE, f"Error serializing to JSON: ValueError: {_CYCLE}"})
+
 
 @final
 class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
@@ -68,26 +77,31 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     options and pydantic's errors onto this package's, with their paths and never their values.
 
     Each type is read and written under one configuration — strict, finite, bytes as base64,
-    durations in ISO 8601 — so a value reads back as it was written. It governs every dataclass,
-    typed dict and plain type, nested ones included. A model keeps its own ``model_config``:
-    pydantic gives a model no configuration but its own, so a model that is to be exact declares
-    those settings itself. The :data:`~xtr_serializer.STRICT` key overrides strictness for both.
+    durations in ISO 8601 — so a value reads back as it was written. It governs the dataclasses,
+    typed dicts and plain types that declare no configuration of their own, except inside a
+    model: a model keeps its own ``model_config``, and that configuration, not this one, governs
+    what the model holds down to the next type with one of its own. A model that is to be exact
+    declares those settings itself. The :data:`~xtr_serializer.STRICT` key overrides strictness
+    for every type.
 
     Data is read as JSON: strict pydantic takes a date or a UUID from a string, a tuple from a
-    list, an enum from its value, only in JSON, so the data is handed to it as JSON text. Reading
-    an object's attributes (:data:`~xtr_serializer.FROM_ATTRIBUTES`) reads the object itself.
+    list, an enum from its value, only in JSON, so the data is handed to it as JSON text. The
+    data is what a decoder returns — dicts, lists, strings, numbers, booleans and ``None``; any
+    other value is turned into JSON first and so is checked in its JSON form, not as itself.
+    Reading an object's attributes (:data:`~xtr_serializer.FROM_ATTRIBUTES`) reads the object
+    itself.
 
-    The adapter built for each type is kept, as is the answer that none can be built. The context
-    is handed to pydantic too, where validators and serializers read it as ``info.context``. A
-    call's context wins over the default one.
+    The adapter built for each type is kept, as is the answer that none can be built, for the
+    256 types used last; a union's members count in the order written, as pydantic tries them in
+    that order. The context is handed to pydantic too, where validators and serializers read it
+    as ``info.context``. A call's context wins over the default one.
     """
-
-    __slots__ = ("_adapters", "_default_context")
 
     def __init__(self, default_context: Context | None = None) -> None:
         """Keep a copy of ``default_context``, so later changes to it are not picked up."""
         self._default_context = dict(default_context or {})
-        self._adapters: dict[object, TypeAdapter[object] | None] = {}
+        # Oldest use first: a type used again is moved to the end.
+        self._adapters: dict[object, TypeAdapter[object] | str] = {}
 
     @override
     def normalize(
@@ -126,7 +140,8 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         if cyclic:
             raise CircularReferenceError("the value contains itself")
         raise NotNormalizableValueError(
-            "the value, or one inside it, does not fit its declared type or has no plain form",
+            "the value, or one inside it, does not fit its declared type, has no plain form or "
+            "is nested too deep",
             current_type=type(data).__qualname__,
         )
 
@@ -137,7 +152,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         format: str | None = None,
         context: Context | None = None,
     ) -> bool:
-        return self._cached_adapter(type(data)) is not None
+        return not isinstance(self._cached_adapter(type(data)), str)
 
     @overload
     def denormalize(
@@ -200,14 +215,15 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
                 context=context,
             )
         except ValidationError as error:
-            refusals = refusals_of(error.errors(include_url=False, include_context=False))
+            refusals = refusals_of(error.errors(include_url=False, include_context=False), data)
         except ValueError as error:  # data holding what has no JSON form, or holding itself
             cyclic = _is_cycle(error)
         if cyclic:
             raise CircularReferenceError("the data contains itself")
         if not refusals:
             raise NotNormalizableValueError(
-                "the data holds a value that is not plain data", current_type=type(data).__name__
+                "the data holds a value that is not plain data, or is nested too deep",
+                current_type=type(data).__name__,
             )
         if collect:
             raise PartialDenormalizationError(data, tuple(refusals))
@@ -221,7 +237,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         format: str | None = None,
         context: Context | None = None,
     ) -> bool:
-        return self._cached_adapter(type_) is not None
+        return not isinstance(self._cached_adapter(type_), str)
 
     @override
     def get_supported_types(self, format: str | None) -> SupportedTypes:
@@ -230,36 +246,55 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
 
     def _adapter_for(self, type_: object) -> TypeAdapter[object]:
         adapter = self._cached_adapter(type_)
-        if adapter is None:
-            name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
-            raise InvalidArgumentError(f"pydantic has no schema for {name!r}")
+        if isinstance(adapter, str):
+            raise InvalidArgumentError(adapter)
         return adapter
 
-    def _cached_adapter(self, type_: object) -> TypeAdapter[object] | None:
+    def _cached_adapter(self, type_: object) -> TypeAdapter[object] | str:
+        """Return the adapter of ``type_``, or why it has none, building it on first use."""
+        key = _key_of(type_)
         try:
-            cached = type_ in self._adapters
+            _ = hash(key)
         except TypeError:  # a type expression that cannot be hashed is built every time
             return _build_adapter(type_)
-        if not cached:
-            self._adapters[type_] = _build_adapter(type_)
-        return self._adapters[type_]
+        adapter = self._adapters.pop(key, None)
+        if adapter is None:
+            adapter = _build_adapter(type_)
+        self._adapters[key] = adapter
+        if len(self._adapters) > _CACHE_SIZE:
+            del self._adapters[next(iter(self._adapters))]
+        return adapter
 
 
-def _build_adapter(type_: object) -> TypeAdapter[object] | None:
-    """Build the adapter of ``type_`` under the exact configuration, or ``None`` if it has none.
+def _key_of(type_: object) -> object:
+    """Key ``type_`` by its arguments in order, which a union's equality leaves out."""
+    arguments: tuple[object, ...] = get_args(type_)
+    return (type_, tuple(_key_of(argument) for argument in arguments))
+
+
+def _build_adapter(type_: object) -> TypeAdapter[object] | str:
+    """Build the adapter of ``type_`` under the exact configuration, or say why it has none.
 
     pydantic refuses a configuration for a bare model, dataclass or typed dict; given one for an
-    alias of the type, it applies it to the type and to what the type holds.
+    alias of the type, it applies it to the type and to what the type holds. A type naming what
+    is not defined at run time, such as a class imported for type checkers only, gets an adapter
+    pydantic finishes on first use; it is finished here, so the name is reported at once.
     """
+    name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
     try:
-        return TypeAdapter(_alias_of("Value", type_), config=_EXACT)
-    except (PydanticSchemaGenerationError, PydanticUndefinedAnnotation):
-        return None
+        adapter: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
+        if not adapter.pydantic_complete:
+            _ = adapter.rebuild(raise_errors=True)
+    except PydanticSchemaGenerationError:
+        return f"pydantic has no schema for {name!r}"
+    except PydanticUndefinedAnnotation as error:
+        return f"pydantic has no schema for {name!r}: {error.name!r} is not defined"
+    return adapter
 
 
 def _is_cycle(error: ValueError) -> bool:
-    """Tell pydantic's refusal of a value that contains itself; it has no type of its own."""
-    return "Circular reference" in str(error)
+    """Tell pydantic's refusal of a value that contains itself, which has no type of its own."""
+    return str(error) in _CYCLE_WORDS
 
 
 def _flag(context: Context, key: str) -> bool | None:
