@@ -1,0 +1,87 @@
+"""The xtr-maker bundle: the generator the ``make:*`` commands share, and the commands.
+
+Each maker writes code for one library, so its command is registered only when
+that library's bundle is active: an application never sees a maker for a
+library it does not use. The bundles are required with ``ignore_on_invalid``,
+so they come along when their package is installed and are skipped when not.
+
+Nothing touches the disk until a maker runs: the application package is
+looked for the first time a maker needs it.
+"""
+
+from __future__ import annotations
+
+from typing import Final, final
+
+from typing_extensions import override
+from xtr_console.bundle import ConsoleBundle
+from xtr_dependency_injection import (
+    Bundle,
+    ContainerBuilder,
+    # Imported at runtime: the container reads the factory annotations below.
+    KernelInterface,
+    ServiceConfigurator,
+    as_bundle,
+    bundle_active,
+    required_bundle,
+)
+
+from xtr_maker.file_manager import FileManager
+from xtr_maker.generator import Generator
+from xtr_maker.template_renderer import TemplateRenderer
+
+from .maker_config import MakerConfig
+
+__all__ = ["MakerBundle"]
+
+_MAKERS: Final[tuple[tuple[str, str | None], ...]] = ()
+"""Each maker's command module, and the bundle that must be active for it (``None``: none)."""
+
+
+@final
+@required_bundle(ConsoleBundle)
+@required_bundle("xtr_messenger.bundle:MessengerBundle", ignore_on_invalid=True)
+@required_bundle("xtr_scheduler.bundle:SchedulerBundle", ignore_on_invalid=True)
+@required_bundle("xtr_webhook.bundle:WebhookBundle", ignore_on_invalid=True)
+@required_bundle("xtr_orm.bundle:OrmBundle", ignore_on_invalid=True)
+@required_bundle("xtr_event_dispatcher.bundle:EventDispatcherBundle", ignore_on_invalid=True)
+@as_bundle("maker", config=MakerConfig)
+class MakerBundle(Bundle[MakerConfig]):
+    """Registers the generator, and the makers whose library's bundle is active."""
+
+    @override
+    def load_extension(
+        self,
+        config: MakerConfig,
+        services: ServiceConfigurator,
+        builder: ContainerBuilder,
+    ) -> None:
+        """Register the generator's services, then the command module of each maker in reach.
+
+        The generator is scoped: a maker run is one unit of work, which queues
+        its own files, and a run that fails leaves nothing queued for the next.
+        """
+        del config
+        _ = services.set(_template_renderer)
+        _ = services.set(_file_manager)
+        _ = services.set(_generator, lifetime="scoped")
+        for module, peer in _MAKERS:
+            if peer is None or bundle_active(builder, peer):
+                services.load(module)
+
+
+def _template_renderer() -> TemplateRenderer:
+    """Render the templates this package ships."""
+    return TemplateRenderer()
+
+
+def _file_manager(kernel: KernelInterface, config: MakerConfig) -> FileManager:
+    """Write into the configured package, else the one the kernel is named after."""
+    return FileManager(kernel.project_dir, config.root_package or kernel.name)
+
+
+def _generator(
+    file_manager: FileManager, template_renderer: TemplateRenderer, config: MakerConfig
+) -> Generator:
+    """Build a generator with an empty queue, marking classes ``@final`` as configured."""
+    return Generator(file_manager, template_renderer, final_classes=config.final_classes)

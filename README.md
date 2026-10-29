@@ -38,6 +38,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-http-message-contracts](packages/xtr-http-message-contracts) | The HTTP message interfaces alone: requests, responses, streams, URIs, uploaded files and their factories. |
 | [xtr-logging](packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. |
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
+| [xtr-maker](packages/xtr-maker) | Console commands that write application code for the xtr libraries, refusing a file that already exists. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
 | [xtr-notifier](packages/xtr-notifier) | Notifications sent to chat, SMS and push channels — picked by the notification or its importance — through any provider configured by DSN, directly or through the message bus. |
 | [xtr-telegram-notifier](packages/xtr-telegram-notifier) | Telegram for xtr-notifier: chat messages posted, edited and answered through a bot, with keyboards, media and file uploads. |
@@ -192,6 +193,13 @@ graph LR
     dotenv -. optional .-> console
     recipes[xtr-recipes] --> di
     recipes --> console
+    maker[xtr-maker] --> di
+    maker --> console
+    maker -. optional .-> messenger
+    maker -. optional .-> scheduler
+    maker -. optional .-> webhook
+    maker -. optional .-> orm
+    maker -. optional .-> events
     cli[xtr-cli] --> console
     remoteevent[xtr-remote-event] --> messenger
     remoteevent --> svccon

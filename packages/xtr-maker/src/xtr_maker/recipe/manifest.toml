@@ -1,0 +1,15 @@
+# The recipe for xtr-maker: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+# The makers write code into the working tree, so they are listed for development only.
+"xtr_maker.bundle:MakerBundle" = { dev = true }
+
+# No [files], [env] or [gitignore]: the makers need no configuration, read no
+# variable and write nothing a repository should not track.
+
+[notes]
+check = [
+  "<script> list make — the make:* commands, one for each library whose bundle is active",
+]
