@@ -1,0 +1,7 @@
+# A paragraph has a maximum of six sentences.
+extends: occurrence
+message: "This paragraph has %s sentences. A paragraph permits a maximum of six."
+level: error
+scope: paragraph
+max: 6
+token: '[.!?](?:\s|$)'

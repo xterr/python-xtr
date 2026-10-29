@@ -1,0 +1,36 @@
+# The simple word for each complex word. This is not the ASD-STE100 dictionary,
+# which is not free to copy: it is a list of common substitutions.
+extends: substitution
+message: "Use '%s', not '%s'."
+level: error
+ignorecase: true
+swap:
+  accomplish: do
+  additional: more
+  approximately: about
+  ascertain: find
+  assist: help
+  attempt: try
+  cease: stop
+  commence: start
+  demonstrate: show
+  discontinue: stop
+  eliminate: remove
+  employ: use
+  endeavou?r: try
+  facilitate: help
+  furnish: give
+  in order to: to
+  in the event that: if
+  indicate: show
+  initiate: start
+  leverage: use
+  numerous: many
+  obtain: get
+  prior to: before
+  subsequently: then
+  sufficient: enough
+  terminate: stop
+  utilize: use
+  via: through
+  whilst: while
