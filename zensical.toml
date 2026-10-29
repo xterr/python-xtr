@@ -1,0 +1,166 @@
+# The documentation site. Build: `uv run --only-group docs zensical build`.
+# Preview: `uv run --only-group docs zensical serve`. The pages are in docs/.
+[project]
+site_name = "xtr"
+site_description = "Typed, async building blocks for Python applications."
+site_url = "https://xterr.github.io/python-xtr/"
+repo_url = "https://github.com/xterr/python-xtr"
+# Full addresses, so a copy of the repository on another host can point them at itself.
+edit_uri = "https://github.com/xterr/python-xtr/edit/main/docs/"
+copyright = "MIT License"
+docs_dir = "docs"
+site_dir = "site"
+# The writing rules for agents are for the repository, not for the site.
+exclude_docs = """
+/AGENTS.md
+"""
+
+nav = [
+  { "Home" = "index.md" },
+  { "Setup" = [
+    "setup/index.md",
+    "setup/install.md",
+    "setup/new-application.md",
+    "setup/add-a-package.md",
+    "setup/application-layout.md",
+  ] },
+  { "Guides" = [
+    "guides/index.md",
+    "guides/configuration.md",
+    "guides/console-commands.md",
+    "guides/web-application.md",
+    "guides/messages.md",
+    "guides/security.md",
+    "guides/testing.md",
+  ] },
+  { "Components" = "components/index.md" },
+  { "Architecture" = [
+    "architecture/index.md",
+    "architecture/bundles.md",
+    "architecture/contracts.md",
+  ] },
+  { "Reference" = [
+    "reference/index.md",
+    "reference/console-commands.md",
+    "reference/versions.md",
+  ] },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "navigation.indexes",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.footer",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+# Only syntax that GitHub and GitLab also render: the same page reads the same in
+# the repository and on the site. See docs/AGENTS.md.
+[project.markdown_extensions.toc]
+permalink = true
+
+[project.markdown_extensions.tables]
+
+[project.markdown_extensions.footnotes]
+
+[project.markdown_extensions.admonition]
+
+[project.markdown_extensions."pymdownx.quotes"]
+callouts = true
+
+[project.markdown_extensions."pymdownx.highlight"]
+anchor_linenums = true
+
+[project.markdown_extensions."pymdownx.inlinehilite"]
+
+[project.markdown_extensions."pymdownx.superfences"]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+
+[project.markdown_extensions."pymdownx.tasklist"]
+custom_checkbox = true
+
+[project.plugins.search]
+
+[project.plugins.mkdocstrings]
+default_handler = "python"
+
+[project.plugins.mkdocstrings.handlers.python]
+inventories = ["https://docs.python.org/3/objects.inv"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+docstring_section_style = "list"
+filters = ["!^_"]
+members_order = "source"
+merge_init_into_class = true
+show_root_heading = true
+show_signature_annotations = true
+separate_signature = true
+show_source = false
+
+# The API reference, made from the docstrings at build time. A package root re-exports
+# its public classes, so a page for each module would repeat them: only the root and
+# the subpackages an application imports on their own get a page.
+[project.plugins.api-autonav]
+nav_section_title = "API reference"
+api_root_uri = "api"
+exclude = ["re:^xtr_[a-z0-9_]+\\.(?!(bundle|command|decorator|exception|testing)$)"]
+modules = [
+  "packages/xtr-cache-contracts/src/xtr_cache_contracts",
+  "packages/xtr-cache/src/xtr_cache",
+  "packages/xtr-cli/src/xtr_cli",
+  "packages/xtr-clock/src/xtr_clock",
+  "packages/xtr-console/src/xtr_console",
+  "packages/xtr-dependency-injection/src/xtr_dependency_injection",
+  "packages/xtr-dotenv/src/xtr_dotenv",
+  "packages/xtr-event-dispatcher-contracts/src/xtr_event_dispatcher_contracts",
+  "packages/xtr-event-dispatcher/src/xtr_event_dispatcher",
+  "packages/xtr-http-client-contracts/src/xtr_http_client_contracts",
+  "packages/xtr-http-client/src/xtr_http_client",
+  "packages/xtr-http-foundation/src/xtr_http_foundation",
+  "packages/xtr-http-kernel/src/xtr_http_kernel",
+  "packages/xtr-http-message-contracts/src/xtr_http_message_contracts",
+  "packages/xtr-http-message/src/xtr_http_message",
+  "packages/xtr-lock/src/xtr_lock",
+  "packages/xtr-logging-contracts/src/xtr_logging_contracts",
+  "packages/xtr-logging/src/xtr_logging",
+  "packages/xtr-messenger/src/xtr_messenger",
+  "packages/xtr-notifier/src/xtr_notifier",
+  "packages/xtr-orm/src/xtr_orm",
+  "packages/xtr-password-hasher/src/xtr_password_hasher",
+  "packages/xtr-rate-limiter/src/xtr_rate_limiter",
+  "packages/xtr-recipes/src/xtr_recipes",
+  "packages/xtr-remote-event/src/xtr_remote_event",
+  "packages/xtr-scheduler/src/xtr_scheduler",
+  "packages/xtr-security-core/src/xtr_security_core",
+  "packages/xtr-security-csrf/src/xtr_security_csrf",
+  "packages/xtr-security-http/src/xtr_security_http",
+  "packages/xtr-security-jwt/src/xtr_security_jwt",
+  "packages/xtr-security-oauth2-server-core/src/xtr_security_oauth2_server_core",
+  "packages/xtr-security-oauth2-server/src/xtr_security_oauth2_server",
+  "packages/xtr-security/src/xtr_security",
+  "packages/xtr-service-contracts/src/xtr_service_contracts",
+  "packages/xtr-slack-notifier/src/xtr_slack_notifier",
+  "packages/xtr-storage/src/xtr_storage",
+  "packages/xtr-telegram-notifier/src/xtr_telegram_notifier",
+  "packages/xtr-webhook/src/xtr_webhook",
+  "packages/xtr-workflow/src/xtr_workflow",
+]

@@ -1,0 +1,10 @@
+# Write the full words, not a contraction.
+extends: existence
+message: "Write the full words, not the contraction '%s'."
+level: error
+ignorecase: true
+nonword: true
+tokens:
+  - '\b\w+n[''’]t\b'
+  - '\b(?:it|that|there|here|what|who|let)[''’]s\b'
+  - '\b(?:I|you|we|they)[''’](?:m|re|ve|ll|d)\b'

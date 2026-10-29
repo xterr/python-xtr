@@ -1,0 +1,7 @@
+# A sentence in a description has a maximum of 25 words.
+extends: occurrence
+message: "This sentence has %s words. A description permits a maximum of 25."
+level: error
+scope: sentence
+max: 25
+token: '[\w''’-]+'

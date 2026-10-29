@@ -1,0 +1,11 @@
+# A step gives one instruction. Two actions in a sequence are two steps.
+extends: existence
+message: "'%s' joins two instructions. Write each instruction as a step."
+level: error
+scope: list
+ignorecase: true
+nonword: true
+tokens:
+  - '\band\s+then\b'
+  - ',\s+then\b'
+  - '\bafter\s+(?:that|which)\b'

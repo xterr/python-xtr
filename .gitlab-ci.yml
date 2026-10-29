@@ -1,0 +1,35 @@
+# The documentation site on GitLab: it builds the site from docs/ and checks its writing
+# on every merge request, and publishes it to GitLab Pages from the default branch.
+
+stages:
+  - docs
+
+default:
+  image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+variables:
+  UV_LINK_MODE: copy
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# The ASD-STE100 rules a tool can check; docs/AGENTS.md has the rest.
+docs:check:
+  stage: docs
+  script:
+    - uv run --locked --only-group docs vale docs
+    - uv run --locked --only-group docs zensical build --clean --strict
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+pages:
+  stage: docs
+  script:
+    - uv run --locked --only-group docs vale docs
+    - uv run --locked --only-group docs zensical build --clean --strict
+  pages:
+    publish: site
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

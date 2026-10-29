@@ -1,0 +1,13 @@
+# An abbreviation or a slash makes the reader guess. Write the words or the list.
+extends: existence
+message: "'%s' is not clear. Write the full words or the list."
+level: error
+ignorecase: true
+nonword: true
+tokens:
+  - '\band\s*/\s*or\b'
+  - '\betc\b\.?'
+  - '\be\.g\.'
+  - '\bi\.e\.'
+  - '\band\s+so\s+(?:on|forth)\b'
+  - '\b(?:as|if|when)\s+(?:required|necessary|applicable|needed)\b'
