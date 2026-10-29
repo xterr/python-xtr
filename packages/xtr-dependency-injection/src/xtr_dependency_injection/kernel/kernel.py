@@ -110,6 +110,7 @@ class Kernel:
         "_bundles",
         "_concurrent_scoped_access",
         "_debug",
+        "_default_excludes",
         "_env",
         "_environ",
         "_exclude",
@@ -128,7 +129,8 @@ class Kernel:
         name: str | None = None,
         bundles: Mapping[type[AnyBundle], Mapping[str, bool]] | None = None,
         resources: Sequence[str] | None = None,
-        exclude: Sequence[str] = DEFAULT_EXCLUDES,
+        exclude: Sequence[str] = (),
+        default_excludes: bool = True,
         allowed_envs: Sequence[str] | None = None,
         concurrent_scoped_access: bool = False,
         environ: Mapping[str, str] | None = None,
@@ -153,8 +155,12 @@ class Kernel:
                 stood in for, and reported disabled where its flags leave it
                 inactive.
             resources: What to scan instead of ``package``.
-            exclude: ``fnmatch`` patterns of modules never scanned;
-                replaces ``DEFAULT_EXCLUDES``.
+            exclude: ``fnmatch`` patterns of modules never scanned, added to
+                ``DEFAULT_EXCLUDES``. A pattern starting with ``.`` is
+                relative to the application package — ``".scripts"`` is
+                ``"<package>.scripts"`` — whatever ``resources`` names.
+            default_excludes: Whether ``DEFAULT_EXCLUDES`` applies; false
+                leaves ``exclude`` alone.
             allowed_envs: The only environments the kernel accepts.
             concurrent_scoped_access: Passed to wireup.
             environ: Where ``APP_ENV``, ``APP_DEBUG`` and every ``env(...)``
@@ -181,6 +187,7 @@ class Kernel:
         )
         self._resources = tuple(resources) if resources is not None else None
         self._exclude = tuple(exclude)
+        self._default_excludes = default_excludes
         self._allowed_envs = tuple(allowed_envs) if allowed_envs is not None else None
         self._concurrent_scoped_access = concurrent_scoped_access
         self._environ = environ
@@ -250,6 +257,7 @@ class Kernel:
             bundles=self._bundles,
             resources=self._resources,
             exclude=self._exclude,
+            default_excludes=self._default_excludes,
             allowed_envs=self._allowed_envs,
             concurrent_scoped_access=self._concurrent_scoped_access,
             environ=self._environ,
@@ -268,7 +276,7 @@ class Kernel:
             project_dir=self.project_dir,
             listed=listed,
             resources=self._resources if self._resources is not None else (self._package,),
-            exclude=self._exclude,
+            exclude=self._scan_excludes,
             environ=self._environ,
         )
         state = prepared.assembly.state
@@ -314,6 +322,16 @@ class Kernel:
             msg = f"{getattr(main, '__qualname__', main)!r} returned {result!r}, not an exit code"
             raise InvalidArgumentTypeError(msg)
         return result
+
+    @property
+    def _scan_excludes(self) -> tuple[str, ...]:
+        """The patterns the scan leaves out: the defaults, then ``exclude`` made absolute."""
+        defaults = DEFAULT_EXCLUDES if self._default_excludes else ()
+        given = (
+            f"{self.package}{pattern}" if pattern.startswith(".") else pattern
+            for pattern in self._exclude
+        )
+        return (*defaults, *given)
 
 
 @dataclass(frozen=True, slots=True)
