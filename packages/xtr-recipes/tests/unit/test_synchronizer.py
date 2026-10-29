@@ -133,6 +133,8 @@ check = ["<script> debug:bundles"]
 
 _CLOCK_MANIFEST = f'[bundles]\n"{_CLOCK_TARGET}" = {{ all = true }}\n'
 _LOGGING_MANIFEST = f'[bundles]\n"{_LOGGING_TARGET}" = {{ all = true }}\n'
+_DEV_LOGGING_MANIFEST = f'[bundles]\n"{_LOGGING_TARGET}" = {{ dev = true }}\n'
+_DEV_MESSENGER_MANIFEST = f'[bundles]\n"{_MESSENGER_TARGET}" = {{ dev = true, test = true }}\n'
 _OWN_MANIFEST = f'[bundles]\n"{_OWN_TARGET}" = {{ all = true }}\n'
 
 
@@ -479,14 +481,16 @@ def test_a_recipe_of_a_package_that_is_not_a_dependency_is_ignored(tmp_path: Pat
     assert _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST}).plan().render() == ()
 
 
-def test_a_dev_dependencys_bundle_is_listed_for_dev_only_whatever_its_recipe_says(
+def test_a_dev_dependencys_bundle_is_listed_with_the_environments_its_recipe_declares(
     tmp_path: Path,
 ) -> None:
-    synchronizer = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
+    synchronizer = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _DEV_MESSENGER_MANIFEST})
 
     synchronizer.apply(synchronizer.plan())
 
-    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"dev": True}),)
+    assert _listed(tmp_path) == (
+        BundleEntry(target=_MESSENGER_TARGET, flags={"dev": True, "test": True}),
+    )
 
 
 def test_a_dev_dependencys_recipe_writes_what_any_other_does(tmp_path: Path) -> None:
@@ -501,33 +505,11 @@ def test_a_dev_dependencys_recipe_writes_what_any_other_does(tmp_path: Path) -> 
     assert entry.gitignore == ("/var/messenger",)
 
 
-def test_a_dev_dependencys_bundle_already_listed_keeps_the_flags_it_has(tmp_path: Path) -> None:
-    project = _dev_project(tmp_path)
-    (tmp_path / _BUNDLES).parent.mkdir(parents=True)
-    _ = (tmp_path / _BUNDLES).write_text(_MESSENGER_BUNDLES, encoding="utf-8")
-    synchronizer = _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST})
-
-    synchronizer.apply(synchronizer.plan())
-
-    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"all": True}),)
-    assert _entry(tmp_path, _MESSENGER).bundles == {_MESSENGER_TARGET: "adopted"}
-
-
-def test_promoting_a_dev_dependency_leaves_its_bundle_listed_for_dev(tmp_path: Path) -> None:
-    first = _synchronizer(_dev_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
-    first.apply(first.plan())
-    promoted = _synchronizer(_messenger_project(tmp_path), {_MESSENGER: _MESSENGER_MANIFEST})
-
-    promoted.apply(promoted.plan())
-
-    assert _listed(tmp_path) == (BundleEntry(target=_MESSENGER_TARGET, flags={"dev": True}),)
-
-
-def test_a_dev_dependencys_bundle_does_not_stand_in_for_a_bundle_it_requires(
+def test_a_bundle_its_recipe_lists_for_dev_does_not_stand_in_for_a_bundle_it_requires(
     tmp_path: Path,
 ) -> None:
     project = build_project(tmp_path, dependencies=[_CLOCK], dev_dependencies=[_LOGGING])
-    manifests = {_CLOCK: _CLOCK_MANIFEST, _LOGGING: _LOGGING_MANIFEST}
+    manifests = {_CLOCK: _CLOCK_MANIFEST, _LOGGING: _DEV_LOGGING_MANIFEST}
     synchronizer = _synchronizer(project, manifests)
 
     synchronizer.apply(synchronizer.plan())

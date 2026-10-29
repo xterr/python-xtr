@@ -81,12 +81,10 @@ not choose:
   lock entry.
 
 A package in the `dev` group and not in `[project].dependencies` is a development dependency. Its
-recipe is applied like any other — files, blocks, keys and notes alike — but each bundle it lists
-goes into `BUNDLES` as `{"dev": True}`, whatever the manifest says: the package is a tool for
-working on the application, left out of a deployment, where a bundle listed for `prod` would not
-even import. An entry already in `BUNDLES` keeps the flags it has, so moving a package between
-`[project].dependencies` and the `dev` group rewrites no entry: change its flags yourself when you
-promote it.
+recipe is applied like any other — files, blocks, keys, notes and bundles alike. Each bundle it
+lists goes into `BUNDLES` with the environments its manifest's `[bundles]` declares, exactly as a
+runtime dependency's does: the recipe is what knows a package is meant for development, and such
+a package declares `{ dev = true }` there.
 
 A plan reads as one block per package, under a heading naming the action:
 
@@ -297,8 +295,8 @@ hard or soft, through the `@required_bundle` declarations
 [xtr-dependency-injection](../xtr-dependency-injection) reads. This is recomputed every sync, so a
 bundle recorded as `required` becomes `listed` again once the bundle that required it is removed.
 Only a requirer listed for every environment counts, by the flags `BUNDLES` gives it when it is
-already there: one limited to `dev` and `test`, or a development dependency's, would leave its
-peers inactive in `prod`, so the recipe's bundle is listed anyway.
+already there: one limited to `dev` and `test` would leave its peers inactive in `prod`, so the
+recipe's bundle is listed anyway.
 A bundle whose class cannot be imported — a broken installation, a module it needs missing — is
 skipped with a message saying so; the package is not locked, so the next sync retries once the
 bundle loads. A package already configured whose bundle stops importing is left exactly

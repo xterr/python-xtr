@@ -40,8 +40,6 @@ _BUNDLES_NAME = "config/bundles.py"
 # Where an earlier layout kept it; read when the first is absent, and moved.
 _EARLIER_BUNDLES_NAME = "bundles.py"
 _SRC = "src"
-# The one environment a development dependency's bundles are listed for.
-_DEV = "dev"
 
 
 @final
@@ -245,19 +243,14 @@ class Synchronizer:
         it depends on the whole list, so it is decided afresh each time rather
         than carried over from the lock.
 
-        A development dependency's bundles are put forward for ``dev`` alone,
-        whatever its recipe lists them with: the package is a tool for working
-        on the application, left out of a deployment, where a bundle listed for
-        ``prod`` would not even import. Listed for one environment, such a
-        bundle also never stands in for a peer it requires.
+        A development dependency's bundles are put forward like a runtime
+        dependency's, with the environments its recipe declares: the recipe is
+        what knows the package is meant for development, and says so with
+        ``dev``.
         """
         candidates: dict[str, Mapping[str, bool]] = {}
         for name in (*selection.configure, *selection.update, *selection.unchanged):
-            bundles = current.installed[name].config.bundles
-            if name in self._project.dev_dependencies:
-                candidates.update({target: {_DEV: True} for target in bundles})
-            else:
-                candidates.update(bundles)
+            candidates.update(current.installed[name].config.bundles)
         return candidates
 
     def _write_steps(

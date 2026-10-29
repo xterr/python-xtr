@@ -11,8 +11,7 @@
 
 # No [notes] steps: listing the bundle is every step *Use in an application* asks
 # for. Installing is the one thing before it: `uv run xtr-recipes recipes:add --dev
-# xtr-maker`, whose sync lists the bundle for dev, as it lists every development
-# dependency's.
+# xtr-maker`, whose sync lists the bundle for dev, as [bundles] above declares.
 
 [notes]
 check = [
