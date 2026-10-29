@@ -15,7 +15,13 @@ from .context import (
     PydanticNormalizerContextBuilder,
     SerializerContextBuilder,
 )
-from .encoder import JSON_ALLOW_INF_NAN, JSON_INDENT, DecoderInterface, EncoderInterface
+from .encoder import (
+    JSON_ALLOW_INF_NAN,
+    JSON_INDENT,
+    DecoderInterface,
+    EncoderInterface,
+    JsonEncoder,
+)
 from .exception import (
     CircularReferenceError,
     ExtraAttributesError,
@@ -46,6 +52,7 @@ from .normalizer import (
     DenormalizerInterface,
     NormalizerAwareInterface,
     NormalizerInterface,
+    PydanticNormalizer,
 )
 from .serializer_aware_interface import SerializerAwareInterface
 from .serializer_interface import SerializerInterface
@@ -74,6 +81,7 @@ __all__ = [
     "EncoderInterface",
     "ExtraAttributesError",
     "InvalidArgumentError",
+    "JsonEncoder",
     "JsonEncoderContextBuilder",
     "LogicError",
     "MappingError",
@@ -83,6 +91,7 @@ __all__ = [
     "NotEncodableValueError",
     "NotNormalizableValueError",
     "PartialDenormalizationError",
+    "PydanticNormalizer",
     "PydanticNormalizerContextBuilder",
     "SerializerAwareInterface",
     "SerializerContextBuilder",

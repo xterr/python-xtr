@@ -15,3 +15,7 @@ def test_every_name_it_lists_is_exported() -> None:
     missing = [name for name in xtr_serializer.__all__ if not hasattr(xtr_serializer, name)]
 
     assert missing == []
+
+
+def test_it_exports_the_built_in_normalizer_and_encoder() -> None:
+    assert {"PydanticNormalizer", "JsonEncoder"} <= set(xtr_serializer.__all__)

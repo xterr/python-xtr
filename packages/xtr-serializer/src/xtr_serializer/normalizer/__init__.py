@@ -1,7 +1,8 @@
 """Normalizers turn values into plain data, and denormalizers turn plain data back.
 
-The half of a serializer that knows the types. Also here: the context keys the pydantic
-normalizer reads, and the one asking a denormalizer for every error at once.
+The half of a serializer that knows the types. Also here: the pydantic normalizer, which handles
+every type pydantic has a schema for, the context keys it reads, and the one asking a
+denormalizer for every error at once.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from .denormalizer_aware_interface import DenormalizerAwareInterface
 from .denormalizer_interface import COLLECT_DENORMALIZATION_ERRORS, DenormalizerInterface
 from .normalizer_aware_interface import NormalizerAwareInterface
 from .normalizer_interface import NormalizerInterface
+from .pydantic_normalizer import PydanticNormalizer
 from .pydantic_normalizer_keys import (
     ALLOW_EXTRA_ATTRIBUTES,
     ATTRIBUTES,
@@ -39,4 +41,5 @@ __all__ = [
     "DenormalizerInterface",
     "NormalizerAwareInterface",
     "NormalizerInterface",
+    "PydanticNormalizer",
 ]

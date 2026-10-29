@@ -8,6 +8,7 @@ from pydantic import ConfigDict, JsonValue, TypeAdapter, ValidationError
 from pydantic_core import PydanticSerializationError, from_json, to_json
 from typing_extensions import override
 
+from xtr_serializer._loc_path import render_path
 from xtr_serializer.exception import (
     InvalidArgumentError,
     NotEncodableValueError,
@@ -107,6 +108,6 @@ def _refusal(error: ValidationError) -> str:
     loc = first["loc"]
     key_refused = len(loc) % 2 == 1 and loc[-1] == "[key]"
     keys = loc[1:-2:2] if key_refused else loc[1::2]
-    path = "".join(f"[{key}]" if isinstance(key, int) else f".{key}" for key in keys)
-    location = f"at {path.removeprefix('.')!r}: " if keys else ""
+    path = render_path(keys)
+    location = f"at {path!r}: " if path else ""
     return f"{location}{'a key: ' if key_refused else ''}{first['msg']} [type={first['type']}]"

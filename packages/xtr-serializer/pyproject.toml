@@ -22,7 +22,8 @@ classifiers = [
 dependencies = [
     "typing-extensions>=4.4",
     # The conversion engine: values are dumped to plain data and validated on the way back in.
-    "pydantic>=2.11,<3",
+    # 2.12 is the first to take `extra` per call, which the extra-attributes option maps onto.
+    "pydantic>=2.12,<3",
 ]
 
 [dependency-groups]
