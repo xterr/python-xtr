@@ -1,0 +1,372 @@
+"""One SMTP session, driven command by command — the only module that imports aiosmtplib.
+
+aiosmtplib speaks the protocol: it connects, switches to TLS and reads replies.
+Everything it raises is turned here into a :class:`TransportError` or an
+:class:`UnexpectedResponseError`, so the transports built on this client never
+see one of its types.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import re
+import ssl
+from typing import TYPE_CHECKING, Final, final
+
+import aiosmtplib
+
+from xtr_mailer.exception import (
+    InvalidArgumentError,
+    LogicError,
+    TransportError,
+    UnexpectedResponseError,
+)
+
+from ._smtp_connection_config import DIGEST_ALGORITHMS
+from ._smtp_reply import render_reply, unexpected_response
+
+if TYPE_CHECKING:
+    import socket
+    from collections.abc import Awaitable, Callable, Sequence
+
+    from ._smtp_connection_config import SmtpConnectionConfig
+
+__all__ = ["SmtpClient"]
+
+_CAPABILITY: Final = re.compile(r"[0-9]{3}[ -]([A-Z0-9-]+)((?:[ =].*)?)", re.IGNORECASE)
+_LINE_ENDINGS: Final = re.compile(rb"\r\n|\r|\n")
+_LEADING_PERIOD: Final = re.compile(rb"(?m)^\.")
+_SERVICE_CLOSING: Final = 421
+_AUTH_CONTINUE: Final = 334
+_REDACTED: Final = "[redacted]"
+_MESSAGE: Final = "[message]"
+
+
+@final
+class SmtpClient:
+    """An SMTP session a transport drives one command at a time.
+
+    Each command states the reply codes it accepts; any other reply raises an
+    :class:`UnexpectedResponseError` carrying the code, which is how a transport
+    tells a refusal it can recover from (reset, try the next authenticator) from
+    a closed channel. A lost or silent connection raises a :class:`TransportError`.
+    Either error's ``debug`` holds the failing command and its reply — never the
+    lines of an ``AUTH`` exchange, which carry credentials.
+    """
+
+    __slots__ = ("_authenticating", "_capabilities", "_config", "_description", "_smtp")
+
+    def __init__(self, config: SmtpConnectionConfig) -> None:
+        """Prepare a session; nothing connects until :meth:`connect`.
+
+        Raises:
+            InvalidArgumentError: The local hostname has whitespace or control characters.
+        """
+        self._config = config
+        self._description = config.description
+        self._capabilities: dict[str, list[str]] = {}
+        self._authenticating = False
+        self._smtp = self._session(None)
+
+    @property
+    def description(self) -> str:
+        """What errors call the other end: ``host:port``, or the process it runs."""
+        return self._description
+
+    @property
+    def is_connected(self) -> bool:
+        """Whether the session is still open."""
+        return self._smtp.is_connected
+
+    @property
+    def uses_tls(self) -> bool:
+        """Whether the open session is encrypted, from its first byte or after ``STARTTLS``."""
+        if not self._smtp.is_connected:
+            return False
+        context: object = self._smtp.get_transport_info("sslcontext")  # pyright: ignore[reportAny] — aiosmtplib types transport info as Any
+        return context is not None
+
+    async def connect(self) -> str:
+        """Connect to the configured server and return its greeting.
+
+        Raises:
+            UnexpectedResponseError: The server greeted with a code other than ``220``.
+            TransportError: The server could not be reached, did not greet in time,
+                or presented a certificate that is not the pinned one.
+        """
+        self.close()
+        self._description = self._config.description
+        self._smtp = self._session(None)
+        greeting = await self._open()
+        if self._config.tls and not self._peer_matches():
+            self.close()
+            raise TransportError(self._unreachable("peer fingerprint match failure"))
+        return greeting
+
+    async def connect_socket(self, sock: socket.socket, description: str) -> str:
+        """Start a session over ``sock``, already connected, and return the greeting.
+
+        The other end is typically a local sendmail speaking SMTP on its standard
+        streams; ``description`` names it in errors. The session owns ``sock`` and
+        closes it with the connection.
+        """
+        self.close()
+        self._description = description
+        self._smtp = self._session(sock)
+        return await self._open()
+
+    async def ehlo(self) -> dict[str, list[str]]:
+        """Greet with ``EHLO`` and return the extensions the server offers.
+
+        Returns:
+            Each extension's upper-cased keyword, mapped to its upper-cased parameters.
+        """
+        reply = await self._exchange(f"EHLO {self._local_hostname}", (250,), self._smtp.ehlo)
+        capabilities: dict[str, list[str]] = {}
+        for line in reply.split("\r\n")[1:]:
+            if found := _CAPABILITY.fullmatch(line):
+                parameters = str(found.group(2)).lstrip(" =").upper()
+                capabilities[str(found.group(1)).upper()] = (
+                    parameters.split(" ") if parameters else []
+                )
+        self._capabilities = capabilities
+        return dict(capabilities)
+
+    async def helo(self) -> str:
+        """Greet with ``HELO``, for a server that offers no extensions."""
+        return await self._exchange(f"HELO {self._local_hostname}", (250,), self._smtp.helo)
+
+    def supports_extension(self, extension: str) -> bool:
+        """Whether the last ``EHLO`` offered ``extension``, compared case-insensitively."""
+        return extension.upper() in self._capabilities
+
+    async def starttls(self) -> None:
+        """Switch the session to TLS; the server must be greeted again afterwards.
+
+        Raises:
+            UnexpectedResponseError: The server refused ``STARTTLS``.
+            TransportError: The server does not offer it, the handshake failed, or the
+                certificate is not the pinned one.
+        """
+        _ = await self._exchange("STARTTLS", (220,), self._upgrade)
+        self._capabilities = {}
+        if not self._peer_matches():
+            self.close()
+            raise TransportError("Unable to connect with STARTTLS: peer fingerprint match failure")
+
+    async def execute(self, command: str, expected_codes: Sequence[int]) -> str:
+        """Send ``command``, without its line ending, and return the reply.
+
+        Authenticators drive their exchanges through this; while one is under way
+        its lines are kept out of every error's ``debug``.
+
+        Returns:
+            The reply as the server sent it, its lines joined by CRLF.
+
+        Raises:
+            LogicError: ``expected_codes`` is empty.
+            InvalidArgumentError: ``command`` contains a line break.
+            UnexpectedResponseError: The reply's code is not one of ``expected_codes``.
+            TransportError: The connection was lost or the reply did not come in time.
+        """
+        payload = command.encode()
+        return await self._exchange(
+            command, expected_codes, lambda: self._smtp.execute_command(payload)
+        )
+
+    async def mail_from(self, address: str, options: Sequence[str] = ()) -> str:
+        """Open an envelope from ``address``; ``options`` follow it (``SMTPUTF8``)."""
+        return await self.execute(" ".join([f"MAIL FROM:<{address}>", *options]), (250,))
+
+    async def rcpt_to(self, address: str) -> str:
+        """Add ``address`` to the envelope's recipients."""
+        return await self.execute(f"RCPT TO:<{address}>", (250, 251, 252))
+
+    async def data(self, message: bytes) -> str:
+        """Send ``message`` after ``DATA`` and return the server's acceptance.
+
+        Line endings become CRLF and a line starting with a period gets a second
+        one, so no line of the message can end it early.
+
+        Returns:
+            The reply accepting the message, which may name the id it was queued as.
+        """
+        _ = await self.execute("DATA", (354,))
+        return await self._exchange(_MESSAGE, (250,), lambda: self._send_message(message))
+
+    async def noop(self) -> str:
+        """Check the session is alive."""
+        return await self.execute("NOOP", (250,))
+
+    async def rset(self) -> str:
+        """Abandon the envelope under way."""
+        return await self.execute("RSET", (250,))
+
+    async def quit(self) -> None:
+        """End the session politely; the connection is closed whatever the reply."""
+        try:
+            _ = await self.execute("QUIT", (221,))
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        """Drop the connection without a word."""
+        self._smtp.close()
+        self._capabilities = {}
+        self._authenticating = False
+
+    @property
+    def _local_hostname(self) -> str:
+        return self._config.local_hostname.strip()
+
+    def _session(self, sock: socket.socket | None) -> aiosmtplib.SMTP:
+        config = self._config
+        source = config.source_address
+        try:
+            return aiosmtplib.SMTP(
+                hostname=None if sock is not None else config.host.strip("[]"),
+                port=None if sock is not None else config.port,
+                local_hostname=config.local_hostname,
+                source_address=(source.strip("[]"), 0) if source is not None else None,
+                timeout=config.timeout,
+                use_tls=config.tls and sock is None,
+                start_tls=False,
+                validate_certs=config.validate_certs,
+                sock=sock,
+            )
+        except ValueError as error:
+            raise InvalidArgumentError(str(error)) from None
+
+    async def _open(self) -> str:
+        self._capabilities = {}
+        self._authenticating = False
+        try:
+            greeting = await self._smtp.connect()
+        except aiosmtplib.SMTPResponseException as error:
+            raise self._refused(None, (220,), _response(error)) from None
+        except aiosmtplib.SMTPException as error:
+            raise self._failure(error) from None
+        return render_reply(greeting.code, greeting.message)
+
+    async def _exchange(
+        self,
+        command: str,
+        expected_codes: Sequence[int],
+        send: Callable[[], Awaitable[aiosmtplib.SMTPResponse]],
+    ) -> str:
+        if not expected_codes:
+            raise LogicError("You must set the expected response code.")
+        shown = self._shown(command)
+        starts_auth = command.partition(" ")[0].upper() == "AUTH"
+        try:
+            response = await send()
+        except aiosmtplib.SMTPResponseException as error:
+            self._authenticating = False
+            raise self._refused(shown, expected_codes, _response(error)) from None
+        except aiosmtplib.SMTPException as error:
+            self._authenticating = False
+            failure = self._failure(error)
+            failure.append_debug(f"> {shown}\n")
+            raise failure from None
+        except ValueError as error:
+            # aiosmtplib refuses a command that would smuggle a second one in.
+            raise InvalidArgumentError(str(error)) from None
+        self._authenticating = (self._authenticating or starts_auth) and (
+            response.code == _AUTH_CONTINUE
+        )
+        if response.code not in expected_codes:
+            raise self._refused(shown, expected_codes, response)
+        return render_reply(response.code, response.message)
+
+    async def _upgrade(self) -> aiosmtplib.SMTPResponse:
+        try:
+            return await self._smtp.starttls()
+        except ssl.SSLError as error:
+            self.close()
+            raise TransportError(f"Unable to connect with STARTTLS: {error}") from None
+
+    async def _send_message(self, message: bytes) -> aiosmtplib.SMTPResponse:
+        protocol = self._smtp.protocol
+        if protocol is None:
+            raise aiosmtplib.SMTPServerDisconnected("Connection lost")
+        content = _LINE_ENDINGS.sub(b"\r\n", message)
+        if not content.endswith(b"\r\n"):
+            content += b"\r\n"
+        try:
+            protocol.write(_LEADING_PERIOD.sub(b"..", content) + b".\r\n")
+            response = await protocol.read_response(timeout=self._config.timeout)
+        except (aiosmtplib.SMTPServerDisconnected, aiosmtplib.SMTPTimeoutError):
+            self._smtp.close()
+            raise
+        if response.code == _SERVICE_CLOSING:
+            self._smtp.close()
+        return response
+
+    def _peer_matches(self) -> bool:
+        fingerprint = self._config.peer_fingerprint
+        if fingerprint is None:
+            return True
+        ssl_object: object = self._smtp.get_transport_info("ssl_object")  # pyright: ignore[reportAny] — aiosmtplib types transport info as Any
+        certificate = (
+            ssl_object.getpeercert(binary_form=True)
+            if isinstance(ssl_object, ssl.SSLObject)
+            else None
+        )
+        algorithm = DIGEST_ALGORITHMS[len(fingerprint)]
+        return certificate is not None and hmac.compare_digest(
+            hashlib.new(algorithm, certificate, usedforsecurity=False).hexdigest(),
+            fingerprint.lower(),
+        )
+
+    def _shown(self, command: str) -> str:
+        if self._authenticating:
+            return _REDACTED
+        verb, _, rest = command.partition(" ")
+        mechanism, _, credentials = rest.partition(" ")
+        if verb.upper() == "AUTH" and credentials:
+            return f"{verb} {mechanism} {_REDACTED}"
+        return command
+
+    def _refused(
+        self,
+        shown: str | None,
+        expected_codes: Sequence[int],
+        response: aiosmtplib.SMTPResponse,
+    ) -> UnexpectedResponseError:
+        reply = render_reply(response.code, response.message)
+        error = unexpected_response(expected_codes, response.code, reply)
+        if shown is not None:
+            error.append_debug(f"> {shown}\n")
+        error.append_debug("".join(f"< {line}\n" for line in reply.split("\r\n")))
+        return error
+
+    def _failure(self, error: aiosmtplib.SMTPException) -> TransportError:
+        cause = error.__cause__
+        match error:
+            case aiosmtplib.SMTPConnectTimeoutError() if not isinstance(
+                cause, aiosmtplib.SMTPTimeoutError
+            ):
+                return TransportError(self._unreachable(error.message))
+            case aiosmtplib.SMTPTimeoutError():
+                return TransportError(f'Connection to "{self._description}" timed out.')
+            case aiosmtplib.SMTPConnectError() if not isinstance(
+                cause, aiosmtplib.SMTPServerDisconnected
+            ):
+                return TransportError(
+                    self._unreachable(str(cause) if cause is not None else error.message)
+                )
+            case aiosmtplib.SMTPServerDisconnected() | aiosmtplib.SMTPConnectError():
+                return TransportError(
+                    f'Connection to "{self._description}" has been closed unexpectedly.'
+                )
+            case _:
+                return TransportError(error.message)
+
+    def _unreachable(self, reason: str) -> str:
+        return f'Connection could not be established with host "{self._description}": {reason}'
+
+
+def _response(error: aiosmtplib.SMTPResponseException) -> aiosmtplib.SMTPResponse:
+    """The reply aiosmtplib raised over; one it could not parse has code ``-1``."""
+    return aiosmtplib.SMTPResponse(error.code, error.message)
