@@ -17,29 +17,19 @@ class ProjectNotFoundError(RecipesError):
     """The project, or the application package inside it, is not where expected.
 
     Raised when no ``pyproject.toml`` lies at or above the directory
-    searched; when not exactly one package under ``src/`` or the project root
-    holds a ``kernel.py`` — the file that marks the application package; and
-    when ``pyproject.toml`` still carries a setting that once named that
-    package and is no longer read, so the owner deletes it rather than
-    believing it still applies.
+    searched, and when not exactly one package under ``src/`` or the project
+    root holds a ``kernel.py`` — the file that marks the application package.
 
     Attributes:
         directory: The directory that was searched.
         reason: What was looked for and not found.
-        setting: The ``pyproject.toml`` setting at fault, or ``None`` when no
-            setting is.
     """
 
     directory: Path
     reason: str
-    setting: str | None
 
-    def __init__(self, directory: Path, reason: str, setting: str | None = None) -> None:
-        """Record where the search ran, what failed, and the setting to blame."""
+    def __init__(self, directory: Path, reason: str) -> None:
+        """Record where the search ran and what failed."""
         self.directory = directory
         self.reason = reason
-        self.setting = setting
-        message = f"no application project at {directory}: {reason}"
-        if setting is not None:
-            message = f"{message} (setting: {setting})"
-        super().__init__(message)
+        super().__init__(f"no application project at {directory}: {reason}")

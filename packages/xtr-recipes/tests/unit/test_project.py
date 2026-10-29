@@ -93,8 +93,6 @@ _MALFORMED_DEV_LISTS = {
     "legacy not a list": '[project]\nname = "app"\n\n[tool.uv]\ndev-dependencies = "oops"\n',
 }
 
-_RETIRED_SETTING = "[tool.xtr-recipes] app"
-
 
 def _write(directory: Path, body: str) -> None:
     _ = (directory / "pyproject.toml").write_text(body, encoding="utf-8")
@@ -135,22 +133,6 @@ def test_a_manifest_with_no_project_table_is_read(tmp_path: Path) -> None:
     assert project.script is None
 
 
-@pytest.mark.parametrize("value", ['"app"', "123"])
-def test_load_refuses_the_retired_app_setting(tmp_path: Path, value: str) -> None:
-    _write(tmp_path, f'[project]\nname = "app"\n\n[tool.xtr-recipes]\napp = {value}\n')
-    _ = write_package(tmp_path / "src", "app")
-
-    with pytest.raises(ProjectNotFoundError) as exc:
-        _ = Project.load(tmp_path)
-
-    assert exc.value.setting == _RETIRED_SETTING
-    assert exc.value.directory == tmp_path
-
-
-def test_another_recipes_setting_is_not_refused(tmp_path: Path) -> None:
-    assert _load(tmp_path, "[tool.xtr-recipes]\nother = 1\n").app == "app"
-
-
 def test_load_raises_when_no_package_holds_a_kernel(tmp_path: Path) -> None:
     _write(tmp_path, '[project]\nname = "app"\n')
     _ = write_package(tmp_path / "src", "app", kernel=False)
@@ -158,7 +140,6 @@ def test_load_raises_when_no_package_holds_a_kernel(tmp_path: Path) -> None:
     with pytest.raises(ProjectNotFoundError) as exc:
         _ = Project.load(tmp_path)
 
-    assert exc.value.setting is None
     assert "kernel.py" in exc.value.reason
 
 
@@ -232,7 +213,6 @@ def test_load_raises_naming_the_missing_manifest(tmp_path: Path) -> None:
     with pytest.raises(ProjectNotFoundError) as exc:
         _ = Project.load(tmp_path)
 
-    assert exc.value.setting is None
     assert exc.value.directory == tmp_path
     assert "pyproject.toml" in exc.value.reason
 
@@ -263,7 +243,7 @@ def test_discover_raises_when_no_project_is_found(tmp_path: Path) -> None:
     with pytest.raises(ProjectNotFoundError) as exc:
         _ = Project.discover(tmp_path.parents[-1])
 
-    assert exc.value.setting is None
+    assert "pyproject.toml" in exc.value.reason
 
 
 def test_it_names_the_manifest_when_it_is_not_valid_toml(tmp_path: Path) -> None:

@@ -59,9 +59,6 @@ disagree:
 - No package holding `kernel.py`, or more than one, stops the command with a
   `ProjectNotFoundError` saying which.
 
-An application still carrying `[tool.xtr-recipes] app` is refused with a `ProjectNotFoundError`
-naming the setting: it is no longer read, so delete it.
-
 ```sh
 uv run xtr-recipes recipes:sync                    # configure new, update changed, undo removed
 uv run xtr-recipes recipes:sync --check            # exit 1 if a sync would change anything (CI); writes nothing

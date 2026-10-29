@@ -15,8 +15,6 @@ from .normalise import normalise
 __all__ = ["Project"]
 
 _PYPROJECT = "pyproject.toml"
-_RETIRED_APP_SETTING = "[tool.xtr-recipes] app"
-_RETIRED_APP_REASON = "no longer read: the package holding kernel.py is the application; delete it"
 # A requirement's name ends at the first extra, marker, URL, space or operator.
 _NAME_END = re.compile(r"[\s;<>=!~@(\[]")
 
@@ -96,15 +94,13 @@ class Project:
 
         Raises:
             ProjectNotFoundError: When ``project_dir`` holds no
-                ``pyproject.toml``; when it still sets
-                ``[tool.xtr-recipes] app``, which is no longer read; or when
-                not exactly one package holds a ``kernel.py``.
+                ``pyproject.toml``, or when not exactly one package holds a
+                ``kernel.py``.
         """
         manifest = project_dir / _PYPROJECT
         if not manifest.is_file():
             raise ProjectNotFoundError(project_dir, f"no {_PYPROJECT} here")
         data = _read(manifest)
-        _refuse_retired_app_setting(project_dir, data)
         package = ApplicationPackage.find(project_dir)
         dependencies = _dependencies(data)
         return cls(
@@ -125,20 +121,6 @@ def _read(path: Path) -> dict[str, object]:
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
         raise UnreadableFileError(path, f"not valid TOML: {error}") from error
     return data
-
-
-def _refuse_retired_app_setting(project_dir: Path, data: dict[str, object]) -> None:
-    """Refuse a manifest that still names the application package.
-
-    The application package used to be named by ``[tool.xtr-recipes] app``.
-    It is now found from its ``kernel.py`` alone, so a leftover setting would
-    be a second answer that is silently ignored — and wrong the day the two
-    differ. Stopping with its name tells the owner to delete it, once.
-    """
-    tool = data.get("tool")
-    recipes = tool.get("xtr-recipes") if isinstance(tool, dict) else None
-    if isinstance(recipes, dict) and "app" in recipes:
-        raise ProjectNotFoundError(project_dir, _RETIRED_APP_REASON, _RETIRED_APP_SETTING)
 
 
 def _dependencies(data: dict[str, object]) -> tuple[str, ...]:
