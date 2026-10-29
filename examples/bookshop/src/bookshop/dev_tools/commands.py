@@ -228,7 +228,9 @@ async def wireup_integration(io: ConsoleStyle) -> int:
     await plain.close()
     # Kernel(environ=...): a kernel reading APP_ENV, APP_DEBUG and every env() from its own
     # mapping instead of os.environ — what a test gives each kernel.
-    isolated = Kernel("bookshop", exclude=EXCLUDE, environ={"APP_ENV": "test", "APP_DEBUG": "0"})
+    isolated = Kernel(
+        kernel.package, exclude=EXCLUDE, environ={"APP_ENV": "test", "APP_DEBUG": "0"}
+    )
     rows.append(["Kernel(environ=...).environment", isolated.environment])
     rows.append(["Kernel(environ=...).debug", str(isolated.debug)])
     # engine_container: the wireup container behind a compiled kernel, for integrations
