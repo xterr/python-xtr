@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from xtr_serializer.exception import (
     NotNormalizableValueError,
     SerializerError,
     UnexpectedValueError,
 )
+
+from .round_trips import round_trips
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def test_it_is_an_unexpected_value() -> None:
@@ -65,20 +72,20 @@ def test_its_message_ends_with_the_types_expected_and_the_type_found() -> None:
     )
 
     assert str(error) == (
-        "at 'items[0].price': Input should be a valid number (expected int | float, got str)"
+        "at 'items[0].price': Input should be a valid number (expected 'int' | 'float', got 'str')"
     )
 
 
 def test_its_message_names_the_types_expected_when_the_type_found_is_unknown() -> None:
     error = NotNormalizableValueError("Input should be a valid integer", expected_types=("int",))
 
-    assert str(error) == "Input should be a valid integer (expected int)"
+    assert str(error) == "Input should be a valid integer (expected 'int')"
 
 
 def test_its_message_names_the_type_found_when_no_type_is_expected() -> None:
     error = NotNormalizableValueError("Input has no JSON form", current_type="set")
 
-    assert str(error) == "Input has no JSON form (got set)"
+    assert str(error) == "Input has no JSON form (got 'set')"
 
 
 def test_its_message_leaves_the_error_type_to_programs() -> None:
@@ -93,15 +100,41 @@ def test_a_path_cannot_break_its_message_across_lines() -> None:
     assert str(error) == "at 'tags.x\\nINFO forged': Field required"
 
 
-def test_it_never_renders_the_error_it_was_raised_from(secret: str) -> None:
+def test_it_survives_pickle_copy_and_deepcopy() -> None:
+    error = NotNormalizableValueError(
+        "Input should be a valid number",
+        path="items[0].price",
+        expected_types=("int", "float"),
+        current_type="str",
+        error_type="float_parsing",
+    )
+
+    restored_copies = round_trips(error)
+
+    for restored in restored_copies:
+        assert type(restored) is NotNormalizableValueError
+        assert restored.args == (str(error),)
+        assert str(restored) == str(error)
+        assert restored.message == "Input should be a valid number"
+        assert restored.path == "items[0].price"
+        assert restored.expected_types == ("int", "float")
+        assert restored.current_type == "str"
+        assert restored.error_type == "float_parsing"
+
+
+def test_its_traceback_names_the_type_of_a_secret_and_never_the_secret(
+    secret: str,
+    traceback_of: Callable[[SerializerError], str],
+) -> None:
     error = NotNormalizableValueError(
         "Input should be a valid integer",
         path="pin",
         expected_types=("int",),
-        current_type="str",
+        current_type=type(secret).__name__,
         error_type="int_parsing",
     )
-    error.__cause__ = ValueError(f"pin: [type=int_parsing, input_value={secret!r}]")
 
-    assert secret not in str(error)
-    assert secret not in repr(error)
+    rendered = traceback_of(error)
+
+    assert "at 'pin': Input should be a valid integer (expected 'int', got 'str')" in rendered
+    assert secret not in rendered

@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+import pytest
+
 from xtr_serializer.exception import (
     ExtraAttributesError,
+    InvalidArgumentError,
     NotNormalizableValueError,
     SerializerError,
     UnexpectedValueError,
 )
+
+from .round_trips import round_trips
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def test_it_is_a_value_that_cannot_be_denormalized() -> None:
@@ -48,6 +58,13 @@ def test_it_knows_nothing_it_was_not_told() -> None:
     assert error.error_type is None
 
 
+def test_it_refuses_an_empty_tuple_of_attributes() -> None:
+    with pytest.raises(InvalidArgumentError) as refused:
+        _ = ExtraAttributesError(())
+
+    assert str(refused.value) == "ExtraAttributesError needs at least one extra attribute"
+
+
 def test_its_message_names_every_extra_attribute() -> None:
     assert str(ExtraAttributesError(("nickname", "age"))) == (
         "extra attributes are not allowed: 'nickname', 'age'"
@@ -66,9 +83,40 @@ def test_an_attribute_name_cannot_break_its_message_across_lines() -> None:
     )
 
 
-def test_it_never_renders_the_error_it_was_raised_from(secret: str) -> None:
-    error = ExtraAttributesError(("password_confirmation",), path="account")
-    error.__cause__ = ValueError(f"[type=extra_forbidden, input_value={secret!r}]")
+def test_it_survives_pickle_copy_and_deepcopy() -> None:
+    error = ExtraAttributesError(
+        ("nickname", "age"),
+        path="customer",
+        expected_types=("Customer",),
+        current_type="dict",
+        error_type="extra_forbidden",
+    )
 
-    assert secret not in str(error)
-    assert secret not in repr(error)
+    restored_copies = round_trips(error)
+
+    for restored in restored_copies:
+        assert type(restored) is ExtraAttributesError
+        assert restored.args == (str(error),)
+        assert str(restored) == str(error)
+        assert str(restored).endswith("(expected 'Customer', got 'dict')")
+        assert restored.extra_attributes == ("nickname", "age")
+        assert restored.path == "customer"
+        assert restored.expected_types == ("Customer",)
+        assert restored.current_type == "dict"
+        assert restored.error_type == "extra_forbidden"
+
+
+def test_its_traceback_names_the_attributes_and_never_their_values(
+    secret: str,
+    traceback_of: Callable[[SerializerError], str],
+) -> None:
+    error = ExtraAttributesError(
+        ("password_confirmation",),
+        path="account",
+        current_type=type(secret).__name__,
+    )
+
+    rendered = traceback_of(error)
+
+    assert "at 'account': extra attributes are not allowed: 'password_confirmation'" in rendered
+    assert secret not in rendered

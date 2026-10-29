@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+import pytest
+
 from xtr_serializer.exception import (
     ExtraAttributesError,
+    InvalidArgumentError,
     NotNormalizableValueError,
     PartialDenormalizationError,
     SerializerError,
     UnexpectedValueError,
 )
+
+from .round_trips import round_trips
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def test_it_is_an_unexpected_value() -> None:
@@ -36,6 +46,13 @@ def test_it_keeps_the_data_and_every_error_found_in_it() -> None:
     assert error.errors == errors
 
 
+def test_it_refuses_an_empty_tuple_of_errors() -> None:
+    with pytest.raises(InvalidArgumentError) as refused:
+        _ = PartialDenormalizationError({}, ())
+
+    assert str(refused.value) == "PartialDenormalizationError needs at least one error to report"
+
+
 def test_its_message_lists_every_error() -> None:
     error = PartialDenormalizationError(
         {},
@@ -52,7 +69,7 @@ def test_its_message_lists_every_error() -> None:
 
     assert str(error) == (
         "the data could not be denormalized (2 errors): "
-        "at 'age': Input should be a valid integer (expected int, got str); "
+        "at 'age': Input should be a valid integer (expected 'int', got 'str'); "
         "at 'customer': extra attributes are not allowed: 'nickname'"
     )
 
@@ -76,11 +93,40 @@ def test_it_never_renders_the_data(secret: str) -> None:
     assert secret not in repr(error)
 
 
-def test_it_never_renders_what_its_errors_were_raised_from(secret: str) -> None:
-    found = NotNormalizableValueError("Input should be a valid integer", path="pin")
-    found.__cause__ = ValueError(f"[type=int_parsing, input_value={secret!r}]")
-    error = PartialDenormalizationError({"pin": secret}, (found,))
-    error.__cause__ = found
+def test_it_survives_pickle_copy_and_deepcopy() -> None:
+    error = PartialDenormalizationError(
+        {"email": None, "age": "forty"},
+        (
+            NotNormalizableValueError("Field required", path="email"),
+            NotNormalizableValueError(
+                "Input should be a valid integer",
+                path="age",
+                expected_types=("int",),
+                current_type="str",
+            ),
+        ),
+    )
 
-    assert secret not in str(error)
-    assert secret not in repr(error)
+    restored_copies = round_trips(error)
+
+    for restored in restored_copies:
+        assert type(restored) is PartialDenormalizationError
+        assert restored.args == (str(error),)
+        assert str(restored) == str(error)
+        assert restored.data == {"email": None, "age": "forty"}
+        assert [str(found) for found in restored.errors] == [str(found) for found in error.errors]
+
+
+def test_its_traceback_lists_the_errors_and_never_the_data(
+    secret: str,
+    traceback_of: Callable[[SerializerError], str],
+) -> None:
+    error = PartialDenormalizationError(
+        {"password": secret, "email": None},
+        (NotNormalizableValueError("Field required", path="email"),),
+    )
+
+    rendered = traceback_of(error)
+
+    assert "at 'email': Field required" in rendered
+    assert secret not in rendered

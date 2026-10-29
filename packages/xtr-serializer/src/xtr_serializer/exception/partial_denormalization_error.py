@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .invalid_argument_error import InvalidArgumentError
 from .unexpected_value_error import UnexpectedValueError
 
 if TYPE_CHECKING:
@@ -32,7 +33,17 @@ class PartialDenormalizationError(UnexpectedValueError):
     errors: tuple[NotNormalizableValueError, ...]
 
     def __init__(self, data: object, errors: tuple[NotNormalizableValueError, ...]) -> None:
-        """Record the data that was read and every error found in it."""
+        """Record the data that was read and every error found in it.
+
+        Raises:
+            InvalidArgumentError: If ``errors`` is empty. Nothing was found, so there
+                is nothing to report; raising this error anyway is a mistake in the
+                code that raises it.
+        """
+        if not errors:
+            raise InvalidArgumentError(
+                "PartialDenormalizationError needs at least one error to report"
+            )
         self.data = data
         self.errors = errors
         count = "1 error" if len(errors) == 1 else f"{len(errors)} errors"

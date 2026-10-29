@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .invalid_argument_error import InvalidArgumentError
 from .not_normalizable_value_error import NotNormalizableValueError
 
 __all__ = ["ExtraAttributesError"]
@@ -33,7 +34,15 @@ class ExtraAttributesError(NotNormalizableValueError):
         current_type: str | None = None,
         error_type: str | None = None,
     ) -> None:
-        """Record the attributes the type does not declare, and where the data had them."""
+        """Record the attributes the type does not declare, and where the data had them.
+
+        Raises:
+            InvalidArgumentError: If ``extra_attributes`` is empty. No attribute is
+                extra, so there is nothing to refuse; raising this error anyway is a
+                mistake in the code that raises it.
+        """
+        if not extra_attributes:
+            raise InvalidArgumentError("ExtraAttributesError needs at least one extra attribute")
         self.extra_attributes = extra_attributes
         names = ", ".join(repr(name) for name in extra_attributes)
         super().__init__(

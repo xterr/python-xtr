@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from xtr_serializer.exception import SerializerError, UnexpectedValueError
+
+from .round_trips import round_trips
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def test_it_is_a_serializer_error_and_a_value_error() -> None:
@@ -22,9 +29,20 @@ def test_its_message_is_the_one_it_was_given() -> None:
     )
 
 
-def test_it_never_renders_the_error_it_was_raised_from(secret: str) -> None:
+def test_it_survives_pickle_copy_and_deepcopy() -> None:
     error = UnexpectedValueError("the data does not fit the type")
-    error.__cause__ = ValueError(secret)
 
-    assert secret not in str(error)
-    assert secret not in repr(error)
+    restored_copies = round_trips(error)
+
+    for restored in restored_copies:
+        assert type(restored) is UnexpectedValueError
+        assert restored.args == ("the data does not fit the type",)
+        assert str(restored) == "the data does not fit the type"
+
+
+def test_its_traceback_ends_with_its_message(
+    traceback_of: Callable[[SerializerError], str],
+) -> None:
+    rendered = traceback_of(UnexpectedValueError("the data does not fit the type"))
+
+    assert rendered.endswith("UnexpectedValueError: the data does not fit the type\n")

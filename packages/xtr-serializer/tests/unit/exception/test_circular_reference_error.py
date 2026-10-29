@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from xtr_serializer.exception import CircularReferenceError, SerializerError
+
+from .round_trips import round_trips
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def test_it_is_a_serializer_error_and_a_runtime_error() -> None:
@@ -20,9 +27,20 @@ def test_its_message_is_the_one_it_was_given() -> None:
     assert str(CircularReferenceError("the value contains itself")) == "the value contains itself"
 
 
-def test_it_never_renders_the_error_it_was_raised_from(secret: str) -> None:
+def test_it_survives_pickle_copy_and_deepcopy() -> None:
     error = CircularReferenceError("the value contains itself")
-    error.__cause__ = ValueError(f"Circular reference detected: {secret}")
 
-    assert secret not in str(error)
-    assert secret not in repr(error)
+    restored_copies = round_trips(error)
+
+    for restored in restored_copies:
+        assert type(restored) is CircularReferenceError
+        assert restored.args == ("the value contains itself",)
+        assert str(restored) == "the value contains itself"
+
+
+def test_its_traceback_ends_with_its_message(
+    traceback_of: Callable[[SerializerError], str],
+) -> None:
+    rendered = traceback_of(CircularReferenceError("the value contains itself"))
+
+    assert rendered.endswith("CircularReferenceError: the value contains itself\n")

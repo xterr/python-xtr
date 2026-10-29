@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from xtr_serializer.exception import (
     NotEncodableValueError,
     SerializerError,
     UnexpectedValueError,
     UnsupportedFormatError,
 )
+
+from .round_trips import round_trips
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def test_it_is_a_value_that_cannot_be_encoded() -> None:
@@ -37,9 +44,21 @@ def test_a_format_cannot_break_its_message_across_lines() -> None:
     )
 
 
-def test_it_never_renders_the_error_it_was_raised_from(secret: str) -> None:
+def test_it_survives_pickle_copy_and_deepcopy() -> None:
     error = UnsupportedFormatError("xml")
-    error.__cause__ = ValueError(secret)
 
-    assert secret not in str(error)
-    assert secret not in repr(error)
+    restored_copies = round_trips(error)
+
+    for restored in restored_copies:
+        assert type(restored) is UnsupportedFormatError
+        assert restored.args == ("the format 'xml' is not supported",)
+        assert str(restored) == "the format 'xml' is not supported"
+        assert restored.format == "xml"
+
+
+def test_its_traceback_names_the_format(
+    traceback_of: Callable[[SerializerError], str],
+) -> None:
+    rendered = traceback_of(UnsupportedFormatError("xml"))
+
+    assert rendered.endswith("UnsupportedFormatError: the format 'xml' is not supported\n")

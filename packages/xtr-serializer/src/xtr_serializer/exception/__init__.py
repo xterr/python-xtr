@@ -1,9 +1,13 @@
 """Every error this package raises, each deriving from :class:`SerializerError`.
 
 One ``except SerializerError`` catches them all; a narrower one handles a single
-cause. Each error carries what went wrong as typed attributes and puts its
-message together from them — where in the value the problem is and which types
-were involved — so none of them repeats the value itself, which may be a secret.
+cause. The errors that describe a value — :class:`NotNormalizableValueError` and
+its subclasses, :class:`PartialDenormalizationError` and :class:`UnsupportedFormatError`
+— keep what went wrong as typed attributes and compose their messages from those,
+so the message never repeats the value. The others take a plain message from the
+code that raises them, and are only as safe as that code. None of them takes the
+value itself, but a traceback renders the chained exception too: raise these
+errors without ``from`` on an exception that carries the value.
 """
 
 from __future__ import annotations

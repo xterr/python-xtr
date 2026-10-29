@@ -15,8 +15,8 @@ class NotNormalizableValueError(UnexpectedValueError):
     where a number belongs, a required field missing. What is read mostly comes
     from someone else and may hold a password or a token, so the message is put
     together from the attributes below and nothing else: where the value sits
-    and which types were involved, never the value. The path is quoted, so a key
-    taken from the data cannot break the message across lines.
+    and which types were involved, never the value. The path and the type names
+    are quoted, so a key taken from the data cannot break the message across lines.
 
     Attributes:
         message: What is wrong with the value, in words that do not quote it.
@@ -50,8 +50,12 @@ class NotNormalizableValueError(UnexpectedValueError):
         self.current_type = current_type
         self.error_type = error_type
         location = f"at {path!r}: " if path else ""
-        types = [f"expected {' | '.join(expected_types)}"] if expected_types else []
+        types = (
+            [f"expected {' | '.join(repr(name) for name in expected_types)}"]
+            if expected_types
+            else []
+        )
         if current_type:
-            types.append(f"got {current_type}")
+            types.append(f"got {current_type!r}")
         detail = f" ({', '.join(types)})" if types else ""
         super().__init__(f"{location}{message}{detail}")
