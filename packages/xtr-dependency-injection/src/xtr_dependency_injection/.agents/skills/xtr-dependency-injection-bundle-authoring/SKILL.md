@@ -72,6 +72,11 @@ dev = ["xtr-dependency-injection>=5.0,<6", "xtr-service-contracts>=5.0,<6"]
 mail = "acme_mail.bundle:MailBundle"
 ```
 
+A package meant for development only — a tool an application installs in its dev group — is
+listed by name, `"acme_tools.bundle:ToolsBundle": {"dev": True}`, so a deployment, which installs
+no dev dependency, never imports its bundle. Say so under *Activate* in its *Use in an
+application*.
+
 ## The config type
 
 A frozen dataclass (or a msgspec `Struct`) buildable with no arguments. `@as_bundle` builds it

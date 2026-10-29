@@ -20,11 +20,10 @@ from xtr_dependency_injection.exception import (
     DuplicateBundleError,
     MissingBundleError,
 )
+from xtr_dependency_injection.exception._naming import qualified_name
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from xtr_dependency_injection.bundle.bundle import AnyBundle
+    from xtr_dependency_injection.bundle.bundle_resolver import ListedBundles
 
 
 @dataclass(frozen=True)
@@ -105,8 +104,18 @@ class RaisesOnInit(Bundle):
 RaisesOnInit = as_bundle("raises_on_init")(RaisesOnInit)
 
 
+class UndecoratedBundle(Bundle):
+    """A Bundle subclass nobody declared with @as_bundle."""
+
+
+# The module these tests live in, so a bundle above can be named by string.
+_HERE = __name__
+# A package no environment has, standing for a development dependency.
+_NOT_INSTALLED = "xtr_not_installed_anywhere.bundle:DevToolsBundle"
+
+
 def _resolve(
-    listed: Mapping[type[AnyBundle], Mapping[str, bool]],
+    listed: ListedBundles,
     *,
     env: str = "dev",
 ) -> list[str]:
@@ -285,3 +294,87 @@ def test_a_bundle_listed_off_in_this_env_but_required_by_an_active_one_is_active
     )
 
     assert order == ["kernel", "beta", "alpha"]
+
+
+def test_a_bundle_listed_by_name_is_imported_and_activated_where_its_flags_say() -> None:
+    assert _resolve({f"{_HERE}:BetaBundle": {"dev": True}}, env="dev") == ["kernel", "beta"]
+
+
+def test_a_bundle_listed_by_name_brings_the_bundles_it_requires() -> None:
+    assert _resolve({f"{_HERE}:AlphaBundle": {"all": True}}) == ["kernel", "beta", "alpha"]
+
+
+def test_a_bundle_listed_by_name_and_active_is_reported_as_its_class() -> None:
+    resolved = resolve_bundles(
+        core=CoreBundle(), listed={f"{_HERE}:BetaBundle": {"all": True}}, env="dev"
+    )
+
+    (beta,) = [report for report in resolved.reports if report.name == "beta"]
+    assert (beta.source, beta.state, beta.qualname) == (
+        "listed",
+        "active",
+        qualified_name(BetaBundle),
+    )
+
+
+def test_a_bundle_listed_by_name_is_never_imported_where_it_is_inactive() -> None:
+    # Its module raises as it is imported, so importing it would fail the resolve.
+    listed: ListedBundles = {"tests.fixtures.failing_on_import:DevToolsBundle": {"dev": True}}
+
+    assert _resolve(listed, env="prod") == ["kernel"]
+
+
+def test_a_bundle_listed_by_name_where_it_is_inactive_is_reported_under_that_name() -> None:
+    listed: ListedBundles = {_NOT_INSTALLED: {"dev": True}}
+
+    resolved = resolve_bundles(core=CoreBundle(), listed=listed, env="prod")
+
+    (report,) = [report for report in resolved.reports if report.state != "active"]
+    assert (report.name, report.qualname, report.source, report.state) == (
+        _NOT_INSTALLED,
+        _NOT_INSTALLED,
+        "listed",
+        "env_disabled",
+    )
+
+
+def test_a_bundle_listed_by_name_that_does_not_import_where_active_is_refused() -> None:
+    with pytest.raises(MissingBundleError) as caught:
+        _ = _resolve({_NOT_INSTALLED: {"dev": True}}, env="dev")
+
+    assert (caught.value.name, caught.value.required_by) == (_NOT_INSTALLED, None)
+
+
+def test_the_refusal_of_a_bundle_listed_by_name_names_the_environment() -> None:
+    with pytest.raises(MissingBundleError) as caught:
+        _ = _resolve({_NOT_INSTALLED: {"dev": True}}, env="dev")
+
+    assert caught.value.reason is not None
+    assert "'dev'" in caught.value.reason
+    assert "xtr_not_installed_anywhere" in caught.value.reason
+
+
+def test_a_name_that_is_not_module_and_class_is_refused_even_where_inactive() -> None:
+    with pytest.raises(BundleDefinitionError, match="'module:Class'"):
+        _ = _resolve({"xtr_dev_tools": {"dev": True}}, env="prod")
+
+
+def test_a_name_naming_something_other_than_a_bundle_is_refused() -> None:
+    with pytest.raises(BundleDefinitionError, match="is not a Bundle subclass"):
+        _ = _resolve({f"{_HERE}:SharedConfig": {"all": True}})
+
+
+def test_a_name_naming_a_bundle_never_declared_is_refused() -> None:
+    with pytest.raises(BundleDefinitionError, match="not decorated with @as_bundle"):
+        _ = _resolve({f"{_HERE}:UndecoratedBundle": {"all": True}})
+
+
+def test_a_bundle_listed_as_its_class_and_by_name_is_refused() -> None:
+    with pytest.raises(DuplicateBundleError) as caught:
+        _ = _resolve({BetaBundle: {"prod": True}, f"{_HERE}:BetaBundle": {"dev": True}})
+
+    assert (caught.value.name, caught.value.first, caught.value.second) == (
+        "beta",
+        qualified_name(BetaBundle),
+        f"{_HERE}:BetaBundle",
+    )

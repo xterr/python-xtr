@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "REQUIRED_BUNDLES_ATTRIBUTE",
+    "STRING_TARGET",
     "RequiredBundle",
     "required_bundle",
     "required_bundles_of",
@@ -28,7 +29,12 @@ __all__ = [
 REQUIRED_BUNDLES_ATTRIBUTE: Final = "__xtr_required_bundles__"
 """Where ``@required_bundle`` records its declarations, one tuple per class."""
 
-_STRING_TARGET: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$")
+STRING_TARGET: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$")
+"""The shape of a bundle named by string, ``"module:Class"``.
+
+One shape wherever a bundle can be named instead of imported: a
+``@required_bundle`` target, and a ``BUNDLES`` key.
+"""
 
 B = TypeVar("B", bound=type[AnyBundle])
 
@@ -68,7 +74,7 @@ def required_bundle(
         BundleDefinitionError: If the string target does not have the shape
             ``"module:Class"``.
     """
-    if isinstance(target, str) and not _STRING_TARGET.match(target):
+    if isinstance(target, str) and not STRING_TARGET.match(target):
         raise BundleDefinitionError(target, "a string required_bundle target is 'module:Class'")
     declaration = RequiredBundle(target=target, ignore_on_invalid=ignore_on_invalid)
 

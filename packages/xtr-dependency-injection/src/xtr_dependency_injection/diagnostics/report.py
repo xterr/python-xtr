@@ -34,9 +34,12 @@ class BundleReport:
     """One bundle the kernel considered, and what it decided about it.
 
     Attributes:
-        name: The bundle's name.
+        name: The bundle's name — or, for a bundle listed by name and not
+            imported because it is disabled, the ``"module:Class"`` string it
+            is listed under: its name is read off its class.
         qualname: ``module:QualName`` of its class, or the ``"module:Class"``
-            string for a target that could not be loaded.
+            string for a target that could not be loaded, or that was listed
+            by name and not imported.
         source: ``"kernel"``, ``"listed"`` or ``"required"``.
         state: ``"active"``, ``"skipped"`` or ``"env_disabled"``.
         reason: Why it is not active, when it is not.

@@ -18,6 +18,7 @@ Writing a bundle for a library is a different job: load the skill
 | --- | --- |
 | The kernel | `kernel = Kernel("app")` in `app/kernel.py` |
 | Activate a bundle | `BUNDLES = {XBundle: {"all": True}}` in `app/config/bundles.py` |
+| Activate a dev dependency's bundle | `"acme_tools.bundle:ToolsBundle": {"dev": True}` in `BUNDLES` — by name, imported only where active |
 | Configure a bundle | `@configure` in `app/config/<bundle>.py`, returning its config type |
 | Register a class | `@as_service` (also `lifetime=`, `qualifier=`) |
 | Inject a service | a plain annotated parameter in a service; `Injected[T]` in a hook, command, handler or route |
@@ -67,13 +68,20 @@ from xtr_logging.bundle import LoggingBundle
 BUNDLES = {
     LoggingBundle: {"all": True},
     ConsoleBundle: {"all": True},
-    DebugBundle: {"dev": True, "test": True},
+    "acme_debug.bundle:DebugBundle": {"dev": True, "test": True},
 }
 ```
 
 **Installing a package activates nothing.** A bundle is active because it is listed here, or
 because an active bundle requires it. An environment named explicitly beats `"all"`, so
 `{"all": True, "prod": False}` is everywhere but prod.
+
+A key is a bundle class, or its `"module:Class"` string. One listed by name is imported only in
+an environment its flags activate it in; anywhere else `debug:bundles` reports it `env_disabled`
+under that string, and nothing imports it. List a development dependency's bundle that way: a
+deployment installs no dev dependency, and importing it at the top of `bundles.py` would stop the
+application loading there. Where its flags activate it and it does not import, the build raises
+`MissingBundleError` naming it and the environment.
 
 Entry points, all on the same kernel:
 
@@ -263,7 +271,7 @@ Every error derives from `DependencyInjectionError`. The ones an application mee
 | `<Owner>.<param> needs <Type>, which is not a registered service` (`ContainerCompilationError`) | Mark `<Type>` `@as_service`, alias it with `@as_alias`, or check the qualifier `<Type>['q']` the message names |
 | `ServiceResolutionError` saying *scope mismatch* | A scoped or transient service asked of the root container: resolve it inside `unit_of_work(container)`, from an injected parameter, or with `bind_callable(..., per_call_scope=True)` |
 | `ServiceResolutionError` caused by `MissingEnvironmentVariableError` | The variable is unset; set it, or give `env()` a `default=` |
-| `MissingBundleError` | A required bundle is absent, excluded or disabled for this environment |
+| `MissingBundleError` | A required bundle is absent, excluded or disabled for this environment — or one listed by name does not import where its flags activate it: install the dev dependencies, or narrow its flags |
 | `UnknownConfigTypeError` | The `@configure` function returns a type no active bundle owns — list its bundle |
 | `ConflictingConfigProvidersError` | Two base providers for one config. Write a transform (take the config as a parameter) instead of a second base |
 | `ParameterConflictError` / `ParameterNotFoundError` | One parameter leaf set twice / `%name%` names a parameter nothing sets |

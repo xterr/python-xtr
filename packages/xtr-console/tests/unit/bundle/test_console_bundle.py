@@ -11,16 +11,20 @@ from xtr_dependency_injection.bundle import AdvertisedBundles
 from xtr_dependency_injection.testing import assert_zero_config
 
 from tests.fixtures import app_env, app_one
+from tests.fixtures.parked import ParkedBundle
 from xtr_console import Application, ApplicationTester, ExitCode
 from xtr_console.bundle import ConsoleBundle, ConsoleConfig
 
 if TYPE_CHECKING:
     from xtr_dependency_injection.bundle.bundle import AnyBundle
+    from xtr_dependency_injection.bundle.bundle_resolver import ListedBundles
     from xtr_service_contracts import ContainerInterface
 
 pytestmark = pytest.mark.anyio
 
 _DEBUG_COMMANDS = importlib.import_module("xtr_console.bundle.debug_commands")
+# How an application lists ParkedBundle by name: through the package re-exporting it.
+_PARKED = "tests.fixtures.parked:ParkedBundle"
 
 
 @as_bundle("idle")
@@ -97,12 +101,17 @@ async def _debug_bundles(
     monkeypatch: pytest.MonkeyPatch,
     installed: tuple[type[AnyBundle], ...],
     unusable: tuple[tuple[str, str], ...] = (),
+    *,
+    bundles: ListedBundles | None = None,
 ) -> ApplicationTester:
-    """Run ``debug:bundles`` on app_one with ``installed`` and ``unusable`` advertised."""
+    """Run ``debug:bundles`` on app_one with ``installed`` and ``unusable`` advertised.
+
+    ``bundles`` replaces what app_one lists.
+    """
     monkeypatch.setattr(
         _DEBUG_COMMANDS, "advertised_bundles", lambda: AdvertisedBundles(installed, unusable)
     )
-    kernel = Kernel(app_one.__name__, env="test")
+    kernel = Kernel(app_one.__name__, env="test", bundles=bundles)
     booted = await kernel.boot()
     try:
         container: ContainerInterface = booted.container
@@ -141,6 +150,17 @@ async def test_debug_bundles_adds_nothing_when_every_installed_bundle_is_conside
 ) -> None:
     tester = await _debug_bundles(monkeypatch, (ConsoleBundle,))
 
+    assert "Installed, not active" not in tester.display
+
+
+async def test_debug_bundles_does_not_leave_out_a_bundle_listed_by_name_and_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listed: ListedBundles = {ConsoleBundle: {"all": True}, _PARKED: {"dev": True}}
+
+    tester = await _debug_bundles(monkeypatch, (ConsoleBundle, ParkedBundle), bundles=listed)
+
+    assert _PARKED in tester.display
     assert "Installed, not active" not in tester.display
 
 

@@ -35,7 +35,7 @@ from xtr_dependency_injection.builder.definition import Definition, Origin, Serv
 from xtr_dependency_injection.builder.service_configurator import BuildState
 from xtr_dependency_injection.bundle import KERNEL_BUNDLE, NoConfig
 from xtr_dependency_injection.bundle.bundle import AnyBundle, Bundle
-from xtr_dependency_injection.bundle.bundle_resolver import resolve_bundles
+from xtr_dependency_injection.bundle.bundle_resolver import ListedBundles, resolve_bundles
 from xtr_dependency_injection.compiler.merge_extension_configuration_pass import (
     MergeExtensionConfigurationPass,
 )
@@ -125,7 +125,7 @@ class Kernel:
         env: str | None = None,
         debug: bool | None = None,
         name: str | None = None,
-        bundles: Mapping[type[AnyBundle], Mapping[str, bool]] | None = None,
+        bundles: ListedBundles | None = None,
         resources: Sequence[str] | None = None,
         exclude: Sequence[str] = DEFAULT_EXCLUDES,
         allowed_envs: Sequence[str] | None = None,
@@ -141,9 +141,11 @@ class Kernel:
                 ``"prod"``.
             name: The application's name; default the package's last
                 component.
-            bundles: The bundle classes the application lists, mapped to
-                their per-environment activity flags (``{"all": True}`` or
-                ``{"dev": True}``). When ``None`` the kernel imports
+            bundles: The bundles the application lists, mapped to their
+                per-environment activity flags (``{"all": True}`` or
+                ``{"dev": True}``): each a class, or its ``"module:Class"``
+                string, imported only in an environment its flags activate it
+                in. When ``None`` the kernel imports
                 ``<package>.config.bundles`` — or ``<package>.bundles`` when
                 that is absent — and reads its ``BUNDLES`` mapping.
             resources: What to scan instead of ``package``.
@@ -159,9 +161,7 @@ class Kernel:
         self._env = env
         self._debug = debug
         self._name = name
-        self._bundles: Mapping[type[AnyBundle], Mapping[str, bool]] | None = (
-            dict(bundles) if bundles is not None else None
-        )
+        self._bundles: ListedBundles | None = dict(bundles) if bundles is not None else None
         self._resources = tuple(resources) if resources is not None else None
         self._exclude = tuple(exclude)
         self._allowed_envs = tuple(allowed_envs) if allowed_envs is not None else None
@@ -414,7 +414,7 @@ def prepare(  # noqa: PLR0913 — each input is a separate build decision.
     environment: str,
     debug: bool,
     project_dir: Path,
-    listed: Mapping[type[AnyBundle], Mapping[str, bool]],
+    listed: ListedBundles,
     resources: Sequence[str | ModuleType],
     exclude: Sequence[str],
     given: Sequence[object] = (),
@@ -549,12 +549,18 @@ def _register_kernel_parameters(  # noqa: PLR0913 — the kernel identity is a f
 
 
 def _inactive_config_owners(
-    listed: Mapping[type[AnyBundle], Mapping[str, bool]],
+    listed: ListedBundles,
     active: Sequence[str],
 ) -> Mapping[type, str]:
-    """Return a mapping ``config_type -> bundle name`` for listed but env-disabled bundles."""
+    """Return a mapping ``config_type -> bundle name`` for listed but env-disabled bundles.
+
+    A bundle listed by name is left out: its config type is read off its class,
+    and where it is disabled its class is never imported.
+    """
     result: dict[type, str] = {}
     for bundle_type in listed:
+        if isinstance(bundle_type, str):
+            continue
         metadata = bundle_type.metadata()
         if metadata.name in active:
             continue
@@ -625,7 +631,7 @@ def _package_dir(package: str | ModuleType) -> Path:
 _BUNDLES_MODULES: Final = ("config.bundles", "bundles")
 
 
-def _load_bundles_module(package_name: str) -> Mapping[type[AnyBundle], Mapping[str, bool]]:
+def _load_bundles_module(package_name: str) -> Mapping[type[AnyBundle] | str, Mapping[str, bool]]:
     """Import ``<package_name>.config.bundles`` and return its ``BUNDLES`` mapping.
 
     An application written before the bundle list joined its configuration
@@ -637,7 +643,7 @@ def _load_bundles_module(package_name: str) -> Mapping[type[AnyBundle], Mapping[
         ResourceImportError: If the bundle list exists but a deeper import
             fails.
         BundleDefinitionError: If the module is present but lacks ``BUNDLES``,
-            or if a listed class is not a decorated :class:`Bundle`.
+            or if a key is neither a :class:`Bundle` subclass nor a string.
     """
     for suffix in _BUNDLES_MODULES:
         module = _bundles_module(f"{package_name}.{suffix}")
@@ -665,12 +671,16 @@ def _bundles_module(module_name: str) -> ModuleType | None:
         raise ResourceImportError(module_name) from error
 
 
-def _listed_bundles(module: ModuleType) -> Mapping[type[AnyBundle], Mapping[str, bool]]:
+def _listed_bundles(module: ModuleType) -> Mapping[type[AnyBundle] | str, Mapping[str, bool]]:
     """Return the ``BUNDLES`` mapping ``module`` declares, checked entry by entry.
+
+    A key is a bundle class, or the ``"module:Class"`` string naming one; the
+    string is not imported here, but by the resolver, and only in an
+    environment the entry is active in.
 
     Raises:
         BundleDefinitionError: If the module lacks ``BUNDLES``, or a listed
-            class is not a decorated :class:`Bundle`.
+            key is neither a :class:`Bundle` subclass nor a string.
     """
     module_name = module.__name__
     raw = getattr(module, "BUNDLES", None)
@@ -678,19 +688,21 @@ def _listed_bundles(module: ModuleType) -> Mapping[type[AnyBundle], Mapping[str,
         raise BundleDefinitionError(module_name, "it does not define BUNDLES")
     if not isinstance(raw, Mapping):
         raise BundleDefinitionError(
-            module_name, "BUNDLES must be a mapping of bundle class to activity flags"
+            module_name, "BUNDLES must be a mapping of bundle class, or name, to activity flags"
         )
-    result: dict[type[AnyBundle], Mapping[str, bool]] = {}
+    result: dict[type[AnyBundle] | str, Mapping[str, bool]] = {}
     # An application's BUNDLES, checked entry by entry below.
-    for cls, flags in raw.items():  # pyright: ignore[reportUnknownVariableType]
-        cls_obj = cast("object", cls)
-        if not (isinstance(cls_obj, type) and issubclass(cls_obj, Bundle)):
+    for key, flags in raw.items():  # pyright: ignore[reportUnknownVariableType]
+        entry = cast("object", key)
+        if not (isinstance(entry, str) or (isinstance(entry, type) and issubclass(entry, Bundle))):
             raise BundleDefinitionError(
-                module_name, f"{cls_obj!r} listed in BUNDLES is not a Bundle subclass"
+                module_name,
+                f"{entry!r} listed in BUNDLES is not a Bundle subclass, nor a 'module:Class' name",
             )
         if not isinstance(flags, Mapping):
             raise BundleDefinitionError(
-                module_name, f"activity flags for {cls_obj!r} must be a mapping"
+                module_name, f"activity flags for {entry!r} must be a mapping"
             )
-        result[cast("type[AnyBundle]", cls_obj)] = dict(cast("Mapping[str, bool]", flags))
+        listed = entry if isinstance(entry, str) else cast("type[AnyBundle]", entry)
+        result[listed] = dict(cast("Mapping[str, bool]", flags))
     return result

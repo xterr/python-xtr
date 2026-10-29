@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import final
+import importlib
+from typing import TYPE_CHECKING, cast, final
 
 from xtr_dependency_injection import (
     Injected,
@@ -13,6 +14,11 @@ from xtr_dependency_injection import (
 from xtr_dependency_injection.bundle import advertised_bundles
 
 from xtr_console import CommandsLocator, ConsoleStyle, ExitCode, as_command
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from xtr_dependency_injection.diagnostics import BundleReport
 
 __all__ = ["DebugBundlesCommand", "DebugConfigCommand", "DebugContainerCommand"]
 
@@ -35,14 +41,20 @@ class DebugBundlesCommand:
 
         An advertised entry that cannot be loaded is listed too, with what it
         said: it would otherwise be missing from both lists.
+
+        A bundle the application lists by name and this environment disables
+        is listed all the same, so it is not left out either — though the
+        kernel, which never imports it here, reports it by the string it is
+        listed under rather than by its class.
         """
         io.console.print(kernel.report.render("bundles"))
         advertised = advertised_bundles()
         considered = {bundle.qualname for bundle in kernel.report.bundles}
+        named = _named_by_disabled_entries(kernel.report.bundles)
         left_out = tuple(
             (bundle.metadata().name, qualified_name(bundle))
             for bundle in advertised.bundles
-            if qualified_name(bundle) not in considered
+            if qualified_name(bundle) not in considered and bundle not in named
         )
         if left_out:
             io.newline()
@@ -120,3 +132,24 @@ def _service_name(key: ServiceKey) -> str:
     service, qualifier = key
     name = service.__qualname__
     return name if qualifier is None else f"{name}[{qualifier!r}]"
+
+
+def _named_by_disabled_entries(reports: Sequence[BundleReport]) -> list[object]:
+    """Return what each disabled entry's ``"module:Class"`` names.
+
+    A diagnostic may import what the build did not: every installed bundle has
+    just been imported to list them, so such a module is usually loaded
+    already, and one that does not import is not installed — so it cannot be
+    among the installed bundles left out.
+    """
+    return [_named_by(report.qualname) for report in reports if report.state == "env_disabled"]
+
+
+def _named_by(target: str) -> object:
+    """Return what ``"module:Class"`` names, or ``None`` when its module does not import."""
+    module_name, _, attribute = target.partition(":")
+    try:
+        module = importlib.import_module(module_name)
+    except Exception:  # noqa: BLE001 — what the application names may fail any way as it imports; the report must still print.
+        return None
+    return cast("object", getattr(module, attribute, None))
