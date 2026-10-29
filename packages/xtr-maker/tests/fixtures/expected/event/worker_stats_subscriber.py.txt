@@ -1,0 +1,31 @@
+"""A subscriber to ``WorkerStartedEvent``."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, final
+
+from typing_extensions import override
+from xtr_event_dispatcher import EventSubscriberInterface
+from xtr_messenger.event import WorkerStartedEvent
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from xtr_event_dispatcher import SubscribedEvents
+
+__all__ = ["WorkerStatsSubscriber"]
+
+
+@final
+class WorkerStatsSubscriber(EventSubscriberInterface):
+    """Reacts to ``WorkerStartedEvent``."""
+
+    @classmethod
+    @override
+    def get_subscribed_events(cls) -> Mapping[str | type, SubscribedEvents]:
+        """Map each event to the method reacting to it."""
+        return {WorkerStartedEvent: "on_worker_started_event"}
+
+    async def on_worker_started_event(self, event: WorkerStartedEvent) -> None:
+        """Handle ``event``."""
+        del event  # Replace with what reacting to the event does.

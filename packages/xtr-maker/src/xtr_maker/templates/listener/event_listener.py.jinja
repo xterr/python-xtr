@@ -1,0 +1,19 @@
+"""A listener of ``{{ event }}``."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+class {{ class_name }}:
+    """Reacts to ``{{ event }}``."""
+
+    {{ as_event_listener }}
+    {{ signature }}
+        """Handle ``event``."""
+        del event  # Replace with what reacting to the event does.

@@ -1,0 +1,20 @@
+"""A listener of ``WorkerStartedEvent``."""
+
+from __future__ import annotations
+
+from typing import final
+
+from xtr_event_dispatcher import as_event_listener
+from xtr_messenger.event import WorkerStartedEvent
+
+__all__ = ["ReportWorkerStartedListener"]
+
+
+@final
+class ReportWorkerStartedListener:
+    """Reacts to ``WorkerStartedEvent``."""
+
+    @as_event_listener(WorkerStartedEvent)
+    async def on_worker_started_event(self, event: WorkerStartedEvent) -> None:
+        """Handle ``event``."""
+        del event  # Replace with what reacting to the event does.

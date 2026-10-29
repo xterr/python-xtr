@@ -1,0 +1,24 @@
+"""A subscriber to ``{{ event }}``."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+class {{ class_name }}({{ interface }}):
+    """Reacts to ``{{ event }}``."""
+
+    @classmethod
+    @{{ override }}
+    def get_subscribed_events(cls) -> {{ mapping }}[str | type, {{ subscribed_events }}]:
+        """Map each event to the method reacting to it."""
+        {{ subscribed }}
+
+    {{ signature }}
+        """Handle ``event``."""
+        del event  # Replace with what reacting to the event does.
