@@ -103,6 +103,8 @@ custom_checkbox = true
 default_handler = "python"
 
 [project.plugins.mkdocstrings.handlers.python]
+# The docstrings are read from the sources, not imported: the build installs no package.
+paths = ["packages/*/src"]
 inventories = ["https://docs.python.org/3/objects.inv"]
 
 [project.plugins.mkdocstrings.handlers.python.options]
