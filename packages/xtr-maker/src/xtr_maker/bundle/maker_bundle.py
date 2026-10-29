@@ -35,7 +35,9 @@ from .maker_config import MakerConfig
 
 __all__ = ["MakerBundle"]
 
-_MAKERS: Final[tuple[tuple[str, str | None], ...]] = ()
+_MAKERS: Final[tuple[tuple[str, str | None], ...]] = (
+    ("xtr_maker.command.make_message_command", "messenger"),
+)
 """Each maker's command module, and the bundle that must be active for it (``None``: none)."""
 
 

@@ -60,6 +60,14 @@ class Generator:
         """Every file queued by this generator, written or not, in the order queued."""
         return tuple(self._generated)
 
+    @property
+    def final_classes(self) -> bool:
+        """Whether generated classes are marked ``@final``.
+
+        A maker reads it to import ``final`` only for a template that uses it.
+        """
+        return self._final_classes
+
     def generate_class(
         self, class_name: ClassName, template: str, context: Mapping[str, object] | None = None
     ) -> Path:

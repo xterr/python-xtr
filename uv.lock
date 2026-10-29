@@ -5006,6 +5006,11 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-event-dispatcher" },
+    { name = "xtr-messenger" },
+    { name = "xtr-orm" },
+    { name = "xtr-scheduler" },
+    { name = "xtr-webhook" },
 ]
 
 [package.metadata]
@@ -5031,6 +5036,11 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
+    { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-orm", editable = "packages/xtr-orm" },
+    { name = "xtr-scheduler", editable = "packages/xtr-scheduler" },
+    { name = "xtr-webhook", editable = "packages/xtr-webhook" },
 ]
 
 [[package]]

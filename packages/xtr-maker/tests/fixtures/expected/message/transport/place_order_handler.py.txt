@@ -1,0 +1,21 @@
+"""The handler of ``PlaceOrder``."""
+
+from __future__ import annotations
+
+from typing import final
+
+from xtr_messenger import as_message_handler
+
+from app.message.place_order import PlaceOrder
+
+__all__ = ["PlaceOrderHandler"]
+
+
+@final
+@as_message_handler(PlaceOrder)
+class PlaceOrderHandler:
+    """Handles ``PlaceOrder``; describe what follows from one here."""
+
+    async def __call__(self, message: PlaceOrder) -> None:
+        """Handle ``message``."""
+        del message  # Replace with what handling the message does.

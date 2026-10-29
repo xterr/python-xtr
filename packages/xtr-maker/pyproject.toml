@@ -53,6 +53,12 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
+    # Every peer a maker writes code for, so each maker's tests run against its library.
+    "xtr-event-dispatcher>=5.0,<6",
+    "xtr-messenger>=5.0,<6",
+    "xtr-orm>=5.0,<6",
+    "xtr-scheduler>=5.0,<6",
+    "xtr-webhook>=5.0,<6",
 ]
 
 [build-system]

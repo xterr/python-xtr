@@ -1,0 +1,19 @@
+"""The ``PlaceOrder`` message."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import final
+
+from xtr_messenger import as_message
+
+__all__ = ["PlaceOrder"]
+
+
+@final
+@as_message(name="app.place_order.v1")
+@dataclass(frozen=True, slots=True)
+class PlaceOrder:
+    """Asks for what handling ``PlaceOrder`` does; describe it here."""
+
+    # Add one field per value its handler needs, such as ``order_id: UUID``.

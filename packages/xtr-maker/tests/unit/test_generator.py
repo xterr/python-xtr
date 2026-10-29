@@ -91,6 +91,13 @@ def test_generated_files_lists_every_queued_file_after_writing(project: Path) ->
     assert generator.generated_files == (first, second)
 
 
+@pytest.mark.parametrize("final_classes", [True, False])
+def test_final_classes_reports_the_setting_it_was_built_with(
+    project: Path, final_classes: bool
+) -> None:
+    assert _generator(project, final_classes=final_classes).final_classes is final_classes
+
+
 def test_a_file_that_exists_is_refused(project: Path) -> None:
     with pytest.raises(TargetExistsError) as raised:
         _ = _generator(project).dump_file("src/app/__init__.py", "x = 1\n")
