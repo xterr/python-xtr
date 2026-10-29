@@ -18,8 +18,10 @@ PROJECT_DIR: Final = Path(__file__).resolve().parents[2]
 """The directory holding ``pyproject.toml`` and the ``.env`` files."""
 
 kernel: Final = Kernel(
-    "${app}",
+    __package__,
     # The bundles are read from ${app}.config.bundles.BUNDLES; the environment from APP_ENV.
+    # A folder under config/packages/ named after one of these environments is imported in
+    # that environment only.
     allowed_envs=("dev", "test", "prod"),
 )
 

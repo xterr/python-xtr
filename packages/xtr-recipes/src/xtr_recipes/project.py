@@ -8,16 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import final
 
+from .application_package import ApplicationPackage
 from .exception import ProjectNotFoundError, UnreadableFileError
 from .normalise import normalise
 
 __all__ = ["Project"]
 
 _PYPROJECT = "pyproject.toml"
-_APP_SETTING = "[tool.xtr-recipes] app"
-_NAME_SETTING = "[project].name"
-# An import name: a run of dashes, underscores or dots becomes one underscore.
-_SEPARATORS = re.compile(r"[-_.]+")
 # A requirement's name ends at the first extra, marker, URL, space or operator.
 _NAME_END = re.compile(r"[\s;<>=!~@(\[]")
 
@@ -28,13 +25,19 @@ class Project:
     """An application on disk, read once from its ``pyproject.toml``.
 
     Built by :meth:`load` or :meth:`discover`; both read the manifest and
-    resolve the application package, so a value of this type is known to point
+    find the application package, so a value of this type is known to point
     at an application that exists.
+
+    The application package is the one package holding ``kernel.py`` (see
+    :class:`~xtr_recipes.application_package.ApplicationPackage`); nothing in
+    ``pyproject.toml`` names it.
 
     Attributes:
         project_dir: The directory that holds ``pyproject.toml``.
-        app: The application import name — the package found under ``src/`` or
-            at the project root.
+        app: The application's dotted import name — ``bookshop`` for
+            ``src/bookshop/``, ``acme.shop`` for ``src/acme/shop/``.
+        package_dir: The directory of the application package, the one
+            holding ``kernel.py``; a recipe writes its files below it.
         dependencies: The PEP 503-normalised names of the direct dependencies
             (``[project].dependencies``), with extras, markers and versions
             removed.
@@ -53,21 +56,10 @@ class Project:
 
     project_dir: Path
     app: str
+    package_dir: Path
     dependencies: tuple[str, ...]
     dev_dependencies: tuple[str, ...]
     script: str | None
-
-    @property
-    def package_dir(self) -> Path:
-        """The directory of the application package, where a recipe writes files.
-
-        ``src/<app>/`` when that is where the package is, otherwise ``<app>/``
-        at the project root. Both :meth:`load` and :meth:`discover` have
-        already checked that one of them exists, so the second is also the
-        answer for a project whose package has since been deleted.
-        """
-        found = _package_dir(self.project_dir, self.app)
-        return found if found is not None else self.project_dir / self.app
 
     @classmethod
     def discover(cls, start: Path | None = None) -> Project:
@@ -82,7 +74,7 @@ class Project:
 
         Raises:
             ProjectNotFoundError: When no ``pyproject.toml`` lies at or above
-                ``start``, or the application package cannot be resolved.
+                ``start``, or the application package cannot be found.
         """
         origin = start if start is not None else Path.cwd()
         for directory in (origin, *origin.parents):
@@ -102,25 +94,19 @@ class Project:
 
         Raises:
             ProjectNotFoundError: When ``project_dir`` holds no
-                ``pyproject.toml``, or the application package resolves to
-                neither ``src/<app>/`` nor ``<app>/``, naming the setting the
-                application name came from.
+                ``pyproject.toml``, or when not exactly one package holds a
+                ``kernel.py``.
         """
         manifest = project_dir / _PYPROJECT
         if not manifest.is_file():
             raise ProjectNotFoundError(project_dir, f"no {_PYPROJECT} here")
         data = _read(manifest)
-        app, setting = _app_name(data)
-        if _package_dir(project_dir, app) is None:
-            raise ProjectNotFoundError(
-                project_dir,
-                f"{app!r} resolves to neither src/{app}/ nor {app}/",
-                setting,
-            )
+        package = ApplicationPackage.find(project_dir)
         dependencies = _dependencies(data)
         return cls(
             project_dir=project_dir,
-            app=app,
+            app=package.name,
+            package_dir=package.directory,
             dependencies=dependencies,
             dev_dependencies=_dev_dependencies(data, dependencies),
             script=_script(data),
@@ -135,38 +121,6 @@ def _read(path: Path) -> dict[str, object]:
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
         raise UnreadableFileError(path, f"not valid TOML: {error}") from error
     return data
-
-
-def _app_name(data: dict[str, object]) -> tuple[str, str]:
-    """Return the application import name and the setting it came from.
-
-    ``[tool.xtr-recipes] app`` wins when set to a string; otherwise
-    ``[project].name`` normalised to an identifier. The name may be empty when
-    neither is set, which ``_package_dir`` then rejects.
-    """
-    tool = data.get("tool")
-    if isinstance(tool, dict):
-        recipes = tool.get("xtr-recipes")
-        if isinstance(recipes, dict):
-            app = recipes.get("app")
-            if isinstance(app, str):
-                return app, _APP_SETTING
-    project = data.get("project")
-    if isinstance(project, dict):
-        name = project.get("name")
-        if isinstance(name, str):
-            return _SEPARATORS.sub("_", name).lower(), _NAME_SETTING
-    return "", _NAME_SETTING
-
-
-def _package_dir(project_dir: Path, app: str) -> Path | None:
-    """Return the directory of the application package, or ``None`` if absent."""
-    if not app:
-        return None
-    for candidate in (project_dir / "src" / app, project_dir / app):
-        if candidate.is_dir():
-            return candidate
-    return None
 
 
 def _dependencies(data: dict[str, object]) -> tuple[str, ...]:

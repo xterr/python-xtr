@@ -235,7 +235,8 @@ own, keep every secret out of the repository too.
 
 | Feature | File |
 |---|---|
-| `Kernel(package, name=, allowed_envs=, exclude=)`; env and debug from `APP_ENV` / `APP_DEBUG` | `bookshop/kernel.py` |
+| `Kernel(__package__, allowed_envs=, exclude=)` with relative excludes (`".web.app"`); env and debug from `APP_ENV` / `APP_DEBUG` | `bookshop/kernel.py` |
+| An environment folder: `config/packages/dev/` is imported in `dev` only, after the common modules — where the development-only `MakerConfig` lives | `config/packages/dev/maker.py` |
 | `kernel.run(console)` · `setup(app, kernel)` — build, lifespan and request scopes in one call · `kernel.boot()` | `__main__.py` · `web/app.py` · `worker.py` |
 | `Kernel(environ=)`, `kernel.with_env()`, `engine_container()` | `dev_tools/commands.py`, `command/demo_errors_command.py` |
 | `BUNDLES` with `{"all": True}` and `{"dev": True, "test": True}` | `bookshop/config/bundles.py` |
@@ -393,7 +394,11 @@ against — a demo value in `.env`; a real deployment overrides it with the send
   once unless stamped `DispatchAfterCurrentBusStamp`; stamped, a worker never sees a receipt
   for an order not committed yet, and an order rolled back sends nothing.
 - **Gate a class with `@when`, not its alias**: `@as_alias` is unconditional.
-- **`exclude=` replaces `DEFAULT_EXCLUDES`**; extend it (`kernel.py`).
+- **`exclude=` adds to `DEFAULT_EXCLUDES`**; a pattern starting with `.` is relative to the
+  package (`kernel.py`).
+- **Configure a development-only bundle in `config/packages/dev/`**, never directly under
+  `config/packages/`: production does not install its package, and only `dev` imports that folder
+  (`config/packages/dev/maker.py`).
 - **The dotenv bundle loads nothing**: `load_environment()` runs before the kernel is built.
 - **A config another bundle forwards to with `AliasOf` takes no application base provider** —
   that is a `ConflictingConfigProvidersError`; transform it instead (`config/packages/clock.py`).

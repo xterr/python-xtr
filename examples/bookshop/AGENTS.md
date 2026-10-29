@@ -24,6 +24,10 @@ This directory is the reference application for the xtr packages. The repository
 - Register services with decorators in scanned modules; configure bundles with `@configure` in
   `bookshop/config/`; put new bundles' configs there too. Never build a bundle's service by
   hand when the bundle provides it.
+- Configure a bundle that is listed for `dev` only, and whose package is a development dependency
+  (`MakerBundle`), in `bookshop/config/packages/dev/`: only `dev` imports that folder, so a
+  production install without the development dependencies still starts. A folder there may only
+  be named after an allowed environment (`dev`, `test`, `prod`).
 - Anything read by the container at runtime — constructor, factory, hook, command and handler
   annotations, message fields, config fields — is imported for real, never under
   `TYPE_CHECKING`.

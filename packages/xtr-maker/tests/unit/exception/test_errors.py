@@ -61,7 +61,7 @@ def test_app_package_not_found_error_carries_the_package_and_where_it_was_looked
     error = AppPackageNotFoundError("acme.shop", "/srv/project")
 
     assert (error.root_package, error.project_dir) == ("acme.shop", "/srv/project")
-    assert "/srv/project/src/acme/shop/" in str(error)
+    assert "'acme.shop' of /srv/project cannot be imported" in str(error)
     assert isinstance(error, MakerError)
 
 

@@ -43,10 +43,21 @@ a dependency the application boots.
 ## Commands
 
 Each command reads the project at `--project-dir`, defaulting to the nearest directory at or
-above the current one that holds a `pyproject.toml`. The application package is
-`[tool.xtr-recipes] app` when set, otherwise `[project].name` normalised to an import name; it
-must resolve to `src/<app>/` or `<app>/`, or the command stops with a `ProjectNotFoundError`
-naming the setting.
+above the current one that holds a `pyproject.toml`.
+
+The application package is the one package that holds `kernel.py` — the file that builds the
+kernel from the package it sits in. Nothing in `pyproject.toml` names it, so the two can never
+disagree:
+
+- `src/` is searched first, the project root only when `src/` holds none.
+- Only importable packages are searched — every directory on the way has an `__init__.py` — so a
+  nested package works: `src/acme/shop/kernel.py` makes the application `acme.shop`, and `${app}`
+  renders as `acme.shop`. A `kernel.py` in a plain directory does not count, and neither does one
+  inside the application package (a module of the application).
+- Hidden directories and `venv`, `node_modules`, `tests`, `build`, `dist`, `site`, `__pycache__`,
+  `migrations` and `var` are skipped.
+- No package holding `kernel.py`, or more than one, stops the command with a
+  `ProjectNotFoundError` saying which.
 
 ```sh
 uv run xtr-recipes recipes:sync                    # configure new, update changed, undo removed

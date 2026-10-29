@@ -135,25 +135,27 @@ with `Run orm:migrations:migrate -n first.` Nothing differing writes nothing and
    the bundle there, which is not active, and never needs its package.
 4. **Brings along** — the console bundle. The messenger, scheduler, webhook, orm and event
    dispatcher bundles are read, never required: each decides which makers exist.
-5. **Configure** — optional. With none the code goes into the kernel's own package and classes
-   are `@final`:
+5. **Configure** — nothing to configure: the code goes into `kernel.package`, found where the
+   import system loads it, and classes are `@final`. To change either, write the settings into
+   the `dev` environment folder — production does not install this package, and only a `dev`
+   build imports that folder:
 
    ```python
-   # <app>/config/packages/maker.py
+   # <app>/config/packages/dev/maker.py (beside an empty __init__.py)
    from xtr_dependency_injection import configure
    from xtr_maker.bundle import MakerConfig
 
 
    @configure
    def maker() -> MakerConfig:
-       return MakerConfig(root_package="acme.shop", final_classes=True)
+       return MakerConfig(final_classes=False)
    ```
 
 6. **Environment** — nothing. A maker that needs a secret prints the variable to set.
 7. **Ignore** — nothing: what the makers write is code to commit.
 8. **Remove** — `uv run xtr-recipes recipes:remove xtr-maker`: `uv remove --dev xtr-maker`, then a
-   sync that drops the `BUNDLES` entry. Delete `<app>/config/packages/maker.py` if you wrote one.
-   The generated code stays yours.
+   sync that drops the `BUNDLES` entry. Delete `<app>/config/packages/dev/maker.py` if you wrote
+   one. The generated code stays yours.
 9. **Check** — `debug:bundles` lists `maker` as active in `dev`; `list make` shows the makers.
 
 ## Errors
@@ -162,7 +164,7 @@ Every one derives from `MakerError`, in `xtr_maker.exception`:
 
 | Error | Raised when |
 | --- | --- |
-| `AppPackageNotFoundError` | The application package is neither under `src/` nor at the project root |
+| `AppPackageNotFoundError` | The import system finds no package of that name; the message names `MakerConfig.root_package` |
 | `GeneratedSourceError` | A template rendered Python that does not parse; it names the template |
 | `InvalidArgumentError` | An argument, option or answer cannot be used — also a `ValueError` |
 | `InvalidClassNameError` | What was typed is no identifier, is a keyword, or would hide a builtin |
@@ -177,6 +179,9 @@ revision that could not be written, `ExitCode.SUCCESS` otherwise — nothing to 
 
 - Do not install it as a runtime dependency, and do not list `MakerBundle` for `all`: the makers
   belong in `dev`.
+- Do not put a `MakerConfig` in a module directly under `<app>/config/packages/`: every
+  environment imports those, and production, which does not install `xtr-maker`, fails to start.
+  Use `<app>/config/packages/dev/`.
 - Do not expect a maker to overwrite a file, or to edit configuration. `make:webhook` adds a
   transform module; `make:entity` is the only maker that writes an existing file, and only to add
   properties to it.

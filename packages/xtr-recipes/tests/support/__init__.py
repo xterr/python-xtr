@@ -18,7 +18,7 @@ from .command_harness import (
     snapshot,
 )
 from .fake_recipe_source import FakeRecipeSource, recipe_content
-from .project_builder import build_project
+from .project_builder import build_project, write_package
 
 __all__ = [
     "CONFIG",
@@ -37,4 +37,5 @@ __all__ = [
     "recipe_content",
     "record_processes",
     "snapshot",
+    "write_package",
 ]

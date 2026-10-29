@@ -295,19 +295,24 @@ class Synchronizer:
     def _first_party(self) -> frozenset[str]:
         """Return the application's own top-level packages, for the import order.
 
-        Under a ``src`` layout every package beside the application is its own
-        too, so an entry importing from one of them is sorted with the
-        application's imports rather than with the dependencies'.
+        The application counts by its top-level package — ``acme`` for
+        ``acme.shop`` — since that is the name an import sorter compares.
+        Under a ``src`` layout every package beside that top-level one is the
+        application's own too, so an entry importing from one of them is
+        sorted with the application's imports rather than with the
+        dependencies'.
         """
-        parent = self._project.package_dir.parent
+        top = self._project.app.partition(".")[0]
+        # The directory holding the top-level package, one level per dot above.
+        parent = self._project.package_dir.parents[self._project.app.count(".")]
         if parent.name != _SRC:
-            return frozenset({self._project.app})
+            return frozenset({top})
         beside = (
             child.name
             for child in parent.iterdir()
             if child.is_dir() and (child / "__init__.py").is_file()
         )
-        return frozenset({self._project.app, *(name for name in beside if name.isidentifier())})
+        return frozenset({top, *(name for name in beside if name.isidentifier())})
 
 
 def _recorded_required(current: _Current) -> frozenset[str]:

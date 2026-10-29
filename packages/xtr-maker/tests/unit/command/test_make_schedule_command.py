@@ -68,6 +68,7 @@ class ShopSchedule(ScheduleProviderInterface):
 class _Kernel:
     bundles: tuple[str, ...]
     name: str = "app"
+    package: str = "app"
     environment: str = "test"
     debug: bool = False
     project_dir: Path = field(default_factory=Path)

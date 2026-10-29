@@ -149,6 +149,60 @@ decorators limit a provider to the environments that you name.
 > The `allowed_envs` argument of the kernel lists the environments that the
 > application permits. The kernel refuses every other name.
 
+## Put the configuration of one environment in a directory
+
+A directory in `src/shop/config/packages/` with the name of an environment is
+an environment directory. The kernel imports its files only for that
+environment. It imports them after the other configuration files, so their
+providers replace the providers of the other files. Use an environment
+directory for a bundle that is active in `dev` only. A production installation
+does not have the package of that bundle. The kernel does not import the
+directory in production.
+
+1. Create the directory `src/shop/config/packages/dev/`.
+2. Create the file `src/shop/config/packages/dev/__init__.py` with this
+   content:
+
+   ```python
+   """The configuration of the dev environment."""
+
+   from __future__ import annotations
+
+   __all__: list[str] = []
+   ```
+
+3. Create the file `src/shop/config/packages/dev/maker.py`:
+
+   ```python
+   """The makers write classes that are not final."""
+
+   from __future__ import annotations
+
+   from xtr_dependency_injection import configure
+   from xtr_maker.bundle import MakerConfig
+
+   __all__ = ["maker"]
+
+
+   @configure
+   def maker() -> MakerConfig:
+       """Write classes without the `@final` decorator."""
+       return MakerConfig(final_classes=False)
+   ```
+
+4. Read the configuration of the `dev` environment:
+
+   ```sh
+   uv run shop debug:config maker
+   ```
+
+   The output shows the step `base shop.config.packages.dev.maker:maker`.
+
+> [!NOTE]
+> The name of each environment directory must be in `allowed_envs`. If the
+> name is not in `allowed_envs`, the kernel stops with
+> `UnknownEnvironmentFolderError`.
+
 ## Read a value from an environment variable
 
 `env()` returns a placeholder, not a value. The container reads the variable
@@ -213,10 +267,10 @@ The second argument of `env()` converts the text of the variable:
    | Step | Source |
    |---|---|
    | 1 | the default value of the configuration type |
-   | 2 | the base provider of the application |
+   | 2 | the base provider of the application, and the one in the environment directory before the other one |
    | 3 | a field that another bundle forwards with `AliasOf` |
    | 4 | the changes of other bundles, in the sequence of the bundles |
-   | 5 | the transform providers of the application |
+   | 5 | the transform providers of the application, with the providers of the environment directory last |
 
 3. If `debug:config` reports no provider of yours, read step 3 of the procedure
    again. A directory without `__init__.py` holds no module that the kernel

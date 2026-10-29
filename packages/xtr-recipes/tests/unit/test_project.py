@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.support import write_package
 from xtr_recipes.exception import ProjectNotFoundError, UnreadableFileError
 from xtr_recipes.project import Project
 
@@ -99,90 +100,51 @@ def _write(directory: Path, body: str) -> None:
 
 def _load(directory: Path, body: str) -> Project:
     _write(directory, body)
-    (directory / "src" / "app").mkdir(parents=True)
+    _ = write_package(directory / "src", "app")
     return Project.load(directory)
 
 
-def test_load_resolves_the_app_from_the_project_name(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "my-app"\n')
-    (tmp_path / "src" / "my_app").mkdir(parents=True)
+def test_the_app_is_the_package_holding_the_kernel(tmp_path: Path) -> None:
+    _write(tmp_path, '[project]\nname = "distribution-name"\n')
+    package = write_package(tmp_path / "src", "shop")
 
     project = Project.load(tmp_path)
 
-    assert project.app == "my_app"
+    assert project.app == "shop"
+    assert project.package_dir == package
     assert project.project_dir == tmp_path
 
 
-def test_load_resolves_a_flat_layout_app(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "flat"\n')
-    (tmp_path / "flat").mkdir()
-
-    assert Project.load(tmp_path).app == "flat"
-
-
-def test_the_package_dir_is_the_src_layout_package(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "my-app"\n')
-    (tmp_path / "src" / "my_app").mkdir(parents=True)
-
-    assert Project.load(tmp_path).package_dir == tmp_path / "src" / "my_app"
-
-
-def test_the_package_dir_is_the_flat_layout_package(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "flat"\n')
-    (tmp_path / "flat").mkdir()
-
-    assert Project.load(tmp_path).package_dir == tmp_path / "flat"
-
-
-def test_the_package_dir_of_a_package_that_is_gone_is_at_the_project_root(tmp_path: Path) -> None:
-    project = Project(
-        project_dir=tmp_path,
-        app="ghost",
-        dependencies=(),
-        dev_dependencies=(),
-        script=None,
-    )
-
-    assert project.package_dir == tmp_path / "ghost"
-
-
-def test_the_app_setting_overrides_the_project_name(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "dist-name"\n\n[tool.xtr-recipes]\napp = "custom"\n')
-    (tmp_path / "src" / "custom").mkdir(parents=True)
-
-    assert Project.load(tmp_path).app == "custom"
-
-
-def test_it_falls_back_to_the_name_when_the_app_setting_is_not_a_string(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "app"\n\n[tool.xtr-recipes]\napp = 123\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
-
-    assert Project.load(tmp_path).app == "app"
-
-
-def test_it_ignores_a_tool_table_without_the_app_setting(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "app"\n\n[tool.other]\nkey = 1\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
-
-    assert Project.load(tmp_path).app == "app"
-
-
-def test_it_reads_a_project_configured_only_by_the_app_setting(tmp_path: Path) -> None:
-    _write(tmp_path, '[tool.xtr-recipes]\napp = "app"\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
+def test_a_nested_application_package_is_named_by_its_dotted_path(tmp_path: Path) -> None:
+    _write(tmp_path, '[project]\nname = "acme-shop"\n')
+    package = write_package(tmp_path / "src", "acme.shop")
 
     project = Project.load(tmp_path)
+
+    assert project.app == "acme.shop"
+    assert project.package_dir == package
+
+
+def test_a_manifest_with_no_project_table_is_read(tmp_path: Path) -> None:
+    project = _load(tmp_path, "[tool.other]\nkey = 1\n")
 
     assert project.app == "app"
     assert project.dependencies == ()
     assert project.script is None
 
 
-def test_it_reads_direct_dependencies_stripped_and_normalised(tmp_path: Path) -> None:
-    _write(tmp_path, _DEPENDENCIES)
-    (tmp_path / "src" / "app").mkdir(parents=True)
+def test_load_raises_when_no_package_holds_a_kernel(tmp_path: Path) -> None:
+    _write(tmp_path, '[project]\nname = "app"\n')
+    _ = write_package(tmp_path / "src", "app", kernel=False)
 
-    assert Project.load(tmp_path).dependencies == (
+    with pytest.raises(ProjectNotFoundError) as exc:
+        _ = Project.load(tmp_path)
+
+    assert "kernel.py" in exc.value.reason
+
+
+def test_it_reads_direct_dependencies_stripped_and_normalised(tmp_path: Path) -> None:
+    assert _load(tmp_path, _DEPENDENCIES).dependencies == (
         "fastapi",
         "xtr-messenger",
         "xtr-security-jwt",
@@ -191,17 +153,13 @@ def test_it_reads_direct_dependencies_stripped_and_normalised(tmp_path: Path) ->
 
 
 def test_it_returns_no_dependencies_when_the_list_is_malformed(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "app"\ndependencies = "oops"\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
-
-    assert Project.load(tmp_path).dependencies == ()
+    assert _load(tmp_path, '[project]\nname = "app"\ndependencies = "oops"\n').dependencies == ()
 
 
 def test_it_skips_a_non_string_dependency_entry(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "app"\ndependencies = [1, "xtr-foo"]\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
+    body = '[project]\nname = "app"\ndependencies = [1, "xtr-foo"]\n'
 
-    assert Project.load(tmp_path).dependencies == ("xtr-foo",)
+    assert _load(tmp_path, body).dependencies == ("xtr-foo",)
 
 
 def test_it_reads_the_dev_group_stripped_and_normalised(tmp_path: Path) -> None:
@@ -240,66 +198,27 @@ def test_it_returns_no_dev_dependencies_when_a_dev_list_is_malformed(
 
 
 def test_it_reads_the_first_script_name(tmp_path: Path) -> None:
-    _write(tmp_path, _SCRIPTS)
-    (tmp_path / "src" / "app").mkdir(parents=True)
-
-    assert Project.load(tmp_path).script == "app"
+    assert _load(tmp_path, _SCRIPTS).script == "app"
 
 
 def test_the_script_is_none_when_there_is_no_scripts_table(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "app"\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
-
-    assert Project.load(tmp_path).script is None
+    assert _load(tmp_path, '[project]\nname = "app"\n').script is None
 
 
 def test_the_script_is_none_when_the_scripts_table_is_empty(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "app"\n\n[project.scripts]\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
-
-    assert Project.load(tmp_path).script is None
-
-
-def test_load_raises_naming_the_project_name_when_the_package_is_missing(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "ghost"\n')
-
-    with pytest.raises(ProjectNotFoundError) as exc:
-        _ = Project.load(tmp_path)
-
-    assert exc.value.setting == "[project].name"
-    assert exc.value.directory == tmp_path
-
-
-def test_load_raises_naming_the_app_setting_when_the_override_is_missing(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "x"\n\n[tool.xtr-recipes]\napp = "ghost"\n')
-
-    with pytest.raises(ProjectNotFoundError) as exc:
-        _ = Project.load(tmp_path)
-
-    assert exc.value.setting == "[tool.xtr-recipes] app"
-
-
-def test_load_raises_when_neither_the_app_setting_nor_the_name_is_present(tmp_path: Path) -> None:
-    _write(tmp_path, "[tool.other]\nkey = 1\n")
-
-    with pytest.raises(ProjectNotFoundError) as exc:
-        _ = Project.load(tmp_path)
-
-    assert exc.value.setting == "[project].name"
+    assert _load(tmp_path, '[project]\nname = "app"\n\n[project.scripts]\n').script is None
 
 
 def test_load_raises_naming_the_missing_manifest(tmp_path: Path) -> None:
     with pytest.raises(ProjectNotFoundError) as exc:
         _ = Project.load(tmp_path)
 
-    assert exc.value.setting is None
     assert exc.value.directory == tmp_path
     assert "pyproject.toml" in exc.value.reason
 
 
 def test_discover_finds_the_nearest_project_upward(tmp_path: Path) -> None:
-    _write(tmp_path, '[project]\nname = "app"\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
+    _ = _load(tmp_path, '[project]\nname = "app"\n')
     nested = tmp_path / "src" / "app" / "deep"
     nested.mkdir()
 
@@ -313,8 +232,7 @@ def test_discover_defaults_to_the_current_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _write(tmp_path, '[project]\nname = "app"\n')
-    (tmp_path / "src" / "app").mkdir(parents=True)
+    _ = _load(tmp_path, '[project]\nname = "app"\n')
     monkeypatch.chdir(tmp_path)
 
     assert Project.discover().app == "app"
@@ -325,7 +243,7 @@ def test_discover_raises_when_no_project_is_found(tmp_path: Path) -> None:
     with pytest.raises(ProjectNotFoundError) as exc:
         _ = Project.discover(tmp_path.parents[-1])
 
-    assert exc.value.setting is None
+    assert "pyproject.toml" in exc.value.reason
 
 
 def test_it_names_the_manifest_when_it_is_not_valid_toml(tmp_path: Path) -> None:

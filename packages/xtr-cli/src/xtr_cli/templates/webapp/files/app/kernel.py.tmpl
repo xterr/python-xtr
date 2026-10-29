@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-from xtr_dependency_injection import DEFAULT_EXCLUDES, Kernel, exclude
+from xtr_dependency_injection import Kernel, exclude
 from xtr_dotenv import Dotenv
 
 __all__ = ["PROJECT_DIR", "kernel", "load_environment"]
@@ -18,12 +18,15 @@ PROJECT_DIR: Final = Path(__file__).resolve().parents[2]
 """The directory holding ``pyproject.toml`` and the ``.env`` files."""
 
 kernel: Final = Kernel(
-    "${app}",
+    __package__,
     # The bundles are read from ${app}.config.bundles.BUNDLES; the environment from APP_ENV.
+    # A folder under config/packages/ or config/routes/ named after one of these environments
+    # is imported in that environment only.
     allowed_envs=("dev", "test", "prod"),
     # ${app}.web.app builds the web application as it is imported, and that application is
     # served from this very kernel: scanning it would import it while the kernel builds.
-    exclude=(*DEFAULT_EXCLUDES, "${app}.web.app"),
+    # The pattern is relative to this package, and adds to the default excludes.
+    exclude=(".web.app",),
     # Concurrent requests each keep their own scoped services — the security token storage
     # among them.
     concurrent_scoped_access=True,

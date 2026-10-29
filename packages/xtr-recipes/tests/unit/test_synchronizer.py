@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, final
 import pytest
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 
-from tests.support import FakeRecipeSource, build_project, recipe_content
+from tests.support import FakeRecipeSource, build_project, recipe_content, write_package
 from xtr_recipes.bundle_entry import BundleEntry
 from xtr_recipes.bundle_requirements import BundleRequirements
 from xtr_recipes.bundles_file import BundlesFile
@@ -738,7 +738,7 @@ def test_it_syncs_an_application_laid_out_at_the_project_root(tmp_path: Path) ->
         f'[project]\nname = "app"\ndependencies = ["{_MESSENGER}"]\n',
         encoding="utf-8",
     )
-    (tmp_path / "app").mkdir()
+    _ = write_package(tmp_path, "app")
     project = Project.load(tmp_path)
     synchronizer = _synchronizer(project, {_MESSENGER: _MESSENGER_MANIFEST})
 
@@ -761,6 +761,19 @@ def test_a_bundle_of_the_applications_own_packages_is_imported_last(tmp_path: Pa
     synchronizer.apply(synchronizer.plan())
 
     assert _read(tmp_path, _BUNDLES) == _OWN_BUNDLES
+
+
+def test_a_nested_application_sorts_the_packages_beside_its_top_level_one_last(
+    tmp_path: Path,
+) -> None:
+    project = build_project(tmp_path, app="acme.shop", dependencies=["shared", _CLOCK])
+    _ = write_package(tmp_path / "src", "shared", kernel=False)
+    manifests = {"shared": _OWN_MANIFEST, _CLOCK: _CLOCK_MANIFEST}
+    synchronizer = _synchronizer(project, manifests)
+
+    synchronizer.apply(synchronizer.plan())
+
+    assert _read(tmp_path, "src/acme/shop/config/bundles.py") == _OWN_BUNDLES
 
 
 def test_a_configured_package_whose_bundle_stops_loading_is_left_alone(tmp_path: Path) -> None:

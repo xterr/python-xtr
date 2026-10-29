@@ -84,6 +84,11 @@ There are two templates:
 
 To make an application in the current directory, use `uvx xtr-cli init`.
 
+> [!NOTE]
+> The template writes the kernel as `Kernel(__package__, ...)` in
+> `src/shop/kernel.py`. The kernel gets the name of the application package from
+> Python. If you rename the package, the kernel uses the new name.
+
 ## Next step
 
 [Add a package](add-a-package.md), or read

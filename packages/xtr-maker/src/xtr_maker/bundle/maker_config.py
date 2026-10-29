@@ -15,9 +15,8 @@ class MakerConfig:
 
     Attributes:
         root_package: The dotted application package the makers write into.
-            ``None`` takes the kernel's name, which is its package's own name
-            unless the kernel was given another; set it when the two differ,
-            or the package is nested (``acme.shop``).
+            ``None`` takes the kernel's package, ``kernel.package``; set it
+            only to write into another one.
         final_classes: Whether generated classes are marked ``@final``.
 
     Raises:

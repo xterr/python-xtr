@@ -374,10 +374,11 @@ Next:
 - **Secrets are never generated.** A maker that needs one prints the `.env.local` step instead.
 - **Nothing is written outside the project.** A path that leaves the project directory, or is a
   symbolic link, is refused, so what is typed at a prompt cannot reach elsewhere on disk.
-- **Where the code goes** is `MakerConfig.root_package`, or, with none configured, the kernel's
-  own name. Classes are marked `@final` unless `MakerConfig.final_classes` is off.
-- **The application package is found when a maker first needs it** — `src/<package>/`, else
-  `<package>/` at the project root — never when the console starts.
+- **Where the code goes** is the kernel's own package, `kernel.package`, unless
+  `MakerConfig.root_package` names another. Classes are marked `@final` unless
+  `MakerConfig.final_classes` is off.
+- **The application package is found when a maker first needs it** — in the folder the import
+  system loads it from, whatever the project's layout — never when the console starts.
 
 ## Generated code and the linters
 
@@ -431,26 +432,28 @@ it undoes.
 - **Brings along** — the console bundle, which the makers are commands of. The messenger,
   scheduler, webhook, orm and event dispatcher bundles are not brought along: each is read, not
   required, and decides which makers are registered.
-- **Configure** — optional: with no configuration the code goes into the kernel's own package and
-  every class is `@final`.
+- **Configure** — nothing to configure: the code goes into the kernel's own package and every
+  class is `@final`. To change either, put the settings in the `dev` environment folder,
+  `<app>/config/packages/dev/`: production does not install this package, and only a `dev` build
+  imports that folder, so a production start never imports `xtr_maker`.
 
   ```python
-  # <app>/config/packages/maker.py
+  # <app>/config/packages/dev/maker.py (beside an empty __init__.py)
   from xtr_dependency_injection import configure
   from xtr_maker.bundle import MakerConfig
 
 
   @configure
   def maker() -> MakerConfig:
-      return MakerConfig(root_package="acme.shop", final_classes=True)
+      return MakerConfig(final_classes=False)
   ```
 
 - **Environment** — nothing. A maker that needs a secret prints the variable to set in
   `.env.local` rather than reading one itself.
 - **Ignore** — nothing: what the makers write is code to commit.
 - **Remove** — `uv run xtr-recipes recipes:remove xtr-maker`: it runs `uv remove --dev xtr-maker`,
-  and the sync after it drops the `BUNDLES` entry. Delete `<app>/config/packages/maker.py` if you
-  wrote one. The code the makers wrote stays yours.
+  and the sync after it drops the `BUNDLES` entry. Delete `<app>/config/packages/dev/maker.py` if
+  you wrote one. The code the makers wrote stays yours.
 - **Check** — `debug:bundles` lists `maker` as active in `dev`; `list make` shows one `make:*`
   command for each library whose bundle is active.
 
@@ -470,7 +473,7 @@ whose library's bundle is active:
 
 | Field | Default | Is |
 | --- | --- | --- |
-| `root_package` | `None` | The dotted application package the makers write into; `None` takes the kernel's name. A value that is not a dotted Python identifier raises `InvalidArgumentError` |
+| `root_package` | `None` | The dotted application package the makers write into; `None` takes `kernel.package`. A value that is not a dotted Python identifier raises `InvalidArgumentError` |
 | `final_classes` | `True` | Whether generated classes are marked `@final` |
 
 ## Errors
@@ -479,7 +482,7 @@ All of them derive from `MakerError`, so one `except` catches anything that can 
 
 | Error | Raised when |
 | --- | --- |
-| `AppPackageNotFoundError` | The application package is neither under `src/` nor at the project root |
+| `AppPackageNotFoundError` | The import system finds no package of that name; the message names `MakerConfig.root_package` |
 | `GeneratedSourceError` | A template rendered Python that does not parse; it names the template |
 | `InvalidArgumentError` | An argument, option or answer cannot be used — also a `ValueError` |
 | `InvalidClassNameError` | What was typed cannot name a class: a keyword, no identifier, or shadowing a builtin |
