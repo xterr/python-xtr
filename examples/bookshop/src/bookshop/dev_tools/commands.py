@@ -72,7 +72,7 @@ from xtr_messenger import (
 from xtr_messenger.bundle import MessengerBundle
 
 from bookshop.kernel import EXCLUDE, PROJECT_DIR, kernel
-from bookshop.messaging.messages import AuditEvent
+from bookshop.message.audit_event import AuditEvent
 from fulltext import SearchEngineInterface
 from fulltext.bundle import FulltextBundle, FulltextConfig
 

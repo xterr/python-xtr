@@ -2,7 +2,7 @@
 
 The ``app`` pool is provided without a qualifier; every other pool under its name. The
 scheduler bundle adds a ``scheduler`` pool here too, on the app pool's adapter — see
-``bookshop.scheduling.shop_schedule`` for what uses it. ``bookshop cache:pool:list`` names
+``bookshop.scheduler.shop_schedule`` for what uses it. ``bookshop cache:pool:list`` names
 them all.
 """
 

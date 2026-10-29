@@ -13,8 +13,9 @@ from dataclasses import replace
 from xtr_dependency_injection import configure, env, when
 from xtr_messenger.bundle import MessageBusConfig, TransportConfig
 
-from bookshop.messaging.messages import PlaceOrder, SendReceipt
-from bookshop.messaging.middleware import MaintenanceGuard
+from bookshop.message.place_order import PlaceOrder
+from bookshop.message.send_receipt import SendReceipt
+from bookshop.middleware.maintenance_guard_middleware import MaintenanceGuard
 
 __all__ = ["messenger", "messenger_prod", "messenger_timing"]
 

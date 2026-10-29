@@ -19,8 +19,8 @@ def fulltext() -> FulltextConfig:
     value; the resolved copy the engine receives is validated again.
     """
     return FulltextConfig(
-        # "isbn" is the application's own analyzer (bookshop.search), declared with the
-        # library's @as_analyzer and picked up by the library's bundle.
+        # "isbn" is the application's own analyzer (bookshop.service.isbn_analyzer), declared
+        # with the library's @as_analyzer and picked up by the library's bundle.
         pipeline=("lowercase", "words", "stop_words", "isbn"),
         stop_words=("the", "and", "of", "a"),
         max_results=env("SEARCH_MAX_RESULTS", int, default=10),
