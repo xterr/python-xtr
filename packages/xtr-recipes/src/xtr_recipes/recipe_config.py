@@ -15,17 +15,21 @@ from .secret_config import SecretConfig
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-__all__ = ["COMPOSE_FILES", "RecipeConfig"]
+__all__ = ["BUNDLE_TARGET", "COMPOSE_FILES", "RecipeConfig"]
 
 COMPOSE_FILES = ("compose.yaml", "compose.override.yaml")
 """The Compose files a recipe may write into: the services, and their local-only overrides."""
+
+BUNDLE_TARGET = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*")
+"""A bundle target, ``"<dotted module>:<ClassName>"``, exactly as it reads in ``BUNDLES``.
+
+The manifest names a bundle this way, and so does a ``BUNDLES`` key listing one by name.
+"""
 
 _TABLES = frozenset({"bundles", "files", "env", "keys", "gitignore", "compose", "notes"})
 _NOTES_KEYS = ("steps", "check", "run")
 _GITIGNORE_KEYS = frozenset({"lines"})
 _KEY_PAIR_KEYS = frozenset({"algorithm", "passphrase", "path_env"})
-# A bundle target is "<dotted module>:<ClassName>", exactly as it reads in BUNDLES.
-_BUNDLE_TARGET = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*")
 # A Compose top-level key: services, volumes, networks, configs, secrets.
 _COMPOSE_KEY = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -120,7 +124,7 @@ def _read_bundles(package: str, value: object) -> dict[str, dict[str, bool]]:
     """Parse the ``[bundles]`` table: each target mapped to its flags."""
     result: dict[str, dict[str, bool]] = {}
     for target, flags in _as_table(package, "bundles", value).items():
-        if _BUNDLE_TARGET.fullmatch(target) is None:
+        if BUNDLE_TARGET.fullmatch(target) is None:
             raise InvalidManifestError(package, target, "expected '<module>:<Class>'")
         result[target] = _read_flags(package, target, flags)
     return result

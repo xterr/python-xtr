@@ -108,6 +108,21 @@ def test_an_annotated_assignment_is_read_like_a_plain_one(tmp_path: Path) -> Non
     assert BundlesFile.read(path).entries == (BundleEntry("a.b:C", {}),)
 
 
+def test_a_key_written_as_a_name_is_read_as_listed_by_name(tmp_path: Path) -> None:
+    path = _write(tmp_path, 'BUNDLES = {"a.b:C": {"dev": True}}\n')
+
+    assert BundlesFile.read(path).entries == (BundleEntry("a.b:C", {"dev": True}, by_name=True),)
+
+
+def test_a_string_key_that_names_no_bundle_target_is_refused(tmp_path: Path) -> None:
+    path = _write(tmp_path, 'BUNDLES = {"a.b": {"dev": True}}\n')
+
+    with pytest.raises(BundlesNotEditableError) as refusal:
+        _ = BundlesFile.read(path)
+
+    assert "'a.b'" in refusal.value.reason
+
+
 def test_an_absent_file_reads_as_an_empty_list(tmp_path: Path) -> None:
     bundles = BundlesFile.read(tmp_path / "bundles.py")
 
@@ -215,6 +230,17 @@ def test_removing_drops_only_the_targets_named() -> None:
     assert bundles.removing(["a.b:First"]).entries == (BundleEntry("c.d:Second", {}),)
 
 
+def test_listing_by_name_changes_the_form_of_the_targets_named_and_keeps_their_flags() -> None:
+    bundles = BundlesFile(
+        entries=(BundleEntry("a.b:First", {"all": True}), BundleEntry("c.d:Second", {})),
+    )
+
+    assert bundles.listing_by_name({"a.b:First"}).entries == (
+        BundleEntry("a.b:First", {"all": True}, by_name=True),
+        BundleEntry("c.d:Second", {}),
+    )
+
+
 def test_render_imports_the_applications_own_modules_in_the_second_block() -> None:
     bundles = BundlesFile(
         entries=(
@@ -251,6 +277,46 @@ def test_render_writes_an_empty_mapping_for_an_empty_list() -> None:
         "\n"
         "BUNDLES = {}\n"
     )
+
+
+def test_render_names_an_entry_listed_by_name_and_imports_nothing_for_it() -> None:
+    bundles = BundlesFile(
+        entries=(
+            BundleEntry("xtr_logging.bundle:LoggingBundle", {"all": True}),
+            BundleEntry("xtr_maker.bundle:MakerBundle", {"dev": True}, by_name=True),
+        ),
+    )
+
+    assert bundles.render(first_party=()) == (
+        '"""The root bundles, each mapped to the environments it is active in."""\n'
+        "\n"
+        "from __future__ import annotations\n"
+        "\n"
+        "from xtr_logging.bundle import LoggingBundle\n"
+        "\n"
+        '__all__ = ["BUNDLES"]\n'
+        "\n"
+        "BUNDLES = {\n"
+        '    LoggingBundle: {"all": True},\n'
+        '    "xtr_maker.bundle:MakerBundle": {"dev": True},\n'
+        "}\n"
+    )
+
+
+def test_render_round_trips_an_entry_listed_by_name(tmp_path: Path) -> None:
+    bundles = BundlesFile(entries=(BundleEntry("a.b:C", {"dev": True}, by_name=True),))
+
+    path = _write(tmp_path, bundles.render(first_party=()))
+
+    assert BundlesFile.read(path).entries == bundles.entries
+
+
+def test_a_class_name_both_imported_and_listed_by_name_does_not_clash() -> None:
+    bundles = BundlesFile(
+        entries=(BundleEntry("a.b:Bundle", {}), BundleEntry("c.d:Bundle", {}, by_name=True)),
+    )
+
+    assert '"c.d:Bundle": {}' in bundles.render(first_party=())
 
 
 def test_render_round_trips_through_read(tmp_path: Path) -> None:
@@ -292,6 +358,22 @@ def test_what_it_renders_is_already_formatted_the_applications_way(tmp_path: Pat
     rendered = BundlesFile.read(_ITS_BUNDLES).render(_ITS_PACKAGES)
 
     formatted = _lint(tmp_path, rendered, "format", "--check")
+
+    assert formatted.returncode == 0, formatted.stdout + formatted.stderr
+
+
+def test_an_entry_listed_by_name_passes_the_applications_own_check(tmp_path: Path) -> None:
+    named = BundlesFile.read(_ITS_BUNDLES).listing_by_name({"xtr_maker.bundle:MakerBundle"})
+
+    checked = _lint(tmp_path, named.render(_ITS_PACKAGES), "check")
+
+    assert checked.returncode == 0, checked.stdout + checked.stderr
+
+
+def test_an_entry_listed_by_name_is_already_formatted_the_applications_way(tmp_path: Path) -> None:
+    named = BundlesFile.read(_ITS_BUNDLES).listing_by_name({"xtr_maker.bundle:MakerBundle"})
+
+    formatted = _lint(tmp_path, named.render(_ITS_PACKAGES), "format", "--check")
 
     assert formatted.returncode == 0, formatted.stdout + formatted.stderr
 
