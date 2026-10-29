@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, final
 from tests.support.in_memory_encoder import MEMORY, InMemoryEncoder
 from tests.support.point_normalizer import PointNormalizer
 from tests.support.shapes import Point
-from xtr_serializer import DenormalizerInterface
+from xtr_serializer import COLLECT_DENORMALIZATION_ERRORS, DenormalizerInterface
 
 if TYPE_CHECKING:
     from xtr_serializer import Context
@@ -65,3 +65,7 @@ def test_a_type_held_only_as_an_object_can_be_built() -> None:
 def _build(type_: object, denormalizer: DenormalizerInterface) -> object:
     """Build a type known only when the program runs, as one named in a header."""
     return denormalizer.denormalize({"x": 1, "y": 2}, type_)
+
+
+def test_its_key_is_spelled_as_an_application_writes_it_in_a_context() -> None:
+    assert COLLECT_DENORMALIZATION_ERRORS == "collect_denormalization_errors"
