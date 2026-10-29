@@ -635,7 +635,9 @@ removing it undoes.
   from `xtr_<name>.bundle` — or "nothing to do" when another bundle requires it.
 - **Brings along** — the bundles its `@required_bundle` pulls in, and when.
 - **Configure** — what the zero-config path gives; then the `<app>/config/packages/<name>.py`
-  `@configure` function that changes it, linking to *Kernel / bundle*.
+  `@configure` function that changes it, linking to *Kernel / bundle*. A bundle listed for `dev`
+  only shows it in `<app>/config/packages/dev/<name>.py` instead: only a `dev` build imports that
+  folder, and production does not install the package.
 - **Environment** — variables the application must set, or "nothing".
 - **Ignore** — `.gitignore` lines for files it writes into the project, or "nothing".
 - **Remove** — every step above, undone, ending with `uv remove xtr-<name>`.

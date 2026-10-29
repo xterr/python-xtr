@@ -54,7 +54,7 @@ only. Each later call does the work again, from the start.
 
 | Call | What it does |
 |---|---|
-| `Kernel("shop", ...)` | Stores the settings of the kernel. It does no work. |
+| `Kernel(__package__, ...)` | Stores the settings of the kernel. It does no work. |
 | `kernel.build()` | Reads the bundles, scans the application and compiles the container. |
 | `kernel.boot()` | Builds the container, then runs the `boot()` hook of each bundle and each `@on_boot` function. |
 | `kernel.run(main)` | Boots the kernel, calls `main`, shuts down the kernel and returns the exit code of `main`. |
@@ -73,6 +73,9 @@ The environment selects these items:
 - The bundles that are active. `config/bundles.py` maps each bundle to its
   environments.
 - The configuration functions and the services that have the `@when` decorator.
+- The environment directories of the configuration. The kernel imports
+  `config/packages/dev/` and `config/routes/dev/` only in the `dev`
+  environment, after the other configuration files.
 
 ## More information
 

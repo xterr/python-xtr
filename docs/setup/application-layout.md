@@ -17,6 +17,7 @@ shop/
 │   ├── config/
 │   │   ├── bundles.py        # the bundles and their environments
 │   │   └── packages/         # one configuration file for each bundle
+│   │       └── dev/          # configuration for the dev environment only
 │   └── web/
 │       ├── __main__.py       # the web entry point: uv run shop-web
 │       ├── app.py            # the FastAPI application
@@ -35,16 +36,22 @@ a command. The web entry point serves the FastAPI application.
 
 ```python
 kernel: Final = Kernel(
-    "shop",
+    __package__,
     allowed_envs=("dev", "test", "prod"),
-    exclude=(*DEFAULT_EXCLUDES, "shop.web.app"),
+    exclude=(".web.app",),
     concurrent_scoped_access=True,
 )
 ```
 
-The kernel scans the `shop` package for services. The `exclude` argument keeps
-`shop.web.app` out of the scan, because that module builds the web application
-when Python imports it.
+The kernel scans the `shop` package for services. `__package__` is the name of
+the package that contains `kernel.py`, so the name of the package is in one
+location only. The kernel shows this name as `kernel.package`.
+
+The `exclude` argument keeps `shop.web.app` out of the scan, because that module
+builds the web application when Python imports it. A pattern that starts with a
+dot is relative to the application package. The kernel adds these patterns to
+`DEFAULT_EXCLUDES`, which keeps the tests and the `__main__` modules out of the
+scan.
 
 ## The bundles
 
@@ -79,6 +86,23 @@ def logging() -> LoggingConfig:
 A bundle works with no configuration file. A configuration file is necessary
 only to change the default values. The
 [configuration guide](../guides/configuration.md) shows how to change a value.
+
+A directory in `src/shop/config/packages/` is an environment directory. The name
+of the directory is the name of an environment. The kernel imports its files
+only for that environment, after the other configuration files. Thus, its
+values replace the values of the other files. The kernel does not import the
+directory of a different environment. The same rule applies to the directories
+in `src/shop/config/routes/`.
+
+Each environment directory must have the name of an environment in
+`allowed_envs`. The kernel refuses a different name with
+`UnknownEnvironmentFolderError`.
+
+Put the configuration of a bundle for development in
+`src/shop/config/packages/dev/`, for example the configuration of
+`MakerBundle`. A production installation does not have the package of that
+bundle. The kernel does not import the `dev` directory in production, so the
+application starts.
 
 ## The environment files
 
