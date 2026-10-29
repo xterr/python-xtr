@@ -14,8 +14,9 @@ if TYPE_CHECKING:
 
 __all__ = ["AbstractHeader"]
 
-# RFC 5322, 2.2: printable ASCII but the colon, which ends the name.
-_NAME: Final = re.compile(r"[!-9;-~]+")
+# RFC 5322, 2.2: printable ASCII. A colon is kept: an API reading prefixed names
+# (``h:Sender``, ``o:tag``) gets them as given, and a reader ends the name at the first one.
+_NAME: Final = re.compile(r"[!-~]+")
 
 
 class AbstractHeader(metaclass=ABCMeta):
@@ -36,7 +37,7 @@ class AbstractHeader(metaclass=ABCMeta):
         its name would start a header of its own.
 
         Raises:
-            RfcComplianceError: ``name`` is not printable ASCII without a colon.
+            RfcComplianceError: ``name`` is not printable ASCII, or holds a space.
         """
         if not _NAME.fullmatch(name):
             raise RfcComplianceError(

@@ -9,8 +9,9 @@ from tests.support.wire import assert_folded, decode, encoded_words
 from xtr_mime.exception import InvalidArgumentError, RfcComplianceError
 from xtr_mime.header import UnstructuredHeader
 
-# The byte 0x8F upstream writes in iso-8859-1 is the character U+008F here: values are text.
-NON_ASCII = "\x8f"
+# Upstream writes the byte 0x8F in iso-8859-1. Values are text here, where U+008F is a C1
+# control the engine refuses, so a letter outside ASCII stands in for it.
+NON_ASCII = "\xf8"
 
 LONG_SUBJECT = "Žluťoučký kůň úpěl ďábelské ódy, " * 4
 
@@ -76,7 +77,8 @@ def test_a_non_printable_ascii_character_is_refused(byte: int) -> None:
         _ = header.to_string()
 
 
-@pytest.mark.parametrize("byte", range(0x80, 0x100))
+# Adapted: 0x80-0x9F are C1 controls as characters, refused below; the rest are encoded.
+@pytest.mark.parametrize("byte", range(0xA0, 0x100))
 def test_eight_bit_characters_are_encoded(byte: int) -> None:
     header = UnstructuredHeader("X-A", chr(byte))
     header.set_charset("iso-8859-1")
@@ -87,6 +89,15 @@ def test_eight_bit_characters_are_encoded(byte: int) -> None:
     assert rendered.isascii()
     assert encoded_words(rendered)
     assert decode(rendered) == chr(byte)
+
+
+@pytest.mark.parametrize("byte", range(0x80, 0xA0))
+def test_a_c1_control_character_is_refused(byte: int) -> None:
+    header = UnstructuredHeader("X-A", chr(byte))
+
+    # Adapted: NEL (0x85) ends a line for some readers; the engine refuses every C1 control.
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = header.to_string()
 
 
 def test_encoded_words_are_no_more_than_75_characters_per_line() -> None:

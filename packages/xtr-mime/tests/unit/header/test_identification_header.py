@@ -40,7 +40,10 @@ def test_the_id_left_can_be_quoted() -> None:
 @pytest.mark.xfail(
     strict=True,
     raises=RfcComplianceError,
-    reason="the engine writes no angle bracket inside an id, quoted or not",
+    reason=(
+        "a quoted pair in an id reads back without its backslash — another id — and a reader "
+        "taking '>' for the end of an id cuts it short: neither is written"
+    ),
 )
 def test_the_id_left_can_contain_angles_as_quoted_pairs() -> None:
     header = IdentificationHeader("References", '"a\\<\\>b"@c')
@@ -57,18 +60,15 @@ def test_the_id_left_can_be_a_dot_atom() -> None:
 
 
 @pytest.mark.parametrize("ids", ["a b c@d", "a@b c d", "abc"])
-def test_an_id_that_is_no_address_is_refused(ids: str) -> None:
+def test_an_id_outside_the_msg_id_grammar_is_refused(ids: str) -> None:
     with pytest.raises(RfcComplianceError) as caught:
         _ = IdentificationHeader("References", ids)
 
-    assert str(caught.value) == f'Email "{ids}" does not comply with addr-spec of RFC 5322.'
+    assert str(caught.value) == (
+        f'"{ids}" is not a message identifier: id-left@id-right (RFC 5322, 3.6.4).'
+    )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=RfcComplianceError,
-    reason="xtr_mime.Address refuses a domain of atoms holding +&%$ (IDNA, STD3 rules)",
-)
 def test_the_id_right_can_be_a_dot_atom() -> None:
     header = IdentificationHeader("References", "a@b.c+&%$.d")
 
@@ -88,6 +88,11 @@ def test_the_id_right_is_idn_encoded() -> None:
 
     assert header.get_id() == "a@ä"
     assert header.get_body_as_string() == "<a@xn--4ca>"
+
+
+def test_an_id_right_idna_refuses_is_refused() -> None:
+    with pytest.raises(RfcComplianceError, match="message identifier"):
+        _ = IdentificationHeader("References", "a@-ä")
 
 
 def test_set_body() -> None:

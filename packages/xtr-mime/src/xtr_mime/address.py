@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from ipaddress import AddressValueError, IPv4Address, IPv6Address
 from typing import TYPE_CHECKING, Final, final
 
 import idna
@@ -43,10 +44,17 @@ _SIMPLE_ADDRESS: Final = re.compile(
 _QUOTED_LOCAL_PART: Final = re.compile(r'(?P<local>"(?:[^"\\]|\\.)*")@(?P<domain>.*)', re.DOTALL)
 _LOCAL_PART: Final = re.compile(r"(?P<local>[^@]*)@(?P<domain>.*)", re.DOTALL)
 
-# Printable ASCII but "[", "]" and "\" between brackets, optionally followed by a comment of
-# printable ASCII but "(", ")" and "\": a domain is written in ASCII, and a literal has no
-# IDNA form to take.
-_DOMAIN_LITERAL: Final = re.compile(r"\[[!-Z^-~]+\](?: *\([ -'*-\[\]-~]*\))?")
+# A domain literal, optionally followed by a comment of printable ASCII but "(", ")" and "\".
+# Only an RFC 5321 address literal is taken between the brackets (see _is_address_literal):
+# the address goes into an SMTP envelope, which carries nothing else.
+_DOMAIN_LITERAL: Final = re.compile(r"\[(?P<literal>[!-Z^-~]*)\](?P<comment> *\([ -'*-\[\]-~]*\))?")
+# RFC 5321, 4.1.3: a general address literal is "tag:content", the tag a letter-digit-hyphen
+# string. Its content is printable ASCII but "[", "]" and "\" there; the characters an address
+# list gives a meaning to — '"', "(", ")", ",", ";", "<", ">" — are refused too, so a literal
+# cannot read as the end of the address and the start of another.
+_GENERAL_LITERAL: Final = re.compile(
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?:[!#-'*+\--:=?-Z^-~]+"
+)
 
 # The validator judges the local part against a neutral domain: it refuses names reserved for
 # special use (localhost, .local, .invalid, ...), which are valid in an address and do receive
@@ -138,9 +146,10 @@ class Address:
 
         The local part is left as it is: a non-ASCII one cannot be encoded, it needs an SMTPUTF8
         session (see :meth:`has_unicode_localpart`). The domain was checked when the address
-        was built, so it always encodes; there is no silently emptied domain.
+        was built, so it always encodes; there is no silently emptied domain. A comment after a
+        domain literal is left out: this is the address an SMTP envelope carries.
         """
-        return encode_idn_address(self._address)
+        return encode_idn_address(_without_comment(self._address))
 
     def get_encoded_name(self) -> str:
         """Return the display name as it is written in a header, empty when there is none.
@@ -168,7 +177,7 @@ class Address:
             RfcComplianceError: The name holds an encoded word, which a reader would show
                 decoded rather than as the text it is.
         """
-        return _unfold(header_body("To", [Mailbox(self._name, self._address)]))
+        return _unfold(header_body("To", [Mailbox(self._name, _without_comment(self._address))]))
 
     def has_unicode_localpart(self) -> bool:
         """Tell whether the local part holds a non-ASCII character.
@@ -227,7 +236,8 @@ def _is_valid_local_part(local: str) -> bool:
 
 def _is_valid_domain(domain: str) -> bool:
     if domain.startswith("["):
-        return _DOMAIN_LITERAL.fullmatch(domain) is not None
+        literal = _DOMAIN_LITERAL.fullmatch(domain)
+        return literal is not None and _is_address_literal(literal["literal"])
     try:
         encoded = idna.encode(domain, uts46=True, std3_rules=True)
     except idna.IDNAError:
@@ -235,6 +245,30 @@ def _is_valid_domain(domain: str) -> bool:
     # The IDNA codec takes a final full stop, in any of its four forms, for the DNS root and
     # writes it as "."; an address has no such dot.
     return not encoded.endswith(b".")
+
+
+def _is_address_literal(literal: str) -> bool:
+    """Tell whether ``literal`` is an RFC 5321 address literal: IPv4, IPv6 or tag:content."""
+    tag, colon, content = literal.partition(":")
+    if colon and tag.lower() != "ipv6":
+        return _GENERAL_LITERAL.fullmatch(literal) is not None
+    try:
+        _ = IPv6Address(content) if colon else IPv4Address(literal)
+    except AddressValueError:
+        return False
+    # The module takes an IPv6 "%zone" suffix, which RFC 5321 does not.
+    return "%" not in content
+
+
+def _without_comment(address: str) -> str:
+    """Drop the comment a domain literal may be followed by; it is no part of the address."""
+    parts = _QUOTED_LOCAL_PART.fullmatch(address) or _LOCAL_PART.fullmatch(address)
+    if parts is None:
+        return address
+    literal = _DOMAIN_LITERAL.fullmatch(parts["domain"])
+    if literal is None or literal["comment"] is None:
+        return address
+    return f"{parts['local']}@[{literal['literal']}]"
 
 
 def _unfold(rendered: str) -> str:

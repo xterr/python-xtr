@@ -6,7 +6,7 @@ from typing import ClassVar, final
 
 from typing_extensions import override
 
-from xtr_mime._engine import MessageIds
+from xtr_mime._engine import Path
 from xtr_mime.address import Address
 
 from .abstract_header import AbstractHeader
@@ -18,7 +18,9 @@ __all__ = ["PathHeader"]
 class PathHeader(AbstractHeader):
     """A header whose body is an address written ``<address>`` (RFC 5322, 3.6.7).
 
-    A path has no display name: the address's name, if it has one, is not written.
+    A path has no display name: the address's name, if it has one, is not written. The domain
+    is written in punycode; a non-ASCII local part is written as raw UTF-8, the form an
+    SMTPUTF8 session carries, as in an address header.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = ("_address",)
@@ -57,7 +59,5 @@ class PathHeader(AbstractHeader):
         return self._address
 
     @override
-    def _engine_value(self) -> MessageIds:
-        # An angle-bracketed token is what the engine writes for an identifier, and a path is
-        # written the same way; the domain goes in punycode, like any address.
-        return MessageIds((self._address.get_encoded_address(),))
+    def _engine_value(self) -> Path:
+        return Path(self._address.get_encoded_address())

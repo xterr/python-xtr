@@ -7,6 +7,7 @@ encoded-word form the engine picks is its business, not this class's.
 from __future__ import annotations
 
 from email import policy as stdlib_policy
+from email.header import decode_header
 from email.headerregistry import AddressHeader, BaseHeader
 from typing import cast
 
@@ -37,6 +38,8 @@ _VALID_ADDRESSES = (
     "o'brien@example.com",
     "user@localhost",
     "user@[127.0.0.1]",
+    "user@[IPv6:2001:db8::1]",
+    "user@[x-tag:em@il]",
 )
 
 # Every address the tests here build: an address that builds must render too.
@@ -52,9 +55,8 @@ _ACCEPTED_ADDRESSES = (
     "b@example.com",
     "Fabien@Example.COM",
     '"em@il"@example.test',
-    "user@[em@il]",
-    '"em@il"@[em@il]',
-    "user@[em@il] (comment)",
+    '"em@il"@[x-tag:em@il]',
+    "user@[192.0.2.1] (comment)",
     '"ex<ample"@example.com',
     '"ex<amp>le"@example.com',
     '"ex<am  p>le"@example.com',
@@ -156,21 +158,73 @@ def test_a_quoted_at_sign_in_the_local_part_is_accepted() -> None:
     assert Address('"em@il"@example.test').get_address() == '"em@il"@example.test'
 
 
-def test_an_at_sign_in_a_domain_literal_is_accepted() -> None:
-    assert Address("user@[em@il]").get_address() == "user@[em@il]"
+def test_an_at_sign_in_a_general_address_literal_is_accepted() -> None:
+    assert Address("user@[x-tag:em@il]").get_address() == "user@[x-tag:em@il]"
 
 
 def test_an_unquoted_at_sign_in_the_local_part_before_a_domain_literal_is_refused() -> None:
     with pytest.raises(RfcComplianceError):
-        _ = Address("em@il@[example]")
+        _ = Address("em@il@[x-tag:example]")
 
 
 def test_quoted_at_signs_in_both_the_local_part_and_a_domain_literal_are_accepted() -> None:
-    assert Address('"em@il"@[em@il]').get_address() == '"em@il"@[em@il]'
+    assert Address('"em@il"@[x-tag:em@il]').get_address() == '"em@il"@[x-tag:em@il]'
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "[em@il]",
+        "[example]",
+        "[x>,evil@attacker.com,<y]",
+        "[x:a,b]",
+        "[x:a<b]",
+        "[x:a;b]",
+        '[x:a"b]',
+        "[x:a(b)]",
+        "[x:]",
+        "[-x:a]",
+        "[x-:a]",
+        "[256.1.1.1]",
+        "[1.2.3]",
+        "[01.2.3.4]",
+        "[IPv6:zz::1]",
+        "[IPv6:fe80::1%eth0]",
+        "[IPv6:1.2.3.4]",
+        "[]",
+    ],
+)
+def test_a_domain_literal_that_is_not_an_rfc_5321_address_literal_is_refused(literal: str) -> None:
+    with pytest.raises(RfcComplianceError):
+        _ = Address(f"user@{literal}")
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "[192.0.2.1]",
+        "[0.0.0.0]",
+        "[IPv6:2001:db8::1]",
+        "[ipv6:::1]",
+        "[IPv6:::ffff:192.0.2.1]",
+        "[x-tag:a.b-c_d=e?f@g]",
+    ],
+)
+def test_an_rfc_5321_address_literal_is_accepted(literal: str) -> None:
+    assert Address(f"user@{literal}").get_address() == f"user@{literal}"
 
 
 def test_a_comment_after_a_domain_literal_is_accepted_and_kept() -> None:
-    assert Address("user@[em@il] (comment)").get_address() == "user@[em@il] (comment)"
+    assert Address("user@[192.0.2.1] (comment)").get_address() == "user@[192.0.2.1] (comment)"
+
+
+def test_a_comment_after_a_domain_literal_stays_out_of_the_encoded_address() -> None:
+    """The encoded address is what an SMTP envelope carries, where a comment has no place."""
+    address = Address("user@[192.0.2.1] (comment)", "Jane")
+
+    assert address.get_encoded_address() == "user@[192.0.2.1]"
+    assert "comment" not in address.to_string()
+    assert _read(address.to_string()) == ("Jane", "user@[192.0.2.1]")
 
 
 def test_a_comment_after_a_domain_literal_outside_printable_ascii_is_refused() -> None:
@@ -384,13 +438,22 @@ def test_a_long_name_renders_on_one_line() -> None:
 
     assert "\r" not in rendered
     assert "\n" not in rendered
-    # Compared word by word. Python 3.11 and early 3.12 releases write the space between two
-    # words between two encoded words, where an RFC 2047 reader drops it; later ones write it
-    # inside an encoded word. The header parser keeps a space between encoded words, so the
-    # words read back on every version, one or two spaces apart.
-    read_name, read_address = _read(rendered)
-    assert read_name.split() == name.split()
-    assert read_address == "fabien@example.com"
+    # Read as RFC 2047 says: whitespace between two encoded words is dropped, so a space
+    # between two words of the name must be written inside an encoded word.
+    parts: list[tuple[bytes | str, str | None]] = decode_header(rendered)
+    decoded = "".join(
+        part.decode(charset or "ascii") if isinstance(part, bytes) else part
+        for part, charset in parts
+    )
+    assert decoded == f"{name} <fabien@example.com>"
+
+
+@pytest.mark.parametrize("separator", ["\u2028", "\u2029", "\x85"])
+def test_a_name_holding_a_line_separator_cannot_be_rendered(separator: str) -> None:
+    address = Address("dømi@dømi.fo", f"Dømi{separator}Bcc: evil@attacker.com")
+
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = address.to_string()
 
 
 def test_to_string_is_what_the_engine_writes_for_an_ascii_local_part() -> None:

@@ -30,15 +30,22 @@ def test_the_address_is_idn_encoded() -> None:
     assert header.get_body_as_string() == "<chris@xn--swftmailer-78a.org>"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=RfcComplianceError,
-    reason="the engine has no raw UTF-8 form for an angle-bracketed path",
-)
 def test_the_address_must_be_encodable_with_utf8_characters_in_the_local_part() -> None:
     header = PathHeader("Return-Path", Address("chrïs@swiftmailer.org"))
 
     assert header.get_body_as_string() == "<chrïs@swiftmailer.org>"
+
+
+def test_a_utf8_local_part_keeps_the_domain_in_punycode() -> None:
+    header = PathHeader("Return-Path", Address("chrïs@swïftmailer.org"))
+
+    assert header.to_string() == "Return-Path: <chrïs@xn--swftmailer-78a.org>"
+
+
+def test_a_comment_after_a_domain_literal_is_not_written() -> None:
+    header = PathHeader("Return-Path", Address("chris@[192.0.2.1] (comment)"))
+
+    assert header.get_body_as_string() == "<chris@[192.0.2.1]>"
 
 
 def test_set_body() -> None:

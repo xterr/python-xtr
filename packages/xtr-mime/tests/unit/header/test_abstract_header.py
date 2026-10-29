@@ -43,9 +43,6 @@ INVALID_NAMES = [
     "X-\x00A",
     "X-\x7fA",
     "X-é",
-    # Adapted: the colon ends a header name on the wire, so it is refused here too.
-    "h:X-Mailgun-Tag",
-    "o:tag",
 ]
 
 
@@ -61,10 +58,28 @@ def test_an_invalid_name_is_rejected(name: str) -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["Subject", "X-Custom-Header", "x-lower", "!#$%&'*+-.^_`|~", "Header-With-Digits-123"],
+    [
+        "Subject",
+        "X-Custom-Header",
+        "x-lower",
+        "!#$%&'*+-.^_`|~",
+        "Header-With-Digits-123",
+        # Mailgun's API reads these prefixed names: a colon is printable ASCII too.
+        "h:X-Mailgun-Tag",
+        "o:tag",
+        "h:Sender",
+        "v:version",
+        "t:text",
+    ],
 )
 def test_valid_names_are_accepted(name: str) -> None:
     assert _TextHeader(name, "value").get_name() == name
+
+
+def test_a_name_holding_a_colon_is_rendered_as_given() -> None:
+    assert _TextHeader("h:X-Mailgun-Variables", '{"a":1}').to_string() == (
+        'h:X-Mailgun-Variables: {"a":1}'
+    )
 
 
 def test_the_charset_defaults_to_utf_8_and_can_be_set() -> None:

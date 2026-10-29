@@ -316,7 +316,8 @@ def test_headers_without_bodies_are_not_displayed() -> None:
 
 
 def test_to_array() -> None:
-    value = "a" * 60 + "\x8f"
+    # Adapted: upstream's iso-8859-1 byte 0x8F is a C1 control as a character, refused here.
+    value = "a" * 60 + "\xf8"
     headers = Headers().add_id_header("Message-ID", "some@id").add_text_header("Foo", value)
 
     message_id, foo = headers.to_array()

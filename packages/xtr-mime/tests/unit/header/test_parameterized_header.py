@@ -7,7 +7,8 @@ from xtr_mime.exception import InvalidArgumentError, RfcComplianceError
 from xtr_mime.header import ParameterizedHeader
 
 LANGUAGE = "en-us"
-NON_ASCII = "\x8f"
+# Upstream's iso-8859-1 byte 0x8F; as a character it is a C1 control the engine refuses.
+NON_ASCII = "\xf8"
 
 
 def test_the_value_is_returned_verbatim() -> None:

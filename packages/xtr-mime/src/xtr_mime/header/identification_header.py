@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, ClassVar, final
 
 from typing_extensions import override
 
-from xtr_mime._engine import MessageIds
-from xtr_mime.address import Address
+from xtr_mime._engine import MessageIds, check_message_id, encode_idn_address
+from xtr_mime.exception import RfcComplianceError
 
 from .abstract_header import AbstractHeader
 
@@ -22,22 +22,22 @@ __all__ = ["IdentificationHeader"]
 class IdentificationHeader(AbstractHeader):
     """A header whose body is one or more identifiers, each written ``<id>``.
 
-    An identifier has the shape of an address (RFC 5322, 3.6.4: ``id-left@id-right``) and is
-    checked as one, so an international right-hand side is written in punycode, as a domain.
+    An identifier is an RFC 5322 msg-id, ``id-left@id-right``, not a mail address: its right
+    side may hold atoms no domain does. A right side outside ASCII is written in punycode.
     """
 
-    __slots__: ClassVar[tuple[str, ...]] = ("_addresses", "_ids")
+    __slots__: ClassVar[tuple[str, ...]] = ("_encoded_ids", "_ids")
 
     def __init__(self, name: str, ids: str | Iterable[str]) -> None:
         """Keep ``name`` and the identifiers, without their angle brackets.
 
         Raises:
-            RfcComplianceError: ``name`` is not a header name, or an identifier does not have
-                the shape of an address.
+            RfcComplianceError: ``name`` is not a header name, or an identifier is not a
+                msg-id.
         """
         super().__init__(name)
         self._ids: list[str] = []
-        self._addresses: list[Address] = []
+        self._encoded_ids: list[str] = []
         self.set_id(ids)
 
     @override
@@ -46,7 +46,7 @@ class IdentificationHeader(AbstractHeader):
 
         Raises:
             InvalidArgumentError: ``body`` is neither a string nor a sequence of strings.
-            RfcComplianceError: An identifier does not have the shape of an address.
+            RfcComplianceError: An identifier is not a msg-id.
         """
         if isinstance(body, str):
             self.set_id(body)
@@ -67,7 +67,7 @@ class IdentificationHeader(AbstractHeader):
         """Replace the identifiers with one, or with several.
 
         Raises:
-            RfcComplianceError: An identifier does not have the shape of an address.
+            RfcComplianceError: An identifier is not a msg-id.
         """
         self.set_ids([ids] if isinstance(ids, str) else ids)
 
@@ -79,10 +79,10 @@ class IdentificationHeader(AbstractHeader):
         """Replace the identifiers.
 
         Raises:
-            RfcComplianceError: An identifier does not have the shape of an address.
+            RfcComplianceError: An identifier is not a msg-id.
         """
         given = list(ids)
-        self._addresses = [Address(identifier) for identifier in given]
+        self._encoded_ids = [_encode(identifier) for identifier in given]
         self._ids = given
 
     def get_ids(self) -> list[str]:
@@ -91,4 +91,15 @@ class IdentificationHeader(AbstractHeader):
 
     @override
     def _engine_value(self) -> MessageIds:
-        return MessageIds(tuple(address.get_encoded_address() for address in self._addresses))
+        return MessageIds(tuple(self._encoded_ids))
+
+
+def _encode(identifier: str) -> str:
+    try:
+        encoded = encode_idn_address(identifier)
+        check_message_id(encoded)
+    except RfcComplianceError as error:
+        raise RfcComplianceError(
+            f'"{identifier}" is not a message identifier: id-left@id-right (RFC 5322, 3.6.4).'
+        ) from error
+    return encoded

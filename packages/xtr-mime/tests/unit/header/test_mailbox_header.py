@@ -72,14 +72,15 @@ def test_backslashes_in_the_name_are_escaped_in_a_quoted_string() -> None:
 
 
 def test_a_non_ascii_name_is_encoded() -> None:
-    header = MailboxHeader("Sender", Address("fabien@example.com", "Fabien P\x8ftencier"))
+    # Adapted: upstream's iso-8859-1 byte 0x8F is a C1 control as a character, refused here.
+    header = MailboxHeader("Sender", Address("fabien@example.com", "Fabien P\xf8tencier"))
     header.set_charset("iso-8859-1")
 
     rendered = header.to_string()
 
     # Adapted (D1): decode and compare; the engine writes UTF-8 whatever charset is set.
     assert rendered.isascii()
-    assert decode_addresses(rendered) == [("Fabien P\x8ftencier", "fabien@example.com")]
+    assert decode_addresses(rendered) == [("Fabien P\xf8tencier", "fabien@example.com")]
 
 
 def test_utf8_characters_in_the_local_part_are_written_raw() -> None:

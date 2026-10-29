@@ -73,18 +73,19 @@ def test_multiple_addresses_as_mailbox_strings() -> None:
 
 
 def test_a_non_ascii_name_is_encoded() -> None:
-    header = MailboxListHeader("From", [Address("chris@swiftmailer.org", "Chris C\x8frbyn")])
+    # Adapted: upstream's iso-8859-1 byte 0x8F is a C1 control as a character, refused here.
+    header = MailboxListHeader("From", [Address("chris@swiftmailer.org", "Chris C\xf8rbyn")])
     header.set_charset("iso-8859-1")
 
     (string,) = header.get_address_strings()
 
     # Adapted (D1): decode and compare; the engine writes UTF-8 whatever charset is set.
     assert string.isascii()
-    assert decode_addresses(f"From: {string}") == [("Chris C\x8frbyn", "chris@swiftmailer.org")]
+    assert decode_addresses(f"From: {string}") == [("Chris C\xf8rbyn", "chris@swiftmailer.org")]
 
 
 def test_encoding_line_length_calculations() -> None:
-    name = "Chris C\x8frbyn " * 8
+    name = "Chris C\xf8rbyn " * 8
     header = MailboxListHeader("From", [Address("chris@swiftmailer.org", name)])
 
     rendered = header.to_string()

@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import base64
 import quopri
+import random
+import re
 from datetime import UTC, datetime
 from email import policy as stdlib_policy
+from email.header import decode_header
 from email.headerregistry import Address, AddressHeader, Group
 from email.message import EmailMessage
 from email.parser import BytesParser, HeaderParser
@@ -24,9 +27,15 @@ from xtr_mime._engine import (
     MailboxGroup,
     MessageIds,
     Parameterized,
+    Path,
     TextLeaf,
 )
-from xtr_mime.exception import InvalidArgumentError, MimeRuntimeError, RfcComplianceError
+from xtr_mime.exception import (
+    InvalidArgumentError,
+    MimeError,
+    MimeRuntimeError,
+    RfcComplianceError,
+)
 
 if TYPE_CHECKING:
     from xtr_mime._engine import HeaderValue, TransferEncoding
@@ -39,12 +48,25 @@ ENCODED_WORD_NAME = "=?utf-8?b?ZXZpbEBhdHRhY2tlci5jb20gPGV2aWxAYXR0YWNrZXIuY29tP
 # Every C0 control but TAB, and DEL: none may reach a header, whatever the Python patch level.
 CONTROL_CHARACTERS = ["\r", "\n", "\r\n", "\x00", "\x0b", "\x0c", "\x1b", "\x1f", "\x7f"]
 
+# Line and paragraph separators, C1 controls (NEL among them) and a lone surrogate: some
+# readers end a line at the first ones, and the last is a byte that was never text.
+SEPARATORS = ["\u2028", "\u2029", "\x85", "\x80", "\x9f", "\ud800", "\udc80"]
+
 
 def _decode(field: str) -> str:
     """Read one rendered header field back the way a mail client would."""
     name = field.split(":", 1)[0]
     parsed = HeaderParser(policy=stdlib_policy.default).parsestr(field + "\r\n\r\n")
     return cast("str", parsed[name])
+
+
+def _rfc2047(text: str) -> str:
+    """Decode ``text`` as RFC 2047 says: whitespace between two encoded words is dropped."""
+    parts: list[tuple[bytes | str, str | None]] = decode_header(text.replace("\r\n", ""))
+    return "".join(
+        part.decode(charset or "ascii") if isinstance(part, bytes) else part
+        for part, charset in parts
+    )
 
 
 def _lines(field: str) -> list[str]:
@@ -128,15 +150,25 @@ def test_an_encoded_word_that_decodes_to_a_line_break_is_refused() -> None:
         _ = _engine.fold_header("Subject", "=?utf-8?q?Hi=0D=0ABcc:_x@example.com?=")
 
 
-def test_an_encoded_word_in_unstructured_text_is_read_as_one() -> None:
-    """The engine reads ``=?...?=`` in a value as already encoded; harmless once decoded."""
-    assert _decode(_engine.fold_header("Subject", "=?utf-8?q?h=C3=A9llo?=")) == "héllo"
+def test_an_encoded_word_in_unstructured_text_is_written_as_the_text_it_is() -> None:
+    """The engine alone would decode ``=?...?=`` in a value; a reader must see the value."""
+    field = _engine.fold_header("Subject", "=?utf-8?q?h=C3=A9llo?=")
+
+    assert _rfc2047(field.split(":", 1)[1]).strip() == "=?utf-8?q?h=C3=A9llo?="
+    assert _decode(field) == "=?utf-8?q?h=C3=A9llo?="
 
 
-@pytest.mark.parametrize("name", ["", "Sub ject", "Subject:", "Sub\r\nject", "Šubject"])
-def test_a_header_name_that_is_not_printable_ascii_without_a_colon_is_refused(name: str) -> None:
+@pytest.mark.parametrize("name", ["", "Sub ject", "Sub\tject", "Sub\r\nject", "Šubject", "a\x7f"])
+def test_a_header_name_that_is_not_printable_ascii_is_refused(name: str) -> None:
     with pytest.raises(RfcComplianceError, match="header name"):
         _ = _engine.fold_header(name, "value")
+
+
+@pytest.mark.parametrize("name", ["h:Sender", "o:tag", "v:version", "h:X-Mailgun-Variables"])
+def test_a_header_name_holding_a_colon_is_written_as_given(name: str) -> None:
+    raw = _render_with(name, '{"a":1}')
+
+    assert raw.startswith(f'{name}: {{"a":1}}\r\n'.encode())
 
 
 def test_a_continuation_line_without_leading_space_is_refused() -> None:
@@ -147,6 +179,34 @@ def test_a_continuation_line_without_leading_space_is_refused() -> None:
 def test_a_folded_field_must_end_with_its_line_break() -> None:
     with pytest.raises(RfcComplianceError, match="continuation"):
         _engine._check_folded("Subject: a\nBcc: victim@example.com")
+
+
+@pytest.mark.parametrize("character", ["\x00", "\x0b", "\x0c", "\x1c", "\x7f", *SEPARATORS])
+def test_a_folded_field_holding_a_control_character_is_refused(character: str) -> None:
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _engine._check_folded(f"Subject: a{character}Bcc: victim@example.com\r\n")
+
+
+def test_a_folded_field_keeps_its_tabs() -> None:
+    _engine._check_folded("Subject: a\tb\r\n\tc\r\n")
+
+
+def test_a_folded_line_longer_than_998_octets_is_refused() -> None:
+    with pytest.raises(RfcComplianceError, match="998"):
+        _engine._check_folded("Subject: " + "ø" * 500 + "\r\n")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        [Mailbox("a" * 5000, "a@example.com")],
+        [MailboxGroup("g, " * 2000, ())],
+        [Mailbox("", "a" * 1000 + "@example.com")],
+    ],
+)
+def test_an_address_header_with_a_line_longer_than_998_is_refused(value: HeaderValue) -> None:
+    with pytest.raises(RfcComplianceError, match="998"):
+        _ = _engine.fold_header("To", value)
 
 
 def test_the_header_body_is_the_folded_field_without_its_name() -> None:
@@ -325,6 +385,46 @@ def test_an_identifier_with_a_space_bracket_or_control_is_refused(identifier: st
         _ = _engine.fold_header("Message-ID", MessageIds((identifier,)))
 
 
+@pytest.mark.parametrize(
+    "identifier",
+    ["a@b", "a.b+&%$.c@d", "a@b.c+&%$.d", '"ab"@c', '"a@b"@c', "a@[1.2.3.4]", "a@[x:y]"],
+)
+def test_an_identifier_of_the_msg_id_grammar_is_accepted(identifier: str) -> None:
+    _engine.check_message_id(identifier)
+
+    assert _engine.header_body("Message-ID", MessageIds((identifier,))) == f"<{identifier}>"
+
+
+@pytest.mark.parametrize(
+    "identifier",
+    [
+        "abc",
+        "a@b@c",
+        "a..b@c",
+        ".a@c",
+        "a@b.",
+        '"a\\<\\>b"@c',
+        '"a<b"@c',
+        '"a b"@c',
+        '""@c',
+        "a@[x<y]",
+        "a@[x\\y]",
+        "a@b c",
+        "a@é",
+    ],
+)
+def test_an_identifier_outside_the_msg_id_grammar_is_refused(identifier: str) -> None:
+    with pytest.raises(RfcComplianceError, match="identifier"):
+        _engine.check_message_id(identifier)
+
+
+def test_a_quoted_pair_in_an_identifier_would_not_read_back_canary() -> None:
+    """Why an id holds no quoted pair: the engine reads ``\\<`` back as ``<``, another id."""
+    raw = b'Message-ID: <"a\\<\\>b"@c>\r\n\r\n'
+
+    assert BytesParser(policy=stdlib_policy.default).parsebytes(raw)["Message-ID"] == '<"a<>b"@c>'
+
+
 def test_an_identifier_header_needs_at_least_one_identifier() -> None:
     with pytest.raises(RfcComplianceError, match="identifier"):
         _ = _engine.fold_header("References", MessageIds(()))
@@ -344,6 +444,26 @@ def test_an_identifier_header_reads_back_through_the_engine() -> None:
 
     assert raw.startswith(b"Message-ID: <" + b"a" * 80 + b"@example.com>\r\n")
     assert _engine.parse(raw)["Message-ID"] == "<" + "a" * 80 + "@example.com>"
+
+
+def test_a_path_is_an_angle_bracketed_address_with_its_domain_in_punycode() -> None:
+    assert _engine.fold_header("Return-Path", Path("chris@swïftmailer.org")) == (
+        "Return-Path: <chris@xn--swftmailer-78a.org>"
+    )
+
+
+def test_a_path_with_a_non_ascii_local_part_is_written_as_raw_utf8() -> None:
+    raw = _render_with("Return-Path", Path("chrïs@swïftmailer.org"))
+
+    assert raw.startswith("Return-Path: <chrïs@xn--swftmailer-78a.org>\r\n".encode())
+
+
+@pytest.mark.parametrize(
+    "address", ["chr is@example.com", "no-domain", "a@b@c", "a@=?utf-8?q?x?=", "a\r\nb@example.com"]
+)
+def test_a_path_that_is_not_an_address_is_refused(address: str) -> None:
+    with pytest.raises(RfcComplianceError):
+        _ = _engine.fold_header("Return-Path", Path(address))
 
 
 def test_the_bare_engine_still_mangles_a_unicode_domain_gh_83938_canary() -> None:
@@ -426,6 +546,149 @@ def test_a_group_name_that_decodes_to_another_address_is_refused() -> None:
         _ = _engine.fold_header("To", [MailboxGroup(name, (Mailbox("", "real@example.com"),))])
 
 
+@pytest.mark.parametrize("address", ["real@=?utf-8?q?attacker.com?=", "=?utf-8?q?x?=@example.com"])
+def test_an_address_holding_an_encoded_word_is_refused(address: str) -> None:
+    """The engine would decode it: ``real@=?utf-8?q?attacker.com?=`` reads ``real@attacker.com``."""
+    with pytest.raises(RfcComplianceError, match="encoded word"):
+        _ = _engine.fold_header("To", [Mailbox("", address)])
+
+
+@pytest.mark.parametrize("separator", SEPARATORS)
+def test_a_line_separator_in_a_display_name_is_refused(separator: str) -> None:
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.fold_header("To", [Mailbox(f"Dømi{separator}Bcc: x", "dømi@dømi.fo")])
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.fold_header("To", [Mailbox(f"Dømi{separator}Bcc: x", "a@example.com")])
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.fold_header("To", [MailboxGroup(f"g{separator}x", ())])
+
+
+@pytest.mark.parametrize("separator", SEPARATORS)
+def test_a_line_separator_in_any_other_header_value_is_refused(separator: str) -> None:
+    values: list[tuple[str, HeaderValue]] = [
+        ("Subject", f"a{separator}b"),
+        ("To", [Mailbox("", f"a{separator}b@example.com")]),
+        ("Content-Disposition", Parameterized("attachment", {"filename": f"a{separator}b"})),
+        ("Message-ID", MessageIds((f"a{separator}b@example.com",))),
+        ("Return-Path", Path(f"a{separator}b@example.com")),
+    ]
+    for name, value in values:
+        with pytest.raises(RfcComplianceError):
+            _ = _engine.fold_header(name, value)
+
+
+def test_a_group_named_like_the_two_halves_of_an_encoded_word_is_refused() -> None:
+    value = [MailboxGroup("=?utf-8?b?", ()), MailboxGroup("?=", ())]
+
+    with pytest.raises(RfcComplianceError):
+        _ = _engine.fold_header("To", value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        [MailboxGroup("Žluťoučký <evil@attacker.com>", ()), Mailbox("", "a@b.cz")],
+        [MailboxGroup('"x.' * 2000, ()), Mailbox("", "a@b.cz")],
+        [MailboxGroup('"x.' * 20, (Mailbox("", "a@b.cz"),))],
+        [Mailbox("a\udc80b", "a@b.cz")],
+    ],
+)
+def test_a_name_the_engine_cannot_fold_is_written_faithfully_or_refused(value: HeaderValue) -> None:
+    """Some patch releases crash or mis-fold on these; the engine's own error comes out instead."""
+    try:
+        field = _engine.fold_header("To", value)
+    except RfcComplianceError:
+        return
+
+    parsed = HeaderParser(policy=stdlib_policy.default).parsestr(field + "\r\n\r\n")
+    header = cast("AddressHeader", parsed["To"])
+    assert [a.addr_spec for a in header.addresses] == ["a@b.cz"]
+
+
+LONG_NAME = ("Žluťoučký kůň úpěl ďábelské ódy " * 4).strip()
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        LONG_NAME,
+        "Hi Žluť",
+        "Žluť Hi",
+        "Žluťoučký <evil@attacker.com>",
+        "Jean\tDupont Ž",
+        "a  Ž  b",
+        'Ž "quoted" \\ Ž',
+        "ŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽ ŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽŽ",
+    ],
+)
+def test_a_display_name_decodes_back_exactly_as_rfc_2047_reads_it(name: str) -> None:
+    """Python 3.11 and 3.12.0 fold a long name so a reader joins two of its words.
+
+    They write the space between two words as the fold between two encoded words, which an
+    RFC 2047 reader drops; the engine writes such a name itself.
+    """
+    field = _engine.fold_header("To", [Mailbox(name, "a@example.com"), Mailbox(name, "b@c.cz")])
+
+    # RFC 5322's recommended limit: the engine may run a line a little past its 76 columns.
+    assert all(len(line) <= 78 for line in _lines(field))
+    # The whitespace after a comma is the list's, not a name's: its width does not matter.
+    decoded = re.sub(r", +", ", ", _rfc2047(field.split(":", 1)[1]).strip())
+    assert decoded == f"{name} <a@example.com>, {name} <b@c.cz>"
+
+
+@pytest.mark.parametrize("name", [LONG_NAME, "Hi Žluť", "Žluťoučký <evil@attacker.com>"])
+def test_a_group_name_decodes_back_exactly_as_rfc_2047_reads_it(name: str) -> None:
+    field = _engine.fold_header("To", [MailboxGroup(name, (Mailbox("", "a@example.com"),))])
+
+    assert all(len(line) <= 78 for line in _lines(field))
+    assert _rfc2047(field.split(":", 1)[1]).strip() == f"{name}: a@example.com;"
+
+
+@pytest.mark.parametrize("subject", [LONG_NAME, "a  Ž  b", "Ž\tŽ", "Ž lead", "x" * 200 + " Ž"])
+def test_an_unstructured_value_decodes_back_exactly_as_rfc_2047_reads_it(subject: str) -> None:
+    field = _engine.fold_header("Subject", subject)
+
+    assert _rfc2047(field.split(":", 1)[1]).strip() == subject
+
+
+def test_the_engine_written_address_list_decodes_back_on_every_version() -> None:
+    """What the engine writes when the package's folding would not read back, tried directly."""
+    value: list[Mailbox | MailboxGroup] = [
+        Mailbox(LONG_NAME, "a@example.com"),
+        MailboxGroup("Tým, x", (Mailbox("Jean\tDupont", "b@example.com"), Mailbox("", "c@b.cz"))),
+        MailboxGroup("nobody", ()),
+        Mailbox("Bob", "d@example.com"),
+    ]
+    items = [_engine._to_engine_address(item) for item in value]
+
+    folded = _engine._write_address_list("To", items, utf8=False)
+
+    _engine._check_folded(folded)
+    assert all(len(line) <= 76 for line in _lines(folded.removesuffix("\r\n")))
+    parsed = HeaderParser(policy=stdlib_policy.default).parsestr(folded + "\r\n")
+    groups = cast("AddressHeader", parsed["To"]).groups
+    read = [
+        (g.display_name and g.display_name.strip(), [a.addr_spec for a in g.addresses])
+        for g in groups
+    ]
+    assert read == [
+        (None, ["a@example.com"]),
+        ("Tým, x", ["b@example.com", "c@b.cz"]),
+        ("nobody", []),
+        (None, ["d@example.com"]),
+    ]
+    assert _rfc2047(folded.split(":", 1)[1]).startswith(f"{LONG_NAME} <a@example.com>,")
+
+
+def test_the_engine_written_address_list_keeps_a_raw_utf8_name_raw() -> None:
+    value: list[Mailbox | MailboxGroup] = [Mailbox("Dømi Ž", "dømi@dømi.fo")]
+    items = [_engine._to_engine_address(item) for item in value]
+
+    assert _engine._write_address_list("To", items, utf8=True) == (
+        "To: Dømi Ž <dømi@xn--dmi-0na.fo>\r\n"
+    )
+
+
 def test_the_engine_still_writes_a_decoded_display_name_as_an_address_canary() -> None:
     """Why names are kept literal: the bare engine turns this one into another recipient."""
     message = EmailMessage(policy=_engine.POLICY)
@@ -500,37 +763,22 @@ def test_a_non_ascii_local_part_is_written_as_raw_utf8() -> None:
 NON_ASCII_NAME_WITH_AN_ADDRESS = "Žluťoučký <evil@attacker.com>"
 
 
-def _bare_engine_keeps_the_address() -> bool:
-    """Tell whether this Python folds a non-ASCII name holding specials so it reads back."""
-    message = EmailMessage(policy=_engine.POLICY)
-    message["To"] = [
-        Address(NON_ASCII_NAME_WITH_AN_ADDRESS, addr_spec="a@example.com"),
-        Address(NON_ASCII_NAME_WITH_AN_ADDRESS, addr_spec="b@example.com"),
-    ]
-    parsed = HeaderParser(policy=stdlib_policy.default).parsestr(message.as_string())
-    header = cast("AddressHeader", parsed["To"])
-    return [a.addr_spec for a in header.addresses] == ["a@example.com", "b@example.com"]
-
-
-def test_a_non_ascii_name_holding_an_address_reads_back_or_is_refused() -> None:
+def test_a_non_ascii_name_holding_an_address_reads_back() -> None:
     """Older patch releases (3.11.5 and 3.12.0 among them) mis-fold such a name.
 
-    Their encoded words read as other addresses; the read-back check refuses that output.
+    Their encoded words read as other addresses; the engine writes the field itself then.
     """
     value = [
         Mailbox(NON_ASCII_NAME_WITH_AN_ADDRESS, "a@example.com"),
         Mailbox(NON_ASCII_NAME_WITH_AN_ADDRESS, "b@example.com"),
     ]
 
-    if not _bare_engine_keeps_the_address():
-        with pytest.raises(RfcComplianceError, match="read back"):
-            _ = _engine.fold_header("To", value)
-        return
     field = _engine.fold_header("To", value)
 
     parsed = HeaderParser(policy=stdlib_policy.default).parsestr(field + "\r\n\r\n")
     header = cast("AddressHeader", parsed["To"])
     assert [a.addr_spec for a in header.addresses] == ["a@example.com", "b@example.com"]
+    assert [a.display_name for a in header.addresses] == [NON_ASCII_NAME_WITH_AN_ADDRESS] * 2
 
 
 def test_a_non_ascii_local_part_in_a_list_is_written_as_raw_utf8() -> None:
@@ -608,6 +856,15 @@ def test_a_text_leaf_carries_its_charset_and_extra_parameters() -> None:
 def test_a_text_leaf_in_a_charset_python_does_not_know_is_an_invalid_argument() -> None:
     with pytest.raises(InvalidArgumentError, match="no-such-charset"):
         _ = _engine.build_text(_text(charset="no-such-charset"))
+
+
+@pytest.mark.parametrize(
+    "charset",
+    ["utf-8\n", "utf-8\r\n", "utf-8\x0b", "utf-8\x0c", "utf-8\x1c", "utf-8\x00", "utf 8", ""],
+)
+def test_a_charset_that_is_not_a_token_is_refused(charset: str) -> None:
+    with pytest.raises(RfcComplianceError, match="charset"):
+        _ = _engine.build_text(_text(charset=charset))
 
 
 def test_a_text_leaf_its_charset_cannot_hold_is_an_invalid_argument() -> None:
@@ -761,14 +1018,15 @@ def test_a_multipart_uses_the_supplied_boundary_and_strips_sub_part_mime_version
 
 
 @pytest.mark.parametrize(
-    "boundary", ["", "a" * 71, "trailing ", 'a"b', "a\r\nb", "é", "a;b", "a\tb", "a@b"]
+    "boundary",
+    ["", "a" * 71, "trailing ", 'a"b', "a\r\nb", "é", "a;b", "a\tb", "a@b", "=?x?=", "a=?b"],
 )
 def test_a_boundary_outside_rfc_2046_is_refused(boundary: str) -> None:
     with pytest.raises(RfcComplianceError, match="boundary"):
         _ = _engine.build_multipart("mixed", boundary, [])
 
 
-@pytest.mark.parametrize("boundary", ["a" * 70, "with inner space", "'()+_,-./:=?09AZaz"])
+@pytest.mark.parametrize("boundary", ["a" * 70, "with inner space", "'()+_,-./:?=09AZaz"])
 def test_a_boundary_inside_rfc_2046_is_kept(boundary: str) -> None:
     assert _engine.build_multipart("mixed", boundary, []).get_boundary() == boundary
 
@@ -864,6 +1122,128 @@ def test_parsing_pathologically_nested_input_is_a_mime_runtime_error() -> None:
 
     with pytest.raises(MimeRuntimeError, match="nested"):
         _ = _engine.parse(data + b"\r\nx\r\n")
+
+
+@pytest.mark.parametrize(
+    "character", [b"\x0b", b"\x0c", b"\x1c", b"\x00", b"\x85", "\u2028".encode()]
+)
+def test_a_parsed_header_holding_a_control_character_is_refused_when_rendered(
+    character: bytes,
+) -> None:
+    """Before CVE-2024-6923 was fixed the engine wrote ``\\x0b`` here as a line break."""
+    raw = (
+        b"X-A: a" + character + b"Bcc: evil@attacker.com\r\nContent-Type: text/plain\r\n\r\nhi\r\n"
+    )
+    parsed = _engine.parse(raw)
+
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.to_bytes(parsed)
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.to_bytes(_engine.build_message([("Subject", "x")], parsed))
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.to_bytes(_engine.build_multipart("mixed", "b", [parsed]))
+
+
+def test_a_parsed_header_with_a_name_that_is_not_one_is_refused_when_rendered() -> None:
+    parsed = _engine.parse(b"Content-Type: text/plain\r\n\r\nhi\r\n")
+    parsed.set_raw("X A", "x")
+
+    with pytest.raises(RfcComplianceError, match="header name"):
+        _ = _engine.to_bytes(parsed)
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "=?utf-8?q?x=0BContent-Type:_text/html?=",
+        "=?utf-8?q?x=0D=0ABcc:_evil@attacker.com?=",
+        "=?utf-8?b?eAtCY2M6IGV2aWxAYXR0YWNrZXIuY29t?=",
+        "=?utf-8?q?x=E2=80=A8y?=",
+    ],
+)
+def test_an_encoded_word_in_a_parameter_decoding_to_a_control_character_is_refused(
+    filename: str,
+) -> None:
+    disposition = Parameterized("attachment", {"filename": filename})
+    leaf = BinaryLeaf(
+        content=b"x",
+        maintype="application",
+        subtype="octet-stream",
+        transfer_encoding="base64",
+        disposition=disposition,
+    )
+
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.fold_header("Content-Disposition", disposition)
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.fold_header("Content-Type", Parameterized("text/plain", {"name": filename}))
+    with pytest.raises(RfcComplianceError, match="control character"):
+        _ = _engine.to_bytes(_engine.build_binary(leaf))
+
+
+_FUZZ_PIECES = (
+    "a", "Ž", "ø", " ", "  ", "\t", '"', "\\", "<", ">", "@", ",", ";", ":", ".", "(", ")", "[",
+    "]", "=?", "?=", "=?utf-8?b?", "=?utf-8?q?", "?q?", "?b?", "_", "=0A", "=0D", "=0B", "=C5",
+    "\r\n", "\n", "\x0b", "\x00", "\x7f", "\x85", "\u2028", "\ud800", "x" * 80, "Bcc: ",
+    "evil@attacker.com",
+)  # fmt: skip
+
+_FUZZ_ADDRESSES = ("a@example.com", "dømi@dømi.fo", '"q, r"@example.com', "u@[192.0.2.1]")
+
+
+def _fuzz_text(rng: random.Random, longest: int = 12) -> str:
+    return "".join(rng.choice(_FUZZ_PIECES) for _ in range(rng.randint(0, longest)))
+
+
+def _fuzz_address(rng: random.Random) -> str:
+    if rng.random() < 0.7:
+        return rng.choice(_FUZZ_ADDRESSES)
+    return _fuzz_text(rng, 4) + "@example.com"
+
+
+def _fuzz_header(rng: random.Random) -> tuple[str, HeaderValue]:
+    mailbox = Mailbox(_fuzz_text(rng), _fuzz_address(rng))
+    choices: list[tuple[str, HeaderValue]] = [
+        ("Subject", _fuzz_text(rng, 30)),
+        ("To", [mailbox, Mailbox(_fuzz_text(rng), _fuzz_address(rng))]),
+        ("To", [MailboxGroup(_fuzz_text(rng), (mailbox,)), MailboxGroup(_fuzz_text(rng), ())]),
+        ("Content-Disposition", Parameterized("attachment", {"filename": _fuzz_text(rng)})),
+        ("Content-Type", Parameterized("text/plain", {"name": _fuzz_text(rng)})),
+        ("References", MessageIds((_fuzz_text(rng, 4) + "@example.com",))),
+        ("Return-Path", Path(_fuzz_address(rng))),
+        (_fuzz_text(rng, 2) or "X", "value"),
+    ]
+    return rng.choice(choices)
+
+
+def test_only_the_engine_errors_ever_escape_writing_and_reading_headers() -> None:
+    """A seeded fuzz: whatever a header holds, the engine writes it or raises its own error."""
+    rng = random.Random(20261029)  # noqa: S311 -- a reproducible fuzz, not a secret
+    body = _engine.build_text(_text())
+    forbidden = set("\x00\x0b\x0c\x1c\x7f\x85\u2028\u2029")
+
+    for _ in range(2000):
+        name, value = _fuzz_header(rng)
+        try:
+            field = _engine.fold_header(name, value)
+            raw = _engine.to_bytes(_engine.build_message([(name, value)], body))
+            _ = _engine.to_bytes(_engine.parse(raw))
+        except MimeError:
+            continue
+        assert not forbidden.intersection(field)
+
+
+def test_only_the_engine_errors_ever_escape_parsing_and_rendering_bytes() -> None:
+    rng = random.Random(29102026)  # noqa: S311 -- a reproducible fuzz, not a secret
+    pieces = [piece.encode("utf-8", "surrogatepass") for piece in _FUZZ_PIECES]
+    pieces += [b"\r\n", b"X-A: ", b"Content-Type: multipart/mixed; boundary=b\r\n", b"--b\r\n"]
+
+    for _ in range(500):
+        data = b"".join(rng.choice(pieces) for _ in range(rng.randint(0, 40)))
+        try:
+            _ = _engine.to_bytes(_engine.parse(data))
+        except MimeError:
+            continue
 
 
 def _sample_message() -> _engine.EnginePart:
