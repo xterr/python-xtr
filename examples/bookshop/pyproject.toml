@@ -61,6 +61,9 @@ dev = [
     # Applies each installed package's recipe — what its README's "Use in an
     # application" lists — and records it in xtr.lock. A tool, not a dependency.
     "xtr-recipes",
+    # The make:* commands write application code while developing; MakerBundle is listed
+    # for dev only, so no other environment has them.
+    "xtr-maker",
 ]
 
 [build-system]
@@ -106,6 +109,7 @@ xtr-security-http        = { path = "../../packages/xtr-security-http", editable
 xtr-security-jwt         = { path = "../../packages/xtr-security-jwt", editable = true }
 xtr-password-hasher      = { path = "../../packages/xtr-password-hasher", editable = true }
 xtr-webhook              = { path = "../../packages/xtr-webhook", editable = true }
+xtr-maker                = { path = "../../packages/xtr-maker", editable = true }
 
 [tool.basedpyright]
 typeCheckingMode = "all"
