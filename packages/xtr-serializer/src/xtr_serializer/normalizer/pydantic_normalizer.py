@@ -46,7 +46,9 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
 
     pydantic converts; this maps the context (a call's over the default one, also handed to
     validators as ``info.context``) onto pydantic's options, and pydantic's errors onto this
-    package's, with paths and never values. A validator's message is passed on as worded. Threads
+    package's, with paths and never values. A validator's message is passed on as worded; what
+    other code raises as data is read, such as a key of the data comparing itself, is refused
+    naming only the class of what it raised. Threads
     may share a normalizer; a type whose comparison waits for another thread, or uses another
     normalizer, can deadlock them.
 
@@ -187,6 +189,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         details: list[ErrorDetails] = []
         text: bytes | None = None
         cyclic = False
+        raised = ""
         try:
             if options.from_attributes:
                 return cast(
@@ -218,9 +221,20 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
             details = error.errors(include_url=False, include_context=False)
         except ValueError as error:  # data holding what has no JSON form, or holding itself
             cyclic = is_cycle(error)
+        except SerializerError:
+            raise
+        except Exception as error:  # noqa: BLE001 - what the data's or a validator's code raises
+            # Its message may quote the data, such as a key's comparison saying what it holds.
+            raised = name_of(type(error))
         # Located and raised outside the handlers, so no exception holding the data is chained.
         if cyclic:
             raise CircularReferenceError("the data contains itself")
+        if raised:
+            raise NotNormalizableValueError(
+                f"reading the data raised {raised}",
+                current_type=name_of(type(data)),
+                error_type="not_readable",
+            )
         # Read as JSON, the data is located in the JSON pydantic read, never in the caller's
         # object, whose code could run, or which a generator or a set cannot be indexed into.
         refusals = (

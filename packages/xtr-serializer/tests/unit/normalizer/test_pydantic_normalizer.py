@@ -23,6 +23,7 @@ from pydantic_core import to_json
 from typing_extensions import override
 from xtr_clock import DatePoint, MonotonicClock
 
+from tests.fixtures.colliding_key import CollidingKey
 from tests.fixtures.containers import (
     Cabinet,
     Counts,
@@ -1407,6 +1408,21 @@ def test_no_error_quotes_the_data_or_chains_what_does(
     with pytest.raises(UnexpectedValueError) as raised:
         _ = PydanticNormalizer().denormalize(data, type_, context=context)
 
+    assert PLANTED_VALUE not in "".join(traceback.format_exception(raised.value))
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
+
+
+def test_code_the_data_runs_as_it_is_read_is_refused_without_its_words() -> None:
+    key = CollidingKey("sku", PLANTED_VALUE)
+    data = {key: 1, "sku": "A", "price": 1}
+    key.armed = True
+
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize(data, Item, context={FROM_ATTRIBUTES: True})
+
+    assert (raised.value.error_type, raised.value.current_type) == ("not_readable", "dict")
+    assert "RuntimeError" in str(raised.value)
     assert PLANTED_VALUE not in "".join(traceback.format_exception(raised.value))
     assert raised.value.__cause__ is None
     assert raised.value.__context__ is None
