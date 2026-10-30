@@ -62,6 +62,9 @@ def read_back_refusal(
     that is not a string as one, a model as a mapping. It writes ``True`` in an ``int`` field as
     ``1``, and a decimal NaN, which it cannot read, as ``"NaN"``. None of that warns. Reading the
     data back with ``read`` and comparing, part by part and by exact type, finds all of it.
+    What equality does not look at is not compared, so it is not confirmed either: a
+    ``defaultdict``'s default factory or a ``deque``'s maximum length is not carried, and a value
+    differing from what it reads back as only there is passed.
 
     A refusal says where: reading, from pydantic's location in ``written``; comparing, by the
     field names, keys and indexes leading to the part that differs, a field named by its alias

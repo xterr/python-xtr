@@ -72,7 +72,13 @@ from tests.fixtures.orders import (
     TaggedSlot,
     Ticket,
 )
-from tests.fixtures.refused_types import REFUSED_TYPES, Refused
+from tests.fixtures.refused_types import (
+    REFUSED_TYPES,
+    Refused,
+    Unprintable,
+    Unshown,
+    optionals,
+)
 from xtr_serializer.encoder.json_encoder import JsonEncoder
 from xtr_serializer.exception import (
     CircularReferenceError,
@@ -377,6 +383,29 @@ def test_it_names_the_type_it_refuses_to_normalize_when_pydantic_refuses_to_buil
     assert not normalizer.supports_normalization(Refused())
     with pytest.raises(InvalidArgumentError, match="cannot build a schema for 'Refused'"):
         _ = normalizer.normalize(Refused())
+
+
+def test_it_refuses_to_normalize_a_value_whose_class_raises_as_it_is_built() -> None:
+    normalizer = PydanticNormalizer()
+
+    assert not normalizer.supports_normalization(Unshown())
+    with pytest.raises(InvalidArgumentError, match=r"'Unshown': building it raised LookupError$"):
+        _ = normalizer.normalize(Unshown())
+
+
+def test_it_refuses_to_denormalize_into_what_raises_as_it_is_built() -> None:
+    normalizer = PydanticNormalizer()
+
+    assert not normalizer.supports_denormalization({}, Unprintable())
+    with pytest.raises(InvalidArgumentError, match=r"building it raised LookupError$"):
+        _ = normalizer.denormalize({}, Unprintable())
+
+
+def test_it_refuses_a_type_equal_to_a_kept_one_too_deep_to_compare_every_time() -> None:
+    normalizer = PydanticNormalizer()
+
+    assert not normalizer.supports_denormalization(None, optionals(202))
+    assert not normalizer.supports_denormalization(None, optionals(202))
 
 
 def test_it_names_a_value_it_cannot_write_without_running_its_metaclass() -> None:

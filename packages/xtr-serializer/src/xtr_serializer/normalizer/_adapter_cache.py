@@ -26,7 +26,7 @@ from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
 from typing_extensions import TypeAliasType
 
-from xtr_serializer._type_names import qualified_name_of
+from xtr_serializer._type_names import name_of, qualified_name_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -103,15 +103,16 @@ class AdapterCache:
     def get(self, type_: object) -> Adapter | str:
         """Return the adapter of ``type_``, or why it has none, building it on first use.
 
-        A type that cannot be keyed — one that cannot be hashed, or nested deeper than keying
-        it can go — is built every time; one nested that deep is refused by building it.
+        A type that cannot be keyed or looked up — one that cannot be hashed, or nested deeper
+        than keying it, or comparing it with an equal one kept, can go — is built every time;
+        one nested that deep is refused by building it.
         """
         try:
             key = _key_of(type_)
-            _ = hash(key)
+            _ = hash(key)  # an empty cache looks nothing up, so would not hash it
+            adapter = self._adapters.pop(key, None)
         except (TypeError, RecursionError):
             return build_adapter(type_)
-        adapter = self._adapters.pop(key, None)
         if adapter is None:
             adapter = build_adapter(type_)
         self._adapters[key] = adapter
@@ -136,7 +137,9 @@ def build_adapter(type_: object) -> Adapter | str:
     decide differently, so the reader leaves them as they are for them to read alike on all.
     A schema pydantic refuses, such as one a class's schema hook returns, is said to be refused,
     and a type pydantic cannot build one for, such as a discriminator on what is no union, an
-    alias of itself or a type nested deeper than building it can go, too.
+    alias of itself or a type nested deeper than building it can go, too. So is a type whose own
+    code raises as pydantic reads it, such as a metaclass refusing to show its class: the
+    refusal names what was raised by its class alone, as its message may quote the type.
     """
     try:
         writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
@@ -153,6 +156,11 @@ def build_adapter(type_: object) -> Adapter | str:
     # how building one nested too deep stops.
     except (TypeError, PydanticUserError, RecursionError):
         return f"pydantic cannot build a schema for {_name_of(type_)!r}"
+    except Exception as error:  # noqa: BLE001 - whatever the type's own code raises leaves it unbuilt
+        raised = name_of(type(error))
+        return (
+            f"pydantic cannot build a schema for {_name_of(type_)!r}: building it raised {raised}"
+        )
     return Adapter(writer, reader)
 
 
@@ -161,7 +169,8 @@ def _name_of(type_: object) -> str:
 
     A class is named by its qualified name, read past its metaclass, wherever it sits in a type
     expression: the expression is taken apart rather than shown, which would ask each class in
-    it for its name. Showing what is neither — an annotation's metadata, a literal's values —
+    it for its name, and a class is told apart before anything else is read of it, which would
+    ask its metaclass. Showing what is neither — an annotation's metadata, a literal's values —
     runs their own code, which may raise; so may a type nested deeper than the stack.
     """
     try:
@@ -172,6 +181,8 @@ def _name_of(type_: object) -> str:
 
 def _written(type_: object) -> str:
     """Write ``type_`` as it is written in code, its classes by their qualified names."""
+    if type_ is not NoneType and isinstance(type_, type):
+        return qualified_name_of(type_)
     origin = cast("object", get_origin(type_))
     arguments: tuple[object, ...] = get_args(type_)
     if origin is None:
@@ -187,14 +198,14 @@ def _written(type_: object) -> str:
 
 
 def _written_alone(type_: object) -> str:
-    """Write what takes no arguments: a class, ``None``, ``...``, a callable's parameters."""
+    """Write what takes no arguments, a class aside: ``None``, ``...``, a callable's parameters."""
     if type_ is NoneType or type_ is None:
         return "None"
     if type_ is Ellipsis:
         return "..."
     if isinstance(type_, list):
         return f"[{', '.join(map(_written, cast('list[object]', type_)))}]"
-    return qualified_name_of(type_) if isinstance(type_, type) else repr(type_)
+    return repr(type_)
 
 
 def _key_of(type_: object) -> object:

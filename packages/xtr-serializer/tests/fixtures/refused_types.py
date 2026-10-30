@@ -2,18 +2,31 @@
 
 from __future__ import annotations
 
+import operator
 from typing import TYPE_CHECKING, Annotated, Literal, NoReturn, cast
 
 from pydantic import Field
 from pydantic.errors import PydanticUserError
-from typing_extensions import TypeAliasType, TypedDict  # pydantic reads typing's from 3.12
+from typing_extensions import (  # pydantic reads typing's TypedDict from 3.12
+    TypeAliasType,
+    TypedDict,
+    override,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from pydantic import GetCoreSchemaHandler
 
-__all__ = ["REFUSED_TYPES", "Refused", "nested"]
+__all__ = [
+    "REFUSED_TYPES",
+    "Refused",
+    "Sealed",
+    "Unprintable",
+    "Unshown",
+    "nested",
+    "optionals",
+]
 
 
 class Tagged(TypedDict):
@@ -38,12 +51,60 @@ class Refused:
         raise PydanticUserError("refused", code=None)
 
 
+class Unshowing(type):
+    """A metaclass refusing to show its classes."""
+
+    @override
+    def __repr__(cls) -> str:
+        raise LookupError
+
+
+class Unshown(metaclass=Unshowing):
+    """A class that refuses to be shown, which pydantic shows as it builds its schema."""
+
+
+class Unprintable:
+    """What is not a type, and refuses to be shown."""
+
+    @override
+    def __repr__(self) -> str:
+        raise LookupError
+
+
+class Sealing(type):
+    """A metaclass refusing every attribute of its classes, their names and class included."""
+
+    @override
+    def __getattribute__(cls, name: str) -> NoReturn:
+        raise LookupError(name)
+
+
+class Sealed(metaclass=Sealing):
+    """A class none of whose attributes can be read."""
+
+
 def nested(depth: int) -> object:
     """Give a list type nested ``depth`` lists deep around ``int``."""
     type_: object = int
     for _ in range(depth):
         type_ = list[type_]
     return type_
+
+
+def optionals(depth: int) -> object:
+    """Give a type nested ``depth`` deep in annotated optionals around ``int``.
+
+    Each is a union of the typing module's, which an annotated type makes with ``None``.
+    """
+    type_: object = int
+    for _ in range(depth):
+        type_ = _or(_item(Annotated, (type_, "x")), None)
+    return type_
+
+
+# A type built from another known at run time only, which type checkers read as no type.
+_item = cast("Callable[[object, tuple[object, ...]], object]", operator.getitem)
+_or = cast("Callable[[object, object], object]", operator.or_)
 
 
 # Type checkers read an alias only as a statement naming a type; this one is built at run time,
