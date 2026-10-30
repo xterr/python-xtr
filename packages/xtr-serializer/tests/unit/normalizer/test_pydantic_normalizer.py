@@ -74,7 +74,14 @@ from tests.fixtures.orders import (
 )
 from tests.fixtures.refused_types import (
     REFUSED_TYPES,
+    TYPE_CODE_RAISED,
+    Clash,
+    Disguised,
+    OtherClash,
     Refused,
+    Sealed,
+    Unhashable,
+    Unhashed,
     Unprintable,
     Unshown,
     optionals,
@@ -406,6 +413,86 @@ def test_it_refuses_a_type_equal_to_a_kept_one_too_deep_to_compare_every_time() 
 
     assert not normalizer.supports_denormalization(None, optionals(202))
     assert not normalizer.supports_denormalization(None, optionals(202))
+
+
+def assert_refused_quietly(refusal: InvalidArgumentError) -> None:
+    """Check a refusal neither quotes what the type's own code raised nor chains it."""
+    assert TYPE_CODE_RAISED not in "".join(traceback.format_exception(refusal))
+    assert refusal.__cause__ is None
+    assert refusal.__context__ is None
+
+
+# Each wrapped in a parameter set: pytest asks a bare value whether it is one, which runs its code.
+HOSTILE_TYPES = [
+    pytest.param(Sealed, id="sealed"),
+    pytest.param(Unhashed, id="unhashed-class"),
+    pytest.param(list[Unhashed], id="unhashed-class-in-a-list"),
+    pytest.param(Unhashable(), id="unhashable"),
+    pytest.param(list.__class_getitem__(Unhashable()), id="unhashable-in-a-list"),
+    pytest.param(Disguised(), id="disguised"),
+]
+
+
+@pytest.mark.parametrize("type_", HOSTILE_TYPES)
+def test_it_does_not_support_a_type_whose_own_code_raises_as_it_is_keyed(type_: object) -> None:
+    assert not PydanticNormalizer().supports_denormalization({}, type_)
+
+
+@pytest.mark.parametrize("type_", HOSTILE_TYPES)
+def test_it_refuses_to_denormalize_into_a_type_whose_own_code_raises_as_it_is_keyed(
+    type_: object,
+) -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = PydanticNormalizer().denormalize({}, type_)
+
+    assert_refused_quietly(raised.value)
+
+
+HOSTILE_VALUES = [
+    pytest.param(Sealed(), id="sealed"),
+    pytest.param(Unhashed(), id="unhashed"),
+    pytest.param(Disguised(), id="disguised"),
+]
+
+
+@pytest.mark.parametrize("value", HOSTILE_VALUES)
+def test_it_does_not_support_a_value_whose_class_raises_as_it_is_keyed(value: object) -> None:
+    assert not PydanticNormalizer().supports_normalization(value)
+
+
+@pytest.mark.parametrize("value", HOSTILE_VALUES)
+def test_it_refuses_to_normalize_a_value_whose_class_raises_as_it_is_keyed(value: object) -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = PydanticNormalizer().normalize(value)
+
+    assert_refused_quietly(raised.value)
+
+
+def test_it_does_not_support_a_type_refusing_to_compare_with_a_kept_one_hashed_alike() -> None:
+    normalizer = PydanticNormalizer()
+    _ = normalizer.supports_denormalization({}, Clash)
+
+    assert not normalizer.supports_denormalization({}, OtherClash)
+
+
+def test_it_refuses_to_denormalize_into_a_type_refusing_to_compare_with_a_kept_one() -> None:
+    normalizer = PydanticNormalizer()
+    _ = normalizer.supports_denormalization({}, Clash)
+
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = normalizer.denormalize({}, OtherClash)
+
+    assert_refused_quietly(raised.value)
+
+
+def test_it_refuses_to_normalize_a_value_whose_class_refuses_to_compare_with_a_kept_one() -> None:
+    normalizer = PydanticNormalizer()
+    _ = normalizer.supports_normalization(Clash())
+
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = normalizer.normalize(OtherClash())
+
+    assert_refused_quietly(raised.value)
 
 
 def test_it_names_a_value_it_cannot_write_without_running_its_metaclass() -> None:

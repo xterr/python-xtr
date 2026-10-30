@@ -103,15 +103,16 @@ class AdapterCache:
     def get(self, type_: object) -> Adapter | str:
         """Return the adapter of ``type_``, or why it has none, building it on first use.
 
-        A type that cannot be keyed or looked up — one that cannot be hashed, or nested deeper
-        than keying it, or comparing it with an equal one kept, can go — is built every time;
-        one nested that deep is refused by building it.
+        Keying and looking up a type runs its own code — reading its class to take it apart,
+        hashing it, comparing it with a kept one hashed alike — which may raise, as may a type
+        nested deeper than keying it can go. Such a type is not kept but built every time, and
+        building refuses it without quoting what was raised.
         """
         try:
             key = _key_of(type_)
             _ = hash(key)  # an empty cache looks nothing up, so would not hash it
             adapter = self._adapters.pop(key, None)
-        except (TypeError, RecursionError):
+        except Exception:  # noqa: BLE001 - whatever the type's own code raises leaves it unkept
             return build_adapter(type_)
         if adapter is None:
             adapter = build_adapter(type_)
@@ -167,11 +168,14 @@ def build_adapter(type_: object) -> Adapter | str:
 def _name_of(type_: object) -> str:
     """Name ``type_`` as written, or by a fixed name when naming it raises.
 
-    A class is named by its qualified name, read past its metaclass, wherever it sits in a type
-    expression: the expression is taken apart rather than shown, which would ask each class in
-    it for its name, and a class is told apart before anything else is read of it, which would
-    ask its metaclass. Showing what is neither — an annotation's metadata, a literal's values —
-    runs their own code, which may raise; so may a type nested deeper than the stack.
+    A class is named by its qualified name, read past its metaclass, in most type expressions:
+    the expression is taken apart rather than shown, which would ask each class in it for its
+    name, and a class is told apart before anything else is read of it, which would ask its
+    metaclass. Not in all: taking apart ``Callable[[X], ...]`` with a single parameter is left to
+    the typing module, which reads attributes of ``X``, so a class refusing those leaves the
+    whole type named "a type that cannot be named". Showing what is neither a class nor an
+    expression — an annotation's metadata, a literal's values — runs their own code, which may
+    raise; so may a type nested deeper than the stack.
     """
     try:
         return _written(type_)

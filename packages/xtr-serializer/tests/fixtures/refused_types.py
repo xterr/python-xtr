@@ -20,13 +20,22 @@ if TYPE_CHECKING:
 
 __all__ = [
     "REFUSED_TYPES",
+    "TYPE_CODE_RAISED",
+    "Clash",
+    "Disguised",
+    "OtherClash",
     "Refused",
     "Sealed",
+    "Unhashable",
+    "Unhashed",
     "Unprintable",
     "Unshown",
     "nested",
     "optionals",
 ]
+
+# What a type's own code raises with, which no error must quote.
+TYPE_CODE_RAISED = "type-code-ran-4f9a"
 
 
 class Tagged(TypedDict):
@@ -81,6 +90,59 @@ class Sealing(type):
 
 class Sealed(metaclass=Sealing):
     """A class none of whose attributes can be read."""
+
+
+class Unhashing(type):
+    """A metaclass refusing to hash its classes."""
+
+    @override
+    def __hash__(cls) -> NoReturn:
+        raise LookupError(TYPE_CODE_RAISED)
+
+
+class Unhashed(metaclass=Unhashing):
+    """A class that refuses to be hashed."""
+
+
+class Unhashable:
+    """What is not a type, and refuses to be hashed."""
+
+    @override
+    def __hash__(self) -> NoReturn:
+        raise LookupError(TYPE_CODE_RAISED)
+
+
+class Clashing(type):
+    """A metaclass hashing all its classes alike, and refusing to compare them."""
+
+    @override
+    def __hash__(cls) -> int:
+        return 0
+
+    @override
+    def __eq__(cls, other: object) -> NoReturn:
+        raise LookupError(TYPE_CODE_RAISED)
+
+
+class Clash(metaclass=Clashing):
+    """A class hashed as :class:`OtherClash` is, refusing to be compared with it."""
+
+
+class OtherClash(metaclass=Clashing):
+    """A class hashed as :class:`Clash` is, refusing to be compared with it."""
+
+
+class Disguised:
+    """What is not a type, and refuses to tell its class."""
+
+    @property
+    @override
+    def __class__(self) -> NoReturn:
+        raise LookupError(TYPE_CODE_RAISED)
+
+    @__class__.setter
+    def __class__(self, value: type) -> NoReturn:
+        raise LookupError(TYPE_CODE_RAISED)
 
 
 def nested(depth: int) -> object:
