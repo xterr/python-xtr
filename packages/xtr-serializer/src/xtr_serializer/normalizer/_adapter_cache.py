@@ -31,8 +31,21 @@ _EXACT: Final = ConfigDict(
 # The part of it that reading takes, for the reader built from the writer's schema.
 _EXACT_READING: Final = CoreConfig(strict=True, allow_inf_nan=False, val_json_bytes="base64")
 
-# Where a schema holds the application's values rather than schemas: left as they are.
-_VALUES: Final = frozenset({"metadata", "default", "expected", "members", "custom_error_context"})
+# The parts of a schema the reader leaves as they are, by the type of schema: those holding the
+# application's values rather than schemas, and how a value is written, which reading never uses.
+_KEPT: Final = frozenset({"metadata", "serialization"})
+_VALUES: Final = {
+    "default": _KEPT | {"default"},
+    "literal": _KEPT | {"expected"},
+    "enum": _KEPT | {"members"},
+    "union": _KEPT | {"custom_error_context"},
+    "tagged-union": _KEPT | {"custom_error_context"},
+    "custom-error": _KEPT | {"custom_error_context"},
+}
+
+# The parts of a schema mapping names the application chose to schemas, by the type of schema: a
+# typed dict's fields, a tagged union's tags. Each name is the application's, never a part.
+_NAMED: Final = {"typed-dict": "fields", "tagged-union": "choices"}
 
 # Type checkers read an alias only as a statement naming a type written in the code; here the
 # type is a value known at run time, which is what TypeAliasType takes there.
@@ -119,9 +132,13 @@ def _key_of(type_: object) -> object:
 def _aware(schema: object) -> object:
     """Copy ``schema``, every datetime declaring no rule about its zone made to require one.
 
-    Only the plain dicts, lists and tuples a schema is built of are looked into: a value of a
-    subclass of one — an enum member that is a tuple, say — is the application's, kept as it is.
-    The schema of a model, or of a dataclass pydantic built, is kept as it is too.
+    The schema is walked by its structure: each schema is looked into by its type, which tells
+    the parts holding schemas from those holding the application's values, such as a default or
+    an enum's members, kept as they are, and from those keyed by the application's names, such
+    as a typed dict's fields, whose every name is looked past. Only the plain dicts, lists and
+    tuples a schema is built of are looked into: a value of a subclass of one — an enum member
+    that is a tuple, say — is the application's, kept as it is. The schema of a model, or of a
+    dataclass pydantic built, is kept as it is too.
     """
     kind = type(schema)
     if kind is list or kind is tuple:
@@ -130,11 +147,22 @@ def _aware(schema: object) -> object:
     if kind is not dict:
         return schema
     node = cast("dict[str, object]", schema)
-    if node.get("type") == "model" or (
-        node.get("type") == "dataclass" and is_pydantic_dataclass(cast("type", node["cls"]))
+    # A schema's type is text; the dicts holding something else there are kept or looked past.
+    schema_type = cast("str", node.get("type", ""))
+    if schema_type == "model" or (
+        schema_type == "dataclass" and is_pydantic_dataclass(cast("type", node["cls"]))
     ):
         return node
-    copied = {key: part if key in _VALUES else _aware(part) for key, part in node.items()}
-    if copied.get("type") == "datetime":
+    kept, named = _VALUES.get(schema_type, _KEPT), _NAMED.get(schema_type)
+    copied: dict[str, object] = {}
+    for key, part in node.items():
+        if key in kept:
+            copied[key] = part
+        elif key == named:
+            mapping = cast("dict[object, object]", part)
+            copied[key] = {name: _aware(item) for name, item in mapping.items()}
+        else:
+            copied[key] = _aware(part)
+    if schema_type == "datetime":
         _ = copied.setdefault("tz_constraint", "aware")
     return copied

@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import cast
+from typing import Annotated, Literal, cast
 
 import pytest
-from pydantic import AwareDatetime, NaiveDatetime, ValidationError
+from pydantic import AwareDatetime, Field, NaiveDatetime, ValidationError
+from pydantic_core import to_json
+from typing_extensions import TypedDict  # pydantic reads typing's only from Python 3.12
 
 from tests.fixtures.exact_values import Appointment, Color, Shape, Visit
 from xtr_serializer.normalizer._adapter_cache import Adapter, AdapterCache, build_adapter
@@ -104,3 +106,58 @@ def test_a_default_value_shaped_like_a_schema_is_read_as_it_is() -> None:
     assert isinstance(adapter, Adapter)
 
     assert cast("object", adapter.reader.validate_json("{}")) == Shaped()
+
+
+class Named(TypedDict):
+    """Fields named as the parts of a schema that hold the application's values."""
+
+    members: datetime
+    default: datetime
+    metadata: datetime
+    expected: datetime
+    custom_error_context: datetime
+
+
+@pytest.mark.parametrize("field", list(Named.__annotations__))
+def test_its_reader_refuses_a_naive_datetime_in_a_field_named_as_a_part_of_a_schema(
+    field: str,
+) -> None:
+    adapter = build_adapter(Named)
+    assert isinstance(adapter, Adapter)
+    data = dict.fromkeys(Named.__annotations__, "2026-01-01T00:00:00Z")
+    data[field] = "2026-01-01T00:00:00"
+
+    with pytest.raises(ValidationError) as raised:
+        _ = cast("object", adapter.reader.validate_json(to_json(data)))
+
+    assert [(error["type"], error["loc"]) for error in raised.value.errors()] == [
+        ("timezone_aware", (field,))
+    ]
+
+
+class ByDefault(TypedDict):
+    """A union member tagged as the part of a schema that holds a default."""
+
+    kind: Literal["default"]
+    at: datetime
+
+
+class ByMembers(TypedDict):
+    """A union member tagged as the part of a schema that holds an enum's members."""
+
+    kind: Literal["members"]
+    at: datetime
+
+
+@pytest.mark.parametrize("tag", ["default", "members"])
+def test_its_reader_refuses_a_naive_datetime_in_a_union_member_tagged_as_a_part_of_a_schema(
+    tag: str,
+) -> None:
+    adapter = build_adapter(Annotated[ByDefault | ByMembers, Field(discriminator="kind")])
+    assert isinstance(adapter, Adapter)
+    text = to_json({"kind": tag, "at": "2026-01-01T00:00:00"})
+
+    with pytest.raises(ValidationError) as raised:
+        _ = cast("object", adapter.reader.validate_json(text))
+
+    assert raised.value.errors()[0]["type"] == "timezone_aware"
