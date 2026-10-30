@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING, TypeVar, cast
 
 from xtr_serializer._type_names import qualified_name_of
 from xtr_serializer.exception import MappingError
-
-from ._class_discriminator_registry import REGISTRY
-from ._field_names import field_names_of
+from xtr_serializer.mapping._class_discriminator_registry import REGISTRY
+from xtr_serializer.mapping._field_names import field_names_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable

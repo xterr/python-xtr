@@ -15,6 +15,7 @@ from .context import (
     PydanticNormalizerContextBuilder,
     SerializerContextBuilder,
 )
+from .decorator import discriminator_map, discriminator_name
 from .encoder import (
     JSON_INDENT,
     DecoderInterface,
@@ -34,7 +35,7 @@ from .exception import (
     UnexpectedValueError,
     UnsupportedFormatError,
 )
-from .mapping import ClassDiscriminatorMapping, discriminator_map, discriminator_name
+from .mapping import ClassDiscriminatorMapping
 from .normalized_value import NormalizedValue
 from .normalizer import (
     ALLOW_EXTRA_ATTRIBUTES,

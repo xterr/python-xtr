@@ -1,4 +1,4 @@
-"""The mapping module exports its decorators and mapping, and the package exports them too."""
+"""The mapping module exports its mapping, and the package exports it too."""
 
 from __future__ import annotations
 
