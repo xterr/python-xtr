@@ -10,11 +10,20 @@ from typing import cast
 import pytest
 from pydantic import AwareDatetime, NaiveDatetime, ValidationError
 
+from tests.fixtures.exact_values import Color, Shape
 from xtr_serializer.normalizer._adapter_cache import Adapter, AdapterCache, build_adapter
 
 
 class Opaque:
     """A class pydantic has no schema for."""
+
+
+class Malformed:
+    """A class whose schema hook hands pydantic a schema it refuses."""
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: object, handler: object) -> dict[str, str]:
+        return {"type": "no-such-schema"}
 
 
 def test_it_gives_the_same_adapter_for_a_type_used_again() -> None:
@@ -25,6 +34,15 @@ def test_it_gives_the_same_adapter_for_a_type_used_again() -> None:
 
 def test_it_tells_why_a_type_has_no_adapter() -> None:
     assert build_adapter(Opaque) == "pydantic has no schema for 'Opaque'"
+
+
+def test_it_tells_why_a_type_whose_schema_pydantic_refuses_has_no_adapter() -> None:
+    assert build_adapter(Malformed) == "pydantic refuses the schema of 'Malformed'"
+
+
+@pytest.mark.parametrize("type_", [Color, Shape], ids=["tuple-members", "dict-members"])
+def test_an_application_value_of_a_container_subclass_stays_in_the_schema(type_: object) -> None:
+    assert isinstance(build_adapter(type_), Adapter)
 
 
 def test_an_adapter_reads_strictly_and_refuses_what_is_not_finite() -> None:

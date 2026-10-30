@@ -20,6 +20,7 @@ from xtr_clock import DatePoint, MonotonicClock
 
 from tests.fixtures.exact_values import (
     Amount,
+    Color,
     Count,
     Either,
     Filed,
@@ -33,6 +34,7 @@ from tests.fixtures.exact_values import (
     Refusing,
     Scoped,
     Series,
+    Shape,
     Stamp,
 )
 from tests.fixtures.orders import (
@@ -223,6 +225,23 @@ def test_a_value_reads_back_with_the_exact_types_of_its_parts() -> None:
     assert type(read.zones) is frozenset
     assert type(read.weight) is Decimal
     assert read.status is Status.OPEN
+
+
+def test_an_enum_of_dict_members_reads_back_as_the_member() -> None:
+    normalizer = PydanticNormalizer()
+
+    assert normalizer.supports_normalization(Shape.SQUARE)
+    assert round_trip(Shape.SQUARE, Shape, normalizer) is Shape.SQUARE
+
+
+def test_an_enum_of_tuple_members_is_refused_as_pydantic_reads_none_back_from_a_list() -> None:
+    normalizer = PydanticNormalizer()
+
+    assert normalizer.supports_normalization(Color.RED)
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = normalizer.normalize(Color.RED)
+
+    assert (raised.value.error_type, raised.value.path) == ("enum", None)
 
 
 def test_it_writes_plain_data() -> None:

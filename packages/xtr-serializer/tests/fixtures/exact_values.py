@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from enum import IntEnum
+from enum import Enum, IntEnum
 from typing import Annotated, ClassVar, cast
 
 from pydantic import (
@@ -24,6 +24,7 @@ from xtr_serializer.exception import NotNormalizableValueError
 
 __all__ = [
     "Amount",
+    "Color",
     "Count",
     "Either",
     "Filed",
@@ -37,6 +38,7 @@ __all__ = [
     "Refusing",
     "Scoped",
     "Series",
+    "Shape",
     "Stamp",
 ]
 
@@ -66,6 +68,18 @@ class Level(IntEnum):
     """An enum whose members are integers, and so fit an ``int`` field."""
 
     LOW = 1
+
+
+class Color(tuple[int, int, int], Enum):  # noqa: SLOT001 - an enum member keeps its name in a dict
+    """An enum whose members are tuples, held in pydantic's schema as they are."""
+
+    RED = (255, 0, 0)
+
+
+class Shape(dict[str, int], Enum):
+    """An enum whose members are dicts, held in pydantic's schema as they are."""
+
+    SQUARE = {"sides": 4}  # noqa: RUF012 - an enum member, not a mutable class attribute
 
 
 @dataclass(eq=False)

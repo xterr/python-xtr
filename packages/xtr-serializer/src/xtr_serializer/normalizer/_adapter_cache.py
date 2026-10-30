@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Final, NamedTuple, cast, final, get_args
 
 from pydantic import ConfigDict, TypeAdapter
 from pydantic.errors import PydanticSchemaGenerationError, PydanticUndefinedAnnotation
-from pydantic_core import SchemaValidator
+from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
 from typing_extensions import TypeAliasType
 
@@ -31,7 +31,7 @@ _EXACT: Final = ConfigDict(
 _EXACT_READING: Final = CoreConfig(strict=True, allow_inf_nan=False, val_json_bytes="base64")
 
 # Where a schema holds the application's values rather than schemas: left as they are.
-_VALUES: Final = frozenset({"metadata", "default"})
+_VALUES: Final = frozenset({"metadata", "default", "expected", "members", "custom_error_context"})
 
 # Type checkers read an alias only as a statement naming a type written in the code; here the
 # type is a value known at run time, which is what TypeAliasType takes there.
@@ -90,17 +90,20 @@ def build_adapter(type_: object) -> Adapter | str:
     zone made to require one: a naive datetime names no instant, so it reads back as none in
     particular. ``NaiveDatetime`` and ``AwareDatetime`` keep their rule. pydantic reads a model
     with the reader the model was built with, so inside a model the model's own rule holds.
+    A schema pydantic refuses, such as one a class's schema hook returns, is said to be refused.
     """
     name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
     try:
         writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
         if not writer.pydantic_complete:
             _ = writer.rebuild(raise_errors=True)
+        reader = SchemaValidator(cast("CoreSchema", _aware(writer.core_schema)), _EXACT_READING)
     except PydanticSchemaGenerationError:
         return f"pydantic has no schema for {name!r}"
     except PydanticUndefinedAnnotation as error:
         return f"pydantic has no schema for {name!r}: {error.name!r} is not defined"
-    reader = SchemaValidator(cast("CoreSchema", _aware(writer.core_schema)), _EXACT_READING)
+    except SchemaError:  # its message may quote the application's values held in the schema
+        return f"pydantic refuses the schema of {name!r}"
     return Adapter(writer, reader)
 
 
@@ -111,11 +114,16 @@ def _key_of(type_: object) -> object:
 
 
 def _aware(schema: object) -> object:
-    """Copy ``schema``, every datetime declaring no rule about its zone made to require one."""
-    if isinstance(schema, list | tuple):
+    """Copy ``schema``, every datetime declaring no rule about its zone made to require one.
+
+    Only the plain dicts, lists and tuples a schema is built of are looked into: a value of a
+    subclass of one — an enum member that is a tuple, say — is the application's, kept as it is.
+    """
+    kind = type(schema)
+    if kind is list or kind is tuple:
         parts = [_aware(part) for part in cast("list[object]", schema)]
-        return parts if isinstance(schema, list) else tuple(parts)
-    if not isinstance(schema, dict):
+        return parts if kind is list else tuple(parts)
+    if kind is not dict:
         return schema
     copied = {
         key: part if key in _VALUES else _aware(part)
