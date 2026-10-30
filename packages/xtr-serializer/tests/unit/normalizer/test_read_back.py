@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, NoReturn
 
+import pytest
 from pydantic import ConfigDict, TypeAdapter
 from xtr_clock import DatePoint
 
@@ -26,7 +27,7 @@ PLANTED_VALUE = "s3cr3t-t0ken-4f9a"
 
 
 def refusal_of(
-    value: object, written: NormalizedValue, read: Callable[[bytes], object]
+    value: object, written: NormalizedValue, read: Callable[[bytes], object] | None
 ) -> NotNormalizableValueError | None:
     return read_back_refusal(value, written, read, by_alias=True)
 
@@ -43,15 +44,26 @@ def test_data_that_does_not_read_back_is_refused_where_reading_stops() -> None:
     assert refusal.message == "it would not read back: Input should be a finite number"
 
 
-def test_infinity_is_read_as_itself_and_refused_rather_than_read_as_null() -> None:
-    floats: TypeAdapter[list[float | None]] = TypeAdapter(
-        list[float | None], config=ConfigDict(allow_inf_nan=False)
-    )
+FLOATS: TypeAdapter[dict[str, object]] = TypeAdapter(
+    dict[str, object], config=ConfigDict(allow_inf_nan=True)
+)
 
-    refusal = refusal_of([float("inf")], [float("inf")], floats.validate_json)
+
+@pytest.mark.parametrize("read", [FLOATS.validate_json, None], ids=["read-back", "partial-write"])
+def test_written_data_json_has_no_form_for_is_refused_where_it_sits_whatever_reads_it(
+    read: Callable[[bytes], object] | None,
+) -> None:
+    written: NormalizedValue = {"dict": 1, "x": {"y": [0.5, float("inf")]}}
+
+    refusal = refusal_of(written, written, read)
 
     assert refusal is not None
-    assert refusal.error_type == "finite_number"
+    assert (refusal.path, refusal.error_type) == ("x.y[1]", "finite_number")
+    assert refusal.message == "it has no JSON form: Input should be a finite number"
+
+
+def test_a_partial_write_with_a_json_form_is_not_read_back() -> None:
+    assert refusal_of([Decimal(1)], ["1.0"], None) is None
 
 
 def test_data_that_reads_back_changed_is_refused_where_it_first_differs() -> None:

@@ -51,13 +51,14 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     it sits: a model that is to be exact declares those settings itself, and types its datetimes
     ``AwareDatetime``. The :data:`~xtr_serializer.STRICT` key overrides strictness for every type.
 
-    What is written is read back under the same context and refused unless every part comes back
-    equal and of the same type — a decimal NaN, a set, tuple or model in a field declaring no
-    type, ``True`` or an enum member in an ``int`` field would not; a ``DatePoint`` reads back as
-    the ``datetime`` declared. A partial write is not read back. A plain ``datetime`` field keeps
-    the offset of a zone but not its name; :data:`~xtr_serializer.ZonedDateTime` keeps both. Data
-    is read as JSON, which is where strict pydantic takes a date, a UUID, a tuple or an enum from
-    text or a list.
+    What is written is checked as the JSON encoder checks it, so a float NaN or infinity a model's
+    own configuration allows is refused all the same. It is then read back under the same context
+    and refused unless every part comes back equal and of the same type — a decimal NaN, a set,
+    tuple or model in a field declaring no type, ``True`` or an enum member in an ``int`` field
+    would not; a ``DatePoint`` reads back as the ``datetime`` declared. A partial write is checked
+    but not read back. A plain ``datetime`` field keeps the offset of a zone but not its name;
+    :data:`~xtr_serializer.ZonedDateTime` keeps both. Data is read as JSON, which is where strict
+    pydantic takes a date, a UUID, a tuple or an enum from text or a list.
     """
 
     def __init__(self, default_context: Context | None = None) -> None:
@@ -100,18 +101,19 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
             refusal = cause if isinstance(cause, SerializerError) else None
             cyclic = is_cycle(error)
         else:
-            if not options.partial:
-                refusal = read_back_refusal(
-                    data,
-                    written,
-                    partial(
-                        adapter.reader.validate_json,
-                        by_alias=options.by_alias,
-                        by_name=None if options.by_alias else True,
-                        context=context,
-                    ),
+            refusal = read_back_refusal(
+                data,
+                written,
+                None
+                if options.partial
+                else partial(
+                    adapter.reader.validate_json,
                     by_alias=options.by_alias,
-                )
+                    by_name=None if options.by_alias else True,
+                    context=context,
+                ),
+                by_alias=options.by_alias,
+            )
             if refusal is None:
                 return written
         # Raised outside the handler, so no exception holding the data is chained to it.

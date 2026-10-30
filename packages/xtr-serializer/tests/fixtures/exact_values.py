@@ -41,6 +41,8 @@ __all__ = [
     "Measured",
     "Meeting",
     "Note",
+    "Proportion",
+    "Ratio",
     "Refusing",
     "Scoped",
     "Series",
@@ -172,6 +174,21 @@ class Measured(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(allow_inf_nan=True)
 
     value: Decimal
+
+
+class Ratio(BaseModel):
+    """A model whose own configuration reads infinity back, which JSON has no form for."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(allow_inf_nan=True)
+
+    value: float
+
+
+@pydantic_dataclass(config=ConfigDict(allow_inf_nan=True))
+class Proportion:
+    """A dataclass pydantic built whose own configuration reads infinity back."""
+
+    value: float
 
 
 class Scoped(BaseModel):

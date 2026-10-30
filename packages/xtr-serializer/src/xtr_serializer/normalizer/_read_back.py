@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from pydantic_core import to_json
 
 from xtr_serializer._loc_path import render_path
+from xtr_serializer._plain_data import PLAIN_DATA
 from xtr_serializer.exception import NotNormalizableValueError
 
 from ._first_difference import first_difference
@@ -42,9 +43,18 @@ _UNCONFIRMED: Final = {
 
 
 def read_back_refusal(
-    value: object, written: NormalizedValue, read: Callable[[bytes], object], *, by_alias: bool
+    value: object,
+    written: NormalizedValue,
+    read: Callable[[bytes], object] | None,
+    *,
+    by_alias: bool,
 ) -> NotNormalizableValueError | None:
     """Say why ``written`` would not read back as ``value``, or ``None`` when it would.
+
+    ``written`` is checked as the JSON encoder checks it first: a float holding NaN or infinity,
+    which pydantic writes as it is where a model's own configuration allows them, has no JSON
+    form. ``read`` is ``None`` for a write that is not to be read back, a partial one, which is
+    only checked so.
 
     pydantic writes what it holds by the field's declared type, and where a field declares nothing
     — ``Any``, a bare ``list`` or ``dict`` — by what it finds: a set or a tuple as a list, a key
@@ -63,8 +73,9 @@ def read_back_refusal(
     details: list[ErrorDetails] = []
     raised = ""
     try:
-        # Infinity written as itself, so that reading refuses it rather than seeing null.
-        text = to_json(written, inf_nan_mode="constants")
+        text = to_json(PLAIN_DATA.validate_python(written))
+        if read is None:
+            return None
         stage = "not_read_back"
         read_value = read(text)
         stage = "not_comparable"
@@ -81,6 +92,13 @@ def read_back_refusal(
             path=render_path(steps),
             current_type=changed.__qualname__,
             error_type="not_exact",
+        )
+    if details and stage == "not_json":
+        first = details[0]
+        return NotNormalizableValueError(
+            f"it has no JSON form: {first['msg']}",
+            path=render_path(first["loc"][1::2]),
+            error_type=first["type"],
         )
     if details:
         first = refusals_of(details, written, plain=True)[0]

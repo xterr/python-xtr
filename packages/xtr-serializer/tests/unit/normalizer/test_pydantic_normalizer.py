@@ -35,6 +35,8 @@ from tests.fixtures.exact_values import (
     Measured,
     Meeting,
     Note,
+    Proportion,
+    Ratio,
     Refusing,
     Scoped,
     Series,
@@ -1064,6 +1066,27 @@ def test_a_partial_write_is_not_read_back() -> None:
     )
 
     assert data == {"value": "NaN"}
+
+
+@pytest.mark.parametrize(
+    ("value", "context"),
+    [
+        (Ratio(value=math.inf), {}),
+        (Ratio(value=-math.inf), {}),
+        (Ratio(value=math.nan), {}),
+        (Proportion(math.inf), {}),
+        (Ratio(value=math.inf), {IGNORED_ATTRIBUTES: {"other"}}),
+    ],
+    ids=["infinity", "minus-infinity", "nan", "pydantic-dataclass", "partial-write"],
+)
+def test_it_refuses_to_write_what_json_has_no_form_for_whatever_a_model_reads(
+    value: object, context: Context
+) -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(value, context=context)
+
+    assert (raised.value.path, raised.value.error_type) == ("value", "finite_number")
+    assert raised.value.message == "it has no JSON form: Input should be a finite number"
 
 
 def test_a_refusal_a_serializer_raises_in_this_package_words_is_passed_on() -> None:
