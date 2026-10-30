@@ -228,8 +228,7 @@ def build_adapter(type_: object) -> Adapter | str:
     """
     try:
         with declaring():
-            alias = _alias_of("Value", type_)
-            writer = TypeAdapter(alias, config=_EXACT)
+            writer = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
             if not writer.pydantic_complete:
                 _ = writer.rebuild(raise_errors=True)
         reader = SchemaValidator(cast("CoreSchema", _aware(writer.core_schema)), _EXACT_READING)

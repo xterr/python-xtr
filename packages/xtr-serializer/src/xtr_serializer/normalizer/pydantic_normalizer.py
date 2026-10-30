@@ -6,7 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING, TypeVar, cast, final, overload
 
 from pydantic import ValidationError
-from pydantic_core import from_json, to_json
+from pydantic_core import to_json
 from typing_extensions import override
 
 from xtr_serializer._type_names import name_of, qualified_name_of
@@ -14,7 +14,6 @@ from xtr_serializer.exception import (
     CircularReferenceError,
     InvalidArgumentError,
     NotNormalizableValueError,
-    PartialDenormalizationError,
     SerializerError,
 )
 from xtr_serializer.mapping._deferred_refusals import deferring_refusals
@@ -24,7 +23,7 @@ from ._context_options import read_options, write_options
 from ._cycles import is_cycle
 from ._own_words import own_words
 from ._read_back import read_back_refusal
-from ._validation_refusals import refusals_of
+from ._read_refusal import read_refusal
 from .denormalizer_interface import DenormalizerInterface
 from .normalizer_interface import NormalizerInterface
 
@@ -235,21 +234,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
                 current_type=name_of(type(data)),
                 error_type="not_readable",
             )
-        # Read as JSON, the data is located in the JSON pydantic read, never in the caller's
-        # object, whose code could run, or which a generator or a set cannot be indexed into.
-        refusals = (
-            refusals_of(details, data if text is None else _parsed(text), plain=text is not None)
-            if details
-            else []
-        )
-        if not refusals:
-            raise NotNormalizableValueError(
-                "the data holds a value that is not plain data, or is nested too deep",
-                current_type=name_of(type(data)),
-            )
-        if options.collect:
-            raise PartialDenormalizationError(data, tuple(refusals))
-        raise refusals[0]
+        raise read_refusal(data, details, text, collect=options.collect)
 
     @override
     def supports_denormalization(
@@ -271,14 +256,3 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         if isinstance(adapter, str):
             raise InvalidArgumentError(adapter)
         return adapter
-
-
-def _parsed(text: bytes) -> object:
-    """Parse the JSON pydantic read, or give ``None`` when it is nested past what parsing takes.
-
-    pydantic reports such JSON as invalid as a whole, at no path, so nothing is lost.
-    """
-    try:
-        return cast("object", from_json(text))
-    except ValueError:
-        return None

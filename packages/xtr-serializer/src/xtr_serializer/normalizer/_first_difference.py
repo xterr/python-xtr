@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Final, cast
 
 from pydantic import BaseModel, RootModel
 
+from ._part_pairs import ABSENT, PLAIN, mapping_pairs, pairs, set_pairs
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from types import CodeType
@@ -23,23 +25,14 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
     from pydantic.fields import FieldInfo
 
-    # Two parts to compare: the step leading to them, or ``None`` where they have no place in a
-    # path; the part; its copy; and the type a difference inside them is reported as, ``None``
-    # for the type of the part that differs.
-    _Pair: TypeAlias = tuple[str | int | None, object, object, type | None]
+    from ._part_pairs import Pair
 
     # The pairs of parts of one value still to compare, how many steps lead to the value, whether
     # its parts have a place in a path, the type a difference inside it is reported as, and the
     # value itself.
-    _Frame: TypeAlias = tuple[Iterator[_Pair], int, bool, type | None, object]
+    _Frame: TypeAlias = tuple[Iterator[Pair], int, bool, type | None, object]
 
 __all__ = ["first_difference"]
-
-# What a mapping holds at a key it lacks: of no type a value has, so it always differs.
-_ABSENT: Final = object()
-
-# The types whose values compare by the built-in comparison, with nothing inside to look into.
-_PLAIN: Final = frozenset({str, int, float, bool, type(None)})
 
 # The classes whose equality pydantic writes, comparing a model's fields as the walk does.
 _PYDANTIC_EQUALITIES: Final = (BaseModel, RootModel)
@@ -87,13 +80,13 @@ def first_difference(
     frames: list[_Frame] = [] if found is None else [(found, 0, True, None, value)]
     try:
         while frames:
-            pairs, depth, placed, report, _ = frames[-1]
+            pending, depth, placed, report, _ = frames[-1]
             # The parts of the value on top, until one has parts of its own to compare first.
-            for step, part, read_part, reported_as in pairs:
+            for step, part, read_part, reported_as in pending:
                 if placed and step is not None:
                     steps[depth:] = (step,)
                 kind = type(part)
-                if kind in _PLAIN and type(read_part) is kind:
+                if kind in PLAIN and type(read_part) is kind:
                     found = None if part == read_part else kind
                 else:
                     found = _compare(part, read_part)
@@ -114,7 +107,7 @@ def first_difference(
     return None
 
 
-def _compare(value: object, read: object) -> type | Iterator[_Pair] | None:
+def _compare(value: object, read: object) -> type | Iterator[Pair] | None:
     """Compare ``value`` with its copy as far as can be done at once.
 
     Gives the type of ``value`` where the two differ, ``None`` where they are equal, and else
@@ -126,19 +119,19 @@ def _compare(value: object, read: object) -> type | Iterator[_Pair] | None:
     if kind is list or kind is tuple:
         parts, read_parts = cast("list[object]", value), cast("list[object]", read)
         same_size = len(parts) == len(read_parts)
-        return _pairs(range(len(parts)), parts, read_parts) if same_size else kind
+        return pairs(range(len(parts)), parts, read_parts) if same_size else kind
     if kind is dict:
-        return _mapping_pairs(
+        return mapping_pairs(
             cast("dict[object, object]", value), cast("dict[object, object]", read)
         )
     if kind is set or kind is frozenset:
-        return _set_pairs(cast("set[object]", value), cast("set[object]", read), kind)
+        return set_pairs(cast("set[object]", value), cast("set[object]", read), kind)
     if isinstance(value, BaseModel) or is_dataclass(value):
         return _object_pairs(value, read)
     return _subclass_pairs(value, read, kind)
 
 
-def _subclass_pairs(value: object, read: object, kind: type) -> type | Iterator[_Pair] | None:
+def _subclass_pairs(value: object, read: object, kind: type) -> type | Iterator[Pair] | None:
     """Compare a container of a subclass as its base is compared, its parts read by the base.
 
     The base's own methods read the parts, so no override of the subclass runs; an equality of
@@ -160,17 +153,17 @@ def _subclass_pairs(value: object, read: object, kind: type) -> type | Iterator[
     iterate = cast("Callable[[object], Iterator[object]]", vars(base)["__iter__"])
     parts, read_parts = list(iterate(value)), list(iterate(read))
     if base is set or base is frozenset:
-        return _set_pairs(set(parts), set(read_parts), kind)
+        return set_pairs(set(parts), set(read_parts), kind)
     names = cast("object", getattr_static(kind, "_fields", None))
     named = base is tuple and isinstance(names, tuple)
     places = cast("tuple[str, ...]", names) if named else range(len(parts))
     same_size = len(parts) == len(read_parts)
-    return _pairs(cast("Sequence[str | int]", places), parts, read_parts) if same_size else kind
+    return pairs(cast("Sequence[str | int]", places), parts, read_parts) if same_size else kind
 
 
 def _subclass_mapping_pairs(
     value: object, read: object, kind: type
-) -> type | Iterator[_Pair] | None:
+) -> type | Iterator[Pair] | None:
     """Compare a mapping of a subclass as a dict, and an ordered one in the order of its keys.
 
     An ordered dict keeps its order apart from the dict it is: it is read in its own.
@@ -183,10 +176,10 @@ def _subclass_mapping_pairs(
     mapping, read_mapping = dict(items(value)), dict(items(read))
     if ordered and list(mapping) != list(read_mapping):
         return kind
-    return _mapping_pairs(mapping, read_mapping, kind)
+    return mapping_pairs(mapping, read_mapping, kind)
 
 
-def _object_pairs(value: object, read: object) -> type | Iterator[_Pair] | None:
+def _object_pairs(value: object, read: object) -> type | Iterator[Pair] | None:
     """Compare a model or a dataclass where it sits, then pair its fields with their copies.
 
     Its fields are those it declares, then its extra fields: a copy holding an extra field
@@ -197,8 +190,8 @@ def _object_pairs(value: object, read: object) -> type | Iterator[_Pair] | None:
     if isinstance(value, BaseModel):
         model, read_model = value, cast("BaseModel", read)
         names = list(type(model).__pydantic_fields__)
-        parts = list(map(model.__dict__.get, names, repeat(_ABSENT)))
-        read_parts = list(map(read_model.__dict__.get, names, repeat(_ABSENT)))
+        parts = list(map(model.__dict__.get, names, repeat(ABSENT)))
+        read_parts = list(map(read_model.__dict__.get, names, repeat(ABSENT)))
         # Compared by pydantic's equality, which reads them as it is written.
         besides = model.__pydantic_private__ != read_model.__pydantic_private__
     else:
@@ -209,10 +202,10 @@ def _object_pairs(value: object, read: object) -> type | Iterator[_Pair] | None:
     extra, read_extra = _extra_fields(value, names), _extra_fields(read, names)
     if len(read_extra) > len(extra) or (value != read if _has_own_equality(kind) else besides):
         return kind
-    return _pairs(
+    return pairs(
         [*names, *extra],
         [*parts, *extra.values()],
-        [*read_parts, *map(read_extra.get, extra, repeat(_ABSENT))],
+        [*read_parts, *map(read_extra.get, extra, repeat(ABSENT))],
     )
 
 
@@ -284,56 +277,3 @@ def _name_by_alias(steps: list[str | int], frames: list[_Frame]) -> None:
             info = cast("dict[str, FieldInfo]", recorded).get(cast("str", steps[depth]))
             if info is not None and info.serialization_alias is not None:
                 steps[depth] = info.serialization_alias
-
-
-def _pairs(
-    places: Sequence[str | int], parts: list[object], read_parts: list[object]
-) -> Iterator[_Pair] | None:
-    """Pair each part with its copy, at its place.
-
-    Parts all plain, of the same types and equal are settled at once, without a step per part.
-    """
-    kinds = list(map(type, parts))
-    if _PLAIN.issuperset(kinds) and kinds == list(map(type, read_parts)) and parts == read_parts:
-        return None
-    return zip(places, parts, read_parts, repeat(None), strict=False)  # the last never ends
-
-
-def _mapping_pairs(
-    value: dict[object, object], read: dict[object, object], kind: type = dict
-) -> type | Iterator[_Pair] | None:
-    """Compare the keys, by exact type too, then pair what each key holds.
-
-    ``kind`` is the type of the mapping the two were read from, a difference in keys reported as.
-    """
-    keys, read_keys = list(value), list(read)
-    if len(keys) != len(read_keys):
-        return kind
-    if keys == read_keys and list(map(type, keys)) == list(map(type, read_keys)):
-        # A key of another type has no place in a path: what it holds is compared at the mapping.
-        places = [key for key in keys if type(key) is str or type(key) is int]
-        if len(places) == len(keys):
-            return _pairs(places, list(value.values()), list(read.values()))
-    return _keyed_pairs(value, read, read_keys, kind)
-
-
-def _keyed_pairs(
-    value: dict[object, object], read: dict[object, object], read_keys: list[object], kind: type
-) -> Iterator[_Pair]:
-    """Pair each key with the equal one read back, then what the two hold, all at the mapping.
-
-    A key that differs is reported as the mapping that holds it.
-    """
-    copies = {key: key for key in read_keys}
-    for key, part in value.items():
-        read_key = copies.get(key, _ABSENT)
-        yield None, key, read_key, kind
-        yield None, part, read[read_key], None
-
-
-def _set_pairs(value: set[object], read: set[object], kind: type) -> type | Iterator[_Pair]:
-    """Pair each member with the equal one read back, to compare their types and parts."""
-    if len(value) != len(read):
-        return kind
-    members = {member: member for member in read}
-    return ((None, member, members.get(member, _ABSENT), None) for member in value)
