@@ -6,7 +6,7 @@ from collections import Counter, OrderedDict, deque
 from dataclasses import fields, is_dataclass, make_dataclass
 from datetime import datetime
 from enum import Enum
-from functools import cache, cached_property
+from functools import cached_property, lru_cache
 from inspect import getattr_static
 from itertools import repeat
 from operator import eq
@@ -243,7 +243,8 @@ def _has_own_equality(kind: type) -> bool:
     )
 
 
-@cache
+# Bounded as the adapters are: classes built per call bring new field names each time.
+@lru_cache(maxsize=256)
 def _generated_equality(names: tuple[str, ...]) -> CodeType:
     """Give the code of the equality ``dataclass`` generates for fields named ``names``."""
     reference = make_dataclass("_", names, eq=True)
