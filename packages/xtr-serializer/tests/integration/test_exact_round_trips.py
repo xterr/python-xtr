@@ -1,8 +1,9 @@
 """Generated types and values written to JSON and read back equal, with the exact type of each part.
 
-A fixed seed draws nested dataclasses and models whose fields mix the values JSON has no form for;
-each value goes through the normalizer and the JSON encoder and back. The same seed draws the same
-cases on every run, so a failure is reproduced by running the test again.
+A fixed seed draws nested dataclasses and models whose fields mix the values JSON has no form for
+and the classes of hierarchies, declared by their base or a class in between; each value goes
+through the normalizer and the JSON encoder and back. The same seed draws the same cases on every
+run, so a failure is reproduced by running the test again.
 """
 
 from __future__ import annotations
@@ -22,6 +23,21 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, create_model
 
+from tests.fixtures.hierarchies import (
+    Alert,
+    Batch,
+    Bounce,
+    Circle,
+    Complaint,
+    Delivery,
+    Event,
+    Failure,
+    Notice,
+    Outage,
+    Reminder,
+    Shape,
+    Square,
+)
 from xtr_serializer import JsonEncoder, PydanticNormalizer, ZonedDateTime
 from xtr_serializer.normalizer import _adapter_cache
 
@@ -128,6 +144,52 @@ HASHABLE: Final = (
 SCALARS: Final = (*HASHABLE, Kind(NoneType, lambda _: None), Kind(ZonedDateTime, zoned_datetime))
 
 
+def failure(rng: Random) -> Failure:
+    if rng.random() < 0.5:
+        return Bounce(text(rng), text(rng), rng.randint(400, 599))
+    return Complaint(text(rng), text(rng), text(rng) or None)
+
+
+def event(rng: Random) -> Event:
+    draws: tuple[Callable[[Random], Event], ...] = (
+        lambda r: Event(text(r)),
+        lambda r: Delivery(text(r), text(r), fixed_offset_datetime(r)),
+        failure,
+        lambda r: Batch(text(r), tuple(failure(r) for _ in range(r.randint(0, 2))), [failure(r)]),
+    )
+    return rng.choice(draws)(rng)
+
+
+def outage(rng: Random) -> Outage:
+    return Outage(title=text(rng), level=rng.randint(0, 9), region=text(rng))
+
+
+def notice(rng: Random) -> Notice:
+    draws: tuple[Callable[[Random], Notice], ...] = (
+        lambda r: Notice(title=text(r)),
+        lambda r: Reminder(title=text(r), due=fixed_offset_datetime(r)),
+        outage,
+    )
+    return rng.choice(draws)(rng)
+
+
+def shape(rng: Random) -> Shape:
+    if rng.random() < 0.5:
+        return Circle(text(rng), finite_float(rng))
+    return Square(text(rng), finite_float(rng))
+
+
+# A value of any named class under the one declared: the base, or a class in between.
+HIERARCHIES: Final = (
+    Kind(Event, event),
+    Kind(Failure, failure),
+    Kind(Notice, notice),
+    Kind(Alert, outage),
+    Kind(Shape, shape),
+)
+LEAVES: Final = (*SCALARS, *HIERARCHIES)
+
+
 def several(rng: Random, kind: Kind) -> list[object]:
     return [kind.draw(rng) for _ in range(rng.randint(0, 3))]
 
@@ -174,7 +236,7 @@ CONTAINERS: Final = (list_of, tuple_of, pair_of, frozenset_of, dict_of, optional
 
 def nested_kind(rng: Random, depth: int) -> Kind:
     if depth >= MAX_DEPTH or rng.random() < 0.4:
-        return rng.choice(SCALARS)
+        return rng.choice(LEAVES)
     if rng.random() < 0.25:
         return composite_kind(rng, depth + 1)
     return rng.choice(CONTAINERS)(nested_kind(rng, depth + 1), rng)
@@ -230,18 +292,21 @@ def assert_same(read: object, value: object) -> None:
 def test_generated_values_read_back_equal_with_their_exact_types() -> None:
     rng = Random(SEED)  # noqa: S311 - drawn for reproducible cases, not for secrecy
     normalizer, encoder = PydanticNormalizer(), JsonEncoder()
-    cases = 0
+    cases = with_class_names = 0
 
     for _ in range(TYPES):
         kind = composite_kind(rng, 0)
         for _ in range(VALUES_PER_TYPE):
             value = kind.draw(rng)
-            data = encoder.decode(encoder.encode(normalizer.normalize(value), "json"), "json")
+            text_written = encoder.encode(normalizer.normalize(value), "json")
+            data = encoder.decode(text_written, "json")
 
             read = normalizer.denormalize(data, kind.annotation)
 
             assert read == value
             assert_same(read, value)
             cases += 1
+            with_class_names += '"$type"' in text_written
 
     assert cases >= 1000
+    assert with_class_names >= 200

@@ -34,6 +34,7 @@ from .exception import (
     UnexpectedValueError,
     UnsupportedFormatError,
 )
+from .mapping import ClassDiscriminatorMapping, discriminator_map, discriminator_name
 from .normalized_value import NormalizedValue
 from .normalizer import (
     ALLOW_EXTRA_ATTRIBUTES,
@@ -72,6 +73,7 @@ __all__ = [
     "SKIP_UNSET_VALUES",
     "STRICT",
     "CircularReferenceError",
+    "ClassDiscriminatorMapping",
     "Context",
     "ContextBuilderInterface",
     "DecoderInterface",
@@ -100,4 +102,6 @@ __all__ = [
     "UnexpectedValueError",
     "UnsupportedFormatError",
     "ZonedDateTime",
+    "discriminator_map",
+    "discriminator_name",
 ]

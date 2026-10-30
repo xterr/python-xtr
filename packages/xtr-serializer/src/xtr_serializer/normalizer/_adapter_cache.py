@@ -28,6 +28,7 @@ from pydantic_core.core_schema import CoreConfig
 from typing_extensions import TypeAliasType, override
 
 from xtr_serializer._type_names import name_of, qualified_name_of
+from xtr_serializer.exception import MappingError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -182,7 +183,8 @@ def build_adapter(type_: object) -> Adapter | str:
     and a type pydantic cannot build one for, such as a discriminator on what is no union, an
     alias of itself or a type nested deeper than building it can go, too. So is a type whose own
     code raises as pydantic reads it, such as a metaclass refusing to show its class: the
-    refusal names what was raised by its class alone, as its message may quote the type.
+    refusal names what was raised by its class alone, as its message may quote the type — but
+    for a class hierarchy refusing to be read as its classes were registered, which says why.
     """
     try:
         writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
@@ -200,10 +202,13 @@ def build_adapter(type_: object) -> Adapter | str:
     except (TypeError, PydanticUserError, RecursionError):
         return f"pydantic cannot build a schema for {_name_of(type_)!r}"
     except Exception as error:  # noqa: BLE001 - whatever the type's own code raises leaves it unbuilt
-        raised = name_of(type(error))
-        return (
-            f"pydantic cannot build a schema for {_name_of(type_)!r}: building it raised {raised}"
+        # A hierarchy refusing its classes as registered says why, in this package's words.
+        why = (
+            error
+            if isinstance(error, MappingError)
+            else f"building it raised {name_of(type(error))}"
         )
+        return f"pydantic cannot build a schema for {_name_of(type_)!r}: {why}"
     return Adapter(writer, reader)
 
 

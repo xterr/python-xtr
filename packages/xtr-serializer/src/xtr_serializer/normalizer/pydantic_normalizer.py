@@ -62,6 +62,10 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     :data:`~xtr_serializer.ZonedDateTime` keeps both. Data is read as JSON, which is where strict
     pydantic takes a date, a UUID, a tuple or an enum from text or a list.
 
+    A value of a class hierarchy (see :func:`~xtr_serializer.discriminator_map`) is written with
+    its class's name and read back as that class, wherever its base or a class under it is
+    declared.
+
     Before pydantic 2.14, the bytes in a named tuple inside a type with a configuration of its
     own, such as a model, are written as base64 whatever that configuration says, yet read as it
     says: unless it says base64 too, a value holding them would read back changed, so it is
