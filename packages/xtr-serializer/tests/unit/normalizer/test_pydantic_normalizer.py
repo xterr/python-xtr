@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import math
+import random
 import re
+import sys
+import threading
 import traceback
 from collections import Counter, OrderedDict, defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
@@ -14,12 +18,22 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
-from pydantic import Field, ImportString, TypeAdapter
+from pydantic import VERSION, Field, ImportString, TypeAdapter
 from pydantic_core import to_json
 from typing_extensions import override
 from xtr_clock import DatePoint, MonotonicClock
 
-from tests.fixtures.containers import Counts, Grouped, Levelled, Ordered, Paired, Queued, Tallied
+from tests.fixtures.containers import (
+    Counts,
+    Envelope,
+    Grouped,
+    Levelled,
+    Ordered,
+    Paired,
+    Queued,
+    Signed,
+    Tallied,
+)
 from tests.fixtures.exact_values import (
     Amount,
     Appointment,
@@ -114,6 +128,8 @@ from xtr_serializer.normalizer import _adapter_cache as adapter_cache
 from xtr_serializer.normalizer.pydantic_normalizer import PydanticNormalizer
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from xtr_serializer.context.context import Context
 
 PLANTED_VALUE = "s3cr3t-t0ken-4f9a"
@@ -352,6 +368,38 @@ def test_it_forgets_the_adapter_used_least_recently(
         assert normalizer.supports_denormalization(None, type_)
 
     assert built == [int, str, float, str]
+
+
+@pytest.fixture
+def switching_often() -> Iterator[None]:
+    """Have the interpreter switch threads as often as it can, so that a race shows at once."""
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    yield
+    sys.setswitchinterval(interval)
+
+
+THREADS = 16
+
+
+@pytest.mark.usefixtures("switching_often")
+def test_one_normalizer_reads_in_many_threads_at_once() -> None:
+    # More types than the normalizer keeps the adapters of, so the threads keep evicting one
+    # another's; each type reads one number only, so an adapter of another type would refuse it.
+    types = [Annotated[int, Field(ge=number, le=number)] for number in range(600)]
+    normalizer = PydanticNormalizer()
+    start = threading.Barrier(THREADS)
+
+    def read_numbers(seed: int) -> tuple[list[int], list[object]]:
+        chooser = random.Random(seed)  # noqa: S311 - picks the types to read, guards nothing
+        numbers = [chooser.randrange(len(types)) for _ in range(100)]
+        _ = start.wait()
+        return numbers, [normalizer.denormalize(number, types[number]) for number in numbers]
+
+    with ThreadPoolExecutor(THREADS) as pool:
+        results = list(pool.map(read_numbers, range(THREADS)))
+
+    assert all(read == numbers for numbers, read in results)
 
 
 def test_it_refuses_to_normalize_what_it_cannot_build() -> None:
@@ -1140,6 +1188,26 @@ def test_a_model_reads_its_plain_datetime_by_its_own_rules_wherever_it_sits(
     value: object, type_: object
 ) -> None:
     assert round_trip(value, type_) == value
+
+
+# Before 2.14, pydantic writes the bytes in a named tuple inside a model by the configuration of
+# the whole, as base64, and reads them by the model's.
+BEFORE_PYDANTIC_2_14 = tuple(map(int, VERSION.split(".")[:2])) < (2, 14)
+
+
+@pytest.mark.skipif(not BEFORE_PYDANTIC_2_14, reason="pydantic writes them as the model says")
+def test_bytes_in_a_named_tuple_in_a_lax_model_are_refused_before_pydantic_2_14() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Envelope(signed=Signed(b"abc")))
+
+    assert (raised.value.error_type, raised.value.path) == ("not_exact", "signed.signature")
+
+
+@pytest.mark.skipif(BEFORE_PYDANTIC_2_14, reason="pydantic writes them as base64")
+def test_bytes_in_a_named_tuple_in_a_lax_model_read_back_from_pydantic_2_14() -> None:
+    value = Envelope(signed=Signed(b"abc"))
+
+    assert round_trip(value, Envelope) == value
 
 
 @pytest.mark.parametrize(

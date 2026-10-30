@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from threading import RLock
 from types import NoneType, UnionType
 from typing import (
     TYPE_CHECKING,
@@ -119,14 +120,16 @@ class _Key:
 class AdapterCache:
     """The adapters of the types used last, and why a type has none.
 
-    A union's members count in the order written, as pydantic tries them in that order.
+    A union's members count in the order written, as pydantic tries them in that order. Threads
+    may share a cache.
     """
 
-    __slots__ = ("_adapters",)
+    __slots__ = ("_adapters", "_lock")
 
     def __init__(self) -> None:
         # Oldest use first: a type used again is moved to the end.
         self._adapters: dict[_Key, Adapter | str] = {}
+        self._lock = RLock()
 
     def get(self, type_: object) -> Adapter | str:
         """Return the adapter of ``type_``, or why it has none, building it on first use.
@@ -136,17 +139,28 @@ class AdapterCache:
         built every time, and building refuses it without quoting what was raised. A type that
         raises only later, as it is compared with another kept or asked for its hash again, is
         no longer found: it is built again, and its kept adapter goes when its turn comes.
+
+        Looking a type up, moving it to the end, keeping it and evicting the oldest are done
+        holding a lock, so that no thread finds the cache half changed. Building is not, as it is
+        slow and runs the type's own code: two threads may build the same type at once, and the
+        adapter kept last stays. The lock lets the thread holding it take it again, or that thread
+        would wait for itself for ever: comparing keys under the lock runs the types' own code,
+        which may use the cache in turn, as may a signal handler or a finalizer run meanwhile.
         """
         try:
             key = _Key(_key_of(type_))
         except Exception:  # noqa: BLE001 - whatever the type's own code raises leaves it unkept
             return build_adapter(type_)
-        adapter = self._adapters.pop(key, None)
-        if adapter is None:
-            adapter = build_adapter(type_)
-        self._adapters[key] = adapter
-        if len(self._adapters) > _CACHE_SIZE:
-            del self._adapters[next(iter(self._adapters))]
+        with self._lock:
+            adapter = self._adapters.pop(key, None)
+            if adapter is not None:
+                self._adapters[key] = adapter
+                return adapter
+        adapter = build_adapter(type_)
+        with self._lock:
+            self._adapters[key] = adapter
+            if len(self._adapters) > _CACHE_SIZE:
+                _ = self._adapters.pop(next(iter(self._adapters)), None)
         return adapter
 
 

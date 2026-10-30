@@ -6,12 +6,14 @@ from collections import Counter, OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from typing import NamedTuple
 
+from pydantic import BaseModel
 from typing_extensions import override
 
 from tests.fixtures.exact_values import Level
 
 __all__ = [
     "Counts",
+    "Envelope",
     "Grouped",
     "Identical",
     "Levelled",
@@ -21,6 +23,7 @@ __all__ = [
     "Paired",
     "Queued",
     "Rows",
+    "Signed",
     "Tallied",
 ]
 
@@ -35,6 +38,18 @@ class Numbered(NamedTuple):
     """A named tuple holding an integer."""
 
     x: int
+
+
+class Signed(NamedTuple):
+    """A named tuple holding bytes."""
+
+    signature: bytes
+
+
+class Envelope(BaseModel):
+    """A named tuple of bytes in a model whose configuration writes and reads bytes as text."""
+
+    signed: Signed
 
 
 class Rows(list[object]):

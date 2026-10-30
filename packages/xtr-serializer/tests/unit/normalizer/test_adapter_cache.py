@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -27,6 +28,7 @@ from tests.fixtures.refused_types import (
     nested,
     optionals,
 )
+from xtr_serializer.normalizer import _adapter_cache as adapter_cache
 from xtr_serializer.normalizer._adapter_cache import (
     Adapter,
     AdapterCache,
@@ -173,6 +175,64 @@ def test_a_kept_type_whose_comparison_now_raises_leaves_one_hashed_alike_kept() 
 
     assert reads_an_int(adapter)
     assert cache.get(other_type) is adapter
+
+
+@final
+class Recalling:
+    """Metadata hashed alike with all others, whose comparison looks a type up in a cache."""
+
+    def __init__(self, cache: AdapterCache) -> None:
+        self.cache = cache
+
+    @override
+    def __hash__(self) -> int:
+        return 0
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        _ = self.cache.get(str)
+        return self is other
+
+    @override
+    def __repr__(self) -> str:
+        return "Recalling()"
+
+
+def test_a_type_whose_comparison_uses_the_cache_again_is_answered() -> None:
+    cache = AdapterCache()
+    _ = cache.get(Annotated[int, Recalling(cache)])
+    other = Annotated[int, Recalling(cache)]
+    answers: list[Adapter | str] = []
+
+    # In a thread of its own, so a lookup that never returns fails the test rather than hangs it.
+    lookup = threading.Thread(target=lambda: answers.append(cache.get(other)), daemon=True)
+    lookup.start()
+    lookup.join(timeout=10)
+
+    assert len(answers) == 1
+    assert reads_an_int(answers[0])
+
+
+def test_a_type_being_built_holds_up_no_lookup_in_another_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache = AdapterCache()
+    _ = cache.get(int)
+    build = adapter_cache.build_adapter
+    answered: list[bool] = []
+
+    def build_while_another_thread_looks_up(type_: object) -> Adapter | str:
+        lookup = threading.Thread(target=cache.get, args=(int,), daemon=True)
+        lookup.start()
+        lookup.join(timeout=10)
+        answered.append(not lookup.is_alive())
+        return build(type_)
+
+    monkeypatch.setattr(adapter_cache, "build_adapter", build_while_another_thread_looks_up)
+
+    _ = cache.get(str)
+
+    assert answered == [True]
 
 
 @pytest.mark.parametrize(
