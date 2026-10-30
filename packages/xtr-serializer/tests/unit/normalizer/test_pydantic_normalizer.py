@@ -25,6 +25,8 @@ from tests.fixtures.exact_values import (
     Color,
     Count,
     Either,
+    Extended,
+    ExtendedParcel,
     Filed,
     Ledger,
     Level,
@@ -876,6 +878,8 @@ def test_it_refuses_to_write_what_would_not_read_back_saying_where(value: Decima
             "receipt.number",
             "bool",
         ),
+        (Extended.model_validate({"price": 1, "level": Level.LOW}), "level", "Level"),
+        (TypeAdapter(ExtendedParcel).validate_python({"weight": 1, "note": "a"}), "note", "str"),
     ],
     ids=[
         "int-key",
@@ -890,6 +894,8 @@ def test_it_refuses_to_write_what_would_not_read_back_saying_where(value: Decima
         "enum-member-as-an-int",
         "enum-member-read-as-an-earlier-union-member",
         "bool-inside-a-typed-dict",
+        "enum-member-as-an-extra-field",
+        "extra-field-a-dataclass-does-not-write",
     ],
 )
 def test_it_refuses_to_write_what_would_read_back_changed_saying_where(
@@ -907,6 +913,12 @@ def test_a_value_that_does_not_compare_by_value_is_refused_without_a_path() -> N
         _ = PydanticNormalizer().normalize(Ledger(1))
 
     assert (raised.value.error_type, raised.value.path) == ("not_exact", None)
+
+
+def test_the_extra_fields_of_a_model_read_back_with_it() -> None:
+    value = Extended.model_validate({"price": 1, "note": "a", "tags": ["b"]})
+
+    assert round_trip(value, Extended) == value
 
 
 @pytest.mark.parametrize(

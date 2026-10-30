@@ -31,6 +31,8 @@ __all__ = [
     "Color",
     "Count",
     "Either",
+    "Extended",
+    "ExtendedParcel",
     "Filed",
     "Ledger",
     "Level",
@@ -113,6 +115,21 @@ class Note:
     """Text."""
 
     value: str
+
+
+class Extended(BaseModel):
+    """A model keeping the fields it does not declare."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
+
+    price: int
+
+
+@pydantic_dataclass(config=ConfigDict(extra="allow"))
+class ExtendedParcel:
+    """A dataclass pydantic built keeping the fields it does not declare, which it never writes."""
+
+    weight: int
 
 
 @dataclass

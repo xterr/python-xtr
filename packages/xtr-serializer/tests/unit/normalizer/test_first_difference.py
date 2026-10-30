@@ -4,15 +4,22 @@ from __future__ import annotations
 
 import inspect
 import sys
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from functools import cached_property
+from typing import TYPE_CHECKING
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr, RootModel, TypeAdapter
+from typing_extensions import override
 from xtr_clock import DatePoint
 
-from tests.fixtures.exact_values import Ledger, Tally
+from tests.fixtures.exact_values import Extended, ExtendedParcel, Ledger, Level, Tally
 from xtr_serializer.normalizer._first_difference import first_difference
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class Line(BaseModel):
@@ -65,8 +72,109 @@ def test_a_datetime_subclass_may_come_back_as_a_datetime() -> None:
     assert difference(DatePoint(2026, 1, 1, tzinfo=UTC), at) == (None, [])
 
 
-def test_an_object_with_an_equality_of_its_own_is_compared_as_a_whole_too() -> None:
-    assert difference([Ledger(1)], [Ledger(1)]) == (list, [])
+class Fussy(BaseModel):
+    """A model whose equality of its own no copy satisfies."""
+
+    price: int
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        return other is self
+
+    @override
+    def __hash__(self) -> int:
+        return id(self)
+
+
+@pytest.mark.parametrize(
+    ("value", "read"),
+    [(Ledger(1), Ledger(1)), (Fussy(price=1), Fussy(price=1))],
+    ids=["dataclass-without-equality", "model"],
+)
+def test_an_object_with_an_equality_of_its_own_is_compared_by_it_where_it_sits(
+    value: object, read: object
+) -> None:
+    assert difference([value], [read]) == (type(value), [0])
+
+
+class Sealed(BaseModel):
+    """A model holding a private attribute, which pydantic's equality compares."""
+
+    price: int
+    _seal: int = PrivateAttr(default=0)
+
+
+def test_the_private_attributes_of_a_model_are_compared_where_it_sits() -> None:
+    sealed = Sealed(price=1)
+    sealed._seal = 1
+
+    assert difference({"a": sealed}, {"a": Sealed(price=1)}) == (Sealed, ["a"])
+
+
+class Priced(BaseModel):
+    """A model caching what it computes from its fields beside them."""
+
+    price: int
+
+    @cached_property
+    def doubled(self) -> int:
+        return self.price * 2
+
+
+class PricedParcel(ExtendedParcel):
+    """A dataclass keeping extra fields, caching what it computes beside its fields."""
+
+    @cached_property
+    def doubled(self) -> int:
+        return self.weight * 2
+
+
+@pytest.mark.parametrize(
+    ("value", "read"),
+    [(Priced(price=1), Priced(price=1)), (PricedParcel(weight=1), PricedParcel(weight=1))],
+    ids=["model", "dataclass-keeping-extra-fields"],
+)
+def test_what_an_object_caches_beside_its_fields_is_not_compared(
+    value: Priced | PricedParcel, read: object
+) -> None:
+    _ = value.doubled
+
+    assert difference(value, read) == (None, [])
+
+
+@pytest.mark.parametrize(
+    ("value", "read", "expected"),
+    [
+        pytest.param(
+            Extended.model_validate({"price": 1, "level": Level.LOW}),
+            Extended.model_validate({"price": 1, "level": 1}),
+            at(Level, "level"),
+            id="model-extra-type",
+        ),
+        pytest.param(
+            Extended(price=1),
+            Extended.model_validate({"price": 1, "note": "a"}),
+            at(Extended),
+            id="model-extra-only-in-the-copy",
+        ),
+        pytest.param(
+            TypeAdapter(ExtendedParcel).validate_python({"weight": 1, "note": "a"}),
+            ExtendedParcel(weight=1),
+            at(str, "note"),
+            id="dataclass-extra-not-in-the-copy",
+        ),
+    ],
+)
+def test_the_extra_fields_of_an_object_are_compared_by_exact_type(
+    value: object, read: object, expected: tuple[type, list[str | int]]
+) -> None:
+    assert difference(value, read) == expected
+
+
+def test_extra_fields_read_back_alike_have_no_difference() -> None:
+    data = {"price": 1, "note": "a"}
+
+    assert difference(Extended.model_validate(data), Extended.model_validate(data)) == (None, [])
 
 
 def test_a_comparison_that_raises_leaves_the_steps_where_it_raised() -> None:
@@ -98,8 +206,53 @@ def nested(depth: int) -> object:
     return value
 
 
-def test_a_deep_value_is_compared_however_little_of_the_stack_is_left() -> None:
-    value, read = nested(300), nested(300)
+@dataclass
+class Link:
+    """A link of a chain, holding the next one."""
+
+    next: Link | None
+
+
+class ModelLink(BaseModel):
+    """A link of a chain of models, holding the next one."""
+
+    next: ModelLink | None
+
+
+def links(depth: int) -> Link | None:
+    link: Link | None = None
+    for _ in range(depth):
+        link = Link(link)
+    return link
+
+
+def model_links(depth: int) -> ModelLink | None:
+    link: ModelLink | None = None
+    for _ in range(depth):
+        link = ModelLink(next=link)
+    return link
+
+
+class Rooted(RootModel[list[object]]):
+    """A model holding a list as a whole, which may hold another."""
+
+
+def rooted(depth: int) -> Rooted:
+    root = Rooted([])
+    for _ in range(depth):
+        root = Rooted([root])
+    return root
+
+
+@pytest.mark.parametrize(
+    "build",
+    [lambda: nested(300), lambda: links(150), lambda: model_links(150), lambda: rooted(150)],
+    ids=["lists", "dataclasses", "models", "root-models"],
+)
+def test_a_deep_value_is_compared_however_little_of_the_stack_is_left(
+    build: Callable[[], object],
+) -> None:
+    value, read = build(), build()
 
     def compare_from(depth: int) -> type | None:
         if depth:

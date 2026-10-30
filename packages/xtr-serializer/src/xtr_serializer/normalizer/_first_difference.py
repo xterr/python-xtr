@@ -4,15 +4,17 @@ from __future__ import annotations
 
 from dataclasses import fields, is_dataclass
 from datetime import datetime
+from inspect import getattr_static
 from itertools import repeat
 from typing import TYPE_CHECKING, Final, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
     from typing import TypeAlias
 
+    from _typeshed import DataclassInstance
     from pydantic.fields import FieldInfo
 
     # Two parts to compare: the step leading to them, or ``None`` where they have no place in a
@@ -33,6 +35,9 @@ _ABSENT: Final = object()
 # The types whose values compare by the built-in comparison, with nothing inside to look into.
 _PLAIN: Final = frozenset({str, int, float, bool, type(None)})
 
+# The classes whose equality pydantic writes, comparing a model's fields as the walk does.
+_PYDANTIC_EQUALITIES: Final = (BaseModel, RootModel)
+
 
 def first_difference(
     value: object, read: object, steps: list[str | int], *, by_alias: bool
@@ -43,21 +48,25 @@ def first_difference(
     ``True`` and for an ``IntEnum`` member, equal and yet another value. The one change allowed
     is the one a declared type makes on purpose: a ``datetime`` subclass, such as a ``DatePoint``,
     read back as a ``datetime``. Lists, tuples, dicts, sets, models and dataclasses are looked
-    into; any other value is compared as a whole. A model or a dataclass may define an equality
-    of its own, which looking into it passes over: when the walk has looked into one and found
-    no difference, the two values are compared as a whole too, and ``value`` is the part found
-    if they differ. The walk keeps the parts still to compare in a list of its own rather than
-    on the call stack, so no depth of the value, and no depth of the stack it is called from,
-    makes it run out of stack.
+    into; any other value is compared as a whole. A model or a dataclass is looked into by the
+    fields it declares and the extra fields pydantic keeps for it, never by whatever else its
+    instance holds, such as what a cached property stored. What looking into it passes over is
+    compared where it sits, on that object alone: an equality of its own — a model overriding
+    the one pydantic writes, a dataclass turning off the one ``dataclass`` writes, which compare
+    the fields the walk compares and are not run — or else a model's private attributes. The
+    walk keeps the parts still to compare in a list of its own rather than on the call stack, so
+    no depth of the value, and no depth of the stack it is called from, makes it run out of
+    stack; only an equality of an object's own may look deeper, as its class wrote it to.
 
     ``steps`` is left holding the indexes, keys and field names leading to the part found, or to
     the part being compared when a comparison raises. A field is named as it is written: by its
     alias when ``by_alias`` holds and pydantic records one, as it does for the fields of a model
-    and of a dataclass it built. A set has no place for its members, nor a mapping for a key that
-    is not text or an integer: the steps stop at them.
+    and of a dataclass it built; a dataclass of the standard library keeps the names of its
+    fields, even one its annotation gives an alias pydantic writes it under. A set has no place
+    for its members, nor a mapping for a key that is not text or an integer: the steps stop at
+    them.
     """
-    objects: list[object] = []
-    found = _compare(value, read, objects)
+    found = _compare(value, read)
     if isinstance(found, type):
         return found
     frames: list[_Frame] = [] if found is None else [(found, 0, True, None, value)]
@@ -72,7 +81,7 @@ def first_difference(
                 if kind in _PLAIN and type(read_part) is kind:
                     found = None if part == read_part else kind
                 else:
-                    found = _compare(part, read_part, objects)
+                    found = _compare(part, read_part)
                 if found is None:
                     continue
                 part_report = reported_as if report is None else report
@@ -87,15 +96,14 @@ def first_difference(
         if by_alias:
             _name_by_alias(steps, frames)
     steps.clear()
-    return type(value) if objects and value != read else None
+    return None
 
 
-def _compare(value: object, read: object, objects: list[object]) -> type | Iterator[_Pair] | None:
+def _compare(value: object, read: object) -> type | Iterator[_Pair] | None:
     """Compare ``value`` with its copy as far as can be done at once.
 
     Gives the type of ``value`` where the two differ, ``None`` where they are equal, and else
-    the pairs of their parts to compare next. A model or a dataclass looked into is added to
-    ``objects``.
+    the pairs of their parts to compare next.
     """
     kind = type(value)
     if type(read) is not kind and not (issubclass(kind, datetime) and type(read) is datetime):
@@ -111,26 +119,70 @@ def _compare(value: object, read: object, objects: list[object]) -> type | Itera
     if kind is set or kind is frozenset:
         return _set_pairs(cast("set[object]", value), cast("set[object]", read))
     if isinstance(value, BaseModel) or is_dataclass(value):
-        objects.append(value)
-        return _pairs(*_attributes(value, read))
+        return _object_pairs(value, read)
     return None if value == read else kind
 
 
-def _attributes(value: object, read: object) -> tuple[list[str], list[object], list[object]]:
-    """Give the attribute names of a dataclass or a model, their values and their copies.
+def _object_pairs(value: object, read: object) -> type | Iterator[_Pair] | None:
+    """Compare a model or a dataclass where it sits, then pair its fields with their copies.
 
-    A model stores its fields in its ``__dict__``, read there faster than attribute by attribute.
+    Its fields are those it declares, then its extra fields: a copy holding an extra field
+    ``value`` does not is reported as the object. A model stores its fields in its ``__dict__``,
+    read there faster than attribute by attribute.
     """
-    if is_dataclass(value):
-        names = [field.name for field in fields(value)]
-        return (
-            names,
-            [getattr(value, name) for name in names],
-            [getattr(read, name) for name in names],
-        )
-    stored, read_stored = cast("BaseModel", value).__dict__, cast("BaseModel", read).__dict__
-    names = list(stored)
-    return names, list(stored.values()), list(map(read_stored.get, names, repeat(_ABSENT)))
+    kind = type(value)
+    if isinstance(value, BaseModel):
+        model, read_model = value, cast("BaseModel", read)
+        names = list(type(model).__pydantic_fields__)
+        parts = list(map(model.__dict__.get, names, repeat(_ABSENT)))
+        read_parts = list(map(read_model.__dict__.get, names, repeat(_ABSENT)))
+        # Compared by pydantic's equality, which reads them as it is written.
+        besides = model.__pydantic_private__ != read_model.__pydantic_private__
+    else:
+        names = [field.name for field in fields(cast("DataclassInstance", value))]
+        parts = [getattr(value, name) for name in names]
+        read_parts = [getattr(read, name) for name in names]
+        besides = False
+    extra, read_extra = _extra_fields(value, names), _extra_fields(read, names)
+    if len(read_extra) > len(extra) or (value != read if _has_own_equality(kind) else besides):
+        return kind
+    return _pairs(
+        [*names, *extra],
+        [*parts, *extra.values()],
+        [*read_parts, *map(read_extra.get, extra, repeat(_ABSENT))],
+    )
+
+
+def _has_own_equality(kind: type) -> bool:
+    """Whether ``kind`` compares by an equality other than a field by field one.
+
+    pydantic writes a model's equality, and ``dataclass`` a dataclass's unless told not to, each
+    comparing the fields; any other is the class's own.
+    """
+    owner = next(base for base in kind.__mro__ if "__eq__" in vars(base))
+    if owner in _PYDANTIC_EQUALITIES:
+        return False
+    return not getattr(vars(owner).get("__dataclass_params__"), "eq", False)
+
+
+def _extra_fields(value: object, names: list[str]) -> dict[str, object]:
+    """Give the fields pydantic keeps for an object beyond those it declares.
+
+    A model keeps them apart; a dataclass whose configuration allows them, beside its fields: what
+    its class names, such as a cached property, is the class's, not an extra field.
+    """
+    if isinstance(value, BaseModel):
+        return value.__pydantic_extra__ or {}
+    kind = type(value)
+    config = cast("Mapping[str, object]", getattr(kind, "__pydantic_config__", {}))
+    if config.get("extra") != "allow":
+        return {}
+    stored = cast("dict[str, object]", getattr(value, "__dict__", {}))
+    return {
+        name: part
+        for name, part in stored.items()
+        if name not in names and getattr_static(kind, name, _ABSENT) is _ABSENT
+    }
 
 
 def _name_by_alias(steps: list[str | int], frames: list[_Frame]) -> None:
