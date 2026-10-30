@@ -13,6 +13,7 @@ from xtr_serializer.exception import MappingError, NotNormalizableValueError
 from ._class_builds import is_unbuilt
 from ._class_choice import class_choice
 from ._class_discriminator_registry import REGISTRY
+from ._declaration_sites import is_declaring
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -61,9 +62,11 @@ def polymorphic_schema(_owner: type, source: object, handler: GetCoreSchemaHandl
     A model, or a dataclass pydantic built, is asked for its schema as it builds itself too, and
     keeps its own schema then — pydantic alone validates it — with the places inside it declaring
     its own class pointing to the union. pydantic tells that build apart from the others by
-    nothing the class shows: it is taken to be one where the class is asked at no field while it
-    is not built yet. A type built before such a class holding it at no field — as the type itself,
-    or the items of one — reads it as itself alone; the normalizer builds such a class first.
+    nothing the class shows. A type's schema the normalizer builds is never one (see
+    :func:`~xtr_serializer.mapping._declaration_sites.declaring`); elsewhere it is taken to be one
+    where the class is asked at no field while it is not built yet, so that a type plain pydantic
+    builds holding such a class at no field — as the type itself, or the items of one — reads it
+    as itself alone.
 
     A tag the union reads is the place of the class among those it takes, rather than the name
     the data gives: pydantic puts the tag in the location of an error inside the class, where a
@@ -74,7 +77,7 @@ def polymorphic_schema(_owner: type, source: object, handler: GetCoreSchemaHandl
             the key's name.
     """
     declared = cast("type[object]", source)
-    own_build = handler.field_name is None and is_unbuilt(declared)
+    own_build = not is_declaring() and handler.field_name is None and is_unbuilt(declared)
     members = cast("Members", REGISTRY.claim(declared, even_unnamed=not own_build))
     if not members.names and not own_build:
         raise MappingError(

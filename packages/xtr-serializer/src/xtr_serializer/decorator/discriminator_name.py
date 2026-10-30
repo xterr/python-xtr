@@ -40,8 +40,8 @@ def discriminator_name(name: str) -> Callable[[_ClassT], _ClassT]:
     refuses every value it holds of its own hierarchy. Plain pydantic reads a model or a pydantic
     dataclass not built yet — deferred, or naming what is not defined yet — as itself alone where
     a type adapter's type holds it at no field, as it asks the class then for the schema it
-    builds itself with: the normalizer builds such a class first, and so should code using
-    pydantic alone.
+    builds itself with: the normalizer reads it as its hierarchy all the same, while code using
+    pydantic alone builds such a class first.
 
     A class deriving from a generic dataclass of the hierarchy cannot be named: pydantic reads
     ``Box[int]`` by the dataclass's fields, never asking for the classes under it.

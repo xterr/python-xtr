@@ -26,7 +26,7 @@ from typing_extensions import TypeAliasType, override
 from xtr_serializer._type_names import name_of
 from xtr_serializer._written_types import written_name_of
 from xtr_serializer.exception import MappingError
-from xtr_serializer.mapping._class_builds import build_classes_in
+from xtr_serializer.mapping._declaration_sites import declaring
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -219,14 +219,17 @@ def build_adapter(type_: object) -> Adapter | str:
     refusal names what was raised by its class alone, as its message may quote the type — but
     for a class hierarchy refusing to be read as its classes were registered, which says why.
 
-    A model or a pydantic dataclass in ``type_`` not built yet is built first, so that one of a
-    hierarchy reads its classes where ``type_`` holds it at no field.
+    The schema is built as one declaring every class it holds, so that a class of a hierarchy
+    reads its classes wherever ``type_`` holds it — through an alias, a new type or at no field
+    — whether pydantic built the class yet or not. A class not built yet is read from its fields
+    and left unbuilt: building it is pydantic's, on its first use, never one thread's while
+    another reads it.
     """
     try:
-        build_classes_in(type_)
-        writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
-        if not writer.pydantic_complete:
-            _ = writer.rebuild(raise_errors=True)
+        with declaring():
+            writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
+            if not writer.pydantic_complete:
+                _ = writer.rebuild(raise_errors=True)
         reader = SchemaValidator(cast("CoreSchema", _aware(writer.core_schema)), _EXACT_READING)
     except PydanticSchemaGenerationError:
         return f"pydantic has no schema for {written_name_of(type_)!r}"
