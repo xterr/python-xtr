@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, NamedTuple, cast, final, get_args
+from types import NoneType, UnionType
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Final,
+    Literal,
+    NamedTuple,
+    cast,
+    final,
+    get_args,
+    get_origin,
+)
 
 from pydantic import ConfigDict, TypeAdapter
 from pydantic.dataclasses import is_pydantic_dataclass
@@ -61,6 +72,13 @@ _alias_of: Final = cast("Callable[[str, object], object]", TypeAliasType)
 # Annotated[int, Field(ge=0)], is a new key each time; the least recently used goes first.
 _CACHE_SIZE: Final = 256
 
+# What a type is called when naming it raises, or goes deeper than the stack.
+_UNNAMED: Final = "a type that cannot be named"
+
+# The union the typing module builds, which ``X | Y`` builds too where ``X`` is one of its forms;
+# the same class as the other on Python 3.14.
+_TYPING_UNION: Final = cast("object", get_origin(Literal[0] | None))
+
 
 class Adapter(NamedTuple):
     """What writes the values of one type, and what reads them."""
@@ -83,11 +101,15 @@ class AdapterCache:
         self._adapters: dict[object, Adapter | str] = {}
 
     def get(self, type_: object) -> Adapter | str:
-        """Return the adapter of ``type_``, or why it has none, building it on first use."""
-        key = _key_of(type_)
+        """Return the adapter of ``type_``, or why it has none, building it on first use.
+
+        A type that cannot be keyed — one that cannot be hashed, or nested deeper than keying
+        it can go — is built every time; one nested that deep is refused by building it.
+        """
         try:
+            key = _key_of(type_)
             _ = hash(key)
-        except TypeError:  # a type expression that cannot be hashed is built every time
+        except (TypeError, RecursionError):
             return build_adapter(type_)
         adapter = self._adapters.pop(key, None)
         if adapter is None:
@@ -135,7 +157,43 @@ def build_adapter(type_: object) -> Adapter | str:
 
 
 def _name_of(type_: object) -> str:
-    """Name ``type_`` as written: a class by its qualified name, read past its metaclass."""
+    """Name ``type_`` as written, or by a fixed name when naming it raises.
+
+    A class is named by its qualified name, read past its metaclass, wherever it sits in a type
+    expression: the expression is taken apart rather than shown, which would ask each class in
+    it for its name. Showing what is neither — an annotation's metadata, a literal's values —
+    runs their own code, which may raise; so may a type nested deeper than the stack.
+    """
+    try:
+        return _written(type_)
+    except Exception:  # noqa: BLE001 - whatever naming runs leaves the type unnamed, not the call failed
+        return _UNNAMED
+
+
+def _written(type_: object) -> str:
+    """Write ``type_`` as it is written in code, its classes by their qualified names."""
+    origin = cast("object", get_origin(type_))
+    arguments: tuple[object, ...] = get_args(type_)
+    if origin is None:
+        return _written_alone(type_)
+    if origin is _TYPING_UNION or origin is UnionType:
+        return " | ".join(map(_written, arguments))
+    if origin is Literal:
+        return f"Literal[{', '.join(map(repr, arguments))}]"
+    if origin is Annotated:
+        metadata = ", ".join(map(repr, arguments[1:]))
+        return f"Annotated[{_written(arguments[0])}, {metadata}]"
+    return f"{_written(origin)}[{', '.join(map(_written, arguments))}]"
+
+
+def _written_alone(type_: object) -> str:
+    """Write what takes no arguments: a class, ``None``, ``...``, a callable's parameters."""
+    if type_ is NoneType or type_ is None:
+        return "None"
+    if type_ is Ellipsis:
+        return "..."
+    if isinstance(type_, list):
+        return f"[{', '.join(map(_written, cast('list[object]', type_)))}]"
     return qualified_name_of(type_) if isinstance(type_, type) else repr(type_)
 
 

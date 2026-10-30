@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import operator
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -10,12 +12,17 @@ from typing import Annotated, Literal, cast
 import pytest
 from pydantic import AwareDatetime, Field, NaiveDatetime, ValidationError
 from pydantic_core import to_json
-from typing_extensions import TypedDict  # pydantic reads typing's only from Python 3.12
+from typing_extensions import TypedDict, override  # pydantic reads typing's from Python 3.12
 
 from tests.fixtures.exact_values import Appointment, Color, Shape, Visit
 from tests.fixtures.nameless import NamelessThing, names_refused
-from tests.fixtures.refused_types import REFUSED_TYPES
-from xtr_serializer.normalizer._adapter_cache import Adapter, AdapterCache, build_adapter
+from tests.fixtures.refused_types import REFUSED_TYPES, nested
+from xtr_serializer.normalizer._adapter_cache import (
+    Adapter,
+    AdapterCache,
+    _name_of,
+    build_adapter,
+)
 
 
 class Opaque:
@@ -52,10 +59,70 @@ def test_it_tells_why_a_type_whose_schema_pydantic_refuses_has_no_adapter() -> N
 
 
 def test_it_tells_why_a_type_pydantic_cannot_build_a_schema_for_has_no_adapter() -> None:
-    misdeclared = Annotated[int, Field(discriminator="kind")]
-    name = repr(misdeclared)
+    field = cast("object", Field(discriminator="kind"))
+    name = f"Annotated[int, {field!r}]"
 
-    assert build_adapter(misdeclared) == f"pydantic cannot build a schema for {name!r}"
+    assert build_adapter(Annotated[int, field]) == f"pydantic cannot build a schema for {name!r}"
+
+
+def optionals(depth: int) -> object:
+    """Give a type nested ``depth`` deep in annotated optionals around ``int``.
+
+    Each is a union of the typing module's, which an annotated type makes with ``None``.
+    """
+    type_: object = int
+    for _ in range(depth):
+        type_ = _or(_item(Annotated, (type_, "x")), None)
+    return type_
+
+
+# A type built from another known at run time only, which type checkers read as no type.
+_item = cast("Callable[[object, tuple[object, ...]], object]", operator.getitem)
+_or = cast("Callable[[object, object], object]", operator.or_)
+
+
+@pytest.mark.parametrize(
+    "type_", [nested(500), optionals(300)], ids=["lists", "annotated-optionals"]
+)
+def test_a_type_nested_too_deep_to_be_kept_has_no_adapter(type_: object) -> None:
+    adapter = AdapterCache().get(type_)
+
+    assert isinstance(adapter, str)
+    assert adapter.startswith("pydantic cannot build a schema for ")
+
+
+@pytest.mark.parametrize(
+    ("type_", "name"),
+    [
+        (list[NamelessThing], "list[NamelessThing]"),
+        (dict[str, NamelessThing], "dict[str, NamelessThing]"),
+        (Literal["a"] | NamelessThing, "Literal['a'] | NamelessThing"),
+        (NamelessThing | None, "NamelessThing | None"),
+        (Annotated[NamelessThing, "x"], "Annotated[NamelessThing, 'x']"),
+        (Literal["a", 1], "Literal['a', 1]"),
+        (tuple[NamelessThing, ...], "tuple[NamelessThing, ...]"),
+        (Callable[[NamelessThing], None], "Callable[[NamelessThing], None]"),
+    ],
+    ids=["list", "dict", "typing-union", "union", "annotated", "literal", "tuple", "callable"],
+)
+def test_it_names_a_type_expression_without_running_a_metaclass(type_: object, name: str) -> None:
+    with names_refused():
+        assert _name_of(type_) == name
+
+
+class Unprintable:
+    """What is not a type, and refuses to be shown."""
+
+    @override
+    def __repr__(self) -> str:
+        raise LookupError
+
+
+@pytest.mark.parametrize(
+    "type_", [Unprintable(), nested(5000)], ids=["raising-repr", "deeper-than-the-stack"]
+)
+def test_a_type_that_cannot_be_named_is_named_by_a_fixed_name(type_: object) -> None:
+    assert _name_of(type_) == "a type that cannot be named"
 
 
 @pytest.mark.parametrize("type_", REFUSED_TYPES.values(), ids=REFUSED_TYPES.keys())
