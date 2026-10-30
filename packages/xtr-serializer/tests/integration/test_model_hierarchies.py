@@ -130,6 +130,9 @@ def test_a_model_holding_its_own_class_built_before_it_is_named_refuses_what_it_
     assert Early() == Early(replies=[])
     with pytest.raises(ValidationError):
         _ = Early(replies=[Early()])
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = NORMALIZER.normalize(Early.model_construct(replies=[Early()]))
+    assert caught.value.error_type == "class_discriminator_unnamed"
 
 
 def test_a_deferred_model_read_before_its_first_use_reads_the_class_named() -> None:

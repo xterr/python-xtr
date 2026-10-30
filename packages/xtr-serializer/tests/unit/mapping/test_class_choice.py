@@ -16,6 +16,7 @@ from pydantic import (
     TypeAdapter,
     model_validator,
 )
+from pydantic_core import SchemaValidator, core_schema
 
 from tests.fixtures.hierarchies import Delivery, Event
 from xtr_serializer import (
@@ -27,6 +28,7 @@ from xtr_serializer import (
     discriminator_map,
     discriminator_name,
 )
+from xtr_serializer.mapping._class_choice import class_choice
 
 NORMALIZER = PydanticNormalizer()
 AT = datetime(2026, 10, 30, 9, 30, tzinfo=UTC)
@@ -73,6 +75,14 @@ def test_the_json_schema_of_a_class_is_its_own() -> None:
     assert {"ratio": {"title": "Ratio", "type": "number"}} in [
         definition.get("properties") for definition in definitions.values()
     ]
+
+
+def test_a_schema_of_no_class_has_no_fields_to_check_and_reads_as_it_does() -> None:
+    own = core_schema.int_schema(ref="own")
+
+    choice = class_choice(own, int, "$type", "choice")
+
+    assert SchemaValidator(core_schema.definitions_schema(choice, [own])).validate_python(3) == 3
 
 
 def test_a_model_checking_itself_reads_the_key_inside_its_checks() -> None:

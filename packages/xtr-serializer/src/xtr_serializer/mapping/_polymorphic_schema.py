@@ -180,8 +180,14 @@ def _writer(
 
 
 def _refuse_every(declared: type, value: object) -> object:
-    """Refuse to write ``value`` where ``declared``, a class with no named class under it, is."""
-    raise _refusal(type(value), declared)
+    """Refuse to write ``value`` where ``declared`` is, which took no named class when built."""
+    raise NotNormalizableValueError(
+        f"no class {qualified_name_of(declared)!r} takes had a name when the schema holding it "
+        "was built: a model holding its own hierarchy is defined with defer_build",
+        expected_types=(qualified_name_of(declared),),
+        current_type=qualified_name_of(type(value)),
+        error_type="class_discriminator_unnamed",
+    )
 
 
 def _refusal(kind: type, declared: type) -> NotNormalizableValueError:

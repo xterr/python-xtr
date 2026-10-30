@@ -60,11 +60,8 @@ def _without(data: object, *, key: str) -> object:
     """
     if not issubclass(type(data), dict):
         return data
-    mapping = cast("dict[object, object]", data)
-    if not dict[object, object].__contains__(mapping, key):
-        return data
-    rest = dict[object, object].copy(mapping)
-    dict[object, object].__delitem__(rest, key)
+    rest = dict[object, object].copy(cast("dict[object, object]", data))
+    _ = dict[object, object].pop(rest, key, None)
     return rest
 
 
