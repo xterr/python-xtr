@@ -1,22 +1,44 @@
-"""Plain data read back before it is handed out, so what would not come back equal is refused."""
+"""Plain data read back before it is handed out, so what would not come back exact is refused."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from pydantic import ValidationError
 from pydantic_core import to_json
 
+from xtr_serializer._loc_path import render_path
 from xtr_serializer.exception import NotNormalizableValueError
 
+from ._first_difference import first_difference
 from ._validation_refusals import refusals_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from pydantic_core import ErrorDetails
+
     from xtr_serializer.normalized_value import NormalizedValue
 
 __all__ = ["read_back_refusal"]
+
+_CHANGED: Final = (
+    "it would read back changed: a field declaring no type holds a set, a tuple, an object or a "
+    "key that is not a string; a value of a subclass, such as True or an enum member in an int "
+    "field, reads back as the declared type; a datetime field holds a zone in an hour the clocks "
+    "repeat, which ZonedDateTime keeps; or its type does not compare by value"
+)
+
+# Why reading back could not confirm the value, by the step that raised. The exception is named
+# by its type alone: its message may quote the data.
+_UNCONFIRMED: Final = {
+    "not_json": "it has no JSON form to read back: it holds text JSON cannot carry, such as a "
+    "lone surrogate",
+    "not_read_back": "it could not be read back to confirm it is exact: reading it raised {}; a "
+    "validator that needs the context to read needs it to write as well",
+    "not_comparable": "it could not be compared with what it reads back as: the comparison "
+    "raised {}",
+}
 
 
 def read_back_refusal(
@@ -26,29 +48,48 @@ def read_back_refusal(
 
     pydantic writes what it holds by the field's declared type, and where a field declares nothing
     — ``Any``, a bare ``list`` or ``dict`` — by what it finds: a set or a tuple as a list, a key
-    that is not a string as one, a model as a mapping. It also writes what it cannot read: a
-    decimal NaN as ``"NaN"``. None of that warns. Reading the data back with ``read`` and comparing
-    finds all of it, whichever field it hides in.
+    that is not a string as one, a model as a mapping. It writes ``True`` in an ``int`` field as
+    ``1``, and a decimal NaN, which it cannot read, as ``"NaN"``. None of that warns. Reading the
+    data back with ``read`` and comparing, part by part and by exact type, finds all of it.
 
-    A refusal by reading says where, from pydantic's location. A value that reads back changed
-    has no location: pydantic only says the two differ.
+    A refusal says where: reading, from pydantic's location in ``written``; comparing, by the
+    attribute names, keys and indexes leading to the part that differs. A step that raises is a
+    refusal too, naming what it raised and never its message. The refusal is returned, not
+    raised, so no exception is chained to it.
     """
+    steps: list[str | int] = []
+    stage = "not_json"
+    details: list[ErrorDetails] = []
+    raised = ""
     try:
         # Infinity written as itself, so that reading refuses it rather than seeing null.
-        read_value = read(to_json(written, inf_nan_mode="constants"))
+        text = to_json(written, inf_nan_mode="constants")
+        stage = "not_read_back"
+        read_value = read(text)
+        stage = "not_comparable"
+        changed = first_difference(value, read_value, steps)
+        if changed is None and read_value != value:  # what the walk does not look into
+            changed = type(value)
     except ValidationError as error:
-        first = refusals_of(error.errors(include_url=False, include_context=False), written)[0]
+        details = error.errors(include_url=False, include_context=False)
+    except Exception as error:  # noqa: BLE001 - whatever the data's code raises leaves it unconfirmed
+        raised = type(error).__name__
+    else:
+        if changed is None:
+            return None
+        return NotNormalizableValueError(
+            _CHANGED,
+            path=render_path(steps),
+            current_type=changed.__qualname__,
+            error_type="not_exact",
+        )
+    if details:
+        first = refusals_of(details, written)[0]
         return NotNormalizableValueError(
             f"it would not read back: {first.message}",
             path=first.path,
             error_type=first.error_type,
         )
-    if read_value == value:
-        return None
     return NotNormalizableValueError(
-        "it would read back changed: a field declaring no type holds a set, a tuple, an object or "
-        "a key that is not a string; a datetime field holds a zone in an hour the clocks repeat, "
-        "which ZonedDateTime keeps; or its type does not compare by value",
-        current_type=type(value).__qualname__,
-        error_type="not_exact",
+        _UNCONFIRMED[stage].format(raised), path=render_path(steps), error_type=stage
     )

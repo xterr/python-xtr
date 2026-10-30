@@ -54,12 +54,13 @@ def _read(value: object) -> datetime:
         try:
             instant = datetime.fromisoformat(form["instant"])
             zone = ZoneInfo(form["zone"])
-        # A name the zone database lacks, a path or a directory of zones: the error quotes it.
-        except (ValueError, KeyError, OSError):
-            pass
-        else:
             offset = instant.utcoffset()
             zoned = instant.astimezone(zone) if offset is not None else None
+        # A name the zone database lacks, a path or a directory of zones: the error quotes it.
+        # An instant in the first or the last year shown in the zone may fall outside them.
+        except (ValueError, KeyError, OSError, OverflowError):
+            pass
+        else:
             # Zone rules other than the writer's would show the same instant at another time.
             if zoned is not None and zoned.utcoffset() == offset:
                 return zoned
@@ -83,7 +84,8 @@ datetime within a zone.
 
 Writing refuses a naive datetime, one with a fixed offset and one whose zone has no name (read
 from a file) with a :class:`~xtr_serializer.NotNormalizableValueError`. Reading refuses text not
-in that form, a zone the zone database lacks, and an offset the zone does not have at that time —
-written under other zone rules than the reader's — without quoting the text. A ``datetime``
-subclass, such as a ``DatePoint``, reads back as a ``datetime``.
+in that form, a zone the zone database lacks, an offset the zone does not have at that time —
+written under other zone rules than the reader's — and an instant that falls outside the years a
+``datetime`` holds once shown in the zone, without quoting the text. A ``datetime`` subclass, such
+as a ``DatePoint``, reads back as a ``datetime``.
 """

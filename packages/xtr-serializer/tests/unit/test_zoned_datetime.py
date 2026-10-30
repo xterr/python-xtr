@@ -161,3 +161,20 @@ def test_it_refuses_python_input_with_a_fixed_offset() -> None:
         _ = ZONED.validate_python(datetime(2026, 1, 1, tzinfo=UTC))
 
     assert raised.value.errors()[0]["type"] == "zoned_datetime"
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        '"9999-12-31T23:00:00-05:00[America/New_York]"',
+        '"0001-01-01T00:30:00+09:18:59[Asia/Tokyo]"',
+    ],
+    ids=["last-year", "first-year"],
+)
+def test_it_refuses_a_time_whose_instant_falls_outside_the_years_a_datetime_holds(
+    written: str,
+) -> None:
+    with pytest.raises(ValidationError) as raised:
+        _ = ZONED.validate_json(written)
+
+    assert raised.value.errors()[0]["type"] == "zoned_datetime"

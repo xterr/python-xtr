@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, cast, final, get_args
+from typing import TYPE_CHECKING, Final, NamedTuple, cast, final, get_args
 
 from pydantic import ConfigDict, TypeAdapter
 from pydantic.errors import PydanticSchemaGenerationError, PydanticUndefinedAnnotation
+from pydantic_core import SchemaValidator
+from pydantic_core.core_schema import CoreConfig
 from typing_extensions import TypeAliasType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-__all__ = ["AdapterCache", "build_adapter"]
+    from pydantic_core import CoreSchema
+
+__all__ = ["Adapter", "AdapterCache", "build_adapter"]
 
 # What makes a value read back as it was written: no conversion on reading, no NaN or infinity,
 # bytes as base64 rather than as text they may not be, durations in ISO 8601.
@@ -23,6 +27,12 @@ _EXACT: Final = ConfigDict(
     ser_json_timedelta="iso8601",
 )
 
+# The part of it that reading takes, for the reader built from the writer's schema.
+_EXACT_READING: Final = CoreConfig(strict=True, allow_inf_nan=False, val_json_bytes="base64")
+
+# Where a schema holds the application's values rather than schemas: left as they are.
+_VALUES: Final = frozenset({"metadata", "default"})
+
 # Type checkers read an alias only as a statement naming a type written in the code; here the
 # type is a value known at run time, which is what TypeAliasType takes there.
 _alias_of: Final = cast("Callable[[str, object], object]", TypeAliasType)
@@ -30,6 +40,13 @@ _alias_of: Final = cast("Callable[[str, object], object]", TypeAliasType)
 # How many types a cache keeps the adapter of. A type expression built per call, such as
 # Annotated[int, Field(ge=0)], is a new key each time; the least recently used goes first.
 _CACHE_SIZE: Final = 256
+
+
+class Adapter(NamedTuple):
+    """What writes the values of one type, and what reads them."""
+
+    writer: TypeAdapter[object]
+    reader: SchemaValidator
 
 
 @final
@@ -43,9 +60,9 @@ class AdapterCache:
 
     def __init__(self) -> None:
         # Oldest use first: a type used again is moved to the end.
-        self._adapters: dict[object, TypeAdapter[object] | str] = {}
+        self._adapters: dict[object, Adapter | str] = {}
 
-    def get(self, type_: object) -> TypeAdapter[object] | str:
+    def get(self, type_: object) -> Adapter | str:
         """Return the adapter of ``type_``, or why it has none, building it on first use."""
         key = _key_of(type_)
         try:
@@ -61,27 +78,49 @@ class AdapterCache:
         return adapter
 
 
-def build_adapter(type_: object) -> TypeAdapter[object] | str:
+def build_adapter(type_: object) -> Adapter | str:
     """Build the adapter of ``type_`` under the exact configuration, or say why it has none.
 
     pydantic refuses a configuration for a bare model, dataclass or typed dict; given one for an
     alias of the type, it applies it to the type and to what the type holds. A type naming what
     is not defined at run time, such as a class imported for type checkers only, gets an adapter
     pydantic finishes on first use; it is finished here, so the name is reported at once.
+
+    The reader is the writer's schema with every ``datetime`` that declares no rule about its
+    zone made to require one: a naive datetime names no instant, so it reads back as none in
+    particular. ``NaiveDatetime`` and ``AwareDatetime`` keep their rule. pydantic reads a model
+    with the reader the model was built with, so inside a model the model's own rule holds.
     """
     name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
     try:
-        adapter: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
-        if not adapter.pydantic_complete:
-            _ = adapter.rebuild(raise_errors=True)
+        writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
+        if not writer.pydantic_complete:
+            _ = writer.rebuild(raise_errors=True)
     except PydanticSchemaGenerationError:
         return f"pydantic has no schema for {name!r}"
     except PydanticUndefinedAnnotation as error:
         return f"pydantic has no schema for {name!r}: {error.name!r} is not defined"
-    return adapter
+    reader = SchemaValidator(cast("CoreSchema", _aware(writer.core_schema)), _EXACT_READING)
+    return Adapter(writer, reader)
 
 
 def _key_of(type_: object) -> object:
     """Key ``type_`` by its arguments in order, which a union's equality leaves out."""
     arguments: tuple[object, ...] = get_args(type_)
     return (type_, tuple(_key_of(argument) for argument in arguments))
+
+
+def _aware(schema: object) -> object:
+    """Copy ``schema``, every datetime declaring no rule about its zone made to require one."""
+    if isinstance(schema, list | tuple):
+        parts = [_aware(part) for part in cast("list[object]", schema)]
+        return parts if isinstance(schema, list) else tuple(parts)
+    if not isinstance(schema, dict):
+        return schema
+    copied = {
+        key: part if key in _VALUES else _aware(part)
+        for key, part in cast("dict[str, object]", schema).items()
+    }
+    if copied.get("type") == "datetime":
+        _ = copied.setdefault("tz_constraint", "aware")
+    return copied

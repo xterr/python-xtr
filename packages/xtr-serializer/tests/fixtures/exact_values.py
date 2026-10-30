@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from enum import IntEnum
+from typing import Annotated, ClassVar, cast
 
-from pydantic import PlainSerializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    NaiveDatetime,
+    PlainSerializer,
+    ValidationInfo,
+    field_validator,
+)
 
 from tests.fixtures.orders import Receipt
 from xtr_serializer import ZonedDateTime
@@ -17,10 +25,17 @@ from xtr_serializer.exception import NotNormalizableValueError
 __all__ = [
     "Amount",
     "Count",
+    "Either",
     "Filed",
+    "Ledger",
+    "Level",
+    "Local",
     "Loose",
+    "Measured",
     "Meeting",
+    "Note",
     "Refusing",
+    "Scoped",
     "Series",
     "Stamp",
 ]
@@ -47,11 +62,65 @@ class Count:
     value: int
 
 
+class Level(IntEnum):
+    """An enum whose members are integers, and so fit an ``int`` field."""
+
+    LOW = 1
+
+
+@dataclass(eq=False)
+class Ledger:
+    """A dataclass compared by identity, which no copy read back equals."""
+
+    value: int
+
+
+@dataclass
+class Either:
+    """A union whose first member also takes what the second one writes."""
+
+    value: int | Level
+
+
+@dataclass
+class Note:
+    """Text."""
+
+    value: str
+
+
 @dataclass
 class Stamp:
     """A datetime declared plainly: its offset is kept, its zone's name is not."""
 
     value: datetime
+
+
+@dataclass
+class Local:
+    """A datetime declared naive."""
+
+    value: NaiveDatetime
+
+
+class Measured(BaseModel):
+    """A model whose own configuration reads a decimal NaN back."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(allow_inf_nan=True)
+
+    value: Decimal
+
+
+class Scoped(BaseModel):
+    """A model whose validator needs the tenant the context names."""
+
+    value: int
+
+    @field_validator("value")
+    @classmethod
+    def _in_tenant(cls, value: int, info: ValidationInfo) -> int:
+        _ = cast("Mapping[str, object]", info.context)["tenant"]
+        return value
 
 
 @dataclass

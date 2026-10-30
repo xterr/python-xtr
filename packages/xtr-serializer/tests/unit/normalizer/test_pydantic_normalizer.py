@@ -21,10 +21,17 @@ from xtr_clock import DatePoint
 from tests.fixtures.exact_values import (
     Amount,
     Count,
+    Either,
     Filed,
+    Ledger,
+    Level,
+    Local,
     Loose,
+    Measured,
     Meeting,
+    Note,
     Refusing,
+    Scoped,
     Series,
     Stamp,
 )
@@ -244,7 +251,7 @@ def built(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     types: list[object] = []
     build = adapter_cache.build_adapter
 
-    def counting_build(type_: object) -> TypeAdapter[object] | str:
+    def counting_build(type_: object) -> adapter_cache.Adapter | str:
         types.append(type_)
         return build(type_)
 
@@ -786,16 +793,24 @@ def test_it_refuses_to_write_what_would_not_read_back_saying_where(value: Decima
 
 
 @pytest.mark.parametrize(
-    "value",
+    ("value", "path", "current_type"),
     [
-        Loose(items=[], mapping={1: "one"}),
-        Loose(items=[{1, 2}], mapping={}),
-        Loose(items=[(1, 2)], mapping={}),
-        Loose(items=[Item(sku="A", price=1)], mapping={}),
-        Series((1, 2)),
-        Stamp(REPEATED_HOUR),
-        [Item(sku="A", price=1)],
-        RECEIPT,
+        (Loose(items=[], mapping={1: "one"}), "mapping", "dict"),
+        (Loose(items=[{1, 2}], mapping={}), "items[0]", "set"),
+        (Loose(items=[(1, 2)], mapping={}), "items[0]", "tuple"),
+        (Loose(items=[Item(sku="A", price=1)], mapping={}), "items[0]", "Item"),
+        (Series((1, 2)), "value", "tuple"),
+        (Stamp(REPEATED_HOUR), "value", "datetime"),
+        ([Item(sku="A", price=1)], "[0]", "Item"),
+        (RECEIPT, "issued_at", "datetime"),
+        (Count(True), "value", "bool"),
+        (Count(Level.LOW), "value", "Level"),
+        (Either(Level.LOW), "value", "Level"),
+        (
+            Filed(Receipt(number=True, issued_at=RECEIPT["issued_at"], seal=RECEIPT["seal"])),
+            "receipt.number",
+            "bool",
+        ),
     ],
     ids=[
         "int-key",
@@ -806,15 +821,94 @@ def test_it_refuses_to_write_what_would_not_read_back_saying_where(value: Decima
         "zone-in-the-repeated-hour",
         "list-of-models",
         "typed-dict-on-its-own",
+        "bool-as-an-int",
+        "enum-member-as-an-int",
+        "enum-member-read-as-an-earlier-union-member",
+        "bool-inside-a-typed-dict",
     ],
 )
-def test_it_refuses_to_write_what_would_read_back_changed(value: object) -> None:
+def test_it_refuses_to_write_what_would_read_back_changed_saying_where(
+    value: object, path: str, current_type: str
+) -> None:
     with pytest.raises(NotNormalizableValueError) as raised:
         _ = PydanticNormalizer().normalize(value)
 
     assert raised.value.error_type == "not_exact"
-    assert raised.value.path is None
-    assert raised.value.current_type == type(value).__qualname__
+    assert (raised.value.path, raised.value.current_type) == (path, current_type)
+
+
+def test_a_value_that_does_not_compare_by_value_is_refused_without_a_path() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Ledger(1))
+
+    assert (raised.value.error_type, raised.value.path) == ("not_exact", None)
+
+
+def test_it_refuses_to_write_a_naive_datetime_in_a_plain_datetime_field() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Stamp(datetime(2026, 1, 1)))  # noqa: DTZ001 - the point
+
+    assert (raised.value.path, raised.value.error_type) == ("value", "timezone_aware")
+
+
+def test_it_refuses_to_read_a_naive_datetime_into_a_plain_datetime_field() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize({"value": "2026-01-01T00:00:00"}, Stamp)
+
+    assert (raised.value.path, raised.value.error_type) == ("value", "timezone_aware")
+
+
+def test_a_datetime_declared_naive_reads_back_naive() -> None:
+    value = Local(datetime(2026, 1, 1))  # noqa: DTZ001 - declared naive
+
+    assert round_trip(value, Local) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        datetime(9999, 12, 31, 23, tzinfo=ZoneInfo("America/New_York")),
+        datetime(1, 1, 1, 0, 30, tzinfo=ZoneInfo("Asia/Tokyo")),
+    ],
+    ids=["last-year", "first-year"],
+)
+def test_it_refuses_a_zoned_time_whose_instant_no_datetime_holds(value: datetime) -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Meeting(value))
+
+    assert (raised.value.path, raised.value.error_type) == ("starts_at", "zoned_datetime")
+
+
+def test_it_refuses_text_json_cannot_carry_without_quoting_it() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Note(f"\ud800{PLANTED_VALUE}"))
+
+    assert PLANTED_VALUE not in "".join(traceback.format_exception(raised.value))
+    assert (raised.value.error_type, raised.value.path) == ("not_json", None)
+    assert raised.value.__context__ is None
+
+
+def test_it_says_when_a_validator_fails_only_as_the_value_is_read_back() -> None:
+    value = Scoped.model_validate({"value": 1}, context={"tenant": "a"})
+
+    with pytest.raises(NotNormalizableValueError, match=r"read back.*KeyError") as raised:
+        _ = PydanticNormalizer().normalize(value)
+
+    assert raised.value.__context__ is None
+
+
+def test_it_reads_back_under_the_context_of_the_call() -> None:
+    value = Scoped.model_validate({"value": 1}, context={"tenant": "a"})
+
+    assert PydanticNormalizer().normalize(value, context={"tenant": "a"}) == {"value": 1}
+
+
+def test_it_refuses_a_value_that_cannot_be_compared_with_what_it_reads_back_as() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Measured(value=Decimal("sNaN")))
+
+    assert (raised.value.path, raised.value.error_type) == ("value", "not_comparable")
+    assert raised.value.__context__ is None
 
 
 def test_a_zoned_datetime_field_reads_back_the_repeated_hour_in_its_zone() -> None:
@@ -842,11 +936,10 @@ def test_a_plain_datetime_field_keeps_the_offset_of_a_zone_but_not_its_name() ->
         (Stamp(DatePoint(2026, 3, 1, 9, tzinfo=UTC)), Stamp, datetime),
         (Stamp(DatePoint(2026, 3, 1, 9, tzinfo=BUCHAREST)), Stamp, datetime),
         (Meeting(DatePoint(2026, 10, 25, 3, 30, tzinfo=BUCHAREST, fold=1)), Meeting, datetime),
-        (Count(True), Count, int),
     ],
-    ids=["date-point", "date-point-in-a-zone", "date-point-zoned", "bool-as-an-int"],
+    ids=["date-point", "date-point-in-a-zone", "date-point-zoned"],
 )
-def test_a_value_of_a_subclass_reads_back_equal_as_the_declared_type(
+def test_a_datetime_subclass_reads_back_equal_as_a_datetime(
     value: object, type_: type[object], declared: type[object]
 ) -> None:
     read = round_trip(value, type_)

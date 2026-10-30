@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING, TypeVar, cast, final, overload
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 from typing_extensions import override
 
@@ -16,7 +17,7 @@ from xtr_serializer.exception import (
     SerializerError,
 )
 
-from ._adapter_cache import AdapterCache
+from ._adapter_cache import Adapter, AdapterCache
 from ._context_options import read_options, write_options
 from ._cycles import is_cycle
 from ._read_back import read_back_refusal
@@ -47,9 +48,11 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     Each type is strict, finite, with bytes as base64 and durations in ISO 8601; a model keeps
     its own ``model_config`` instead, down to the next type with one of its own.
 
-    What is written is read back under the same context and refused unless it comes back equal
-    — a decimal NaN, or a set, tuple or model in a field declaring no type, would not. A partial
-    write is not read back. A plain ``datetime`` field keeps an offset but not a zone's name;
+    What is written is read back under the same context and refused unless every part comes back
+    equal and of the same type — a decimal NaN, a set, tuple or model in a field declaring no
+    type, ``True`` or an enum member in an ``int`` field would not; a ``DatePoint`` reads back as
+    the ``datetime`` declared. A partial write is not read back. A plain ``datetime`` field takes
+    an aware datetime only, and keeps its offset but not a zone's name;
     :data:`~xtr_serializer.ZonedDateTime` keeps both. Data is read as JSON, which is where strict
     pydantic takes a date, a UUID, a tuple or an enum from text or a list.
     """
@@ -75,7 +78,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
             # Dumped in JSON mode, the result holds only what JSON does.
             written = cast(
                 "NormalizedValue",
-                adapter.dump_python(
+                adapter.writer.dump_python(
                     data,
                     mode="json",
                     include=options.include,
@@ -98,8 +101,8 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
                 refusal = read_back_refusal(
                     data,
                     written,
-                    lambda text: adapter.validate_json(
-                        text,
+                    partial(
+                        adapter.reader.validate_json,
                         by_alias=options.by_alias,
                         by_name=None if options.by_alias else True,
                         context=context,
@@ -161,24 +164,30 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         cyclic = False
         try:
             if options.from_attributes:
-                return adapter.validate_python(
-                    data,
-                    strict=options.strict,
-                    extra=options.extra,
-                    from_attributes=True,
-                    by_alias=options.by_alias,
-                    by_name=options.by_name,
-                    context=context,
+                return cast(
+                    "object",
+                    adapter.reader.validate_python(
+                        data,
+                        strict=options.strict,
+                        extra=options.extra,
+                        from_attributes=True,
+                        by_alias=options.by_alias,
+                        by_name=options.by_name,
+                        context=context,
+                    ),
                 )
             # Infinity written as itself, so that reading refuses it rather than seeing null.
             text = to_json(data, inf_nan_mode="constants")
-            return adapter.validate_json(
-                text,
-                strict=options.strict,
-                extra=options.extra,
-                by_alias=options.by_alias,
-                by_name=options.by_name,
-                context=context,
+            return cast(
+                "object",
+                adapter.reader.validate_json(
+                    text,
+                    strict=options.strict,
+                    extra=options.extra,
+                    by_alias=options.by_alias,
+                    by_name=options.by_name,
+                    context=context,
+                ),
             )
         except ValidationError as error:
             details = error.errors(include_url=False, include_context=False)
@@ -214,7 +223,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         # Whether pydantic has a schema for a type depends on the type alone.
         return {"*": True}
 
-    def _adapter_for(self, type_: object) -> TypeAdapter[object]:
+    def _adapter_for(self, type_: object) -> Adapter:
         adapter = self._adapters.get(type_)
         if isinstance(adapter, str):
             raise InvalidArgumentError(adapter)
