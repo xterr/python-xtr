@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, make_dataclass
 from datetime import datetime
+from functools import cache, cached_property
 from inspect import getattr_static
 from itertools import repeat
+from types import FunctionType
 from typing import TYPE_CHECKING, Final, cast
 
 from pydantic import BaseModel, RootModel
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
+    from types import CodeType
     from typing import TypeAlias
 
     from _typeshed import DataclassInstance
@@ -52,11 +55,12 @@ def first_difference(
     fields it declares and the extra fields pydantic keeps for it, never by whatever else its
     instance holds, such as what a cached property stored. What looking into it passes over is
     compared where it sits, on that object alone: an equality of its own — a model overriding
-    the one pydantic writes, a dataclass turning off the one ``dataclass`` writes, which compare
-    the fields the walk compares and are not run — or else a model's private attributes. The
-    walk keeps the parts still to compare in a list of its own rather than on the call stack, so
-    no depth of the value, and no depth of the stack it is called from, makes it run out of
-    stack; only an equality of an object's own may look deeper, as its class wrote it to.
+    the one pydantic writes, a dataclass comparing by any but the one ``dataclass`` generates,
+    which compare the fields the walk compares and are not run — or else a model's private
+    attributes. The walk keeps the parts still to compare in a list of its own rather than on the
+    call stack, so no depth of the value, and no depth of the stack it is called from, makes it
+    run out of stack; only an equality of an object's own may look deeper, as its class wrote it
+    to.
 
     ``steps`` is left holding the indexes, keys and field names leading to the part found, or to
     the part being compared when a comparison raises. A field is named as it is written: by its
@@ -156,13 +160,35 @@ def _object_pairs(value: object, read: object) -> type | Iterator[_Pair] | None:
 def _has_own_equality(kind: type) -> bool:
     """Whether ``kind`` compares by an equality other than a field by field one.
 
-    pydantic writes a model's equality, and ``dataclass`` a dataclass's unless told not to, each
-    comparing the fields; any other is the class's own.
+    pydantic writes a model's equality, comparing the fields. ``dataclass`` generates one too,
+    unless told not to or the class writes its own, which it then keeps: an equality is taken as
+    generated only when its code is that of the one ``dataclass`` generates for the same compared
+    fields. Any other is the class's own.
     """
     owner = next(base for base in kind.__mro__ if "__eq__" in vars(base))
     if owner in _PYDANTIC_EQUALITIES:
         return False
-    return not getattr(vars(owner).get("__dataclass_params__"), "eq", False)
+    equality = cast("object", vars(owner)["__eq__"])
+    if not getattr(vars(owner).get("__dataclass_params__"), "eq", False) or not isinstance(
+        equality, FunctionType
+    ):
+        return True
+    owned = cast("type[DataclassInstance]", owner)
+    compared = tuple(field.name for field in fields(owned) if field.compare)
+    code, generated = equality.__code__, _generated_equality(compared)
+    return (code.co_code, code.co_names, code.co_consts, code.co_varnames) != (
+        generated.co_code,
+        generated.co_names,
+        generated.co_consts,
+        generated.co_varnames,
+    )
+
+
+@cache
+def _generated_equality(names: tuple[str, ...]) -> CodeType:
+    """Give the code of the equality ``dataclass`` generates for fields named ``names``."""
+    reference = make_dataclass("_", names, eq=True)
+    return cast("FunctionType", vars(reference)["__eq__"]).__code__
 
 
 def _extra_fields(value: object, names: list[str]) -> dict[str, object]:
@@ -181,7 +207,7 @@ def _extra_fields(value: object, names: list[str]) -> dict[str, object]:
     return {
         name: part
         for name, part in stored.items()
-        if name not in names and getattr_static(kind, name, _ABSENT) is _ABSENT
+        if name not in names and not isinstance(getattr_static(kind, name, None), cached_property)
     }
 
 

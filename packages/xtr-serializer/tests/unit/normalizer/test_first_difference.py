@@ -15,6 +15,7 @@ from pydantic import BaseModel, PrivateAttr, RootModel, TypeAdapter
 from typing_extensions import override
 from xtr_clock import DatePoint
 
+from tests.fixtures.equalities import GENERATED_EQUALITIES, HAND_WRITTEN_EQUALITIES, LabelledParcel
 from tests.fixtures.exact_values import Extended, ExtendedParcel, Ledger, Level, Tally
 from xtr_serializer.normalizer._first_difference import first_difference
 
@@ -97,6 +98,24 @@ def test_an_object_with_an_equality_of_its_own_is_compared_by_it_where_it_sits(
     assert difference([value], [read]) == (type(value), [0])
 
 
+@pytest.mark.parametrize("build", GENERATED_EQUALITIES.values(), ids=GENERATED_EQUALITIES.keys())
+def test_a_dataclass_comparing_by_its_generated_equality_is_looked_into(
+    build: Callable[[int], object],
+) -> None:
+    assert difference([build(1)], [build(2)]) == (int, [0, "count"])
+
+
+@pytest.mark.parametrize(
+    "build", HAND_WRITTEN_EQUALITIES.values(), ids=HAND_WRITTEN_EQUALITIES.keys()
+)
+def test_a_dataclass_with_an_equality_written_by_hand_is_compared_by_it(
+    build: Callable[[int | None], object],
+) -> None:
+    value = build(None)
+
+    assert difference([value], [build(None)]) == (type(value), [0])
+
+
 class Sealed(BaseModel):
     """A model holding a private attribute, which pydantic's equality compares."""
 
@@ -175,6 +194,14 @@ def test_extra_fields_read_back_alike_have_no_difference() -> None:
     data = {"price": 1, "note": "a"}
 
     assert difference(Extended.model_validate(data), Extended.model_validate(data)) == (None, [])
+
+
+def test_an_extra_field_named_as_a_method_of_its_class_is_compared() -> None:
+    parcels = TypeAdapter(LabelledParcel)
+    value = parcels.validate_python({"weight": 1, "label": Level.LOW})
+    read = parcels.validate_python({"weight": 1, "label": 1})
+
+    assert difference(value, read) == at(Level, "label")
 
 
 def test_a_comparison_that_raises_leaves_the_steps_where_it_raised() -> None:
