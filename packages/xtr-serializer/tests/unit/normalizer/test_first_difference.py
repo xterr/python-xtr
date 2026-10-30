@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import sys
+from collections import Counter, OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -15,6 +16,7 @@ from pydantic import BaseModel, PrivateAttr, RootModel, TypeAdapter
 from typing_extensions import override
 from xtr_clock import DatePoint
 
+from tests.fixtures.containers import Identical, Levelled, Members, Numbered, Rows
 from tests.fixtures.equalities import GENERATED_EQUALITIES, HAND_WRITTEN_EQUALITIES, LabelledParcel
 from tests.fixtures.exact_values import Extended, ExtendedParcel, Ledger, Level, Tally
 from xtr_serializer.normalizer._first_difference import first_difference
@@ -71,6 +73,45 @@ def test_a_datetime_subclass_may_come_back_as_a_datetime() -> None:
     at = datetime(2026, 1, 1, tzinfo=UTC)
 
     assert difference(DatePoint(2026, 1, 1, tzinfo=UTC), at) == (None, [])
+
+
+@pytest.mark.parametrize(
+    ("value", "read", "expected"),
+    [
+        pytest.param(Levelled(Level.LOW), Levelled(1), at(Level, "x"), id="named-tuple"),
+        pytest.param(Numbered(True), Numbered(1), at(bool, "x"), id="named-tuple-bool"),
+        pytest.param(deque([Level.LOW]), deque([1]), at(Level, 0), id="deque"),
+        pytest.param(deque([1, 2]), deque([1]), at(deque), id="deque-length"),
+        pytest.param(
+            OrderedDict({"a": Level.LOW}), OrderedDict({"a": 1}), at(Level, "a"), id="ordered-dict"
+        ),
+        pytest.param(
+            OrderedDict({"a": 1, "b": 2}),
+            OrderedDict({"b": 2, "a": 1}),
+            at(OrderedDict),
+            id="ordered-dict-order",
+        ),
+        pytest.param(
+            defaultdict(int, a=Level.LOW), defaultdict(int, a=1), at(Level, "a"), id="defaultdict"
+        ),
+        pytest.param(Counter({"a": True}), Counter({"a": 1}), at(bool, "a"), id="counter"),
+        pytest.param(Counter({Level.LOW: 1}), Counter({1: 1}), at(Counter), id="counter-key"),
+        pytest.param(Rows([True]), Rows([1]), at(bool, 0), id="list-subclass"),
+        pytest.param(Members({True}), Members({1}), at(bool), id="set-subclass"),
+        pytest.param([Identical([1])], [Identical([1])], at(Identical, 0), id="own-equality"),
+    ],
+)
+def test_a_container_of_a_subclass_is_looked_into_as_its_base_is(
+    value: object, read: object, expected: tuple[type, list[str | int]]
+) -> None:
+    assert difference(value, read) == expected
+
+
+def test_equal_containers_of_a_subclass_have_no_difference() -> None:
+    def build() -> list[object]:
+        return [Levelled(1), deque([1]), OrderedDict({"a": 1}), Counter({"a": 1}), Rows([1])]
+
+    assert difference(build(), build()) == (None, [])
 
 
 class Fussy(BaseModel):

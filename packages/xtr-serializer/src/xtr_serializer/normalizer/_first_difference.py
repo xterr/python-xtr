@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+from collections import Counter, OrderedDict, deque
 from dataclasses import fields, is_dataclass, make_dataclass
 from datetime import datetime
+from enum import Enum
 from functools import cache, cached_property
 from inspect import getattr_static
 from itertools import repeat
+from operator import eq
 from types import FunctionType
 from typing import TYPE_CHECKING, Final, cast
 
 from pydantic import BaseModel, RootModel
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from types import CodeType
     from typing import TypeAlias
 
@@ -41,6 +44,12 @@ _PLAIN: Final = frozenset({str, int, float, bool, type(None)})
 # The classes whose equality pydantic writes, comparing a model's fields as the walk does.
 _PYDANTIC_EQUALITIES: Final = (BaseModel, RootModel)
 
+# The containers looked into, of whatever subclass, and the classes whose equality compares
+# what they hold as the walk does — or less strictly, as a counter's, which takes a key it lacks
+# for zero —, so that the walk stands for it.
+_CONTAINERS: Final[tuple[type, ...]] = (list, tuple, deque, dict, set, frozenset)
+_WALKED_EQUALITIES: Final = frozenset({*_CONTAINERS, OrderedDict, Counter})
+
 
 def first_difference(
     value: object, read: object, steps: list[str | int], *, by_alias: bool
@@ -51,8 +60,10 @@ def first_difference(
     ``True`` and for an ``IntEnum`` member, equal and yet another value. The one change allowed
     is the one a declared type makes on purpose: a ``datetime`` subclass, such as a ``DatePoint``,
     read back as a ``datetime``. Lists, tuples, dicts, sets, models and dataclasses are looked
-    into; any other value is compared as a whole. A model or a dataclass is looked into by the
-    fields it declares and the extra fields pydantic keeps for it, never by whatever else its
+    into, and deques, and the containers of a subclass of any of them — a named tuple by its
+    fields, an ordered dict in its order —, an enum member excepted; any other value is compared
+    as a whole. A model or a dataclass is looked into by the fields it declares and the extra
+    fields pydantic keeps for it, never by whatever else its
     instance holds, such as what a cached property stored. What looking into it passes over is
     compared where it sits, on that object alone: an equality of its own — a model overriding
     the one pydantic writes, a dataclass comparing by any but the one ``dataclass`` generates,
@@ -121,10 +132,58 @@ def _compare(value: object, read: object) -> type | Iterator[_Pair] | None:
             cast("dict[object, object]", value), cast("dict[object, object]", read)
         )
     if kind is set or kind is frozenset:
-        return _set_pairs(cast("set[object]", value), cast("set[object]", read))
+        return _set_pairs(cast("set[object]", value), cast("set[object]", read), kind)
     if isinstance(value, BaseModel) or is_dataclass(value):
         return _object_pairs(value, read)
-    return None if value == read else kind
+    return _subclass_pairs(value, read, kind)
+
+
+def _subclass_pairs(value: object, read: object, kind: type) -> type | Iterator[_Pair] | None:
+    """Compare a container of a subclass as its base is compared, its parts read by the base.
+
+    The base's own methods read the parts, so no override of the subclass runs; an equality of
+    the subclass's own, which the walk does not stand for, is compared where it sits first. A
+    named tuple places its parts by its fields; an ordered dict differs in the order of its keys.
+    Any other value, an enum member that is a container too, is compared as a whole.
+    """
+    # Looked up in the class's bases rather than tested with issubclass, whose narrowing to a
+    # generic class leaves its arguments unknown.
+    base = next((base for base in _CONTAINERS if base in kind.__mro__), None)
+    if base is None or isinstance(value, Enum):
+        return None if value == read else kind
+    owner = next(base for base in kind.__mro__ if "__eq__" in vars(base))
+    # By the equality itself: the built-in containers' inequality does not run it.
+    if owner not in _WALKED_EQUALITIES and not eq(value, read):
+        return kind
+    if base is dict:
+        return _subclass_mapping_pairs(value, read, kind)
+    iterate = cast("Callable[[object], Iterator[object]]", vars(base)["__iter__"])
+    parts, read_parts = list(iterate(value)), list(iterate(read))
+    if base is set or base is frozenset:
+        return _set_pairs(set(parts), set(read_parts), kind)
+    names = cast("object", getattr_static(kind, "_fields", None))
+    named = base is tuple and isinstance(names, tuple)
+    places = cast("tuple[str, ...]", names) if named else range(len(parts))
+    same_size = len(parts) == len(read_parts)
+    return _pairs(cast("Sequence[str | int]", places), parts, read_parts) if same_size else kind
+
+
+def _subclass_mapping_pairs(
+    value: object, read: object, kind: type
+) -> type | Iterator[_Pair] | None:
+    """Compare a mapping of a subclass as a dict, and an ordered one in the order of its keys.
+
+    An ordered dict keeps its order apart from the dict it is: it is read in its own.
+    """
+    ordered = OrderedDict in kind.__mro__
+    items = cast(
+        "Callable[[object], Iterable[tuple[object, object]]]",
+        OrderedDict.items if ordered else dict.items,
+    )
+    mapping, read_mapping = dict(items(value)), dict(items(read))
+    if ordered and list(mapping) != list(read_mapping):
+        return kind
+    return _mapping_pairs(mapping, read_mapping, kind)
 
 
 def _object_pairs(value: object, read: object) -> type | Iterator[_Pair] | None:
@@ -240,22 +299,25 @@ def _pairs(
 
 
 def _mapping_pairs(
-    value: dict[object, object], read: dict[object, object]
+    value: dict[object, object], read: dict[object, object], kind: type = dict
 ) -> type | Iterator[_Pair] | None:
-    """Compare the keys, by exact type too, then pair what each key holds."""
+    """Compare the keys, by exact type too, then pair what each key holds.
+
+    ``kind`` is the type of the mapping the two were read from, a difference in keys reported as.
+    """
     keys, read_keys = list(value), list(read)
     if len(keys) != len(read_keys):
-        return dict
+        return kind
     if keys == read_keys and list(map(type, keys)) == list(map(type, read_keys)):
         # A key of another type has no place in a path: what it holds is compared at the mapping.
         places = [key for key in keys if type(key) is str or type(key) is int]
         if len(places) == len(keys):
             return _pairs(places, list(value.values()), list(read.values()))
-    return _keyed_pairs(value, read, read_keys)
+    return _keyed_pairs(value, read, read_keys, kind)
 
 
 def _keyed_pairs(
-    value: dict[object, object], read: dict[object, object], read_keys: list[object]
+    value: dict[object, object], read: dict[object, object], read_keys: list[object], kind: type
 ) -> Iterator[_Pair]:
     """Pair each key with the equal one read back, then what the two hold, all at the mapping.
 
@@ -264,13 +326,13 @@ def _keyed_pairs(
     copies = {key: key for key in read_keys}
     for key, part in value.items():
         read_key = copies.get(key, _ABSENT)
-        yield None, key, read_key, dict
+        yield None, key, read_key, kind
         yield None, part, read[read_key], None
 
 
-def _set_pairs(value: set[object], read: set[object]) -> type | Iterator[_Pair]:
+def _set_pairs(value: set[object], read: set[object], kind: type) -> type | Iterator[_Pair]:
     """Pair each member with the equal one read back, to compare their types and parts."""
     if len(value) != len(read):
-        return type(value)
+        return kind
     members = {member: member for member in read}
     return ((None, member, members.get(member, _ABSENT), None) for member in value)

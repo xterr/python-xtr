@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import re
 import traceback
+from collections import Counter, OrderedDict, defaultdict, deque
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ from pydantic_core import to_json
 from typing_extensions import override
 from xtr_clock import DatePoint, MonotonicClock
 
+from tests.fixtures.containers import Counts, Grouped, Levelled, Ordered, Paired, Queued, Tallied
 from tests.fixtures.exact_values import (
     Amount,
     Appointment,
@@ -912,6 +914,12 @@ def test_it_refuses_to_write_what_would_not_read_back_saying_where(value: Decima
         (Count(True), "value", "bool"),
         (Count(Level.LOW), "value", "Level"),
         (Either(Level.LOW), "value", "Level"),
+        (Paired(Levelled(Level.LOW)), "p.x", "Level"),
+        (Queued(deque([Level.LOW])), "q[0]", "Level"),
+        (Ordered(OrderedDict(a=Level.LOW)), "d.a", "Level"),
+        (Grouped(defaultdict(list, a=[Level.LOW])), "d.a[0]", "Level"),
+        (Tallied(Counter({"a": True})), "c.a", "bool"),
+        (Counts(Counter({Level.LOW: 1})), "c", "Counter"),
         (
             Filed(Receipt(number=True, issued_at=RECEIPT["issued_at"], seal=RECEIPT["seal"])),
             "receipt.number",
@@ -932,6 +940,12 @@ def test_it_refuses_to_write_what_would_not_read_back_saying_where(value: Decima
         "bool-as-an-int",
         "enum-member-as-an-int",
         "enum-member-read-as-an-earlier-union-member",
+        "enum-member-in-a-named-tuple",
+        "enum-member-in-a-deque",
+        "enum-member-in-an-ordered-dict",
+        "enum-member-in-a-defaultdict",
+        "bool-in-a-counter",
+        "enum-member-as-a-counter-key",
         "bool-inside-a-typed-dict",
         "enum-member-as-an-extra-field",
         "extra-field-a-dataclass-does-not-write",
