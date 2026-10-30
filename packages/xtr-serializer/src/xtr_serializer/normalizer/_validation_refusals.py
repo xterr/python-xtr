@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from inspect import getattr_static
-from types import MemberDescriptorType
+from types import GetSetDescriptorType, MemberDescriptorType
 from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
 
 from xtr_serializer._loc_path import render_path
@@ -49,6 +49,9 @@ _KEY: Final = "[key]"
 _ABSENT: Final = object()
 _OPAQUE: Final = object()
 
+# A class's name as the interpreter keeps it, read past a metaclass that computes ``__name__``.
+_NAME: Final = cast("GetSetDescriptorType", vars(type)["__name__"])
+
 
 def refusals_of(
     details: list[ErrorDetails], data: object, *, plain: bool
@@ -57,11 +60,11 @@ def refusals_of(
 
     Each keeps pydantic's message, which describes the type rather than the value — or words of
     its own where pydantic's quote the data —, its error type, the name of the type the value
-    had, and where it sits in ``data``. The message of a validator — a ``ValueError``, an
-    assertion, a ``PydanticCustomError`` it raised — is kept as the validator worded it, which is
-    why a validator must not quote the value it refuses. pydantic also names the union member it
-    tried and marks a refused key; the path leaves out both, and the refused key itself, which is
-    the value.
+    had, read without running its metaclass, and where it sits in ``data``. The message of a
+    validator — a ``ValueError``, an assertion, a ``PydanticCustomError`` it raised — is kept as
+    the validator worded it, which is why a validator must not quote the value it refuses.
+    pydantic also names the union member it tried and marks a refused key; the path leaves out
+    both, and the refused key itself, which is the value.
 
     pydantic reports each field an object should not have on its own; they are reported as one
     error naming them all, where the first of them was, as a reader would want to hear about a
@@ -101,7 +104,9 @@ def refusals_of(
         reported.add((path, error_type, message))
         # A missing field's input is the object it is missing from.
         current_type = (
-            None if error_type == "missing" else type(cast("object", detail["input"])).__name__
+            None
+            if error_type == "missing"
+            else cast("str", _NAME.__get__(type(cast("object", detail["input"]))))
         )
         refusals.append(
             NotNormalizableValueError(

@@ -85,6 +85,19 @@ class Disguised(tuple[object, ...]):
         return list
 
 
+class Renaming(type):
+    """A metaclass computing the name of its classes, as code the data carries may."""
+
+    @property
+    @override
+    def __name__(cls) -> str:  # pyright: ignore[reportIncompatibleVariableOverride] - the trap is the point
+        raise RuntimeError(PLANTED_VALUE)
+
+
+class Renamed(metaclass=Renaming):
+    """A class whose name its metaclass computes."""
+
+
 class Line(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
 
@@ -114,6 +127,17 @@ def test_a_value_that_does_not_fit_keeps_its_path_type_and_message() -> None:
         "str",
     )
     assert refusal.message == "Input should be a valid integer"
+
+
+def test_the_type_of_a_refused_value_is_named_without_running_its_code() -> None:
+    renamed = Renamed()
+    detail = ErrorDetails(
+        type="string_type", loc=("x",), msg="Input should be a valid string", input=renamed
+    )
+
+    [refusal] = refusals_of([detail], {"x": renamed}, plain=False)
+
+    assert refusal.current_type == "Renamed"
 
 
 def test_the_extra_fields_of_one_object_are_one_error() -> None:
