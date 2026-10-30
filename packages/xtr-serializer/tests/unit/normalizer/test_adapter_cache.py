@@ -10,7 +10,7 @@ from typing import cast
 import pytest
 from pydantic import AwareDatetime, NaiveDatetime, ValidationError
 
-from tests.fixtures.exact_values import Color, Shape
+from tests.fixtures.exact_values import Appointment, Color, Shape, Visit
 from xtr_serializer.normalizer._adapter_cache import Adapter, AdapterCache, build_adapter
 
 
@@ -75,6 +75,21 @@ def test_a_datetime_declaring_its_zone_rule_keeps_it(type_: object, text: str) -
     assert isinstance(adapter, Adapter)
 
     assert isinstance(cast("object", adapter.reader.validate_json(text)), datetime)
+
+
+@pytest.mark.parametrize(
+    ("type_", "expected"),
+    [
+        (Appointment, Appointment(at=datetime(2026, 1, 1))),  # noqa: DTZ001 - its own rule
+        (Visit, Visit(at=datetime(2026, 1, 1))),  # noqa: DTZ001 - its own rule
+    ],
+    ids=["model", "pydantic-dataclass"],
+)
+def test_its_reader_leaves_a_model_its_own_zone_rule(type_: object, expected: object) -> None:
+    adapter = build_adapter(type_)
+    assert isinstance(adapter, Adapter)
+
+    assert cast("object", adapter.reader.validate_json('{"at": "2026-01-01T00:00:00"}')) == expected
 
 
 @dataclass

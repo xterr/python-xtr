@@ -42,7 +42,7 @@ _UNCONFIRMED: Final = {
 
 
 def read_back_refusal(
-    value: object, written: NormalizedValue, read: Callable[[bytes], object]
+    value: object, written: NormalizedValue, read: Callable[[bytes], object], *, by_alias: bool
 ) -> NotNormalizableValueError | None:
     """Say why ``written`` would not read back as ``value``, or ``None`` when it would.
 
@@ -53,9 +53,10 @@ def read_back_refusal(
     data back with ``read`` and comparing, part by part and by exact type, finds all of it.
 
     A refusal says where: reading, from pydantic's location in ``written``; comparing, by the
-    attribute names, keys and indexes leading to the part that differs. A step that raises is a
-    refusal too, naming what it raised and never its message. The refusal is returned, not
-    raised, so no exception is chained to it.
+    field names, keys and indexes leading to the part that differs, a field named by its alias
+    when ``written`` is, ``by_alias``, as reading names it. A step that raises is a refusal too,
+    naming what it raised and never its message. The refusal is returned, not raised, so no
+    exception is chained to it.
     """
     steps: list[str | int] = []
     stage = "not_json"
@@ -67,9 +68,7 @@ def read_back_refusal(
         stage = "not_read_back"
         read_value = read(text)
         stage = "not_comparable"
-        changed = first_difference(value, read_value, steps)
-        if changed is None and read_value != value:  # what the walk does not look into
-            changed = type(value)
+        changed = first_difference(value, read_value, steps, by_alias=by_alias)
     except ValidationError as error:
         details = error.errors(include_url=False, include_context=False)
     except Exception as error:  # noqa: BLE001 - whatever the data's code raises leaves it unconfirmed

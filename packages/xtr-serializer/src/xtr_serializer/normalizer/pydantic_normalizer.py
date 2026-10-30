@@ -45,16 +45,19 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     validators as ``info.context``) onto pydantic's options, and pydantic's errors onto this
     package's, with paths and never values. A validator's message is passed on as worded.
 
-    Each type is strict, finite, with bytes as base64 and durations in ISO 8601; a model keeps
-    its own ``model_config`` instead, down to the next type with one of its own.
+    Each type is strict, finite, with bytes as base64 and durations in ISO 8601, and a plain
+    ``datetime`` in it takes an aware datetime only. A model, or a dataclass pydantic built, keeps
+    its own configuration and rules instead, down to the next type with one of its own, wherever
+    it sits: a model that is to be exact declares those settings itself, and types its datetimes
+    ``AwareDatetime``. The :data:`~xtr_serializer.STRICT` key overrides strictness for every type.
 
     What is written is read back under the same context and refused unless every part comes back
     equal and of the same type — a decimal NaN, a set, tuple or model in a field declaring no
     type, ``True`` or an enum member in an ``int`` field would not; a ``DatePoint`` reads back as
-    the ``datetime`` declared. A partial write is not read back. A plain ``datetime`` field takes
-    an aware datetime only, and keeps its offset but not a zone's name;
-    :data:`~xtr_serializer.ZonedDateTime` keeps both. Data is read as JSON, which is where strict
-    pydantic takes a date, a UUID, a tuple or an enum from text or a list.
+    the ``datetime`` declared. A partial write is not read back. A plain ``datetime`` field keeps
+    the offset of a zone but not its name; :data:`~xtr_serializer.ZonedDateTime` keeps both. Data
+    is read as JSON, which is where strict pydantic takes a date, a UUID, a tuple or an enum from
+    text or a list.
     """
 
     def __init__(self, default_context: Context | None = None) -> None:
@@ -107,6 +110,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
                         by_name=None if options.by_alias else True,
                         context=context,
                     ),
+                    by_alias=options.by_alias,
                 )
             if refusal is None:
                 return written

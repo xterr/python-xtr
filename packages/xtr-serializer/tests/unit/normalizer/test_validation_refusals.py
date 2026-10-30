@@ -225,6 +225,12 @@ def test_a_value_with_no_fields_holds_no_step() -> None:
     assert refusal.path is None
 
 
+def test_an_index_into_a_value_that_is_no_sequence_holds_no_step() -> None:
+    [refusal] = refusals_of([string_error_at(0)], Lazy(), plain=False)
+
+    assert refusal.path is None
+
+
 def test_a_key_is_found_without_comparing_the_keys_of_the_data() -> None:
     key = Key()
     data = {"items": {key: 1, "price": {"store": 1}}}

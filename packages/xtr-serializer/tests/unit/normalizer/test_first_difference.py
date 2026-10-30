@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+import sys
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -9,6 +11,7 @@ import pytest
 from pydantic import BaseModel
 from xtr_clock import DatePoint
 
+from tests.fixtures.exact_values import Ledger, Tally
 from xtr_serializer.normalizer._first_difference import first_difference
 
 
@@ -18,7 +21,7 @@ class Line(BaseModel):
 
 def difference(value: object, read: object) -> tuple[type | None, list[str | int]]:
     steps: list[str | int] = []
-    return first_difference(value, read, steps), steps
+    return first_difference(value, read, steps, by_alias=True), steps
 
 
 def at(kind: type, *steps: str | int) -> tuple[type, list[str | int]]:
@@ -62,10 +65,46 @@ def test_a_datetime_subclass_may_come_back_as_a_datetime() -> None:
     assert difference(DatePoint(2026, 1, 1, tzinfo=UTC), at) == (None, [])
 
 
+def test_an_object_with_an_equality_of_its_own_is_compared_as_a_whole_too() -> None:
+    assert difference([Ledger(1)], [Ledger(1)]) == (list, [])
+
+
 def test_a_comparison_that_raises_leaves_the_steps_where_it_raised() -> None:
     steps: list[str | int] = []
 
     with pytest.raises(InvalidOperation):
-        _ = first_difference({"a": [Decimal("sNaN")]}, {"a": [Decimal("sNaN")]}, steps)
+        _ = first_difference(
+            {"a": [Decimal("sNaN")]}, {"a": [Decimal("sNaN")]}, steps, by_alias=True
+        )
 
     assert steps == ["a", 0]
+
+
+@pytest.mark.parametrize(("by_alias", "step"), [(True, "itemCount"), (False, "item_count")])
+def test_a_field_is_named_as_it_is_written(by_alias: bool, step: str) -> None:
+    steps: list[str | int] = []
+
+    found = first_difference(
+        Tally.model_construct(item_count=True), Tally(itemCount=1), steps, by_alias=by_alias
+    )
+
+    assert (found, steps) == (bool, [step])
+
+
+def nested(depth: int) -> object:
+    value: object = 0
+    for _ in range(depth):
+        value = [value]
+    return value
+
+
+def test_a_deep_value_is_compared_however_little_of_the_stack_is_left() -> None:
+    value, read = nested(300), nested(300)
+
+    def compare_from(depth: int) -> type | None:
+        if depth:
+            return compare_from(depth - 1)
+        return first_difference(value, read, [], by_alias=True)
+
+    # Leaves a few dozen frames of the stack for the comparison, far fewer than the value's depth.
+    assert compare_from(sys.getrecursionlimit() - len(inspect.stack(0)) - 50) is None

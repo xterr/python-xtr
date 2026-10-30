@@ -20,6 +20,8 @@ from xtr_clock import DatePoint, MonotonicClock
 
 from tests.fixtures.exact_values import (
     Amount,
+    Appointment,
+    Booking,
     Color,
     Count,
     Either,
@@ -36,6 +38,8 @@ from tests.fixtures.exact_values import (
     Series,
     Shape,
     Stamp,
+    Tally,
+    Visit,
 )
 from tests.fixtures.orders import (
     Cart,
@@ -894,6 +898,20 @@ def test_a_value_that_does_not_compare_by_value_is_refused_without_a_path() -> N
     assert (raised.value.error_type, raised.value.path) == ("not_exact", None)
 
 
+@pytest.mark.parametrize(
+    ("context", "path"),
+    [({}, "itemCount"), ({BY_ALIAS: False}, "item_count")],
+    ids=["alias", "name"],
+)
+def test_what_would_read_back_changed_is_located_under_the_name_it_is_written_by(
+    context: Context, path: str
+) -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Tally.model_construct(item_count=True), context=context)
+
+    assert (raised.value.error_type, raised.value.path) == ("not_exact", path)
+
+
 def test_it_refuses_to_write_a_naive_datetime_in_a_plain_datetime_field() -> None:
     with pytest.raises(NotNormalizableValueError) as raised:
         _ = PydanticNormalizer().normalize(Stamp(datetime(2026, 1, 1)))  # noqa: DTZ001 - the point
@@ -912,6 +930,24 @@ def test_a_datetime_declared_naive_reads_back_naive() -> None:
     value = Local(datetime(2026, 1, 1))  # noqa: DTZ001 - declared naive
 
     assert round_trip(value, Local) == value
+
+
+NAIVE = datetime(2026, 1, 1)  # noqa: DTZ001 - what a model's own rules let through
+
+
+@pytest.mark.parametrize(
+    ("value", "type_"),
+    [
+        (Appointment(at=NAIVE), Appointment),
+        (Visit(at=NAIVE), Visit),
+        (Booking(Appointment(at=NAIVE)), Booking),
+    ],
+    ids=["model", "pydantic-dataclass", "model-in-a-dataclass"],
+)
+def test_a_model_reads_its_plain_datetime_by_its_own_rules_wherever_it_sits(
+    value: object, type_: object
+) -> None:
+    assert round_trip(value, type_) == value
 
 
 @pytest.mark.parametrize(

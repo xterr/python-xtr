@@ -12,11 +12,13 @@ from typing import Annotated, ClassVar, cast
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     NaiveDatetime,
     PlainSerializer,
     ValidationInfo,
     field_validator,
 )
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tests.fixtures.orders import Receipt
 from xtr_serializer import ZonedDateTime
@@ -24,6 +26,8 @@ from xtr_serializer.exception import NotNormalizableValueError
 
 __all__ = [
     "Amount",
+    "Appointment",
+    "Booking",
     "Color",
     "Count",
     "Either",
@@ -40,6 +44,8 @@ __all__ = [
     "Series",
     "Shape",
     "Stamp",
+    "Tally",
+    "Visit",
 ]
 
 
@@ -68,6 +74,12 @@ class Level(IntEnum):
     """An enum whose members are integers, and so fit an ``int`` field."""
 
     LOW = 1
+
+
+class Tally(BaseModel):
+    """A count written under an alias."""
+
+    item_count: int = Field(alias="itemCount")
 
 
 class Color(tuple[int, int, int], Enum):  # noqa: SLOT001 - an enum member keeps its name in a dict
@@ -115,6 +127,26 @@ class Local:
     """A datetime declared naive."""
 
     value: NaiveDatetime
+
+
+class Appointment(BaseModel):
+    """A model with a plain datetime, which it reads by its own rules: naive if it is."""
+
+    at: datetime
+
+
+@pydantic_dataclass
+class Visit:
+    """A dataclass pydantic built, which reads its plain datetime by its own rules too."""
+
+    at: datetime
+
+
+@dataclass
+class Booking:
+    """A model held by a dataclass: the model's rules hold inside it."""
+
+    appointment: Appointment
 
 
 class Measured(BaseModel):

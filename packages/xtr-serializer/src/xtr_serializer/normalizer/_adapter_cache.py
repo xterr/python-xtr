@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final, NamedTuple, cast, final, get_args
 
 from pydantic import ConfigDict, TypeAdapter
+from pydantic.dataclasses import is_pydantic_dataclass
 from pydantic.errors import PydanticSchemaGenerationError, PydanticUndefinedAnnotation
 from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
@@ -88,8 +89,10 @@ def build_adapter(type_: object) -> Adapter | str:
 
     The reader is the writer's schema with every ``datetime`` that declares no rule about its
     zone made to require one: a naive datetime names no instant, so it reads back as none in
-    particular. ``NaiveDatetime`` and ``AwareDatetime`` keep their rule. pydantic reads a model
-    with the reader the model was built with, so inside a model the model's own rule holds.
+    particular. ``NaiveDatetime`` and ``AwareDatetime`` keep their rule. A model, and a dataclass
+    pydantic built, keep their own rules, wherever they sit: pydantic may read one with the
+    validator its class was built with rather than with the schema holding it, as its versions
+    decide differently, so the reader leaves them as they are for them to read alike on all.
     A schema pydantic refuses, such as one a class's schema hook returns, is said to be refused.
     """
     name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
@@ -118,6 +121,7 @@ def _aware(schema: object) -> object:
 
     Only the plain dicts, lists and tuples a schema is built of are looked into: a value of a
     subclass of one — an enum member that is a tuple, say — is the application's, kept as it is.
+    The schema of a model, or of a dataclass pydantic built, is kept as it is too.
     """
     kind = type(schema)
     if kind is list or kind is tuple:
@@ -125,10 +129,12 @@ def _aware(schema: object) -> object:
         return parts if kind is list else tuple(parts)
     if kind is not dict:
         return schema
-    copied = {
-        key: part if key in _VALUES else _aware(part)
-        for key, part in cast("dict[str, object]", schema).items()
-    }
+    node = cast("dict[str, object]", schema)
+    if node.get("type") == "model" or (
+        node.get("type") == "dataclass" and is_pydantic_dataclass(cast("type", node["cls"]))
+    ):
+        return node
+    copied = {key: part if key in _VALUES else _aware(part) for key, part in node.items()}
     if copied.get("type") == "datetime":
         _ = copied.setdefault("tz_constraint", "aware")
     return copied

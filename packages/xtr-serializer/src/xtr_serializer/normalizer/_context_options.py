@@ -73,15 +73,21 @@ def write_options(context: Context) -> WriteOptions:
 
 
 def read_options(context: Context) -> ReadOptions:
-    """Read the reading options of ``context``; an absent one leaves the type's own rule."""
+    """Read the reading options of ``context``; an absent one leaves the type's own rule.
+
+    Each is checked, in the order :class:`ReadOptions` lists them, ``STRICT`` first: a context
+    holding several that are not a bool is refused naming the same one every time.
+    """
+    strict = _flag(context, STRICT)
     allow_extra = _flag(context, ALLOW_EXTRA_ATTRIBUTES)
     by_alias = _flag(context, BY_ALIAS) is not False
+    by_name = _flag(context, POPULATE_BY_NAME)
     return ReadOptions(
-        strict=_flag(context, STRICT),
+        strict=strict,
         extra=None if allow_extra is None else "ignore" if allow_extra else "forbid",
         by_alias=by_alias,
         # pydantic needs one of alias and name to read by; without the alias, it is the name.
-        by_name=_flag(context, POPULATE_BY_NAME) if by_alias else True,
+        by_name=by_name if by_alias else True,
         from_attributes=_flag(context, FROM_ATTRIBUTES) is True,
         collect=_flag(context, COLLECT_DENORMALIZATION_ERRORS) is True,
     )

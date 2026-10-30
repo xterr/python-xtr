@@ -9,7 +9,9 @@ from xtr_serializer.normalizer import (
     ALLOW_EXTRA_ATTRIBUTES,
     BY_ALIAS,
     IGNORED_ATTRIBUTES,
+    POPULATE_BY_NAME,
     SKIP_NULL_VALUES,
+    STRICT,
 )
 from xtr_serializer.normalizer._context_options import (
     ReadOptions,
@@ -48,3 +50,13 @@ def test_without_the_alias_it_reads_under_the_name() -> None:
 def test_it_refuses_an_option_of_the_wrong_type() -> None:
     with pytest.raises(InvalidArgumentError):
         _ = write_options({IGNORED_ATTRIBUTES: ["a"]})
+
+
+def test_of_several_reading_options_of_the_wrong_type_it_names_strict_first() -> None:
+    with pytest.raises(InvalidArgumentError, match=repr(STRICT)):
+        _ = read_options({ALLOW_EXTRA_ATTRIBUTES: 1, BY_ALIAS: 1, STRICT: 1})
+
+
+def test_it_refuses_a_name_option_of_the_wrong_type_with_aliases_off() -> None:
+    with pytest.raises(InvalidArgumentError, match=repr(POPULATE_BY_NAME)):
+        _ = read_options({BY_ALIAS: False, POPULATE_BY_NAME: 1})
