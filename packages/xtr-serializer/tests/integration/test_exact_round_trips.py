@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, create_model
 
 from xtr_serializer import JsonEncoder, PydanticNormalizer, ZonedDateTime
-from xtr_serializer.normalizer import pydantic_normalizer
+from xtr_serializer.normalizer import _adapter_cache
 
 SEED: Final = 20261030
 TYPES: Final = 250
@@ -189,7 +189,7 @@ def composite_kind(rng: Random, depth: int) -> Kind:
         if rng.random() < 0.5
         else _model(
             name,
-            __config__=pydantic_normalizer._EXACT,
+            __config__=_adapter_cache._EXACT,
             **{field: (kind.annotation, ...) for field, kind in fields.items()},
         )
     )

@@ -76,7 +76,7 @@ from xtr_serializer.normalizer import (
     DenormalizerInterface,
     NormalizerInterface,
 )
-from xtr_serializer.normalizer import pydantic_normalizer as module
+from xtr_serializer.normalizer import _adapter_cache as adapter_cache
 from xtr_serializer.normalizer.pydantic_normalizer import PydanticNormalizer
 
 if TYPE_CHECKING:
@@ -242,13 +242,13 @@ def test_it_supports_what_pydantic_can_build_a_schema_for() -> None:
 def built(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     """Record every type an adapter is built for."""
     types: list[object] = []
-    build = module._build_adapter
+    build = adapter_cache.build_adapter
 
     def counting_build(type_: object) -> TypeAdapter[object] | str:
         types.append(type_)
         return build(type_)
 
-    monkeypatch.setattr(module, "_build_adapter", counting_build)
+    monkeypatch.setattr(adapter_cache, "build_adapter", counting_build)
     return types
 
 
@@ -290,7 +290,7 @@ def test_it_takes_the_members_of_a_union_in_the_order_written() -> None:
 def test_it_forgets_the_adapter_used_least_recently(
     built: list[object], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(module, "_CACHE_SIZE", 2)
+    monkeypatch.setattr(adapter_cache, "_CACHE_SIZE", 2)
     normalizer = PydanticNormalizer()
 
     for type_ in (int, str, int, float, int, str):

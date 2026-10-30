@@ -1,0 +1,87 @@
+"""The adapters a normalizer writes and reads each type with, built once per type."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Final, cast, final, get_args
+
+from pydantic import ConfigDict, TypeAdapter
+from pydantic.errors import PydanticSchemaGenerationError, PydanticUndefinedAnnotation
+from typing_extensions import TypeAliasType
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+__all__ = ["AdapterCache", "build_adapter"]
+
+# What makes a value read back as it was written: no conversion on reading, no NaN or infinity,
+# bytes as base64 rather than as text they may not be, durations in ISO 8601.
+_EXACT: Final = ConfigDict(
+    strict=True,
+    allow_inf_nan=False,
+    ser_json_bytes="base64",
+    val_json_bytes="base64",
+    ser_json_timedelta="iso8601",
+)
+
+# Type checkers read an alias only as a statement naming a type written in the code; here the
+# type is a value known at run time, which is what TypeAliasType takes there.
+_alias_of: Final = cast("Callable[[str, object], object]", TypeAliasType)
+
+# How many types a cache keeps the adapter of. A type expression built per call, such as
+# Annotated[int, Field(ge=0)], is a new key each time; the least recently used goes first.
+_CACHE_SIZE: Final = 256
+
+
+@final
+class AdapterCache:
+    """The adapters of the types used last, and why a type has none.
+
+    A union's members count in the order written, as pydantic tries them in that order.
+    """
+
+    __slots__ = ("_adapters",)
+
+    def __init__(self) -> None:
+        # Oldest use first: a type used again is moved to the end.
+        self._adapters: dict[object, TypeAdapter[object] | str] = {}
+
+    def get(self, type_: object) -> TypeAdapter[object] | str:
+        """Return the adapter of ``type_``, or why it has none, building it on first use."""
+        key = _key_of(type_)
+        try:
+            _ = hash(key)
+        except TypeError:  # a type expression that cannot be hashed is built every time
+            return build_adapter(type_)
+        adapter = self._adapters.pop(key, None)
+        if adapter is None:
+            adapter = build_adapter(type_)
+        self._adapters[key] = adapter
+        if len(self._adapters) > _CACHE_SIZE:
+            del self._adapters[next(iter(self._adapters))]
+        return adapter
+
+
+def build_adapter(type_: object) -> TypeAdapter[object] | str:
+    """Build the adapter of ``type_`` under the exact configuration, or say why it has none.
+
+    pydantic refuses a configuration for a bare model, dataclass or typed dict; given one for an
+    alias of the type, it applies it to the type and to what the type holds. A type naming what
+    is not defined at run time, such as a class imported for type checkers only, gets an adapter
+    pydantic finishes on first use; it is finished here, so the name is reported at once.
+    """
+    name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
+    try:
+        adapter: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
+        if not adapter.pydantic_complete:
+            _ = adapter.rebuild(raise_errors=True)
+    except PydanticSchemaGenerationError:
+        return f"pydantic has no schema for {name!r}"
+    except PydanticUndefinedAnnotation as error:
+        return f"pydantic has no schema for {name!r}: {error.name!r} is not defined"
+    return adapter
+
+
+def _key_of(type_: object) -> object:
+    """Key ``type_`` by its arguments in order, which a union's equality leaves out."""
+    arguments: tuple[object, ...] = get_args(type_)
+    return (type_, tuple(_key_of(argument) for argument in arguments))
