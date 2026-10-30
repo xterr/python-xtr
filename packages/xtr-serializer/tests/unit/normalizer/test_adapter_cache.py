@@ -6,17 +6,21 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal, cast, final
 
 import pytest
 from pydantic import AwareDatetime, Field, NaiveDatetime, ValidationError
 from pydantic_core import to_json
-from typing_extensions import TypedDict  # pydantic reads typing's from Python 3.12
+from typing_extensions import (  # pydantic reads typing's TypedDict from Python 3.12
+    TypedDict,
+    override,
+)
 
 from tests.fixtures.exact_values import Appointment, Color, Shape, Visit
 from tests.fixtures.nameless import NamelessThing, names_refused
 from tests.fixtures.refused_types import (
     REFUSED_TYPES,
+    TYPE_CODE_RAISED,
     Sealed,
     Unprintable,
     Unshown,
@@ -89,6 +93,86 @@ def test_a_type_equal_to_a_kept_one_too_deep_to_compare_is_built_again() -> None
 
     assert isinstance(first, str)
     assert second == first
+
+
+@final
+class Fickle:
+    """Metadata answering a number of hashes and comparisons, then refusing every one after.
+
+    Hashed by its identity unless told otherwise, so the typing module, which keeps the types
+    it built, never compares a new one with one kept there that now refuses.
+    """
+
+    def __init__(self, hashed: int | None = None) -> None:
+        self.hashed = id(self) if hashed is None else hashed
+        self.answers = 1_000_000
+
+    def _answer(self) -> None:
+        if self.answers <= 0:
+            raise LookupError(TYPE_CODE_RAISED)
+        self.answers -= 1
+
+    @override
+    def __hash__(self) -> int:
+        self._answer()
+        return self.hashed
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        self._answer()
+        return self is other
+
+    @override
+    def __repr__(self) -> str:
+        return "Fickle()"
+
+
+def reads_an_int(adapter: Adapter | str) -> bool:
+    """Tell whether ``adapter`` is the one of an ``int``, whatever annotates it."""
+    return isinstance(adapter, Adapter) and cast("object", adapter.reader.validate_json("1")) == 1
+
+
+@pytest.mark.parametrize("answers", range(6))
+def test_a_type_whose_hash_starts_raising_while_it_is_kept_is_still_answered(answers: int) -> None:
+    fickle = Fickle()
+    type_ = Annotated[int, fickle]
+    cache = AdapterCache()
+    fickle.answers = answers
+
+    first = cache.get(type_)
+    again = cache.get(type_)
+
+    assert reads_an_int(first)
+    assert reads_an_int(again)
+
+
+def test_types_evicting_a_kept_one_whose_hash_now_raises_are_answered_and_kept() -> None:
+    fickle = Fickle()
+    type_ = Annotated[int, fickle]
+    cache = AdapterCache()
+    _ = cache.get(type_)
+    fickle.answers = 0
+    others = [Annotated[int, number] for number in range(256)]
+
+    adapters = [cache.get(other) for other in others]
+
+    assert all(map(reads_an_int, adapters))
+    assert cache.get(others[-1]) is adapters[-1]
+    assert reads_an_int(cache.get(type_))
+
+
+def test_a_kept_type_whose_comparison_now_raises_leaves_one_hashed_alike_kept() -> None:
+    kept = Fickle()
+    other = Fickle(hashed=kept.hashed)
+    kept_type, other_type = Annotated[int, kept], Annotated[int, other]
+    cache = AdapterCache()
+    _ = cache.get(kept_type)
+    kept.answers = 0
+
+    adapter = cache.get(other_type)
+
+    assert reads_an_int(adapter)
+    assert cache.get(other_type) is adapter
 
 
 @pytest.mark.parametrize(

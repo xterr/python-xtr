@@ -24,7 +24,7 @@ from pydantic.errors import (
 )
 from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
-from typing_extensions import TypeAliasType
+from typing_extensions import TypeAliasType, override
 
 from xtr_serializer._type_names import name_of, qualified_name_of
 
@@ -88,6 +88,34 @@ class Adapter(NamedTuple):
 
 
 @final
+class _Key:
+    """A type's key, hashed once as it is made, and compared without letting the type raise.
+
+    A type's own code may hash or compare it differently, or raise, from one call to the next.
+    Hashed once, a kept key is found, moved and evicted by the hash it was kept under, never
+    hashing the type again; compared, a key whose type's code raises is taken for another, so a
+    lookup of any type never fails for a key kept before it.
+    """
+
+    __slots__ = ("_hash", "_key")
+
+    def __init__(self, key: object) -> None:
+        self._key = key
+        self._hash = hash(key)
+
+    @override
+    def __hash__(self) -> int:
+        return self._hash
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        try:
+            return self._key == cast("_Key", other)._key  # only keys are kept
+        except Exception:  # noqa: BLE001 - whatever the type's own code raises makes them differ
+            return False
+
+
+@final
 class AdapterCache:
     """The adapters of the types used last, and why a type has none.
 
@@ -98,22 +126,22 @@ class AdapterCache:
 
     def __init__(self) -> None:
         # Oldest use first: a type used again is moved to the end.
-        self._adapters: dict[object, Adapter | str] = {}
+        self._adapters: dict[_Key, Adapter | str] = {}
 
     def get(self, type_: object) -> Adapter | str:
         """Return the adapter of ``type_``, or why it has none, building it on first use.
 
-        Keying and looking up a type runs its own code — reading its class to take it apart,
-        hashing it, comparing it with a kept one hashed alike — which may raise, as may a type
-        nested deeper than keying it can go. Such a type is not kept but built every time, and
-        building refuses it without quoting what was raised.
+        Keying a type runs its own code — reading its class to take it apart, hashing it — which
+        may raise, as may a type nested deeper than keying it can go. Such a type is not kept but
+        built every time, and building refuses it without quoting what was raised. A type that
+        raises only later, as it is compared with another kept or asked for its hash again, is
+        no longer found: it is built again, and its kept adapter goes when its turn comes.
         """
         try:
-            key = _key_of(type_)
-            _ = hash(key)  # an empty cache looks nothing up, so would not hash it
-            adapter = self._adapters.pop(key, None)
+            key = _Key(_key_of(type_))
         except Exception:  # noqa: BLE001 - whatever the type's own code raises leaves it unkept
             return build_adapter(type_)
+        adapter = self._adapters.pop(key, None)
         if adapter is None:
             adapter = build_adapter(type_)
         self._adapters[key] = adapter
