@@ -69,6 +69,7 @@ from tests.fixtures.orders import (
     TaggedSlot,
     Ticket,
 )
+from tests.fixtures.refused_types import REFUSED_TYPES, Refused
 from xtr_serializer.encoder.json_encoder import JsonEncoder
 from xtr_serializer.exception import (
     CircularReferenceError,
@@ -356,6 +357,23 @@ def test_it_does_not_support_a_type_pydantic_cannot_build_a_schema_for() -> None
     assert not normalizer.supports_denormalization({}, MISDECLARED)
     with pytest.raises(InvalidArgumentError, match="cannot build a schema"):
         _ = normalizer.denormalize({}, MISDECLARED)
+
+
+@pytest.mark.parametrize("type_", REFUSED_TYPES.values(), ids=REFUSED_TYPES.keys())
+def test_it_refuses_to_denormalize_into_any_type_pydantic_refuses_to_build(type_: object) -> None:
+    normalizer = PydanticNormalizer()
+
+    assert not normalizer.supports_denormalization({}, type_)
+    with pytest.raises(InvalidArgumentError, match="cannot build a schema for"):
+        _ = normalizer.denormalize({}, type_)
+
+
+def test_it_names_the_type_it_refuses_to_normalize_when_pydantic_refuses_to_build_it() -> None:
+    normalizer = PydanticNormalizer()
+
+    assert not normalizer.supports_normalization(Refused())
+    with pytest.raises(InvalidArgumentError, match="cannot build a schema for 'Refused'"):
+        _ = normalizer.normalize(Refused())
 
 
 def test_it_refuses_to_read_into_a_type_it_cannot_resolve_naming_what_is_undefined() -> None:

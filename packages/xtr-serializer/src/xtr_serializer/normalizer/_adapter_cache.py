@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING, Final, NamedTuple, cast, final, get_args
 
 from pydantic import ConfigDict, TypeAdapter
 from pydantic.dataclasses import is_pydantic_dataclass
-from pydantic.errors import PydanticSchemaGenerationError, PydanticUndefinedAnnotation
+from pydantic.errors import (
+    PydanticSchemaGenerationError,
+    PydanticUndefinedAnnotation,
+    PydanticUserError,
+)
 from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
 from typing_extensions import TypeAliasType
@@ -107,7 +111,8 @@ def build_adapter(type_: object) -> Adapter | str:
     validator its class was built with rather than with the schema holding it, as its versions
     decide differently, so the reader leaves them as they are for them to read alike on all.
     A schema pydantic refuses, such as one a class's schema hook returns, is said to be refused,
-    and a type pydantic cannot build one for, such as a discriminator on what is no union, too.
+    and a type pydantic cannot build one for, such as a discriminator on what is no union, an
+    alias of itself or a type nested deeper than building it can go, too.
     """
     name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
     try:
@@ -121,7 +126,9 @@ def build_adapter(type_: object) -> Adapter | str:
         return f"pydantic has no schema for {name!r}: {error.name!r} is not defined"
     except SchemaError:  # its message may quote the application's values held in the schema
         return f"pydantic refuses the schema of {name!r}"
-    except TypeError:  # how pydantic refuses a type declared in a way it cannot build
+    # How pydantic refuses a type declared in a way it cannot build, as its versions word it, and
+    # how building one nested too deep stops.
+    except (TypeError, PydanticUserError, RecursionError):
         return f"pydantic cannot build a schema for {name!r}"
     return Adapter(writer, reader)
 

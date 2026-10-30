@@ -13,6 +13,7 @@ from pydantic_core import to_json
 from typing_extensions import TypedDict  # pydantic reads typing's only from Python 3.12
 
 from tests.fixtures.exact_values import Appointment, Color, Shape, Visit
+from tests.fixtures.refused_types import REFUSED_TYPES
 from xtr_serializer.normalizer._adapter_cache import Adapter, AdapterCache, build_adapter
 
 
@@ -47,6 +48,14 @@ def test_it_tells_why_a_type_pydantic_cannot_build_a_schema_for_has_no_adapter()
     name = repr(misdeclared)
 
     assert build_adapter(misdeclared) == f"pydantic cannot build a schema for {name!r}"
+
+
+@pytest.mark.parametrize("type_", REFUSED_TYPES.values(), ids=REFUSED_TYPES.keys())
+def test_it_tells_why_any_type_pydantic_refuses_to_build_has_no_adapter(type_: object) -> None:
+    adapter = build_adapter(type_)
+
+    assert isinstance(adapter, str)
+    assert adapter.startswith("pydantic cannot build a schema for ")
 
 
 @pytest.mark.parametrize("type_", [Color, Shape], ids=["tuple-members", "dict-members"])
