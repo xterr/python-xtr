@@ -12,13 +12,30 @@ from collections import Counter, OrderedDict, defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
+from ipaddress import (
+    IPv4Address,
+    IPv4Interface,
+    IPv4Network,
+    IPv6Address,
+    IPv6Interface,
+    IPv6Network,
+)
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
-from pydantic import VERSION, BaseModel, Field, ImportString, TypeAdapter, field_validator
+from pydantic import (
+    VERSION,
+    BaseModel,
+    EmailStr,
+    Field,
+    ImportString,
+    NameEmail,
+    TypeAdapter,
+    field_validator,
+)
 from pydantic_core import to_json
 from typing_extensions import override
 from xtr_clock import DatePoint, MonotonicClock
@@ -1378,6 +1395,35 @@ def test_pydantic_words_data_it_cannot_write_as_json(data: object, words: str) -
         _ = to_json(data)
 
 
+class Host(BaseModel):
+    """A model reading an address, and a port its own validator words the refusal of."""
+
+    address: IPv4Address
+    port: int = 0
+
+    @field_validator("port")
+    @classmethod
+    def check(cls, port: int) -> int:
+        if port > 65535:
+            msg = f"port {port} is past the last one"
+            raise ValueError(msg)
+        return port
+
+
+def test_the_words_of_an_application_validator_reach_its_refusal_beside_a_built_in_one() -> None:
+    data = {"address": f"10.0.0.{PLANTED_VALUE}", "port": 70000}
+
+    with pytest.raises(PartialDenormalizationError) as raised:
+        _ = PydanticNormalizer().denormalize(
+            data, Host, context={STRICT: True, COLLECT_DENORMALIZATION_ERRORS: True}
+        )
+
+    assert [(error.path, error.message) for error in raised.value.errors] == [
+        ("address", "Input is not a valid IPv4 address"),
+        ("port", "Value error, port 70000 is past the last one"),
+    ]
+
+
 @pytest.mark.parametrize(
     ("data", "type_", "context"),
     [
@@ -1390,6 +1436,20 @@ def test_pydantic_words_data_it_cannot_write_as_json(data: object, words: str) -
         (f"Mars/{PLANTED_VALUE}", ZoneInfo, {}),
         (PLANTED_VALUE, ImportString, {}),
         ({PLANTED_VALUE: 1}, dict[int, int], {}),
+        (f"10.0.0.{PLANTED_VALUE}", IPv4Address, {}),
+        (f"::{PLANTED_VALUE}", IPv6Address, {}),
+        (f"10.0.0.0/{PLANTED_VALUE}", IPv4Network, {}),
+        (f"::/{PLANTED_VALUE}", IPv6Network, {}),
+        (f"10.0.0.{PLANTED_VALUE}/24", IPv4Interface, {}),
+        (f"::{PLANTED_VALUE}/64", IPv6Interface, {}),
+        (f"user@[IPv6:{PLANTED_VALUE}]", EmailStr, {}),
+        (f"{PLANTED_VALUE} <user@[IPv6:{PLANTED_VALUE}]>", NameEmail, {}),
+        ({"address": f"10.0.0.{PLANTED_VALUE}"}, Host, {STRICT: True}),
+        (
+            {"address": f"10.0.0.{PLANTED_VALUE}"},
+            Host,
+            {STRICT: True, COLLECT_DENORMALIZATION_ERRORS: True},
+        ),
     ],
     ids=[
         "field",
@@ -1401,6 +1461,16 @@ def test_pydantic_words_data_it_cannot_write_as_json(data: object, words: str) -
         "time-zone",
         "import-path",
         "key",
+        "ipv4-address",
+        "ipv6-address",
+        "ipv4-network",
+        "ipv6-network",
+        "ipv4-interface",
+        "ipv6-interface",
+        "email",
+        "name-email",
+        "strict-model-address",
+        "collected-strict-model-address",
     ],
 )
 def test_no_error_quotes_the_data_or_chains_what_does(

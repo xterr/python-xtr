@@ -85,7 +85,7 @@ def read_back_refusal(
         stage = "not_comparable"
         changed = first_difference(value, read_value, steps, by_alias=by_alias)
     except ValidationError as error:
-        details = error.errors(include_url=False, include_context=False)
+        details = error.errors(include_url=False)
     except Exception as error:  # noqa: BLE001 - whatever the data's code raises leaves it unconfirmed
         raised = name_of(type(error))
     else:

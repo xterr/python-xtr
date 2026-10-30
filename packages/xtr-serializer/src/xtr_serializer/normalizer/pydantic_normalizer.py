@@ -218,7 +218,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
                 ),
             )
         except ValidationError as error:
-            details = error.errors(include_url=False, include_context=False)
+            details = error.errors(include_url=False)
         except ValueError as error:  # data holding what has no JSON form, or holding itself
             cyclic = is_cycle(error)
         except SerializerError:

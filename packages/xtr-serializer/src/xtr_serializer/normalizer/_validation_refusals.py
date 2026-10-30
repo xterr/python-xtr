@@ -10,6 +10,8 @@ from xtr_serializer._loc_path import render_path
 from xtr_serializer._type_names import name_of
 from xtr_serializer.exception import ExtraAttributesError, NotNormalizableValueError
 
+from ._built_in_words import value_error_message
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -28,7 +30,8 @@ _EXTRA: Final = frozenset({"extra_forbidden", "unexpected_keyword_argument"})
 # as it was read, a time zone, a byte unit or an import path it could not make out — said in words
 # of their own. The others describe the type; the most they let through is a count of items, or
 # the one character a UUID stops parsing at. Or they are a validator's: its message is the words
-# of the application that wrote it, not the data's, and is passed on as written.
+# of the application that wrote it, not the data's, and is passed on as written — a value error
+# only when the application's code raised it, see value_error_message.
 _FIXED_MESSAGES: Final = {
     "union_tag_invalid": "Input tag does not match any of the expected tags",
     "bytes_invalid_encoding": "Data should be valid in its declared encoding",
@@ -61,6 +64,9 @@ def refusals_of(
     had, read without running its metaclass, and where it sits in ``data``. The message of a
     validator — a ``ValueError``, an assertion, a ``PydanticCustomError`` it raised — is kept as
     the validator worded it, which is why a validator must not quote the value it refuses.
+    A ``ValueError`` raised by the code reading a built-in type, such as an IP address or an
+    email address, quotes the data: it is said in fixed words. ``details`` must carry their
+    context for that, as ``ValidationError.errors`` gives it by default.
     pydantic also names the union member it tried and marks a refused key; the path leaves out
     both, and the refused key itself, which is the value.
 
@@ -94,7 +100,10 @@ def refusals_of(
                 )
             continue
         path = render_path(steps)
-        message = _FIXED_MESSAGES.get(error_type, detail["msg"])
+        if error_type == "value_error":
+            message = value_error_message(detail)
+        else:
+            message = _FIXED_MESSAGES.get(error_type, detail["msg"])
         if detail["loc"][-1:] == (_KEY,):
             message = f"a key: {message}"
         if (path, error_type, message) in reported:
