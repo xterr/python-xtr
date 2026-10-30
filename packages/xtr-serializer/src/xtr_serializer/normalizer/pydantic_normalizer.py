@@ -45,7 +45,8 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     pydantic converts; this maps the context (a call's over the default one, also handed to
     validators as ``info.context``) onto pydantic's options, and pydantic's errors onto this
     package's, with paths and never values. A validator's message is passed on as worded. Threads
-    may share a normalizer.
+    may share a normalizer; a type whose comparison waits for another thread, or uses another
+    normalizer, can deadlock them.
 
     Each type is strict, finite, with bytes as base64 and durations in ISO 8601, and a plain
     ``datetime`` in it takes an aware datetime only. A model, or a dataclass pydantic built, keeps
@@ -66,10 +67,10 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     its class's name and read back as that class, wherever its base or a class under it is
     declared.
 
-    Before pydantic 2.14, the bytes in a named tuple inside a type with a configuration of its
-    own, such as a model, are written as base64 whatever that configuration says, yet read as it
-    says: unless it says base64 too, a value holding them would read back changed, so it is
-    refused.
+    The bytes in a named tuple inside a typed dict with a configuration of its own — and, before
+    pydantic 2.14, inside a model or a dataclass with one — are written as base64 whatever that
+    configuration says, yet read as it says: unless it says base64 too, a value holding them
+    would read back changed, so it is refused.
     """
 
     def __init__(self, default_context: Context | None = None) -> None:

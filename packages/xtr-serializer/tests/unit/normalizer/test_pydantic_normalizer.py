@@ -24,8 +24,10 @@ from typing_extensions import override
 from xtr_clock import DatePoint, MonotonicClock
 
 from tests.fixtures.containers import (
+    Cabinet,
     Counts,
     Envelope,
+    Folder,
     Grouped,
     Levelled,
     Ordered,
@@ -1208,6 +1210,16 @@ def test_bytes_in_a_named_tuple_in_a_lax_model_read_back_from_pydantic_2_14() ->
     value = Envelope(signed=Signed(b"abc"))
 
     assert round_trip(value, Envelope) == value
+
+
+# In a typed dict with a configuration of its own, pydantic writes and reads them so on 2.14 too.
+
+
+def test_bytes_in_a_named_tuple_in_a_lax_typed_dict_are_refused() -> None:
+    with pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().normalize(Cabinet(Folder(signed=Signed(b"abc"))))
+
+    assert (raised.value.error_type, raised.value.path) == ("not_exact", "folder.signed.signature")
 
 
 @pytest.mark.parametrize(

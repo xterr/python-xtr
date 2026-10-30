@@ -6,14 +6,19 @@ from collections import Counter, OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from typing import NamedTuple
 
-from pydantic import BaseModel
-from typing_extensions import override
+from pydantic import BaseModel, ConfigDict, with_config
+from typing_extensions import (  # pydantic reads typing's TypedDict from Python 3.12
+    TypedDict,
+    override,
+)
 
 from tests.fixtures.exact_values import Level
 
 __all__ = [
+    "Cabinet",
     "Counts",
     "Envelope",
+    "Folder",
     "Grouped",
     "Identical",
     "Levelled",
@@ -50,6 +55,20 @@ class Envelope(BaseModel):
     """A named tuple of bytes in a model whose configuration writes and reads bytes as text."""
 
     signed: Signed
+
+
+@with_config(ConfigDict())
+class Folder(TypedDict):
+    """A named tuple of bytes in a typed dict whose own configuration takes bytes as text."""
+
+    signed: Signed
+
+
+@dataclass
+class Cabinet:
+    """A typed dict with a configuration of its own, held where it is declared."""
+
+    folder: Folder
 
 
 class Rows(list[object]):

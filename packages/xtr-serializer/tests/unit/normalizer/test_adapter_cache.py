@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sysconfig
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -177,20 +178,52 @@ def test_a_kept_type_whose_comparison_now_raises_leaves_one_hashed_alike_kept() 
     assert cache.get(other_type) is adapter
 
 
-@final
-class Recalling:
-    """Metadata hashed alike with all others, whose comparison looks a type up in a cache."""
+# Hashes under which a lookup of a type hashed as KEPT compares it with a kept one again and
+# again, a type hashed as NESTED kept beside it. Should each comparison change the table, moving
+# NESTED to the end say, the table is rebuilt before the lookup gives up, and the lookup starts
+# over: for ever, on Python 3.13 and later, whose tables they are chosen for. The free-threaded
+# build lays its table out another way.
+FREE_THREADED = bool(cast("object", sysconfig.get_config_var("Py_GIL_DISABLED")))
+KEPT, NESTED = (
+    (3822639324648131612, 372269656135498629)
+    if FREE_THREADED
+    else (2920007979038758759, 4016821748236031427)
+)
 
-    def __init__(self, cache: AdapterCache) -> None:
-        self.cache = cache
+
+@final
+class Nested:
+    """A type hashed as ``NESTED``."""
 
     @override
     def __hash__(self) -> int:
-        return 0
+        return NESTED
+
+    @override
+    def __repr__(self) -> str:
+        return "Nested()"
+
+
+@final
+class Recalling:
+    """A type hashed as ``KEPT``, whose comparison with another looks ``recalled`` up in a cache.
+
+    Compared with anything else, as pydantic compares it while building it, it uses no cache, so
+    what a cache keeps is the same whatever pydantic's version.
+    """
+
+    def __init__(self, cache: AdapterCache, recalled: object) -> None:
+        self.cache = cache
+        self.recalled = recalled
+
+    @override
+    def __hash__(self) -> int:
+        return KEPT
 
     @override
     def __eq__(self, other: object) -> bool:
-        _ = self.cache.get(str)
+        if isinstance(other, Recalling):
+            _ = self.cache.get(self.recalled)
         return self is other
 
     @override
@@ -198,19 +231,75 @@ class Recalling:
         return "Recalling()"
 
 
-def test_a_type_whose_comparison_uses_the_cache_again_is_answered() -> None:
-    cache = AdapterCache()
-    _ = cache.get(Annotated[int, Recalling(cache)])
-    other = Annotated[int, Recalling(cache)]
+def looked_up_in_a_thread(cache: AdapterCache, type_: object) -> list[Adapter | str]:
+    """Look ``type_`` up in a thread of its own, so a lookup that never ends fails, not hangs."""
     answers: list[Adapter | str] = []
-
-    # In a thread of its own, so a lookup that never returns fails the test rather than hangs it.
-    lookup = threading.Thread(target=lambda: answers.append(cache.get(other)), daemon=True)
+    lookup = threading.Thread(target=lambda: answers.append(cache.get(type_)), daemon=True)
     lookup.start()
     lookup.join(timeout=10)
+    return answers
 
-    assert len(answers) == 1
-    assert reads_an_int(answers[0])
+
+def test_a_type_whose_comparison_uses_the_cache_again_is_answered() -> None:
+    cache = AdapterCache()
+    _ = cache.get(Recalling(cache, Nested()))
+    other = Recalling(cache, Nested())
+
+    answers = looked_up_in_a_thread(cache, other)
+
+    assert answers == [build_adapter(other)]
+
+
+def test_a_type_whose_comparison_uses_a_kept_type_again_is_answered() -> None:
+    cache, nested = AdapterCache(), Nested()
+    _ = cache.get(Recalling(cache, nested))
+    _ = cache.get(nested)
+    other = Recalling(cache, nested)
+
+    answers = looked_up_in_a_thread(cache, other)
+
+    assert answers == [build_adapter(other)]
+
+
+@final
+class Colliding:
+    """A type hashed alike with all others, whose next comparison may look a type up in a cache."""
+
+    def __init__(self, cache: AdapterCache) -> None:
+        self.cache = cache
+        self.recalled: object = None
+
+    @override
+    def __hash__(self) -> int:
+        return 0
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        recalled, self.recalled = self.recalled, None
+        if recalled is not None:
+            _ = self.cache.get(recalled)
+        return self is other
+
+    @override
+    def __repr__(self) -> str:
+        return "Colliding()"
+
+
+def test_a_comparison_using_the_cache_again_as_it_evicts_leaves_it_bounded() -> None:
+    cache = AdapterCache()
+    first, second, third = Colliding(cache), Colliding(cache), Colliding(cache)
+    others = [Annotated[int, number] for number in range(255)]
+    for type_ in [first, second, third, *others[:-1]]:
+        _ = cache.get(type_)
+    # The last of those evicts `first`; `third`, used again, takes the slot it left (but on the
+    # free-threaded build, whose table does not reuse it), which a lookup of `second` probes first.
+    _ = cache.get(third)
+    third.recalled = Annotated[int, "recalled"]
+
+    # Evicting `second` compares `third` with it, which looks up a type the cache does not keep.
+    _ = cache.get(others[-1])
+
+    assert len(cache._adapters) <= 256
 
 
 def test_a_type_being_built_holds_up_no_lookup_in_another_thread(

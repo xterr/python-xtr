@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from threading import RLock
+from threading import RLock, get_ident
 from types import NoneType, UnionType
 from typing import (
     TYPE_CHECKING,
@@ -118,6 +118,34 @@ class _Key:
 
 
 @final
+class _OwnedLock:
+    """A lock telling which thread holds it, so that the calls that thread makes back know it.
+
+    A cache changes its table holding the lock, and changing it compares keys, which runs the
+    types' own code: that code, or a signal handler or a finalizer run meanwhile, may call the
+    cache back on the same thread, which must then not change the table too.
+    """
+
+    __slots__ = ("_lock", "owner")
+
+    def __init__(self) -> None:
+        # Re-entrant all the same: a call back made just as the lock is taken or let go finds no
+        # owner yet, or none any more, and takes it again, changing the table between changes.
+        self._lock = RLock()
+        # Set and cleared only by the thread holding the lock: a thread finds itself here only
+        # while it holds it, so reading it takes no lock.
+        self.owner: int | None = None
+
+    def __enter__(self) -> None:
+        _ = self._lock.acquire()
+        self.owner = get_ident()
+
+    def __exit__(self, *_: object) -> None:
+        self.owner = None
+        self._lock.release()
+
+
+@final
 class AdapterCache:
     """The adapters of the types used last, and why a type has none.
 
@@ -130,7 +158,7 @@ class AdapterCache:
     def __init__(self) -> None:
         # Oldest use first: a type used again is moved to the end.
         self._adapters: dict[_Key, Adapter | str] = {}
-        self._lock = RLock()
+        self._lock = _OwnedLock()
 
     def get(self, type_: object) -> Adapter | str:
         """Return the adapter of ``type_``, or why it has none, building it on first use.
@@ -144,25 +172,39 @@ class AdapterCache:
         Looking a type up, moving it to the end, keeping it and evicting the oldest are done
         holding a lock, so that no thread finds the cache half changed. Building is not, as it is
         slow and runs the type's own code: two threads may build the same type at once, and the
-        adapter kept last stays. The lock lets the thread holding it take it again, or that thread
-        would wait for itself for ever: comparing keys under the lock runs the types' own code,
-        which may use the cache in turn, as may a signal handler or a finalizer run meanwhile.
+        adapter kept last stays. Only a call made back by the thread holding the lock builds under
+        it.
+
+        Comparing keys under the lock runs the types' own code, which may use the cache in turn,
+        as may a signal handler or a finalizer run meanwhile. Such a call only looks the type up —
+        a table changed while a lookup compares its keys may have that lookup start over for ever —
+        and builds a type it does not find without keeping it. A comparison that waits for another
+        thread can deadlock, should that thread be waiting for this lock; so can one using another
+        normalizer, should a thread holding that one's lock be waiting for this one.
         """
         try:
             key = _Key(_key_of(type_))
         except Exception:  # noqa: BLE001 - whatever the type's own code raises leaves it unkept
             return build_adapter(type_)
+        if self._lock.owner == get_ident():
+            # Called back from under the lock: the table is looked into, so it is only read.
+            kept = self._adapters.get(key)
+            return build_adapter(type_) if kept is None else kept
         with self._lock:
-            adapter = self._adapters.pop(key, None)
-            if adapter is not None:
-                self._adapters[key] = adapter
-                return adapter
+            kept = self._adapters.pop(key, None)
+            if kept is not None:
+                self._keep(key, kept)
+                return kept
         adapter = build_adapter(type_)
         with self._lock:
-            self._adapters[key] = adapter
-            if len(self._adapters) > _CACHE_SIZE:
-                _ = self._adapters.pop(next(iter(self._adapters)), None)
+            self._keep(key, adapter)
         return adapter
+
+    def _keep(self, key: _Key, adapter: Adapter | str) -> None:
+        """Keep ``adapter`` as used last, evicting the oldest while more than the bound are kept."""
+        self._adapters[key] = adapter
+        while len(self._adapters) > _CACHE_SIZE:
+            _ = self._adapters.pop(next(iter(self._adapters)), None)
 
 
 def build_adapter(type_: object) -> Adapter | str:
