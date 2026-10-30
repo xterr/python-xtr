@@ -43,8 +43,10 @@ def discriminator_name(name: str) -> Callable[[_ClassT], _ClassT]:
     builds itself with: the normalizer reads it as its hierarchy all the same, while code using
     pydantic alone builds such a class first.
 
-    A class deriving from a generic dataclass of the hierarchy cannot be named: pydantic reads
-    ``Box[int]`` by the dataclass's fields, never asking for the classes under it.
+    A class deriving from a generic dataclass of the hierarchy — its base or under it — cannot be
+    named: pydantic reads ``Box[int]`` by the dataclass's fields, never asking for the classes
+    under it. A generic dataclass the base derives from is no class of the hierarchy, which no
+    field declares as one: the classes under it are named as any other.
 
     Raises:
         MappingError: If ``name`` is empty or taken in the hierarchy, the decorated object is no
@@ -95,12 +97,14 @@ def discriminator_name(name: str) -> Callable[[_ClassT], _ClassT]:
 
 
 def _generic_dataclass_above(kind: type) -> type | None:
-    """Find a generic dataclass ``kind`` derives from, which a model, a real class, is not.
+    """Find a generic dataclass of the hierarchy ``kind`` derives from, which a model is not.
 
     pydantic builds a class of its own for ``Model[int]``, and asks it for its schema as for any
-    class; ``Dataclass[int]`` is no class, and pydantic reads it without asking.
+    class; ``Dataclass[int]`` is no class, and pydantic reads it without asking. One above the
+    hierarchy's base is never declared as a class of the hierarchy, so it is passed over.
     """
     for base in kind.__mro__[1:]:
-        if getattr(base, "__parameters__", ()) and is_dataclass(base):
+        generic = bool(getattr(base, "__parameters__", ()))
+        if generic and is_dataclass(base) and REGISTRY.in_hierarchy(base):
             return base
     return None

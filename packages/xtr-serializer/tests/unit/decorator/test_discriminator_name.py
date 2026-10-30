@@ -90,6 +90,29 @@ def test_a_class_under_a_generic_dataclass_is_refused() -> None:
         _ = discriminator_name("int_box")(IntBox)
 
 
+@dataclass(frozen=True)
+class _Envelope(Generic[_Item]):
+    body: _Item
+
+
+def test_a_hierarchy_based_on_a_generic_dataclass_names_its_classes() -> None:
+    # ``_Envelope[str]`` is above the hierarchy: no field declaring a class of it reads it alone.
+    @discriminator_name("message")
+    @discriminator_map()
+    @dataclass(frozen=True)
+    class Message(_Envelope[str]):
+        pass
+
+    @discriminator_name("reply")
+    @dataclass(frozen=True)
+    class Reply(Message):
+        to: str
+
+    read = PydanticNormalizer().denormalize({"$type": "reply", "body": "b", "to": "t"}, Message)
+
+    assert read == Reply("b", "t")
+
+
 def test_a_class_under_a_generic_model_is_named() -> None:
     @discriminator_map()
     class Root(BaseModel):
