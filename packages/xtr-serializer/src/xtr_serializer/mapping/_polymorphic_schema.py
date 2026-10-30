@@ -14,6 +14,7 @@ from ._class_builds import is_unbuilt
 from ._class_choice import class_choice
 from ._class_discriminator_registry import REGISTRY
 from ._declaration_sites import is_declaring
+from ._deferred_refusals import refused_or_deferred
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -166,7 +167,13 @@ def _writer(
         kind = type(value)
         member = _member_of(kind, by_class)
         if member is None:
-            raise _refusal(kind, declared)
+            refusal = _refusal(kind, declared)
+            # Under the declared class with no name, the value is written by no other member of
+            # a union holding it either: kept as a refusal met inside the value, it is the one
+            # reported, rather than the union's own words for a value none of its members wrote.
+            if refusal.error_type == "unnamed_class":
+                return refused_or_deferred(refusal)
+            raise refusal
         fields = write(value)
         if type(fields) is not dict:
             raise NotNormalizableValueError(

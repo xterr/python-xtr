@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import pytest
+from pydantic_core import PydanticSerializationUnexpectedValue
 
 from xtr_serializer.mapping._deferred_refusals import deferring_refusals, written_or_deferred
 
 
 def refuse(value: object) -> object:
     raise ValueError(value)
+
+
+def refuse_strictly(value: object) -> object:
+    raise PydanticSerializationUnexpectedValue(str(value))
 
 
 def test_a_value_is_written_as_it_is() -> None:
@@ -43,3 +48,27 @@ def test_refusals_kept_inside_are_kept_apart_and_none_after() -> None:
     )
     with pytest.raises(ValueError, match="after"):
         _ = written_or_deferred("after", refuse)
+
+
+def test_a_value_refused_on_a_first_strict_try_is_let_through_to_the_next() -> None:
+    value = object()
+    with deferring_refusals() as deferred:
+        with pytest.raises(PydanticSerializationUnexpectedValue):
+            _ = written_or_deferred(value, refuse_strictly)
+        written = written_or_deferred(value, lambda _: "written")
+        with pytest.raises(PydanticSerializationUnexpectedValue):
+            _ = written_or_deferred(value, refuse_strictly)
+
+    assert written == "written"
+    assert deferred == []
+
+
+def test_a_value_refused_on_both_tries_is_kept() -> None:
+    value = object()
+    with deferring_refusals() as deferred:
+        with pytest.raises(PydanticSerializationUnexpectedValue):
+            _ = written_or_deferred(value, refuse_strictly)
+        written = written_or_deferred(value, refuse_strictly)
+
+    assert written == {}
+    assert [type(error) for error in deferred] == [PydanticSerializationUnexpectedValue]

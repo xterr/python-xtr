@@ -49,7 +49,11 @@ def class_choice(own: CoreSchema, kind: type, key: str, ref: str) -> CoreSchema:
             partial(_without, key=key), by_ref, json_schema_input_schema=by_ref
         ),
         ref=ref,
-        serialization=core_schema.wrap_serializer_function_ser_schema(written_or_deferred),
+        # Written by the class's own schema, named so the union holding it knows that a value it
+        # refused on a strict first try is to be written again as anywhere else.
+        serialization=core_schema.wrap_serializer_function_ser_schema(
+            written_or_deferred, schema=by_ref
+        ),
     )
 
 

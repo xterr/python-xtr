@@ -35,6 +35,7 @@ __all__ = [
     "Stray",
     "Timed",
     "Unnamed",
+    "Weighed",
 ]
 
 # What a model of the hierarchy is: exact, closed to fields it does not declare, frozen.
@@ -181,6 +182,12 @@ class Stray(Node):
 @dataclass(frozen=True)
 class Timed(Node):
     at: ZonedDateTime | None = None
+
+
+@discriminator_name("weighed")
+@dataclass(frozen=True)
+class Weighed(Node):
+    weight: int = 0
 
 
 class _HashRefusing(type):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
 from datetime import UTC, datetime, timedelta, timezone
+from enum import IntEnum
 from typing import TYPE_CHECKING, Annotated, ClassVar, cast
 
 import pytest
@@ -26,6 +27,7 @@ from tests.fixtures.hierarchies import (
     Stray,
     Timed,
     Unnamed,
+    Weighed,
 )
 from xtr_serializer import (
     COLLECT_DENORMALIZATION_ERRORS,
@@ -293,8 +295,12 @@ def chain(depth: int, last: Node) -> Node:
 
 @pytest.mark.parametrize(
     "value_of",
-    [lambda: chain(250, Node()), lambda: chain(40, Stray())],
-    ids=["deeper-than-reading-goes", "refused-deep-inside"],
+    [
+        lambda: chain(250, Node()),
+        lambda: chain(40, Stray()),
+        lambda: chain(40, Weighed(weight=cast("int", cast("object", "heavy")))),
+    ],
+    ids=["deeper-than-reading-goes", "refused-deep-inside", "mistyped-deep-inside"],
 )
 def test_a_value_refused_deep_inside_a_chain_of_values_is_refused_at_once(
     value_of: Callable[[], Node],
@@ -373,3 +379,65 @@ def test_the_class_name_is_read_and_taken_out_without_running_code_the_data_carr
     read = NORMALIZER.denormalize(data, Signal, context={FROM_ATTRIBUTES: True})
 
     assert read == Ping(count=1)
+
+
+@dataclass(frozen=True)
+class Either:
+    item: Event | int
+
+
+@dataclass(frozen=True)
+class Only:
+    item: Event
+
+
+def test_a_value_of_a_subclass_with_no_name_in_a_union_is_refused_as_where_it_is_alone() -> None:
+    errors: list[NotNormalizableValueError] = []
+    for value in (Either(Unnamed("u", "x", AT)), Only(Unnamed("u", "x", AT))):
+        with pytest.raises(NotNormalizableValueError) as caught:
+            _ = NORMALIZER.normalize(value)
+        errors.append(caught.value)
+
+    assert str(errors[0]) == str(errors[1])
+    assert (errors[0].error_type, errors[0].current_type) == ("unnamed_class", "Unnamed")
+
+
+def test_a_union_of_a_hierarchy_still_writes_what_is_not_of_it() -> None:
+    assert NORMALIZER.normalize(Either(7)) == {"item": 7}
+    assert round_trip(Either(Bounce("b", "full", 552))) == Either(Bounce("b", "full", 552))
+
+
+class Level(IntEnum):
+    ONE = 1
+
+
+@discriminator_map()
+@dataclass(frozen=True)
+class Counted:
+    count: int
+
+
+@discriminator_name("counted")
+@dataclass(frozen=True)
+class CountedMore(Counted):
+    pass
+
+
+@dataclass(frozen=True)
+class Counts:
+    items: list[Counted]
+
+
+@pytest.mark.parametrize("count", [True, Level.ONE], ids=["bool", "int-enum"])
+def test_a_subclass_of_int_inside_a_value_is_refused_where_it_sits(count: int) -> None:
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = NORMALIZER.normalize(Counts([CountedMore(count)]))
+
+    assert (caught.value.path, caught.value.error_type) == ("items[0].count", "not_exact")
+
+
+def test_a_subclass_of_int_deep_inside_a_chain_of_values_is_refused_where_it_sits() -> None:
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = NORMALIZER.normalize(chain(40, Weighed(weight=True)))
+
+    assert (caught.value.path, caught.value.error_type) == ("nxt." * 40 + "weight", "not_exact")
