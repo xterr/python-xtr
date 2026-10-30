@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic_core import from_json
 
+from tests.fixtures.nameless import NamelessThing, names_refused
 from xtr_serializer.encoder.json_encoder import JsonEncoder
 from xtr_serializer.exception import (
     InvalidArgumentError,
@@ -274,6 +275,14 @@ def test_it_refuses_to_read_what_is_not_text() -> None:
 
     assert str(raised.value) == "only str or bytes can be read, not 'int'"
     assert raised.value.__context__ is None
+
+
+def test_it_names_what_is_not_text_without_running_its_metaclass() -> None:
+    with names_refused(), pytest.raises(NotEncodableValueError) as raised:
+        # Data that is not text is the case under test.
+        _ = JsonEncoder().decode(NamelessThing(), "json")  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+
+    assert str(raised.value) == "only str or bytes can be read, not 'NamelessThing'"
 
 
 def test_it_refuses_data_that_contains_itself() -> None:

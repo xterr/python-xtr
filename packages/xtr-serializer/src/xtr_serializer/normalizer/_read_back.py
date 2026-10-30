@@ -9,6 +9,7 @@ from pydantic_core import to_json
 
 from xtr_serializer._loc_path import render_path
 from xtr_serializer._plain_data import PLAIN_DATA
+from xtr_serializer._type_names import name_of, qualified_name_of
 from xtr_serializer.exception import NotNormalizableValueError
 
 from ._first_difference import first_difference
@@ -83,14 +84,14 @@ def read_back_refusal(
     except ValidationError as error:
         details = error.errors(include_url=False, include_context=False)
     except Exception as error:  # noqa: BLE001 - whatever the data's code raises leaves it unconfirmed
-        raised = type(error).__name__
+        raised = name_of(type(error))
     else:
         if changed is None:
             return None
         return NotNormalizableValueError(
             _CHANGED,
             path=render_path(steps),
-            current_type=changed.__qualname__,
+            current_type=qualified_name_of(changed),
             error_type="not_exact",
         )
     if details and stage == "not_json":

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 from typing_extensions import override
 
+from xtr_serializer._type_names import name_of, qualified_name_of
 from xtr_serializer.exception import (
     CircularReferenceError,
     InvalidArgumentError,
@@ -124,7 +125,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         raise NotNormalizableValueError(
             "the value, or one inside it, does not fit its declared type, has no plain form or "
             "is nested too deep",
-            current_type=type(data).__qualname__,
+            current_type=qualified_name_of(type(data)),
         )
 
     @override
@@ -212,7 +213,7 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         if not refusals:
             raise NotNormalizableValueError(
                 "the data holds a value that is not plain data, or is nested too deep",
-                current_type=type(data).__name__,
+                current_type=name_of(type(data)),
             )
         if options.collect:
             raise PartialDenormalizationError(data, tuple(refusals))

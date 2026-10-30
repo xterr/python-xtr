@@ -13,6 +13,7 @@ from pydantic import TypeAdapter, ValidationError
 from pydantic_core import PydanticSerializationError
 from xtr_clock import DatePoint
 
+from tests.fixtures.nameless import NamelessThing, names_refused
 from xtr_serializer import ZonedDateTime
 from xtr_serializer.exception import NotNormalizableValueError
 
@@ -102,6 +103,17 @@ def test_it_refuses_to_write_a_datetime_without_a_named_zone(value: object, word
     assert isinstance(refusal, NotNormalizableValueError)
     assert words in refusal.message
     assert refusal.error_type == "zoned_datetime"
+
+
+def test_it_names_what_is_not_a_datetime_without_running_its_metaclass() -> None:
+    zoned = cast("TypeAdapter[object]", ZONED)
+
+    with names_refused(), pytest.raises(PydanticSerializationError) as raised:
+        _ = cast("object", zoned.dump_python(NamelessThing(), mode="json"))
+
+    refusal = raised.value.__cause__
+    assert isinstance(refusal, NotNormalizableValueError)
+    assert refusal.current_type == "NamelessThing"
 
 
 def test_it_refuses_to_write_a_zone_read_from_a_file_which_has_no_name() -> None:

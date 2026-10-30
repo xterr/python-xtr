@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from pydantic import PlainSerializer, PlainValidator
 from pydantic_core import PydanticCustomError
 
+from xtr_serializer._type_names import qualified_name_of
 from xtr_serializer.exception import NotNormalizableValueError
 
 __all__ = ["ZonedDateTime"]
@@ -40,7 +41,7 @@ def _write(value: object) -> str:
         return f"{value.isoformat()}[{value.tzinfo.key}]"
     raise NotNormalizableValueError(
         f"a zoned datetime must be a datetime in a named ZoneInfo zone; this one {reason}",
-        current_type=type(value).__qualname__,
+        current_type=qualified_name_of(type(value)),
         error_type=_ERROR_TYPE,
     )
 

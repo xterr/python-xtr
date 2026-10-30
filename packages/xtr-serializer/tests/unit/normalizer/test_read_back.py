@@ -13,6 +13,7 @@ import pytest
 from pydantic import ConfigDict, TypeAdapter
 from xtr_clock import DatePoint
 
+from tests.fixtures.nameless import NamelessError, NamelessThing, names_refused
 from xtr_serializer.normalizer._read_back import read_back_refusal
 
 if TYPE_CHECKING:
@@ -129,6 +130,26 @@ def test_a_comparison_that_raises_is_refused_where_it_raised() -> None:
 
     assert refusal is not None
     assert (refusal.path, refusal.error_type) == ("[1]", "not_comparable")
+
+
+def fail_namelessly(_text: bytes) -> NoReturn:
+    raise NamelessError
+
+
+def test_a_read_raising_an_error_whose_metaclass_refuses_its_name_is_refused_naming_it() -> None:
+    with names_refused():
+        refusal = refusal_of([1], [1], fail_namelessly)
+
+    assert refusal is not None
+    assert "raised NamelessError" in refusal.message
+
+
+def test_a_part_whose_metaclass_refuses_its_name_is_refused_naming_its_type() -> None:
+    with names_refused():
+        refusal = refusal_of([NamelessThing()], [{}], lambda _text: [NamelessThing()])
+
+    assert refusal is not None
+    assert (refusal.path, refusal.current_type) == ("[0]", "NamelessThing")
 
 
 def test_deep_data_is_confirmed_however_little_of_the_stack_is_left() -> None:

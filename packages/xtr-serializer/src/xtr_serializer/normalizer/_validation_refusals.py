@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from inspect import getattr_static
-from types import GetSetDescriptorType, MemberDescriptorType
+from types import MemberDescriptorType
 from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
 
 from xtr_serializer._loc_path import render_path
+from xtr_serializer._type_names import name_of
 from xtr_serializer.exception import ExtraAttributesError, NotNormalizableValueError
 
 if TYPE_CHECKING:
@@ -48,9 +49,6 @@ _KEY: Final = "[key]"
 # the data's own — a property, a descriptor — that the walk does not run.
 _ABSENT: Final = object()
 _OPAQUE: Final = object()
-
-# A class's name as the interpreter keeps it, read past a metaclass that computes ``__name__``.
-_NAME: Final = cast("GetSetDescriptorType", vars(type)["__name__"])
 
 
 def refusals_of(
@@ -104,9 +102,7 @@ def refusals_of(
         reported.add((path, error_type, message))
         # A missing field's input is the object it is missing from.
         current_type = (
-            None
-            if error_type == "missing"
-            else cast("str", _NAME.__get__(type(cast("object", detail["input"]))))
+            None if error_type == "missing" else name_of(type(cast("object", detail["input"])))
         )
         refusals.append(
             NotNormalizableValueError(

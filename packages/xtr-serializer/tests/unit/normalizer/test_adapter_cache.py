@@ -13,6 +13,7 @@ from pydantic_core import to_json
 from typing_extensions import TypedDict  # pydantic reads typing's only from Python 3.12
 
 from tests.fixtures.exact_values import Appointment, Color, Shape, Visit
+from tests.fixtures.nameless import NamelessThing, names_refused
 from tests.fixtures.refused_types import REFUSED_TYPES
 from xtr_serializer.normalizer._adapter_cache import Adapter, AdapterCache, build_adapter
 
@@ -37,6 +38,13 @@ def test_it_gives_the_same_adapter_for_a_type_used_again() -> None:
 
 def test_it_tells_why_a_type_has_no_adapter() -> None:
     assert build_adapter(Opaque) == "pydantic has no schema for 'Opaque'"
+
+
+def test_it_names_a_type_with_no_adapter_without_running_its_metaclass() -> None:
+    with names_refused():
+        adapter = build_adapter(NamelessThing)
+
+    assert adapter == "pydantic has no schema for 'NamelessThing'"
 
 
 def test_it_tells_why_a_type_whose_schema_pydantic_refuses_has_no_adapter() -> None:

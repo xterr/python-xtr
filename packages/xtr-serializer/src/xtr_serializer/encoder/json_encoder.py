@@ -10,6 +10,7 @@ from typing_extensions import override
 
 from xtr_serializer._loc_path import render_path
 from xtr_serializer._plain_data import PLAIN_DATA
+from xtr_serializer._type_names import qualified_name_of
 from xtr_serializer.exception import (
     InvalidArgumentError,
     NotEncodableValueError,
@@ -106,7 +107,7 @@ class JsonEncoder(EncoderInterface, DecoderInterface):
             refusal = (
                 "the text has no UTF-8 form"
                 if isinstance(data, str)
-                else f"only str or bytes can be read, not {type(data).__qualname__!r}"
+                else f"only str or bytes can be read, not {qualified_name_of(type(data))!r}"
             )
         else:
             return decoded

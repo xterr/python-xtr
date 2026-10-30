@@ -15,6 +15,8 @@ from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
 from typing_extensions import TypeAliasType
 
+from xtr_serializer._type_names import qualified_name_of
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -114,23 +116,27 @@ def build_adapter(type_: object) -> Adapter | str:
     and a type pydantic cannot build one for, such as a discriminator on what is no union, an
     alias of itself or a type nested deeper than building it can go, too.
     """
-    name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
     try:
         writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
         if not writer.pydantic_complete:
             _ = writer.rebuild(raise_errors=True)
         reader = SchemaValidator(cast("CoreSchema", _aware(writer.core_schema)), _EXACT_READING)
     except PydanticSchemaGenerationError:
-        return f"pydantic has no schema for {name!r}"
+        return f"pydantic has no schema for {_name_of(type_)!r}"
     except PydanticUndefinedAnnotation as error:
-        return f"pydantic has no schema for {name!r}: {error.name!r} is not defined"
+        return f"pydantic has no schema for {_name_of(type_)!r}: {error.name!r} is not defined"
     except SchemaError:  # its message may quote the application's values held in the schema
-        return f"pydantic refuses the schema of {name!r}"
+        return f"pydantic refuses the schema of {_name_of(type_)!r}"
     # How pydantic refuses a type declared in a way it cannot build, as its versions word it, and
     # how building one nested too deep stops.
     except (TypeError, PydanticUserError, RecursionError):
-        return f"pydantic cannot build a schema for {name!r}"
+        return f"pydantic cannot build a schema for {_name_of(type_)!r}"
     return Adapter(writer, reader)
+
+
+def _name_of(type_: object) -> str:
+    """Name ``type_`` as written: a class by its qualified name, read past its metaclass."""
+    return qualified_name_of(type_) if isinstance(type_, type) else repr(type_)
 
 
 def _key_of(type_: object) -> object:

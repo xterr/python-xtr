@@ -45,6 +45,7 @@ from tests.fixtures.exact_values import (
     Tally,
     Visit,
 )
+from tests.fixtures.nameless import NamelessCount, NamelessThing, names_refused
 from tests.fixtures.orders import (
     Cart,
     CartItem,
@@ -374,6 +375,24 @@ def test_it_names_the_type_it_refuses_to_normalize_when_pydantic_refuses_to_buil
     assert not normalizer.supports_normalization(Refused())
     with pytest.raises(InvalidArgumentError, match="cannot build a schema for 'Refused'"):
         _ = normalizer.normalize(Refused())
+
+
+def test_it_names_a_value_it_cannot_write_without_running_its_metaclass() -> None:
+    normalizer = PydanticNormalizer()
+    value = NamelessCount(cast("int", cast("object", "one")))
+    assert normalizer.supports_normalization(value)
+
+    with names_refused(), pytest.raises(NotNormalizableValueError) as raised:
+        _ = normalizer.normalize(value)
+
+    assert raised.value.current_type == "NamelessCount"
+
+
+def test_it_names_data_it_cannot_read_without_running_its_metaclass() -> None:
+    with names_refused(), pytest.raises(NotNormalizableValueError) as raised:
+        _ = PydanticNormalizer().denormalize(NamelessThing(), int)
+
+    assert raised.value.current_type == "NamelessThing"
 
 
 def test_it_refuses_to_read_into_a_type_it_cannot_resolve_naming_what_is_undefined() -> None:
