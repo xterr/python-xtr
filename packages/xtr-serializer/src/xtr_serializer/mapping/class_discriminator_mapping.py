@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import final
 
+from typing_extensions import override
+
 from ._class_discriminator_registry import REGISTRY
 
 __all__ = ["ClassDiscriminatorMapping"]
@@ -17,7 +19,8 @@ __all__ = ["ClassDiscriminatorMapping"]
 class ClassDiscriminatorMapping:
     """The key a hierarchy writes class names under, and the classes a declared class takes.
 
-    A snapshot: names registered later are not in it, and it cannot be changed.
+    A snapshot: names registered later are not in it, and it cannot be changed. Mappings compare
+    and hash by their key and their names, whatever order the names were given in.
 
     Attributes:
         type_property: The key each value's class name is written under.
@@ -31,6 +34,10 @@ class ClassDiscriminatorMapping:
     def __post_init__(self) -> None:
         """Keep a read-only copy of the names, so the caller's mapping can change on its own."""
         object.__setattr__(self, "types_mapping", MappingProxyType(dict(self.types_mapping)))
+
+    @override
+    def __hash__(self) -> int:
+        return hash((self.type_property, frozenset(self.types_mapping.items())))
 
     @classmethod
     def for_class(cls, class_: type) -> ClassDiscriminatorMapping | None:

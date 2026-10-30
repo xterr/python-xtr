@@ -68,3 +68,11 @@ def test_a_mapping_is_a_copy_that_names_registered_later_leave_as_it_was() -> No
     _ = discriminator_name("sub")(type("Sub", (Base,), {}))
 
     assert mapping == ClassDiscriminatorMapping("$type", {"base": Base})
+
+
+def test_equal_mappings_hash_alike() -> None:
+    mapping = ClassDiscriminatorMapping("$type", {"bounce": Bounce, "complaint": Complaint})
+    reordered = ClassDiscriminatorMapping("$type", {"complaint": Complaint, "bounce": Bounce})
+
+    assert hash(mapping) == hash(reordered)
+    assert {mapping, reordered} == {ClassDiscriminatorMapping.for_class(Failure)}
