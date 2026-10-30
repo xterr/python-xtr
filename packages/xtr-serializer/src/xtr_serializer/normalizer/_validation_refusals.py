@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from inspect import getattr_static
 from types import MemberDescriptorType
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
 
 from xtr_serializer._loc_path import render_path
 from xtr_serializer.exception import ExtraAttributesError, NotNormalizableValueError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from pydantic_core import ErrorDetails
+
+    # What finds the item a mapping holds at a step of a location.
+    _ItemAt: TypeAlias = Callable[[dict[object, object], str | int], object]
 
 __all__ = ["refusals_of"]
 
@@ -45,7 +50,9 @@ _ABSENT: Final = object()
 _OPAQUE: Final = object()
 
 
-def refusals_of(details: list[ErrorDetails], data: object) -> list[NotNormalizableValueError]:
+def refusals_of(
+    details: list[ErrorDetails], data: object, *, plain: bool
+) -> list[NotNormalizableValueError]:
     """Turn pydantic's errors about ``data`` into this package's, in pydantic's order.
 
     Each keeps pydantic's message, which describes the type rather than the value — or words of
@@ -63,9 +70,13 @@ def refusals_of(details: list[ErrorDetails], data: object) -> list[NotNormalizab
     ``data`` is walked without running any of its code: a dict or a list is looked into as one,
     whatever its class overrides, a key is matched only by a key of the step's own built-in type,
     and an object is looked into only through the attributes it stores. A step held behind a
-    property ends the path there.
+    property ends the path there. ``plain`` says ``data`` is plain data, JSON as it is parsed or
+    written, whose keys are all strings: a key is looked up there directly. In other data the
+    keys of a mapping are indexed the first time the walk steps into it, so that locating every
+    error of a large mapping takes about as long as reading it once.
     """
-    located = [(detail, _steps(detail, data)) for detail in details]
+    item_at = _plain_item_at if plain else _KeyIndexes().item_at
+    located = [(detail, _steps(detail, data, item_at)) for detail in details]
     extras: dict[str | None, list[str]] = {}
     for detail, steps in located:
         if detail["type"] in _EXTRA:
@@ -103,7 +114,7 @@ def refusals_of(details: list[ErrorDetails], data: object) -> list[NotNormalizab
     return refusals
 
 
-def _steps(detail: ErrorDetails, data: object) -> list[str | int]:
+def _steps(detail: ErrorDetails, data: object, item_at: _ItemAt) -> list[str | int]:
     """Keep the keys and indexes of the error's location that lead through ``data``.
 
     A step the data does not hold names the union member pydantic tried, unless it is the last
@@ -118,7 +129,7 @@ def _steps(detail: ErrorDetails, data: object) -> list[str | int]:
     for index, step in enumerate(loc, start=1):
         if current is _OPAQUE:
             break
-        found = _value_at(current, step)
+        found = _value_at(current, step, item_at)
         if found is not _ABSENT:
             steps.append(step)
             current = found
@@ -127,37 +138,63 @@ def _steps(detail: ErrorDetails, data: object) -> list[str | int]:
     return steps
 
 
-def _value_at(value: object, step: str | int) -> object:
+def _value_at(value: object, step: str | int, item_at: _ItemAt) -> object:
     """Find what ``value`` holds at ``step`` as a key, an index or a stored attribute.
 
-    The built-in lookups are called directly, so a subclass overriding them is not run. A key is
-    compared only when it has the step's exact type, whose comparison is the built-in one: looking
-    the step up by hash would compare it with any key sharing that hash, running that key's code.
+    A mapping is looked into by ``item_at``; a list or a tuple by the built-in lookups, called
+    directly, so a subclass overriding them is not run and nothing is copied.
     """
     kind = type(value)
     if issubclass(kind, dict):
-        items = dict[object, object].items(cast("dict[object, object]", value))
-        return next(
-            (item for key, item in items if type(key) is type(step) and key == step), _ABSENT
-        )
-    if issubclass(kind, list | tuple):
-        items = _items_of(cast("list[object] | tuple[object, ...]", value))
-        return items[step] if isinstance(step, int) and 0 <= step < len(items) else _ABSENT
-    if value is None or issubclass(kind, str | bytes | int | float) or not isinstance(step, str):
+        return item_at(cast("dict[object, object]", value), step)
+    if isinstance(step, int):
+        return _index_at(value, step)
+    if value is None or issubclass(kind, list | tuple | str | bytes | int | float):
         return _ABSENT
     return _attribute_at(value, step)
 
 
-def _items_of(value: list[object] | tuple[object, ...]) -> list[object] | tuple[object, ...]:
-    """Give a plain list or tuple of the items, copied by the built-in when a subclass holds them.
-
-    Data read as JSON holds plain ones, indexed as they are.
-    """
-    if type(value) is list or type(value) is tuple:
-        return value
+def _index_at(value: object, index: int) -> object:
+    """Find the item of a list or a tuple at ``index``; any other value holds none."""
     if issubclass(type(value), list):
-        return list[object].copy(cast("list[object]", value))
-    return tuple[object, ...].__getitem__(cast("tuple[object, ...]", value), slice(None))
+        items = cast("list[object]", value)
+        size = list[object].__len__(items)
+        return list[object].__getitem__(items, index) if 0 <= index < size else _ABSENT
+    if issubclass(type(value), tuple):
+        members = cast("tuple[object, ...]", value)
+        size = tuple[object, ...].__len__(members)
+        return tuple[object, ...].__getitem__(members, index) if 0 <= index < size else _ABSENT
+    return _ABSENT
+
+
+def _plain_item_at(mapping: dict[object, object], step: str | int) -> object:
+    """Find what a mapping of plain data holds at ``step``: its keys are all strings."""
+    return mapping.get(step, _ABSENT)
+
+
+@final
+class _KeyIndexes:
+    """The keys of each mapping the walk steps into, indexed once, by exact type.
+
+    An index holds only the keys of a type a step has, ``str`` or ``int`` exactly, whose
+    comparison is the built-in one: looking a step up in the mapping itself would compare it with
+    any key sharing its hash, running that key's code.
+    """
+
+    __slots__ = ("_indexes",)
+
+    def __init__(self) -> None:
+        # By identity: each mapping is held by the data, which outlives the walk.
+        self._indexes: dict[int, dict[str | int, object]] = {}
+
+    def item_at(self, mapping: dict[object, object], step: str | int) -> object:
+        """Find what ``mapping`` holds at ``step``, indexing its keys on the first lookup."""
+        index = self._indexes.get(id(mapping))
+        if index is None:
+            items = dict[object, object].items(mapping)
+            index = {key: item for key, item in items if type(key) is str or type(key) is int}
+            self._indexes[id(mapping)] = index
+        return index.get(step, _ABSENT)
 
 
 def _attribute_at(value: object, step: str) -> object:

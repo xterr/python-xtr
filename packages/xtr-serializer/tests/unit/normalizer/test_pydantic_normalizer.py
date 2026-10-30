@@ -16,7 +16,7 @@ import pytest
 from pydantic import ImportString, TypeAdapter
 from pydantic_core import to_json
 from typing_extensions import override
-from xtr_clock import DatePoint
+from xtr_clock import DatePoint, MonotonicClock
 
 from tests.fixtures.exact_values import (
     Amount,
@@ -122,6 +122,10 @@ class Row:
         if self.reads > 1:
             raise RuntimeError(PLANTED_VALUE)
         return SimpleNamespace(kind="pickup", store=1)
+
+
+class Values(list[object]):
+    """A list subclass, which reading from attributes takes as the list it is."""
 
 
 def chain_of_nodes(depth: int) -> Node:
@@ -698,6 +702,33 @@ def test_it_locates_each_error_where_the_data_read_as_json_has_it(
 
     assert {error.path for error in raised.value.errors} == paths
     assert len(raised.value.errors) == 2
+
+
+MANY = 20_000
+
+
+@pytest.mark.parametrize(
+    ("data", "type_", "context"),
+    [
+        ({f"k{index}": "x" for index in range(MANY)}, dict[str, int], {}),
+        ({f"k{index}": "x" for index in range(MANY)}, dict[str, int], {FROM_ATTRIBUTES: True}),
+        (Values(["x"] * MANY), list[int], {FROM_ATTRIBUTES: True}),
+    ],
+    ids=["mapping-read-as-json", "mapping-read-from-attributes", "list-read-from-attributes"],
+)
+def test_it_locates_every_refused_value_of_a_large_container_in_linear_time(
+    data: object, type_: object, context: Context
+) -> None:
+    clock = MonotonicClock()
+    started = clock.now()
+
+    with pytest.raises(PartialDenormalizationError) as raised:
+        _ = PydanticNormalizer().denormalize(
+            data, type_, context={**context, COLLECT_DENORMALIZATION_ERRORS: True}
+        )
+
+    assert clock.now() - started < timedelta(seconds=0.5)
+    assert len(raised.value.errors) == MANY
 
 
 @pytest.mark.parametrize(

@@ -198,7 +198,11 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
             raise CircularReferenceError("the data contains itself")
         # Read as JSON, the data is located in the JSON pydantic read, never in the caller's
         # object, whose code could run, or which a generator or a set cannot be indexed into.
-        refusals = refusals_of(details, data if text is None else _parsed(text)) if details else []
+        refusals = (
+            refusals_of(details, data if text is None else _parsed(text), plain=text is not None)
+            if details
+            else []
+        )
         if not refusals:
             raise NotNormalizableValueError(
                 "the data holds a value that is not plain data, or is nested too deep",

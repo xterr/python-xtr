@@ -84,7 +84,7 @@ def read_back_refusal(
             error_type="not_exact",
         )
     if details:
-        first = refusals_of(details, written)[0]
+        first = refusals_of(details, written, plain=True)[0]
         return NotNormalizableValueError(
             f"it would not read back: {first.message}",
             path=first.path,
