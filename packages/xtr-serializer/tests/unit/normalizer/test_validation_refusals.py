@@ -57,7 +57,10 @@ class Lines(list[object]):
 
 
 class Key:
-    """A key equal to ``"price"`` by hash, whose comparison raises."""
+    """A key with the hash of ``"price"``, which counts how often it is compared."""
+
+    def __init__(self) -> None:
+        self.comparisons: int = 0
 
     @override
     def __hash__(self) -> int:
@@ -65,7 +68,19 @@ class Key:
 
     @override
     def __eq__(self, other: object) -> bool:
-        raise RuntimeError(PLANTED_VALUE)
+        self.comparisons += 1
+        return False
+
+
+class Disguised(tuple[object, ...]):
+    """A tuple claiming to be a list, as a class may by overriding ``__class__``."""
+
+    __slots__: ClassVar[tuple[str, ...]] = ()
+
+    @property
+    @override
+    def __class__(self) -> type[object]:  # pyright: ignore[reportIncompatibleMethodOverride] - the disguise is the point
+        return list
 
 
 class Line(BaseModel):
@@ -185,8 +200,8 @@ def test_a_slot_never_set_holds_no_step() -> None:
 
 @pytest.mark.parametrize(
     "data",
-    [Pair("a", {"store": 1}), Lines(["a", {"store": 1}])],
-    ids=["tuple-subclass", "list-subclass"],
+    [Pair("a", {"store": 1}), Lines(["a", {"store": 1}]), Disguised(("a", {"store": 1}))],
+    ids=["tuple-subclass", "list-subclass", "tuple-claiming-to-be-a-list"],
 )
 def test_a_sequence_subclass_is_indexed_as_the_built_in(data: object) -> None:
     [refusal] = refusals_of([string_error_at(1, "store")], data)
@@ -208,9 +223,12 @@ def test_a_value_with_no_fields_holds_no_step() -> None:
     assert refusal.path is None
 
 
-def test_a_walk_the_data_breaks_off_stops_where_it_was() -> None:
-    data = {"items": {Key(): 1}}
+def test_a_key_is_found_without_comparing_the_keys_of_the_data() -> None:
+    key = Key()
+    data = {"items": {key: 1, "price": {"store": 1}}}
+    key.comparisons = 0  # building the dict compared the colliding keys once
 
-    [refusal] = refusals_of([string_error_at("items", "price")], data)
+    [refusal] = refusals_of([string_error_at("items", "price", "store")], data)
 
-    assert refusal.path == "items"
+    assert refusal.path == "items.price.store"
+    assert key.comparisons == 0

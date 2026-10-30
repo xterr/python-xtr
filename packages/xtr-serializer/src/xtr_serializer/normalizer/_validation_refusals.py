@@ -61,8 +61,9 @@ def refusals_of(details: list[ErrorDetails], data: object) -> list[NotNormalizab
     misspelled object. An error pydantic reports once per union member it tried is reported once.
 
     ``data`` is walked without running any of its code: a dict or a list is looked into as one,
-    whatever its class overrides, and an object only through the attributes it stores. A step
-    held behind a property ends the path there, as does a step whose lookup fails.
+    whatever its class overrides, a key is matched only by a key of the step's own built-in type,
+    and an object is looked into only through the attributes it stores. A step held behind a
+    property ends the path there.
     """
     located = [(detail, _steps(detail, data)) for detail in details]
     extras: dict[str | None, list[str]] = {}
@@ -117,10 +118,7 @@ def _steps(detail: ErrorDetails, data: object) -> list[str | int]:
     for index, step in enumerate(loc, start=1):
         if current is _OPAQUE:
             break
-        try:
-            found = _value_at(current, step)
-        except Exception:  # noqa: BLE001 - a key's own comparison failed; the path ends here
-            break
+        found = _value_at(current, step)
         if found is not _ABSENT:
             steps.append(step)
             current = found
@@ -132,11 +130,16 @@ def _steps(detail: ErrorDetails, data: object) -> list[str | int]:
 def _value_at(value: object, step: str | int) -> object:
     """Find what ``value`` holds at ``step`` as a key, an index or a stored attribute.
 
-    The built-in lookups are called directly, so a subclass overriding them is not run.
+    The built-in lookups are called directly, so a subclass overriding them is not run. A key is
+    compared only when it has the step's exact type, whose comparison is the built-in one: looking
+    the step up by hash would compare it with any key sharing that hash, running that key's code.
     """
     kind = type(value)
     if issubclass(kind, dict):
-        return dict[object, object].get(cast("dict[object, object]", value), step, _ABSENT)
+        items = dict[object, object].items(cast("dict[object, object]", value))
+        return next(
+            (item for key, item in items if type(key) is type(step) and key == step), _ABSENT
+        )
     if issubclass(kind, list | tuple):
         items = _items_of(cast("list[object] | tuple[object, ...]", value))
         return items[step] if isinstance(step, int) and 0 <= step < len(items) else _ABSENT
@@ -152,9 +155,9 @@ def _items_of(value: list[object] | tuple[object, ...]) -> list[object] | tuple[
     """
     if type(value) is list or type(value) is tuple:
         return value
-    if isinstance(value, list):
-        return list[object].copy(value)
-    return tuple[object, ...].__getitem__(value, slice(None))
+    if issubclass(type(value), list):
+        return list[object].copy(cast("list[object]", value))
+    return tuple[object, ...].__getitem__(cast("tuple[object, ...]", value), slice(None))
 
 
 def _attribute_at(value: object, step: str) -> object:
