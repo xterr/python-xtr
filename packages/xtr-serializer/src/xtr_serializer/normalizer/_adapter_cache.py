@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 from threading import RLock, get_ident
-from types import NoneType, UnionType
 from typing import (
     TYPE_CHECKING,
-    Annotated,
     Final,
-    Literal,
     NamedTuple,
     cast,
     final,
     get_args,
-    get_origin,
 )
 
 from pydantic import ConfigDict, TypeAdapter
@@ -27,7 +23,8 @@ from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
 from typing_extensions import TypeAliasType, override
 
-from xtr_serializer._type_names import name_of, qualified_name_of
+from xtr_serializer._type_names import name_of
+from xtr_serializer._written_types import written_name_of
 from xtr_serializer.exception import MappingError
 
 if TYPE_CHECKING:
@@ -73,13 +70,6 @@ _alias_of: Final = cast("Callable[[str, object], object]", TypeAliasType)
 # How many types a cache keeps the adapter of. A type expression built per call, such as
 # Annotated[int, Field(ge=0)], is a new key each time; the least recently used goes first.
 _CACHE_SIZE: Final = 256
-
-# What a type is called when naming it raises, or goes deeper than the stack.
-_UNNAMED: Final = "a type that cannot be named"
-
-# The union the typing module builds, which ``X | Y`` builds too where ``X`` is one of its forms;
-# the same class as the other on Python 3.14.
-_TYPING_UNION: Final = cast("object", get_origin(Literal[0] | None))
 
 
 class Adapter(NamedTuple):
@@ -234,15 +224,17 @@ def build_adapter(type_: object) -> Adapter | str:
             _ = writer.rebuild(raise_errors=True)
         reader = SchemaValidator(cast("CoreSchema", _aware(writer.core_schema)), _EXACT_READING)
     except PydanticSchemaGenerationError:
-        return f"pydantic has no schema for {_name_of(type_)!r}"
+        return f"pydantic has no schema for {written_name_of(type_)!r}"
     except PydanticUndefinedAnnotation as error:
-        return f"pydantic has no schema for {_name_of(type_)!r}: {error.name!r} is not defined"
+        return (
+            f"pydantic has no schema for {written_name_of(type_)!r}: {error.name!r} is not defined"
+        )
     except SchemaError:  # its message may quote the application's values held in the schema
-        return f"pydantic refuses the schema of {_name_of(type_)!r}"
+        return f"pydantic refuses the schema of {written_name_of(type_)!r}"
     # How pydantic refuses a type declared in a way it cannot build, as its versions word it, and
     # how building one nested too deep stops.
     except (TypeError, PydanticUserError, RecursionError):
-        return f"pydantic cannot build a schema for {_name_of(type_)!r}"
+        return f"pydantic cannot build a schema for {written_name_of(type_)!r}"
     except Exception as error:  # noqa: BLE001 - whatever the type's own code raises leaves it unbuilt
         # A hierarchy refusing its classes as registered says why, in this package's words.
         why = (
@@ -250,55 +242,8 @@ def build_adapter(type_: object) -> Adapter | str:
             if isinstance(error, MappingError)
             else f"building it raised {name_of(type(error))}"
         )
-        return f"pydantic cannot build a schema for {_name_of(type_)!r}: {why}"
+        return f"pydantic cannot build a schema for {written_name_of(type_)!r}: {why}"
     return Adapter(writer, reader)
-
-
-def _name_of(type_: object) -> str:
-    """Name ``type_`` as written, or by a fixed name when naming it raises.
-
-    A class is named by its qualified name, read past its metaclass, in most type expressions:
-    the expression is taken apart rather than shown, which would ask each class in it for its
-    name, and a class is told apart before anything else is read of it, which would ask its
-    metaclass. Not in all: taking apart ``Callable[[X], ...]`` with a single parameter is left to
-    the typing module, which reads attributes of ``X``, so a class refusing those leaves the
-    whole type named "a type that cannot be named". Showing what is neither a class nor an
-    expression — an annotation's metadata, a literal's values — runs their own code, which may
-    raise; so may a type nested deeper than the stack.
-    """
-    try:
-        return _written(type_)
-    except Exception:  # noqa: BLE001 - whatever naming runs leaves the type unnamed, not the call failed
-        return _UNNAMED
-
-
-def _written(type_: object) -> str:
-    """Write ``type_`` as it is written in code, its classes by their qualified names."""
-    if type_ is not NoneType and isinstance(type_, type):
-        return qualified_name_of(type_)
-    origin = cast("object", get_origin(type_))
-    arguments: tuple[object, ...] = get_args(type_)
-    if origin is None:
-        return _written_alone(type_)
-    if origin is _TYPING_UNION or origin is UnionType:
-        return " | ".join(map(_written, arguments))
-    if origin is Literal:
-        return f"Literal[{', '.join(map(repr, arguments))}]"
-    if origin is Annotated:
-        metadata = ", ".join(map(repr, arguments[1:]))
-        return f"Annotated[{_written(arguments[0])}, {metadata}]"
-    return f"{_written(origin)}[{', '.join(map(_written, arguments))}]"
-
-
-def _written_alone(type_: object) -> str:
-    """Write what takes no arguments, a class aside: ``None``, ``...``, a callable's parameters."""
-    if type_ is NoneType or type_ is None:
-        return "None"
-    if type_ is Ellipsis:
-        return "..."
-    if isinstance(type_, list):
-        return f"[{', '.join(map(_written, cast('list[object]', type_)))}]"
-    return repr(type_)
 
 
 def _key_of(type_: object) -> object:

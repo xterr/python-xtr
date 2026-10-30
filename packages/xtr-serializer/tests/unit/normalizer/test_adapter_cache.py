@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import sysconfig
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Literal, cast, final
+from typing import TYPE_CHECKING, Annotated, Literal, cast, final
 
 import pytest
 from pydantic import AwareDatetime, Field, NaiveDatetime, ValidationError
@@ -33,9 +32,11 @@ from xtr_serializer.normalizer import _adapter_cache as adapter_cache
 from xtr_serializer.normalizer._adapter_cache import (
     Adapter,
     AdapterCache,
-    _name_of,
     build_adapter,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class Opaque:
@@ -78,11 +79,13 @@ def test_it_tells_why_a_type_pydantic_cannot_build_a_schema_for_has_no_adapter()
     assert build_adapter(Annotated[int, field]) == f"pydantic cannot build a schema for {name!r}"
 
 
+# Built in the test, not as the module is collected: some interpreters, such as Python 3.12.0,
+# recurse past the stack building annotated optionals much deeper than these as typing hashes them.
 @pytest.mark.parametrize(
-    "type_", [nested(500), optionals(300)], ids=["lists", "annotated-optionals"]
+    "type_of", [lambda: nested(500), lambda: optionals(250)], ids=["lists", "annotated-optionals"]
 )
-def test_a_type_nested_too_deep_to_be_kept_has_no_adapter(type_: object) -> None:
-    adapter = AdapterCache().get(type_)
+def test_a_type_nested_too_deep_to_be_kept_has_no_adapter(type_of: Callable[[], object]) -> None:
+    adapter = AdapterCache().get(type_of())
 
     assert isinstance(adapter, str)
     assert adapter.startswith("pydantic cannot build a schema for ")
@@ -326,34 +329,6 @@ def test_a_type_being_built_holds_up_no_lookup_in_another_thread(
 
 @pytest.mark.parametrize(
     ("type_", "name"),
-    [
-        (list[NamelessThing], "list[NamelessThing]"),
-        (dict[str, NamelessThing], "dict[str, NamelessThing]"),
-        (Literal["a"] | NamelessThing, "Literal['a'] | NamelessThing"),
-        (NamelessThing | None, "NamelessThing | None"),
-        (Annotated[NamelessThing, "x"], "Annotated[NamelessThing, 'x']"),
-        (Literal["a", 1], "Literal['a', 1]"),
-        (tuple[NamelessThing, ...], "tuple[NamelessThing, ...]"),
-        (Callable[[NamelessThing], None], "Callable[[NamelessThing], None]"),
-    ],
-    ids=["list", "dict", "typing-union", "union", "annotated", "literal", "tuple", "callable"],
-)
-def test_it_names_a_type_expression_without_running_a_metaclass(type_: object, name: str) -> None:
-    with names_refused():
-        assert _name_of(type_) == name
-
-
-@pytest.mark.parametrize(
-    ("type_", "name"),
-    [(Sealed, "Sealed"), (list[Sealed], "list[Sealed]")],
-    ids=["alone", "in-an-expression"],
-)
-def test_it_names_a_class_none_of_whose_attributes_can_be_read(type_: object, name: str) -> None:
-    assert _name_of(type_) == name
-
-
-@pytest.mark.parametrize(
-    ("type_", "name"),
     [(Unshown, "Unshown"), (Unprintable(), "a type that cannot be named"), (Sealed, "Sealed")],
     ids=["unshown-class", "unprintable", "sealed-class"],
 )
@@ -361,13 +336,6 @@ def test_it_tells_why_a_type_whose_building_raises_has_no_adapter(type_: object,
     assert build_adapter(type_) == (
         f"pydantic cannot build a schema for {name!r}: building it raised LookupError"
     )
-
-
-@pytest.mark.parametrize(
-    "type_", [Unprintable(), nested(5000)], ids=["raising-repr", "deeper-than-the-stack"]
-)
-def test_a_type_that_cannot_be_named_is_named_by_a_fixed_name(type_: object) -> None:
-    assert _name_of(type_) == "a type that cannot be named"
 
 
 @pytest.mark.parametrize("type_", REFUSED_TYPES.values(), ids=REFUSED_TYPES.keys())
