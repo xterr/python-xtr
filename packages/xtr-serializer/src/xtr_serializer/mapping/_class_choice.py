@@ -10,6 +10,8 @@ from pydantic_core import core_schema, to_json
 from xtr_serializer._type_names import qualified_name_of
 from xtr_serializer.exception import MappingError
 
+from ._deferred_refusals import written_or_deferred
+
 if TYPE_CHECKING:
     from pydantic_core import CoreSchema
 
@@ -47,6 +49,7 @@ def class_choice(own: CoreSchema, kind: type, key: str, ref: str) -> CoreSchema:
             partial(_without, key=key), by_ref, json_schema_input_schema=by_ref
         ),
         ref=ref,
+        serialization=core_schema.wrap_serializer_function_ser_schema(written_or_deferred),
     )
 
 

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
-from datetime import UTC, datetime
-from typing import Annotated, ClassVar, cast
+from datetime import UTC, datetime, timedelta, timezone
+from typing import TYPE_CHECKING, Annotated, ClassVar, cast
 
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
@@ -18,8 +18,12 @@ from tests.fixtures.hierarchies import (
     Delivery,
     Event,
     Failure,
+    Hashless,
     Labels,
     Mailbox,
+    Node,
+    Stray,
+    Timed,
     Unnamed,
 )
 from xtr_serializer import (
@@ -32,6 +36,9 @@ from xtr_serializer import (
     discriminator_map,
     discriminator_name,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 AT = datetime(2026, 10, 30, 9, 30, tzinfo=UTC)
 NORMALIZER = PydanticNormalizer()
@@ -255,6 +262,51 @@ def test_a_hierarchy_with_no_named_class_has_no_schema() -> None:
     assert not NORMALIZER.supports_denormalization({}, Empty)
     with pytest.raises(InvalidArgumentError, match="no class"):
         _ = NORMALIZER.denormalize({}, Empty)
+
+
+def test_a_refusal_inside_a_value_inside_a_value_keeps_its_words() -> None:
+    value = Batch("b", events=(Batch("inner", events=(Unnamed("u", "x", AT),)),))
+
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = NORMALIZER.normalize(value)
+
+    assert (caught.value.current_type, caught.value.error_type) == ("Unnamed", "unnamed_class")
+
+
+def test_a_zoned_datetime_refused_inside_a_value_keeps_its_words() -> None:
+    value = Node(Timed(at=datetime(2026, 10, 30, tzinfo=timezone(timedelta(hours=2)))))
+
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = NORMALIZER.normalize(value)
+
+    assert caught.value.error_type == "zoned_datetime"
+
+
+def chain(depth: int, last: Node) -> Node:
+    value = last
+    for _ in range(depth):
+        value = Node(value)
+    return value
+
+
+@pytest.mark.parametrize(
+    "value_of",
+    [lambda: chain(250, Node()), lambda: chain(40, Stray())],
+    ids=["deeper-than-reading-goes", "refused-deep-inside"],
+)
+def test_a_value_refused_deep_inside_a_chain_of_values_is_refused_at_once(
+    value_of: Callable[[], Node],
+) -> None:
+    # pydantic 2.12 tries a refused member of a union again, once per union holding it.
+    with pytest.raises(NotNormalizableValueError):
+        _ = NORMALIZER.normalize(value_of())
+
+
+def test_a_class_refusing_to_be_hashed_is_refused_without_running_its_code() -> None:
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = NORMALIZER.normalize(Node(Hashless()))
+
+    assert (caught.value.current_type, caught.value.error_type) == ("Hashless", "unnamed_class")
 
 
 def test_a_mapping_holding_the_key_is_located_by_its_own_keys() -> None:

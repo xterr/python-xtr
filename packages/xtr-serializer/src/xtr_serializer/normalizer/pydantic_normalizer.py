@@ -17,10 +17,12 @@ from xtr_serializer.exception import (
     PartialDenormalizationError,
     SerializerError,
 )
+from xtr_serializer.mapping._deferred_refusals import deferring_refusals
 
 from ._adapter_cache import Adapter, AdapterCache
 from ._context_options import read_options, write_options
 from ._cycles import is_cycle
+from ._own_words import own_words
 from ._read_back import read_back_refusal
 from ._validation_refusals import refusals_of
 from .denormalizer_interface import DenormalizerInterface
@@ -88,30 +90,35 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         adapter = self._adapter_for(type(data))
         context = {**self._default_context, **(context or {})}
         options = write_options(context)
+        written: NormalizedValue = None
+        failure: ValueError | None = None
+        with deferring_refusals() as deferred:
+            try:
+                # Dumped in JSON mode, the result holds only what JSON does.
+                written = cast(
+                    "NormalizedValue",
+                    adapter.writer.dump_python(
+                        data,
+                        mode="json",
+                        include=options.include,
+                        exclude=options.exclude,
+                        by_alias=options.by_alias,
+                        exclude_none=options.exclude_none,
+                        exclude_unset=options.exclude_unset,
+                        exclude_defaults=options.exclude_defaults,
+                        warnings="error",  # a value outside its declared type is refused
+                        context=context,
+                    ),
+                )
+            except ValueError as error:  # pydantic's message quotes the value: not passed on
+                failure = error
+        # Met first, a refusal kept inside a class hierarchy's value is what made the rest fail.
+        failure = deferred[0] if deferred else failure
         refusal: SerializerError | None = None
         cyclic = False
-        try:
-            # Dumped in JSON mode, the result holds only what JSON does.
-            written = cast(
-                "NormalizedValue",
-                adapter.writer.dump_python(
-                    data,
-                    mode="json",
-                    include=options.include,
-                    exclude=options.exclude,
-                    by_alias=options.by_alias,
-                    exclude_none=options.exclude_none,
-                    exclude_unset=options.exclude_unset,
-                    exclude_defaults=options.exclude_defaults,
-                    warnings="error",  # a value outside its declared type is refused, not written
-                    context=context,
-                ),
-            )
-        except ValueError as error:  # pydantic's message quotes the value, so it is not passed on
-            # A serializer refusing in this package's words is believed; pydantic chains it.
-            cause = error.__cause__
-            refusal = cause if isinstance(cause, SerializerError) else None
-            cyclic = is_cycle(error)
+        if failure is not None:
+            refusal = own_words(failure)
+            cyclic = is_cycle(failure)
         else:
             refusal = read_back_refusal(
                 data,
