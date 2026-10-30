@@ -65,8 +65,9 @@ _VALUES: Final = {
 _NAMED: Final = {"typed-dict": "fields", "tagged-union": "choices"}
 
 # Type checkers read an alias only as a statement naming a type written in the code; here the
-# type is a value known at run time, which is what TypeAliasType takes there.
-_alias_of: Final = cast("Callable[[str, object], object]", TypeAliasType)
+# type is a value known at run time, which is what TypeAliasType takes there. What it makes is
+# typed as a class of objects, the type form every pydantic's TypeAdapter takes for T = object.
+_alias_of: Final = cast("Callable[[str, object], type[object]]", TypeAliasType)
 
 # How many types a cache keeps the adapter of. A type expression built per call, such as
 # Annotated[int, Field(ge=0)], is a new key each time; the least recently used goes first.
@@ -227,7 +228,8 @@ def build_adapter(type_: object) -> Adapter | str:
     """
     try:
         with declaring():
-            writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
+            alias = _alias_of("Value", type_)
+            writer = TypeAdapter(alias, config=_EXACT)
             if not writer.pydantic_complete:
                 _ = writer.rebuild(raise_errors=True)
         reader = SchemaValidator(cast("CoreSchema", _aware(writer.core_schema)), _EXACT_READING)

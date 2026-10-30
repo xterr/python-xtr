@@ -11,7 +11,7 @@ from ipaddress import (
     IPv6Network,
     ip_address,
 )
-from typing import Annotated
+from typing import Annotated, cast
 
 import pytest
 from pydantic import AfterValidator, BeforeValidator, EmailStr, NameEmail, TypeAdapter
@@ -29,7 +29,8 @@ def own_check(value: str) -> str:
 
 
 def detail_of(type_: object, data: object) -> ErrorDetails:
-    adapter: TypeAdapter[object] = TypeAdapter(type_, config={"strict": True})
+    # Each type here is a type form; typed as a class, as every pydantic's TypeAdapter takes.
+    adapter = TypeAdapter(cast("type[object]", type_), config={"strict": True})
     with pytest.raises(PydanticValidationError) as raised:
         _ = adapter.validate_json(to_json(data))
     [detail] = raised.value.errors(include_url=False)
