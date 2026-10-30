@@ -106,7 +106,8 @@ def build_adapter(type_: object) -> Adapter | str:
     pydantic built, keep their own rules, wherever they sit: pydantic may read one with the
     validator its class was built with rather than with the schema holding it, as its versions
     decide differently, so the reader leaves them as they are for them to read alike on all.
-    A schema pydantic refuses, such as one a class's schema hook returns, is said to be refused.
+    A schema pydantic refuses, such as one a class's schema hook returns, is said to be refused,
+    and a type pydantic cannot build one for, such as a discriminator on what is no union, too.
     """
     name = type_.__qualname__ if isinstance(type_, type) else repr(type_)
     try:
@@ -120,6 +121,8 @@ def build_adapter(type_: object) -> Adapter | str:
         return f"pydantic has no schema for {name!r}: {error.name!r} is not defined"
     except SchemaError:  # its message may quote the application's values held in the schema
         return f"pydantic refuses the schema of {name!r}"
+    except TypeError:  # how pydantic refuses a type declared in a way it cannot build
+        return f"pydantic cannot build a schema for {name!r}"
     return Adapter(writer, reader)
 
 

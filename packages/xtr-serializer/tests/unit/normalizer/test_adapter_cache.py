@@ -42,6 +42,13 @@ def test_it_tells_why_a_type_whose_schema_pydantic_refuses_has_no_adapter() -> N
     assert build_adapter(Malformed) == "pydantic refuses the schema of 'Malformed'"
 
 
+def test_it_tells_why_a_type_pydantic_cannot_build_a_schema_for_has_no_adapter() -> None:
+    misdeclared = Annotated[int, Field(discriminator="kind")]
+    name = repr(misdeclared)
+
+    assert build_adapter(misdeclared) == f"pydantic cannot build a schema for {name!r}"
+
+
 @pytest.mark.parametrize("type_", [Color, Shape], ids=["tuple-members", "dict-members"])
 def test_an_application_value_of_a_container_subclass_stays_in_the_schema(type_: object) -> None:
     assert isinstance(build_adapter(type_), Adapter)

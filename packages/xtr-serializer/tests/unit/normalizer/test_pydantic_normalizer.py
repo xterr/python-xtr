@@ -13,7 +13,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
-from pydantic import ImportString, TypeAdapter
+from pydantic import Field, ImportString, TypeAdapter
 from pydantic_core import to_json
 from typing_extensions import override
 from xtr_clock import DatePoint, MonotonicClock
@@ -341,6 +341,17 @@ def test_it_refuses_to_normalize_what_it_cannot_build() -> None:
 def test_it_refuses_to_denormalize_into_what_it_cannot_build() -> None:
     with pytest.raises(InvalidArgumentError, match="'Opaque'"):
         _ = PydanticNormalizer().denormalize({}, Opaque)
+
+
+MISDECLARED = Annotated[int, Field(discriminator="kind")]
+
+
+def test_it_does_not_support_a_type_pydantic_cannot_build_a_schema_for() -> None:
+    normalizer = PydanticNormalizer()
+
+    assert not normalizer.supports_denormalization({}, MISDECLARED)
+    with pytest.raises(InvalidArgumentError, match="cannot build a schema"):
+        _ = normalizer.denormalize({}, MISDECLARED)
 
 
 def test_it_refuses_to_read_into_a_type_it_cannot_resolve_naming_what_is_undefined() -> None:
