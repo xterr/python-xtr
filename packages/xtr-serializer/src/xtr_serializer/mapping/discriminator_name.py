@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from dataclasses import is_dataclass
+from typing import TYPE_CHECKING, TypeVar, cast
 
 from xtr_serializer._type_names import qualified_name_of
 from xtr_serializer.exception import MappingError
@@ -36,26 +37,41 @@ def discriminator_name(name: str) -> Callable[[_ClassT], _ClassT]:
     had when it was built: so name every class before a type holding one is used — and before a
     model holding one is defined, as a model builds its schema then. A model holding its own
     hierarchy, such as a thread holding its replies, is a model naming itself after its schema is
-    built: define it with ``model_config = ConfigDict(defer_build=True)``. A model or a pydantic
-    dataclass not built yet when a type holding it is built — deferred, or naming what is not
-    defined yet — is read as itself alone in that type, as pydantic asks it for the schema it
-    builds itself with: use it once first, so that it is built. A value of another class then
-    sitting there is refused rather than changed.
+    built: define it with ``model_config = ConfigDict(defer_build=True)`` — built before, it
+    refuses every value it holds of its own hierarchy. Plain pydantic reads a model or a pydantic
+    dataclass not built yet — deferred, or naming what is not defined yet — as itself alone where
+    a type adapter's type holds it at no field, as it asks the class then for the schema it
+    builds itself with: the normalizer builds such a class first, and so should code using
+    pydantic alone.
+
+    A class deriving from a generic dataclass of the hierarchy cannot be named: pydantic reads
+    ``Box[int]`` by the dataclass's fields, never asking for the classes under it.
 
     Raises:
-        MappingError: If ``name`` is empty or taken in the hierarchy, the class is generic, in
-            no hierarchy or two, has a name already, has a field named or aliased the
-            hierarchy's key, hands pydantic its schema itself, or is named after a schema was
-            built for one of its bases.
+        MappingError: If ``name`` is empty or taken in the hierarchy, the decorated object is no
+            class, the class is generic or derives from a generic dataclass, is in no hierarchy
+            or two, has a name already, has a field named or aliased the hierarchy's key, hands
+            pydantic its schema itself, or is named after a schema was built for one of its
+            bases.
     """
 
     def register(kind: _ClassT) -> _ClassT:
+        if not isinstance(cast("object", kind), type):
+            raise MappingError(
+                f"a {qualified_name_of(type(kind))!r} is no class, which a name is given to"
+            )
         class_name = qualified_name_of(kind)
         if not name:
             raise MappingError(f"the name of {class_name!r} must be some text")
         if getattr(kind, "__parameters__", ()):
             raise MappingError(
                 f"{class_name!r} is generic, which pydantic reads by its fields alone"
+            )
+        if (generic := _generic_dataclass_above(kind)) is not None:
+            raise MappingError(
+                f"{class_name!r} derives from generic {qualified_name_of(generic)!r}, a dataclass "
+                "that pydantic reads by its fields alone where it is declared with arguments, "
+                "never asking for the classes under it"
             )
         key = REGISTRY.type_property_of(kind)
         if key is None:
@@ -77,3 +93,15 @@ def discriminator_name(name: str) -> Callable[[_ClassT], _ClassT]:
         return kind
 
     return register
+
+
+def _generic_dataclass_above(kind: type) -> type | None:
+    """Find a generic dataclass ``kind`` derives from, which a model, a real class, is not.
+
+    pydantic builds a class of its own for ``Model[int]``, and asks it for its schema as for any
+    class; ``Dataclass[int]`` is no class, and pydantic reads it without asking.
+    """
+    for base in kind.__mro__[1:]:
+        if getattr(base, "__parameters__", ()) and is_dataclass(base):
+            return base
+    return None

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
 from datetime import UTC, datetime
-from typing import Annotated, cast
+from typing import Annotated, ClassVar, cast
 
 import pytest
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from tests.fixtures.hierarchies import (
     Alert,
@@ -18,6 +18,7 @@ from tests.fixtures.hierarchies import (
     Delivery,
     Event,
     Failure,
+    Labels,
     Mailbox,
     Unnamed,
 )
@@ -254,3 +255,49 @@ def test_a_hierarchy_with_no_named_class_has_no_schema() -> None:
     assert not NORMALIZER.supports_denormalization({}, Empty)
     with pytest.raises(InvalidArgumentError, match="no class"):
         _ = NORMALIZER.denormalize({}, Empty)
+
+
+def test_a_mapping_holding_the_key_is_located_by_its_own_keys() -> None:
+    error = refusal({"tags": {"$type": "k", "k": 5}}, Labels)
+
+    assert error.path == "tags.k"
+
+
+def test_a_dataclass_with_a_validator_before_its_fields_reads_them_without_the_class_name() -> None:
+    seen: list[object] = []
+
+    @discriminator_map()
+    @dataclass(frozen=True)
+    class Checked:
+        count: int = 0
+
+    @discriminator_name("checked_more")
+    @dataclass(frozen=True)
+    class CheckedMore(Checked):
+        @model_validator(mode="before")
+        @classmethod
+        def remember(cls, data: object) -> object:
+            seen.append(data)
+            return data
+
+    read = NORMALIZER.denormalize({"$type": "checked_more", "count": 1}, Checked)
+
+    assert seen == [{"count": 1}]
+    assert read == CheckedMore(1)
+
+
+def test_a_class_written_as_no_object_is_refused() -> None:
+    @discriminator_map()
+    class Text(BaseModel):
+        model_config: ClassVar[ConfigDict] = ConfigDict(defer_build=True)
+
+    @discriminator_name("line")
+    class Line(Text):
+        @model_serializer
+        def as_text(self) -> str:
+            return "a line naming $type"
+
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = NORMALIZER.normalize(Line())
+
+    assert caught.value.error_type == "class_discriminator_object"

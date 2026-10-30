@@ -8,8 +8,9 @@ from typing import ClassVar
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import override
 
-from xtr_serializer import discriminator_map, discriminator_name
+from xtr_serializer import ZonedDateTime, discriminator_map, discriminator_name
 
 __all__ = [
     "Alert",
@@ -22,12 +23,17 @@ __all__ = [
     "Drawing",
     "Event",
     "Failure",
+    "Hashless",
+    "Labels",
     "Mailbox",
+    "Node",
     "Notice",
     "Outage",
     "Reminder",
     "Shape",
     "Square",
+    "Stray",
+    "Timed",
     "Unnamed",
 ]
 
@@ -155,3 +161,44 @@ class Square(Shape):
 @dataclass(frozen=True)
 class Drawing:
     shapes: list[Shape]
+
+
+@discriminator_name("node")
+@discriminator_map()
+@dataclass(frozen=True)
+class Node:
+    """A chain of its own class, as deep as a value makes it."""
+
+    nxt: Node | None = None
+
+
+@dataclass(frozen=True)
+class Stray(Node):
+    """A node never given a name, so never written."""
+
+
+@discriminator_name("timed")
+@dataclass(frozen=True)
+class Timed(Node):
+    at: ZonedDateTime | None = None
+
+
+class _HashRefusing(type):
+    """A metaclass whose classes refuse to be hashed, with words of their own."""
+
+    @override
+    def __hash__(cls) -> int:
+        msg = "the class's own words"
+        raise RuntimeError(msg)
+
+
+@dataclass(frozen=True)
+class Hashless(Node, metaclass=_HashRefusing):
+    """A node whose class refuses to be hashed."""
+
+
+@dataclass(frozen=True)
+class Labels:
+    """A mapping that is no class of a hierarchy, whose keys may be anything."""
+
+    tags: dict[str, str]

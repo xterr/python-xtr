@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import is_dataclass
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, TypeVar, cast
 
 from pydantic import BaseModel, RootModel
-from pydantic.dataclasses import is_pydantic_dataclass, rebuild_dataclass
 
 from xtr_serializer._type_names import qualified_name_of
 from xtr_serializer.exception import MappingError
 
+from ._class_builds import is_unbuilt, rebuild
 from ._class_discriminator_registry import REGISTRY
 from ._field_names import field_names_of
 from ._polymorphic_schema import polymorphic_schema
@@ -55,58 +55,56 @@ def discriminator_map(type_property: str = "$type") -> Callable[[_ClassT], _Clas
     decorator after ``@dataclass``, and before ``@discriminator_name`` when the base has a name
     too. Every class of the hierarchy is named before a type holding one is used — or defined,
     for a model, which builds its schema then (see :func:`~xtr_serializer.discriminator_name`).
-    A model or a pydantic dataclass still builds and validates as itself: given the key, it
-    reads it and keeps nothing of it.
+    A model or a pydantic dataclass still builds and validates as itself, by pydantic alone: the
+    key is read where the hierarchy is declared, and taken out before the class reads the rest.
 
     Args:
         type_property: The key a value's class name is written under.
 
     Raises:
-        MappingError: If ``type_property`` is empty or a field's name, the class is no dataclass
-            or model, a root model or a generic class, is in a hierarchy already, or hands
-            pydantic its schema itself.
+        MappingError: If ``type_property`` is empty or a field's name, the decorated object is
+            no class, the class is no dataclass or model, a root model or a generic class, is in
+            a hierarchy already, or hands pydantic its schema itself.
     """
 
     def declare(base: _ClassT) -> _ClassT:
-        name = qualified_name_of(base)
-        if not type_property:
-            raise MappingError(f"the type_property of {name!r} must be some text")
-        if not _has_fields(base):
-            raise MappingError(
-                f"{name!r} is no dataclass or model, which pydantic has a schema for"
-            )
-        if issubclass(base, RootModel):
-            raise MappingError(f"{name!r} is a root model, which has no object to name")
-        if getattr(base, "__parameters__", ()):
-            raise MappingError(f"{name!r} is generic, which pydantic reads by its fields alone")
-        # A class in a hierarchy already has its hook and fields checked; it is refused as such.
-        if not REGISTRY.in_hierarchy(base):
-            if type_property in field_names_of(base):
-                raise MappingError(
-                    f"{name!r} has a field named or aliased {type_property!r}, which its "
-                    "classes' names would be written under"
-                )
-            if _HOOK in vars(base):
-                raise MappingError(f"{name!r} defines {_HOOK} itself, which a hierarchy takes over")
+        _refuse_as_base(cast("object", base), type_property)
         REGISTRY.add_hierarchy(base, type_property)
         setattr(base, _HOOK, classmethod(polymorphic_schema))
-        _rebuild(base)
+        # Built by pydantic before it was declared, a class holding itself points inside to itself
+        # alone; built again, it points to its hierarchy. One deferred is built so when used.
+        if not is_unbuilt(base):
+            rebuild(base, force=True)
         return base
 
     return declare
 
 
-def _rebuild(base: type[object]) -> None:
-    """Build again a base pydantic built before it was declared, so its own schema reads the key.
-
-    One still waiting to be built — deferred, or naming what is not defined yet — is built later
-    with the key.
-    """
-    if issubclass(base, BaseModel):
-        if base.__pydantic_complete__:
-            _ = base.model_rebuild(force=True, raise_errors=False)
-    elif is_pydantic_dataclass(base) and base.__pydantic_complete__:
-        _ = rebuild_dataclass(base, force=True, raise_errors=False)
+def _refuse_as_base(declared: object, type_property: str) -> None:
+    """Refuse ``base`` as the base of a hierarchy writing class names under ``type_property``."""
+    if not isinstance(declared, type):
+        raise MappingError(
+            f"a {qualified_name_of(type(declared))!r} is no class, which a hierarchy is made of"
+        )
+    base: type[object] = declared
+    name = qualified_name_of(base)
+    if not type_property:
+        raise MappingError(f"the type_property of {name!r} must be some text")
+    if not _has_fields(base):
+        raise MappingError(f"{name!r} is no dataclass or model, which pydantic has a schema for")
+    if issubclass(base, RootModel):
+        raise MappingError(f"{name!r} is a root model, which has no object to name")
+    if getattr(base, "__parameters__", ()):
+        raise MappingError(f"{name!r} is generic, which pydantic reads by its fields alone")
+    # A class in a hierarchy already has its hook and fields checked; it is refused as such.
+    if not REGISTRY.in_hierarchy(base):
+        if type_property in field_names_of(base):
+            raise MappingError(
+                f"{name!r} has a field named or aliased {type_property!r}, which its "
+                "classes' names would be written under"
+            )
+        if _HOOK in vars(base):
+            raise MappingError(f"{name!r} defines {_HOOK} itself, which a hierarchy takes over")
 
 
 def _has_fields(base: type[object]) -> bool:

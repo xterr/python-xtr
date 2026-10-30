@@ -26,6 +26,7 @@ from typing_extensions import TypeAliasType, override
 from xtr_serializer._type_names import name_of
 from xtr_serializer._written_types import written_name_of
 from xtr_serializer.exception import MappingError
+from xtr_serializer.mapping._class_builds import build_classes_in
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -217,8 +218,12 @@ def build_adapter(type_: object) -> Adapter | str:
     code raises as pydantic reads it, such as a metaclass refusing to show its class: the
     refusal names what was raised by its class alone, as its message may quote the type — but
     for a class hierarchy refusing to be read as its classes were registered, which says why.
+
+    A model or a pydantic dataclass in ``type_`` not built yet is built first, so that one of a
+    hierarchy reads its classes where ``type_`` holds it at no field.
     """
     try:
+        build_classes_in(type_)
         writer: TypeAdapter[object] = TypeAdapter(_alias_of("Value", type_), config=_EXACT)
         if not writer.pydantic_complete:
             _ = writer.rebuild(raise_errors=True)

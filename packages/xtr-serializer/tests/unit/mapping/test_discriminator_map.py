@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
 import pytest
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, RootModel, ValidationError
 
 from tests.fixtures.hierarchies import Event, Notice
 from xtr_serializer import (
@@ -132,4 +132,20 @@ def test_a_model_base_built_before_it_is_declared_writes_its_name() -> None:
         value: int
 
     assert PydanticNormalizer().normalize(Base(value=1)) == {"$type": "base", "value": 1}
-    assert Base.model_validate({"$type": "base", "value": 1}, extra="forbid") == Base(value=1)
+
+
+def test_a_model_validated_by_itself_is_read_by_pydantic_alone() -> None:
+    @discriminator_name("base")
+    @discriminator_map()
+    class Base(BaseModel):
+        value: int
+
+    assert Base.model_validate({"value": 1}, extra="forbid") == Base(value=1)
+    with pytest.raises(ValidationError):
+        _ = Base.model_validate({"$type": "base", "value": 1}, extra="forbid")
+
+
+@pytest.mark.parametrize("value", [3, "Base", None], ids=["number", "text", "none"])
+def test_what_is_no_class_is_refused(value: object) -> None:
+    with pytest.raises(MappingError, match="no class"):
+        _ = discriminator_map()(cast("type", value))

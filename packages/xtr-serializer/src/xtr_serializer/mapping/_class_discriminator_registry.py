@@ -43,11 +43,10 @@ class ClassDiscriminatorRegistry:
     built for one of its bases. Threads may register and build at once.
     """
 
-    __slots__ = ("_lock", "_roots", "_type_properties")
+    __slots__ = ("_lock", "_roots")
 
     def __init__(self) -> None:
         self._roots: dict[type, _Hierarchy] = {}
-        self._type_properties: frozenset[str] = frozenset()
         self._lock = RLock()
 
     def add_hierarchy(self, root: type, type_property: str) -> None:
@@ -60,7 +59,6 @@ class ClassDiscriminatorRegistry:
                     f"{qualified_name_of(existing[0].root)!r}"
                 )
             self._roots[root] = _Hierarchy(root, type_property)
-            self._type_properties |= {type_property}
 
     def is_root(self, kind: type) -> bool:
         """Whether ``kind`` is the base of a hierarchy."""
@@ -117,17 +115,18 @@ class ClassDiscriminatorRegistry:
         with self._lock:
             return self._members(declared)
 
-    def claim(self, declared: type) -> Members | None:
-        """Give the named classes ``declared`` takes, for a schema, and keep later names out."""
+    def claim(self, declared: type, *, even_unnamed: bool) -> Members | None:
+        """Give the named classes ``declared`` takes, for a schema, and keep later names out.
+
+        A schema taking no named class keeps them out only when ``even_unnamed``: one refusing
+        the class for having none, which a later name would contradict, rather than a class's
+        own schema built before its classes are named.
+        """
         with self._lock:
             members = self._members(declared)
-            if members is not None and members.names:
+            if members is not None and (members.names or even_unnamed):
                 self._hierarchy_of(declared).built.add(declared)
             return members
-
-    def type_properties(self) -> frozenset[str]:
-        """Give every key class names are written under."""
-        return self._type_properties
 
     def _members(self, declared: type) -> Members | None:
         hierarchies = self._hierarchies_of(declared)

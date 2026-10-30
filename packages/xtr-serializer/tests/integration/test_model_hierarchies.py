@@ -6,7 +6,8 @@ from datetime import UTC, datetime
 from typing import ClassVar, cast
 
 import pytest
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tests.fixtures.hierarchies import (
     Board,
@@ -113,27 +114,116 @@ def test_a_model_holding_its_own_hierarchy_is_built_once_its_classes_are_named()
     assert [type(reply) for reply in read.replies] == [Post, Thread]
 
 
-def test_a_model_not_built_yet_is_read_as_itself_in_a_type_built_before_it() -> None:
-    @discriminator_name("draft")
-    @discriminator_map()
-    class Draft(BaseModel):
-        model_config: ClassVar[ConfigDict] = ConfigDict(defer_build=True)
-
-    @discriminator_name("revision")
-    class Revision(Draft):
-        number: int
-
-    class Folder(BaseModel):
-        drafts: list[Draft]
-
-    with pytest.raises(NotNormalizableValueError) as caught:
-        _ = NORMALIZER.normalize(Folder(drafts=[Revision(number=1)]))
-
-    assert (caught.value.path, caught.value.error_type) == ("drafts[0]", "not_exact")
-
-
 def test_plain_pydantic_also_carries_the_class_names() -> None:
     adapter = TypeAdapter(list[Notice])
     notices = [Reminder(title="t", due=AT), Notice(title="n")]
 
     assert adapter.validate_json(adapter.dump_json(notices)) == notices
+
+
+def test_a_model_holding_its_own_class_built_before_it_is_named_refuses_what_it_holds() -> None:
+    @discriminator_name("early")
+    @discriminator_map()
+    class Early(BaseModel):
+        replies: list[Early] = Field(default_factory=list["Early"])
+
+    assert Early() == Early(replies=[])
+    with pytest.raises(ValidationError):
+        _ = Early(replies=[Early()])
+
+
+def test_a_deferred_model_read_before_its_first_use_reads_the_class_named() -> None:
+    @discriminator_name("topic")
+    @discriminator_map()
+    class Topic(BaseModel):
+        model_config: ClassVar[ConfigDict] = ConfigDict(defer_build=True)
+
+        replies: list[Topic] = Field(default_factory=list["Topic"])
+
+    @discriminator_name("answer")
+    class Answer(Topic):
+        body: str
+
+    read = PydanticNormalizer().denormalize({"$type": "answer", "body": "b", "replies": []}, Topic)
+
+    assert type(read) is Answer
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = PydanticNormalizer().denormalize({"$type": "FORGED", "replies": []}, Topic)
+    assert caught.value.error_type == "class_discriminator"
+
+
+def test_a_model_holding_a_deferred_model_reads_the_class_named() -> None:
+    @discriminator_name("topic")
+    @discriminator_map()
+    class Topic(BaseModel):
+        model_config: ClassVar[ConfigDict] = ConfigDict(defer_build=True)
+
+        replies: list[Topic] = Field(default_factory=list["Topic"])
+
+    @discriminator_name("answer")
+    class Answer(Topic):
+        body: str
+
+    class Forum(BaseModel):
+        top: Topic
+
+    data = {"top": {"$type": "answer", "body": "b", "replies": [{"$type": "topic"}]}}
+
+    read = NORMALIZER.denormalize(data, Forum, context={ALLOW_EXTRA_ATTRIBUTES: False})
+
+    assert read == Forum(top=Answer(body="b", replies=[Topic()]))
+    with pytest.raises(NotNormalizableValueError) as caught:
+        _ = NORMALIZER.denormalize({"top": {"$type": "FORGED", "replies": []}}, Forum)
+    assert (caught.value.path, caught.value.error_type) == ("top", "class_discriminator")
+
+
+def test_models_checking_their_data_first_are_read_without_the_class_name() -> None:
+    seen: list[object] = []
+
+    @discriminator_map()
+    class Checked(BaseModel):
+        count: int = 0
+
+        @model_validator(mode="before")
+        @classmethod
+        def remember(cls, data: object) -> object:
+            seen.append(data)
+            return data
+
+    @discriminator_name("checked_more")
+    class CheckedMore(Checked):
+        @model_validator(mode="before")
+        @classmethod
+        def remember_too(cls, data: object) -> object:
+            seen.append(data)
+            return data
+
+    read = NORMALIZER.denormalize({"$type": "checked_more", "count": 1}, Checked)
+
+    assert seen == [{"count": 1}, {"count": 1}]
+    assert read == CheckedMore(count=1)
+
+
+def test_pydantic_dataclasses_checking_their_data_first_are_read_without_the_class_name() -> None:
+    seen: list[object] = []
+
+    @discriminator_map()
+    @pydantic_dataclass
+    class Checked:
+        count: int = 0
+
+        @model_validator(mode="before")
+        @classmethod
+        def remember(cls, data: object) -> object:
+            seen.append(data)
+            return data
+
+    @discriminator_name("checked_more")
+    @pydantic_dataclass
+    class CheckedMore(Checked):
+        pass
+
+    read = NORMALIZER.denormalize({"$type": "checked_more", "count": 1}, Checked)
+
+    assert seen == [{"count": 1}]
+    assert read == CheckedMore(1)

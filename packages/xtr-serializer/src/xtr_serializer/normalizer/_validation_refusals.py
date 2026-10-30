@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
 from xtr_serializer._loc_path import render_path
 from xtr_serializer._type_names import name_of
 from xtr_serializer.exception import ExtraAttributesError, NotNormalizableValueError
-from xtr_serializer.mapping._class_discriminator_registry import REGISTRY
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -120,44 +119,25 @@ def _steps(detail: ErrorDetails, data: object, item_at: _ItemAt) -> list[str | i
     """Keep the keys and indexes of the error's location that lead through ``data``.
 
     A step the data does not hold names the union member pydantic tried, unless it is the last
-    one of a field the data lacks. So does the name of the class an object of a hierarchy says it
-    is, which pydantic puts before the object's fields: the first step naming it after the walk
-    steps into the object is left out, even where a field has that name too. A refused key is
-    left out with its marker. The walk stops at a value it cannot look into, keeping the steps
-    that led there.
+    one of a field the data lacks — such as the number a class hierarchy's union puts before the
+    fields of the class it read, which no object's key is. A refused key is left out with its
+    marker. The walk stops at a value it cannot look into, keeping the steps that led there.
     """
     loc = detail["loc"]
     if loc[-1:] == (_KEY,):
         loc = loc[:-2]
     steps: list[str | int] = []
     current = data
-    class_name = _class_name_of(current)
     for index, step in enumerate(loc, start=1):
         if current is _OPAQUE:
             break
-        if step == class_name:
-            class_name = None
-            continue
         found = _value_at(current, step, item_at)
         if found is not _ABSENT:
             steps.append(step)
             current = found
-            class_name = _class_name_of(current)
         elif index == len(loc) and detail["type"] == "missing":
             steps.append(step)
     return steps
-
-
-def _class_name_of(value: object) -> str | None:
-    """Give the name of the class an object of plain data says it is, under a hierarchy's key."""
-    if type(value) is not dict:
-        return None
-    mapping = cast("dict[object, object]", value)
-    for key in REGISTRY.type_properties():
-        name = mapping.get(key)
-        if type(name) is str:
-            return name
-    return None
 
 
 def _value_at(value: object, step: str | int, item_at: _ItemAt) -> object:

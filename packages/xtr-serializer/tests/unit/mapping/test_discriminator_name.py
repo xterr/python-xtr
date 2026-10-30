@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from types import new_class
-from typing import TYPE_CHECKING, Generic, TypeVar
+from types import GenericAlias, new_class
+from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
 import pytest
 from pydantic import BaseModel, Field
@@ -78,6 +78,33 @@ def test_a_generic_class_is_refused() -> None:
     # pydantic reads ``_Box[int]`` by its fields, never asking the hierarchy for the classes.
     with pytest.raises(MappingError, match="generic"):
         _ = discriminator_name("box")(_Box)
+
+
+def test_a_class_under_a_generic_dataclass_is_refused() -> None:
+    # A field declaring ``_Box[int]`` would read it alone, never asking for the classes under it.
+    @dataclass(frozen=True)
+    class IntBox(_Box[int]):
+        pass
+
+    with pytest.raises(MappingError, match=r"generic '_Box'"):
+        _ = discriminator_name("int_box")(IntBox)
+
+
+def test_a_class_under_a_generic_model_is_named() -> None:
+    @discriminator_map()
+    class Root(BaseModel):
+        pass
+
+    class Box(Root, Generic[_Item]):
+        content: _Item
+
+    @discriminator_name("int_box")
+    class IntBox(Box[int]):
+        pass
+
+    assert PydanticNormalizer().denormalize({"$type": "int_box", "content": 1}, Box[int]) == IntBox(
+        content=1
+    )
 
 
 def test_a_name_taken_in_the_hierarchy_is_refused() -> None:
@@ -214,3 +241,19 @@ def test_the_fixtures_are_registered() -> None:
     assert mapping is not None
     assert mapping.types_mapping["delivery"] is Delivery
     assert ClassDiscriminatorMapping.for_class(Notice) is not None
+
+
+@pytest.mark.parametrize("value", [3, "Base", None], ids=["number", "text", "none"])
+def test_what_is_no_class_is_refused(value: object) -> None:
+    with pytest.raises(MappingError, match="no class"):
+        _ = discriminator_name("named")(cast("type", value))
+
+
+def test_a_class_named_after_its_hierarchy_was_refused_for_having_no_name_is_refused() -> None:
+    base = hierarchy()
+    normalizer = PydanticNormalizer()
+
+    assert not normalizer.supports_denormalization([], GenericAlias(list, (base,)))
+    with pytest.raises(MappingError, match="before"):
+        _ = discriminator_name("late")(type("Late", (base,), {}))
+    assert not normalizer.supports_denormalization([], GenericAlias(list, (base,)))
