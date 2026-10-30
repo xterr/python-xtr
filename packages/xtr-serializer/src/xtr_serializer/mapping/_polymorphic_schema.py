@@ -145,8 +145,11 @@ def _tag_reader(
 
     def class_tag(value: object) -> int | None:
         if issubclass(type(value), dict):
-            # Read past any override of the data's own; a name is text, anything else none.
-            name = dict[object, object].get(cast("dict[object, object]", value), key)
+            # Read past any override of the data's own, among the keys that are text exactly,
+            # compared as text: no code of the data's runs, as a lookup comparing a key hashed
+            # alike would run. A name is text, anything else none.
+            items = dict[object, object].items(cast("dict[object, object]", value))
+            name = next((item for at, item in items if type(at) is str and at == key), None)
             return by_name.get(name) if type(name) is str else None
         member = _member_of(type(value), by_class)
         return None if member is None else member.tag

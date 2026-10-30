@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Annotated, ClassVar, cast
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
+from tests.fixtures.colliding_key import CollidingKey
 from tests.fixtures.hierarchies import (
     Alert,
     Batch,
@@ -28,6 +29,7 @@ from tests.fixtures.hierarchies import (
 )
 from xtr_serializer import (
     COLLECT_DENORMALIZATION_ERRORS,
+    FROM_ATTRIBUTES,
     InvalidArgumentError,
     JsonEncoder,
     NotNormalizableValueError,
@@ -353,3 +355,21 @@ def test_a_class_written_as_no_object_is_refused() -> None:
         _ = NORMALIZER.normalize(Line())
 
     assert caught.value.error_type == "class_discriminator_object"
+
+
+def test_the_class_name_is_read_and_taken_out_without_running_code_the_data_carries() -> None:
+    @discriminator_map()
+    class Signal(BaseModel):
+        count: int = 0
+
+    @discriminator_name("ping")
+    class Ping(Signal):
+        pass
+
+    key = CollidingKey("$type", "the key's own words")
+    data = {key: 1, "$type": "ping", "count": 1}
+    key.armed = True
+
+    read = NORMALIZER.denormalize(data, Signal, context={FROM_ATTRIBUTES: True})
+
+    assert read == Ping(count=1)

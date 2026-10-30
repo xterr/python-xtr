@@ -56,13 +56,14 @@ def class_choice(own: CoreSchema, kind: type, key: str, ref: str) -> CoreSchema:
 def _without(data: object, *, key: str) -> object:
     """Copy ``data``, an object of a dict, without ``key``; give anything else as it is.
 
-    The dict is read by the built-in methods, past any override of its class's.
+    The dict is read by the built-in methods, past any override of its class's, and ``key`` is
+    told among the keys that are text exactly, compared as text: taking it out by a lookup would
+    compare it with a key of the data's hashed alike, running that key's code.
     """
     if not issubclass(type(data), dict):
         return data
-    rest = dict[object, object].copy(cast("dict[object, object]", data))
-    _ = dict[object, object].pop(rest, key, None)
-    return rest
+    items = dict[object, object].items(cast("dict[object, object]", data))
+    return {at: item for at, item in items if type(at) is not str or at != key}
 
 
 def _without_as_json(data: object, *, key: str) -> bytes:
