@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 from pydantic_core import PydanticSerializationUnexpectedValue
 
-from xtr_serializer.mapping._deferred_refusals import deferring_refusals, written_or_deferred
+from xtr_serializer.mapping._deferred_refusals import (
+    deferring_refusals,
+    refused_or_deferred,
+    written_or_deferred,
+)
 
 
 def refuse(value: object) -> object:
@@ -72,3 +76,16 @@ def test_a_value_refused_on_both_tries_is_kept() -> None:
 
     assert written == {}
     assert [type(error) for error in deferred] == [PydanticSerializationUnexpectedValue]
+
+
+def test_a_refusal_given_is_raised_unless_refusals_are_kept() -> None:
+    with pytest.raises(ValueError, match="given"):
+        _ = refused_or_deferred(ValueError("given"))
+
+
+def test_a_refusal_given_is_kept_while_refusals_are() -> None:
+    error = ValueError("given")
+    with deferring_refusals() as deferred:
+        written = refused_or_deferred(error)
+
+    assert (written, deferred) == ({}, [error])

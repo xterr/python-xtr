@@ -18,7 +18,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
-from pydantic import VERSION, Field, ImportString, TypeAdapter
+from pydantic import VERSION, BaseModel, Field, ImportString, TypeAdapter, field_validator
 from pydantic_core import to_json
 from typing_extensions import override
 from xtr_clock import DatePoint, MonotonicClock
@@ -108,6 +108,7 @@ from xtr_serializer.exception import (
     CircularReferenceError,
     ExtraAttributesError,
     InvalidArgumentError,
+    LogicError,
     NotNormalizableValueError,
     PartialDenormalizationError,
     UnexpectedValueError,
@@ -1411,6 +1412,23 @@ def test_no_error_quotes_the_data_or_chains_what_does(
     assert PLANTED_VALUE not in "".join(traceback.format_exception(raised.value))
     assert raised.value.__cause__ is None
     assert raised.value.__context__ is None
+
+
+class Checking(BaseModel):
+    """A model whose validator fails in this package's words, as one using a serializer may."""
+
+    count: int
+
+    @field_validator("count")
+    @classmethod
+    def check(cls, count: int) -> int:
+        msg = f"the validator's own words about {count}"
+        raise LogicError(msg)
+
+
+def test_this_package_s_error_raised_as_the_data_is_read_is_passed_on() -> None:
+    with pytest.raises(LogicError, match="the validator's own words"):
+        _ = PydanticNormalizer().denormalize({"count": 1}, Checking)
 
 
 def test_code_the_data_runs_as_it_is_read_is_refused_without_its_words() -> None:
