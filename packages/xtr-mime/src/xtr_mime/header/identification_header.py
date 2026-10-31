@@ -82,7 +82,7 @@ class IdentificationHeader(AbstractHeader):
             RfcComplianceError: An identifier is not a msg-id.
         """
         given = list(ids)
-        self._encoded_ids = [_encode(identifier) for identifier in given]
+        self._encoded_ids = [_encode(self.get_name(), identifier) for identifier in given]
         self._ids = given
 
     def get_ids(self) -> list[str]:
@@ -94,12 +94,15 @@ class IdentificationHeader(AbstractHeader):
         return MessageIds(tuple(self._encoded_ids))
 
 
-def _encode(identifier: str) -> str:
+def _encode(name: str, identifier: str) -> str:
     try:
         encoded = encode_idn_address(identifier)
         check_message_id(encoded)
     except RfcComplianceError as error:
+        # The identifier is not shown: it may hold a line break or a lone surrogate, which an
+        # error must not carry into a log.
         raise RfcComplianceError(
-            f'"{identifier}" is not a message identifier: id-left@id-right (RFC 5322, 3.6.4).'
+            f"An identifier of the {name} header is not a message identifier: "
+            "id-left@id-right (RFC 5322, 3.6.4)."
         ) from error
     return encoded

@@ -154,6 +154,27 @@ def test_an_unquoted_at_sign_in_the_local_part_is_refused_naming_the_address() -
     )
 
 
+# What a log line must never carry: a line break, a line separator, a lone surrogate.
+UNSAFE_IN_A_MESSAGE = ("\r", "\n", "\x85", "\u2028", "\u2029", "\ud800", "\udc80")
+
+
+@pytest.mark.parametrize(
+    ("address", "shown"),
+    [
+        ("em\udc80il@example.test", "em\\udc80il"),
+        ("a\u2028b@example.test", "a\\u2028b"),
+        ("a\x85b@example.test", "a\\x85b"),
+    ],
+)
+def test_an_invalid_address_is_named_escaped_in_the_error(address: str, shown: str) -> None:
+    with pytest.raises(RfcComplianceError) as caught:
+        _ = Address(address)
+
+    message = str(caught.value)
+    assert message == f'Email "{shown}@example.test" does not comply with addr-spec of RFC 5322.'
+    assert not any(character in message for character in UNSAFE_IN_A_MESSAGE)
+
+
 def test_a_quoted_at_sign_in_the_local_part_is_accepted() -> None:
     assert Address('"em@il"@example.test').get_address() == '"em@il"@example.test'
 
@@ -297,6 +318,17 @@ def test_create_refuses_a_string_it_cannot_parse() -> None:
     assert (
         str(caught.value) == 'Could not parse "<fabien@example" to an "xtr_mime.Address" instance.'
     )
+
+
+def test_create_names_a_string_it_cannot_parse_escaped() -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = Address.create("<a@b\r\nBcc: v@e.x\udc80")
+
+    message = str(caught.value)
+    assert message == (
+        'Could not parse "<a@b\\r\\nBcc: v@e.x\\udc80" to an "xtr_mime.Address" instance.'
+    )
+    assert not any(character in message for character in UNSAFE_IN_A_MESSAGE)
 
 
 @pytest.mark.parametrize(

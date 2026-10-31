@@ -65,8 +65,22 @@ def test_an_id_outside_the_msg_id_grammar_is_refused(ids: str) -> None:
         _ = IdentificationHeader("References", ids)
 
     assert str(caught.value) == (
-        f'"{ids}" is not a message identifier: id-left@id-right (RFC 5322, 3.6.4).'
+        "An identifier of the References header is not a message identifier: "
+        "id-left@id-right (RFC 5322, 3.6.4)."
     )
+
+
+@pytest.mark.parametrize(
+    "identifier", ["a\r\nBcc: v@e.x", "a\udc80@b", "a@b\u2028c", "a@b\udc80.test", "a@\x85.de"]
+)
+def test_a_refused_id_never_reaches_the_error_raw(identifier: str) -> None:
+    with pytest.raises(RfcComplianceError) as caught:
+        _ = IdentificationHeader("References", identifier)
+
+    errors = [caught.value, caught.value.__cause__]
+    assert identifier not in str(caught.value)
+    for error in errors:
+        assert not any(c in str(error) for c in ("\r", "\n", "\x85", "\u2028", "\udc80"))
 
 
 def test_the_id_right_can_be_a_dot_atom() -> None:

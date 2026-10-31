@@ -397,7 +397,7 @@ def encode_idn_address(address: str) -> str:
         encoded = idna.encode(domain, uts46=True, std3_rules=True).decode("ascii")
     except idna.IDNAError as error:
         raise RfcComplianceError(
-            f'The domain "{domain}" of "{address}" cannot be written in ASCII: {error}.'
+            f"The domain {domain!r} of {address!r} cannot be written in ASCII: {error}."
         ) from error
     return f"{local}@{encoded}"
 

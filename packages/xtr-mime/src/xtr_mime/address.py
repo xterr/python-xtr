@@ -95,7 +95,7 @@ class Address:
             raise InvalidArgumentError("Email address contains control characters.")
         if not _is_valid(self._address):
             raise RfcComplianceError(
-                f'Email "{address}" does not comply with addr-spec of RFC 5322.'
+                f'Email "{_escaped(address)}" does not comply with addr-spec of RFC 5322.'
             )
         self._name = clean_display_name(name, "The display name")
 
@@ -118,7 +118,7 @@ class Address:
         match = _FROM_STRING.search(address)
         if match is None:
             raise InvalidArgumentError(
-                f'Could not parse "{address}" to an "xtr_mime.Address" instance.'
+                f'Could not parse "{_escaped(address)}" to an "xtr_mime.Address" instance.'
             )
         return cls(match["address"], match["display_name"].strip(" '\""))
 
@@ -262,3 +262,12 @@ def _without_comment(address: str) -> str:
 def _unfold(rendered: str) -> str:
     """Join folded lines: a fold is a line break before a space, and the space stays."""
     return rendered.replace("\r\n", "")
+
+
+def _escaped(value: str) -> str:
+    """Show ``value`` in an error as ``repr`` does, without its quotes.
+
+    An error ends up in a log: a line break or a lone surrogate from what was given must not
+    reach it as such, so every character ``repr`` would escape is shown escaped.
+    """
+    return repr(value)[1:-1]
