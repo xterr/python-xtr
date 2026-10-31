@@ -16,7 +16,8 @@ Some of the package's habits are worked around rather than accepted:
   words the package makes of a long unstructured value;
 * a word of unstructured text too long for a line is written as it is, on a line of its own,
   never as the encoded words the package splits it into — a URL or a JSON value must reach a
-  reader as written;
+  reader as written — unless it holds ``=?``, which a lenient reader decodes wherever it finds
+  it: a word holding it, long or short, is written as encoded words;
 * trees are built from plain parts with an explicit boundary, never with the package's
   ``add_related``/``add_alternative`` helpers (they decide the nesting themselves), and the
   ``MIME-Version`` header the package's content setter adds is taken off every part — only a
@@ -712,7 +713,10 @@ def _unstructured_header(name: str, value: str) -> BaseHeader | _FoldedHeader:
     # The engine reads an encoded word in the value as one: what it decodes to may hold what
     # the value itself did not.
     _refuse_forbidden(f"The decoded {name} header", str(header))
-    if _reads_back_as(name, header.fold(policy=POLICY), value):
+    # A lenient reader takes "=?" for the start of an encoded word wherever it finds one — in
+    # the middle of a word, after one that does not decode — where a mail client reads text:
+    # a word holding it is always written encoded, so no reader decodes a part of it.
+    if "=?" not in value and _reads_back_as(name, header.fold(policy=POLICY), value):
         return header
     folded = _write_text(name, value)
     if not _reads_back_as(name, folded, value):

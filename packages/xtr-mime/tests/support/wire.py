@@ -6,6 +6,8 @@ test compares what a reader gets back, and checks the folding rules, never the b
 
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 from email import policy
 from email.header import decode_header, make_header
@@ -22,9 +24,11 @@ __all__ = [
     "assert_folded",
     "decode",
     "decode_addresses",
+    "decode_anywhere",
     "decode_parameters",
     "decode_words",
     "encoded_words",
+    "readings",
 ]
 
 _ADDRESSES: Final = HeaderRegistry(default_class=AddressHeader, use_default_map=False)
@@ -33,6 +37,9 @@ _PARAMETERS: Final = HeaderRegistry(
     use_default_map=False,
 )
 _ENCODED_WORD: Final = re.compile(r"=\?[^?]+\?[qQbB]\?[^?]*\?=")
+# What the most lenient readers take for an encoded word: anything between "=?" and "?=".
+_ANYWHERE: Final = re.compile(r"=\?([^?]*)\?([qQbB])\?(.*?)\?=", re.DOTALL)
+_QUOTED_BYTE: Final = re.compile(rb"=([0-9A-Fa-f]{2})")
 
 
 def _split(field: str) -> tuple[str, str]:
@@ -66,6 +73,57 @@ def decode_words(field: str) -> str:
     """
     _, body = _split(field)
     return str(make_header(decode_header(body))).strip()
+
+
+def decode_anywhere(field: str) -> str:
+    """Return the body of ``field`` with every ``=?charset?q|b?text?=`` found in it decoded.
+
+    The most lenient reading there is: an encoded word is taken wherever it starts — inside a
+    word, after one that does not decode — and the whitespace between two is dropped. One that
+    does not decode is left as written.
+    """
+    _, body = _split(field)
+    text: list[str] = []
+    position = 0
+    follows_decoded = False
+    for match in _ANYWHERE.finditer(body):
+        between = body[position : match.start()]
+        decoded = _lenient_decode(match)
+        if decoded is None:
+            text.append(between + match.group())
+        else:
+            joins = follows_decoded and not between.strip(" \t")
+            text.append(("" if joins else between) + decoded)
+        follows_decoded = decoded is not None
+        position = match.end()
+    text.append(body[position:])
+    return "".join(text).strip()
+
+
+def readings(field: str) -> tuple[str, str, str]:
+    """Return what three readers show of an unstructured ``field``: strict, RFC 2047, lenient.
+
+    The stdlib reader with its default policy, ``email.header.decode_header`` and
+    :func:`decode_anywhere`; a reader that fails on the field shows its error.
+    """
+    try:
+        words = decode_words(field)
+    except LookupError as error:
+        words = f"<decode_header failed: {error}>"
+    return decode(field).strip(), words, decode_anywhere(field)
+
+
+def _lenient_decode(match: re.Match[str]) -> str | None:
+    charset, encoding, encoded = match.groups()
+    try:
+        if encoding in "bB":
+            data = base64.b64decode(encoded + "=" * (-len(encoded) % 4))
+        else:
+            raw = encoded.replace("_", " ").encode("ascii")
+            data = _QUOTED_BYTE.sub(lambda byte: bytes.fromhex(byte[1].decode()), raw)
+        return data.decode(charset or "ascii", "replace")
+    except (binascii.Error, LookupError, UnicodeError):
+        return None
 
 
 def decode_parameters(field: str) -> dict[str, str]:

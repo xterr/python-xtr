@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from tests.support.wire import encoded_words
+from tests.support.wire import encoded_words, readings
 from xtr_mime import _engine
 from xtr_mime._engine import (
     BinaryLeaf,
@@ -235,6 +235,45 @@ def test_an_encoded_word_in_unstructured_text_is_written_as_the_text_it_is() -> 
 
     assert _rfc2047(field.split(":", 1)[1]).strip() == "=?utf-8?q?h=C3=A9llo?="
     assert _decode(field) == "=?utf-8?q?h=C3=A9llo?="
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        # A lenient reader decodes the second one, after an invalid first: a line break.
+        "t" * 80 + "=?utf-8?x?a?==?utf-8?q?=0D=0ABcc:_v@e.x?=",
+        "=?utf-8?x?a?==?utf-8?q?hi?=",
+        "t" * 80 + "=?utf-8?q?hi?=",
+        "x=?utf-8?q?hi?=",
+        "=?utf-8?q?hi?=x",
+        "=?utf-8?q?a=?utf-8?q?b?=?=",
+        "=?utf-8?q?a?==?utf-8?q?b?=",
+        "=?utf-8?b?aGk=?=" + "t" * 80,
+        "see " + "t" * 90 + "=?utf-8?q?hi?= now",
+        "=?=?utf-8?q?hi?=?=",
+    ],
+)
+def test_an_encoded_word_lookalike_inside_a_word_reads_back_literally_to_every_reader(
+    value: str,
+) -> None:
+    """A word holding ``=?`` is encoded: no reader, however lenient, decodes a part of it."""
+    field = _engine.fold_header("Subject", value)
+
+    assert readings(field) == (value, value, value)
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "<https://example.com/unsubscribe?list=news&token=" + "a" * 80 + "&x=y?>",
+        '{"id":"' + "a" * 80 + '","q":"?=","e":"x="}',
+    ],
+)
+def test_a_long_word_without_an_encoded_word_opening_stays_plain(token: str) -> None:
+    field = _engine.fold_header("List-Unsubscribe", token)
+
+    assert f"\r\n {token}" in field
+    assert readings(field) == (token, token, token)
 
 
 @pytest.mark.parametrize("name", ["", "Sub ject", "Sub\tject", "Sub\r\nject", "Šubject", "a\x7f"])
