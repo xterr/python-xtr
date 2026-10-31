@@ -167,7 +167,10 @@ class AcmeConverter(PayloadConverterInterface):
         kind = payload.get("kind")
         if not isinstance(kind, str):
             raise ParseError('The payload has no "kind" naming the event.')
-        return RemoteEvent(kind, str(payload["id"]), dict(payload))
+        event_id = payload.get("id")
+        if not isinstance(event_id, str | int):
+            raise ParseError('The payload has no "id" identifying the event.')
+        return RemoteEvent(kind, str(event_id), dict(payload))
 ```
 
 This is where a sender's vocabulary is translated and nowhere else: adding a sender is writing
