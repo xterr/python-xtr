@@ -61,11 +61,12 @@ class DebugSerializerCommand:
                 "is one of the classes below."
             )
         else:
-            described: dict[JsonSchemaMode, list[FieldRow] | None] = {
-                mode: field_rows(adapter.writer, mode, member) for mode in _MODES
-            }
-            if any(rows is None for rows in described.values()):
-                return _refused(io, f"{name!r} is written as no object with fields")
+            described: dict[JsonSchemaMode, list[FieldRow]] = {}
+            for mode in _MODES:
+                rows = field_rows(adapter.writer, mode, member)
+                if isinstance(rows, str):
+                    return _refused(io, f"{name!r} cannot be shown: {rows}")
+                described[mode] = rows
             io.title(escape(name))
             _write_fields(io, described)
         if mapping is not None:
@@ -82,9 +83,7 @@ def _refused(io: ConsoleStyle, why: str) -> int:
     return ExitCode.FAILURE
 
 
-def _write_fields(
-    io: ConsoleStyle, described: Mapping[JsonSchemaMode, list[FieldRow] | None]
-) -> None:
+def _write_fields(io: ConsoleStyle, described: Mapping[JsonSchemaMode, list[FieldRow]]) -> None:
     """Write a table of the fields per mode."""
     for mode, rows in described.items():
         io.section(mode)

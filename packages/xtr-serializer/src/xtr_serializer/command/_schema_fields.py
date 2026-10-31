@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Final, NamedTuple, cast
 
+from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue, JsonSchemaWarningKind
+from typing_extensions import override
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from pydantic import TypeAdapter
     from pydantic.json_schema import JsonSchemaMode
+    from pydantic_core.core_schema import CoreSchema
 
 __all__ = ["FieldRow", "field_rows", "type_name_of"]
 
@@ -17,6 +21,32 @@ _Schema = dict[str, object]
 
 _DEEPEST: Final = 8
 """How many references deep a type is named, past which it is written ``...``."""
+
+_NO_OBJECT: Final = "it is written as no object with fields"
+_VERBS: Final[Mapping[JsonSchemaMode, str]] = {"validation": "read", "serialization": "written"}
+
+
+class _Describing(GenerateJsonSchema):
+    """pydantic's JSON schema, describing as any type what it has no JSON schema for.
+
+    A class handing pydantic a schema of its own, or a field written by a function, is carried
+    exactly but has no JSON schema; the table still lists the field, with no type it can name.
+    Nothing is written for a reader to be warned of, so no warning is given either.
+    """
+
+    # Read on the instance, as pydantic declares it; set here, as pydantic's documentation says.
+    ignored_warning_kinds: set[JsonSchemaWarningKind] = {  # noqa: RUF012 -- see above
+        "skipped-choice",
+        "non-serializable-default",
+        "skipped-discriminator",
+    }
+
+    @override
+    def handle_invalid_for_json_schema(
+        self, schema: CoreSchema | object, error_info: str
+    ) -> JsonSchemaValue:
+        del schema, error_info
+        return {}
 
 
 class FieldRow(NamedTuple):
@@ -31,21 +61,29 @@ class FieldRow(NamedTuple):
 
 def field_rows(
     writer: TypeAdapter[object], mode: JsonSchemaMode, member: int | None = None
-) -> list[FieldRow] | None:
-    """Describe each field of what ``writer`` writes, in ``mode``; ``None`` for no object.
+) -> list[FieldRow] | str:
+    """Describe each field of what ``writer`` writes, in ``mode``, or say why it cannot be.
 
     The names it is read or written under are the schema's by alias, and its own names the
     schema's by name, field for field. A class of a hierarchy is written as a union of the named
     classes it takes, in the order they were named: ``member`` is the place of the class in it.
+    Two fields under one name — an alias another field's name — cannot be told apart.
     """
-    aliased = _object_of(writer.json_schema(mode=mode, by_alias=True), member)
-    named = _object_of(writer.json_schema(mode=mode, by_alias=False), member)
+    try:
+        aliased = _object_of(_schema(writer, mode, by_alias=True), member)
+        named = _object_of(_schema(writer, mode, by_alias=False), member)
+    # How pydantic refuses a schema it cannot describe, such as a class's JSON schema settings of
+    # the wrong kind; its message quotes them, and points to its own documentation.
+    except (TypeError, ValueError):
+        return f"pydantic cannot describe it in a JSON schema when it is {_VERBS[mode]}"
     if aliased is None or named is None:
-        return None
+        return _NO_OBJECT
     schema, defs = aliased
     properties = cast("Mapping[str, _Schema]", schema.get("properties", {}))
     required = cast("list[str]", schema.get("required", []))
     names = list(cast("Mapping[str, object]", named[0].get("properties", {})))
+    if len(names) != len(properties):
+        return f"two of its fields are {_VERBS[mode]} under one name"
     return [
         FieldRow(
             name,
@@ -56,6 +94,10 @@ def field_rows(
         )
         for name, (serialized_name, field) in zip(names, properties.items(), strict=True)
     ]
+
+
+def _schema(writer: TypeAdapter[object], mode: JsonSchemaMode, *, by_alias: bool) -> _Schema:
+    return writer.json_schema(mode=mode, by_alias=by_alias, schema_generator=_Describing)
 
 
 def type_name_of(schema: Mapping[str, object], defs: Mapping[str, _Schema], depth: int = 0) -> str:

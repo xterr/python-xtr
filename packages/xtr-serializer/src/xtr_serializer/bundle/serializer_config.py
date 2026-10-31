@@ -59,8 +59,8 @@ class SerializerConfig:
         check_context(self.default_context, "the default context")
         if not isinstance(self.named_serializers, Mapping):  # pyright: ignore[reportUnnecessaryIsInstance] -- configs are written by hand; the annotation is not enforced
             raise InvalidArgumentError(
-                "named_serializers is a mapping of names to NamedSerializerConfig, not a "
-                f"{type(self.named_serializers).__name__}"
+                "named_serializers is a mapping of names to NamedSerializerConfig, not a value of "
+                f"type {type(self.named_serializers).__name__}"
             )
         for name, named in self.named_serializers.items():
             if not isinstance(name, str) or not name:  # pyright: ignore[reportUnnecessaryIsInstance] -- configs are written by hand; the annotation is not enforced
@@ -76,5 +76,5 @@ class SerializerConfig:
             if not isinstance(named, NamedSerializerConfig):  # pyright: ignore[reportUnnecessaryIsInstance] -- as above
                 raise InvalidArgumentError(
                     f"the serializer {name!r} is configured with a NamedSerializerConfig, "
-                    f"not a {type(named).__name__}"
+                    f"not a value of type {type(named).__name__}"
                 )

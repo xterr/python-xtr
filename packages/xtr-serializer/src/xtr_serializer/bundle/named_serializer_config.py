@@ -51,5 +51,6 @@ class NamedSerializerConfig:
         for name, value in switches.items():
             if not isinstance(value, bool):
                 raise InvalidArgumentError(
-                    f"a named serializer's {name} is True or False, not a {type(value).__name__}"
+                    f"a named serializer's {name} is True or False, "
+                    f"not a value of type {type(value).__name__}"
                 )

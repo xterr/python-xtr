@@ -6,7 +6,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.fixtures.described import Account, Empty, Shipment
+from tests.fixtures.described import (
+    Account,
+    Crossed,
+    Empty,
+    Misdescribed,
+    PriceLambda,
+    Release,
+    Shipment,
+)
 from tests.fixtures.hierarchies import Event, Mailbox, Notice, Reminder
 from xtr_serializer.command._schema_fields import FieldRow, field_rows, type_name_of
 from xtr_serializer.normalizer._adapter_cache import Adapter, build_adapter
@@ -50,7 +58,8 @@ def test_a_model_reads_each_field_under_its_alias() -> None:
 def test_a_model_writes_each_field_under_its_alias() -> None:
     rows = field_rows(_writer(Account), "serialization")
 
-    assert [(row.name, row.serialized_name) for row in rows or ()] == [
+    assert isinstance(rows, list)
+    assert [(row.name, row.serialized_name) for row in rows] == [
         ("owner_name", "ownerName"),
         ("balance", "balanceOut"),
         ("labels", "labels"),
@@ -62,7 +71,7 @@ def test_a_class_with_no_field_has_no_row() -> None:
 
 
 def test_what_is_not_written_as_an_object_has_no_fields() -> None:
-    assert field_rows(_writer(int), "validation") is None
+    assert field_rows(_writer(int), "validation") == "it is written as no object with fields"
 
 
 def test_a_class_of_a_hierarchy_is_read_from_its_own_member_of_the_union() -> None:
@@ -77,13 +86,14 @@ def test_a_class_of_a_hierarchy_is_read_from_its_own_member_of_the_union() -> No
 def test_a_class_of_a_hierarchy_alone_in_it_is_read_as_the_union_itself() -> None:
     rows = field_rows(_writer(Reminder), "validation", member=0)
 
-    assert [row.name for row in rows or ()] == ["title", "due"]
+    assert isinstance(rows, list)
+    assert [row.name for row in rows] == ["title", "due"]
 
 
 def test_a_field_declaring_a_hierarchy_takes_each_named_class() -> None:
     rows = field_rows(_writer(Mailbox), "serialization")
 
-    assert rows is not None
+    assert isinstance(rows, list)
     assert rows[0] == FieldRow(
         "latest", "latest", "Event | Delivery | Bounce | Complaint | Batch", "yes", ""
     )
@@ -94,6 +104,48 @@ def test_the_base_of_a_hierarchy_is_its_first_member() -> None:
     rows = field_rows(_writer(Event), "validation", member=0)
 
     assert rows == [FieldRow("name", "name", "string", "yes", "")]
+
+
+def test_a_class_handing_pydantic_its_own_schema_is_read_as_any_type() -> None:
+    rows = field_rows(_writer(Release), "validation")
+
+    assert rows == [
+        FieldRow("name", "name", "string", "yes", ""),
+        FieldRow("version", "version", "any", "yes", ""),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["validation", "serialization"])
+def test_a_field_written_by_a_function_shows_its_name_and_default(mode: JsonSchemaMode) -> None:
+    rows = field_rows(_writer(PriceLambda), mode)
+
+    assert isinstance(rows, list)
+    assert [(row.name, row.required, row.default) for row in rows] == [
+        ("price", "yes", ""),
+        ("note", "no", '""'),
+    ]
+
+
+def test_a_field_written_by_a_function_is_written_as_any_type() -> None:
+    rows = field_rows(_writer(PriceLambda), "serialization")
+
+    assert isinstance(rows, list)
+    assert rows[0].type_name == "any"
+
+
+@pytest.mark.parametrize(("mode", "verb"), [("validation", "read"), ("serialization", "written")])
+def test_two_fields_under_one_name_are_refused(mode: JsonSchemaMode, verb: str) -> None:
+    assert field_rows(_writer(Crossed), mode) == f"two of its fields are {verb} under one name"
+
+
+def test_a_type_with_no_json_schema_is_written_as_no_object() -> None:
+    assert field_rows(_writer(type), "validation") == "it is written as no object with fields"
+
+
+def test_a_schema_pydantic_refuses_to_describe_is_refused_in_its_mode() -> None:
+    assert field_rows(_writer(Misdescribed), "serialization") == (
+        "pydantic cannot describe it in a JSON schema when it is written"
+    )
 
 
 @pytest.mark.parametrize(

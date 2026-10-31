@@ -26,5 +26,5 @@ def check_context(context: object, described: str) -> None:
     for key in cast("Mapping[object, object]", context):
         if not isinstance(key, str):
             raise InvalidArgumentError(
-                f"{described} is keyed by strings, but one key is a {type(key).__name__}"
+                f"{described} is keyed by strings, but one key is of type {type(key).__name__}"
             )

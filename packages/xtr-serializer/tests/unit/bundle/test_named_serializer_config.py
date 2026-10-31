@@ -34,3 +34,10 @@ def test_include_built_in_normalizers_that_is_no_boolean_is_refused(value: objec
 def test_include_built_in_encoders_that_is_no_boolean_is_refused(value: object) -> None:
     with pytest.raises(InvalidArgumentError, match="include_built_in_encoders"):
         _ = NamedSerializerConfig(include_built_in_encoders=cast("bool", value))
+
+
+def test_a_switch_that_is_no_boolean_is_refused_naming_its_type() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = NamedSerializerConfig(include_built_in_encoders=cast("bool", cast("object", 1)))
+
+    assert str(raised.value).endswith("is True or False, not a value of type int")

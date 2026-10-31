@@ -99,6 +99,24 @@ async def test_a_class_with_no_field_says_so(tester: CommandTester) -> None:
     assert tester.display.count("No field.") == 2
 
 
+async def test_a_field_with_no_json_schema_is_listed_with_any_type(tester: CommandTester) -> None:
+    exit_code = await tester.execute([f"{_DESCRIBED}:Release"])
+
+    assert exit_code == ExitCode.SUCCESS
+    lines = _lines(tester.display)
+    assert lines.index("version version any yes") < lines.index("version version string yes")
+
+
+async def test_a_field_written_by_a_function_is_listed_in_both_modes(
+    tester: CommandTester,
+) -> None:
+    exit_code = await tester.execute([f"{_DESCRIBED}:PriceLambda"])
+
+    assert exit_code == ExitCode.SUCCESS
+    assert _lines(tester.display).count("price price any yes") == 2
+    assert "lambda" not in tester.display
+
+
 @pytest.mark.parametrize(
     ("path", "said"),
     [
@@ -107,6 +125,9 @@ async def test_a_class_with_no_field_says_so(tester: CommandTester) -> None:
         (f"{_DESCRIBED}:not_a_class", "not a class"),
         (f"{_DESCRIBED}:Untyped", "pydantic has no schema"),
         ("builtins:int", "no object with fields"),
+        ("builtins:type", "'builtins.type' cannot be shown: it is written as no object"),
+        (f"{_DESCRIBED}:Crossed", "two of its fields are read under one name"),
+        (f"{_DESCRIBED}:Misdescribed", "pydantic cannot describe it in a JSON schema"),
     ],
 )
 async def test_what_it_cannot_describe_is_refused(
@@ -115,7 +136,9 @@ async def test_what_it_cannot_describe_is_refused(
     exit_code = await tester.execute([path])
 
     assert exit_code == ExitCode.FAILURE
-    assert said in " ".join((tester.display + tester.error_display).split())
+    written = " ".join((tester.display + tester.error_display).split())
+    assert said in written
+    assert "pydantic.dev" not in written
 
 
 async def test_outside_debug_mode_the_command_is_not_registered() -> None:
