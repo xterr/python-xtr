@@ -250,6 +250,7 @@ graph LR
     serializer[xtr-serializer] -. optional .-> di
     serializer -. optional .-> console
     mime[xtr-mime] --> clock
+    mime -. optional .-> di
     mailer[xtr-mailer] --> mime
     mailer --> clock
     mailer --> eventcon

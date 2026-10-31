@@ -33,7 +33,8 @@ sender. This package is that last step and nothing else.
   dependency): activate `RemoteEventBundle`, declare consumers where they live, route
   `ConsumeRemoteEventMessage`. There is no configuration module. Without the container, build the
   `ConsumerLocator` over your consumers yourself; only `xtr_remote_event.bundle` needs it.
-- Everything derives from `RemoteEventError`.
+- Every error derives from `RemoteEventError` but one: building `AbstractMailerEvent` itself
+  raises `TypeError`.
 
 ## Derive an event of your own
 
@@ -192,11 +193,16 @@ class AcmeMailConverter(PayloadConverterInterface):
         name = _DELIVERY.get(str(payload.get("event")))
         if name is None:
             raise ParseError(f'Unsupported event "{payload.get("event")}".')
+        try:
+            event_id = str(payload["id"])
+            date = datetime.fromtimestamp(float(str(payload["timestamp"])), UTC)
+        except (KeyError, ValueError, OverflowError, OSError) as error:
+            raise ParseError(f"Unreadable delivery report: {error!r}.") from error
         return MailerDeliveryEvent(
             name,
-            str(payload["id"]),
+            event_id,
             dict(payload),
-            date=datetime.fromtimestamp(float(str(payload["timestamp"])), UTC),
+            date=date,
             recipient_email=str(payload.get("recipient", "")),
             reason=str(payload.get("reason", "")),
         )
@@ -210,6 +216,9 @@ class AcmeMailConverter(PayloadConverterInterface):
 - `date` is a plain `datetime`: give it in UTC, as providers report it. It keeps its offset on a
   bus, not a zone's name, and one in the hour the clocks repeat is refused when written.
 - `metadata` holds JSON data, as `payload` does.
+- A payload is the sender's, so whatever reading it raises becomes a `ParseError`: `KeyError` for
+  a missing field, and `ValueError`, `OverflowError` or `OSError` for a timestamp that is not a
+  number or not a time `datetime.fromtimestamp` can convert.
 - `AbstractMailerEvent` holds what both share; building it itself raises `TypeError`.
 
 ## Testing
