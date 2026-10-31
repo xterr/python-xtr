@@ -25,6 +25,7 @@ class Registration:
 
     A class is registered for the container to build — one instance per key — and any other
     object is provided as it is. ``priority`` is the definition's own, apart from any tag.
+    ``decorates`` names the service it decorates, when it is a decorator.
     """
 
     service: object
@@ -32,6 +33,7 @@ class Registration:
     tag: str | None = None
     attributes: Mapping[str, object] = field(default_factory=dict[str, object])
     priority: int | None = None
+    decorates: type | None = None
 
 
 def serializer_kernel(
@@ -65,6 +67,8 @@ def serializer_kernel(
                 definition.priority = registration.priority
                 if registration.tag is not None:
                     _ = definition.add_tag(registration.tag, **registration.attributes)
+                if registration.decorates is not None:
+                    _ = definition.set_decorated_service(registration.decorates)
 
     return Kernel(
         __name__,

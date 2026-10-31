@@ -54,3 +54,9 @@ def test_a_default_context_keyed_by_something_else_than_strings_is_refused() -> 
 
     with pytest.raises(InvalidArgumentError, match="default context"):
         _ = SerializerConfig(default_context=context)
+
+
+@pytest.mark.parametrize("named", [["api"], "api", None])
+def test_named_serializers_that_are_no_mapping_are_refused(named: object) -> None:
+    with pytest.raises(InvalidArgumentError, match="named_serializers"):
+        _ = SerializerConfig(named_serializers=cast("dict[str, NamedSerializerConfig]", named))

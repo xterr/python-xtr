@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from xtr_serializer.exception import InvalidArgumentError
+
 from ._context_check import check_context
 
 __all__ = ["NamedSerializerConfig"]
@@ -33,9 +35,21 @@ class NamedSerializerConfig:
     include_built_in_encoders: bool = True
 
     def __post_init__(self) -> None:
-        """Refuse a default context keyed by something else than strings.
+        """Refuse a default context keyed by something else than strings, and a switch not a bool.
+
+        A configuration is written by hand, and its annotations are not enforced: a ``"no"``
+        or a ``0`` read as a switch would say the opposite of what was meant, or nothing at all.
 
         Raises:
-            InvalidArgumentError: When the default context cannot be read.
+            InvalidArgumentError: When the configuration cannot be read.
         """
         check_context(self.default_context, "a named serializer's default context")
+        switches: dict[str, object] = {
+            "include_built_in_normalizers": self.include_built_in_normalizers,
+            "include_built_in_encoders": self.include_built_in_encoders,
+        }
+        for name, value in switches.items():
+            if not isinstance(value, bool):
+                raise InvalidArgumentError(
+                    f"a named serializer's {name} is True or False, not a {type(value).__name__}"
+                )

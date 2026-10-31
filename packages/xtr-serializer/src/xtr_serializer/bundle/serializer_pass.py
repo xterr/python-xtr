@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, replace
 from typing import Final, cast, final
 
@@ -12,7 +11,10 @@ from xtr_dependency_injection import CompilerPassInterface, ContainerBuilder, Se
 
 from xtr_serializer._type_names import qualified_name_of
 from xtr_serializer.exception import LogicError
+from xtr_serializer.normalizer.denormalizer_aware_interface import DenormalizerAwareInterface
+from xtr_serializer.normalizer.normalizer_aware_interface import NormalizerAwareInterface
 from xtr_serializer.serializer import Serializer
+from xtr_serializer.serializer_aware_interface import SerializerAwareInterface
 
 from ._serializer_factory import serializer_factory
 from .named_serializer_config import NamedSerializerConfig
@@ -44,6 +46,12 @@ Its attributes, and the classes tagged without being told, are those of :data:`N
 with ``include_built_in_encoders`` deciding for a built-in one.
 """
 
+_AWARE: Final = (SerializerAwareInterface, NormalizerAwareInterface, DenormalizerAwareInterface)
+"""What a service is when the serializer holding it hands itself to it."""
+
+_Held = tuple[list[ServiceKey], list[ServiceKey]]
+"""The normalizers and the encoders a serializer holds, highest priority first."""
+
 
 @dataclass(frozen=True, slots=True)
 class _Tagged:
@@ -74,7 +82,12 @@ class SerializerPass(CompilerPassInterface):
 
     A named serializer gets its own instance of every service it shares with another — a service
     is handed the serializer holding it, and one instance can only be handed one. A service
-    provided as an object, rather than built by the container, cannot be copied and is shared.
+    provided as an object, rather than built by the container, cannot be copied and is shared:
+    one the serializer is handed to joins one serializer only.
+
+    A serializer is a normalizer and an encoder itself, so the container tags its definitions as
+    one; the pass takes those tags off, as a serializer holds no serializer. A service decorating
+    another joins as the service it decorates, which carries the tag.
 
     :class:`~xtr_serializer.bundle.SerializerBundle` registers it behind every bundle's
     ``process`` hook, so a service another bundle tags there joins too.
@@ -88,21 +101,30 @@ class SerializerPass(CompilerPassInterface):
 
         Raises:
             LogicError: When a tag cannot be read or names a serializer that does not exist, or
-                a serializer is left without a normalizer or an encoder.
+                a serializer is left without a normalizer or an encoder, or an object the
+                serializer is handed to joins more than one.
         """
         config = builder.get_extension_config(SerializerConfig)
         serializers: dict[str, NamedSerializerConfig | None] = {DEFAULT_SERIALIZER: None}
         serializers |= config.named_serializers
-        own = {(Serializer, _qualifier(name)) for name in serializers}
-        normalizers = _tagged(builder, NORMALIZER_TAG, own, serializers)
-        encoders = _tagged(builder, ENCODER_TAG, own, serializers)
+        for name in serializers:
+            _ = (
+                builder.get_definition(Serializer, _qualifier(name))
+                .clear_tag(NORMALIZER_TAG)
+                .clear_tag(ENCODER_TAG)
+            )
+        normalizers = _tagged(builder, NORMALIZER_TAG, serializers)
+        encoders = _tagged(builder, ENCODER_TAG, serializers)
+        held: dict[str, _Held] = {}
         for name, named in serializers.items():
             built_in_normalizers = named is None or named.include_built_in_normalizers
             built_in_encoders = named is None or named.include_built_in_encoders
-            normalizer_keys = _held(
-                name, normalizers, NORMALIZER_TAG, built_ins=built_in_normalizers
+            held[name] = (
+                _held(name, normalizers, NORMALIZER_TAG, built_ins=built_in_normalizers),
+                _held(name, encoders, ENCODER_TAG, built_ins=built_in_encoders),
             )
-            encoder_keys = _held(name, encoders, ENCODER_TAG, built_ins=built_in_encoders)
+        _refuse_shared_aware_objects(builder, held)
+        for name, (normalizer_keys, encoder_keys) in held.items():
             qualifier = _qualifier(name)
             definition = builder.get_definition(Serializer, qualifier)
             definition.provider = serializer_factory(
@@ -118,18 +140,21 @@ def _qualifier(name: str) -> str | None:
     return None if name == DEFAULT_SERIALIZER else name
 
 
+def _service(key: ServiceKey) -> str:
+    """Name the service ``key`` in a message."""
+    return qualified_name_of(key[0]) + ("" if key[1] is None else f"[{key[1]!r}]")
+
+
 def _tagged(
-    builder: ContainerBuilder,
-    tag: str,
-    own: AbstractSet[ServiceKey],
-    serializers: Mapping[str, object],
+    builder: ContainerBuilder, tag: str, serializers: Mapping[str, object]
 ) -> list[_Tagged]:
-    """Return every tag ``tag`` on a service other than a serializer, in registration order."""
+    """Return every tag ``tag`` on a service decorating none, in registration order."""
     found: list[_Tagged] = []
     for key, attribute_list in builder.find_tagged_service_ids(tag).items():
-        # A serializer is itself a normalizer and an encoder, and holds no serializer.
-        if key not in own:
-            fallback = builder.get_definition(*key).priority or 0
+        definition = builder.get_definition(*key)
+        # A decorator is the service it decorates, which joins by its own tag.
+        if definition.decorates is None:
+            fallback = definition.priority or 0
             found.extend(
                 _read(key, attributes, fallback, serializers) for attributes in attribute_list
             )
@@ -148,7 +173,7 @@ def _read(
         LogicError: When an attribute is of the wrong kind or names a serializer that does not
             exist.
     """
-    service = qualified_name_of(key[0]) + ("" if key[1] is None else f"[{key[1]!r}]")
+    service = _service(key)
     priority = attributes.get("priority", fallback)
     named = attributes.get("serializer", DEFAULT_SERIALIZER)
     built_in = attributes.get("built_in", False)
@@ -163,6 +188,8 @@ def _read(
     names = [one for one in given if isinstance(one, str)]
     if len(names) != len(given):
         raise LogicError(f"{service} is tagged with a serializer that is not a name or names")
+    if not names:
+        raise LogicError(f"{service} is tagged with a list that names no serializer")
     for one in names:
         if one != ALL_SERIALIZERS and one not in serializers:
             raise LogicError(
@@ -189,6 +216,29 @@ def _held(name: str, tagged: Sequence[_Tagged], tag: str, *, built_ins: bool) ->
             f"or keep the built-in ones"
         )
     return held
+
+
+def _refuse_shared_aware_objects(builder: ContainerBuilder, held: Mapping[str, _Held]) -> None:
+    """Refuse an object the serializer holding it is handed to, held by more than one.
+
+    Each serializer hands itself to the services it holds that take it, and an object keeps the
+    last it was handed: every serializer but one would write through another.
+
+    Raises:
+        LogicError: When one is.
+    """
+    joined: dict[ServiceKey, int] = {}
+    for normalizer_keys, encoder_keys in held.values():
+        for key in dict.fromkeys([*normalizer_keys, *encoder_keys]):
+            joined[key] = joined.get(key, 0) + 1
+    for key, count in joined.items():
+        definition = builder.get_definition(*key)
+        if count > 1 and definition.kind == "instance" and isinstance(definition.provider, _AWARE):
+            raise LogicError(
+                f"{_service(key)} is an object each serializer holding it hands itself to, and "
+                f"{count} serializers hold it: register it as a class, which each gets its own "
+                f"instance of"
+            )
 
 
 def _own_instance(builder: ContainerBuilder, key: ServiceKey, qualifier: str | None) -> ServiceKey:

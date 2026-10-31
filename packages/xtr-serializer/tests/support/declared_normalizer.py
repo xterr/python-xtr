@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, TypeVar, final, overload
+from typing import TYPE_CHECKING, Final, TypeVar, overload
 
 from typing_extensions import override
 
@@ -19,12 +19,12 @@ DECLARED: Final = "declared"
 """What the declared normalizer writes for every value, and reads every data back as."""
 
 
-@final
 class DeclaredNormalizer(NormalizerInterface, DenormalizerInterface):
     """Writes every value as :data:`DECLARED`, and reads any data back as it.
 
     It subclasses both interfaces, rather than only matching them, so the container tags it as a
-    normalizer without being told to; what it writes tells a test it was picked.
+    normalizer without being told to; what it writes tells a test it was picked. It is left open
+    for a decorator of it, which the container provides as it.
     """
 
     @override

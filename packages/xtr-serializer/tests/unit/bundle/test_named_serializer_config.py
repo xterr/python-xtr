@@ -22,3 +22,15 @@ def test_a_default_context_keyed_by_something_else_than_strings_is_refused() -> 
 
     with pytest.raises(InvalidArgumentError, match="named serializer"):
         _ = NamedSerializerConfig(default_context=context)
+
+
+@pytest.mark.parametrize("value", [1, "yes", None])
+def test_include_built_in_normalizers_that_is_no_boolean_is_refused(value: object) -> None:
+    with pytest.raises(InvalidArgumentError, match="include_built_in_normalizers"):
+        _ = NamedSerializerConfig(include_built_in_normalizers=cast("bool", value))
+
+
+@pytest.mark.parametrize("value", [0, "no", None])
+def test_include_built_in_encoders_that_is_no_boolean_is_refused(value: object) -> None:
+    with pytest.raises(InvalidArgumentError, match="include_built_in_encoders"):
+        _ = NamedSerializerConfig(include_built_in_encoders=cast("bool", value))

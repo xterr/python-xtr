@@ -22,7 +22,7 @@ _NOT_IN_A_NAME: Final = re.compile(r"\W")
 
 
 def serializer_factory(
-    name: str | None, normalizers: Sequence[ServiceKey], encoders: Sequence[ServiceKey]
+    name: str | None, normalizer_keys: Sequence[ServiceKey], encoder_keys: Sequence[ServiceKey]
 ) -> Callable[..., Serializer]:
     """Return the factory of the serializer ``name`` — the default one for ``None``.
 
@@ -37,11 +37,11 @@ def serializer_factory(
     Args:
         name: The serializer's name, which the function is named after in the container's
             report.
-        normalizers: The keys of its normalizers, highest priority first.
-        encoders: The keys of its encoders, highest priority first.
+        normalizer_keys: The keys of its normalizers, highest priority first.
+        encoder_keys: The keys of its encoders, highest priority first.
     """
-    normalizer_names = [f"normalizer_{index}" for index in range(len(normalizers))]
-    encoder_names = [f"encoder_{index}" for index in range(len(encoders))]
+    normalizer_names = [f"normalizer_{index}" for index in range(len(normalizer_keys))]
+    encoder_names = [f"encoder_{index}" for index in range(len(encoder_keys))]
 
     def serializer(**arguments: object) -> Serializer:
         return Serializer(
@@ -55,9 +55,11 @@ def serializer_factory(
 
     parameters: dict[str, object] = {"default_context": Mapping[str, object]}
     parameters |= {
-        one: _annotation(key) for one, key in zip(normalizer_names, normalizers, strict=True)
+        one: _annotation(key) for one, key in zip(normalizer_names, normalizer_keys, strict=True)
     }
-    parameters |= {one: _annotation(key) for one, key in zip(encoder_names, encoders, strict=True)}
+    parameters |= {
+        one: _annotation(key) for one, key in zip(encoder_names, encoder_keys, strict=True)
+    }
     # Written on the function, as ``inspect.signature`` and the annotation readers look for them.
     setattr(  # noqa: B010 -- a function declares no such attribute
         serializer,

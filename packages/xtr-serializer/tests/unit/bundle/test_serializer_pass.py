@@ -15,6 +15,7 @@ from tests.support.in_memory_encoder import MEMORY, InMemoryEncoder
 from tests.support.point_normalizer import PointNormalizer
 from tests.support.segment_normalizer import SegmentNormalizer
 from tests.support.shapes import Point, Segment
+from tests.support.shouting_normalizer import ShoutingNormalizer
 from xtr_serializer import Serializer
 from xtr_serializer.bundle import (
     ENCODER_TAG,
@@ -231,6 +232,7 @@ async def test_a_tag_naming_a_serializer_that_does_not_exist_fails_the_build() -
         {"priority": True},
         {"serializer": 3},
         {"serializer": ["default", 3]},
+        {"serializer": []},
         {"built_in": "yes"},
     ],
 )
@@ -241,3 +243,48 @@ async def test_a_tag_attribute_of_the_wrong_kind_fails_the_build(
 
     with pytest.raises(LogicError, match="CountingNormalizer"):
         _ = kernel.build()
+
+
+async def test_a_tag_naming_no_serializer_fails_the_build() -> None:
+    kernel = serializer_kernel(None, _normalizer("app", serializer=[]))
+
+    with pytest.raises(LogicError, match="names no serializer"):
+        _ = kernel.build()
+
+
+async def test_a_decorated_normalizer_joins_once_decorated() -> None:
+    declared = Registration(DeclaredNormalizer, priority=10)
+    shouting = Registration(ShoutingNormalizer, decorates=DeclaredNormalizer)
+    kernel = serializer_kernel(None, declared, shouting)
+
+    assert await _written(kernel, POINT) == DECLARED.upper()
+
+
+async def test_an_object_handed_its_serializer_joining_two_serializers_fails_the_build() -> None:
+    segment = Registration(SegmentNormalizer(), None, NORMALIZER_TAG, {"serializer": "*"})
+    kernel = serializer_kernel(API, segment)
+
+    with pytest.raises(LogicError, match=r"SegmentNormalizer.*register it as a class"):
+        _ = kernel.build()
+
+
+async def test_an_object_handed_its_serializer_joining_one_serializer_is_kept() -> None:
+    segment = Registration(SegmentNormalizer(), None, NORMALIZER_TAG, {"serializer": "api"})
+    kernel = serializer_kernel(API, segment)
+
+    [api] = await _serializers(kernel, "api")
+
+    assert json.loads(api.serialize(Segment(POINT, POINT), "json"))["end"] == {"x": 1, "y": 2}
+
+
+async def test_the_serializers_are_listed_under_neither_tag() -> None:
+    report = serializer_kernel(API).build().report
+
+    tags = {
+        definition.key: definition.tags
+        for definition in report.definitions
+        if definition.key[0] is Serializer
+    }
+
+    assert set(tags) == {(Serializer, None), (Serializer, "api")}
+    assert all(NORMALIZER_TAG not in one and ENCODER_TAG not in one for one in tags.values())

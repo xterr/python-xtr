@@ -48,12 +48,20 @@ class SerializerConfig:
     )
 
     def __post_init__(self) -> None:
-        """Refuse a context keyed by something else than strings, and a name that cannot be one.
+        """Refuse a context keyed by something else than strings, and named serializers unread.
+
+        The named serializers are a mapping of non-empty names, none reserved, to
+        :class:`NamedSerializerConfig`.
 
         Raises:
             InvalidArgumentError: When the configuration cannot be read.
         """
         check_context(self.default_context, "the default context")
+        if not isinstance(self.named_serializers, Mapping):  # pyright: ignore[reportUnnecessaryIsInstance] -- configs are written by hand; the annotation is not enforced
+            raise InvalidArgumentError(
+                "named_serializers is a mapping of names to NamedSerializerConfig, not a "
+                f"{type(self.named_serializers).__name__}"
+            )
         for name, named in self.named_serializers.items():
             if not isinstance(name, str) or not name:  # pyright: ignore[reportUnnecessaryIsInstance] -- configs are written by hand; the annotation is not enforced
                 raise InvalidArgumentError(
