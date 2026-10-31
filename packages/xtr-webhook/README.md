@@ -387,7 +387,8 @@ The body is written by `JsonBodyConfigurator(serializer, signature_format)` with
 reordered — the bytes are the signed message, so two runs over the same payload have to produce
 the same ones, and the signer signs exactly those bytes. A payload value JSON cannot carry
 exactly — a datetime, a set, a tuple — raises the serializer's `NotNormalizableValueError`,
-unwrapped and never quoting the value, before anything is sent.
+unwrapped and never quoting the value, before anything is sent; a payload that contains itself
+raises its `CircularReferenceError`.
 
 Header names and the legacy digest are all configurable:
 
@@ -547,6 +548,28 @@ Nothing here imports pytest, so a fixture directory is usable from any runner.
   as its own class, every field as it left; it is the HTTP request that carries the payload alone.
 - **Under `STANDARD` and `TRANSITIONAL` the payload gains a `type` key** naming the event, unless
   it already has one, so the receiver's payload is the sent one with that key added.
+- **The payload is JSON data only.** A datetime, a `Decimal`, a `UUID`, bytes, a tuple, a set, an
+  enum member, NaN or infinity, or a key that is not a string is refused at send — convert it
+  first.
+- **A float with an exponent is written with its sign** (`1e+16`): the same number, other bytes.
+- **Nesting is capped at 200 levels.** A deeper payload is refused at send, and a deeper body is
+  answered `406`. Through a serializing bus, `SendWebhookMessage` refuses a payload deeper than 198
+  levels.
+- **Bodies are checked before they are posted**, so a large payload costs time to send — keep
+  payloads small.
+- **The body is written by the application's default serializer**, so a `json_indent` in its
+  default context indents every body.
+- **A `LEGACY` signature — and `TRANSITIONAL`'s legacy entry — signs the name, the id and the body
+  with nothing between them**, so characters can move between `Webhook-Event` and `Webhook-Id`
+  and the signature still verifies. Use `STANDARD` where the two matter.
+- **With `timestamp_tolerance=0`, a dotted id can lose its tail into `Webhook-Timestamp`**: the
+  Standard Webhooks entry signs `id.timestamp.body`, and with the bound off the timestamp is not
+  read as a number.
+- **Under `TRANSITIONAL` the event is named by whichever entry verifies** — the payload's `type`
+  for the Standard Webhooks entry, `Webhook-Event` for the legacy one. Keep `type` equal to the
+  event's name.
+- **One event class pydantic cannot build refuses every `RemoteEvent` message** — see
+  xtr-remote-event's [Known limitations](../xtr-remote-event#known-limitations).
 
 ## Use in an application
 
@@ -692,8 +715,8 @@ attributes rather than forcing a message to be parsed. None of them repeats a se
 An outgoing webhook nothing answered raises the client's own error instead, unwrapped:
 `TransportError` from xtr-http-client-contracts, or its `TransportTimeoutError`. The
 private-network guard refuses with a `TransportError` too.
-A payload the serializer cannot write raises its `NotNormalizableValueError`, unwrapped, before
-anything is sent.
+A payload the serializer cannot write raises its `NotNormalizableValueError`, and a payload that
+contains itself its `CircularReferenceError` — both unwrapped, before anything is sent.
 
 ## Development
 

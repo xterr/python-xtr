@@ -161,7 +161,7 @@ _ = await bus.dispatch(
   exactly those bytes. Under `STANDARD` and `TRANSITIONAL` a `type` key naming the event is added
   to a copy of the payload, unless it has one. A payload value JSON cannot carry exactly (a
   datetime, a set, a tuple) raises the serializer's `NotNormalizableValueError` before anything
-  is sent.
+  is sent, and a payload that contains itself raises its `CircularReferenceError`.
 - An event of a class derived from `RemoteEvent` crosses the bus to the worker as that class, but
   over HTTP only its payload is posted; the fields its class adds are not, and the receiver gets
   a plain `RemoteEvent`. Put what a receiver needs in the payload.
@@ -350,7 +350,8 @@ An `InvalidArgumentError` is configuration to fix, never an answer to a request.
 `RejectWebhookError` is the answer to a request and nothing else. A delivery nothing answered,
 and one the private-network guard refused, raise the client's `TransportError`
 (xtr-http-client-contracts) unwrapped; a payload the serializer cannot write raises its
-`NotNormalizableValueError` unwrapped.
+`NotNormalizableValueError`, and a payload that contains itself its `CircularReferenceError`,
+both unwrapped.
 
 ## Do not
 

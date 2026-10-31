@@ -83,6 +83,8 @@ class JsonBodyConfigurator(RequestConfiguratorInterface):
                 the payload is the application's, and what the serializer
                 refuses is said in the serializer's own words, which never
                 quote the value.
+            CircularReferenceError: When the payload contains itself. Not
+                wrapped, for the same reason.
         """
         del secret
 

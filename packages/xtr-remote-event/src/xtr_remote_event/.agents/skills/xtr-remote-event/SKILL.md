@@ -68,6 +68,9 @@ class DeliveryReport(RemoteEvent):
 - Data is untrusted: an unknown tag, the name of another hierarchy's class, a missing tag or a
   value that does not fit is refused — on a bus with `MessageDecodingFailedError`, which never
   repeats the data.
+- Every registered class is part of one schema. A class pydantic cannot build — a field typed
+  `DatePoint` (declare it `datetime`), an annotation imported only under `TYPE_CHECKING` — makes
+  every message declaring `RemoteEvent` refused, and the error names neither class nor field.
 
 ## Declare a consumer
 
@@ -190,8 +193,8 @@ async def test_a_paid_order_is_marked_paid() -> None:
   on the whole event rather than field by field.
 - For an event class of your own, round-trip it through
   `TransportConfig("in-memory://?serialize=true")` and assert both `==` and
-  `type(received.event) is DeliveryReport`; equality alone passes for a subclass read back as its
-  base only when it adds no field.
+  `type(received.event) is DeliveryReport`. A dataclass compares the exact class, so a derived
+  event never equals its base, even one that adds no field.
 - For the handler, build a `ConsumerLocator` over a recording consumer and assert what it was
   handed. No bus is needed: the handler is callable.
 - A missing consumer is testable without a container:

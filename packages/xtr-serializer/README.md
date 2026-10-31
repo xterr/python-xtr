@@ -560,6 +560,9 @@ their typed fields and no `from` clause.
   skipped hour it is refused — annotate it `ZonedDateTime`, or store UTC. An aware datetime reads
   back with pydantic's own `TzInfo`: equal, not the same tzinfo object or class.
 - Each unknown zone name in a `ZonedDateTime` is looked up on disk.
+- A plain `datetime` field reads a string of digits as a Unix timestamp in UTC.
+- A `ZonedDateTime` is read by Python's ISO parser, so ISO week dates are accepted; on a
+  case-insensitive filesystem a zone name in another case is read as spelled.
 - With pydantic before 2.14, a `NamedTuple`'s items are written by their runtime type, so a
   `ZonedDateTime` or a hierarchy value inside one is refused.
 - `denormalize` reads its data as JSON: Python `set`, `tuple`, `bytes`, `UUID` and `Decimal`

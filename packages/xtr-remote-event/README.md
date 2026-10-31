@@ -204,6 +204,13 @@ It takes the payload already decoded and is synchronous: reading the bytes, and 
 they are to be trusted at all, belongs to whatever received them — [xtr-webhook](../xtr-webhook)
 for one.
 
+## Known limitations
+
+- **Every class registered under `RemoteEvent` is part of one schema.** One class pydantic cannot
+  build — a field typed `DatePoint` (declare it `datetime`), an annotation imported only under
+  `TYPE_CHECKING` — makes every message declaring `RemoteEvent` refused, and the error names
+  neither the class nor the field.
+
 ## Use in an application
 
 Everything adding this package to an application on
