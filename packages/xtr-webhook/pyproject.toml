@@ -62,6 +62,8 @@ dev = [
     "xtr-http-client>=5.0,<6",
     "xtr-http-kernel>=5.0,<6",
     "xtr-http-message>=5.0,<6",
+    # The round-trip tests write messages through a serializer of their own.
+    "xtr-serializer>=5.0,<6",
 ]
 
 [build-system]

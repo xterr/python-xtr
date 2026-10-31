@@ -44,6 +44,8 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     "xtr-dependency-injection>=5.0,<6",
+    # The round-trip tests write messages through a serializer of their own.
+    "xtr-serializer>=5.0,<6",
 ]
 
 [build-system]

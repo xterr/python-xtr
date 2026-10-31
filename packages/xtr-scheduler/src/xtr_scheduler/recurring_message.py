@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 from contextlib import suppress
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
-from xtr_messenger import name_of
+from xtr_messenger import Envelope, RedispatchMessage, name_of
+from xtr_serializer import PydanticNormalizer, SerializerError
 
 from ._time import FAR_FUTURE
 from .exception import InvalidArgumentError
@@ -22,12 +24,19 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
     from datetime import datetime, timedelta, tzinfo
 
+    from xtr_serializer import NormalizedValue
+
     from .generator.message_context import MessageContext
     from .trigger.trigger_interface import TriggerInterface
 
 __all__ = ["RecurringMessage"]
 
 _PROVIDER_ID_LENGTH = 7
+
+# Writes a message as the data it holds, for its id. A normalizer of its own, with no context,
+# rather than the application's serializer: an id must not change with how an application
+# configures what it sends. It does no I/O, and keeps nothing but the adapters it builds.
+_NORMALIZER: Final = PydanticNormalizer()
 
 
 @final
@@ -38,6 +47,9 @@ class RecurringMessage(MessageProviderInterface):
     :attr:`id` is derived from what it sends and when, so the same recurring
     message declared in two processes — or in one process across restarts —
     is recognised as the same one, which is what lets saved state resume it.
+    A message holding a set or a frozenset is the exception: its items are
+    written in the order the set keeps them, which can change from one
+    process to the next.
     """
 
     __slots__ = ("_id", "_provider", "_trigger")
@@ -118,8 +130,8 @@ class RecurringMessage(MessageProviderInterface):
     def id(self) -> str:
         """Return what identifies this recurring message within a schedule.
 
-        Derived from what it sends and how its trigger describes itself, so it
-        is the same in every process.
+        Derived from the data it sends and how its trigger describes itself,
+        so it is the same in every process that declares it alike.
         """
         if self._id is None:
             identity = "".join(
@@ -165,12 +177,36 @@ def _qualified(kind: type) -> str:
 def _provider_id(message: object) -> str:
     """Return a short id for ``message``, the same in every process that builds it alike.
 
-    Built from the message's name and its ``repr``, which for a dataclass or a
-    model lists every field and so is the same wherever the message is built.
+    Built from the message's name and the data it holds, written as JSON with
+    sorted keys: two messages holding the same values get the same id whatever
+    the order their dicts were filled in, and two differing only in a field
+    left out of their ``repr`` get two.
     """
     kind = type(message)
-    digest = hashlib.blake2b(f"{name_of(kind)}\n{message!r}".encode(), digest_size=16).digest()
+    body = json.dumps(_written(message), sort_keys=True, separators=(",", ":"))
+    digest = hashlib.blake2b(f"{name_of(kind)}\n{body}".encode(), digest_size=16).digest()
     return base64.b64encode(digest).decode()[:_PROVIDER_ID_LENGTH].translate(_URL_SAFE)
+
+
+def _written(message: object) -> NormalizedValue:
+    """Return the data ``message`` holds, or ``None`` for one that has no plain form.
+
+    A redispatch holds an envelope, which has none, so it is written as what it
+    carries and where to. A message with no plain form is told apart by its
+    class alone.
+    """
+    if isinstance(message, RedispatchMessage):
+        envelope = message.envelope
+        stamps = envelope.stamps if isinstance(envelope, Envelope) else ()
+        return {
+            "message": [name_of(type(message.message)), _written(message.message)],
+            "stamps": [[_qualified(type(stamp)), _written(stamp)] for stamp in stamps],
+            "transport_names": list(message.transport_names),
+        }
+    try:
+        return _NORMALIZER.normalize(message)
+    except SerializerError:
+        return None
 
 
 _URL_SAFE = str.maketrans("/+", "._")

@@ -768,7 +768,8 @@ MessageBusFactory(CONFIG, [TransportFactory(serializer=wire)]).bus()
 ```
 
 Any other collaborator is an object discovery cannot supply, so it means passing the factory
-yourself — `[AmqpTransportFactory(wire, options=AmqpOptions(...))]`.
+yourself — `[AmqpTransportFactory(wire, options=AmqpOptions(...))]`, `AmqpOptions` imported from
+`xtr_messenger.bridge.amqp.amqp_options`.
 
 Handlers never reach a transport at all. Only the bus calls them, and every transport hands
 messages to a bus instead — `sync://` hands the envelope straight back marked received, and a
@@ -1027,6 +1028,23 @@ xtr_messenger/
 │   └── consume.py           messenger:consume, on xtr-console
 └── bundle/                  MessengerBundle for xtr-dependency-injection
 ```
+
+## Known limitations
+
+- A plain `datetime` field holding a zone's time in the hour the clocks repeat or skip is
+  refused when the message is sent — annotate it `ZonedDateTime`, or store UTC.
+- A message class not declared with `@as_message` is written, under its import path, but never
+  read back: the consumer only resolves declared names.
+- A set or frozenset of integers chosen to collide costs quadratic time to read off the wire —
+  cap the message size at the broker.
+- The serializer bundle's default context applies to envelopes too: `SKIP_NULL_VALUES`,
+  `ATTRIBUTES` and the like shorten what is written, and the consumer refuses a message or stamp
+  missing a field it requires.
+- Discovery hands the serializer only to a constructor parameter named `serializer`.
+- A `Decimal`'s exponent is not bounded — bound it with `Field(max_digits=...)` on a field read
+  from untrusted producers.
+- Stamps come back grouped by class: the order among stamps of one class is kept, the order
+  between classes is not.
 
 ## Development
 

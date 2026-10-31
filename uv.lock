@@ -5386,6 +5386,7 @@ dev = [
     { name = "xtr-event-dispatcher" },
     { name = "xtr-http-client" },
     { name = "xtr-messenger" },
+    { name = "xtr-serializer" },
 ]
 
 [package.metadata]
@@ -5413,6 +5414,7 @@ dev = [
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
 ]
 
 [[package]]
@@ -5643,6 +5645,7 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
     { name = "xtr-dependency-injection" },
+    { name = "xtr-serializer" },
 ]
 
 [package.metadata]
@@ -5661,6 +5664,7 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
 ]
 
 [[package]]
@@ -5675,6 +5679,7 @@ dependencies = [
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-lock" },
     { name = "xtr-messenger" },
+    { name = "xtr-serializer" },
     { name = "xtr-service-contracts" },
 ]
 
@@ -5710,6 +5715,7 @@ requires-dist = [
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-lock", editable = "packages/xtr-lock" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 provides-extras = ["cron"]
@@ -6384,6 +6390,7 @@ dev = [
     { name = "xtr-http-client" },
     { name = "xtr-http-kernel" },
     { name = "xtr-http-message" },
+    { name = "xtr-serializer" },
 ]
 
 [package.metadata]
@@ -6414,6 +6421,7 @@ dev = [
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
+    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
 ]
 
 [[package]]

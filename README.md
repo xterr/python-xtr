@@ -86,6 +86,7 @@ graph LR
     events --> logcon
     messenger -. optional .-> console[xtr-console]
     scheduler[xtr-scheduler] --> messenger
+    scheduler --> serializer
     scheduler --> clock
     scheduler --> lock
     scheduler --> cachecon

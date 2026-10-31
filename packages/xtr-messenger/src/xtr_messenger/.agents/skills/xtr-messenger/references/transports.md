@@ -86,7 +86,8 @@ The container builds it, so it may take this package's `SerializerInterface` —
 serializer the bundle registers. Discovery hands that serializer to an advertised factory whose
 constructor takes a `serializer` parameter; any other collaborator cannot travel in a DSN, so
 pass the factory yourself: `MessageBusFactory(CONFIG, [AmqpTransportFactory(wire,
-options=AmqpOptions(...))]).bus()`.
+options=AmqpOptions(...))]).bus()`, `AmqpOptions` imported from
+`xtr_messenger.bridge.amqp.amqp_options`.
 
 ## Receivers without a DSN
 

@@ -31,6 +31,8 @@ dependencies = [
     "xtr-event-dispatcher-contracts>=5.0,<6",
     "xtr-lock>=5.0,<6",
     "xtr-messenger>=5.0,<6",
+    # A scheduled stamp's dates are ZonedDateTime, so a run keeps its zone and fold.
+    "xtr-serializer>=5.0,<6",
     "xtr-service-contracts>=5.0,<6",
 ]
 

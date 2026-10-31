@@ -71,6 +71,8 @@ dev = [
     # MockHttpClient stands in for the network in transport tests.
     "xtr-http-client>=5.0,<6",
     "xtr-messenger>=5.0,<6",
+    # The bus tests write messages through a serializer of their own.
+    "xtr-serializer>=5.0,<6",
 ]
 
 [build-system]

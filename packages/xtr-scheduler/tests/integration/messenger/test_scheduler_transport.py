@@ -12,13 +12,15 @@ from xtr_messenger import (
     HandlersLocator,
     InMemoryTransport,
     InMemoryTransportFactory,
+    JsonSerializer,
     MessageBusConfig,
     RedispatchMessage,
     TransportConfig,
     WorkerFactory,
     WorkerInterface,
 )
-from xtr_messenger.event import WorkerMessageHandledEvent
+from xtr_messenger.event import WorkerMessageFailedEvent, WorkerMessageHandledEvent
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
 from tests.support.messages import Named
 from xtr_scheduler import RecurringMessage, Schedule
@@ -43,7 +45,7 @@ class StopAfter:
         self.worker: WorkerInterface | None = None
         self._left = count
 
-    def __call__(self, event: WorkerMessageHandledEvent) -> None:
+    def __call__(self, event: WorkerMessageHandledEvent | WorkerMessageFailedEvent) -> None:
         del event
         self._left -= 1
         if self._left == 0 and self.worker is not None:
@@ -86,6 +88,48 @@ async def test_a_redispatched_run_lands_where_routing_sends_it() -> None:
     ]
     # Announced where "reports" is consumed and the run really handled, not here.
     assert ran == []
+
+
+async def test_nightly_runs_around_a_clock_change_cross_a_serializing_transport() -> None:
+    clock = MockClock("2026-10-23T12:00:00+00:00")
+    schedule = Schedule(
+        RecurringMessage.cron(
+            "0 3 * * *", RedispatchMessage(Named("purge")), timezone="Europe/Bucharest"
+        )
+    )
+    in_memory = InMemoryTransportFactory(
+        JsonSerializer(Serializer([PydanticNormalizer()], [JsonEncoder()]))
+    )
+    config = MessageBusConfig(
+        transports={
+            "scheduler_default": TransportConfig("schedule://default"),
+            "purges": TransportConfig("in-memory://?serialize=true"),
+        },
+        routing={Named: "purges"},
+    )
+    events = EventDispatcher()
+    stop = StopAfter(3)
+    events.add_listener(WorkerMessageHandledEvent, stop)
+    events.add_listener(WorkerMessageFailedEvent, stop)
+    factories = [SchedulerTransportFactory({"default": schedule}, clock=clock), in_memory]
+    workers = WorkerFactory(config, factories, HandlersLocator(), event_dispatcher=events)
+    worker = workers.worker(["scheduler_default"])
+    stop.worker = worker
+
+    await asyncio.wait_for(worker.run(), _TIMEOUT)
+
+    purges = in_memory.create(config.transports)["purges"]
+    assert isinstance(purges, InMemoryTransport)
+    stamps = [envelope.last(ScheduledStamp) for envelope in purges.sent]
+    assert [
+        (stamp.triggered_at.isoformat(), stamp.triggered_at.fold)
+        for stamp in stamps
+        if stamp is not None
+    ] == [
+        ("2026-10-24T03:00:00+03:00", 0),
+        ("2026-10-25T03:00:00+03:00", 0),
+        ("2026-10-25T03:00:00+02:00", 1),
+    ]
 
 
 async def test_stopping_the_worker_ends_the_wait_for_the_next_run() -> None:
