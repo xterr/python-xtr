@@ -233,6 +233,7 @@ graph LR
     workflow --> logcon
     workflow --> svccon
     serializer[xtr-serializer]
+    serializer -. optional .-> di
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

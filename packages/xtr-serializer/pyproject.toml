@@ -26,6 +26,9 @@ dependencies = [
     "pydantic>=2.12,<3",
 ]
 
+[project.entry-points."xtr_dependency_injection.bundles"]
+serializer = "xtr_serializer.bundle:SerializerBundle"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",
