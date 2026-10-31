@@ -41,8 +41,8 @@ dependency nor an extra: installed beside this package, it is what sends — see
 ## Quick start
 
 Receiving, with nothing but this package and a bus that handles in process. A controller is
-given the parser for each type, the secret each is checked against, and where to hand on what it
-read:
+given the parser for each type, the secret each is checked against, where to hand on what it
+read, and the serializer that checks each message can be written before any is handed on:
 
 ```python
 import asyncio
@@ -51,6 +51,7 @@ import hmac
 from xtr_http_message import Response, ServerRequest
 from xtr_messenger import HandlersLocator, MessageBusConfig, MessageBusFactory, TransportConfig
 from xtr_remote_event.messenger import ConsumeRemoteEventMessage
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 from xtr_webhook.client import RequestParser
 from xtr_webhook.controller import WebhookController
 
@@ -74,7 +75,8 @@ async def main() -> None:
         handlers=handlers,
     ).bus()
 
-    controller = WebhookController({"acme": RequestParser()}, {"acme": SECRET}, bus)
+    serializer = Serializer([PydanticNormalizer()], [JsonEncoder()])
+    controller = WebhookController({"acme": RequestParser()}, {"acme": SECRET}, bus, serializer)
 
     signed = hmac.new(SECRET.encode(), b"order.paid" + b"evt_1" + BODY, "sha256").hexdigest()
     arrived = ServerRequest(
@@ -170,7 +172,7 @@ does not exist.
 | `404` | nothing is routed to that type |
 | `406` | the parser refused it: a signature that does not match, a timestamp outside the window, a body that will not decode, a request the matcher does not claim |
 | whatever the refusal carries | a parser raising `RejectWebhookError` with its own status and headers |
-| `5xx` | something behind the endpoint failed — a bus with nothing to handle the event above all |
+| `5xx` | something behind the endpoint failed — a bus with nothing to handle the event above all, or an event the bus could not write |
 
 The answer goes out before the events are handled, which is the point: a sender waiting on a
 handler is a sender that times out and sends the webhook again. The refusal body is plain text
@@ -178,6 +180,12 @@ naming the check that refused, never the values that failed it.
 
 A `5xx` is deliberate rather than tidied away. The sender then sends the webhook again, which is
 the only outcome that does not lose what it carried.
+
+A webhook carrying several events is handed on whole or not at all: every event's
+`ConsumeRemoteEventMessage` is written with the serializer — as a bus writing its messages does —
+before the first is dispatched. One the serializer refuses, a payload value JSON cannot carry
+exactly, raises its error with nothing dispatched, so the sender's retry does not queue the
+events before it twice.
 
 ### Writing a parser
 
@@ -685,7 +693,8 @@ instance.
 The bundle registers the configurator chain, its own parser under the `webhook` qualifier — so
 `Annotated[RequestParserInterface, Target("webhook")]` resolves to it — every custom parser the
 routing names, the endpoint's route loader, and the controller behind it. The chain writes each
-payload with the serializer bundle's default `SerializerInterface`. The controller gets its
+payload with the serializer bundle's default `SerializerInterface`, and the controller checks
+each message it is about to dispatch with the same one. The controller gets its
 parsers as a service locator, so it never holds the container and a route's parser is built only
 when the first webhook for it arrives.
 

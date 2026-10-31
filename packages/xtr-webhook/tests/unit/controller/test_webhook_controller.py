@@ -9,6 +9,7 @@ from xtr_http_message import Response, ServerRequest
 from xtr_messenger.exception import NoHandlerForMessageError
 from xtr_remote_event import RemoteEvent
 from xtr_remote_event.messenger import ConsumeRemoteEventMessage
+from xtr_serializer import JsonEncoder, NotNormalizableValueError, PydanticNormalizer, Serializer
 
 from tests.support.recording_message_bus import RecordingMessageBus
 from xtr_webhook.client.abstract_request_parser import AbstractRequestParser
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
 # Named away from "secret" so the linter's hardcoded-credential rule stays useful.
 _WHSEC = "1234"
 _PLAIN_TEXT = "text/plain; charset=utf-8"
+_SERIALIZER = Serializer([PydanticNormalizer()], [JsonEncoder()])
 
 
 @final
@@ -81,6 +83,7 @@ def _controller(
         {"acme": parser},
         {"acme": _WHSEC} if secrets is None else secrets,
         bus,
+        _SERIALIZER,
     )
 
 
@@ -88,7 +91,9 @@ def _controller(
 async def test_it_answers_a_type_no_parser_speaks_for_with_404() -> None:
     bus = RecordingMessageBus()
 
-    answered = await WebhookController({}, {}, bus).index_action("acme", _arrived(), Response())
+    answered = await WebhookController({}, {}, bus, _SERIALIZER).index_action(
+        "acme", _arrived(), Response()
+    )
 
     assert answered.get_status_code() == 404
     assert await answered.get_body().get_contents() == (
@@ -178,6 +183,22 @@ async def test_it_dispatches_one_message_per_event_a_webhook_carried() -> None:
 
 
 @pytest.mark.anyio
+async def test_a_webhook_with_an_event_that_cannot_be_written_dispatches_none_of_its_events() -> (
+    None
+):
+    # Dispatching the first would queue it twice: the sender retries the refused webhook whole.
+    written = RemoteEvent("name1", "id1", {"payload": 1})
+    unwritable = RemoteEvent("name2", "id2", {"tags": {"a", "b"}})
+    bus = RecordingMessageBus()
+    parser = _ScriptedRequestParser(parsed=[written, unwritable])
+
+    with pytest.raises(NotNormalizableValueError):
+        _ = await _controller(parser, bus).index_action("acme", _arrived(), Response())
+
+    assert bus.messages == []
+
+
+@pytest.mark.anyio
 async def test_it_answers_a_refused_webhook_with_what_the_refusal_carries() -> None:
     refusal = RejectWebhookError(401, "Signature is wrong.", {"WWW-Authenticate": "Signature"})
     bus = RecordingMessageBus()
@@ -208,7 +229,9 @@ async def test_a_bus_with_nothing_to_handle_the_event_fails_the_request() -> Non
 async def test_it_takes_its_parsers_from_a_provider_as_readily_as_from_a_mapping() -> None:
     parser = _ScriptedRequestParser(parsed=RemoteEvent("name", "id", {}))
     bus = RecordingMessageBus()
-    controller = WebhookController(BuiltParsers({"acme": parser}), {"acme": _WHSEC}, bus)
+    controller = WebhookController(
+        BuiltParsers({"acme": parser}), {"acme": _WHSEC}, bus, _SERIALIZER
+    )
 
     answered = await controller.index_action("acme", _arrived(), Response())
 
@@ -220,7 +243,7 @@ async def test_it_takes_its_parsers_from_a_provider_as_readily_as_from_a_mapping
 async def test_the_secrets_it_was_given_are_copied() -> None:
     parser = _ScriptedRequestParser(parsed=RemoteEvent("name", "id", {}))
     secrets = {"acme": _WHSEC}
-    controller = WebhookController({"acme": parser}, secrets, RecordingMessageBus())
+    controller = WebhookController({"acme": parser}, secrets, RecordingMessageBus(), _SERIALIZER)
     secrets.clear()
 
     _ = await controller.index_action("acme", _arrived(), Response())
@@ -232,7 +255,7 @@ async def test_the_secrets_it_was_given_are_copied() -> None:
 async def test_it_leaves_the_response_it_was_handed_as_it_was() -> None:
     handed = Response()
 
-    _ = await WebhookController({}, {}, RecordingMessageBus()).index_action(
+    _ = await WebhookController({}, {}, RecordingMessageBus(), _SERIALIZER).index_action(
         "acme", _arrived(), handed
     )
 

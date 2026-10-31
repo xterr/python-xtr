@@ -254,6 +254,7 @@ def _webhook_controller(
     config: WebhookConfig,
     bus: MessageBusInterface,
     parsers: ServiceLocator[RequestParserInterface],
+    serializer: SerializerInterface,
 ) -> WebhookController:
     """Build the endpoint's controller over the parsers the routing names.
 
@@ -261,6 +262,10 @@ def _webhook_controller(
     are handed on, each under the qualifier its route was aliased with, so a
     route's parser is built — with its dependencies — the first time a webhook
     for it arrives. A route naming no parser reads with the bundle's own.
+    The serializer is the serializer bundle's, the one the messenger bundle writes messages
+    with.
     """
     secrets = {name: route.secret for name, route in config.routing.items()}
-    return WebhookController(RoutedParsers(parsers, tuple(config.routing)), secrets, bus)
+    return WebhookController(
+        RoutedParsers(parsers, tuple(config.routing)), secrets, bus, serializer
+    )

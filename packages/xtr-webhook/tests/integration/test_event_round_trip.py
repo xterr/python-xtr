@@ -116,7 +116,7 @@ async def _receive(
     """Answer the request at the endpoint; return the status, the answer and what it dispatched."""
     parser = RequestParser(signature_format=fmt, clock=MockClock(_SENT_AT))
     bus = RecordingMessageBus()
-    controller = WebhookController({"shop": parser}, {"shop": WHSEC}, bus)
+    controller = WebhookController({"shop": parser}, {"shop": WHSEC}, bus, _SERIALIZER)
     answered = await controller.index_action(
         "shop", ServerRequest("POST", "/webhook/shop", headers, body), Response()
     )
