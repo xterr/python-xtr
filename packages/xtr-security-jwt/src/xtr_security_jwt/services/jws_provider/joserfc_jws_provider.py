@@ -56,6 +56,11 @@ class JoserfcJwsProvider(JwsProviderInterface):
     signed by the keys it still trusts. Only the one configured algorithm is ever
     accepted, so a token presenting any other — ``none`` included — is refused
     before its signature is considered.
+
+    The signature is checked before the payload is decoded, so a token no
+    trusted key signed loads unverified with no claims, whatever it carries. A
+    header or signed payload that cannot be decoded — not JSON, nested deeper
+    than the decoder follows, not an object — makes the token unreadable.
     """
 
     __slots__ = (
@@ -135,24 +140,18 @@ class JoserfcJwsProvider(JwsProviderInterface):
 
         Raises:
             InvalidArgumentError: When the token is not a readable compact JWS,
-                or an additional public key this deployment trusts cannot be read.
+                its signed payload is not a readable JSON object, or an
+                additional public key this deployment trusts cannot be read.
         """
         try:
             extracted = jws.extract_compact(token.encode("utf-8"))
-        except (JoseError, ValueError) as error:
+        except (JoseError, ValueError, RecursionError) as error:
             raise InvalidArgumentError(f"The token is not a readable JWS: {error}") from error
         header = dict(extracted.headers())
-        try:
-            decoded = cast("object", json.loads(extracted.payload))
-        except (ValueError, UnicodeDecodeError) as error:
-            raise InvalidArgumentError("The token payload is not readable JSON.") from error
-        if not isinstance(decoded, dict):
-            raise InvalidArgumentError("The token payload is not a JSON object.")
-        payload = cast("dict[str, object]", decoded)
         kid = header.get("kid")
         is_verified = self._verify(token, kid if isinstance(kid, str) else None)
         return LoadedJws(
-            payload,
+            _claims(extracted.payload) if is_verified else {},
             self._clock,
             is_verified=is_verified,
             allow_no_expiration=self._allow_no_expiration,
@@ -178,9 +177,9 @@ class JoserfcJwsProvider(JwsProviderInterface):
         return any(self._verifies_with(token, key) for key in keys)
 
     def _verifies_with(self, token: str, key: Key) -> bool:
-        """Tell whether ``token`` verifies against the single ``key``."""
+        """Tell whether ``token``'s signature verifies against ``key``, its payload undecoded."""
         try:
-            _ = jwt.decode(token, key, algorithms=[self._signature_algorithm])
+            _ = jws.deserialize_compact(token, key, algorithms=[self._signature_algorithm])
         except (JoseError, ValueError):
             return False
         return True
@@ -266,3 +265,18 @@ class JoserfcJwsProvider(JwsProviderInterface):
             self._signature_algorithm,
             self._key_loader.get_passphrase(),
         )
+
+
+def _claims(payload: bytes) -> dict[str, object]:
+    """Decode a verified payload; a deep nesting raises ``RecursionError`` on some interpreters.
+
+    Raises:
+        InvalidArgumentError: When the payload is not a readable JSON object.
+    """
+    try:
+        decoded = cast("object", json.loads(payload))
+    except (ValueError, RecursionError) as error:
+        raise InvalidArgumentError("The token payload is not readable JSON.") from error
+    if not isinstance(decoded, dict):
+        raise InvalidArgumentError("The token payload is not a JSON object.")
+    return cast("dict[str, object]", decoded)

@@ -66,7 +66,9 @@ class OidcIdToken:
             raise AuthenticationError("Invalid ID token format.") from error
         try:
             claims = cast("object", json.loads(payload or b""))
-        except ValueError as error:
+        except (ValueError, RecursionError) as error:
+            # A nesting deeper than the decoder follows is a payload it
+            # cannot read, whichever of the two the interpreter raises.
             raise AuthenticationError("Invalid ID token payload.") from error
         if not isinstance(claims, dict):
             raise AuthenticationError("Invalid ID token payload.")

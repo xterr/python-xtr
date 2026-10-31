@@ -175,7 +175,10 @@ class CryptTrait:
         key = self._key()
         try:
             opened = jwe.decrypt_compact(token, key, algorithms=_ALGORITHMS)
-        except (JoseError, ValueError) as error:
+        except (JoseError, ValueError, RecursionError) as error:
+            # The header is decoded before anything is decrypted, and one
+            # nesting deeper than the decoder follows ends in a
+            # ``RecursionError`` on some interpreters: unreadable all the same.
             raise OAuth2Error(_UNREADABLE) from error
         plaintext = opened.plaintext
         if plaintext is None:

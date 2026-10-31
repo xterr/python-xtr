@@ -122,6 +122,10 @@ class OidcTokenHandler:
     async def _decode(self, access_token: str) -> Token:
         """Verify the signature, refetching the key set once on an unknown ``kid``.
 
+        A header nesting deeper than the decoder follows is read before the
+        signature can be checked, and ends in a ``RecursionError`` on some
+        interpreters: the token cannot be read, so it is refused as any other.
+
         Raises:
             InvalidAccessTokenError: When the token cannot be verified.
         """
@@ -130,7 +134,7 @@ class OidcTokenHandler:
             return jwt.decode(access_token, key_set, algorithms=list(self._algorithms))
         except InvalidKeyIdError as error:
             return await self._decode_after_refresh(access_token, error)
-        except (JoseError, OidcKeySetError, ValueError) as error:
+        except (JoseError, OidcKeySetError, ValueError, RecursionError) as error:
             raise InvalidAccessTokenError(f"The token could not be verified: {error}") from error
 
     async def _decode_after_refresh(self, access_token: str, cause: InvalidKeyIdError) -> Token:

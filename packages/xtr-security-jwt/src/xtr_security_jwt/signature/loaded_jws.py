@@ -84,7 +84,11 @@ class LoadedJws:
         return self._header
 
     def get_payload(self) -> Mapping[str, object]:
-        """Return the token's claims, as they were signed."""
+        """Return the token's claims, as they were signed.
+
+        A provider reads no claims off a token whose signature did not
+        verify, so such a token carries none.
+        """
         return self._payload
 
     def is_verified(self) -> bool:
