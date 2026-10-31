@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from tests.support.in_memory_encoder import MEMORY, InMemoryEncoder
-from tests.support.point_serializer import PointSerializer
+from tests.support.point_normalizer import PointNormalizer
 from tests.support.shapes import Point
-from xtr_serializer import SerializerInterface
+from xtr_serializer import Serializer, SerializerInterface
+
+
+def point_serializer() -> Serializer:
+    return Serializer([PointNormalizer()], [InMemoryEncoder()])
 
 
 def test_a_serializer_satisfies_it() -> None:
-    assert isinstance(PointSerializer(), SerializerInterface)
+    assert isinstance(point_serializer(), SerializerInterface)
 
 
 def test_an_encoder_does_not() -> None:
@@ -17,7 +21,7 @@ def test_an_encoder_does_not() -> None:
 
 
 def test_a_value_read_into_a_class_is_typed_as_an_instance_of_it() -> None:
-    serializer: SerializerInterface = PointSerializer()
+    serializer: SerializerInterface = point_serializer()
     text = serializer.serialize(Point(1, 2), MEMORY)
 
     point: Point = serializer.deserialize(text, Point, MEMORY)
@@ -26,7 +30,7 @@ def test_a_value_read_into_a_class_is_typed_as_an_instance_of_it() -> None:
 
 
 def test_a_type_held_only_as_an_object_can_be_read_into() -> None:
-    serializer: SerializerInterface = PointSerializer()
+    serializer: SerializerInterface = point_serializer()
     text = serializer.serialize(Point(1, 2), MEMORY)
 
     assert _read_into(Point, serializer, text) == Point(1, 2)

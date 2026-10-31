@@ -28,18 +28,27 @@ class SerializerInterface(Protocol):
         data: object,
         format: str,  # noqa: A002 — the name every serializer call uses.
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> str:
         """Return ``data`` written as text in ``format``.
+
+        What is written follows from the type ``data`` is declared with, its own class unless
+        ``type_`` says otherwise; reading the text back into that same type gives back ``data``.
 
         Args:
             data: The value to write.
             format: The format to write it in, such as ``"json"``.
             context: Options for this call, each read by the step it concerns.
+            type_: The type ``data`` is declared with, the one it is to be read back into: a
+                list or a dict declares nothing about what it holds, ``list[Item]`` does; and the
+                base of a class hierarchy may be declared for a value of a class under it.
+                ``None`` for its own class.
 
         Raises:
             UnsupportedFormatError: When nothing writes ``format``.
             NotNormalizableValueError: When ``data``, or a value inside it, has no exact plain
-                form.
+                form, or does not fit ``type_``.
             CircularReferenceError: When ``data`` contains itself.
             NotEncodableValueError: When the plain data has no exact form in ``format``.
         """

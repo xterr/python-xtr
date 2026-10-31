@@ -120,6 +120,7 @@ from tests.fixtures.refused_types import (
     Unshown,
     optionals,
 )
+from xtr_serializer import _type_cache as type_cache
 from xtr_serializer.encoder.json_encoder import JsonEncoder
 from xtr_serializer.exception import (
     CircularReferenceError,
@@ -382,7 +383,7 @@ def test_it_takes_the_members_of_a_union_in_the_order_written() -> None:
 def test_it_forgets_the_adapter_used_least_recently(
     built: list[object], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(adapter_cache, "_CACHE_SIZE", 2)
+    monkeypatch.setattr(type_cache, "_CACHE_SIZE", 2)
     normalizer = PydanticNormalizer()
 
     for type_ in (int, str, int, float, int, str):

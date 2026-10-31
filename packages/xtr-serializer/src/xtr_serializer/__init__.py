@@ -55,6 +55,7 @@ from .normalizer import (
     NormalizerInterface,
     PydanticNormalizer,
 )
+from .serializer import Serializer
 from .serializer_aware_interface import SerializerAwareInterface
 from .serializer_interface import SerializerInterface
 from .supported_types import SupportedTypes
@@ -95,6 +96,7 @@ __all__ = [
     "PartialDenormalizationError",
     "PydanticNormalizer",
     "PydanticNormalizerContextBuilder",
+    "Serializer",
     "SerializerAwareInterface",
     "SerializerContextBuilder",
     "SerializerError",

@@ -37,8 +37,10 @@ class ParcelNormalizer:
         data: object,
         format: str | None = None,
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> NormalizedValue:
-        del format
+        del format, type_
         if not isinstance(data, Parcel):
             raise InvalidArgumentError("only a parcel is normalized here")
         serializer = self._serializer_in_use()
@@ -49,8 +51,10 @@ class ParcelNormalizer:
         data: object,
         format: str | None = None,
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> bool:
-        del format, context
+        del format, context, type_
         return isinstance(data, Parcel)
 
     @overload

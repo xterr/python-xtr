@@ -46,7 +46,10 @@ class SegmentNormalizer:
         data: object,
         format: str | None = None,
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> NormalizedValue:
+        del type_
         if not isinstance(data, Segment):
             raise InvalidArgumentError("only a segment is normalized here")
         if self._normalizer is None:
@@ -61,8 +64,10 @@ class SegmentNormalizer:
         data: object,
         format: str | None = None,
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> bool:
-        del format, context
+        del format, context, type_
         return isinstance(data, Segment)
 
     @overload

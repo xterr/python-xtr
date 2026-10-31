@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from tests.support.in_memory_encoder import MEMORY
+from tests.support.in_memory_encoder import MEMORY, InMemoryEncoder
 from tests.support.parcel_normalizer import ParcelNormalizer
 from tests.support.point_normalizer import PointNormalizer
-from tests.support.point_serializer import PointSerializer
 from tests.support.shapes import Parcel, Point
-from xtr_serializer import SerializerAwareInterface
+from xtr_serializer import Serializer, SerializerAwareInterface
 
 
 def test_a_normalizer_handed_a_serializer_satisfies_it() -> None:
@@ -21,7 +20,7 @@ def test_a_normalizer_that_needs_none_does_not() -> None:
 def test_the_serializer_handed_over_through_it_is_the_one_used() -> None:
     parcels = ParcelNormalizer(MEMORY)
     aware: SerializerAwareInterface = parcels
-    serializer = PointSerializer()
+    serializer = Serializer([PointNormalizer()], [InMemoryEncoder()])
 
     aware.set_serializer(serializer)
 

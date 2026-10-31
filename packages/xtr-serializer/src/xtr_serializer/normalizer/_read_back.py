@@ -25,8 +25,9 @@ if TYPE_CHECKING:
 __all__ = ["read_back_refusal"]
 
 _CHANGED: Final = (
-    "it would read back changed: a field declaring no type holds a set, a tuple, an object or a "
-    "key that is not a string; a value of a subclass, such as True or an enum member in an int "
+    "it would read back changed: a field declaring no type, or a list or dict written without its "
+    "declared type, holds a set, a tuple, an object or a key that is not a string; a value of a "
+    "subclass, such as True or an enum member in an int "
     "field, reads back as the declared type; a datetime field holds a zone in an hour the clocks "
     "repeat, which ZonedDateTime keeps; or its type does not compare by value"
 )

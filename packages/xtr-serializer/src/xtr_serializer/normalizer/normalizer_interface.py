@@ -27,19 +27,29 @@ class NormalizerInterface(Protocol):
         data: object,
         format: str | None = None,  # noqa: A002 — the name every serializer call uses.
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> NormalizedValue:
         """Return ``data`` as plain data.
+
+        What is written, and how it reads back, follows from a type: the one ``data`` was
+        declared with when one is given, its own class otherwise. A list or a dict declares
+        nothing about what it holds, nor does a value of a class hierarchy about its base; the
+        declared type does, so that what reads it back as that type gets back what was written.
 
         Args:
             data: The value to normalize, one this normalizer handles.
             format: The format the plain data is to be written in, for a normalizer whose
                 output depends on it; ``None`` when there is none in view.
             context: Options for this call.
+            type_: The type ``data`` was declared with, such as ``list[Item]``; ``None`` for its
+                own class.
 
         Raises:
-            InvalidArgumentError: When ``data`` is not something this normalizer handles.
+            InvalidArgumentError: When ``data``, or ``type_``, is not something this normalizer
+                handles.
             NotNormalizableValueError: When ``data``, or a value inside it, has no exact plain
-                form.
+                form, or does not fit ``type_``.
             CircularReferenceError: When ``data`` contains itself.
         """
         ...
@@ -49,8 +59,10 @@ class NormalizerInterface(Protocol):
         data: object,
         format: str | None = None,  # noqa: A002 — the name every serializer call uses.
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> bool:
-        """Tell whether :meth:`normalize` handles ``data``, to be written in ``format``."""
+        """Tell whether :meth:`normalize` handles ``data``, declared as ``type_``, in ``format``."""
         ...
 
     def get_supported_types(self, format: str | None) -> SupportedTypes:  # noqa: A002 — the name every serializer call uses.

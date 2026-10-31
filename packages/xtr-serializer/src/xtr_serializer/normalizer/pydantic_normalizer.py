@@ -70,6 +70,12 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
     its class's name and read back as that class, wherever its base or a class under it is
     declared.
 
+    A value is written as the type it is declared with, when one is given, and as its own class
+    otherwise. A list or a dict on its own declares nothing about what it holds, so it is written
+    only when all it holds reads back as itself — plain JSON — unless its type is declared, such
+    as ``list[Item]``; a value of a class no schema is built for, by the annotation it is declared
+    with, such as one carrying pydantic's ``PlainSerializer`` and ``PlainValidator``.
+
     The bytes in a named tuple inside a typed dict with a configuration of its own — and, before
     pydantic 2.14, inside a model or a dataclass with one — are written as base64 whatever that
     configuration says, yet read as it says: unless it says base64 too, a value holding them
@@ -87,8 +93,10 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         data: object,
         format: str | None = None,
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> NormalizedValue:
-        adapter = self._adapter_for(type(data))
+        adapter = self._adapter_for(type(data) if type_ is None else type_)
         context = {**self._default_context, **(context or {})}
         options = write_options(context)
         written: NormalizedValue = None
@@ -153,8 +161,10 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         data: object,
         format: str | None = None,
         context: Context | None = None,
+        *,
+        type_: object = None,
     ) -> bool:
-        return not isinstance(self._adapters.get(type(data)), str)
+        return not isinstance(self._adapters.get(type(data) if type_ is None else type_), str)
 
     @overload
     def denormalize(

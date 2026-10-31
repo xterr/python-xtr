@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import pytest
 
-from tests.support.in_memory_encoder import MEMORY
+from tests.support.in_memory_encoder import MEMORY, InMemoryEncoder
 from tests.support.parcel_normalizer import ParcelNormalizer
-from tests.support.point_serializer import PointSerializer
+from tests.support.point_normalizer import PointNormalizer
 from tests.support.shapes import Parcel, Point
-from xtr_serializer import DenormalizerInterface, NormalizerInterface, SerializerAwareInterface
+from xtr_serializer import (
+    DenormalizerInterface,
+    NormalizerInterface,
+    Serializer,
+    SerializerAwareInterface,
+)
 from xtr_serializer.exception import InvalidArgumentError, LogicError, NotNormalizableValueError
 
 
 def _handed_a_point_serializer() -> ParcelNormalizer:
     normalizer = ParcelNormalizer(MEMORY)
-    normalizer.set_serializer(PointSerializer())
+    normalizer.set_serializer(Serializer([PointNormalizer()], [InMemoryEncoder()]))
     return normalizer
 
 

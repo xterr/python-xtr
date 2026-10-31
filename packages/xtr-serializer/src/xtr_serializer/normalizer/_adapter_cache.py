@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from threading import RLock, get_ident
 from typing import (
     TYPE_CHECKING,
     Final,
     NamedTuple,
     cast,
     final,
-    get_args,
 )
 
 from pydantic import ConfigDict, TypeAdapter
@@ -21,8 +19,9 @@ from pydantic.errors import (
 )
 from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
-from typing_extensions import TypeAliasType, override
+from typing_extensions import TypeAliasType
 
+from xtr_serializer._type_cache import TypeCache
 from xtr_serializer._type_names import name_of
 from xtr_serializer._written_types import written_name_of
 from xtr_serializer.exception import MappingError
@@ -69,10 +68,6 @@ _NAMED: Final = {"typed-dict": "fields", "tagged-union": "choices"}
 # typed as a class of objects, the type form every pydantic's TypeAdapter takes for T = object.
 _alias_of: Final = cast("Callable[[str, object], type[object]]", TypeAliasType)
 
-# How many types a cache keeps the adapter of. A type expression built per call, such as
-# Annotated[int, Field(ge=0)], is a new key each time; the least recently used goes first.
-_CACHE_SIZE: Final = 256
-
 
 class Adapter(NamedTuple):
     """What writes the values of one type, and what reads them."""
@@ -82,121 +77,25 @@ class Adapter(NamedTuple):
 
 
 @final
-class _Key:
-    """A type's key, hashed once as it is made, and compared without letting the type raise.
-
-    A type's own code may hash or compare it differently, or raise, from one call to the next.
-    Hashed once, a kept key is found, moved and evicted by the hash it was kept under, never
-    hashing the type again; compared, a key whose type's code raises is taken for another, so a
-    lookup of any type never fails for a key kept before it.
-    """
-
-    __slots__ = ("_hash", "_key")
-
-    def __init__(self, key: object) -> None:
-        self._key = key
-        self._hash = hash(key)
-
-    @override
-    def __hash__(self) -> int:
-        return self._hash
-
-    @override
-    def __eq__(self, other: object) -> bool:
-        try:
-            return self._key == cast("_Key", other)._key  # only keys are kept
-        except Exception:  # noqa: BLE001 - whatever the type's own code raises makes them differ
-            return False
-
-
-@final
-class _OwnedLock:
-    """A lock telling which thread holds it, so that the calls that thread makes back know it.
-
-    A cache changes its table holding the lock, and changing it compares keys, which runs the
-    types' own code: that code, or a signal handler or a finalizer run meanwhile, may call the
-    cache back on the same thread, which must then not change the table too.
-    """
-
-    __slots__ = ("_lock", "owner")
-
-    def __init__(self) -> None:
-        # Re-entrant all the same: a call back made just as the lock is taken or let go finds no
-        # owner yet, or none any more, and takes it again, changing the table between changes.
-        self._lock = RLock()
-        # Set and cleared only by the thread holding the lock: a thread finds itself here only
-        # while it holds it, so reading it takes no lock.
-        self.owner: int | None = None
-
-    def __enter__(self) -> None:
-        _ = self._lock.acquire()
-        self.owner = get_ident()
-
-    def __exit__(self, *_: object) -> None:
-        self.owner = None
-        self._lock.release()
-
-
-@final
 class AdapterCache:
     """The adapters of the types used last, and why a type has none.
 
-    A union's members count in the order written, as pydantic tries them in that order. Threads
-    may share a cache.
+    Kept in a :class:`~xtr_serializer._type_cache.TypeCache`, which says how a type is looked up
+    and kept, and how threads share it.
     """
 
-    __slots__ = ("_adapters", "_lock")
+    __slots__ = ("_adapters",)
 
     def __init__(self) -> None:
-        # Oldest use first: a type used again is moved to the end.
-        self._adapters: dict[_Key, Adapter | str] = {}
-        self._lock = _OwnedLock()
+        self._adapters: TypeCache[Adapter | str] = TypeCache()
 
     def get(self, type_: object) -> Adapter | str:
         """Return the adapter of ``type_``, or why it has none, building it on first use.
 
-        Keying a type runs its own code — reading its class to take it apart, hashing it — which
-        may raise, as may a type nested deeper than keying it can go. Such a type is not kept but
-        built every time, and building refuses it without quoting what was raised. A type that
-        raises only later, as it is compared with another kept or asked for its hash again, is
-        no longer found: it is built again, and its kept adapter goes when its turn comes.
-
-        Looking a type up, moving it to the end, keeping it and evicting the oldest are done
-        holding a lock, so that no thread finds the cache half changed. Building is not, as it is
-        slow and runs the type's own code: two threads may build the same type at once, and the
-        adapter kept last stays. Only a call made back by the thread holding the lock builds under
-        it.
-
-        Comparing keys under the lock runs the types' own code, which may use the cache in turn,
-        as may a signal handler or a finalizer run meanwhile. Such a call only looks the type up —
-        a table changed while a lookup compares its keys may have that lookup start over for ever —
-        and builds a type it does not find without keeping it. A comparison that waits for another
-        thread can deadlock, should that thread be waiting for this lock; so can one using another
-        normalizer, should a thread holding that one's lock be waiting for this one.
+        A type whose own code raises as it is keyed is built every time, and building refuses it
+        without quoting what was raised.
         """
-        try:
-            key = _Key(_key_of(type_))
-        except Exception:  # noqa: BLE001 - whatever the type's own code raises leaves it unkept
-            return build_adapter(type_)
-        if self._lock.owner == get_ident():
-            # Called back from under the lock: the table is looked into, so it is only read.
-            kept = self._adapters.get(key)
-            return build_adapter(type_) if kept is None else kept
-        with self._lock:
-            kept = self._adapters.pop(key, None)
-            if kept is not None:
-                self._keep(key, kept)
-                return kept
-        adapter = build_adapter(type_)
-        with self._lock:
-            self._keep(key, adapter)
-        return adapter
-
-    def _keep(self, key: _Key, adapter: Adapter | str) -> None:
-        """Keep ``adapter`` as used last, evicting the oldest while more than the bound are kept."""
-        self._adapters[key] = adapter
-        while len(self._adapters) > _CACHE_SIZE:
-            _ = self._adapters.pop(next(iter(self._adapters)), None)
+        return self._adapters.get(type_, lambda: build_adapter(type_))
 
 
 def build_adapter(type_: object) -> Adapter | str:
@@ -253,12 +152,6 @@ def build_adapter(type_: object) -> Adapter | str:
         )
         return f"pydantic cannot build a schema for {written_name_of(type_)!r}: {why}"
     return Adapter(writer, reader)
-
-
-def _key_of(type_: object) -> object:
-    """Key ``type_`` by its arguments in order, which a union's equality leaves out."""
-    arguments: tuple[object, ...] = get_args(type_)
-    return (type_, tuple(_key_of(argument) for argument in arguments))
 
 
 def _aware(schema: object) -> object:
