@@ -49,7 +49,8 @@ class NormalizerInterface(Protocol):
             InvalidArgumentError: When ``data``, or ``type_``, is not something this normalizer
                 handles.
             NotNormalizableValueError: When ``data``, or a value inside it, has no exact plain
-                form, or does not fit ``type_``.
+                form, or does not fit ``type_`` — and, from a serializer holding several
+                normalizers, when none of them handles it.
             CircularReferenceError: When ``data`` contains itself.
         """
         ...

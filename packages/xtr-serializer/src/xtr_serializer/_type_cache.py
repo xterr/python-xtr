@@ -94,8 +94,8 @@ class TypeCache(Generic[_V]):
         """Give how many types the cache keeps a value of."""
         return len(self._kept)
 
-    def get(self, type_: object, build: Callable[[], _V], scope: str | None = None) -> _V:
-        """Return the value kept for ``type_`` in ``scope``, calling ``build`` on first use.
+    def get(self, type_: object, build_factory: Callable[[], _V], scope: str | None = None) -> _V:
+        """Return the value kept for ``type_`` in ``scope``, calling ``build_factory`` on first use.
 
         Keying a type runs its own code — reading its class to take it apart, hashing it — which
         may raise, as may a type nested deeper than keying it can go. Such a type is not kept but
@@ -119,17 +119,17 @@ class TypeCache(Generic[_V]):
         try:
             key = _Key((scope, _key_of(type_)))
         except Exception:  # noqa: BLE001 - whatever the type's own code raises leaves it unkept
-            return build()
+            return build_factory()
         if self._lock.owner == get_ident():
             # Called back from under the lock: the table is looked into, so it is only read.
             kept = self._kept.get(key)
-            return build() if kept is None else kept
+            return build_factory() if kept is None else kept
         with self._lock:
             kept = self._kept.pop(key, None)
             if kept is not None:
                 self._keep(key, kept)
                 return kept
-        value = build()
+        value = build_factory()
         with self._lock:
             self._keep(key, value)
         return value

@@ -20,7 +20,10 @@ handled and, if so, what the answer of ``supports_normalization`` or
 - ``True``: on the type and the format alone, so a serializer may ask once per type and remember
   the answer;
 - ``False``: on the value or the context too, so it asks every time;
-- ``None``: it is not handled, even where a broader key would cover it.
+- ``None``: it is not handled.
 
-A type no key covers is not handled.
+A type no key covers is not handled. A key naming the type itself is read before any other, so
+``None`` there settles it; among the keys that cover a type through its subclasses, the first
+reported counts, so ``None`` on a narrower key is passed over when a broader one is reported
+before it. List the narrower keys first.
 """
