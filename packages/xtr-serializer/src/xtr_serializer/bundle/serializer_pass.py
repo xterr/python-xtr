@@ -59,12 +59,12 @@ class _Tagged:
 
     key: ServiceKey
     priority: int
-    serializers: frozenset[str]
+    serializer_names: frozenset[str]
     built_in: bool
 
     def joins(self, name: str, *, built_ins: bool) -> bool:
         """Tell whether this joins the serializer ``name``, keeping built-ins or not."""
-        named = name in self.serializers or ALL_SERIALIZERS in self.serializers
+        named = name in self.serializer_names or ALL_SERIALIZERS in self.serializer_names
         return named and (built_ins or not self.built_in)
 
 
@@ -105,18 +105,18 @@ class SerializerPass(CompilerPassInterface):
                 serializer is handed to joins more than one.
         """
         config = builder.get_extension_config(SerializerConfig)
-        serializers: dict[str, NamedSerializerConfig | None] = {DEFAULT_SERIALIZER: None}
-        serializers |= config.named_serializers
-        for name in serializers:
+        named_configs: dict[str, NamedSerializerConfig | None] = {DEFAULT_SERIALIZER: None}
+        named_configs |= config.named_serializers
+        for name in named_configs:
             _ = (
                 builder.get_definition(Serializer, _qualifier(name))
                 .clear_tag(NORMALIZER_TAG)
                 .clear_tag(ENCODER_TAG)
             )
-        normalizers = _tagged(builder, NORMALIZER_TAG, serializers)
-        encoders = _tagged(builder, ENCODER_TAG, serializers)
+        normalizers = _tagged(builder, NORMALIZER_TAG, named_configs)
+        encoders = _tagged(builder, ENCODER_TAG, named_configs)
         held: dict[str, _Held] = {}
-        for name, named in serializers.items():
+        for name, named in named_configs.items():
             built_in_normalizers = named is None or named.include_built_in_normalizers
             built_in_encoders = named is None or named.include_built_in_encoders
             held[name] = (
@@ -146,7 +146,7 @@ def _service(key: ServiceKey) -> str:
 
 
 def _tagged(
-    builder: ContainerBuilder, tag: str, serializers: Mapping[str, object]
+    builder: ContainerBuilder, tag: str, named_configs: Mapping[str, object]
 ) -> list[_Tagged]:
     """Return every tag ``tag`` on a service decorating none, in registration order."""
     found: list[_Tagged] = []
@@ -156,7 +156,7 @@ def _tagged(
         if definition.decorates is None:
             fallback = definition.priority or 0
             found.extend(
-                _read(key, attributes, fallback, serializers) for attributes in attribute_list
+                _read(key, attributes, fallback, named_configs) for attributes in attribute_list
             )
     return found
 
@@ -165,7 +165,7 @@ def _read(
     key: ServiceKey,
     attributes: Mapping[str, object],
     fallback: int,
-    serializers: Mapping[str, object],
+    named_configs: Mapping[str, object],
 ) -> _Tagged:
     """Read one tag's attributes.
 
@@ -191,7 +191,7 @@ def _read(
     if not names:
         raise LogicError(f"{service} is tagged with a list that names no serializer")
     for one in names:
-        if one != ALL_SERIALIZERS and one not in serializers:
+        if one != ALL_SERIALIZERS and one not in named_configs:
             raise LogicError(
                 f"{service} is tagged for the serializer {one!r}, which does not exist: "
                 f"add it to SerializerConfig.named_serializers"
