@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import copy
 import re
+import urllib.parse
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -774,7 +775,7 @@ def _body_of(name: str, folded: str) -> str:
     return folded[len(name) + 1 :].removesuffix("\r\n")
 
 
-def _parameterized_header(name: str, value: Parameterized) -> BaseHeader:
+def _parameterized_header(name: str, value: Parameterized) -> BaseHeader | _FoldedHeader:
     _check_parameterized(name, value)
     registry = _CONTENT_TYPE if name.lower() == "content-type" else _PARAMETERIZED
     header = registry(name, _join_parameters(value))
@@ -782,7 +783,58 @@ def _parameterized_header(name: str, value: Parameterized) -> BaseHeader:
     # itself did not.
     for key, item in _parameters_of(header).items():
         _refuse_forbidden(f"The decoded {key} parameter", str(item))
-    return header
+    if not any("=?" in item for item in value.parameters.values()):
+        return header
+    # The engine wrote the decoded text, which a reader would take for the name: a filename
+    # filter would check another name than the one given. The field is written by hand.
+    folded = _write_parameters(name, value)
+    read = _parameters_of(registry(name, _SOURCE_FOLD.sub("", _body_of(name, folded))))
+    if list(read.items()) != [(key.lower(), item) for key, item in value.parameters.items()]:
+        raise RfcComplianceError(
+            f"The {name} header would not read back to the parameters it was given."
+        )
+    return _FoldedHeader(name, _SOURCE_FOLD.sub("", _body_of(name, folded)).strip(), folded)
+
+
+def _write_parameters(name: str, value: Parameterized) -> str:
+    """Write a parameterized field one of whose parameters holds ``=?``.
+
+    Such a parameter, and any that is not ASCII, is written in RFC 2231 form, percent-encoded
+    in UTF-8 — split into numbered sections when too long for a line — so it holds no ``=?``
+    any reader takes for an encoded word; the others are quoted. The field folds between
+    parameters.
+    """
+    pieces: list[str] = []
+    for key, item in value.parameters.items():
+        if "=?" in item or not item.isascii():
+            pieces += _percent_encoded(key, item)
+        else:
+            pieces.append(f'{key}="{quote(item)}"')
+    lines = [f"{name}: {value.value}"]
+    for piece in pieces:
+        if len(lines[-1]) + len(piece) + 2 > _FOLD_WIDTH:
+            lines[-1] += ";"
+            lines.append(f" {piece}")
+        else:
+            lines[-1] += f"; {piece}"
+    return "\r\n".join(lines) + "\r\n"
+
+
+def _percent_encoded(key: str, item: str) -> list[str]:
+    encoded = urllib.parse.quote(item, safe="")
+    whole = f"{key}*=utf-8''{encoded}"
+    if len(whole) + 2 <= _FOLD_WIDTH:
+        return [whole]
+    sections: list[str] = []
+    start = 0
+    while start < len(encoded):
+        head = f"{key}*{len(sections)}*=" + ("" if sections else "utf-8''")
+        end = min(len(encoded), start + _FOLD_WIDTH - 2 - len(head))
+        # A section never splits a percent-encoded octet.
+        end -= next((i for i in (1, 2) if encoded[end - i] == "%" and end < len(encoded)), 0)
+        sections.append(head + encoded[start:end])
+        start = end
+    return sections
 
 
 def _refuse_forbidden(what: str, value: str) -> None:

@@ -230,6 +230,16 @@ def test_a_non_ascii_filename_reads_back() -> None:
     assert read_part(part).get_filename() == "déjà vu.pdf"
 
 
+def test_a_filename_looking_like_an_encoded_word_reads_back_as_given() -> None:
+    part = DataPart(b"x", "=?utf-8?q?evil.exe?=")
+
+    read = read_part(part)
+
+    assert read.get_filename() == "=?utf-8?q?evil.exe?="
+    assert read.get_param("name", header="content-disposition") == "=?utf-8?q?evil.exe?="
+    assert b"=?" not in b"".join(part.to_iterable()).partition(b"\r\n\r\n")[0]
+
+
 def test_as_debug_string() -> None:
     assert (
         DataPart("content", "photo.jpg", "image/jpeg").as_debug_string()

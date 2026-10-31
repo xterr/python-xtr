@@ -11,16 +11,17 @@ import quopri
 import random
 import re
 from datetime import UTC, datetime
+from email import message_from_bytes
 from email import policy as stdlib_policy
 from email.header import decode_header
-from email.headerregistry import Address, AddressHeader, Group
+from email.headerregistry import Address, AddressHeader, Group, HeaderRegistry
 from email.message import EmailMessage
 from email.parser import BytesParser, HeaderParser
 from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from tests.support.wire import encoded_words, readings
+from tests.support.wire import decode_anywhere, encoded_words, readings
 from xtr_mime import _engine
 from xtr_mime._engine import (
     BinaryLeaf,
@@ -431,6 +432,91 @@ def test_a_content_type_keeps_its_parameters() -> None:
     assert parsed.get_content_type() == "text/plain"
     assert parsed.get_param("charset") == "utf-8"
     assert parsed.get_param("name") == "a.txt"
+
+
+LOOKALIKE_FILENAMES = [
+    "=?utf-8?q?evil.exe?=",
+    "invoice=?utf-8?q?evil.exe?=",
+    "=?utf-8?b?ZXZpbC5leGU=?=.pdf",
+    "=?utf-8?q?a?= =?utf-8?q?b?=",
+    "=?utf-8?x?a?==?utf-8?q?evil.exe?=",
+    "résumé =?utf-8?q?evil.exe?=",
+    "=?utf-8?q?evil.exe?=" * 12,
+]
+
+
+def _read_parameter(field: str, header: str, parameter: str) -> tuple[object, object, str]:
+    """What the stdlib reader and ``decode_header`` make of ``parameter`` in ``field``."""
+    parsed = message_from_bytes(f"{field}\r\n\r\nx".encode(), policy=stdlib_policy.default)
+    return (
+        parsed.get_filename() if parameter == "filename" else parsed.get_param(parameter),
+        parsed.get_param(parameter, header=header),
+        _rfc2047(field),
+    )
+
+
+@pytest.mark.parametrize("filename", LOOKALIKE_FILENAMES)
+def test_a_filename_looking_like_an_encoded_word_reads_back_as_given(filename: str) -> None:
+    field = _engine.fold_header(
+        "Content-Disposition", Parameterized("attachment", {"filename": filename})
+    )
+
+    reader, param, words = _read_parameter(field, "content-disposition", "filename")
+    assert (reader, param) == (filename, filename)
+    # Nothing in the field is taken for an encoded word, however leniently it is read.
+    assert "=?" not in field
+    assert words == field.replace("\r\n", "")
+    assert all(len(line) <= 76 for line in _lines(field))
+
+
+@pytest.mark.parametrize("name", LOOKALIKE_FILENAMES)
+def test_a_content_type_name_looking_like_an_encoded_word_reads_back_as_given(name: str) -> None:
+    field = _engine.fold_header(
+        "Content-Type", Parameterized("text/plain", {"charset": "utf-8", "name": name})
+    )
+
+    _, param, _ = _read_parameter(field, "content-type", "name")
+    parsed = message_from_bytes(f"{field}\r\n\r\nx".encode(), policy=stdlib_policy.default)
+    assert param == name
+    assert parsed.get_content_type() == "text/plain"
+    assert parsed.get_param("charset") == "utf-8"
+    assert "=?" not in field
+
+
+def test_an_attachment_named_like_an_encoded_word_keeps_its_name_on_the_wire() -> None:
+    leaf = BinaryLeaf(
+        content=b"x",
+        maintype="application",
+        subtype="octet-stream",
+        transfer_encoding="base64",
+        disposition=Parameterized("attachment", {"filename": "=?utf-8?q?evil.exe?="}),
+    )
+
+    parsed = message_from_bytes(
+        _engine.to_bytes(_engine.build_binary(leaf)), policy=stdlib_policy.default
+    )
+
+    assert parsed.get_filename() == "=?utf-8?q?evil.exe?="
+
+
+def test_parameters_written_by_hand_that_would_not_read_back_are_refused() -> None:
+    # A reader matches parameter names case-insensitively: one of the two is lost.
+    value = Parameterized("attachment", {"filename": "=?utf-8?q?a?=", "FILENAME": "b"})
+
+    with pytest.raises(RfcComplianceError, match="read back to the parameters"):
+        _ = _engine.fold_header("Content-Disposition", value)
+
+
+@pytest.mark.parametrize("filename", ["a.txt", "résumé.pdf", "x" * 120 + ".txt"])
+def test_a_filename_without_an_encoded_word_opening_is_written_as_the_package_writes_it(
+    filename: str,
+) -> None:
+    value = Parameterized("attachment", {"filename": filename})
+    package = HeaderRegistry()("Content-Disposition", f'attachment; filename="{filename}"')
+
+    assert _engine.fold_header("Content-Disposition", value) + "\r\n" == package.fold(
+        policy=_engine.POLICY
+    )
 
 
 INJECTED_FILENAME = "a.txt\r\nBcc: x@y.z"
@@ -1475,6 +1561,49 @@ def test_only_the_engine_errors_ever_escape_writing_and_reading_headers() -> Non
         except MimeError:
             continue
         assert not forbidden.intersection(field)
+
+
+_LOOKALIKE_PIECES = (
+    "=?", "?=", "=?utf-8?q?", "=?utf-8?b?", "=?utf-8?x?", "=?=", "?q?", "?b?", "=0D=0A", "=3F",
+    "aGk=", "Bcc:_v@e.x", "_", "a", "Ž", "%", "'", ";", "=", "?", "x" * 40, "t" * 80, " ",
+)  # fmt: skip
+
+
+def _lookalike(rng: random.Random) -> str:
+    text = "".join(rng.choice(_LOOKALIKE_PIECES) for _ in range(rng.randint(1, 8)))
+    return text.strip(" ") or "a"
+
+
+def test_no_reader_decodes_a_part_of_a_header_word_looking_like_an_encoded_word() -> None:
+    """A seeded fuzz: a text header and a parameter read back as given, to every reader."""
+    rng = random.Random(20261101)  # noqa: S311 -- a reproducible fuzz, not a secret
+    written = 0
+
+    for _ in range(2500):
+        text, filename = _lookalike(rng), _lookalike(rng)
+        try:
+            field = _engine.fold_header("Subject", text)
+        except RfcComplianceError:
+            # Refused only when the engine's own reading decodes to a control character.
+            assert "=?" in text
+        else:
+            written += 1
+            assert readings(field) == (text, text, text)
+        try:
+            field = _engine.fold_header(
+                "Content-Disposition", Parameterized("attachment", {"filename": filename})
+            )
+        except RfcComplianceError:
+            assert "=?" in filename
+        else:
+            written += 1
+            reader, param, words = _read_parameter(field, "content-disposition", "filename")
+            assert (reader, param) == (filename, filename)
+            unfolded = field.replace("\r\n", "")
+            assert words == unfolded
+            assert decode_anywhere(field) == unfolded.split(":", 1)[1].strip()
+
+    assert written > 4500
 
 
 def test_only_the_engine_errors_ever_escape_parsing_and_rendering_bytes() -> None:
