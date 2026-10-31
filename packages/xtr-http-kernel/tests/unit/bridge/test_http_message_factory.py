@@ -30,6 +30,8 @@ pytestmark = pytest.mark.anyio
 
 _BOUNDARY = "thinboundary"
 _MULTIPART = f"multipart/form-data; boundary={_BOUNDARY}".encode()
+_TOO_DEEP = 100_000
+"""A nesting depth every supported runtime's JSON parser gives up on."""
 
 
 def _multipart(parts: Sequence[tuple[str, str | None, bytes]]) -> bytes:
@@ -220,6 +222,18 @@ async def test_a_body_of_no_declared_kind_leaves_no_parsed_body(
         ),
         pytest.param(b"application/json", b"{}", {}, id="empty-object"),
         pytest.param(b"application/json", b'{"city":"Paris"', None, id="malformed"),
+        pytest.param(
+            b"application/json",
+            b'{"a":' * _TOO_DEEP + b"1" + b"}" * _TOO_DEEP,
+            None,
+            id="object-nested-too-deep",
+        ),
+        pytest.param(
+            b"application/json",
+            b"[" * _TOO_DEEP + b"]" * _TOO_DEEP,
+            None,
+            id="array-nested-too-deep",
+        ),
         pytest.param(b"application/json", b"[1, 2]", None, id="array"),
         pytest.param(b"application/json", b'"Paris"', None, id="string"),
         pytest.param(

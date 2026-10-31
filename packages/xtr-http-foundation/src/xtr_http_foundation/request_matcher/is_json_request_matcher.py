@@ -26,8 +26,8 @@ class IsJsonRequestMatcher(RequestMatcherInterface):
     than for a shape.
 
     A body nobody can read is not claimed, and neither is one that is not even
-    text: both are the same answer as a body that is not JSON, since neither can
-    be decoded.
+    text, nor one nested deeper than the parser goes: each is the same answer as
+    a body that is not JSON, since none can be decoded.
     """
 
     __slots__ = ()
@@ -47,7 +47,10 @@ class IsJsonRequestMatcher(RequestMatcherInterface):
 
         try:
             _ = cast("object", json.loads(body))
-        except ValueError:
+        # The parser gives up on deep nesting with a RecursionError rather than a
+        # ValueError. The body is the sender's, so that is a body that does not
+        # decode, not this side's failure to answer for with a server error.
+        except (ValueError, RecursionError):
             return False
 
         return True

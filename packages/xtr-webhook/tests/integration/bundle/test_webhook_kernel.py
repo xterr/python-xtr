@@ -85,6 +85,27 @@ async def test_an_incoming_webhook_reaches_its_consumer_through_the_served_endpo
     assert [RemoteEvent("parsed", "the-id", {"foo": "bar"})] == services.CONSUMED
 
 
+async def test_a_body_nested_too_deep_to_read_is_refused_through_the_served_endpoint() -> None:
+    app = _application()
+    depth = 100_000
+    body = b'{"a":' * depth + b"1" + b"}" * depth
+    headers = {
+        **JSON_HEADERS,
+        "Webhook-Signature": _legacy_signature(
+            PLAIN_SECRET.encode(), b"the-event", b"the-id", body
+        ),
+        "Webhook-Event": "the-event",
+        "Webhook-Id": "the-id",
+    }
+
+    async with serving(app) as client:
+        response = await client.post("/webhook/plain", content=body, headers=headers)
+
+    assert response.status_code == 406
+    assert response.text == "Request does not match."
+    assert services.CONSUMED == []
+
+
 async def test_a_route_without_a_parser_uses_the_bundles_own_request_parser() -> None:
     app = _application()
     headers = {

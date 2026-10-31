@@ -7,6 +7,9 @@ from xtr_http_message import ServerRequest, Stream
 
 from xtr_http_foundation import IsJsonRequestMatcher
 
+_DEPTH = 100_000
+"""Deep enough that every supported runtime's JSON parser gives up on the nesting."""
+
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
@@ -45,6 +48,21 @@ async def test_it_refuses_a_body_that_cannot_be_read() -> None:
     body = Stream.create(b'{"total": 4200}')
     await body.close()
     request = ServerRequest("GET", "/").with_body(body)
+
+    assert await IsJsonRequestMatcher().matches(request) is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'{"a":' * _DEPTH + b"1" + b"}" * _DEPTH,
+        b"[" * _DEPTH + b"]" * _DEPTH,
+    ],
+    ids=["object", "array"],
+)
+async def test_it_refuses_a_body_nested_deeper_than_the_parser_reads(body: bytes) -> None:
+    request = ServerRequest("POST", "/", body=body)
 
     assert await IsJsonRequestMatcher().matches(request) is False
 
