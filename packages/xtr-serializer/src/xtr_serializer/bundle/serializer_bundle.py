@@ -7,6 +7,9 @@ under its name for each one configured in ``named_serializers``. Each holds the 
 normalizer and the JSON encoder, and every service the application or another bundle tags
 :data:`~xtr_serializer.bundle.NORMALIZER_TAG` or :data:`~xtr_serializer.bundle.ENCODER_TAG` for
 it. A class subclassing one of the interfaces is tagged without being told.
+
+In debug mode, with a console bundle active, ``debug:serializer`` shows how a class is read and
+written.
 """
 
 from __future__ import annotations
@@ -21,6 +24,8 @@ from xtr_dependency_injection import (
     PassStage,
     ServiceConfigurator,
     as_bundle,
+    bundle_active,
+    required_bundle,
 )
 
 from xtr_serializer.encoder.decoder_interface import DecoderInterface
@@ -50,6 +55,7 @@ _INTERFACES: Final = (
 
 
 @final
+@required_bundle("xtr_console.bundle:ConsoleBundle", ignore_on_invalid=True)
 @as_bundle("serializer", config=SerializerConfig)
 class SerializerBundle(Bundle[SerializerConfig]):
     """Registers the serializers, and hands each the normalizers and encoders tagged for it."""
@@ -80,7 +86,10 @@ class SerializerBundle(Bundle[SerializerConfig]):
         services: ServiceConfigurator,
         builder: ContainerBuilder,
     ) -> None:
-        """Register the built-in normalizer and encoder, and a serializer per name."""
+        """Register the built-in normalizer and encoder, a serializer per name, and the command.
+
+        The command joins in debug mode only, when a console bundle is active.
+        """
         self._config = config
         _ = services.set(_pydantic_normalizer).add_tag(
             NORMALIZER_TAG, priority=_PYDANTIC_PRIORITY, built_in=True, serializer=ALL_SERIALIZERS
@@ -97,6 +106,8 @@ class SerializerBundle(Bundle[SerializerConfig]):
             _ = services.set(Serializer, qualifier=name).set_argument("default_context", context)
             for interface in _INTERFACES:
                 services.alias(interface, Serializer, alias_qualifier=name, target_qualifier=name)
+        if builder.get_parameter("kernel.debug") and bundle_active(builder, "console"):
+            services.load("xtr_serializer.command")
 
     @override
     async def boot(self) -> None:

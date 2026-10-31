@@ -112,6 +112,8 @@ unfixable = []
 # The bundle registers factory functions whose signatures the container reads at
 # runtime; deferring these would register them under nothing.
 "src/xtr_serializer/bundle/*.py" = ["TC001", "TC002", "TC003"]
+# The console reads a command's annotations at runtime, so none can be deferred.
+"src/xtr_serializer/command/*.py" = ["TC001", "TC002", "TC003"]
 "tests/**/*.py" = [
     "S101",    # assert is the point of pytest
     "ARG",     # fixtures look unused
