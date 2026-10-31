@@ -86,7 +86,7 @@ class FormDataPart(AbstractMultipartPart):
 
         Raises:
             InvalidArgumentError: A field's body cannot be read or written as asked.
-            RfcComplianceError: A header would hold a line break or a NUL.
+            RfcComplianceError: A header would hold a line break, a NUL or a lone surrogate.
         """
         return b"".join(self.to_iterable()).decode("utf-8", "surrogateescape")
 
@@ -112,7 +112,7 @@ class FormDataPart(AbstractMultipartPart):
 
         Raises:
             InvalidArgumentError: A field's body cannot be read or written as asked.
-            RfcComplianceError: A header would hold a line break or a NUL.
+            RfcComplianceError: A header would hold a line break, a NUL or a lone surrogate.
         """
         boundary = self._get_boundary()
         for part in self.get_parts():
@@ -174,13 +174,25 @@ def _render_field(part: TextPart) -> Iterator[bytes]:
     headers = part.get_prepared_headers()
     for header in headers.all():
         line = _header_line(header)
-        if line is not None:
-            yield f"{line}\r\n".encode()
+        if line is None:
+            continue
+        try:
+            written = f"{line}\r\n".encode()
+        except UnicodeError as error:
+            raise RfcComplianceError(
+                f"The {header.get_name()} header cannot be written in UTF-8: {error}."
+            ) from error
+        yield written
     yield b"\r\n"
     charset = headers.get_header_parameter("Content-Type", "charset") or None
     content = part.get_body()
-    if isinstance(content, str):
-        content = content.encode(charset or "utf-8", "surrogateescape")
+    try:
+        if isinstance(content, str):
+            content = content.encode(charset or "utf-8", "surrogateescape")
+    except (LookupError, UnicodeError) as error:
+        raise InvalidArgumentError(
+            f'The body is not "{charset or "utf-8"}" text: {error}.'
+        ) from error
     encoding = headers.get_header_body("Content-Transfer-Encoding")
     yield _encode(content, encoding, text=charset is not None)
 

@@ -350,6 +350,60 @@ def test_a_header_injection_is_refused(fields: FormFields) -> None:
         _ = form.body_to_string()
 
 
+def test_a_value_utf8_cannot_hold_is_refused() -> None:
+    form = FormDataPart({"f": "\ud800"})
+
+    with pytest.raises(InvalidArgumentError, match='not "utf-8"') as caught:
+        _ = b"".join(form.to_iterable())
+
+    assert caught.type is InvalidArgumentError
+    # The message is written out as it is, so it must not carry what UTF-8 cannot hold.
+    assert "\ud800" not in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        pytest.param({"\ud800": "v"}, id="field name"),
+        pytest.param({"f": DataPart(b"x", "\ud800.txt")}, id="filename"),
+    ],
+)
+def test_a_name_utf8_cannot_hold_is_refused(fields: FormFields) -> None:
+    form = FormDataPart(fields)
+
+    with pytest.raises(RfcComplianceError, match="cannot be written in UTF-8") as caught:
+        _ = form.body_to_string()
+
+    assert "\ud800" not in str(caught.value)
+
+
+def test_a_body_its_charset_cannot_hold_is_refused() -> None:
+    form = FormDataPart({"f": TextPart("日本", "iso-8859-1")})
+
+    with pytest.raises(InvalidArgumentError, match='not "iso-8859-1"') as caught:
+        _ = form.body_to_string()
+
+    assert caught.type is InvalidArgumentError
+
+
+def test_a_body_in_an_unknown_charset_is_refused() -> None:
+    form = FormDataPart({"f": TextPart("x", "x-unknown")})
+
+    with pytest.raises(InvalidArgumentError, match='not "x-unknown"') as caught:
+        _ = form.body_to_string()
+
+    assert caught.type is InvalidArgumentError
+
+
+def test_a_form_that_cannot_be_written_is_refused_inside_another_multipart() -> None:
+    mixed = MixedPart(TextPart("x"), FormDataPart({"f": "\ud800"}))
+
+    with pytest.raises(InvalidArgumentError, match='not "utf-8"') as caught:
+        _ = mixed.to_string()
+
+    assert caught.type is InvalidArgumentError
+
+
 def test_a_header_of_the_part_is_written_on_one_line() -> None:
     part = TextPart("value")
     _ = part.get_headers().add_text_header("X-Note", "word " * 30)
