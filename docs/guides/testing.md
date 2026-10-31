@@ -229,11 +229,13 @@ instance serves the bus and the worker, so both share the same record.
    from xtr_messenger import (
        InMemoryTransport,
        InMemoryTransportFactory,
+       JsonSerializer,
        MessageBusConfig,
        MessageBusFactory,
        TransportConfig,
        WorkerFactory,
    )
+   from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
    from shop.message import PlaceOrder
 
@@ -250,7 +252,8 @@ instance serves the bus and the worker, so both share the same record.
            transports={"jobs": TransportConfig("in-memory://?serialize=true")},
            routing={PlaceOrder: "jobs"},
        )
-       factories = [InMemoryTransportFactory()]
+       wire = JsonSerializer(Serializer([PydanticNormalizer()], [JsonEncoder()]))
+       factories = [InMemoryTransportFactory(wire)]
        order = PlaceOrder(order_id=uuid4())
 
        bus = MessageBusFactory(config, factories).bus()
@@ -265,7 +268,8 @@ instance serves the bus and the worker, so both share the same record.
    ```
 
 3. Add `?serialize=true` to the DSN. The transport carries each message through
-   the serializer, so a field that only a real broker refuses fails here.
+   the serializer its factory was built with, so a field that only a real broker
+   refuses fails here.
 4. Call `jobs.clear()` between tests to reset the record.
 
 The worker returns once it drains the queue. The

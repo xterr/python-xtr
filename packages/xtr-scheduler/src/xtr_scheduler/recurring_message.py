@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 from contextlib import suppress
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-from xtr_messenger import default_codecs, name_of
+from xtr_messenger import name_of
 
 from ._time import FAR_FUTURE
 from .exception import InvalidArgumentError
@@ -166,17 +165,11 @@ def _qualified(kind: type) -> str:
 def _provider_id(message: object) -> str:
     """Return a short id for ``message``, the same in every process that builds it alike.
 
-    Built from the message's wire form when a codec handles it — the same
-    form it crosses a transport in — and from its ``repr`` otherwise, which
-    for a dataclass is stable too.
+    Built from the message's name and its ``repr``, which for a dataclass or a
+    model lists every field and so is the same wherever the message is built.
     """
     kind = type(message)
-    codec = next((codec for codec in default_codecs() if codec.supports(kind)), None)
-    body = repr(message)
-    if codec is not None:
-        with suppress(Exception):  # a message the codec cannot carry keeps its repr
-            body = json.dumps(codec.encode(message), sort_keys=True)
-    digest = hashlib.blake2b(f"{name_of(kind)}\n{body}".encode(), digest_size=16).digest()
+    digest = hashlib.blake2b(f"{name_of(kind)}\n{message!r}".encode(), digest_size=16).digest()
     return base64.b64encode(digest).decode()[:_PROVIDER_ID_LENGTH].translate(_URL_SAFE)
 
 

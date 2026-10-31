@@ -73,6 +73,7 @@ graph LR
     logging --> svccon[xtr-service-contracts]
     messenger[xtr-messenger] --> logcon
     messenger --> eventcon
+    messenger --> serializer
     lock[xtr-lock] --> clock
     lock --> logcon
     cachecon[xtr-cache-contracts] --> clock
@@ -232,8 +233,7 @@ graph LR
     workflow --> eventcon
     workflow --> logcon
     workflow --> svccon
-    serializer[xtr-serializer]
-    serializer -. optional .-> di
+    serializer[xtr-serializer] -. optional .-> di
     serializer -. optional .-> console
 ```
 

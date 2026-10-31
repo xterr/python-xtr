@@ -21,7 +21,9 @@ dependencies = [
     "xtr-lock",
     "xtr-logging",
     "xtr-logging-contracts",
-    "xtr-messenger[pydantic,amqp]",
+    "xtr-messenger[amqp]",
+    # ReindexCatalog is a pydantic model: the application models messages with it itself.
+    "pydantic>=2.12,<3",
     # SQLite in dev and test, PostgreSQL in prod.
     "xtr-orm[sqlite,postgres]",
     # State in the cache pool, locked through the lock bundle; in prod, counted in Redis.
@@ -101,6 +103,7 @@ xtr-rate-limiter         = { path = "../../packages/xtr-rate-limiter", editable 
 xtr-recipes              = { path = "../../packages/xtr-recipes", editable = true }
 xtr-remote-event         = { path = "../../packages/xtr-remote-event", editable = true }
 xtr-scheduler            = { path = "../../packages/xtr-scheduler", editable = true }
+xtr-serializer           = { path = "../../packages/xtr-serializer", editable = true }
 xtr-service-contracts    = { path = "../../packages/xtr-service-contracts", editable = true }
 xtr-storage              = { path = "../../packages/xtr-storage", editable = true }
 xtr-security             = { path = "../../packages/xtr-security", editable = true }

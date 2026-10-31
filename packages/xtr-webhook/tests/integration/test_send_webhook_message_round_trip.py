@@ -8,11 +8,13 @@ from xtr_messenger import (
     HandlersLocator,
     InMemoryTransport,
     InMemoryTransportFactory,
+    JsonSerializer,
     MessageBusConfig,
     MessageBusFactory,
     TransportConfig,
 )
 from xtr_remote_event import RemoteEvent
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
 from tests.support.fake_transport import FakeTransport
 from xtr_webhook.exception import DeliveryError
@@ -31,7 +33,8 @@ def _recorder() -> tuple[MessageBusFactory, InMemoryTransport]:
         transports={"mem": TransportConfig("in-memory://?serialize=true")},
         routing={SendWebhookMessage: "mem"},
     )
-    factories = [InMemoryTransportFactory()]
+    wire = JsonSerializer(Serializer([PydanticNormalizer()], [JsonEncoder()]))
+    factories = [InMemoryTransportFactory(wire)]
     transport = factories[0].create(config.transports)["mem"]
     assert isinstance(transport, InMemoryTransport)
     return MessageBusFactory(config, factories), transport

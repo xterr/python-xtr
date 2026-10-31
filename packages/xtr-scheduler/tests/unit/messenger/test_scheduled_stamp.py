@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from xtr_messenger import Envelope, JsonSerializer
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
 from tests.support.contexts import a_context
 from tests.support.messages import Named
@@ -32,7 +33,7 @@ def test_its_context_carries_a_stand_in_trigger() -> None:
 
 def test_it_survives_a_transport() -> None:
     stamp = ScheduledStamp.from_context(a_context())
-    wire = JsonSerializer()
+    wire = JsonSerializer(Serializer([PydanticNormalizer()], [JsonEncoder()]))
 
     decoded = wire.decode(wire.encode(Envelope(Named("x"), (stamp,))))
 

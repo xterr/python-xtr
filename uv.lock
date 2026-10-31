@@ -5286,10 +5286,10 @@ name = "xtr-messenger"
 version = "5.2.1"
 source = { editable = "packages/xtr-messenger" }
 dependencies = [
-    { name = "msgspec" },
     { name = "typing-extensions" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts" },
+    { name = "xtr-serializer" },
 ]
 
 [package.optional-dependencies]
@@ -5299,9 +5299,6 @@ amqp = [
     { name = "taskiq" },
     { name = "taskiq-aio-pika" },
     { name = "typing-extensions" },
-]
-pydantic = [
-    { name = "pydantic" },
 ]
 
 [package.dev-dependencies]
@@ -5327,16 +5324,15 @@ dev = [
 requires-dist = [
     { name = "aio-pika", marker = "extra == 'amqp'", specifier = ">=9.4" },
     { name = "anyio", marker = "extra == 'amqp'", specifier = ">=4.0" },
-    { name = "msgspec", specifier = ">=0.18" },
-    { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0" },
     { name = "taskiq", marker = "extra == 'amqp'", specifier = ">=0.12.4" },
     { name = "taskiq-aio-pika", marker = "extra == 'amqp'", specifier = ">=0.6.0" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "typing-extensions", marker = "extra == 'amqp'", specifier = ">=4.4" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
 ]
-provides-extras = ["pydantic", "amqp"]
+provides-extras = ["amqp"]
 
 [package.metadata.requires-dev]
 dev = [
