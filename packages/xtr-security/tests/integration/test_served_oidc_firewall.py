@@ -8,6 +8,7 @@ or bad one is challenged. No network: the keys are pinned in the configuration.
 
 from __future__ import annotations
 
+import base64
 from typing import TYPE_CHECKING
 
 import httpx
@@ -20,6 +21,22 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
 pytestmark = pytest.mark.anyio
+
+#: Protected headers joserfc cannot judge: a ``crit`` that is no list of names,
+#: and a header that is no JSON object at all.
+HOSTILE_HEADERS = (
+    b'{"alg":"RS256","crit":5}',
+    b'{"alg":"RS256","crit":[["a"]]}',
+    b'["alg"]',
+    b'"alg"',
+)
+
+
+def _under_header(header: bytes) -> str:
+    """Return a compact token carrying ``header``, an empty payload and a forged signature."""
+    return ".".join(
+        base64.urlsafe_b64encode(part).rstrip(b"=").decode() for part in (header, b"{}", b"x" * 32)
+    )
 
 
 @pytest.fixture
@@ -57,6 +74,20 @@ async def test_a_token_for_another_audience_is_rejected(client: httpx.AsyncClien
     token = mint(audience="other-api")
 
     response = await client.get("/api/me", headers={"authorization": f"Bearer {token}"})
+
+    assert response.status_code == 401
+    assert response.json() == {"error": "invalid_token"}
+
+
+@pytest.mark.parametrize("header", HOSTILE_HEADERS)
+async def test_a_token_whose_header_joserfc_cannot_judge_is_an_invalid_token(
+    client: httpx.AsyncClient,
+    header: bytes,
+) -> None:
+    response = await client.get(
+        "/api/me",
+        headers={"authorization": f"Bearer {_under_header(header)}"},
+    )
 
     assert response.status_code == 401
     assert response.json() == {"error": "invalid_token"}

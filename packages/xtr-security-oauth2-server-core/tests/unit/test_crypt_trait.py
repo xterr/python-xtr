@@ -198,6 +198,25 @@ def test_it_refuses_a_token_whose_payload_is_not_json(holder: _Holder) -> None:
         _ = holder.decrypt(token)
 
 
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"dir","enc":"A256GCM","crit":5}',
+        b'{"alg":"dir","enc":"A256GCM","crit":[["a"]]}',
+        b'["alg","enc"]',
+        b'"alg enc"',
+    ],
+)
+def test_it_refuses_a_token_whose_header_cannot_be_judged(holder: _Holder, header: bytes) -> None:
+    # The protected header a client hands back is judged before anything is
+    # decrypted; one the decrypter cannot read is one this holder never sealed.
+    parts = (header, b"", b"x" * 12, b"x" * 8, b"x" * 16)
+    token = ".".join(base64.urlsafe_b64encode(part).rstrip(b"=").decode() for part in parts)
+
+    with pytest.raises(OAuth2Error, match="could not be decrypted"):
+        _ = holder.decrypt(token)
+
+
 def test_it_refuses_a_token_whose_payload_is_json_but_not_an_object(
     holder: _Holder,
 ) -> None:

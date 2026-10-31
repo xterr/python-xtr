@@ -198,6 +198,21 @@ def test_a_signed_payload_that_is_not_json_is_refused_as_unreadable() -> None:
         _ = _provider().load(_signed(b"not json"))
 
 
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"RS256","crit":5}',
+        b'{"alg":"RS256","crit":[["a"]]}',
+        b'["alg"]',
+        b'"alg"',
+        b'["alg","b64"]',
+    ],
+)
+def test_a_header_the_verifier_cannot_judge_is_refused_as_unreadable(header: bytes) -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = _provider().load(_forged(header, b"{}"))
+
+
 def test_a_signed_payload_that_is_not_an_object_is_refused_as_unreadable() -> None:
     with pytest.raises(InvalidArgumentError, match="payload"):
         _ = _provider().load(_signed(b"[1, 2]"))

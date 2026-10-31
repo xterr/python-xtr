@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast, final
@@ -164,6 +165,24 @@ async def test_a_malformed_token_is_refused() -> None:
 
     with pytest.raises(AuthenticationError):
         _ = await verifier.verify("not-a-jwt")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"RS256","crit":5}',
+        b'{"alg":"RS256","crit":[["a"]]}',
+        b'["alg"]',
+        b'"alg"',
+    ],
+)
+async def test_a_token_whose_header_cannot_be_judged_is_refused(header: bytes) -> None:
+    verifier = _verifier(_Server(_jwks(dict(_key().as_dict(private=False)))))
+    encoded = base64.urlsafe_b64encode(header).rstrip(b"=").decode()
+
+    with pytest.raises(AuthenticationError):
+        _ = await verifier.verify(f"{encoded}.e30.eHh4")
 
 
 @pytest.mark.anyio

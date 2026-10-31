@@ -218,6 +218,25 @@ async def test_a_token_whose_header_is_too_deep_to_decode_is_refused(
         _ = await handler.get_user_badge_from(f"{header}.e30.eHh4")
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"RS256","crit":5}',
+        b'{"alg":"RS256","crit":[["a"]]}',
+        b'["alg"]',
+        b'"alg"',
+        b'["alg","b64"]',
+    ],
+)
+async def test_a_token_whose_header_cannot_be_judged_is_refused(header: bytes) -> None:
+    handler = _handler(make_key())
+    encoded = base64.urlsafe_b64encode(header).rstrip(b"=").decode()
+
+    with pytest.raises(InvalidAccessTokenError):
+        _ = await handler.get_user_badge_from(f"{encoded}.e30.eHh4")
+
+
 def test_the_none_algorithm_is_refused_in_the_allow_list() -> None:
     key = make_key()
     with pytest.raises(InvalidArgumentError):

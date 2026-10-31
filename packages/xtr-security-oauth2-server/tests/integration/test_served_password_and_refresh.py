@@ -6,6 +6,8 @@ also where rotation and the refusal to reuse a spent token are driven.
 
 from __future__ import annotations
 
+import base64
+
 import anyio
 import httpx
 import pytest
@@ -234,3 +236,35 @@ async def test_a_refresh_token_sealed_with_a_stretched_password_is_opened_again(
 
     assert answered.status_code == 200
     assert text_field(json_of(answered), "refresh_token") != text_field(first, "refresh_token")
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"dir","enc":"A256GCM","crit":5}',
+        b'{"alg":"dir","enc":"A256GCM","crit":[["a"]]}',
+        b'["alg","enc"]',
+        b'"alg enc"',
+    ],
+)
+async def test_a_refresh_token_whose_header_cannot_be_judged_is_an_invalid_grant(
+    header: bytes,
+) -> None:
+    # A sealed token under a protected header the decrypter cannot judge is
+    # one this server never issued, like any other it cannot open.
+    parts = (header, b"", b"x" * 12, b"x" * 8, b"x" * 16)
+    token = ".".join(base64.urlsafe_b64encode(part).rstrip(b"=").decode() for part in parts)
+    async with serving(_application(), raise_app_exceptions=False) as client:
+        await seed_any_grant_client(client)
+        answered = await client.post(
+            "/token",
+            data={
+                "grant_type": "refresh_token",
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "refresh_token": token,
+            },
+        )
+
+    assert answered.status_code == 400
+    assert text_field(json_of(answered), "error") == "invalid_grant"

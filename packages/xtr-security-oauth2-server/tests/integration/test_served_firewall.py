@@ -264,3 +264,25 @@ async def test_a_token_too_deep_to_read_is_refused_whatever_the_decoder_gives_up
     assert answered.status_code == 401
     assert 'error="invalid_token"' in answered.headers["www-authenticate"]
     assert reached == []
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"RS256","crit":5}',
+        b'{"alg":"RS256","crit":[["a"]]}',
+        b'["alg"]',
+        b'"alg"',
+    ],
+)
+async def test_a_token_whose_header_cannot_be_judged_is_refused_as_an_invalid_token(
+    header: bytes,
+) -> None:
+    parts = (header, b"{}", b"x" * 32)
+    token = ".".join(base64.urlsafe_b64encode(part).rstrip(b"=").decode() for part in parts)
+
+    answered, reached = await _ask_with(token)
+
+    assert answered.status_code == 401
+    assert 'error="invalid_token"' in answered.headers["www-authenticate"]
+    assert reached == []

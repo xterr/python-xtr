@@ -145,9 +145,13 @@ class JoserfcJwsProvider(JwsProviderInterface):
         """
         try:
             extracted = jws.extract_compact(token.encode("utf-8"))
-        except (JoseError, ValueError, RecursionError) as error:
+        except (JoseError, ValueError, TypeError, RecursionError) as error:
+            # joserfc indexes the header by name as it splits: TypeError on a non-object.
             raise InvalidArgumentError(f"The token is not a readable JWS: {error}") from error
-        header = dict(extracted.headers())
+        protected = cast("object", extracted.headers())
+        if not isinstance(protected, dict):
+            raise InvalidArgumentError("The token header is not a JSON object.")
+        header = cast("dict[str, object]", protected)
         kid = header.get("kid")
         is_verified = self._verify(token, kid if isinstance(kid, str) else None)
         return LoadedJws(
@@ -162,12 +166,10 @@ class JoserfcJwsProvider(JwsProviderInterface):
     def _verify(self, token: str, kid: str | None) -> bool:
         """Tell whether ``token`` verifies against a key this provider trusts.
 
-        A token naming a ``kid`` is tried against the key that id names first —
-        an O(1) lookup over the index every trusted key is filed in, which
-        settles a rotating deployment in one attempt. A keyed miss is no proof
-        the token is unsigned by a trusted key, because a signer may name a key
-        by an id of its own that none of the names the key is filed under
-        matches, so the trusted keys are then tried in turn anyway.
+        A token naming a ``kid`` is tried against the key that id names first,
+        settling a rotating deployment in one attempt. A keyed miss proves
+        nothing — a signer may name a key by an id of its own — so the trusted
+        keys are then tried in turn anyway.
         """
         keys = self._verifying_keys()
         if kid is not None:
@@ -182,6 +184,10 @@ class JoserfcJwsProvider(JwsProviderInterface):
             _ = jws.deserialize_compact(token, key, algorithms=[self._signature_algorithm])
         except (JoseError, ValueError):
             return False
+        except TypeError as error:
+            # A header member of the wrong shape (a ``crit`` that is no list of
+            # names) fails joserfc's header check: no key could ever verify it.
+            raise InvalidArgumentError(f"The token header is not readable: {error}") from error
         return True
 
     def _signing_key(self) -> Key:
@@ -198,11 +204,9 @@ class JoserfcJwsProvider(JwsProviderInterface):
     def _verifying_keys(self) -> list[Key]:
         """Import the verifying key and every additional public key, indexing them by id.
 
-        A shared secret verifies with the same key it signs with, so the private
-        material is read for HMAC; an asymmetric key verifies with its public
-        half. The keys are imported once and kept, so a later verify reads no key
-        file, and each is filed under every name a token may call it by: see
-        :meth:`_index`.
+        HMAC verifies with the secret it signs with; an asymmetric key with its
+        public half. The keys are imported once and kept, each filed under every
+        name a token may call it by: see :meth:`_index`.
 
         Raises:
             InvalidArgumentError: When an additional public key cannot be read.
@@ -260,11 +264,7 @@ class JoserfcJwsProvider(JwsProviderInterface):
             InvalidConfigurationError: When an HMAC secret is shorter than the
                 algorithm requires.
         """
-        return import_key(
-            material,
-            self._signature_algorithm,
-            self._key_loader.get_passphrase(),
-        )
+        return import_key(material, self._signature_algorithm, self._key_loader.get_passphrase())
 
 
 def _claims(payload: bytes) -> dict[str, object]:
