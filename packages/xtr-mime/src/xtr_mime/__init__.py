@@ -10,11 +10,18 @@ extension otherwise.
 
 The parts a body is made of — :class:`TextPart`, :class:`DataPart` and the multiparts — are
 usable on their own too: :class:`FormDataPart` is the body of an HTTP form upload.
+
+:class:`Email` is the builder; :class:`Message` is headers over any body part, and
+:class:`RawMessage` bytes already rendered. :class:`MessageConverter` reads an email back out
+of a message whose body an email could have built.
 """
 
 from __future__ import annotations
 
 from .address import Address
+from .body_renderer_interface import BodyRendererInterface
+from .draft_email import DraftEmail
+from .email import Email
 from .exception import (
     InvalidArgumentError,
     LogicError,
@@ -37,6 +44,8 @@ from .header import (
     UnstructuredHeader,
 )
 from .magic_mime_type_guesser import MagicMimeTypeGuesser
+from .message import Message
+from .message_converter import MessageConverter
 from .mime_type_guesser_interface import MimeTypeGuesserInterface
 from .mime_types import MimeTypes
 from .mime_types_interface import MimeTypesInterface
@@ -53,6 +62,7 @@ from .part import (
     RelatedPart,
     TextPart,
 )
+from .raw_message import RawMessage
 
 __all__ = [
     "AbstractHeader",
@@ -60,9 +70,12 @@ __all__ = [
     "AbstractPart",
     "Address",
     "AlternativePart",
+    "BodyRendererInterface",
     "DataPart",
     "DateHeader",
     "DigestPart",
+    "DraftEmail",
+    "Email",
     "File",
     "FormDataPart",
     "Group",
@@ -75,6 +88,8 @@ __all__ = [
     "MagicMimeTypeGuesser",
     "MailboxHeader",
     "MailboxListHeader",
+    "Message",
+    "MessageConverter",
     "MessagePart",
     "MimeError",
     "MimeRuntimeError",
@@ -84,6 +99,7 @@ __all__ = [
     "MixedPart",
     "ParameterizedHeader",
     "PathHeader",
+    "RawMessage",
     "RelatedPart",
     "RfcComplianceError",
     "TextPart",

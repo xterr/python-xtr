@@ -31,3 +31,14 @@ def test_the_package_exports_the_headers() -> None:
 def test_the_package_exports_the_parts() -> None:
     assert set(xtr_mime.part.__all__) <= set(xtr_mime.__all__)
     assert xtr_mime.FormDataPart is xtr_mime.part.multipart.FormDataPart
+
+
+def test_the_package_exports_the_messages() -> None:
+    assert {
+        "BodyRendererInterface",
+        "DraftEmail",
+        "Email",
+        "Message",
+        "MessageConverter",
+        "RawMessage",
+    } <= set(xtr_mime.__all__)

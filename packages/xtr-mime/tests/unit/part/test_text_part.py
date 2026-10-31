@@ -92,6 +92,18 @@ def test_a_file_that_disappears_fails_when_rendered() -> None:
         _ = part.to_string()
 
 
+def test_a_path_with_a_null_byte_is_refused_with_the_path_escaped() -> None:
+    part = TextPart(File("/no/such\r\nfile\x00.txt"))
+
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = part.get_body()
+
+    assert str(caught.value) == (
+        'Unable to open path "/no/such\\r\\nfile\\x00.txt": Failed to open stream: '
+        "embedded null byte."
+    )
+
+
 def test_constructor_with_a_directory() -> None:
     with pytest.raises(InvalidArgumentError) as caught:
         _ = TextPart(File(FIXTURES))
