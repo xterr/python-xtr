@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
+
 import pytest
 from xtr_messenger import (
     HandlersFailedError,
@@ -16,6 +19,7 @@ from xtr_messenger import (
 from xtr_remote_event import RemoteEvent
 from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
+from tests.fixtures.events import DeliveryReport, Recipient
 from tests.support.fake_transport import FakeTransport
 from xtr_webhook.exception import DeliveryError
 from xtr_webhook.messenger import SendWebhookHandler, SendWebhookMessage
@@ -94,6 +98,27 @@ async def test_dispatching_it_delivers_through_the_transport() -> None:
     _ = await _bus(transport).bus().dispatch(message)
 
     assert transport.sends == [(message.subscriber, message.event)]
+
+
+async def test_an_application_event_survives_the_wire_as_its_own_class() -> None:
+    factory, recorder = _recorder()
+    report = DeliveryReport(
+        "mailer",
+        "evt_7",
+        {},
+        occurred_at=datetime(2026, 3, 1, 9, tzinfo=UTC),
+        scheduled_for=datetime(2026, 10, 25, 3, 30, fold=1, tzinfo=ZoneInfo("Europe/Bucharest")),
+        recipient=Recipient("ana@example.com"),
+        metadata={"campaign": "spring"},
+    )
+    message = SendWebhookMessage(Subscriber("https://receiver.test/hook", _SIGNING_KEY), report)
+
+    _ = await factory.bus().dispatch(message)
+    decoded = next(iter([envelope.message async for envelope in recorder.get()]))
+
+    assert decoded == message
+    assert isinstance(decoded, SendWebhookMessage)
+    assert type(decoded.event) is DeliveryReport
 
 
 async def test_a_refused_delivery_fails_the_dispatch() -> None:

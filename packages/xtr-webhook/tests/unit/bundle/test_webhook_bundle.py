@@ -5,15 +5,16 @@ from xtr_dependency_injection import Kernel
 from xtr_dependency_injection.testing import assert_zero_config
 from xtr_http_client import NoPrivateNetworkHttpClient
 from xtr_http_client_contracts import HttpClientInterface
+from xtr_serializer import SerializerInterface
 
 from tests.fixtures.app_guarded.config import GUARDED_CLIENT
 from tests.fixtures.app_webhook.config import APP_CLIENT, PARSED_TYPE, PLAIN_TYPE
 from tests.support.secret_header_request_parser import SecretHeaderRequestParser
 from xtr_webhook.bundle import WebhookBundle
-from xtr_webhook.client import RequestParser
+from xtr_webhook.client import RequestParser, RequestParserInterface
 from xtr_webhook.controller.webhook_controller import WebhookController
 from xtr_webhook.exception import LogicError
-from xtr_webhook.server import Transport
+from xtr_webhook.server import JsonBodyConfigurator, Transport
 from xtr_webhook.server.transport_interface import TransportInterface
 
 pytestmark = pytest.mark.anyio
@@ -34,6 +35,19 @@ def _finds_nothing(name: str) -> None:
 
 async def test_it_builds_and_boots_with_no_configuration() -> None:
     await assert_zero_config(WebhookBundle)
+
+
+async def test_the_sender_and_the_parser_use_the_application_serializer() -> None:
+    async with await _bundle_alone().boot() as booted:
+        serializer = await booted.container.get(SerializerInterface)
+        transport = await booted.container.get(TransportInterface)
+        parser = await booted.container.get(RequestParserInterface, "webhook")
+
+    assert isinstance(transport, Transport)
+    assert isinstance(transport._body, JsonBodyConfigurator)
+    assert transport._body._serializer is serializer
+    assert isinstance(parser, RequestParser)
+    assert parser._serializer is serializer
 
 
 async def test_the_controller_serves_the_routed_types_and_no_other() -> None:

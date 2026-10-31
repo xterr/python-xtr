@@ -205,9 +205,11 @@ graph LR
     maker -. optional .-> events
     cli[xtr-cli] --> console
     remoteevent[xtr-remote-event] --> messenger
+    remoteevent --> serializer
     remoteevent --> svccon
     webhook[xtr-webhook] --> remoteevent
     webhook --> messenger
+    webhook --> serializer
     webhook --> clock
     webhook --> httpmsgcon
     webhook --> svccon

@@ -22,10 +22,12 @@ if TYPE_CHECKING:
     from xtr_clock import ClockInterface
     from xtr_http_foundation import RequestMatcherInterface
     from xtr_http_message_contracts import ServerRequestInterface
+    from xtr_serializer import SerializerInterface
 
 __all__ = ["RequestParser"]
 
 _UNACCEPTABLE: Final = 406
+_FORMAT: Final = "json"
 
 _NUMERIC: Final = re.compile(r"^-?\d{1,19}$")
 """What a timestamp this parser can bound looks like: an integer, nothing else.
@@ -47,6 +49,13 @@ class RequestParser(AbstractRequestParser):
     transitional format either scheme authenticates a request, which is what
     lets the two ends migrate on different days.
 
+    The body is the event the sender wrote, read back with the application's
+    serializer as a :class:`~xtr_remote_event.RemoteEvent` — of whichever class
+    of that hierarchy its ``"$type"`` names, so an event the application
+    declares arrives as the class it was sent as. The body is signed under
+    every format, so the event's name and id are read from it, never from a
+    header.
+
     The signature header may carry several whitespace-separated entries — one
     per secret during a rotation — and any one that verifies is enough. When a
     Standard Webhooks entry verifies, the timestamp it covers is then held to a
@@ -55,6 +64,7 @@ class RequestParser(AbstractRequestParser):
 
     def __init__(  # noqa: PLR0913, PLR0917 — every name and bound has a default both ends share.
         self,
+        serializer: SerializerInterface,
         algorithm: str = "sha256",
         signature_header_name: str = "Webhook-Signature",
         event_header_name: str = "Webhook-Event",
@@ -67,6 +77,9 @@ class RequestParser(AbstractRequestParser):
         """Configure what to verify against, under which names and bounds.
 
         Args:
+            serializer: What reads the body into the event it holds — the
+                application's, so the events it declares are read as they
+                were written.
             algorithm: The digest the legacy signature is recomputed with. The
                 Standard Webhooks signature is always SHA-256; the scheme fixes it.
             signature_header_name: The header the signature entries arrive in.
@@ -94,6 +107,7 @@ class RequestParser(AbstractRequestParser):
         if algorithm not in hashlib.algorithms_available:
             raise InvalidArgumentError(f'The signing algorithm "{algorithm}" is not available.')
 
+        self._serializer = serializer
         self._algorithm = algorithm
         self._signature_header_name = signature_header_name
         self._event_header_name = event_header_name
@@ -128,18 +142,19 @@ class RequestParser(AbstractRequestParser):
             secret: What the signature entries are checked against.
 
         Returns:
-            The event, named by the payload's ``type`` key when the Standard
-            Webhooks entry authenticated the request — that scheme signs no
-            header, so a name sent as one cannot be trusted — and by the event
-            header otherwise, which the legacy scheme does sign.
+            The event the body holds, of the class its ``"$type"`` names.
 
         Raises:
             InvalidArgumentError: When ``secret`` is empty. That is this side's
                 configuration, not the sender's doing, so it surfaces as a
                 server error rather than as a refusal.
             RejectWebhookError: When a required header is missing, no signature
-                entry verifies, the signed timestamp is outside the window, the
-                body is not a JSON object, or the payload names no event.
+                entry verifies, or the signed timestamp is outside the window.
+            NotEncodableValueError: When the genuine body is not JSON.
+            NotNormalizableValueError: When it holds no event — a ``"$type"``
+                no class of the hierarchy registered, a field missing or of the
+                wrong type. :meth:`parse` turns both into the refusal of a
+                malformed body.
         """
         if not secret:
             raise InvalidArgumentError("A non-empty secret is required.")
@@ -158,21 +173,12 @@ class RequestParser(AbstractRequestParser):
                     _UNACCEPTABLE, f'Missing "{name}" HTTP request signature header.'
                 )
 
-        verified = self._verify_signature(request, body, secret)
-        payload = self._decode_json(body)
+        self._verify_signature(request, body, secret)
 
-        return RemoteEvent(
-            self._event_name(payload)
-            if verified is SignatureFormat.STANDARD
-            else request.get_header_line(self._event_header_name),
-            request.get_header_line(self._id_header_name),
-            payload,
-        )
+        return self._serializer.deserialize(body, RemoteEvent, _FORMAT)
 
-    def _verify_signature(
-        self, request: ServerRequestInterface, body: bytes, secret: str
-    ) -> SignatureFormat:
-        """Return the scheme of the entry that authenticated the request.
+    def _verify_signature(self, request: ServerRequestInterface, body: bytes, secret: str) -> None:
+        """Refuse a request no signature entry authenticates.
 
         The header may carry several whitespace-separated entries, one per
         secret during a rotation. Each expectation is computed once, before its
@@ -204,7 +210,7 @@ class RequestParser(AbstractRequestParser):
                 if hmac.compare_digest(expected, candidate.encode()):
                     self._check_timestamp(timestamp)
 
-                    return SignatureFormat.STANDARD
+                    return
 
         if self._signature_format is not SignatureFormat.STANDARD and request.has_header(
             self._event_header_name
@@ -217,7 +223,7 @@ class RequestParser(AbstractRequestParser):
 
             for candidate in candidates:
                 if hmac.compare_digest(expected, candidate.encode()):
-                    return SignatureFormat.LEGACY
+                    return
 
         raise RejectWebhookError(_UNACCEPTABLE, "Signature is wrong.")
 
@@ -251,22 +257,3 @@ class RequestParser(AbstractRequestParser):
                 f'The "{self._timestamp_header_name}" HTTP request header is outside the '
                 "accepted window.",
             )
-
-    def _event_name(self, payload: dict[str, object]) -> str:
-        """Return the event's name from the payload's ``type`` key.
-
-        Args:
-            payload: The body, already decoded.
-
-        Raises:
-            RejectWebhookError: When the key is missing or not a string — the
-                scheme that signed this request puts the name there, so a
-                payload without one names no event.
-        """
-        name = payload.get("type")
-        if not isinstance(name, str):
-            raise RejectWebhookError(
-                _UNACCEPTABLE, 'The payload is missing the "type" key holding the event name.'
-            )
-
-        return name

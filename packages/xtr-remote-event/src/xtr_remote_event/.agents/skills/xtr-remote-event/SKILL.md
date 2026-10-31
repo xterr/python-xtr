@@ -1,6 +1,6 @@
 ---
 name: xtr-remote-event
-description: How to hand an event that came from another system to the code that handles it with xtr-remote-event — one RemoteEvent value type, a one-method consumer declared with as_remote_event_consumer, a ConsumerLocator that finds it by source name, and ConsumeRemoteEventMessage so the work happens on a worker. Use when a delivery report, a payment notice, a provider callback or any inbound event needs routing to the code that handles that sender; when writing or declaring a consumer; when translating a sender's payload with a PayloadConverterInterface; when adding RemoteEventBundle to an application; or when a webhook read by xtr-webhook has to reach a consumer.
+description: How to hand an event that came from another system to the code that handles it with xtr-remote-event — one RemoteEvent value type at the base of a class hierarchy, a one-method consumer declared with as_remote_event_consumer, a ConsumerLocator that finds it by source name, and ConsumeRemoteEventMessage so the work happens on a worker. Use when a delivery report, a payment notice, a provider callback or any inbound event needs routing to the code that handles that sender; when writing or declaring a consumer; when deriving an event class of your own that must cross a bus or a webhook as itself; when translating a sender's payload with a PayloadConverterInterface; when adding RemoteEventBundle to an application; or when a webhook read by xtr-webhook has to reach a consumer.
 ---
 
 # xtr-remote-event
@@ -12,7 +12,10 @@ sender. This package is that last step and nothing else.
 ## Quick reference
 
 - `RemoteEvent(name, id, payload)` — frozen, three fields, no behaviour. `name` is the source
-  and decides who is handed it; `payload` is a `dict[str, object]` as it arrived.
+  and decides who is handed it; `payload` is a `dict[str, object]` of JSON data as it arrived.
+- `RemoteEvent` is the base of a class hierarchy (xtr-serializer's `@discriminator_map()`, wire
+  key `"$type"`, its own name `"remote_event"`). Derive a class and register its name with
+  `@discriminator_name("<name>")` — it then crosses a bus or a webhook as itself.
 - `@as_remote_event_consumer("<source>")` on a class with `async def consume(self, event)`.
   Stack it for several sources.
 - `ConsumerLocator({"<source>": consumer})` → `await locator.get("<source>")`. Also takes a
@@ -26,6 +29,44 @@ sender. This package is that last step and nothing else.
   `ConsumeRemoteEventMessage`. There is no configuration module. Without the container, build the
   `ConsumerLocator` over your consumers yourself; only `xtr_remote_event.bundle` needs it.
 - Everything derives from `RemoteEventError`.
+
+## Derive an event of your own
+
+```python
+from dataclasses import dataclass, field
+
+from xtr_remote_event import RemoteEvent
+from xtr_serializer import ZonedDateTime, discriminator_name
+
+
+@dataclass(frozen=True, slots=True)
+class Recipient:
+    address: str
+
+
+@discriminator_name("delivery_report")
+@dataclass(frozen=True, slots=True)
+class DeliveryReport(RemoteEvent):
+    delivered_at: ZonedDateTime
+    recipient: Recipient
+    tags: tuple[str, ...] = ()
+    metadata: dict[str, str] = field(default_factory=dict[str, str])
+```
+
+- Written as `{"$type": "delivery_report", "name": ..., "id": ..., "payload": ..., ...}` wherever
+  a field declares `RemoteEvent`, and read back a `DeliveryReport` with every nested value of its
+  declared type.
+- `@discriminator_name` goes on top of `@dataclass`. Register at import, in the module defining
+  the class, before any message holding an event is written or read: a name given later raises
+  `MappingError`.
+- A derived class with no name is refused when written (`MessageEncodingFailedError` on a bus) —
+  never written as its base.
+- Put typed values in fields of the derived class, not in `payload`: `payload` holds JSON data
+  only. Declare a date that must keep its zone `ZonedDateTime`; a plain `datetime` keeps its
+  offset.
+- Data is untrusted: an unknown tag, the name of another hierarchy's class, a missing tag or a
+  value that does not fit is refused — on a bus with `MessageDecodingFailedError`, which never
+  repeats the data.
 
 ## Declare a consumer
 
@@ -99,6 +140,8 @@ _ = await bus.dispatch(ConsumeRemoteEventMessage("acme", event))
 - It carries the event rather than an id, because nothing has stored it. A consumer that wants
   it kept is the one that stores it.
 - `"sync://"` handles in the dispatching process; a broker transport hands it to a worker.
+- Through a serializing transport the event arrives as its own class — `type(event)` is the
+  derived class it was dispatched with.
 - In a wired application the bundle registers the handler, so you never register it yourself.
 
 ## Translate a sender's payload
@@ -144,6 +187,10 @@ async def test_a_paid_order_is_marked_paid() -> None:
 
 - `RemoteEvent` is a frozen dataclass, so two with the same three fields compare equal — assert
   on the whole event rather than field by field.
+- For an event class of your own, round-trip it through
+  `TransportConfig("in-memory://?serialize=true")` and assert both `==` and
+  `type(received.event) is DeliveryReport`; equality alone passes for a subclass read back as its
+  base only when it adds no field.
 - For the handler, build a `ConsumerLocator` over a recording consumer and assert what it was
   handed. No bus is needed: the handler is callable.
 - A missing consumer is testable without a container:
@@ -161,7 +208,8 @@ async def test_a_paid_order_is_marked_paid() -> None:
 2. **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_remote_event.bundle import RemoteEventBundle`). Nothing to do when xtr-webhook's
    bundle is listed, which requires this one.
-3. **Brings along** — the messenger bundle, always: the handler is registered on its bus.
+3. **Brings along** — the messenger bundle, always: the handler is registered on its bus; and the
+   serializer bundle through it, which writes the message.
 4. **Configure** — nothing. `RemoteEventConfig` takes no value, because which consumer answers
    for which source is declared beside the class that consumes.
 5. **Environment** — nothing. **Ignore** — nothing.
@@ -203,6 +251,8 @@ Everything derives from `RemoteEventError`.
 
 A `ParseError` is the sender's doing, so the answer is to tell the sender. A `LogicError` is
 wiring the application got wrong, and is said where the event would otherwise be lost.
+An event that cannot be written or read is refused by what carries it: on a bus,
+`MessageEncodingFailedError` / `MessageDecodingFailedError` from xtr-messenger.
 
 ## Do not
 
@@ -218,3 +268,6 @@ wiring the application got wrong, and is said where the event would otherwise be
   `PayloadConverterInterface` and keep the consumer about what the application does.
 - Do not expect `event.name` and a message's `type` to be the same string; they are separate on
   purpose.
+- Do not derive an event class without `@discriminator_name`, and do not register the name lazily
+  — in a function or a test body. Name it at import, beside the class.
+- Do not put dates, decimals or objects in `payload`; declare them as fields of a derived class.

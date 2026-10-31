@@ -34,6 +34,7 @@ The container is not a dependency: the bundle is used when
 [xtr-dependency-injection](../xtr-dependency-injection) is installed beside the package, never as
 an extra, and the event, the consumers and the message work without it, as the
 [Quick start](#quick-start) shows.
+[xtr-serializer](../xtr-serializer) is: it is what carries an event as its own class.
 
 ## Quick start
 
@@ -66,6 +67,53 @@ handed it), `id` (what the sender calls this event) and `payload` (the body as i
 is frozen, so no consumer can rebind `name`, `id` or `payload` on the event; `payload` is an
 ordinary dict, though, and the next consumer is handed the same event, so every consumer must treat
 the payload as read-only.
+
+## Events of your own
+
+`RemoteEvent` is the base of a class hierarchy, declared with xtr-serializer's
+`@discriminator_map()`. Derive a class for a source worth naming, and register the name its
+values are written under:
+
+```python
+from dataclasses import dataclass, field
+
+from xtr_remote_event import RemoteEvent
+from xtr_serializer import ZonedDateTime, discriminator_name
+
+
+@dataclass(frozen=True, slots=True)
+class Recipient:
+    address: str
+
+
+@discriminator_name("delivery_report")
+@dataclass(frozen=True, slots=True)
+class DeliveryReport(RemoteEvent):
+    delivered_at: ZonedDateTime
+    recipient: Recipient
+    tags: tuple[str, ...] = ()
+    metadata: dict[str, str] = field(default_factory=dict[str, str])
+```
+
+Wherever a field declares `RemoteEvent` — the event in `ConsumeRemoteEventMessage`, the one
+[xtr-webhook](../xtr-webhook) sends — a `DeliveryReport` is written with `"$type":
+"delivery_report"` beside its fields, and read back a `DeliveryReport`: its dates, its nested
+`Recipient`, its tuple and its dict as they left. A plain `RemoteEvent` is written under
+`"remote_event"`.
+
+- Register the name where the class is defined, at import: a name is refused once a type holding
+  the hierarchy has been used, so the module must be imported before the first message holding
+  an event is sent or read. Choose a name that stays when the class moves.
+- A derived class with no name is refused when it is written — `MessageEncodingFailedError` from
+  the bus — rather than written as its base and read back without its fields.
+- `payload` holds JSON data as it arrived. A value of any other type, a date above all, belongs in
+  a field of a derived class, which declares its type; in `payload` it is refused when written.
+- A datetime field keeps its offset; one that must keep its zone, and tell the two hours apart on
+  the night the clocks go back, is declared `ZonedDateTime`.
+- What is read is untrusted: a tag no class of the hierarchy registered — an unknown name, the
+  name of a class of another hierarchy, no tag at all — is refused, and so is a value that does
+  not fit the class its tag names. On a bus that is the messenger's `MessageDecodingFailedError`,
+  which never repeats what it was handed.
 
 ## Consumers
 
@@ -124,7 +172,8 @@ The message's `type` is separate from `event.name`, so whatever read the event c
 consumer it belongs to without rewriting the event. Route the message to `"sync://"` to handle
 it in the dispatching process, or to a broker transport to handle it on a worker; the message
 carries the event rather than an id, because nothing has stored it yet — a consumer that wants
-it kept is the one that stores it.
+it kept is the one that stores it. The event crosses a broker as its own class — see
+[Events of your own](#events-of-your-own).
 
 In a wired application the bundle registers the handler, so dispatching the message never meets
 the bus's no-handler error.
@@ -168,7 +217,8 @@ removing it undoes.
 - **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
   imported from `xtr_remote_event.bundle` — or nothing to do when
   [xtr-webhook](../xtr-webhook)'s bundle is listed, which requires this one.
-- **Brings along** — the messenger bundle, always: the handler is registered on its bus.
+- **Brings along** — the messenger bundle, always: the handler is registered on its bus; and the
+  serializer bundle through it, which writes the message.
 - **Configure** — nothing. `RemoteEventConfig` takes no value, because which consumer answers
   for which source is declared beside the class that consumes — see
   [Kernel / bundle](#kernel--bundle).
@@ -244,6 +294,9 @@ Everything this library raises derives from `RemoteEventError`.
 | `InvalidArgumentError` | a value cannot be used — an empty consumer name, a class with no `consume()`; also a `ValueError` |
 | `ParseError` | a converter cannot read a payload as an event — the sender's doing, so tell the sender |
 | `LogicError` | nothing is registered for a source, or what is registered is not a consumer; also a `RuntimeError` |
+
+An event that cannot be written or read is refused by what carries it, not here: on a bus,
+`MessageEncodingFailedError` and `MessageDecodingFailedError` from xtr-messenger.
 
 ## Development
 

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from typing import TYPE_CHECKING, TypeVar
 
-import msgspec
 from typing_extensions import override
 from xtr_http_message_contracts import ResponseInterface
+from xtr_serializer import JsonEncoder, NotEncodableValueError, NotNormalizableValueError
 
 from xtr_webhook.exception import RejectWebhookError
 
@@ -28,6 +29,9 @@ _MALFORMED = "Request body is malformed."
 _PLAIN_TEXT = "text/plain; charset=utf-8"
 _UNACCEPTABLE = 406
 _ACCEPTED = 202
+
+_JSON = JsonEncoder()
+"""What reads a body as JSON: strictly, refusing what is not, without repeating it."""
 
 
 class AbstractRequestParser(RequestParserInterface, ABC):
@@ -63,10 +67,12 @@ class AbstractRequestParser(RequestParserInterface, ABC):
     ) -> RemoteEvent | Sequence[RemoteEvent] | None:
         """Check the shape of the request, then hand it to :meth:`do_parse`.
 
-        A body that will not decode is the sender's doing, not this
-        application's, so it comes back as a refusal the endpoint can answer
-        with rather than as an error the endpoint would report as its own
-        fault.
+        A body that will not decode — not text, not JSON, or not the value
+        :meth:`do_parse` read it into with a serializer — is the sender's
+        doing, not this application's, so it comes back as a refusal the
+        endpoint can answer with rather than as an error the endpoint would
+        report as its own fault. The refusal is raised with nothing chained to
+        it: the errors it replaces may hold the body, which is the sender's.
 
         Args:
             request: The request that arrived.
@@ -82,10 +88,10 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         """
         await self.validate(request)
 
-        try:
+        with suppress(NotEncodableValueError, NotNormalizableValueError, UnicodeDecodeError):
             return await self.do_parse(request, secret)
-        except (msgspec.DecodeError, UnicodeDecodeError) as unreadable:
-            raise RejectWebhookError(_UNACCEPTABLE, _MALFORMED) from unreadable
+        # Raised once the error is suppressed, so none holding the body is chained to it.
+        raise RejectWebhookError(_UNACCEPTABLE, _MALFORMED)
 
     @override
     async def create_successful_response(self, request: ServerRequestInterface, response: R) -> R:
@@ -214,35 +220,12 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         Raises:
             RejectWebhookError: When the body is valid JSON but not an object
                 — an array or a bare value is not a webhook payload.
-            msgspec.DecodeError: When the body is not JSON at all. Raised
+            NotEncodableValueError: When the body is not JSON at all. Raised
                 rather than refused here, so that :meth:`parse` turns it into
                 the same refusal wherever in a subclass it came from.
         """
-        return self._decode_json(await self.read_body(request))
-
-    def _decode_json(self, body: bytes) -> dict[str, object]:
-        """Return bytes already read from the body, as a JSON object.
-
-        What :meth:`read_json` does once the body is in hand, separately, for a
-        parser that needs those bytes before it is willing to decode them: a
-        signature covers the body, so it has to be read whole and verified
-        first, and reading the stream a second time to decode it would be
-        decoding something nothing checked.
-
-        Args:
-            body: The bytes of the body, whole.
-
-        Returns:
-            The object they decoded to, their values left as they came.
-
-        Raises:
-            RejectWebhookError: When they are valid JSON but not an object
-                — an array or a bare value is not a webhook payload.
-            msgspec.DecodeError: When they are not JSON at all. Raised rather
-                than refused here, so that :meth:`parse` turns it into the same
-                refusal wherever in a subclass it came from.
-        """
-        try:
-            return msgspec.json.decode(body, type=dict[str, object])
-        except msgspec.ValidationError as not_an_object:
-            raise RejectWebhookError(_UNACCEPTABLE, _MALFORMED) from not_an_object
+        decoded = _JSON.decode(await self.read_body(request), JsonEncoder.FORMAT)
+        if not isinstance(decoded, dict):
+            raise RejectWebhookError(_UNACCEPTABLE, _MALFORMED)
+        payload: dict[str, object] = dict(decoded)
+        return payload

@@ -1,9 +1,9 @@
 """The xtr-webhook bundle: the receiving endpoint and the signing sender, from one config.
 
 An application listing :class:`WebhookBundle` — which brings the remote-event,
-messenger and HTTP kernel bundles with it, and the HTTP client bundle when
-xtr-http-client is installed — gets the endpoint webhooks arrive at, which
-``setup`` mounts, and its controller, a configured
+messenger, serializer and HTTP kernel bundles with it, and the HTTP client
+bundle when xtr-http-client is installed — gets the endpoint webhooks arrive
+at, which ``setup`` mounts, and its controller, a configured
 :class:`~xtr_webhook.client.RequestParser` under the ``webhook`` qualifier,
 and — with xtr-http-client — the transport that delivers a
 ``SendWebhookMessage`` and the handler that listens for one. The handler is
@@ -32,6 +32,8 @@ from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_kernel.bundle import HttpKernelBundle
 from xtr_messenger import MessageBusInterface
 from xtr_remote_event.bundle import RemoteEventBundle
+from xtr_serializer import SerializerInterface
+from xtr_serializer.bundle import SerializerBundle
 
 from xtr_webhook.client.request_parser import RequestParser
 from xtr_webhook.client.request_parser_interface import RequestParserInterface
@@ -40,7 +42,6 @@ from xtr_webhook.exception import LogicError
 from xtr_webhook.server.header_signature_configurator import HeaderSignatureConfigurator
 from xtr_webhook.server.headers_configurator import HeadersConfigurator
 from xtr_webhook.server.json_body_configurator import JsonBodyConfigurator
-from xtr_webhook.server.json_payload_serializer import JsonPayloadSerializer
 from xtr_webhook.server.signature_format import SignatureFormat
 from xtr_webhook.server.transport import Transport
 from xtr_webhook.server.transport_interface import TransportInterface
@@ -63,6 +64,7 @@ _ROUTES_MODULE: Final = "xtr_webhook.routes"
 
 @final
 @required_bundle(RemoteEventBundle)
+@required_bundle(SerializerBundle)
 @required_bundle(HttpKernelBundle)
 @required_bundle("xtr_http_client.bundle:HttpClientBundle", ignore_on_invalid=True)
 @as_bundle("webhook", config=WebhookConfig)
@@ -89,7 +91,7 @@ class WebhookBundle(Bundle[WebhookConfig]):
         fmt = SignatureFormat.parse(config.signature_format)
 
         _ = services.set(named_factory(_headers_configurator(fmt), "webhook_headers_configurator"))
-        _ = services.set(named_factory(_json_body_configurator(fmt), "webhook_body_configurator"))
+        _ = services.set(named_factory(_json_body_configurator, "webhook_body_configurator"))
         _ = services.set(named_factory(_signer(fmt), "webhook_signer"))
 
         _ = services.set(
@@ -163,13 +165,9 @@ def _headers_configurator(fmt: SignatureFormat) -> Callable[[WebhookConfig], Hea
     return build
 
 
-def _json_body_configurator(fmt: SignatureFormat) -> Callable[[], JsonBodyConfigurator]:
-    """Return the factory of the step writing the payload as a JSON body."""
-
-    def build() -> JsonBodyConfigurator:
-        return JsonBodyConfigurator(JsonPayloadSerializer(), fmt)
-
-    return build
+def _json_body_configurator(serializer: SerializerInterface) -> JsonBodyConfigurator:
+    """Build the step writing the event as a JSON body, with the application's serializer."""
+    return JsonBodyConfigurator(serializer)
 
 
 def _signer(fmt: SignatureFormat) -> Callable[[WebhookConfig], HeaderSignatureConfigurator]:
@@ -229,11 +227,14 @@ def _transport(qualifier: str | None) -> Callable[..., Transport]:
     return build
 
 
-def _request_parser(fmt: SignatureFormat) -> Callable[[WebhookConfig], RequestParser]:
+def _request_parser(
+    fmt: SignatureFormat,
+) -> Callable[[WebhookConfig, SerializerInterface], RequestParser]:
     """Return the factory of the bundle's own parser, the mirror of its sender."""
 
-    def build(config: WebhookConfig) -> RequestParser:
+    def build(config: WebhookConfig, serializer: SerializerInterface) -> RequestParser:
         return RequestParser(
+            serializer,
             algorithm=config.signing_algorithm,
             signature_header_name=config.signature_header_name,
             event_header_name=config.event_header_name,

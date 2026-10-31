@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from tests.support.fake_payload_serializer import FakePayloadSerializer
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
+
 from xtr_webhook.server import (
     HeadersConfigurator,
     HeaderSignatureConfigurator,
@@ -12,7 +13,7 @@ from xtr_webhook.server import (
 def test_every_configurator_this_package_ships_satisfies_it() -> None:
     configurators = (
         HeadersConfigurator(),
-        JsonBodyConfigurator(FakePayloadSerializer()),
+        JsonBodyConfigurator(Serializer([PydanticNormalizer()], [JsonEncoder()])),
         HeaderSignatureConfigurator(),
     )
 

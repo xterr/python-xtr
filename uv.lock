@@ -5633,6 +5633,7 @@ source = { editable = "packages/xtr-remote-event" }
 dependencies = [
     { name = "typing-extensions" },
     { name = "xtr-messenger" },
+    { name = "xtr-serializer" },
     { name = "xtr-service-contracts" },
 ]
 
@@ -5644,14 +5645,15 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
-    { name = "xtr-serializer" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 
@@ -5663,8 +5665,8 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
-    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
 ]
 
 [[package]]
@@ -6366,7 +6368,6 @@ name = "xtr-webhook"
 version = "5.2.1"
 source = { editable = "packages/xtr-webhook" }
 dependencies = [
-    { name = "msgspec" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
     { name = "xtr-http-client-contracts" },
@@ -6376,6 +6377,7 @@ dependencies = [
     { name = "xtr-http-message-contracts" },
     { name = "xtr-messenger" },
     { name = "xtr-remote-event" },
+    { name = "xtr-serializer" },
     { name = "xtr-service-contracts" },
 ]
 
@@ -6392,12 +6394,10 @@ dev = [
     { name = "xtr-http-client" },
     { name = "xtr-http-kernel" },
     { name = "xtr-http-message" },
-    { name = "xtr-serializer" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "msgspec", specifier = ">=0.18" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
@@ -6407,6 +6407,7 @@ requires-dist = [
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
     { name = "xtr-remote-event", editable = "packages/xtr-remote-event" },
+    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 
@@ -6423,7 +6424,6 @@ dev = [
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
-    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
 ]
 
 [[package]]

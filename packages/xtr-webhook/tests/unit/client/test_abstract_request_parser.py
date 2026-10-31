@@ -136,11 +136,19 @@ async def test_it_refuses_a_body_that_is_not_text() -> None:
 
 
 @pytest.mark.anyio
-async def test_the_refusal_keeps_what_gave_it_away_to_itself() -> None:
+@pytest.mark.parametrize(
+    ("parser", "body"),
+    [(_AnyBodyRequestParser(), b"{not json"), (_TextRequestParser(), b"\xff")],
+    ids=["not-json", "not-text"],
+)
+async def test_the_refusal_chains_nothing_holding_the_body(
+    parser: AbstractRequestParser, body: bytes
+) -> None:
     with pytest.raises(RejectWebhookError) as refused:
-        _ = await _AnyBodyRequestParser().parse(_arrived(b"{not json"), _WHSEC)
+        _ = await parser.parse(_arrived(body), _WHSEC)
 
-    assert isinstance(refused.value.__cause__, Exception)
+    assert refused.value.__cause__ is None
+    assert refused.value.__context__ is None
 
 
 @pytest.mark.anyio

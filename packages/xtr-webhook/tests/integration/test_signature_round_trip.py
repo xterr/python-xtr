@@ -23,6 +23,7 @@ from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient, MockResponse
 from xtr_http_message import ServerRequest
 from xtr_remote_event import RemoteEvent
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
 from xtr_webhook.client import RequestParser
 from xtr_webhook.exception import RejectWebhookError
@@ -30,7 +31,6 @@ from xtr_webhook.server import (
     HeadersConfigurator,
     HeaderSignatureConfigurator,
     JsonBodyConfigurator,
-    JsonPayloadSerializer,
     SignatureFormat,
     Transport,
 )
@@ -70,6 +70,10 @@ def _frozen() -> MockClock:
     return MockClock(datetime.fromtimestamp(_SENT_AT, tz=UTC))
 
 
+def _serializer() -> Serializer:
+    return Serializer([PydanticNormalizer()], [JsonEncoder()])
+
+
 async def _send(
     event: RemoteEvent,
     signature_format: SignatureFormat,
@@ -84,7 +88,7 @@ async def _send(
     transport = Transport(
         MockHttpClient(answer),
         HeadersConfigurator(clock=clock, signature_format=signature_format),
-        JsonBodyConfigurator(JsonPayloadSerializer(), signature_format),
+        JsonBodyConfigurator(_serializer()),
         HeaderSignatureConfigurator(signature_format=signature_format),
     )
 
@@ -104,7 +108,7 @@ async def _parse(
     secret: str = _WHSEC,
 ) -> RemoteEvent:
     """Feed what was sent back in as an arriving request, and read the event out."""
-    parser = RequestParser(signature_format=signature_format, clock=clock)
+    parser = RequestParser(_serializer(), signature_format=signature_format, clock=clock)
     parsed = await parser.parse(ServerRequest("POST", "/", headers, body), secret)
 
     assert isinstance(parsed, RemoteEvent), f"one request carries one event, got {parsed!r}"
@@ -121,15 +125,7 @@ async def test_a_sent_webhook_parses_back_to_the_event_it_was_sent_for(
 
     _, headers, body = await _send(event, signature_format, clock)
 
-    assert await _parse(headers, body, signature_format, clock) == RemoteEvent(
-        event.name,
-        event.id,
-        # Every format but the legacy one carries the name in the payload too,
-        # because its signature covers the body and no header.
-        event.payload
-        if signature_format is SignatureFormat.LEGACY
-        else {**event.payload, "type": event.name},
-    )
+    assert await _parse(headers, body, signature_format, clock) == event
 
 
 @pytest.mark.parametrize("signature_format", _EVERY_FORMAT)
@@ -208,7 +204,7 @@ async def test_the_standard_format_sends_the_event_name_in_the_body_only() -> No
     _, headers, body = await _send(_event(), SignatureFormat.STANDARD, _frozen())
 
     assert _EVENT_HEADER not in headers
-    assert json.loads(body)["type"] == "payment.authorized"
+    assert json.loads(body)["name"] == "payment.authorized"
 
 
 @pytest.mark.parametrize("signature_format", _EVERY_FORMAT)
