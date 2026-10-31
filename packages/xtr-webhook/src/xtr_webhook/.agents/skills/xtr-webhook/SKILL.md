@@ -1,6 +1,6 @@
 ---
 name: xtr-webhook
-description: How to receive and send webhooks with xtr-webhook — verify an incoming request against a subscriber secret, bound it to a replay window, turn it into a remote event, and send signed webhooks through a message bus in the legacy or the Standard Webhooks format, the event written and read whole with xtr-serializer. Use when an application must accept a provider callback, verify an HMAC signature header, mount a webhook endpoint, write a parser for one sender, rotate a signing secret, choose between the legacy and Standard Webhooks signature, send signed webhooks to subscribers with retries, send an event class of its own and have the receiver get the same class back, stop an outgoing request from reaching a private address or cloud metadata endpoint, test a parser against recorded payloads, or add WebhookBundle to an application.
+description: How to receive and send webhooks with xtr-webhook — verify an incoming request against a subscriber secret, bound it to a replay window, turn it into a remote event, and send signed webhooks through a message bus in the legacy or the Standard Webhooks format, the event's payload posted as the body for any receiver to read. Use when an application must accept a provider callback, verify an HMAC signature header, mount a webhook endpoint, write a parser for one sender, rotate a signing secret, choose between the legacy and Standard Webhooks signature, send signed webhooks to subscribers with retries, decide what of an event class of its own reaches a receiver, stop an outgoing request from reaching a private address or cloud metadata endpoint, test a parser against recorded payloads, or add WebhookBundle to an application.
 ---
 
 # xtr-webhook
@@ -17,15 +17,15 @@ sees HTTP. Sending is the same problem from the other side.
   in `<app>/config/routes/webhook.py`); the type picks the parser and the secret.
   `WebhookController(parsers, secrets, bus)` is what answers.
 - Parse — subclass `AbstractRequestParser` and fill in `get_request_matcher()` and
-  `async do_parse(request, secret)`. `RequestParser(serializer, ...)` is the built-in one: it
-  reads the signed body back into the event it holds, of the class its `"$type"` names. The
-  matchers are `xtr_http_foundation`'s, and `IsJsonRequestMatcher` reads the body rather than
+  `async do_parse(request, secret)`. `RequestParser` is the built-in one: once a signature
+  verified it builds `RemoteEvent(name, id, payload)` from the headers and the JSON object body.
+  The matchers are `xtr_http_foundation`'s, and `IsJsonRequestMatcher` reads the body rather than
   the `Content-Type` header.
 - Send — `await bus.dispatch(SendWebhookMessage(Subscriber(url, secret), event))`. Needs
   xtr-http-client installed beside this package; `Transport` posts through any
-  `HttpClientInterface`. The body is the whole event, written by
-  `JsonBodyConfigurator(serializer)`; an event class of your own (registered with
-  `@discriminator_name`, see xtr-remote-event) arrives as itself.
+  `HttpClientInterface`. The body is the event's payload, written by
+  `JsonBodyConfigurator(serializer, signature_format)`; the name and id go in headers. An event
+  class of your own crosses the bus as itself, but only its payload is posted.
 - Formats — `SignatureFormat.LEGACY` (default), `STANDARD`, `TRANSITIONAL`. Members are their
   strings. Only `STANDARD` signs the timestamp, so only it bounds replays.
 - Guard — `NoPrivateNetworkConfig(enabled=True)` in the bundle, or
@@ -120,9 +120,8 @@ than a `500`, and both answers are the ones the sender's side waits for.
 - `await self.read_body(request)` returns every byte from the first one, rewinding the stream
   where it can — a signature covers exactly what arrived. Reading a body is awaited.
 - `await self.read_json(request)` decodes a JSON object. An array or a bare value is refused;
-  bytes that are not JSON raise, and `parse()` turns that into the same `406` — as it does what a
-  serializer refuses reading, for a parser reading the body into a class with one. The refusal
-  chains nothing, so no traceback carries the body.
+  bytes that are not JSON raise, and `parse()` turns that into the same `406`. The refusal chains
+  nothing, so no traceback carries the body.
 - Return one event, a sequence, or `None` for a webhook to accept and ignore. `None` and an
   empty sequence are answered as unparsable, not accepted.
 - `RejectWebhookError(status_code=406, message="", headers=None)` carries the whole answer. The
@@ -158,11 +157,14 @@ _ = await bus.dispatch(
 
 - `Subscriber(url, secret)` is frozen and keeps the secret out of its `repr`. An empty secret
   raises `InvalidArgumentError` — it would still sign, over the empty key.
-- The event may be of any class derived from `RemoteEvent` that registered a name. It is written
-  whole — `{"$type": "remote_event", "name": ..., "id": ..., "payload": ...}` for a plain one —
-  as compact JSON, and the signer signs exactly those bytes. An event the serializer cannot write
-  exactly (a derived class with no name, a payload value JSON cannot carry) raises its
-  `NotNormalizableValueError` before anything is sent.
+- The body is `event.payload` as compact JSON, keys in their own order, and the signer signs
+  exactly those bytes. Under `STANDARD` and `TRANSITIONAL` a `type` key naming the event is added
+  to a copy of the payload, unless it has one. A payload value JSON cannot carry exactly (a
+  datetime, a set, a tuple) raises the serializer's `NotNormalizableValueError` before anything
+  is sent.
+- An event of a class derived from `RemoteEvent` crosses the bus to the worker as that class, but
+  over HTTP only its payload is posted; the fields its class adds are not, and the receiver gets
+  a plain `RemoteEvent`. Put what a receiver needs in the payload.
 - The chain is `HeadersConfigurator` → `JsonBodyConfigurator` → `HeaderSignatureConfigurator`,
   and the signer runs last because it signs the other two's output. Replace or add a step for a
   receiver that disagrees.
@@ -180,20 +182,21 @@ _ = await bus.dispatch(
 
 ## Choose a signature format
 
-| Format | Header value | Signed over | `Webhook-Event` header | Replay bounded |
+| Format | Header value | Signed over | Event name in | Replay bounded |
 | --- | --- | --- | --- | --- |
-| `LEGACY` | `sha256=<hex>` | name + id + body | sent, and signed | no |
-| `STANDARD` | `v1,<base64>` | `<id>.<timestamp>.` + body | not sent | yes |
-| `TRANSITIONAL` | both, space separated | both | sent | for the Standard entry only |
+| `LEGACY` | `sha256=<hex>` | name + id + body | the `Webhook-Event` header | no |
+| `STANDARD` | `v1,<base64>` | `<id>.<timestamp>.` + body | the payload's `type` key | yes |
+| `TRANSITIONAL` | both, space separated | both | both | for the Standard entry only |
 
 - Both ends must have made the same choice. `TRANSITIONAL` is the migration window, so they need
   not change on the same day.
 - `LEGACY` carries no signed timestamp, so `timestamp_tolerance` protects only `STANDARD` and
   `TRANSITIONAL`. Under `LEGACY` the timestamp header is sent but nothing signs it.
-- The receiver reads the event's name and id from the body under every format — the body is
-  what every signature covers. Under `STANDARD` the `Webhook-Event` header is not sent at all.
-- A genuine body holding no event — an unknown `"$type"`, another hierarchy's name, none, a
-  field missing or mistyped — is refused `406` with `Request body is malformed.`.
+- Under `STANDARD` the `Webhook-Event` header is not sent at all; the name goes in the payload,
+  because that scheme's signature covers no header. A payload with no `type` string is refused
+  `406` with `The payload is missing the "type" key holding the event name.`
+- The id is read from `Webhook-Id`, which both schemes sign. A genuine body that is not a JSON
+  object is refused `406` with `Request body is malformed.`.
 - A rotation works because the signature header may carry several whitespace-separated entries
   and any one that verifies is enough.
 - `SignatureFormat.parse("standard")` is the single door for a string; anything else raises
@@ -291,10 +294,9 @@ async def test_the_parser_reads_every_recorded_payload(case: ParserCase) -> None
   `MockHttpClient` service the transport; script it with `set_response_factory`.
 - Freeze time by passing a `MockClock` as `clock` to `HeadersConfigurator` or `RequestParser`, so
   a timestamp and its window are decided rather than raced.
-- Build `RequestParser` and `JsonBodyConfigurator` over a real
-  `Serializer([PydanticNormalizer()], [JsonEncoder()])`; there is nothing to mock. For an event
-  class of your own, assert the receiver's event `==` the sent one and `type(parsed) is` its
-  class.
+- Build `JsonBodyConfigurator` over a real `Serializer([PydanticNormalizer()], [JsonEncoder()])`;
+  there is nothing to mock. Compare the posted body with JSON written in the test, and the
+  parsed event with `RemoteEvent(name, id, payload)`.
 
 ## Use in an application
 
@@ -310,7 +312,7 @@ steps it cannot make — calling `setup` and naming your own types.
 2. **Activate** — `WebhookBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_webhook.bundle import WebhookBundle`).
 3. **Brings along** — the remote-event bundle, the messenger bundle through it, the serializer
-   bundle, whose serializer writes and reads every body, and the HTTP kernel's bundle, always;
+   bundle, whose serializer writes every body, and the HTTP kernel's bundle, always;
    the HTTP client bundle when xtr-http-client is installed.
 4. **Configure** — needed to receive anything: with no routing the endpoint knows no type and
    answers every webhook `404`. `<app>/config/packages/webhook.py`, a `@configure` function returning
@@ -347,7 +349,7 @@ Everything derives from `WebhookError` and carries typed attributes.
 An `InvalidArgumentError` is configuration to fix, never an answer to a request. A
 `RejectWebhookError` is the answer to a request and nothing else. A delivery nothing answered,
 and one the private-network guard refused, raise the client's `TransportError`
-(xtr-http-client-contracts) unwrapped; an event the serializer cannot write raises its
+(xtr-http-client-contracts) unwrapped; a payload the serializer cannot write raises its
 `NotNormalizableValueError` unwrapped.
 
 ## Do not
@@ -361,9 +363,11 @@ and one the private-network guard refused, raise the client's `TransportError`
 - Do not rely on `timestamp_tolerance` under `LEGACY`; that format signs no timestamp. Use
   `STANDARD` where replay protection matters.
 - Do not trust the `Webhook-Event` header under `STANDARD`. That signature covers no header; the
-  name the receiver acts on is the body's.
-- Do not derive an event class without `@discriminator_name`: it is refused when sent rather
-  than sent as its base.
+  name is in the payload's `type`.
+- Do not expect a receiver to get the fields an event class of your own adds: over HTTP only the
+  payload is posted. Put what the receiver needs in the payload.
+- Do not derive an event class without `@discriminator_name`: a bus that writes its messages
+  refuses a `SendWebhookMessage` holding it rather than send it as its base.
 - Do not handle a webhook before answering its sender, and do not swallow a `DeliveryError` in a
   handler — the error is what makes the bus retry.
 - Do not follow redirects when sending, and do not bound a delivery anywhere but on its client —

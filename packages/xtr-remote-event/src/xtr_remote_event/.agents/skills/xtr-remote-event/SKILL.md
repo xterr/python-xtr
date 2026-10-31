@@ -1,6 +1,6 @@
 ---
 name: xtr-remote-event
-description: How to hand an event that came from another system to the code that handles it with xtr-remote-event — one RemoteEvent value type at the base of a class hierarchy, a one-method consumer declared with as_remote_event_consumer, a ConsumerLocator that finds it by source name, and ConsumeRemoteEventMessage so the work happens on a worker. Use when a delivery report, a payment notice, a provider callback or any inbound event needs routing to the code that handles that sender; when writing or declaring a consumer; when deriving an event class of your own that must cross a bus or a webhook as itself; when translating a sender's payload with a PayloadConverterInterface; when adding RemoteEventBundle to an application; or when a webhook read by xtr-webhook has to reach a consumer.
+description: How to hand an event that came from another system to the code that handles it with xtr-remote-event — one RemoteEvent value type at the base of a class hierarchy, a one-method consumer declared with as_remote_event_consumer, a ConsumerLocator that finds it by source name, and ConsumeRemoteEventMessage so the work happens on a worker. Use when a delivery report, a payment notice, a provider callback or any inbound event needs routing to the code that handles that sender; when writing or declaring a consumer; when deriving an event class of your own that must cross a bus as itself; when translating a sender's payload with a PayloadConverterInterface; when adding RemoteEventBundle to an application; or when a webhook read by xtr-webhook has to reach a consumer.
 ---
 
 # xtr-remote-event
@@ -15,7 +15,8 @@ sender. This package is that last step and nothing else.
   and decides who is handed it; `payload` is a `dict[str, object]` of JSON data as it arrived.
 - `RemoteEvent` is the base of a class hierarchy (xtr-serializer's `@discriminator_map()`, wire
   key `"$type"`, its own name `"remote_event"`). Derive a class and register its name with
-  `@discriminator_name("<name>")` — it then crosses a bus or a webhook as itself.
+  `@discriminator_name("<name>")` — it then crosses a bus as itself. A webhook's HTTP body
+  carries only the payload, so over HTTP a receiver gets a plain `RemoteEvent`.
 - `@as_remote_event_consumer("<source>")` on a class with `async def consume(self, event)`.
   Stack it for several sources.
 - `ConsumerLocator({"<source>": consumer})` → `await locator.get("<source>")`. Also takes a

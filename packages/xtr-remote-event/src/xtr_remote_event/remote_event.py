@@ -31,7 +31,7 @@ class RemoteEvent:
 
     The base of a class hierarchy, so an event of a class derived from it
     travels as that class wherever a field declares ``RemoteEvent`` — in a
-    message on a bus, in a webhook's body. Each value is written with its
+    message on a bus, above all. Each value is written with its
     class's name under ``"$type"``, and read back only as a class of this
     hierarchy that registered that name: this one is ``"remote_event"``. A
     source worth naming gets a type of its own over the same three fields,

@@ -10,10 +10,10 @@ and is understood with no conversion step. `SignatureFormat.parse(value)` is the
 anything arriving from outside, and raises `InvalidArgumentError` with
 `"<value>" is not a signature format; use "legacy", "standard" or "transitional".`
 
-Under every format the body is the same: the whole event, written by the sender's serializer as
-a `RemoteEvent` — its class's registered name under `"$type"`, then its fields — and read back by
-`RequestParser` into that class once a signature verified. The event's name and id are read
-from the body, which every signature covers.
+Under every format the body is the event's payload as compact JSON, so any receiver reads it as
+the object it is; the event's id travels in `Webhook-Id`, and its name where the format says. A
+field an event class derived from `RemoteEvent` adds is not posted. `RequestParser` builds a
+plain `RemoteEvent(name, id, payload)` once a signature verified.
 
 ## Legacy
 
@@ -54,12 +54,12 @@ Webhook-Timestamp: 1767225600
 Webhook-Event: order.paid
 Webhook-Signature: sha256=0f8c...
 
-{"$type":"remote_event","name":"order.paid","id":"evt_1","payload":{"total":4200}}
+{"total":4200}
 ```
 
 `signing_algorithm` picks the digest; anything `hashlib` cannot make is refused where it is
-configured rather than at the first delivery. The event name travels in `Webhook-Event` too,
-because this signature covers it.
+configured rather than at the first delivery. The event name is in `Webhook-Event`, which this
+signature covers, so the receiver may act on it.
 
 **No timestamp is signed.** `Webhook-Timestamp` is sent, but nothing covers it, so refusing on
 it would mean trusting a value an attacker sets. There is no replay protection in this format.
@@ -82,7 +82,8 @@ Webhook-Signature: v1,<base64>
 ```
 
 A full delivery. There is no `Webhook-Event` header at all, because this signature covers no
-header, so a name sent as one is a value the receiver cannot trust; the body names the event:
+header, so a name sent as one is a value the receiver cannot trust. The name goes in the
+payload's `type` key instead:
 
 ```http
 POST /hook HTTP/1.1
@@ -91,11 +92,14 @@ Webhook-Id: evt_1
 Webhook-Timestamp: 1767225600
 Webhook-Signature: v1,dGhlLXNpZ25hdHVyZQ==
 
-{"$type":"remote_event","name":"order.paid","id":"evt_1","payload":{"total":4200}}
+{"total":4200,"type":"order.paid"}
 ```
 
-A body holding no event — a `"$type"` no class of the hierarchy registered, none at all, a field
-missing or of the wrong type — is refused with `Request body is malformed.`
+A payload that already carries `type` keeps what it says: the application knows its own events
+better than their source name does. The payload is copied before the key is added, so sending a
+webhook never edits the dict the caller is still holding. A payload whose `type` is missing or
+not a string names no event and is refused with
+`The payload is missing the "type" key holding the event name.`
 
 ### The secret's encoding
 
@@ -121,8 +125,8 @@ is refused as well — a value that cannot be bounded is not accepted on faith. 
 
 ## Transitional
 
-Both signatures, space separated in one header, with the `Webhook-Event` header sent for the
-legacy one:
+Both signatures, space separated in one header, with the event name in both the header and the
+payload:
 
 ```
 Webhook-Signature: sha256=0f8c... v1,dGhlLXNpZ25hdHVyZQ==
@@ -143,7 +147,7 @@ Legacy to Standard, with nothing refused in between:
    sending the Standard one too.
 4. Set the **sender** to `standard`. The legacy entry stops being emitted, and the
    `Webhook-Event` header with it — so anything downstream reading that header must already read
-   the event's name from the body.
+   the payload's `type`.
 
 Backwards is the same four steps read upwards.
 

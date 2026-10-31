@@ -91,7 +91,7 @@ class WebhookBundle(Bundle[WebhookConfig]):
         fmt = SignatureFormat.parse(config.signature_format)
 
         _ = services.set(named_factory(_headers_configurator(fmt), "webhook_headers_configurator"))
-        _ = services.set(named_factory(_json_body_configurator, "webhook_body_configurator"))
+        _ = services.set(named_factory(_json_body_configurator(fmt), "webhook_body_configurator"))
         _ = services.set(named_factory(_signer(fmt), "webhook_signer"))
 
         _ = services.set(
@@ -165,9 +165,15 @@ def _headers_configurator(fmt: SignatureFormat) -> Callable[[WebhookConfig], Hea
     return build
 
 
-def _json_body_configurator(serializer: SerializerInterface) -> JsonBodyConfigurator:
-    """Build the step writing the event as a JSON body, with the application's serializer."""
-    return JsonBodyConfigurator(serializer)
+def _json_body_configurator(
+    fmt: SignatureFormat,
+) -> Callable[[SerializerInterface], JsonBodyConfigurator]:
+    """Return the factory of the step writing the payload as a JSON body."""
+
+    def build(serializer: SerializerInterface) -> JsonBodyConfigurator:
+        return JsonBodyConfigurator(serializer, fmt)
+
+    return build
 
 
 def _signer(fmt: SignatureFormat) -> Callable[[WebhookConfig], HeaderSignatureConfigurator]:
@@ -227,14 +233,11 @@ def _transport(qualifier: str | None) -> Callable[..., Transport]:
     return build
 
 
-def _request_parser(
-    fmt: SignatureFormat,
-) -> Callable[[WebhookConfig, SerializerInterface], RequestParser]:
+def _request_parser(fmt: SignatureFormat) -> Callable[[WebhookConfig], RequestParser]:
     """Return the factory of the bundle's own parser, the mirror of its sender."""
 
-    def build(config: WebhookConfig, serializer: SerializerInterface) -> RequestParser:
+    def build(config: WebhookConfig) -> RequestParser:
         return RequestParser(
-            serializer,
             algorithm=config.signing_algorithm,
             signature_header_name=config.signature_header_name,
             event_header_name=config.event_header_name,

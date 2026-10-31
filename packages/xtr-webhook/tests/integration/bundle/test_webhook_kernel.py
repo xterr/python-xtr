@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hmac
-import json
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -31,7 +30,6 @@ APP = "tests.fixtures.app_webhook"
 GUARDED_APP = "tests.fixtures.app_guarded"
 
 BODY = b'{"foo":"bar"}'
-EVENT_BODY = b'{"$type":"remote_event","name":"the-event","id":"the-id","payload":{"foo":"bar"}}'
 JSON_HEADERS = {"Content-Type": "application/json"}
 
 
@@ -92,14 +90,14 @@ async def test_a_route_without_a_parser_uses_the_bundles_own_request_parser() ->
     headers = {
         **JSON_HEADERS,
         "Webhook-Signature": _legacy_signature(
-            PLAIN_SECRET.encode(), b"the-event", b"the-id", EVENT_BODY
+            PLAIN_SECRET.encode(), b"the-event", b"the-id", BODY
         ),
         "Webhook-Event": "the-event",
         "Webhook-Id": "the-id",
     }
 
     async with serving(app) as client:
-        response = await client.post("/webhook/plain", content=EVENT_BODY, headers=headers)
+        response = await client.post("/webhook/plain", content=BODY, headers=headers)
 
     assert response.status_code == 202
     assert [RemoteEvent("the-event", "the-id", {"foo": "bar"})] == services.CONSUMED
@@ -120,15 +118,14 @@ async def test_outgoing_webhooks_are_posted_with_signed_headers() -> None:
 
     sent = answer.get_request_options()
     headers = cast("Mapping[str, str]", sent["headers"])
-    body = cast("bytes", sent["body"])
     assert answer.get_request_method() == "POST"
     assert answer.get_request_url() == "https://example.com/hook"
-    assert json.loads(body) == json.loads(EVENT_BODY)
+    assert sent["body"] == BODY
     assert headers["Webhook-Event"] == "the-event"
     assert headers["Webhook-Id"] == "the-id"
     assert "Webhook-Timestamp" in headers
     assert headers["Webhook-Signature"] == _legacy_signature(
-        b"the-secret", b"the-event", b"the-id", body
+        b"the-secret", b"the-event", b"the-id", BODY
     )
 
 

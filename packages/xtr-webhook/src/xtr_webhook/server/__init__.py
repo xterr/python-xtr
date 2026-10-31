@@ -1,7 +1,7 @@
 """The sending side: what a webhook leaving this application is signed and shaped like.
 
 A webhook is built by a chain of configurators, each writing one part of the same
-:class:`OutgoingRequest` — the headers that name the event, the body the event is
+:class:`OutgoingRequest` — the headers that name the event, the body the payload is
 written into, the signature over both. They are separate because receivers disagree
 about all three, so an application that has to satisfy an unusual one adds or replaces
 a step rather than the sender.

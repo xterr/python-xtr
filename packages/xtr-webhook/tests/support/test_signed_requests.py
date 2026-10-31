@@ -3,27 +3,25 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 
 import pytest
-from xtr_remote_event import RemoteEvent
-from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
 from tests.support.signed_requests import (
     EVENT_ID,
     WHSEC,
     arriving,
-    event_body,
+    json_body,
     legacy_entry,
     standard_entry,
 )
 
 
-def test_an_event_body_reads_back_as_the_plain_event_it_spells_out() -> None:
-    serializer = Serializer([PydanticNormalizer()], [JsonEncoder()])
+def test_a_json_body_is_the_payload_written_compact() -> None:
+    body = json_body({"total": 1, "lines": [1, 2]})
 
-    read = serializer.deserialize(event_body("paid", {"total": 1}), RemoteEvent, "json")
-
-    assert read == RemoteEvent("paid", EVENT_ID, {"total": 1})
+    assert body == b'{"total":1,"lines":[1,2]}'
+    assert json.loads(body) == {"total": 1, "lines": [1, 2]}
 
 
 def test_a_legacy_entry_covers_the_name_the_id_and_the_body() -> None:

@@ -1,7 +1,7 @@
 """Webhook bodies and signature entries built by hand, so a test does not trust the code under test.
 
 The signature entries are made with ``hmac`` and ``base64`` directly, and a body is the JSON a
-sender writes for an event, spelled out rather than produced by a serializer.
+sender writes for a payload, spelled out rather than produced by a serializer.
 """
 
 from __future__ import annotations
@@ -13,25 +13,20 @@ import json
 
 from xtr_http_message import ServerRequest
 
-__all__ = ["EVENT_ID", "WHSEC", "arriving", "event_body", "legacy_entry", "standard_entry"]
+__all__ = ["EVENT_ID", "WHSEC", "arriving", "json_body", "legacy_entry", "standard_entry"]
 
 WHSEC = "s3cr3t"
 """The secret both ends share. Named away from "secret" so the credential rule stays useful."""
 
 EVENT_ID = "event-id"
-"""The id every body and every entry here is for."""
+"""The id every entry here is for."""
 
 _WHSEC_KEY = WHSEC.encode()
 
 
-def event_body(
-    name: str = "event-name",
-    payload: dict[str, object] | None = None,
-    tag: object = "remote_event",
-) -> bytes:
-    """Return the body a sender writes for a plain event: its tag, its fields, compact."""
-    written = {"$type": tag, "name": name, "id": EVENT_ID, "payload": payload or {}}
-    return json.dumps(written, separators=(",", ":")).encode()
+def json_body(payload: object) -> bytes:
+    """Return ``payload`` as the compact JSON a sender posts."""
+    return json.dumps(payload, separators=(",", ":")).encode()
 
 
 def legacy_entry(event_name: str, body: bytes, key: str = WHSEC) -> str:

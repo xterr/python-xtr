@@ -31,7 +31,7 @@ dependencies = [
     "xtr-http-message-contracts>=5.0,<6",
     "xtr-messenger>=5.0,<6",
     "xtr-remote-event>=5.0,<6",
-    # What writes the event as the body, and reads a body back into the event.
+    # What writes the event's payload as the body, and decodes the JSON of an arriving one.
     "xtr-serializer>=5.0,<6",
     "xtr-service-contracts>=5.0,<6",
     # The endpoint webhooks arrive at, contributed to the application's routes.

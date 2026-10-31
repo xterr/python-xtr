@@ -2,28 +2,27 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
 
 import pytest
 from xtr_clock import MockClock
 from xtr_http_message import ServerRequest
 from xtr_remote_event import RemoteEvent
-from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
-from tests.fixtures.events import DeliveryReport, Recipient
-from tests.support.signed_requests import EVENT_ID, WHSEC, arriving, event_body, legacy_entry
+from tests.support.signed_requests import EVENT_ID, WHSEC, arriving, json_body, legacy_entry
 from xtr_webhook.client import RequestParser
 from xtr_webhook.exception import InvalidArgumentError, RejectWebhookError
 
 _MALFORMED = "Request body is malformed."
-_FORGED = "forged-tag-from-the-wire"
+_PAYLOAD: dict[str, object] = {
+    "order": {"lines": [{"sku": "A-1", "qty": 2}], "note": None},
+    "total": 42.5,
+    "paid": True,
+}
 
 
 def _parser() -> RequestParser:
-    serializer = Serializer([PydanticNormalizer()], [JsonEncoder()])
-    return RequestParser(serializer, clock=MockClock(datetime(2026, 1, 1, tzinfo=UTC)))
+    return RequestParser(clock=MockClock(datetime(2026, 1, 1, tzinfo=UTC)))
 
 
 def _signed(body: bytes, event_name: str = "event-name") -> ServerRequest:
@@ -47,16 +46,22 @@ async def test_it_refuses_a_request_its_matcher_does_not_claim() -> None:
 
 
 @pytest.mark.anyio
-async def test_it_refuses_a_body_that_is_not_json_whatever_the_media_type_says() -> None:
+@pytest.mark.parametrize(
+    "body", [b"{not json at all", b'{"a":"\xff"}'], ids=["garbled", "not-utf-8"]
+)
+async def test_it_refuses_a_body_that_is_not_json_whatever_the_media_type_says(
+    body: bytes,
+) -> None:
     with pytest.raises(RejectWebhookError) as refused:
-        _ = await _parser().parse(_signed(b"{not json at all"), WHSEC)
+        _ = await _parser().parse(_signed(body), WHSEC)
 
+    assert refused.value.status_code == 406
     assert str(refused.value) == "Request does not match."
 
 
 @pytest.mark.anyio
 async def test_it_claims_a_json_body_that_announces_no_media_type() -> None:
-    body = event_body(payload={"foo": "bar"})
+    body = json_body({"foo": "bar"})
     headers = {
         "Webhook-Signature": legacy_entry("event-name", body),
         "Webhook-Event": "event-name",
@@ -69,57 +74,22 @@ async def test_it_claims_a_json_body_that_announces_no_media_type() -> None:
 
 
 @pytest.mark.anyio
-async def test_it_reads_the_event_the_body_holds() -> None:
-    parsed = await _parser().parse(_signed(event_body(payload={"foo": "bar"})), WHSEC)
+async def test_legacy_reads_the_name_and_id_from_the_headers_and_the_payload_from_the_body() -> (
+    None
+):
+    parsed = await _parser().parse(_signed(json_body(_PAYLOAD), "order.paid"), WHSEC)
 
-    assert parsed == RemoteEvent("event-name", EVENT_ID, {"foo": "bar"})
+    assert parsed == RemoteEvent("order.paid", EVENT_ID, _PAYLOAD)
     assert type(parsed) is RemoteEvent
-
-
-@pytest.mark.anyio
-async def test_it_reads_an_event_of_a_class_of_the_hierarchy_as_that_class() -> None:
-    sent = DeliveryReport(
-        "mailer",
-        EVENT_ID,
-        {},
-        occurred_at=datetime(2026, 3, 1, 9, tzinfo=UTC),
-        scheduled_for=datetime(2026, 10, 25, 3, 30, fold=1, tzinfo=ZoneInfo("Europe/Bucharest")),
-        recipient=Recipient("ana@example.com"),
-    )
-    serializer = Serializer([PydanticNormalizer()], [JsonEncoder()])
-    body = serializer.serialize(sent, "json", type_=RemoteEvent).encode()
-
-    parsed = await _parser().parse(_signed(body, "mailer"), WHSEC)
-
-    assert parsed == sent
-    assert type(parsed) is DeliveryReport
 
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
     "body",
-    [
-        b"1",
-        b"[1, 2]",
-        event_body(tag=_FORGED),
-        event_body(tag="webhook_test_stray_notice"),
-        event_body(tag=None),
-        json.dumps({"name": "event-name", "id": EVENT_ID, "payload": {}}).encode(),
-        json.dumps({"$type": "remote_event", "name": _FORGED}).encode(),
-        json.dumps({"$type": "remote_event", "name": 1, "id": EVENT_ID, "payload": {}}).encode(),
-    ],
-    ids=[
-        "a-number",
-        "an-array",
-        "an-unknown-tag",
-        "the-tag-of-another-hierarchy",
-        "a-tag-that-is-no-name",
-        "no-tag",
-        "missing-fields",
-        "a-field-of-the-wrong-type",
-    ],
+    [b"1", b"[1,2]", b'"text"', b"null", b"true"],
+    ids=["a-number", "an-array", "a-string", "null", "a-boolean"],
 )
-async def test_a_genuine_body_that_holds_no_event_is_refused_as_malformed(body: bytes) -> None:
+async def test_a_genuine_body_that_is_not_an_object_is_refused_as_malformed(body: bytes) -> None:
     with pytest.raises(RejectWebhookError) as refused:
         _ = await _parser().parse(_signed(body), WHSEC)
 
@@ -131,7 +101,7 @@ async def test_a_genuine_body_that_holds_no_event_is_refused_as_malformed(body: 
 
 @pytest.mark.anyio
 async def test_a_wrong_signature_is_answered_before_the_body_is_read() -> None:
-    body = event_body(tag=_FORGED)
+    body = b"[1,2]"
     request = arriving(
         body,
         {
@@ -148,13 +118,34 @@ async def test_a_wrong_signature_is_answered_before_the_body_is_read() -> None:
 
 
 @pytest.mark.anyio
-async def test_legacy_rejects_a_rewritten_event_header() -> None:
-    body = event_body()
+@pytest.mark.parametrize(
+    "rewritten",
+    [{"Webhook-Event": "rewritten-name"}, {"Webhook-Id": "rewritten-id"}],
+    ids=["event", "id"],
+)
+async def test_legacy_rejects_a_rewritten_header(rewritten: dict[str, str]) -> None:
+    body = json_body({"foo": "bar"})
+    headers = {
+        "Webhook-Signature": legacy_entry("event-name", body),
+        "Webhook-Event": "event-name",
+        "Webhook-Id": EVENT_ID,
+        **rewritten,
+    }
+
+    with pytest.raises(RejectWebhookError) as refused:
+        _ = await _parser().parse(arriving(body, headers), WHSEC)
+
+    assert str(refused.value) == "Signature is wrong."
+
+
+@pytest.mark.anyio
+async def test_legacy_rejects_a_rewritten_body() -> None:
+    signed = json_body({"total": 1})
     request = arriving(
-        body,
+        json_body({"total": 9}),
         {
-            "Webhook-Signature": legacy_entry("event-name", body),
-            "Webhook-Event": "rewritten-name",
+            "Webhook-Signature": legacy_entry("event-name", signed),
+            "Webhook-Event": "event-name",
             "Webhook-Id": EVENT_ID,
         },
     )
@@ -167,7 +158,7 @@ async def test_legacy_rejects_a_rewritten_event_header() -> None:
 
 @pytest.mark.anyio
 async def test_legacy_requires_the_event_header() -> None:
-    body = event_body()
+    body = json_body({})
     request = arriving(
         body, {"Webhook-Signature": legacy_entry("event-name", body), "Webhook-Id": EVENT_ID}
     )
@@ -187,9 +178,7 @@ async def test_an_empty_secret_is_a_misconfiguration_not_a_refusal() -> None:
 
 
 def test_an_algorithm_this_runtime_cannot_make_is_refused_where_it_is_configured() -> None:
-    serializer = Serializer([PydanticNormalizer()], [JsonEncoder()])
-
     with pytest.raises(InvalidArgumentError) as misconfigured:
-        _ = RequestParser(serializer, algorithm="not-a-digest")
+        _ = RequestParser(algorithm="not-a-digest")
 
     assert str(misconfigured.value) == 'The signing algorithm "not-a-digest" is not available.'

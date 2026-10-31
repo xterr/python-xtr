@@ -95,11 +95,13 @@ class DeliveryReport(RemoteEvent):
     metadata: dict[str, str] = field(default_factory=dict[str, str])
 ```
 
-Wherever a field declares `RemoteEvent` — the event in `ConsumeRemoteEventMessage`, the one
-[xtr-webhook](../xtr-webhook) sends — a `DeliveryReport` is written with `"$type":
+Wherever a field declares `RemoteEvent` — the event in `ConsumeRemoteEventMessage`, the one in
+[xtr-webhook](../xtr-webhook)'s `SendWebhookMessage` — a `DeliveryReport` is written with `"$type":
 "delivery_report"` beside its fields, and read back a `DeliveryReport`: its dates, its nested
 `Recipient`, its tuple and its dict as they left. A plain `RemoteEvent` is written under
-`"remote_event"`.
+`"remote_event"`. A webhook's HTTP body is the event's payload alone, so a receiver over HTTP
+gets a plain `RemoteEvent` — see xtr-webhook's
+[Known limitations](../xtr-webhook#known-limitations).
 
 - Register the name where the class is defined, at import: a name is refused once a type holding
   the hierarchy has been used, so the module must be imported before the first message holding

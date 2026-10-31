@@ -1,6 +1,6 @@
-"""An event an application derives from RemoteEvent, and a hierarchy of its own beside it.
+"""Events an application derives from RemoteEvent.
 
-Named here, at import, as an application names its events: before any webhook carrying one is
+Named here, at import, as an application names its events: before any message carrying one is
 sent or read.
 """
 
@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from xtr_remote_event import RemoteEvent
-from xtr_serializer import ZonedDateTime, discriminator_map, discriminator_name
+from xtr_serializer import ZonedDateTime, discriminator_name
 
-__all__ = ["DeliveryReport", "Notice", "Recipient", "StrayNotice", "UnnamedEvent"]
+__all__ = ["DeliveryReport", "Recipient", "UnnamedEvent"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,20 +37,6 @@ class DeliveryReport(RemoteEvent):
 
 @dataclass(frozen=True, slots=True)
 class UnnamedEvent(RemoteEvent):
-    """An event whose class was never given a name, so nothing writes it."""
+    """An event whose class was never given a name, so no message carries it."""
 
     reason: str = ""
-
-
-@discriminator_map()
-@dataclass(frozen=True, slots=True)
-class Notice:
-    """The base of a hierarchy that is not the remote events'."""
-
-    text: str
-
-
-@discriminator_name("webhook_test_stray_notice")
-@dataclass(frozen=True, slots=True)
-class StrayNotice(Notice):
-    """A named class of that other hierarchy, whose name a webhook's event must not take."""

@@ -1,83 +1,89 @@
 from __future__ import annotations
 
-import json
-from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime
 
 import pytest
 from xtr_remote_event import RemoteEvent
-from xtr_serializer import (
-    JsonEncoder,
-    NotNormalizableValueError,
-    PydanticNormalizer,
-    Serializer,
-)
+from xtr_serializer import JsonEncoder, NotNormalizableValueError, PydanticNormalizer, Serializer
 
-from tests.fixtures.events import DeliveryReport, Recipient, UnnamedEvent
-from xtr_webhook.server import JsonBodyConfigurator, OutgoingRequest
+from tests.fixtures.events import UnnamedEvent
+from xtr_webhook.exception import InvalidArgumentError
+from xtr_webhook.server import JsonBodyConfigurator, OutgoingRequest, SignatureFormat
 
 # Named away from "secret" so the linter's hardcoded-credential rule stays useful
 # where it matters.
 _WHSEC = "s3cr3t"
+_NOT_LEGACY = [SignatureFormat.STANDARD, SignatureFormat.TRANSITIONAL]
+_NESTED: dict[str, object] = {
+    "order": {"lines": [{"sku": "A-1", "qty": 2}], "note": None},
+    "total": 42.5,
+    "paid": True,
+    "currency": "EUR",
+}
 
 
-def _serializer() -> Serializer:
-    return Serializer([PydanticNormalizer()], [JsonEncoder()])
-
-
-def _configured(event: RemoteEvent, request: OutgoingRequest | None = None) -> OutgoingRequest:
+def _configured(
+    event: RemoteEvent,
+    signature_format: SignatureFormat | str = SignatureFormat.LEGACY,
+    request: OutgoingRequest | None = None,
+) -> OutgoingRequest:
     built = request or OutgoingRequest()
-    JsonBodyConfigurator(_serializer()).configure(event, _WHSEC, built)
+    serializer = Serializer([PydanticNormalizer()], [JsonEncoder()])
+    JsonBodyConfigurator(serializer, signature_format).configure(event, _WHSEC, built)
     return built
 
 
-def _report() -> DeliveryReport:
-    return DeliveryReport(
-        "mailer",
-        "evt_7",
-        {"provider": "acme"},
-        occurred_at=datetime(2026, 3, 1, 9, tzinfo=UTC),
-        scheduled_for=datetime(2026, 10, 25, 3, 30, fold=1, tzinfo=ZoneInfo("Europe/Bucharest")),
-        recipient=Recipient("ana@example.com", ("vip",)),
-        tags=("welcome",),
-        metadata={"campaign": "spring"},
+def test_the_legacy_body_is_exactly_the_serialized_payload() -> None:
+    request = _configured(RemoteEvent("event-name", "event-id", _NESTED))
+
+    assert request.body == (
+        b'{"order":{"lines":[{"sku":"A-1","qty":2}],"note":null},'
+        b'"total":42.5,"paid":true,"currency":"EUR"}'
     )
 
 
-def test_the_body_is_the_event_tagged_with_its_class_name() -> None:
-    request = _configured(RemoteEvent("event-name", "event-id", {"foo": "bar"}))
+@pytest.mark.parametrize("signature_format", _NOT_LEGACY)
+def test_the_event_name_travels_in_the_payload_when_no_header_carries_it(
+    signature_format: SignatureFormat,
+) -> None:
+    request = _configured(RemoteEvent("event-name", "event-id", {"foo": "bar"}), signature_format)
 
-    assert request.body is not None
-    assert json.loads(request.body) == {
-        "$type": "remote_event",
-        "name": "event-name",
-        "id": "event-id",
-        "payload": {"foo": "bar"},
-    }
+    assert request.body == b'{"foo":"bar","type":"event-name"}'
 
 
-def test_the_body_reads_back_as_the_event_it_was_written_for() -> None:
-    event = _report()
+@pytest.mark.parametrize("signature_format", _NOT_LEGACY)
+def test_a_type_the_payload_already_carries_is_not_overwritten(
+    signature_format: SignatureFormat,
+) -> None:
+    request = _configured(RemoteEvent("event-name", "event-id", {"type": "set"}), signature_format)
 
-    request = _configured(event)
-
-    assert request.body is not None
-    read = _serializer().deserialize(request.body, RemoteEvent, "json")
-    assert read == event
-    assert type(read) is DeliveryReport
+    assert request.body == b'{"type":"set"}'
 
 
-def test_the_body_is_written_compact() -> None:
-    request = _configured(RemoteEvent("event-name", "event-id", {"foo": "bar"}))
+@pytest.mark.parametrize("signature_format", _NOT_LEGACY)
+def test_the_events_payload_is_left_as_it_arrived(signature_format: SignatureFormat) -> None:
+    payload: dict[str, object] = {"foo": "bar"}
 
-    assert request.body is not None
-    assert b" " not in request.body
+    _ = _configured(RemoteEvent("event-name", "event-id", payload), signature_format)
+
+    assert payload == {"foo": "bar"}
 
 
-def test_two_runs_over_one_event_write_the_same_bytes() -> None:
-    event = _report()
+def test_only_the_payload_of_an_event_with_fields_of_its_own_is_written() -> None:
+    request = _configured(UnnamedEvent("event-name", "event-id", {"foo": "bar"}, "soft"))
 
-    assert _configured(event).body == _configured(event).body
+    assert request.body == b'{"foo":"bar"}'
+
+
+def test_the_format_may_be_written_as_the_string_a_configuration_carries() -> None:
+    request = _configured(RemoteEvent("event-name", "event-id", {}), "standard")
+
+    assert request.body == b'{"type":"event-name"}'
+
+
+def test_a_format_no_member_carries_is_refused_at_construction() -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = JsonBodyConfigurator(Serializer([PydanticNormalizer()], [JsonEncoder()]), "nope")
 
 
 def test_it_says_the_body_is_json() -> None:
@@ -88,18 +94,26 @@ def test_it_says_the_body_is_json() -> None:
 
 def test_it_leaves_headers_another_configurator_already_wrote() -> None:
     request = _configured(
-        RemoteEvent("event-name", "event-id", {}), OutgoingRequest(headers={"Webhook-Id": "x"})
+        RemoteEvent("event-name", "event-id", {}),
+        request=OutgoingRequest(headers={"Webhook-Id": "x"}),
     )
 
     assert request.headers["Webhook-Id"] == "x"
 
 
-def test_an_event_of_a_class_with_no_name_is_refused_and_no_body_is_written() -> None:
+@pytest.mark.parametrize(
+    "value",
+    [datetime(2026, 3, 1, 9, 30), {"a", "b"}],  # noqa: DTZ001 — the naive datetime is the case.
+    ids=["naive-datetime", "set"],
+)
+def test_a_payload_value_json_cannot_carry_is_refused_and_no_body_is_written(
+    value: object,
+) -> None:
     request = OutgoingRequest()
 
-    with pytest.raises(NotNormalizableValueError):
-        JsonBodyConfigurator(_serializer()).configure(
-            UnnamedEvent("mailer", "evt_1", {}, "soft"), _WHSEC, request
-        )
+    with pytest.raises(NotNormalizableValueError) as refused:
+        _ = _configured(RemoteEvent("event-name", "event-id", {"when": value}), request=request)
 
     assert request.body is None
+    assert "2026" not in str(refused.value)
+    assert "'a'" not in str(refused.value)
