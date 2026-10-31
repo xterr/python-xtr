@@ -7,9 +7,11 @@
 "xtr_serializer.bundle:SerializerBundle" = { all = true }
 
 # No [files]: configuring is optional. With none there is one serializer, holding
-# the pydantic normalizer, the JSON encoder and every normalizer and encoder the
-# application registers; one that sets a default context or names more
-# serializers writes config/packages/serializer.py itself.
+# the pydantic normalizer, the JSON encoder and every normalizer and encoder
+# tagged for it — which a class subclassing one of the interfaces is, without
+# being told, while a service that only has their methods is not. An application
+# that sets a default context or names more serializers writes
+# config/packages/serializer.py itself.
 
 # No [env]: nothing is read from the environment.
 

@@ -18,8 +18,8 @@ class NormalizerInterface(Protocol):
 
     The first step of serializing. A normalizer knows the objects — their fields, the types those
     were declared with — and nothing of the format the plain data is then written in, so the
-    same normalizer serves every encoder. A serializer holds several, and gives each value to the
-    first that handles it.
+    same normalizer serves every encoder. A serializer holds a list of them, and gives each value
+    to the first that handles it.
     """
 
     def normalize(

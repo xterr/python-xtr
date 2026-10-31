@@ -148,8 +148,9 @@ also handed to pydantic as `info.context`, so an application's own validators re
 ## Dates that keep their zone
 
 A plain `datetime` field writes an aware datetime with its offset and reads it back with that
-offset: the same instant, but the zone's name is gone, and the hour the clocks repeat comes back
-compared as the other one. Annotate the field `ZonedDateTime` and both survive:
+offset: the same instant, but the zone's name is gone — and a value in the hour the clocks
+repeat is refused when it is written, since the offset alone cannot tell the two 03:30s apart.
+Annotate the field `ZonedDateTime` and the name and the `fold` both survive:
 
 ```python
 from dataclasses import dataclass
@@ -247,10 +248,38 @@ A class another library owns, which must stay free of the conversion engine, is 
 on the field rather than on the class, with pydantic's own annotations:
 
 ```python
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Annotated, TypeAlias
 
 from pydantic import PlainSerializer, PlainValidator
+
+
+class Money:
+    """An amount in a currency, owned elsewhere and knowing nothing of this package."""
+
+    def __init__(self, amount: Decimal, currency: str) -> None:
+        self.amount = amount
+        self.currency = currency
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Money):
+            return NotImplemented
+        return (self.amount, self.currency) == (other.amount, other.currency)
+
+
+def _write_money(money: Money) -> str:
+    return f"{money.amount} {money.currency}"
+
+
+def _read_money(value: object) -> Money:
+    if not isinstance(value, str):
+        raise ValueError("money is written as text")
+    amount, _, currency = value.partition(" ")
+    if len(currency) != 3 or not currency.isalpha():
+        raise ValueError("money is an amount, a space and a three-letter currency")
+    return Money(Decimal(amount), currency)
+
 
 Priced: TypeAlias = Annotated[
     Money, PlainValidator(_read_money), PlainSerializer(_write_money, return_type=str)
@@ -280,7 +309,15 @@ the first one that handles it, in the order the list has them. Put yours before 
 normalizer, which handles nearly anything:
 
 ```python
+from dataclasses import dataclass
+
 from xtr_serializer import NotNormalizableValueError
+
+
+@dataclass(frozen=True, slots=True)
+class Point:
+    x: int
+    y: int
 
 
 class PointNormalizer:
@@ -342,13 +379,16 @@ removing it undoes.
   `SerializerBundle`. There is no config file, environment or ignore line to write.
 - **Activate** — `SerializerBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
   imported from `xtr_serializer.bundle`.
-- **Brings along** — the console bundle, when xtr-console is installed, and through it the
-  logging bundle (and its clock). In debug mode that is where `debug:serializer` comes from.
+- **Brings along** — the console bundle, when xtr-console is installed; in debug mode that is
+  where `debug:serializer` comes from. The logging bundle, and the clock bundle under it, join
+  only when xtr-logging is installed beside them too: xtr-console does not depend on it.
 - **Configure** — optional: with no configuration there is one serializer writing JSON, holding
-  the pydantic normalizer, the JSON encoder and every normalizer and encoder the application
-  registers. Options every call starts from, and serializers besides the default one, go in a
-  `<app>/config/packages/serializer.py` `@configure` function returning `SerializerConfig` — see
-  [Kernel / bundle](#kernel--bundle).
+  the pydantic normalizer, the JSON encoder and every normalizer and encoder **tagged** for it.
+  A class subclassing `NormalizerInterface`, `DenormalizerInterface`, `EncoderInterface` or
+  `DecoderInterface` is tagged without being told; a service that only has their methods is not,
+  and joins nothing until a tag puts it there. Options every call starts from, and serializers
+  besides the default one, go in a `<app>/config/packages/serializer.py` `@configure` function
+  returning `SerializerConfig` — see [Kernel / bundle](#kernel--bundle).
 - **Environment** — nothing read from the environment. A value given as `env(...)` in a
   configured default context must be set when the application boots: booting builds every
   serializer.
@@ -434,11 +474,17 @@ api: Annotated[SerializerInterface, Target("api")]
   | `built_in` | `True` for one a named serializer can leave out |
 
   ```python
-  services.set(MoneyNormalizer).add_tag(NORMALIZER_TAG, priority=10, serializer="*")
+  from xtr_serializer.bundle import NORMALIZER_TAG
+
+
+  def load_extension(self, config, services, builder) -> None:
+      _ = services.set(PointNormalizer).add_tag(NORMALIZER_TAG, priority=10, serializer="*")
   ```
 
   A class subclassing one of the interfaces carries the tag without being told, with no
-  attribute — which puts it in the default serializer at its definition's own priority.
+  attribute — which puts it in the default serializer at its definition's own priority. A
+  service that merely has a normalizer's or an encoder's methods carries nothing, and a
+  serializer holds only what is tagged: tag it where you register it.
 - **Zero config**: one serializer writing JSON. Nothing is converted until something asks for one.
 - **Checked at build**: a tag that cannot be read, one naming a serializer that does not exist,
   and a serializer left without a normalizer or an encoder all fail the build. Booting then
@@ -489,7 +535,7 @@ involved, never what the value was.
 | `UnexpectedValueError` | The family about the data itself. Also a `ValueError` |
 | `NotNormalizableValueError` | A value has no exact plain form, or data does not fit the declared type. Carries `path`, `expected_types`, `current_type`, `error_type` |
 | `ExtraAttributesError` | Data carried fields its type does not declare, and they are refused rather than dropped. A `NotNormalizableValueError`, with `extra_attributes` |
-| `PartialDenormalizationError` | `COLLECT_DENORMALIZATION_ERRORS` is on and some values did not fit: `errors` holds one per value, `data` what was read |
+| `PartialDenormalizationError` | `COLLECT_DENORMALIZATION_ERRORS` is on and one or more values did not fit: `errors` holds one per value, `data` what was read |
 | `NotEncodableValueError` | Plain data has no form in the format — a float infinity — or the text is not valid in it |
 | `UnsupportedFormatError` | Nothing in the serializer writes or reads the format asked for. A `NotEncodableValueError`, with `format` |
 | `CircularReferenceError` | A value contains itself. Also a `RuntimeError` |
@@ -513,6 +559,9 @@ their typed fields and no `from` clause.
 - A `ZoneInfo` datetime in a plain `datetime` field keeps only its offset, and in a repeated or
   skipped hour it is refused — annotate it `ZonedDateTime`, or store UTC. An aware datetime reads
   back with pydantic's own `TzInfo`: equal, not the same tzinfo object or class.
+- Each unknown zone name in a `ZonedDateTime` is looked up on disk.
+- With pydantic before 2.14, a `NamedTuple`'s items are written by their runtime type, so a
+  `ZonedDateTime` or a hierarchy value inside one is refused.
 - `denormalize` reads its data as JSON: Python `set`, `tuple`, `bytes`, `UUID` and `Decimal`
   objects are taken in their JSON form. Extra fields are dropped unless
   `ALLOW_EXTRA_ATTRIBUTES` is off, and among duplicate keys the last wins.
@@ -527,11 +576,14 @@ their typed fields and no `from` clause.
 - `Serializer` does not look inside a bare list or dict: it goes to a normalizer whole, and a
   custom normalizer is never handed a container's items. Primitives skip the normalizers only
   when writing — a serializer with no denormalizer refuses `deserialize("5", int, "json")`.
-- In `get_supported_types`, the first class key covering a type counts, so list narrower keys
-  first; a class key never covers `list[Point]` or `Point | None` — only `"*"` does.
-- Dispatch answers and pydantic schemas are kept for the 256 types used last per format. More
-  types than that, or an `Annotated[...]` built per call, are rebuilt every time. A type whose
-  own code raises when it is hashed or compared is never kept.
+- In `get_supported_types`, a key naming the type itself counts first, so `None` there settles
+  it; failing that, the first class key covering the type, in the order reported, counts — so
+  list narrower keys first. A class key never covers `list[Point]` or `Point | None` — only
+  `"*"` does.
+- Which normalizer handles a type is kept per format, for the 256 types used last; the pydantic
+  normalizer keeps the adapters it builds for the 256 types used last, whatever the format, as
+  they do not depend on one. More types than that, or an `Annotated[...]` built per call, are
+  rebuilt every time. A type whose own code raises when it is hashed or compared is never kept.
 - `normalizers` and `encoders` must be sequences: a one-shot iterator leaves the serializer
   empty. With no call context, every call is handed the serializer's own default context —
   copy it before changing it.
@@ -556,9 +608,6 @@ their typed fields and no `from` clause.
   Hierarchy classes live for the whole process.
 - Reading a nested hierarchy value costs depth × size; the decoder caps nesting at about 198
   levels.
-- Each unknown zone name in a `ZonedDateTime` is looked up on disk.
-- With pydantic before 2.14, a `NamedTuple`'s items are written by their runtime type, so a
-  hierarchy value or a `ZonedDateTime` inside one is refused.
 
 ### The bundle
 
@@ -570,9 +619,10 @@ their typed fields and no `from` clause.
   yourself, or overriding a built-in, drops the bundle's tag attributes.
 - A decorator wraps the default serializer's instance only; each named serializer holds its own
   undecorated copy, keyed `serializer.<name>[.<qualifier>]`.
-- Strings in a configured default context are read for `%parameter%` names, so a literal `%` is
-  written `%%`. Every serializer is built at boot, so an `env()` variable that is not set fails
-  the boot.
+- Strings in a configured default context go through `%parameter%` resolution twice, so a
+  literal `%` is written `%%%%`, and `'%%kernel.environment%%'` arrives as `'dev'`. A string
+  such as `'10%%-20%%'` fails the boot with `ParameterNotFoundError` for the parameter `-20`.
+  Every serializer is built at boot, so an `env()` variable that is not set fails the boot.
 
 ### debug:serializer
 
