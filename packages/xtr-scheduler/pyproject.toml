@@ -21,6 +21,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    # Writes a message the serializer refuses as JSON all the same, for its id.
+    "pydantic>=2.12,<3",
     "typing-extensions>=4.4",
     "xtr-cache-contracts>=5.0,<6",
     "xtr-clock>=5.0,<6",

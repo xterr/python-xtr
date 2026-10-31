@@ -46,7 +46,7 @@ uv add xtr-console                                      # beside it: the debug:s
 
 | Extra | Brings | For |
 | --- | --- | --- |
-| *(none)* | `xtr-messenger`, `xtr-serializer`, `xtr-clock`, `xtr-lock`, `xtr-cache-contracts`, `xtr-event-dispatcher`, `xtr-event-dispatcher-contracts`, `xtr-service-contracts`, `typing-extensions` | Intervals, the transport, events |
+| *(none)* | `xtr-messenger`, `xtr-serializer`, `xtr-clock`, `xtr-lock`, `xtr-cache-contracts`, `xtr-event-dispatcher`, `xtr-event-dispatcher-contracts`, `xtr-service-contracts`, `pydantic`, `typing-extensions` | Intervals, the transport, events |
 | `cron` | `croniter` | `RecurringMessage.cron(...)` and `@as_cron_task` |
 
 No xtr package is an extra, and the container is not a dependency: the `SchedulerBundle` is used
@@ -351,9 +351,12 @@ returns, every schedule's lock is handed back, so another process takes over at 
 - A recurring message's id is built from the data its message holds, written as JSON with sorted
   keys. A set or frozenset inside the message is written in the order the set keeps it, which for
   strings changes from one process to the next, and so does the id — hold a sorted tuple instead.
-  A message with no plain form, one the serializer cannot write, is told apart by its class
-  alone: two of one class on one trigger in one schedule are refused as duplicates — wrap each in
-  a `StaticMessageProvider([message], "<id>")` to name it.
+  A message the serializer refuses to carry — a naive datetime, a time in the hour the clocks
+  repeat, a value of another type than its field declares — is still written for its id, as
+  pydantic writes it to JSON. Only a message holding something with no JSON form at all, a
+  callable or a lock, is told apart by its class alone: two of one class on one trigger in one
+  schedule are refused as duplicates — wrap each in a `StaticMessageProvider([message], "<id>")`
+  to name it.
 
 ## Errors
 

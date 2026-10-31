@@ -101,9 +101,11 @@ dependencies and a task function may ask for services.
 - To decide the messages of each run, pass a `MessageProviderInterface` instead of a message —
   `CallbackMessageProvider(lambda context: [Invoice(t) for t in active_tenants()])`.
 - A recurring message's id — what saved state resumes it by — comes from the data its message
-  holds, written as JSON with sorted keys, so it is the same in every process. A message the
-  serializer cannot write is told apart by its class alone; name it with
-  `StaticMessageProvider([message], "<id>")` when one schedule sends two of its class.
+  holds, written as JSON with sorted keys, so it is the same in every process — even when the
+  serializer refuses to carry it (a naive datetime, a value its field does not declare). A
+  message holding something with no JSON form at all, a callable or a lock, is told apart by its
+  class alone; name it with `StaticMessageProvider([message], "<id>")` when one schedule sends
+  two of its class.
 
 ## Write the schedule itself
 

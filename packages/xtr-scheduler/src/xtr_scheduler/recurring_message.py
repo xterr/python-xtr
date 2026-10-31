@@ -6,8 +6,10 @@ import base64
 import hashlib
 import json
 from contextlib import suppress
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, cast, final
 
+from pydantic import PydanticUserError, TypeAdapter
+from pydantic_core import PydanticSerializationError
 from typing_extensions import override
 from xtr_messenger import Envelope, RedispatchMessage, name_of
 from xtr_serializer import PydanticNormalizer, SerializerError
@@ -49,7 +51,8 @@ class RecurringMessage(MessageProviderInterface):
     is recognised as the same one, which is what lets saved state resume it.
     A message holding a set or a frozenset is the exception: its items are
     written in the order the set keeps them, which can change from one
-    process to the next.
+    process to the next. So is one holding a value nothing can write, such
+    as a callable or a lock: it is told apart by its class alone.
     """
 
     __slots__ = ("_id", "_provider", "_trigger")
@@ -189,11 +192,18 @@ def _provider_id(message: object) -> str:
 
 
 def _written(message: object) -> NormalizedValue:
-    """Return the data ``message`` holds, or ``None`` for one that has no plain form.
+    """Return the data ``message`` holds, or ``None`` for one nothing can write.
 
     A redispatch holds an envelope, which has none, so it is written as what it
-    carries and where to. A message with no plain form is told apart by its
-    class alone.
+    carries and where to.
+
+    A message the serializer refuses — one that would not read back the same,
+    such as a naive datetime or a time in the hour the clocks repeat — still
+    has data that tells it apart from another of its class. It is written
+    without the read-back check, as pydantic writes JSON for its class: an
+    aware datetime with its offset, a naive one as its ISO text, an enum as
+    its value. Only a message holding something with no JSON form at all is
+    told apart by its class alone.
     """
     if isinstance(message, RedispatchMessage):
         envelope = message.envelope
@@ -203,9 +213,16 @@ def _written(message: object) -> NormalizedValue:
             "stamps": [[_qualified(type(stamp)), _written(stamp)] for stamp in stamps],
             "transport_names": list(message.transport_names),
         }
-    try:
+    with suppress(SerializerError):
         return _NORMALIZER.normalize(message)
-    except SerializerError:
+    try:
+        # Dumped in JSON mode, the result holds only what JSON does.
+        return cast(
+            "NormalizedValue",
+            TypeAdapter(type(message)).dump_python(message, mode="json", warnings=False),
+        )
+    # No schema for the class, or annotations that do not resolve; a value with no JSON form.
+    except (PydanticUserError, PydanticSerializationError):
         return None
 
 

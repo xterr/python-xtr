@@ -5672,6 +5672,7 @@ name = "xtr-scheduler"
 version = "5.2.1"
 source = { editable = "packages/xtr-scheduler" }
 dependencies = [
+    { name = "pydantic" },
     { name = "typing-extensions" },
     { name = "xtr-cache-contracts" },
     { name = "xtr-clock" },
@@ -5708,6 +5709,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "croniter", marker = "extra == 'cron'", specifier = ">=6.2.4,<7" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-cache-contracts", editable = "packages/xtr-cache-contracts" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
