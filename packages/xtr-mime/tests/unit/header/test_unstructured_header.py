@@ -15,6 +15,14 @@ NON_ASCII = "\xf8"
 
 LONG_SUBJECT = "Žluťoučký kůň úpěl ďábelské ódy, " * 4
 
+# Values a reader must see as written: no encoded word for a long ASCII token.
+READABLE = [
+    ("List-Unsubscribe", "<https://example.com/u/" + "a" * 120 + ">"),
+    ("List-Unsubscribe-Post", "List-Unsubscribe=One-Click"),
+    ("X-Mailgun-Variables", '{"k":"' + "v" * 200 + '"}'),
+    ("Subject", "x" * 300),
+]
+
 
 def test_the_name_is_returned_verbatim() -> None:
     assert UnstructuredHeader("Subject", "").get_name() == "Subject"
@@ -41,6 +49,20 @@ def test_long_headers_are_folded_at_a_word_boundary() -> None:
         "X-Custom-Header: The quick brown fox jumped over the fence, he was a very\r\n"
         " very scary brown fox with a bushy tail"
     )
+
+
+@pytest.mark.parametrize(("name", "value"), READABLE)
+def test_an_ascii_value_is_written_plain_however_long_its_words(name: str, value: str) -> None:
+    rendered = UnstructuredHeader(name, value).to_string()
+
+    assert not encoded_words(rendered)
+    assert rendered.replace("\r\n", "").split(":", 1)[1].strip() == value
+
+
+@pytest.mark.parametrize(("name", "value"), READABLE)
+def test_the_body_of_an_ascii_value_is_the_value_whatever_the_name(name: str, value: str) -> None:
+    assert UnstructuredHeader(name, value).get_body_as_string() == value
+    assert UnstructuredHeader(f"h:{name}", value).get_body_as_string() == value
 
 
 def test_printable_ascii_only_appears_in_headers() -> None:

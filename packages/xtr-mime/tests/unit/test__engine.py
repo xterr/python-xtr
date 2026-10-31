@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from tests.support.wire import encoded_words
 from xtr_mime import _engine
 from xtr_mime._engine import (
     BinaryLeaf,
@@ -122,13 +123,90 @@ def test_a_long_header_folds_into_crlf_lines_of_at_most_76_characters() -> None:
     assert _decode(field) == LONG_SUBJECT
 
 
-def test_an_unbreakable_ascii_word_still_folds_within_76_characters() -> None:
-    word = "x" * 120
+LONG_UNSUBSCRIBE = "<https://example.com/u/" + "a" * 120 + ">"
+LONG_VARIABLES = '{"k":"' + "v" * 200 + '"}'
 
-    field = _engine.fold_header("X-Long", word)
 
-    assert all(len(line) <= 76 for line in _lines(field))
-    assert _decode(field) == word
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("List-Unsubscribe", LONG_UNSUBSCRIBE),
+        ("X-Mailgun-Variables", LONG_VARIABLES),
+        ("Subject", "x" * 300),
+    ],
+)
+def test_an_ascii_word_too_long_for_a_line_is_written_plain_on_a_line_of_its_own(
+    name: str, value: str
+) -> None:
+    assert _engine.fold_header(name, value) == f"{name}:\r\n {value}"
+
+
+def test_a_short_ascii_value_stays_on_the_name_line() -> None:
+    field = _engine.fold_header("List-Unsubscribe-Post", "List-Unsubscribe=One-Click")
+
+    assert field == "List-Unsubscribe-Post: List-Unsubscribe=One-Click"
+
+
+@pytest.mark.parametrize("line_length", [997, 998])
+def test_a_plain_word_may_fill_its_line_up_to_998_octets(line_length: int) -> None:
+    word = "x" * (line_length - 1)
+
+    field = _engine.fold_header("X-A", word)
+
+    assert _lines(field) == ["X-A:", f" {word}"]
+
+
+def test_a_plain_word_that_would_make_a_line_of_999_octets_is_refused_without_quoting_it() -> None:
+    word = "x" * 998
+
+    with pytest.raises(RfcComplianceError, match="998") as raised:
+        _ = _engine.fold_header("X-A", word)
+
+    assert "xxxx" not in str(raised.value)
+
+
+def test_only_the_non_ascii_words_of_a_text_with_a_long_token_are_encoded() -> None:
+    token = "t" * 100
+    value = f"hello there {token} and wörld after"
+
+    field = _engine.fold_header("Subject", value)
+
+    assert f"\r\n {token}\r\n" in field
+    assert [_rfc2047(word) for word in encoded_words(field)] == ["wörld"]
+    assert _decode(field) == value
+
+
+def test_a_long_token_between_non_ascii_words_stays_plain() -> None:
+    token = "t" * 100
+    value = f"Žluťoučký kůň {token} úpěl"
+
+    field = _engine.fold_header("Subject", value)
+
+    assert f"\r\n {token}\r\n" in field
+    assert _rfc2047(field.split(":", 1)[1]).strip() == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "Žluťoučký kůň " + "t" * 100 + " úpěl",
+        "a  Ž\tŽ  b =?x?= " + "t" * 80 + "\tc",
+        LONG_SUBJECT,
+    ],
+)
+def test_the_engine_written_text_decodes_back_with_its_ascii_words_plain(value: str) -> None:
+    """What the engine writes when the package's folding would not read back, tried directly."""
+    folded = _engine._write_text("Subject", value)
+
+    _engine._check_folded(folded)
+    field = folded.removesuffix("\r\n")
+    # Whitespace around the value is dropped, as the package drops it.
+    assert _rfc2047(field.split(":", 1)[1]).strip() == value.strip()
+    assert all(len(line) <= 76 for line in _lines(field) if "t" * 80 not in line)
+    plain = re.sub(r"=\?.+?\?=", "", field)
+    assert all(word in plain for word in value.split() if word.isascii() and "=?" not in word)
+    # Text a reader takes for an encoded word is encoded, so it reads back as written.
+    assert "=?x?=" not in field
 
 
 def test_a_line_break_in_a_value_is_refused() -> None:

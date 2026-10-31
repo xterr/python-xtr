@@ -14,6 +14,9 @@ Some of the package's habits are worked around rather than accepted:
   UTF-8 (RFC 6532) — the form an SMTPUTF8 session carries — in that header only;
 * message identifiers are written as ``<id>`` tokens folded between ids, never as the encoded
   words the package makes of a long unstructured value;
+* a word of unstructured text too long for a line is written as it is, on a line of its own,
+  never as the encoded words the package splits it into — a URL or a JSON value must reach a
+  reader as written;
 * trees are built from plain parts with an explicit boundary, never with the package's
   ``add_related``/``add_alternative`` helpers (they decide the nesting themselves), and the
   ``MIME-Version`` header the package's content setter adds is taken off every part — only a
@@ -79,6 +82,7 @@ from ._header_reader import ReadGroup, read_address_list, read_unstructured
 from .exception import InvalidArgumentError, MimeError, MimeRuntimeError, RfcComplianceError
 
 if TYPE_CHECKING:
+    from email._header_value_parser import UnstructuredTokenList
     from email.headerregistry import BaseHeader
     from typing import Self
 
@@ -162,7 +166,34 @@ EnginePart: TypeAlias = "EmailMessage[str, str]"
 
 TransferEncoding: TypeAlias = Literal["7bit", "8bit", "quoted-printable", "base64"]
 
-_UNSTRUCTURED: Final = HeaderRegistry(default_class=UnstructuredHeader, use_default_map=False)
+
+# Not final: the registry derives the class it builds from this one.
+class _TextHeader(UnstructuredHeader):
+    """Unstructured text whose words too long for a line stay plain.
+
+    The package encodes such a word so that it can split it across lines. Marked as allowing
+    no encoded word, it is written whole after a fold instead: RFC 5322 allows that line up to
+    998 octets, and the check every field goes through refuses it beyond. A word that is not
+    ASCII is still the package's to encode.
+    """
+
+    @staticmethod
+    @override
+    def value_parser(value: str) -> UnstructuredTokenList:
+        tree = UnstructuredHeader.value_parser(value)
+        for token in tree:
+            # A terminal is one word or one run of whitespace, as the package folds them.
+            if (
+                isinstance(token, str)
+                and len(token) >= _FOLD_WIDTH
+                and token.isascii()
+                and not token.isspace()
+            ):
+                token.as_ew_allowed = False
+        return tree
+
+
+_UNSTRUCTURED: Final = HeaderRegistry(default_class=_TextHeader, use_default_map=False)
 _DATE: Final = HeaderRegistry(default_class=DateHeader, use_default_map=False)
 _ADDRESS: Final = HeaderRegistry(default_class=AddressHeader, use_default_map=False)
 # The stubs give these two a class-level `max_count` the registry's parameter type rejects;
@@ -207,6 +238,8 @@ _SOURCE_FOLD: Final = re.compile(r"\r?\n(?=[ \t])")
 # (RFC 6532), one space apart.
 _ATOM: Final = r"[^\x00-\x20\x7f()<>\[\]:;@\\,.\"]+"
 _PHRASE: Final = re.compile(rf"{_ATOM}(?: {_ATOM})*")
+# The whitespace unstructured text is folded at.
+_BLANKS: Final = re.compile(r"([ \t]+)")
 
 # What the package raises on a value it cannot handle, rather than an error of its own.
 _PACKAGE_FAILURES: Final = (
@@ -681,13 +714,47 @@ def _unstructured_header(name: str, value: str) -> BaseHeader | _FoldedHeader:
     _refuse_forbidden(f"The decoded {name} header", str(header))
     if _reads_back_as(name, header.fold(policy=POLICY), value):
         return header
-    encoded = Header(value, "utf-8", maxlinelen=_FOLD_WIDTH, header_name=name)
-    folded = f"{name}: " + encoded.encode(linesep="\r\n") + "\r\n"
+    folded = _write_text(name, value)
     if not _reads_back_as(name, folded, value):
         raise RfcComplianceError(
             f"The {name} header would not read back to the text it was given: {folded!r}."
         )
     return _FoldedHeader(name, value, folded)
+
+
+def _write_text(name: str, value: str) -> str:
+    """Write unstructured text the package's folding would not write faithfully.
+
+    A run of words holding non-ASCII text, or what a reader takes for an encoded word, is
+    written as the package's legacy encoded words, the whitespace between its words encoded
+    with them; every other word is written as it is, a word too long for a line on a line of
+    its own. The field is folded only at the whitespace between words, so it unfolds to them.
+    """
+    tokens = _BLANKS.split(value.strip(" \t"))
+    # (whitespace before, text, whether it is encoded): words alternate with whitespace.
+    runs: list[tuple[str, str, bool]] = []
+    for index in range(0, len(tokens), 2):
+        gap, word = tokens[index - 1] if index else " ", tokens[index]
+        encoded = not word.isascii() or "=?" in word
+        if encoded and runs and runs[-1][2]:
+            runs[-1] = (runs[-1][0], runs[-1][1] + gap + word, True)
+        else:
+            runs.append((gap, word, encoded))
+    lines = [f"{name}:"]
+    for gap, text, encoded in runs:
+        words = _encoded_words(text) if encoded else [text]
+        for position, word in enumerate(words):
+            # A reader drops the whitespace between two encoded words of one run.
+            piece = (" " if position else gap) + word
+            if len(lines[-1]) + len(piece) > _FOLD_WIDTH:
+                lines.append(piece)
+            else:
+                lines[-1] += piece
+    return "\r\n".join(lines) + "\r\n"
+
+
+def _encoded_words(text: str) -> list[str]:
+    return Header(text, "utf-8", maxlinelen=_FOLD_WIDTH - 1).encode(linesep="\n").split()
 
 
 def _reads_back_as(name: str, folded: str, value: str) -> bool:
@@ -741,8 +808,10 @@ def _check_folded(folded: str) -> None:
     for line in lines:
         _refuse_forbidden("A folded header", line)
         if len(line.encode("utf-8", "surrogateescape")) > _MAX_LINE_LENGTH:
+            # The value is not quoted: the line is too long to show, and it is the value.
             raise RfcComplianceError(
-                f"A folded header has a line longer than {_MAX_LINE_LENGTH} octets: {line[:80]!r}…"
+                f"The {lines[0].partition(':')[0]} header has a line longer than "
+                f"{_MAX_LINE_LENGTH} octets."
             )
 
 
@@ -879,7 +948,7 @@ def _phrase_words(display_name: str, *, utf8: bool) -> list[str]:
         return []
     if utf8 or text.isascii():
         return text.split(" ") if _PHRASE.fullmatch(text) else [f'"{quote(text)}"']
-    return Header(text, "utf-8", maxlinelen=_FOLD_WIDTH - 1).encode(linesep="\n").split()
+    return _encoded_words(text)
 
 
 def _addresses_of(items: Sequence[Address | Group]) -> Iterator[Address]:
