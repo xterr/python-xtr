@@ -520,6 +520,11 @@ are — and the interrupted path is kept on the session for the return trip unle
 firewall is stateless or the entry point only stands in
 (`FallbackAuthenticationEntryPointInterface`).
 
+Any other failure a firewall step raises — one no exception listener answers — fails the
+request: the firewall raises it as it was raised, and the rest of the chain, the access
+decision included, never runs, so the route is never reached by a request nobody decided
+about. The application answers it as it answers any unhandled error, a `500`.
+
 ## Adding a kind of authenticator
 
 Only a library shipping its own bundle needs this. Implement `AuthenticatorFactoryInterface`

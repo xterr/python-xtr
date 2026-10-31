@@ -156,10 +156,19 @@ def served_application(
 
 
 @asynccontextmanager
-async def serving(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient]:
-    """Serve ``app`` for one application life and yield a client driving it."""
+async def serving(
+    app: FastAPI,
+    *,
+    raise_app_exceptions: bool = True,
+) -> AsyncGenerator[httpx.AsyncClient]:
+    """Serve ``app`` for one application life and yield a client driving it.
+
+    A failure the application lets out is raised into the test by default;
+    ``raise_app_exceptions=False`` answers it as the server would, so a test
+    can read the ``500`` a caller receives.
+    """
     async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=raise_app_exceptions)
         async with httpx.AsyncClient(
             transport=transport,
             base_url="http://served.test",

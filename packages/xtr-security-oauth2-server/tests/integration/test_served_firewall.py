@@ -11,6 +11,7 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from xtr_dependency_injection import Injected
 from xtr_security import Security
+from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
 
 from tests.support.served import (
     CLIENT_ID,
@@ -161,3 +162,37 @@ async def test_a_withdrawn_token_stops_opening_the_api() -> None:
     assert before.status_code == 200
     assert withdrawn.status_code == 200
     assert after.status_code == 401
+
+
+async def test_a_reader_failing_unexpectedly_keeps_the_api_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A failure nobody answers is no reason to skip the rest of the firewall:
+    # the access rule on ``/api`` would never be asked, and the route would
+    # run for nobody. The request fails instead.
+    reached: list[str] = []
+
+    def _open_route(app: FastAPI) -> None:
+        router = APIRouter(prefix="/api")
+
+        @router.get("/open")
+        async def open_route() -> dict[str, str]:
+            reached.append("open")
+
+            return {"read": "yes"}
+
+        app.include_router(router)
+
+    def _broken(provider: JoserfcJwsProvider, token: str) -> None:
+        del provider, token
+        message = "the token reader broke"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(JoserfcJwsProvider, "load", _broken)
+    kernel = oauth2_kernel("tests.fixtures.oauth2_firewall_app")
+    application = served_application(kernel, _open_route)
+    async with serving(application, raise_app_exceptions=False) as client:
+        answered = await client.get("/api/open", headers={"Authorization": "Bearer a.b.c"})
+
+    assert answered.status_code == 500
+    assert reached == []

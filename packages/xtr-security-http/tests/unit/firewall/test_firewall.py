@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from typing_extensions import override
-from xtr_event_dispatcher import EventSubscriberInterface
+from xtr_event_dispatcher import EventDispatcher, EventSubscriberInterface
 from xtr_http_foundation import PathRequestMatcher
 from xtr_http_kernel import ExceptionEvent, FinishRequestEvent, RequestEvent
 from xtr_http_kernel.bridge import ResponseFactory, StarletteHttpFactory
@@ -106,6 +106,33 @@ class _AccessStep(_Step):
     def get_priority() -> int:
         """Return the chain position: behind authentication and the cleanup steps."""
         return -255
+
+
+@final
+class _FailingStep(_Step):
+    """A step that fails the way no step is meant to: with an error nobody expects."""
+
+    __slots__ = ()
+
+    @override
+    async def authenticate(self, request_event: RequestEvent) -> None:
+        """Record the ask, then fail."""
+        self._log.append(f"{self._name} authenticate")
+        message = "a step broke"
+        raise RuntimeError(message)
+
+
+@final
+class _RefusingStep(_Step):
+    """A step that refuses the caller's credentials, as an authenticator does."""
+
+    __slots__ = ()
+
+    @override
+    async def authenticate(self, request_event: RequestEvent) -> None:
+        """Record the ask, then refuse."""
+        self._log.append(f"{self._name} authenticate")
+        raise BadCredentialsError
 
 
 def _firewall(
@@ -377,3 +404,74 @@ async def test_finish_request_without_a_stored_listener_is_a_no_op() -> None:
     await firewall.on_finish_request(FinishRequestEvent(make_message(), bag))
 
     assert security_state_of(bag).attributes == {}
+
+
+async def test_a_failure_no_listener_answers_is_raised_as_it_was_raised() -> None:
+    log: list[str] = []
+    event = RequestEvent(make_message(), {})
+    firewall = Firewall(_firewall(_FailingStep("failing", log)))
+
+    with pytest.raises(RuntimeError, match="a step broke"):
+        await firewall.on_request(event, None, EventDispatcher())
+
+
+async def test_a_failure_no_listener_answers_runs_no_later_step() -> None:
+    # The access step is the one a failure must never skip past: the request
+    # it would have refused is not let through to the route instead.
+    log: list[str] = []
+    firewall = Firewall(_firewall(_FailingStep("failing", log), _AccessStep("access", log)))
+
+    with pytest.raises(RuntimeError):
+        await firewall.on_request(RequestEvent(make_message(), {}), None, EventDispatcher())
+
+    assert log == ["failing supports", "failing authenticate"]
+
+
+async def test_a_failure_is_announced_before_it_is_raised() -> None:
+    announced: list[BaseException] = []
+
+    def _announced(failure: ExceptionEvent) -> None:
+        announced.append(failure.exception)
+
+    dispatcher = EventDispatcher()
+    dispatcher.add_listener(ExceptionEvent, _announced)
+    firewall = Firewall(_firewall(_FailingStep("failing", [])))
+
+    with pytest.raises(RuntimeError) as raised:
+        await firewall.on_request(RequestEvent(make_message(), {}), None, dispatcher)
+
+    assert announced == [raised.value]
+
+
+async def test_a_failure_a_listener_answers_is_answered_with_that_response() -> None:
+    log: list[str] = []
+    answer = ResponseFactory().create_response(503)
+
+    def _answered(failure: ExceptionEvent) -> None:
+        failure.set_response(answer)
+
+    dispatcher = EventDispatcher()
+    dispatcher.add_listener(ExceptionEvent, _answered)
+    event = RequestEvent(make_message(), {})
+    firewall = Firewall(_firewall(_FailingStep("failing", log), _AccessStep("access", log)))
+
+    await firewall.on_request(event, None, dispatcher)
+
+    assert event.response is answer
+    assert log == ["failing supports", "failing authenticate"]
+
+
+async def test_a_security_error_is_answered_by_the_firewalls_own_listener() -> None:
+    # What the announcement is for: the matched firewall's listener answers
+    # the failures it owns, here with the bare challenge.
+    firewall = Firewall(
+        _firewall(_RefusingStep("refusing", []), exception_listener=_exception_listener()),
+    )
+    dispatcher = EventDispatcher()
+    dispatcher.add_subscriber(firewall)
+    event = RequestEvent(make_message(), {})
+
+    await firewall.on_request(event, None, dispatcher)
+
+    assert event.response is not None
+    assert event.response.status_code == 401
