@@ -38,6 +38,16 @@ Coming with the bundle.
 
 Coming with the package's errors.
 
+## Known limitations
+
+- **An email is rendered whole before its first chunk.** `to_iterable()` yields the message in
+  pieces, but only once all of it is in memory: Python's email package writes a message from
+  its whole tree, and an attachment's file is read whole into that tree. An email takes about
+  its rendered size in memory while it is sent, however large its attachments.
+- **A header parameter name is at most 40 characters.** A longer one is refused with
+  `RfcComplianceError`: when its value has to be cut into RFC 2231 sections, the name may leave
+  no room for them on a line.
+
 ## Development
 
 ```sh
