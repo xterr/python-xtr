@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,8 @@ require_dkim_extra()
 
 # Imported after the skip: without the extra the key helper does not import.
 from tests.support.dkim_keys import DOMAIN, SELECTOR, dkim_key  # noqa: E402 -- see above.
+from tests.support.dkim_signing import signed_names, tags, wire  # noqa: E402 -- see above.
+from tests.support.dkim_signing import signer as _signer  # noqa: E402 -- see above.
 from xtr_mime import (  # noqa: E402 -- see above.
     Address,
     Email,
@@ -35,8 +38,6 @@ from xtr_mime.crypto import DkimOptions, DkimSigner  # noqa: E402 -- see above.
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    from xtr_mime import RawMessage
 
 _BODY: Final = (
     "Some body \n \n This \r\n\r\n is really interesting and at the same time very long line to "
@@ -58,44 +59,29 @@ def _email(text: str = _BODY) -> Email:
     )
 
 
-def _signer(options: DkimOptions | None = None) -> DkimSigner:
-    return DkimSigner(dkim_key().pem(), DOMAIN, SELECTOR, default_options=options)
-
-
-def _wire(message: RawMessage) -> bytes:
-    return b"".join(message.to_iterable())
-
-
-def _tags(message: Message) -> dict[str, str]:
-    header = message.get_headers().get("DKIM-Signature")
-    assert header is not None
-    pairs = (tag.partition("=") for tag in header.get_body_as_string().split(";"))
-    return {name.strip(): re.sub(r"\s+", "", value) for name, _, value in pairs}
-
-
-def _signed_names(message: Message) -> list[str]:
-    return [name.strip() for name in _tags(message)["h"].split(":")]
-
-
 def _canon(body: str, header: str) -> DkimOptions:
     return DkimOptions().body_canon(body).header_canon(header).headers_to_ignore(["Message-ID"])
 
 
 @pytest.mark.parametrize(("body", "header"), _CANONS_ALL)
-def test_signing_keeps_the_body_and_adds_a_signature(body: str, header: str) -> None:
+def test_signing_keeps_what_the_body_renders_to_and_adds_a_signature(
+    body: str, header: str
+) -> None:
     message = _email()
 
     signed = _signer().sign(message, _canon(body, header))
 
-    assert signed.get_body() is message.get_body()
+    signed_body = signed.get_body()
+    assert signed_body is not None
+    assert signed_body.to_string() == message.get_body().to_string()
     assert signed.get_headers().has("DKIM-Signature")
 
 
 @pytest.mark.parametrize(("body", "header"), _CANONS_ALL)
 def test_the_signature_carries_the_tags_asked_for(body: str, header: str) -> None:
-    tags = _tags(_signer().sign(_email(), _canon(body, header)))
+    found = tags(_signer().sign(_email(), _canon(body, header)))
 
-    assert {key: tags[key] for key in ("v", "q", "a", "bh", "d", "i", "s", "c")} == {
+    assert {key: found[key] for key in ("v", "q", "a", "bh", "d", "i", "s", "c")} == {
         "v": "1",
         "q": "dns/txt",
         "a": "rsa-sha256",
@@ -105,20 +91,20 @@ def test_the_signature_carries_the_tags_asked_for(body: str, header: str) -> Non
         "s": SELECTOR,
         "c": f"{header}/{body}",
     }
-    assert re.fullmatch(r"\d+", tags["t"])
+    assert re.fullmatch(r"\d+", found["t"])
 
 
-def test_the_headers_signed_are_the_message_s_but_those_ignored() -> None:
+def test_the_headers_signed_are_the_message_s_but_those_ignored_and_from_once_more() -> None:
     signed = _signer().sign(_email(), _canon("relaxed", "relaxed"))
 
-    assert _signed_names(signed) == ["from", "to", "subject", "date", "mime-version"]
+    assert signed_names(signed) == ["from", "to", "subject", "date", "mime-version", "from"]
 
 
 @pytest.mark.parametrize(("body", "header"), _CANONS_ALL)
 def test_the_signature_verifies(body: str, header: str) -> None:
     signed = _signer().sign(_email(), _canon(body, header))
 
-    assert dkim_key().verifies(_wire(signed))
+    assert dkim_key().verifies(wire(signed))
 
 
 def test_signing_with_an_unsupported_algorithm_is_refused_before_the_message_is_read() -> None:
@@ -151,18 +137,18 @@ def test_the_body_is_hashed_canonicalized(canon: str, canonical_body: str, text:
     signed = _signer().sign(_email(text), options)
 
     expected = base64.b64encode(hashlib.sha256(canonical_body.encode()).digest()).decode()
-    assert (_tags(signed)["bh"], _tags(signed)["l"]) == (expected, str(len(canonical_body)))
-    assert dkim_key().verifies(_wire(signed))
+    assert (tags(signed)["bh"], tags(signed)["l"]) == (expected, str(len(canonical_body)))
+    assert dkim_key().verifies(wire(signed))
 
 
 def test_the_body_length_is_shown_only_when_asked() -> None:
-    assert "l" not in _tags(_signer().sign(_email()))
+    assert "l" not in tags(_signer().sign(_email()))
 
 
 def test_an_option_set_off_for_one_signature_wins_over_the_signer_s() -> None:
     signer = _signer(DkimOptions().body_show_length(True))
 
-    assert "l" not in _tags(signer.sign(_email(), DkimOptions().body_show_length(False)))
+    assert "l" not in tags(signer.sign(_email(), DkimOptions().body_show_length(False)))
 
 
 def test_an_ed25519_signature_is_refused() -> None:
@@ -189,28 +175,7 @@ def test_options_given_to_sign_win_over_the_signer_s_and_the_rest_are_kept() -> 
 
     signed = signer.sign(_email(), DkimOptions().body_canon("relaxed"))
 
-    assert _tags(signed)["c"] == "simple/relaxed"
-
-
-def test_return_path_and_x_transport_are_never_signed_and_from_always_is() -> None:
-    message = _email().return_path(f"bounce@{DOMAIN}")
-    _ = message.get_headers().add_text_header("X-Transport", "main")
-    _ = message.get_headers().add_text_header("X-Empty", "")
-
-    signed = _signer().sign(message, DkimOptions().headers_to_ignore(["FROM", "subject"]))
-
-    assert _signed_names(signed) == ["from", "to", "date", "mime-version", "message-id"]
-    assert dkim_key().verifies(_wire(signed))
-
-
-def test_headers_a_signer_is_advised_not_to_sign_are_signed_when_present() -> None:
-    message = _email()
-    _ = message.get_headers().add_text_header("Comments", "a note")
-
-    signed = _signer().sign(message)
-
-    assert "comments" in _signed_names(signed)
-    assert dkim_key().verifies(_wire(signed))
+    assert tags(signed)["c"] == "simple/relaxed"
 
 
 @pytest.mark.parametrize("header", ["simple", "relaxed"])
@@ -220,7 +185,7 @@ def test_a_message_with_non_ascii_headers_and_an_attachment_verifies(header: str
 
     signed = _signer(DkimOptions().header_canon(header)).sign(message)
 
-    assert dkim_key().verifies(_wire(signed))
+    assert dkim_key().verifies(wire(signed))
 
 
 @pytest.mark.parametrize(
@@ -230,10 +195,10 @@ def test_a_message_with_non_ascii_headers_and_an_attachment_verifies(header: str
 def test_a_changed_body_or_signed_header_no_longer_verifies(
     original: bytes, changed: bytes
 ) -> None:
-    wire = _wire(_signer().sign(_email()))
-    assert original in wire
+    sent = wire(_signer().sign(_email()))
+    assert original in sent
 
-    assert not dkim_key().verifies(wire.replace(original, changed, 1))
+    assert not dkim_key().verifies(sent.replace(original, changed, 1))
 
 
 def test_the_message_signed_is_left_as_it_was() -> None:
@@ -243,7 +208,7 @@ def test_the_message_signed_is_left_as_it_was() -> None:
 
     assert type(signed) is Message
     assert not message.get_headers().has("DKIM-Signature")
-    assert b"DKIM-Signature" not in _wire(message)
+    assert b"DKIM-Signature" not in wire(message)
 
 
 def test_the_signature_is_written_as_dkimpy_folded_it_until_its_value_changes() -> None:
@@ -264,7 +229,7 @@ def test_the_key_is_read_from_a_file(tmp_path: Path, prefix: str) -> None:
 
     signed = DkimSigner(private_key, DOMAIN, SELECTOR).sign(_email())
 
-    assert dkim_key().verifies(_wire(signed))
+    assert dkim_key().verifies(wire(signed))
 
 
 def test_a_key_file_that_cannot_be_read_is_refused(tmp_path: Path) -> None:
@@ -279,10 +244,11 @@ def test_a_key_file_that_cannot_be_read_is_refused(tmp_path: Path) -> None:
     )
 
 
-def test_a_passphrase_protected_key_signs() -> None:
-    signer = DkimSigner(dkim_key().pem("secret"), DOMAIN, SELECTOR, passphrase="secret")
+@pytest.mark.parametrize("passphrase", ["secret", os.fsdecode(b"p\xe4sswort-geheim")])
+def test_a_passphrase_protected_key_signs(passphrase: str) -> None:
+    signer = DkimSigner(dkim_key().pem(passphrase), DOMAIN, SELECTOR, passphrase=passphrase)
 
-    assert dkim_key().verifies(_wire(signer.sign(_email())))
+    assert dkim_key().verifies(wire(signer.sign(_email())))
 
 
 @pytest.mark.parametrize(

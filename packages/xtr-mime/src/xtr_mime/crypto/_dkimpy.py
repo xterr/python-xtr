@@ -20,6 +20,8 @@ from xtr_mime.exception import InvalidArgumentError, MimeRuntimeError
 __all__ = ["SignatureRequest", "load_private_key", "sign"]
 
 _KEY_ERROR = "Unable to load DKIM private key: "
+# RFC 8301, 3.2: a verifier refuses a signature made with a shorter RSA key.
+_MIN_KEY_SIZE = 1024
 
 
 @final
@@ -45,17 +47,37 @@ def load_private_key(pem: bytes, passphrase: str) -> bytes:
     is handed on in that form, decrypted in memory. cryptography's own reason for refusing a
     key names the problem, never the key.
 
+    The passphrase is encoded as the file system encodes a name: one read from the command
+    line or the environment with bytes that are not UTF-8 holds them as surrogates, and opens
+    the key with those bytes. A passphrase given for a key that is not encrypted is refused,
+    as cryptography refuses it.
+
     Raises:
         InvalidArgumentError: The key does not open — not PEM, encrypted and the passphrase
-            missing or wrong, a passphrase given for a key that is not encrypted — or it is
-            not an RSA key.
+            missing, wrong or not text at all, a passphrase given for a key that is not
+            encrypted — or it is not an RSA key of at least 1024 bits. The passphrase is in no
+            error of the chain.
     """
     try:
-        key = serialization.load_pem_private_key(pem, passphrase.encode() or None)
+        secret: bytes | None = passphrase.encode("utf-8", "surrogateescape") or None
+        encodable = True
+    except UnicodeEncodeError:
+        # Raised outside this block: the codec's error holds the whole passphrase, and an
+        # error raised here would carry it as its context.
+        secret, encodable = None, False
+    if not encodable:
+        raise InvalidArgumentError(f"{_KEY_ERROR}the passphrase is not text that can be encoded.")
+    try:
+        key = serialization.load_pem_private_key(pem, secret)
     except (TypeError, ValueError, UnsupportedAlgorithm) as error:
         raise InvalidArgumentError(f"{_KEY_ERROR}{escaped(str(error))}") from error
     if not isinstance(key, rsa.RSAPrivateKey):
         raise InvalidArgumentError(f'{_KEY_ERROR}only an RSA key signs "rsa-sha256".')
+    if key.key_size < _MIN_KEY_SIZE:
+        raise InvalidArgumentError(
+            f"{_KEY_ERROR}the RSA key has {key.key_size} bits; a DKIM verifier needs at least "
+            f"{_MIN_KEY_SIZE}."
+        )
     return key.private_bytes(
         serialization.Encoding.PEM,
         serialization.PrivateFormat.TraditionalOpenSSL,
@@ -67,8 +89,8 @@ def sign(message: bytes, request: SignatureRequest) -> str:
     """Sign the rendered ``message`` and return its DKIM-Signature field, folded, ending in CRLF.
 
     dkimpy refuses to sign the headers RFC 6376 advises a signer to leave out (Received,
-    Comments, a DKIM-Signature already there); here a header is signed unless the caller
-    said to ignore it.
+    Comments); here a header is signed unless the caller said to ignore it — the signer
+    never names a DKIM-Signature already there.
 
     Raises:
         MimeRuntimeError: dkimpy refuses to sign: the message has no From to sign.

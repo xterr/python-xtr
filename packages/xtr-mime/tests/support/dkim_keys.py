@@ -15,23 +15,37 @@ import dkim
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
 
-__all__ = ["DOMAIN", "SELECTOR", "DkimKey", "dkim_key", "ed25519_pem", "other_dkim_key"]
+__all__ = [
+    "DOMAIN",
+    "SELECTOR",
+    "DkimKey",
+    "dkim_key",
+    "ed25519_pem",
+    "other_dkim_key",
+    "short_rsa_pem",
+]
 
 DOMAIN: Final = "testdkim.example.net"
 SELECTOR: Final = "sf"
-_RECORD_NAME: Final = f"{SELECTOR}._domainkey.{DOMAIN}.".encode("ascii")
+# Two 256-bit primes: cryptography generates no RSA key under 1024 bits, but loads one.
+_SHORT_P: Final = 0xDC7EB2550C06E85F6483E44589A869502F426C247CB40F4814147537F5C24A43
+_SHORT_Q: Final = 0xAA04557F88DC584618E28166050BB41320C9F3C7569769BDE1BD52D1ED363631
 
 
 @dataclass(frozen=True, slots=True)
 class DkimKey:
-    """An RSA key pair: the private half as PEM, the public half published for one selector."""
+    """An RSA key pair: the private half as PEM, the public half published for every selector."""
 
     private_key: rsa.RSAPrivateKey
 
     def pem(self, passphrase: str = "") -> str:
-        """Return the private key as PKCS#8 PEM, encrypted with ``passphrase`` when one is given."""
+        """Return the private key as PKCS#8 PEM, encrypted with ``passphrase`` when one is given.
+
+        The passphrase is encoded as the file system encodes a name, so one read from the
+        command line with bytes that are not UTF-8 encrypts with those bytes.
+        """
         encryption = (
-            serialization.BestAvailableEncryption(passphrase.encode())
+            serialization.BestAvailableEncryption(passphrase.encode("utf-8", "surrogateescape"))
             if passphrase
             else serialization.NoEncryption()
         )
@@ -48,9 +62,9 @@ class DkimKey:
         ).decode("ascii")
 
     def resolve(self, name: bytes, timeout: int = 5) -> bytes | None:
-        """Answer the TXT query for ``sf._domainkey.testdkim.example.net.``; nothing else."""
+        """Answer the TXT query for any selector of ``testdkim.example.net.``; nothing else."""
         del timeout
-        if name != _RECORD_NAME:
+        if not name.endswith(f"._domainkey.{DOMAIN}.".encode("ascii")):
             return None
         public = self.private_key.public_key().public_bytes(
             serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
@@ -78,6 +92,30 @@ def ed25519_pem() -> str:
     """Return a private key that is not RSA, as PKCS#8 PEM."""
     return (
         ed25519.Ed25519PrivateKey.generate()
+        .private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+        .decode("ascii")
+    )
+
+
+def short_rsa_pem() -> str:
+    """Return a 512-bit RSA key as PKCS#8 PEM: too short for DKIM."""
+    p, q, e = _SHORT_P, _SHORT_Q, 65537
+    d = pow(e, -1, (p - 1) * (q - 1))
+    numbers = rsa.RSAPrivateNumbers(
+        p,
+        q,
+        d,
+        rsa.rsa_crt_dmp1(d, p),
+        rsa.rsa_crt_dmq1(d, q),
+        rsa.rsa_crt_iqmp(p, q),
+        rsa.RSAPublicNumbers(e, p * q),
+    )
+    return (
+        numbers.private_key()
         .private_bytes(
             serialization.Encoding.PEM,
             serialization.PrivateFormat.PKCS8,

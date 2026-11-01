@@ -12,12 +12,16 @@ from typing_extensions import override
 
 from xtr_mime._error_text import escaped
 from xtr_mime.exception import InvalidArgumentError, LogicError, MimeRuntimeError
-from xtr_mime.header import UnstructuredHeader
+from xtr_mime.header import Headers, UnstructuredHeader
 from xtr_mime.message import Message
+from xtr_mime.part import TextPart
 
+from ._signed_body import SignedBody
 from .dkim_options import DkimOptions
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from xtr_mime.header import HeaderInterface
 
 __all__ = ["DkimSigner"]
@@ -27,7 +31,9 @@ _FILE_PREFIX: Final = "file://"
 # RFC 6376 names a selector and a domain in DNS: dot-separated labels. An underscore, which
 # some providers put in selectors, is accepted too.
 _LABELS: Final = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*")
-_ALWAYS_IGNORED: Final = frozenset({"return-path", "x-transport"})
+# A DKIM-Signature already there is left out too, as RFC 6376 advises: a later hop may add
+# its own above it, and signing one would sign what the next signer changes.
+_ALWAYS_IGNORED: Final = frozenset({"return-path", "x-transport", "dkim-signature"})
 _T = TypeVar("_T")
 
 
@@ -36,10 +42,14 @@ class DkimSigner:
     """Signs messages for one domain and selector, with one RSA key.
 
     :meth:`sign` renders the message, hands the bytes to dkimpy and returns a new message with
-    the DKIM-Signature field dkimpy wrote, folded as it was signed. The signature covers every
-    header of the message but ``Return-Path``, ``X-Transport``, those the options name to
-    ignore (never ``From``) and those without a body; it does not cover the body part's own
-    headers (Content-Type and the like) beyond what the body hash holds.
+    the DKIM-Signature field dkimpy wrote, folded as it was signed, above every other header —
+    a DKIM-Signature already there included (RFC 6376, 5.6) — and the body as it was signed,
+    which renders the same bytes however often it is sent. The signature covers every header
+    of the message but ``Return-Path``, ``X-Transport``, an existing ``DKIM-Signature``, those
+    the options name to ignore (never ``From``) and those without a body; it does not cover
+    the body part's own headers (Content-Type and the like) beyond what the body hash holds.
+    ``From`` is listed once more than it appears, so a From added above the signed one breaks
+    the signature rather than being shown as its author.
 
     The signature's ``t=`` tag is read by dkimpy from the system clock — the one time xtr-mime
     reads outside :mod:`xtr_clock`. Needs the ``dkim`` extra (``xtr-mime[dkim]``: dkimpy, and
@@ -70,12 +80,14 @@ class DkimSigner:
             domain_name: The signing domain, the ``d=`` tag.
             selector: The selector the public key is published under, the ``s=`` tag.
             default_options: The options :meth:`sign` uses for whatever it is not given.
-            passphrase: The passphrase of an encrypted key; empty for one that is not.
+            passphrase: The passphrase of an encrypted key; empty for one that is not — a
+                passphrase given for a key that is not encrypted is refused.
 
         Raises:
             LogicError: The ``dkim`` extra is not installed.
             InvalidArgumentError: The domain name or selector is not DNS labels, the key file
-                cannot be read, or the key does not open or is not an RSA key.
+                cannot be read, or the key does not open or is not an RSA key of at least
+                1024 bits.
         """
         try:
             from ._dkimpy import load_private_key  # noqa: PLC0415 -- the dkim extra is optional.
@@ -91,11 +103,13 @@ class DkimSigner:
     def sign(self, message: Message, options: DkimOptions | None = None) -> Message:
         """Return a message with the headers ``message`` is sent with and a DKIM-Signature.
 
-        ``message`` is left as it is; the message returned shares its body. ``options`` win
-        over the signer's for each option they set.
+        ``message`` is left as it is; the message returned carries its body as signed — a
+        stream body is read here, once. ``options`` win over the signer's for each option
+        they set.
 
         Raises:
-            InvalidArgumentError: The algorithm or a canonicalization is not one DKIM knows.
+            InvalidArgumentError: The algorithm or a canonicalization is not one DKIM knows,
+                or a header to sign has a ``;`` in its name.
             MimeRuntimeError: The algorithm is ``ed25519-sha256``, which is not supported, or
                 dkimpy refuses to sign: the message has no From to sign.
             LogicError: As rendering the message does — no author, no body to build.
@@ -107,7 +121,12 @@ class DkimSigner:
         settings = self._settings(options or DkimOptions())
         headers = message.get_prepared_headers()
         body = message.get_body()
-        names = [header.get_name() for header in headers.all() if settings.signs(header)]
+        if body is None:
+            # What the message renders with when it has no body.
+            body = TextPart("")
+        names = _signed_names(
+            header.get_name() for header in headers.all() if settings.signs(header)
+        )
         rendered = b"".join(Message(headers, body).to_iterable())
         field = sign(
             rendered,
@@ -120,7 +139,7 @@ class DkimSigner:
                 show_body_length=settings.show_body_length,
             ),
         )
-        return Message(headers.add(_SignatureHeader(field)), body)
+        return Message(Headers(_SignatureHeader(field), *headers.all()), SignedBody(body, rendered))
 
     def _settings(self, options: DkimOptions) -> _Settings:
         """Merge ``options`` over the signer's, then over the defaults, and check them."""
@@ -192,6 +211,23 @@ def _first(value: _T | None, default: _T | None, fallback: _T) -> _T:
     if value is not None:
         return value
     return fallback if default is None else default
+
+
+def _signed_names(names: Iterable[str]) -> list[str]:
+    """Return the ``h=`` list: ``names``, then From once more when it is among them.
+
+    Raises:
+        InvalidArgumentError: A name holds ``;``, which would end the ``h=`` tag.
+    """
+    signed = list(names)
+    for name in signed:
+        if ";" in name:
+            raise InvalidArgumentError(
+                f'The "{escaped(name)}" header cannot be signed with DKIM: a ";" in its name '
+                "would end the list of headers signed."
+            )
+    # Without a From, dkimpy refuses to sign: that error is the one to give.
+    return [*signed, "From"] if any(name.lower() == "from" for name in signed) else signed
 
 
 def _check_labels(what: str, value: str) -> None:

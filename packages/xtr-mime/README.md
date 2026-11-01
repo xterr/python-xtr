@@ -47,6 +47,9 @@ Coming with the package's errors.
 - **A header parameter name is at most 40 characters.** A longer one is refused with
   `RfcComplianceError`: when its value has to be cut into RFC 2231 sections, the name may leave
   no room for them on a line.
+- **A DKIM passphrase is for an encrypted key only.** `DkimSigner` refuses a passphrase given
+  with a key that is not encrypted (`InvalidArgumentError`), as cryptography, which opens the
+  key, refuses it; pass an empty passphrase for such a key.
 
 ## Development
 
