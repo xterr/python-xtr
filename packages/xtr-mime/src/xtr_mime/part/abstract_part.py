@@ -43,7 +43,7 @@ class AbstractPart(metaclass=ABCMeta):
         """Set a parameter of Content-Type, such as ``method`` for ``text/calendar``.
 
         Raises:
-            RfcComplianceError: ``name`` is not a token.
+            RfcComplianceError: ``name`` is not a token or is longer than 40 characters.
         """
         if not self._headers.has("Content-Type"):
             _ = self._headers.add_parameterized_header(

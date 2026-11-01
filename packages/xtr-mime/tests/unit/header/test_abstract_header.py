@@ -52,7 +52,8 @@ def test_an_invalid_name_is_rejected(name: str) -> None:
         _ = _TextHeader(name, "value")
 
     assert str(caught.value) == (
-        f'The header name "{name}" contains characters that are not allowed in a header name.'
+        f'The header name "{repr(name)[1:-1]}" contains characters that are not allowed in a '
+        "header name."
     )
 
 

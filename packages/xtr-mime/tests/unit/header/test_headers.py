@@ -426,6 +426,16 @@ def test_a_header_parameter_cannot_be_set_on_a_header_that_is_not_parameterized(
     )
 
 
+def test_a_header_parameter_error_shows_the_names_escaped() -> None:
+    with pytest.raises(LogicError) as caught:
+        Headers().set_header_parameter("X-A\r\n", "na\x00me\ud800", "foo")
+
+    assert str(caught.value) == (
+        'Unable to set parameter "na\\x00me\\ud800" on header "X-A\\r\\n" as the header is not '
+        "defined."
+    )
+
+
 def test_a_header_parameter_cannot_be_read_on_a_header_that_is_not_parameterized() -> None:
     headers = Headers().add_text_header("Content-Disposition", "name")
 

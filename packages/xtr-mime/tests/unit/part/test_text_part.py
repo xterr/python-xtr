@@ -17,7 +17,7 @@ import pytest
 
 from tests.support.rendered_part import decoded_body, read_part
 from tests.support.wire import decode_parameters
-from xtr_mime.exception import InvalidArgumentError
+from xtr_mime.exception import InvalidArgumentError, RfcComplianceError
 from xtr_mime.header import Headers, ParameterizedHeader, UnstructuredHeader
 from xtr_mime.part import File, TextPart
 
@@ -224,6 +224,11 @@ def test_a_body_that_is_not_in_its_charset_is_refused() -> None:
 
     with pytest.raises(InvalidArgumentError, match='not "utf-8"'):
         _ = part.to_string()
+
+
+def test_a_content_type_parameter_name_too_long_for_a_line_is_refused() -> None:
+    with pytest.raises(RfcComplianceError, match="at most 40 characters"):
+        _ = TextPart("x").set_content_type_parameter("x" * 80, "v")
 
 
 def test_a_text_body_without_charset_is_written_in_utf8() -> None:

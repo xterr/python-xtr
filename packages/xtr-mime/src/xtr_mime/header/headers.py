@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, ClassVar, Final, final
 
+from xtr_mime._error_text import escaped
 from xtr_mime.address import Address
 from xtr_mime.exception import LogicError
 
@@ -247,8 +248,8 @@ class Headers:
         header = self.get(name)
         if header is None:
             raise LogicError(
-                f'Unable to set parameter "{parameter}" on header "{name}" as the header is not '
-                "defined."
+                f'Unable to set parameter "{escaped(parameter)}" on header "{escaped(name)}" as '
+                "the header is not defined."
             )
         if not isinstance(header, ParameterizedHeader):
             raise LogicError(_not_parameterized("set", parameter, name))
@@ -257,8 +258,8 @@ class Headers:
 
 def _not_parameterized(action: str, parameter: str, name: str) -> str:
     return (
-        f'Unable to {action} parameter "{parameter}" on header "{name}" as the header is not of '
-        f'class "{_type_name(ParameterizedHeader)}".'
+        f'Unable to {action} parameter "{escaped(parameter)}" on header "{escaped(name)}" as the '
+        f'header is not of class "{_type_name(ParameterizedHeader)}".'
     )
 
 

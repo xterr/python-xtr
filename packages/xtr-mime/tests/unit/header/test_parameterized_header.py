@@ -244,7 +244,9 @@ def _invalid_names() -> list[object]:
 
 
 def _assert_name_refused(caught: pytest.ExceptionInfo[RfcComplianceError], name: str) -> None:
-    assert str(caught.value) == f'The parameter name "{name}" contains non-token characters.'
+    assert str(caught.value) == (
+        f'The parameter name "{repr(name)[1:-1]}" contains non-token characters.'
+    )
 
 
 @pytest.mark.parametrize("name", _invalid_names())
@@ -273,3 +275,28 @@ def test_set_parameters_rejects_an_invalid_parameter_name(name: str) -> None:
         header.set_parameters({name: "value"})
 
     _assert_name_refused(caught, name)
+
+
+LONGEST_NAME = 40
+
+
+@pytest.mark.parametrize("value", ["v", "v" * 5000, "\U0001f600" * 2000])
+def test_a_parameter_name_of_the_longest_length_is_written_whatever_its_value(value: str) -> None:
+    header = ParameterizedHeader("Content-Disposition", "attachment")
+    header.set_parameter("x" * LONGEST_NAME, value)
+
+    assert decode_parameters(header.to_string()) == {"x" * LONGEST_NAME: value}
+
+
+def test_a_parameter_name_too_long_for_a_folded_line_is_refused() -> None:
+    # Longer, an RFC 2231 section of the value may not fit on a line next to the name.
+    header = ParameterizedHeader("Content-Type", "text/plain")
+
+    with pytest.raises(RfcComplianceError) as caught:
+        header.set_parameter("x" * (LONGEST_NAME + 1), "v")
+
+    assert str(caught.value) == (
+        f"A parameter name must be at most {LONGEST_NAME} characters long "
+        f"({LONGEST_NAME + 1} given)."
+    )
+    assert header.get_parameters() == {}

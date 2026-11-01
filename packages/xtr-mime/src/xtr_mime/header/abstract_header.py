@@ -7,6 +7,7 @@ from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, ClassVar, Final, NoReturn
 
 from xtr_mime._engine import fold_header, header_body
+from xtr_mime._error_text import escaped
 from xtr_mime.exception import InvalidArgumentError, RfcComplianceError
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ class AbstractHeader(metaclass=ABCMeta):
         """
         if not _NAME.fullmatch(name):
             raise RfcComplianceError(
-                f'The header name "{name}" contains characters that are not allowed in a '
+                f'The header name "{escaped(name)}" contains characters that are not allowed in a '
                 "header name."
             )
         self._name: str = name
