@@ -199,6 +199,26 @@ def test_a_text_body_given_as_bytes_is_read_in_its_charset() -> None:
     assert read_part(part).get_content() == "été\r\n"
 
 
+def test_a_body_in_an_unknown_charset_is_refused_with_the_charset_escaped() -> None:
+    part = TextPart(b"content", "no\r\nsuch")
+
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = part.to_string()
+
+    assert (
+        str(caught.value) == 'The body is not "no\\r\\nsuch" text: unknown encoding: no\\r\\nsuch.'
+    )
+
+
+def test_a_body_in_a_charset_holding_a_null_byte_is_refused() -> None:
+    part = TextPart("content", "utf-8\x00")
+
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = part.to_string()
+
+    assert str(caught.value) == 'The body is not "utf-8\\x00" text: embedded null character.'
+
+
 def test_a_body_that_is_not_in_its_charset_is_refused() -> None:
     part = TextPart(b"\xff", "utf-8")
 

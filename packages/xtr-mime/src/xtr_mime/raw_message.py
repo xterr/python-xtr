@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Generator, Iterator
 from typing import TYPE_CHECKING, BinaryIO, Final, Protocol, runtime_checkable
 
-from .exception import LogicError
+from .exception import InvalidArgumentError, LogicError
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -33,6 +33,9 @@ class RawMessage:
     by line, each time it is sent; whoever opened it closes it) or chunks of bytes. An iterator
     of chunks — a generator — can be read once: what it yields is kept as it goes, so a
     message read to its end can be sent again, and one left half read cannot.
+
+    A string may carry bytes that are not UTF-8 as the surrogates :meth:`to_string` gives them
+    as; any other lone surrogate has no bytes to be sent as, and the message is refused.
     """
 
     def __init__(self, message: str | bytes | BinaryIO | Iterable[bytes]) -> None:
@@ -43,10 +46,15 @@ class RawMessage:
     def to_string(self) -> str:
         """Return the whole message as text; bytes that are not UTF-8 survive as surrogates.
 
+        A string is checked as sending it would be: what this returns is the text of what is
+        sent, and a string that cannot be sent has none.
+
         Raises:
             LogicError: The message is a generator that was left half read.
+            InvalidArgumentError: The message is a string UTF-8 cannot hold.
         """
         if isinstance(self._message, str):
+            _ = _encoded(self._message)
             return self._message
         return b"".join(self.to_iterable()).decode("utf-8", "surrogateescape")
 
@@ -57,12 +65,13 @@ class RawMessage:
 
         Raises:
             LogicError: The message is a generator that was left half read.
+            InvalidArgumentError: The message is a string UTF-8 cannot hold.
         """
         if self._generator_closed:
             raise LogicError(_CLOSED)
         message = self._message
         if isinstance(message, str):
-            yield message.encode("utf-8", "surrogateescape")
+            yield _encoded(message)
         elif isinstance(message, bytes):
             yield message
         elif isinstance(message, _BinaryFile):
@@ -94,3 +103,11 @@ class RawMessage:
                 self._message = b"".join(read)
             else:
                 self._generator_closed = True
+
+
+def _encoded(message: str) -> bytes:
+    try:
+        return message.encode("utf-8", "surrogateescape")
+    except UnicodeEncodeError as error:
+        # The codec's message shows the character escaped.
+        raise InvalidArgumentError(f"The message cannot be written in UTF-8: {error}.") from error

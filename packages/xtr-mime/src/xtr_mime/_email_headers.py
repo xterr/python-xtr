@@ -29,7 +29,8 @@ _PRIORITY_LABELS: Final[Mapping[int, str]] = {
     4: "Low",
     5: "Lowest",
 }
-_PRIORITY: Final = re.compile(r"[1-5]+")
+# Two digits make 11 or more, which brought between 1 and 5 is 5: no more need reading.
+_PRIORITY: Final = re.compile(r"[1-5]{1,2}")
 _NORMAL: Final = 3
 
 
@@ -71,7 +72,11 @@ def priority_value(priority: int) -> str:
 
 
 def read_priority(headers: Headers) -> int:
-    """Return the priority X-Priority starts with, normal (3) when it starts with none."""
+    """Return the priority X-Priority starts with, normal (3) when it starts with none.
+
+    Digits from 1 to 5 are read as a number brought between 1 and 5, as :func:`priority_value`
+    brings one: several of them make the lowest priority.
+    """
     value = headers.get_header_body("X-Priority")
     match = _PRIORITY.match(value) if isinstance(value, str) else None
-    return _NORMAL if match is None else int(match.group())
+    return _NORMAL if match is None else min(int(match.group()), 5)

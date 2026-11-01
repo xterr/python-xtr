@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, BinaryIO, ClassVar, Final, Literal, TypeAlias
 from typing_extensions import override
 
 from xtr_mime._engine import BinaryLeaf, TextLeaf, build_binary, build_text, set_fields
+from xtr_mime._error_text import body_charset_error, check_charset
 from xtr_mime.exception import InvalidArgumentError
 
 from .abstract_part import AbstractPart
@@ -153,6 +154,8 @@ class TextPart(AbstractPart):
         encoding = self._get_encoding()
         content = self.get_body()
         charset = self._charset
+        if charset is not None and (encoding != "binary" or isinstance(content, str)):
+            check_charset(charset)
         try:
             if charset is not None and encoding != "binary":
                 text = content if isinstance(content, str) else content.decode(charset)
@@ -173,9 +176,7 @@ class TextPart(AbstractPart):
                 )
                 part = build_binary(binary)
         except (LookupError, UnicodeError) as error:
-            raise InvalidArgumentError(
-                f'The body is not "{charset or "utf-8"}" text: {error}.'
-            ) from error
+            raise body_charset_error(charset or "utf-8", error) from error
         set_fields(part, self.get_prepared_headers().to_array())
         return part
 

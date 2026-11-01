@@ -15,7 +15,7 @@ import pytest
 from typing_extensions import override
 
 from xtr_mime import RawMessage
-from xtr_mime.exception import LogicError
+from xtr_mime.exception import InvalidArgumentError, LogicError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -146,6 +146,34 @@ def test_bytes_that_are_not_utf8_survive_to_string_as_surrogates() -> None:
 
 def test_a_string_is_sent_as_utf8() -> None:
     assert b"".join(RawMessage("café").to_iterable()) == "café".encode()
+
+
+def test_a_string_holding_bytes_as_surrogates_is_sent_as_those_bytes() -> None:
+    message = RawMessage("caf\udce9")
+
+    assert b"".join(message.to_iterable()) == b"caf\xe9"
+    assert message.to_string() == "caf\udce9"
+
+
+UNWRITABLE: Final = "^The message cannot be written in UTF-8: .*'\\\\ud800'"
+
+
+def test_to_iterable_refuses_a_string_utf8_cannot_hold() -> None:
+    message = RawMessage("x\ud800\r\n")
+
+    with pytest.raises(InvalidArgumentError, match=UNWRITABLE) as caught:
+        _ = b"".join(message.to_iterable())
+
+    _ = str(caught.value).encode("utf-8")  # the surrogate is shown escaped
+
+
+def test_to_string_refuses_a_string_utf8_cannot_hold() -> None:
+    # What to_string returns is the text of what would be sent: a message that cannot be sent
+    # has none.
+    message = RawMessage("x\ud800")
+
+    with pytest.raises(InvalidArgumentError, match=UNWRITABLE):
+        _ = message.to_string()
 
 
 def test_ensure_validity_accepts_any_raw_message() -> None:

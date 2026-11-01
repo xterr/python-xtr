@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import re
+import time
 from datetime import UTC, datetime
 from email import policy
 from email.parser import BytesParser
@@ -227,6 +228,15 @@ def test_priority() -> None:
     assert email.get_priority() == 5
     _ = email.priority(-10)
     assert email.get_priority() == 1
+
+
+@pytest.mark.parametrize("value", ["12 (High)", "1" * 4301], ids=["two-digits", "many-digits"])
+def test_a_priority_header_of_several_digits_reads_as_the_lowest(value: str) -> None:
+    # Two digits from 1 to 5 make 11 or more: brought between 1 and 5, as priority() does.
+    email = Email()
+    _ = email.get_headers().add_text_header("X-Priority", value)
+
+    assert email.get_priority() == 5
 
 
 def test_priority_is_written_with_its_label() -> None:
@@ -551,6 +561,39 @@ def test_generate_body_refuses_an_html_body_in_an_unknown_charset() -> None:
         InvalidArgumentError, match=re.escape("The charset 'no-such-charset' is unknown.")
     ):
         _ = email.get_body()
+
+
+@pytest.mark.parametrize("run", ["<a ", "<img src=", 'src="cid:'])
+def test_a_long_html_body_is_searched_for_references_in_linear_time(run: str) -> None:
+    # Each piece opens a tag, or an attribute, that never closes: a search that goes back
+    # over the rest of the body from each one takes minutes on a megabyte.
+    email = _email().html(run * (1_000_000 // len(run))).attach(b"x", "x.txt")
+    started = time.perf_counter()
+
+    _ = email.to_string()
+
+    assert time.perf_counter() - started < 1
+
+
+@pytest.mark.parametrize(
+    ("html", "charset"),
+    [
+        ('<img src="cid:a.gif">'.encode("utf-16") + b"\x00", "utf-16"),
+        ('<img src="cid:a.gif">'.encode("utf-16-le") + b"\xd8", "utf-16-le"),
+        (b'<img src="cid:a.gif">', "idna"),
+        (b'<img src="cid:a.gif">', "punycode"),
+    ],
+    ids=["truncated", "unwritable-after-rewrite", "idna", "punycode"],
+)
+def test_an_html_body_its_charset_cannot_hold_is_refused(html: bytes, charset: str) -> None:
+    email = _email().html(html, charset).embed(b"G", "a.gif").attach(b"x", "x.txt")
+
+    with pytest.raises(
+        InvalidArgumentError, match=f'^The body is not "{charset}" text: '
+    ) as caught:
+        _ = email.to_string()
+
+    _assert_clean_error(caught.value)
 
 
 def test_attachments() -> None:

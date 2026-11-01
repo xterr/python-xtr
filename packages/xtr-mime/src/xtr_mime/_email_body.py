@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, BinaryIO, Final, Protocol
 
+from ._error_text import body_charset_error
+from ._html_references import referenced_names
 from .exception import InvalidArgumentError, LogicError
 from .part import AlternativePart, MixedPart, RelatedPart, TextPart
 
@@ -21,16 +23,6 @@ if TYPE_CHECKING:
 __all__ = ["NO_BODY", "assemble_body"]
 
 NO_BODY: Final = "A message must have a text or an HTML part or attachments."
-
-# An image's source, or any element's background, given as "cid:<name>": quoted, the name runs
-# to the closing quote; unquoted, to the end of the tag or the next space.
-_REFERENCES: Final = tuple(
-    re.compile(
-        rf"""<{tag}\s+[^>]*{attribute}\s*=\s*(?:(['"])cid:(.+?)\1|cid:([^>\s]+))""",
-        re.IGNORECASE | re.ASCII,
-    )
-    for tag, attribute in (("img", "src"), (r"\w+", "background"))
-)
 
 
 class _Content(Protocol):
@@ -56,7 +48,8 @@ def assemble_body(email: _Content) -> AbstractPart:
 
     Raises:
         LogicError: The email has no text, no HTML and no attachment.
-        InvalidArgumentError: The HTML body is bytes in a charset Python does not know.
+        InvalidArgumentError: The HTML body is bytes in a charset Python does not know, or
+            that cannot read them, or write them back once their references are rewritten.
     """
     html, related, others = _prepare_parts(email)
     text = email.get_text_body()
@@ -80,7 +73,7 @@ def _prepare_parts(email: _Content) -> tuple[TextPart | None, list[DataPart], li
         return None, [], list(attachments)
     charset = email.get_html_charset() or "utf-8"
     content = TextPart(html, charset, "html").get_body()
-    names: Sequence[str] = _referenced_names(_as_text(content, charset)) if attachments else ()
+    names: Sequence[str] = referenced_names(_as_text(content, charset)) if attachments else ()
     related: dict[str, DataPart] = {}
     replacements: dict[str, str] = {}
     others: list[DataPart] = []
@@ -95,9 +88,7 @@ def _prepare_parts(email: _Content) -> tuple[TextPart | None, list[DataPart], li
             _ = part.set_name(part.get_content_id() if own_name is None else own_name).as_inline()
     if replacements:
         rewritten = _replace_all(_as_text(content, charset), replacements)
-        content = (
-            rewritten if isinstance(content, str) else rewritten.encode(charset, "surrogateescape")
-        )
+        content = rewritten if isinstance(content, str) else _as_bytes(rewritten, charset)
     return TextPart(content, charset, "html"), list(related.values()), others
 
 
@@ -108,19 +99,17 @@ def _as_text(content: str | bytes, charset: str) -> str:
         return content.decode(charset, "surrogateescape")
     except LookupError as error:
         raise InvalidArgumentError(f"The charset {charset!r} is unknown.") from error
+    except ValueError as error:
+        # The codec refuses the bytes, or a null byte in the charset names no codec.
+        raise body_charset_error(charset, error) from error
 
 
-def _referenced_names(html: str) -> Sequence[str]:
-    """Return the names ``cid:`` refers to, each once: quoted ones, then bare ones, per pattern."""
-    names: dict[str, None] = {}
-    for reference in _REFERENCES:
-        found = list(reference.finditer(html))
-        for name in [str(match[2] or "") for match in found] + [
-            str(match[3] or "") for match in found
-        ]:
-            if name:
-                names[name] = None
-    return list(names)
+def _as_bytes(html: str, charset: str) -> bytes:
+    """Write ``html`` back in the charset it was read in; the charset is known by now."""
+    try:
+        return html.encode(charset, "surrogateescape")
+    except UnicodeError as error:
+        raise body_charset_error(charset, error) from error
 
 
 def _is_named(part: DataPart, name: str) -> bool:

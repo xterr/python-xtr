@@ -172,4 +172,5 @@ exclude_lines = [
     "raise NotImplementedError",
     # A Protocol body states a contract; there is nothing there to run.
     "^\\s*\\.\\.\\.$",
+    "^\\s*def .*: \\.\\.\\.$",
 ]
