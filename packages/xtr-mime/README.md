@@ -50,6 +50,11 @@ Coming with the package's errors.
 - **A DKIM passphrase is for an encrypted key only.** `DkimSigner` refuses a passphrase given
   with a key that is not encrypted (`InvalidArgumentError`), as cryptography, which opens the
   key, refuses it; pass an empty passphrase for such a key.
+- **S/MIME signatures are detached, and encryption is AES-CBC for RSA keys.** `SMimeSigner`
+  writes `multipart/signed` only — cryptography writes no opaque S/MIME signature — with an
+  RSA or EC key and a SHA-2 digest. `SMimeEncrypter` encrypts with `aes-128-cbc` or
+  `aes-256-cbc` (the default) for certificates holding an RSA key; the RC2, DES, 3DES and
+  `aes-192-cbc` ciphers are refused with `InvalidArgumentError`.
 
 ## Development
 

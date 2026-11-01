@@ -1,0 +1,62 @@
+"""What S/MIME signing and encrypting share without cryptography: the files, and the part made.
+
+The certificates and keys are read from files, as their paths are given; what cryptography
+writes is read back by the engine into the :class:`~xtr_mime.part.SMimePart` a message carries.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Final, final
+
+from xtr_mime._engine import parse, to_bytes
+from xtr_mime._error_text import escaped
+from xtr_mime.exception import MimeRuntimeError
+from xtr_mime.part import SMimePart
+
+__all__ = ["PemFile", "read_part", "read_pem_file"]
+
+_FILE_PREFIX: Final = "file://"
+# Headers never hold an empty line, so the first one ends them.
+_END_OF_HEADERS: Final = b"\r\n\r\n"
+
+
+@final
+@dataclass(frozen=True, slots=True, repr=False)
+class PemFile:
+    """A file of PEM text: the path errors name, and what it holds — maybe a private key."""
+
+    path: str
+    content: bytes
+
+
+def read_pem_file(path: str | os.PathLike[str]) -> PemFile:
+    """Read the file at ``path``; a string may start with ``file://``.
+
+    Raises:
+        MimeRuntimeError: The file does not exist or cannot be read.
+    """
+    shown = os.fspath(path).removeprefix(_FILE_PREFIX)
+    try:
+        return PemFile(shown, Path(shown).read_bytes())
+    except FileNotFoundError as error:
+        raise MimeRuntimeError(f'File does not exist: "{escaped(shown)}".') from error
+    except OSError as error:
+        raise MimeRuntimeError(
+            f'Unable to read the file "{escaped(shown)}": {error.strerror}.'
+        ) from error
+
+
+def read_part(output: bytes) -> SMimePart:
+    """Read what cryptography wrote — headers, a blank line, a body — into a part.
+
+    The part keeps the media type and the Content-Type parameters written, and the body as the
+    engine writes it again: the same bytes, every line ending in CRLF. The other headers
+    written — ``MIME-Version`` among them — are left to the message and to the caller.
+    """
+    tree = parse(output)
+    parameters = dict(tree.get_params([])[1:])
+    body = to_bytes(tree).partition(_END_OF_HEADERS)[2]
+    return SMimePart(body, tree.get_content_maintype(), tree.get_content_subtype(), parameters)

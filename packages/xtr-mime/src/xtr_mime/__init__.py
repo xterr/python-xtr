@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from .address import Address
 from .body_renderer_interface import BodyRendererInterface
-from .crypto import DkimOptions, DkimSigner
+from .crypto import DkimOptions, DkimSigner, SMimeEncrypter, SMimeSigner
 from .draft_email import DraftEmail
 from .email import Email
 from .exception import (
@@ -61,6 +61,7 @@ from .part import (
     MessagePart,
     MixedPart,
     RelatedPart,
+    SMimePart,
     TextPart,
 )
 from .raw_message import RawMessage
@@ -105,6 +106,9 @@ __all__ = [
     "RawMessage",
     "RelatedPart",
     "RfcComplianceError",
+    "SMimeEncrypter",
+    "SMimePart",
+    "SMimeSigner",
     "TextPart",
     "UnstructuredHeader",
 ]

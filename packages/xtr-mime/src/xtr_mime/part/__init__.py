@@ -13,6 +13,7 @@ from .data_part import DataPart
 from .file import File
 from .message_part import MessagePart
 from .multipart import AlternativePart, DigestPart, FormDataPart, MixedPart, RelatedPart
+from .s_mime_part import SMimePart
 from .text_part import TextPart
 
 __all__ = [
@@ -26,5 +27,6 @@ __all__ = [
     "MessagePart",
     "MixedPart",
     "RelatedPart",
+    "SMimePart",
     "TextPart",
 ]

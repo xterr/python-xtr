@@ -38,6 +38,12 @@ def test_the_package_exports_dkim_signing() -> None:
     assert xtr_mime.DkimSigner is xtr_mime.crypto.DkimSigner
 
 
+def test_the_package_exports_s_mime_signing_and_encryption() -> None:
+    assert {"SMimeEncrypter", "SMimePart", "SMimeSigner"} <= set(xtr_mime.__all__)
+    assert xtr_mime.SMimeSigner is xtr_mime.crypto.SMimeSigner
+    assert xtr_mime.SMimePart is xtr_mime.part.SMimePart
+
+
 def test_the_package_exports_the_messages() -> None:
     assert {
         "BodyRendererInterface",
