@@ -2,10 +2,10 @@
 
 Upstream's serialization cases (``serialize``, the serializer's normalizers, the unserialize
 guards on the charsets, the attachment body kept in or out of the payload) have no counterpart:
-a queued email travels through xtr-mailer's codec, which carries an attachment from a path as
-the path. Its case for the header assertion of the test constraints belongs to the testing
-assertions. Upstream compares parts with object equality; parts have none here (a multipart's
-boundary is random), so a tree is compared by its shape.
+xtr-mailer carries a queued email as a pydantic field. Its case for the header assertion of the
+test constraints belongs to the testing assertions. Upstream compares parts with object
+equality; parts have none here (a multipart's boundary is random), so a tree is compared by its
+shape.
 """
 
 from __future__ import annotations
@@ -931,7 +931,9 @@ def test_a_long_line_of_body_text_is_folded_for_the_wire() -> None:
     assert _decoded(html).rstrip(b"\r\n") == b"<p>" + b"x" * 20000 + b"</p>"
 
 
-def test_a_huge_attachment_from_a_path_is_rendered_in_pieces(tmp_path: Path) -> None:
+def test_a_huge_attachment_from_a_path_is_yielded_in_several_chunks(tmp_path: Path) -> None:
+    # The email is rendered whole before the first chunk (see the README's Known limitations):
+    # this checks only that it comes in several chunks that put back together hold the file.
     path = tmp_path / "huge.bin"
     data = bytes(range(256)) * (4 * 1024 * 4)  # 4 MiB
     _ = path.write_bytes(data)

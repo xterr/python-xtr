@@ -1,7 +1,8 @@
 """A text part: its body, its prepared headers and the transfer encoding it is written in.
 
-Upstream's serialization cases have no counterpart (a part is not serialized; a queued email
-travels as a snapshot), nor have its custom encoders (encoding is the engine's work).
+Upstream's serialization cases have no counterpart (a part is not serialized; xtr-mailer
+carries a queued email as a pydantic field), nor have its custom encoders (encoding is the
+engine's work).
 """
 
 from __future__ import annotations

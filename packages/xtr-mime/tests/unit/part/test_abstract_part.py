@@ -1,8 +1,8 @@
 """What every part shares: its own headers, the prepared ones, and the rendering through them.
 
 Upstream's cases here are all about serialization, which has no counterpart: a part is not
-serialized, and a queued email travels as a snapshot. These cover the base class instead,
-through the simplest part.
+serialized, and xtr-mailer carries a queued email as a pydantic field. These cover the base
+class instead, through the simplest part.
 """
 
 from __future__ import annotations

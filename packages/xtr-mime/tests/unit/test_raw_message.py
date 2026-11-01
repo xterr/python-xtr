@@ -1,8 +1,8 @@
 """A raw message: bytes handed over as they are, from a string, bytes, chunks or a file.
 
-Upstream's serialization case has no counterpart — a queued message travels as a snapshot in
-xtr-mailer — nor has its destructor case: whoever opened a file closes it. A generator read to
-its end is kept, so the message can be sent again; upstream raised on a second read instead.
+Upstream's serialization case has no counterpart — xtr-mailer carries a queued message as a
+pydantic field — nor has its destructor case: whoever opened a file closes it. A generator read
+to its end is kept, so the message can be sent again; upstream raised on a second read instead.
 """
 
 from __future__ import annotations
