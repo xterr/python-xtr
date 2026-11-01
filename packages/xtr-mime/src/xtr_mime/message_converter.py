@@ -65,7 +65,9 @@ def _from_parts(message: Message, parts: Sequence[AbstractPart], *, related: boo
 
 
 def _from_text_part(message: Message, part: TextPart) -> Email:
-    email = Email(message.get_headers())
+    # The clock stays inside xtr-mime: the email the message becomes is its one other reader.
+    clock = message._clock  # noqa: SLF001  # pyright: ignore[reportPrivateUsage] -- see above.
+    email = Email(message.get_headers(), clock=clock)
     match part.get_media_type(), part.get_media_subtype():
         case "text", "plain":
             return email.text(part.get_body(), _charset(part))

@@ -7,10 +7,12 @@ email holds: headers, bodies and charsets, and the shape of each attachment.
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import pytest
+from xtr_clock import MockClock
 
 from tests.support.part_shape import shape
 from xtr_mime import Email, Message, MessageConverter
@@ -71,6 +73,16 @@ def test_to_email_returns_an_email_as_it_is() -> None:
     email = _base()
 
     assert MessageConverter.to_email(email) is email
+
+
+def test_to_email_keeps_the_clock_of_the_message() -> None:
+    clock = MockClock(datetime(2005, 10, 15, 12, 34, 56, tzinfo=UTC))
+    message = Message(_base().get_headers(), TextPart("text content"), clock=clock)
+
+    converted = MessageConverter.to_email(message)
+
+    date = converted.get_prepared_headers().get_header_body("Date")
+    assert date == datetime(2005, 10, 15, 12, 34, 56, tzinfo=UTC)
 
 
 CONVERSIONS: Final[list[tuple[str, Callable[[Email], Email]]]] = [
