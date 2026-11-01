@@ -72,3 +72,20 @@ def test_a_file_that_cannot_be_read_is_refused(tmp_path: Path) -> None:
         _ = read_pem_file(tmp_path)
 
     assert str(raised.value) == f'Unable to read the file "{tmp_path}": Is a directory.'
+
+
+@pytest.mark.parametrize(
+    ("path", "shown"),
+    [
+        pytest.param("a\x00b", "a\\x00b", id="a null byte"),
+        pytest.param("file://\x00", "\\x00", id="a null byte after file://"),
+        pytest.param("a\ud800", "a\\ud800", id="a lone surrogate"),
+    ],
+)
+def test_a_path_the_file_system_does_not_accept_is_refused(path: str, shown: str) -> None:
+    with pytest.raises(MimeRuntimeError) as raised:
+        _ = read_pem_file(path)
+
+    assert str(raised.value) == (
+        f'Unable to read the file "{shown}": the path is not one the file system accepts.'
+    )

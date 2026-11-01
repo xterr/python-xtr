@@ -13,7 +13,7 @@ from xtr_mime.message import Message
 from ._s_mime import read_part, read_pem_file
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable
 
     from ._pkcs7 import Envelope
 
@@ -49,7 +49,7 @@ class SMimeEncrypter:
 
     def __init__(
         self,
-        certificates: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
+        certificates: str | os.PathLike[str] | Iterable[str | os.PathLike[str]],
         cipher: str = CIPHER_AES_256_CBC,
     ) -> None:
         """Read the recipients' certificates now, so one that does not work fails here.
@@ -63,8 +63,9 @@ class SMimeEncrypter:
         Raises:
             LogicError: The ``smime`` extra is not installed.
             InvalidArgumentError: The cipher is unknown or not supported, no certificate is
-                given, or one does not load or holds a key that is not RSA.
-            MimeRuntimeError: A file does not exist or cannot be read.
+                given, or one or its key does not load, or its key is not RSA.
+            MimeRuntimeError: A file does not exist or cannot be read, or a path is not one
+                the file system accepts.
         """
         try:
             from ._pkcs7 import (  # noqa: PLC0415 -- the smime extra is optional.
@@ -74,7 +75,9 @@ class SMimeEncrypter:
         except ImportError as error:
             raise LogicError(_NO_EXTRA) from error
         _check_cipher(cipher)
-        paths = [certificates] if isinstance(certificates, (str, os.PathLike)) else certificates
+        paths = (
+            [certificates] if isinstance(certificates, (str, os.PathLike)) else list(certificates)
+        )
         if not paths:
             raise InvalidArgumentError(
                 "At least one certificate is required to encrypt with S/MIME."

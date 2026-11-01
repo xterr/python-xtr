@@ -47,14 +47,15 @@ Coming with the package's errors.
 - **A header parameter name is at most 40 characters.** A longer one is refused with
   `RfcComplianceError`: when its value has to be cut into RFC 2231 sections, the name may leave
   no room for them on a line.
-- **A DKIM passphrase is for an encrypted key only.** `DkimSigner` refuses a passphrase given
-  with a key that is not encrypted (`InvalidArgumentError`), as cryptography, which opens the
-  key, refuses it; pass an empty passphrase for such a key.
+- **A DKIM or S/MIME passphrase is for an encrypted key only.** `DkimSigner` and `SMimeSigner`
+  refuse a passphrase given with a key that is not encrypted (`InvalidArgumentError`), as
+  cryptography, which opens the key, refuses it; pass an empty passphrase for such a key.
 - **S/MIME signatures are detached, and encryption is AES-CBC for RSA keys.** `SMimeSigner`
   writes `multipart/signed` only — cryptography writes no opaque S/MIME signature — with an
-  RSA or EC key and a SHA-2 digest. `SMimeEncrypter` encrypts with `aes-128-cbc` or
-  `aes-256-cbc` (the default) for certificates holding an RSA key; the RC2, DES, 3DES and
-  `aes-192-cbc` ciphers are refused with `InvalidArgumentError`.
+  RSA key of at least 1024 bits or an EC key, and a SHA-2 digest; a certificate for RSA-PSS
+  is refused, as cryptography signs with PKCS #1 v1.5 only. `SMimeEncrypter` encrypts with
+  `aes-128-cbc` or `aes-256-cbc` (the default) for certificates holding an RSA key; the RC2,
+  DES, 3DES and `aes-192-cbc` ciphers are refused with `InvalidArgumentError`.
 
 ## Development
 

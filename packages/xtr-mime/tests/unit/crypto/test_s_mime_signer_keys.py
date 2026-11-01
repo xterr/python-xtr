@@ -78,6 +78,15 @@ def test_a_file_that_cannot_be_read_is_refused(tmp_path: Path) -> None:
     assert str(raised.value).startswith(f'Unable to read the file "{tmp_path}": ')
 
 
+def test_a_path_holding_a_null_byte_is_refused(tmp_path: Path) -> None:
+    _, key = signer_identity().write(tmp_path, "sign")
+
+    with pytest.raises(MimeRuntimeError) as raised:
+        _ = SMimeSigner("a\x00b", key)
+
+    assert str(raised.value).startswith('Unable to read the file "a\\x00b": ')
+
+
 def test_a_certificate_that_does_not_load_is_refused(tmp_path: Path) -> None:
     _, key = signer_identity().write(tmp_path, "sign")
     garbage = tmp_path / "garbage.crt"

@@ -291,6 +291,25 @@ def test_a_message_without_an_author_to_sign_cannot_be_signed() -> None:
     assert str(raised.value) == "Unable to sign DKIM hash: The From header field MUST be signed"
 
 
+@pytest.mark.parametrize(
+    ("private_key", "shown"),
+    [
+        pytest.param("file://a\x00b", "a\\x00b", id="a null byte"),
+        pytest.param("file://a\ud800", "a\\ud800", id="a lone surrogate"),
+    ],
+)
+def test_a_key_path_the_file_system_does_not_accept_is_refused(
+    private_key: str, shown: str
+) -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = DkimSigner(private_key, DOMAIN, SELECTOR)
+
+    assert str(raised.value) == (
+        f'Unable to load DKIM private key: the file "{shown}" cannot be read: the path is not '
+        "one the file system accepts."
+    )
+
+
 def test_without_the_extra_building_a_signer_names_it(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "dkim", None)
     monkeypatch.delitem(sys.modules, "xtr_mime.crypto._dkimpy", raising=False)

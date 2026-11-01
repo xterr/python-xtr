@@ -56,6 +56,8 @@ class SMimeSigner:
             certificate: The path of the signing certificate's PEM file; a string may start
                 with ``file://``.
             private_key: The path of the PEM file of the certificate's private key, RSA or EC.
+                An RSA key has at least 1024 bits, and its certificate is not for RSA-PSS:
+                the signature is made with PKCS #1 v1.5 padding.
             passphrase: The passphrase of an encrypted key; empty for one that is not — a
                 passphrase given for a key that is not encrypted is refused.
             extra_certificates: The path of a PEM file of the intermediate certificates a
@@ -65,9 +67,11 @@ class SMimeSigner:
         Raises:
             LogicError: The ``smime`` extra is not installed.
             InvalidArgumentError: The algorithm is not one of the ``ALGO_*`` names, a
-                certificate or the key does not load, the key is neither RSA nor EC, or it
-                is not the certificate's.
-            MimeRuntimeError: A file does not exist or cannot be read.
+                certificate or the key does not load, the key is neither RSA nor EC, an RSA
+                key is shorter than 1024 bits or certified for RSA-PSS, or the key is not the
+                certificate's.
+            MimeRuntimeError: A file does not exist or cannot be read, or a path is not one
+                the file system accepts.
         """
         try:
             from ._pkcs7 import (  # noqa: PLC0415 -- the smime extra is optional.
@@ -98,12 +102,21 @@ class SMimeSigner:
         """Return a message with the headers of ``message`` and its body signed.
 
         ``message`` is left as it is; a stream body is read here, once. A message without a
-        body is signed with the empty text it renders with.
+        body is signed with the empty text it renders with. A Date or Message-ID that sending
+        adds is added to the headers returned too — the Date read from the clock of
+        ``message`` — so the signed message renders the same every time.
 
         Raises:
-            LogicError: As rendering the body does.
+            LogicError: As rendering the body does, or the message has neither a From nor a
+                Sender to send it with.
             RfcComplianceError: As rendering the body does.
         """
+        headers = copy.copy(message.get_headers())
+        prepared = message.get_prepared_headers()
+        for name in ("Date", "Message-ID"):
+            added = prepared.get(name)
+            if added is not None and not headers.has(name):
+                _ = headers.add(added)
         body = message.get_body() or TextPart("")
         signed = self._signature.sign(b"".join(body.to_iterable()))
-        return Message(copy.copy(message.get_headers()), read_part(signed))
+        return Message(headers, read_part(signed))

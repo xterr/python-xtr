@@ -9,9 +9,11 @@ and again: a part is not serialized here, a signed message sends the same bytes 
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from xtr_clock import MockClock
 
 from tests.support.smime_extra import require_smime_extra
 
@@ -159,7 +161,7 @@ def test_the_algorithm_asked_for_signs(tmp_path: Path, algorithm: str, micalg: s
     assert_signature_holds(signed, original)
 
 
-def test_the_body_is_signed_as_it_renders_and_the_headers_are_the_message_s(
+def test_the_body_is_signed_as_it_renders_and_the_headers_are_the_message_s_as_sent(
     tmp_path: Path,
 ) -> None:
     original = message("Hello")
@@ -170,7 +172,29 @@ def test_the_body_is_signed_as_it_renders_and_the_headers_are_the_message_s(
     assert body is not None
     assert (body.get_media_type(), body.get_media_subtype()) == ("multipart", "signed")
     assert signed_parts(wire(signed))[0] == b"".join(TextPart("Hello").to_iterable())
-    assert signed.get_headers().get_names() == original.get_headers().get_names()
+    assert signed.get_headers().get_names() == [*original.get_headers().get_names(), "message-id"]
+
+
+def _clocked_email() -> Email:
+    clock = MockClock(datetime(2020, 1, 1, 10, tzinfo=UTC))
+    return Email(clock=clock).from_("a@example.com").to("b@example.com").text("x")
+
+
+def test_a_signed_message_is_dated_by_the_clock_of_the_message_signed(tmp_path: Path) -> None:
+    original = _clocked_email()
+    _ = original.get_headers().add_id_header("Message-ID", "some@id")
+
+    signed = signer(tmp_path).sign(original)
+
+    assert b"\r\nDate: Wed, 01 Jan 2020 10:00:00 +0000\r\n" in wire(signed)
+
+
+def test_a_signed_message_without_a_date_or_message_id_renders_the_same_every_time(
+    tmp_path: Path,
+) -> None:
+    signed = signer(tmp_path).sign(_clocked_email())
+
+    assert len({wire(signed), wire(signed), signed.to_string().encode()}) == 1
 
 
 def test_a_message_without_a_body_is_signed_with_an_empty_text(tmp_path: Path) -> None:

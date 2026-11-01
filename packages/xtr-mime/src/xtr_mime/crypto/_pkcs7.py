@@ -17,11 +17,14 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.ciphers import algorithms
 from cryptography.hazmat.primitives.serialization import pkcs7
+from cryptography.x509.oid import PublicKeyAlgorithmOID
 
 from xtr_mime._error_text import escaped
 from xtr_mime.exception import InvalidArgumentError
 
 if TYPE_CHECKING:
+    from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
+
     from ._s_mime import PemFile
 
 __all__ = ["Envelope", "Signature", "load_certificates", "load_key_pair", "load_recipient"]
@@ -35,6 +38,9 @@ _HASHES: Final = {
 _CIPHERS: Final = {"aes-128-cbc": algorithms.AES128, "aes-256-cbc": algorithms.AES256}
 # A line end that is not CRLF: a bare CR, or a bare LF.
 _BARE_LINE_END: Final = re.compile(rb"\r(?!\n)|(?<!\r)\n")
+# A verifier refuses a signature made with a shorter RSA key, as cryptography refuses to make
+# one with some digests.
+_MIN_KEY_SIZE: Final = 1024
 
 _SigningPrivateKey = rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey
 
@@ -107,11 +113,11 @@ def load_recipient(file: PemFile) -> x509.Certificate:
     """Read the certificate a message is encrypted for: the first of ``file``.
 
     Raises:
-        InvalidArgumentError: The certificate does not load, or its key is not RSA, the one
-            kind cryptography encrypts for.
+        InvalidArgumentError: The certificate or its key does not load, or its key is not RSA,
+            the one kind cryptography encrypts for.
     """
     certificate = load_certificates(file)[0]
-    if not isinstance(certificate.public_key(), rsa.RSAPublicKey):
+    if not isinstance(_public_key(certificate, file), rsa.RSAPublicKey):
         raise InvalidArgumentError(
             f'The S/MIME certificate "{escaped(file.path)}" holds a key that is not RSA: a '
             "message is encrypted only for an RSA key."
@@ -125,17 +131,41 @@ def load_key_pair(
     """Read the signing certificate — the first of its file — and the private key of its key.
 
     Raises:
-        InvalidArgumentError: The certificate or the key does not load, the key is neither RSA
-            nor EC, or it is not the key of the certificate.
+        InvalidArgumentError: The certificate, its key or the private key does not load, the
+            certificate's key is for RSA-PSS, the private key is neither RSA of at least 1024
+            bits nor EC, or it is not the key of the certificate.
     """
     signer = load_certificates(certificate)[0]
+    public_key = _public_key(signer, certificate)
+    if signer.public_key_algorithm_oid == PublicKeyAlgorithmOID.RSASSA_PSS:
+        # cryptography signs with PKCS #1 v1.5 padding, which a verifier refuses for such a key.
+        raise InvalidArgumentError(
+            f'The S/MIME certificate "{escaped(certificate.path)}" holds an RSA-PSS key: a '
+            "message is signed only with an RSA key for PKCS #1 v1.5 signatures, or an EC key."
+        )
     key = _load_private_key(private_key, passphrase)
-    if signer.public_key() != key.public_key():
+    if public_key != key.public_key():
         raise InvalidArgumentError(
             f'The S/MIME private key "{escaped(private_key.path)}" does not match the certificate '
             f'"{escaped(certificate.path)}".'
         )
     return signer, key
+
+
+def _public_key(certificate: x509.Certificate, file: PemFile) -> CertificatePublicKeyTypes:
+    """Read the key of ``certificate``, which cryptography reads only when asked for it.
+
+    Raises:
+        InvalidArgumentError: The key is of a kind cryptography does not load, or its bytes are
+            not a key; the error names the problem, never the key.
+    """
+    try:
+        return certificate.public_key()
+    except (ValueError, UnsupportedAlgorithm) as error:
+        raise InvalidArgumentError(
+            f'Unable to load the key of S/MIME certificate "{escaped(file.path)}": '
+            f"{escaped(str(error))}"
+        ) from error
 
 
 def _load_private_key(file: PemFile, passphrase: str) -> _SigningPrivateKey:
@@ -149,7 +179,7 @@ def _load_private_key(file: PemFile, passphrase: str) -> _SigningPrivateKey:
     Raises:
         InvalidArgumentError: The key does not open — not PEM, encrypted and the passphrase
             missing, wrong or not text at all, a passphrase given for a key that is not
-            encrypted — or it is neither RSA nor EC.
+            encrypted — or it is neither RSA of at least 1024 bits nor EC.
     """
     prefix = f'Unable to load S/MIME private key "{escaped(file.path)}": '
     try:
@@ -167,4 +197,8 @@ def _load_private_key(file: PemFile, passphrase: str) -> _SigningPrivateKey:
         raise InvalidArgumentError(f"{prefix}{escaped(str(error))}") from error
     if not isinstance(key, (rsa.RSAPrivateKey, ec.EllipticCurvePrivateKey)):
         raise InvalidArgumentError(f"{prefix}only an RSA or EC key signs S/MIME.")
+    if isinstance(key, rsa.RSAPrivateKey) and key.key_size < _MIN_KEY_SIZE:
+        raise InvalidArgumentError(
+            f"{prefix}the RSA key has {key.key_size} bits; S/MIME needs at least {_MIN_KEY_SIZE}."
+        )
     return key

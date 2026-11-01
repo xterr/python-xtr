@@ -25,6 +25,7 @@ from tests.support.smime_certificates import (  # noqa: E402 -- see above.
     ec_signer,
     other_recipient,
     recipient,
+    unsupported_key_certificate_pem,
 )
 from tests.support.smime_checks import decrypt, verifies, wire  # noqa: E402 -- see above.
 from tests.support.smime_signing import (  # noqa: E402 -- see above.
@@ -196,6 +197,37 @@ def test_no_certificate_is_refused() -> None:
         _ = SMimeEncrypter([])
 
     assert str(raised.value) == "At least one certificate is required to encrypt with S/MIME."
+
+
+def test_an_empty_iterator_of_certificates_is_refused() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = SMimeEncrypter(iter([]))
+
+    assert str(raised.value) == "At least one certificate is required to encrypt with S/MIME."
+
+
+@pytest.mark.parametrize(
+    ("certificates", "shown"),
+    [
+        pytest.param(["x\x00y"], "x\\x00y", id="a null byte"),
+        pytest.param("file://\x00", "\\x00", id="a null byte after file://"),
+    ],
+)
+def test_a_path_holding_a_null_byte_is_refused(certificates: str | list[str], shown: str) -> None:
+    with pytest.raises(MimeRuntimeError) as raised:
+        _ = SMimeEncrypter(certificates)
+
+    assert str(raised.value).startswith(f'Unable to read the file "{shown}": ')
+
+
+def test_a_recipient_whose_key_does_not_load_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "sm2.crt"
+    _ = path.write_bytes(unsupported_key_certificate_pem())
+
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = SMimeEncrypter(path)
+
+    assert str(raised.value).startswith(f'Unable to load the key of S/MIME certificate "{path}": ')
 
 
 def test_a_certificate_file_that_does_not_exist_is_refused(tmp_path: Path) -> None:

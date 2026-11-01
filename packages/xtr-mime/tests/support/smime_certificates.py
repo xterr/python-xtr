@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -22,15 +22,24 @@ if TYPE_CHECKING:
 __all__ = [
     "Identity",
     "authority",
+    "broken_key_certificate_pem",
     "chained_signer",
     "ec_signer",
     "intermediate",
     "other_recipient",
     "recipient",
+    "rsa_pss_certificate_pem",
     "signer_identity",
+    "unsupported_key_certificate_pem",
 ]
 
 _PrivateKey = rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey
+# The DER of the P-256 curve's OID, and of SM2's, which cryptography loads no key of.
+_P256: Final = bytes.fromhex("06082a8648ce3d030107")
+_SM2: Final = bytes.fromhex("06082a811ccf5501822d")
+# rsaEncryption with its NULL parameters, and RSASSA-PSS with its default ones: as long.
+_RSA_ENCRYPTION: Final = bytes.fromhex("06092a864886f70d0101010500")
+_RSASSA_PSS: Final = bytes.fromhex("06092a864886f70d01010a3000")
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,3 +168,33 @@ def recipient() -> Identity:
 def other_recipient() -> Identity:
     """Return a second recipient, with a key of its own."""
     return _issue("luna", _rsa(), authority())
+
+
+def _rewritten(identity: Identity, old: bytes, new: bytes) -> bytes:
+    """Return the certificate of ``identity`` as PEM, the one ``old`` of its DER made ``new``.
+
+    The issuer's signature no longer holds; a certificate's key is read without checking it.
+    """
+    der = identity.certificate.public_bytes(serialization.Encoding.DER)
+    assert der.count(old) == 1
+    certificate = x509.load_der_x509_certificate(der.replace(old, new))
+    return certificate.public_bytes(serialization.Encoding.PEM)
+
+
+def unsupported_key_certificate_pem() -> bytes:
+    """Return a certificate whose key is on SM2, a curve cryptography does not load."""
+    return _rewritten(ec_signer(), _P256, _SM2)
+
+
+def broken_key_certificate_pem() -> bytes:
+    """Return a certificate whose EC key is a point off its curve."""
+    der = bytearray(ec_signer().certificate.public_bytes(serialization.Encoding.DER))
+    # The point follows the curve's OID: a BIT STRING header, then its coordinates.
+    der[der.index(_P256) + len(_P256) + 10] ^= 0xFF
+    certificate = x509.load_der_x509_certificate(bytes(der))
+    return certificate.public_bytes(serialization.Encoding.PEM)
+
+
+def rsa_pss_certificate_pem() -> bytes:
+    """Return the signer's certificate, its RSA key marked as one for RSASSA-PSS only."""
+    return _rewritten(signer_identity(), _RSA_ENCRYPTION, _RSASSA_PSS)

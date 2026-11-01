@@ -38,7 +38,8 @@ def read_pem_file(path: str | os.PathLike[str]) -> PemFile:
     """Read the file at ``path``; a string may start with ``file://``.
 
     Raises:
-        MimeRuntimeError: The file does not exist or cannot be read.
+        MimeRuntimeError: The file does not exist or cannot be read, or the path is not one
+            the file system accepts: a null byte, or text it cannot encode, in it.
     """
     shown = os.fspath(path).removeprefix(_FILE_PREFIX)
     try:
@@ -48,6 +49,12 @@ def read_pem_file(path: str | os.PathLike[str]) -> PemFile:
     except OSError as error:
         raise MimeRuntimeError(
             f'Unable to read the file "{escaped(shown)}": {error.strerror}.'
+        ) from error
+    except ValueError as error:
+        # UnicodeEncodeError among them, whose text quotes the path unescaped.
+        raise MimeRuntimeError(
+            f'Unable to read the file "{escaped(shown)}": the path is not one the file system '
+            "accepts."
         ) from error
 
 

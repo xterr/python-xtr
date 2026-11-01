@@ -86,8 +86,8 @@ class DkimSigner:
         Raises:
             LogicError: The ``dkim`` extra is not installed.
             InvalidArgumentError: The domain name or selector is not DNS labels, the key file
-                cannot be read, or the key does not open or is not an RSA key of at least
-                1024 bits.
+                cannot be read or its path is not one the file system accepts, or the key does
+                not open or is not an RSA key of at least 1024 bits.
         """
         try:
             from ._dkimpy import load_private_key  # noqa: PLC0415 -- the dkim extra is optional.
@@ -247,7 +247,15 @@ def _read_key(private_key: str | os.PathLike[str]) -> bytes:
     try:
         return Path(path).read_bytes()
     except OSError as error:
-        raise InvalidArgumentError(
-            f'Unable to load DKIM private key: the file "{escaped(os.fspath(path))}" cannot be '
-            f"read: {error.strerror}."
-        ) from error
+        raise _unreadable(path, error.strerror) from error
+    except ValueError as error:
+        # A null byte, or text the file system cannot encode; UnicodeEncodeError's own text
+        # quotes the path unescaped.
+        raise _unreadable(path, "the path is not one the file system accepts") from error
+
+
+def _unreadable(path: str | os.PathLike[str], reason: str | None) -> InvalidArgumentError:
+    return InvalidArgumentError(
+        f'Unable to load DKIM private key: the file "{escaped(os.fspath(path))}" cannot be '
+        f"read: {reason}."
+    )
