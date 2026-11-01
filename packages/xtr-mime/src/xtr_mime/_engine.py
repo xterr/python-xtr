@@ -22,6 +22,10 @@ Some of the package's habits are worked around rather than accepted:
   ``add_related``/``add_alternative`` helpers (they decide the nesting themselves), and the
   ``MIME-Version`` header the package's content setter adds is taken off every part — only a
   whole message carries it, and xtr-mime writes that one itself.
+* a body a signature covers is never read back and written again: the package's reader and
+  writer change the bytes of a header they did not build — a fold before a long word, the
+  whitespace after a colon, a bare CR — so such a body is held as bytes and written as they
+  are (:func:`build_verbatim`).
 
 Header injection is refused here, not left to the package: whether it keeps a line break out
 of a header depends on its patch level (the CVE-2024-6923 fix is missing from 3.11.0-3.11.9
@@ -86,12 +90,16 @@ from .exception import InvalidArgumentError, MimeError, MimeRuntimeError, RfcCom
 if TYPE_CHECKING:
     from email._header_value_parser import UnstructuredTokenList
     from email.headerregistry import BaseHeader
+    from email.message import Message
     from typing import Self
 
     # The stubs make the policy generic in the message class it builds; the class is not.
     _EmailPolicy = EmailPolicy[EmailMessage]
+    # And the message generic in its headers' types, which the engine's parts are strings of.
+    _EmailMessage = EmailMessage[str, str]
 else:
     _EmailPolicy = EmailPolicy
+    _EmailMessage = EmailMessage
 
 __all__ = [
     "POLICY",
@@ -110,6 +118,7 @@ __all__ = [
     "build_message",
     "build_multipart",
     "build_text",
+    "build_verbatim",
     "check_message_id",
     "encode_idn_address",
     "fold_header",
@@ -380,6 +389,38 @@ class _ChunkSink:
         self.chunks.append(data)
 
 
+@final
+class _VerbatimPart(_EmailMessage):
+    """A part whose body is bytes the generator writes as they are, after the part's headers.
+
+    The package's own payload is left empty: its getter decodes the bytes a string holds as
+    surrogates, and its writer changes the line ends of a text body.
+    """
+
+    def __init__(self, body: bytes) -> None:
+        super().__init__(policy=POLICY)
+        self.set_payload("")
+        self.body: bytes = body
+
+
+# Not final: the generator clones itself, through its class, for every part it writes.
+class _WireGenerator(BytesGenerator):
+    """The package's generator, but for a verbatim part: its headers, then its bytes."""
+
+    @override
+    def flatten(self, msg: Message, unixfrom: bool = False, linesep: str | None = None) -> None:
+        if not isinstance(msg, _VerbatimPart):
+            super().flatten(msg, unixfrom, linesep)
+            return
+        # The headers are written by the package, as for any part, then the body after them.
+        head: EnginePart = EmailMessage(policy=msg.policy)
+        for name, value in msg.raw_items():
+            head.set_raw(name, value)
+        head.set_payload("")
+        super().flatten(head, unixfrom, linesep)
+        self.write(msg.body.decode("ascii", "surrogateescape"))
+
+
 def encode_idn_address(address: str) -> str:
     """Write the domain of ``address`` in ASCII (punycode) when it is not already.
 
@@ -515,18 +556,30 @@ def build_multipart(subtype: str, boundary: str, children: Sequence[EnginePart])
     return part
 
 
+def build_verbatim(body: bytes) -> EnginePart:
+    """Build a part written as its headers, a blank line, then ``body`` exactly as it is.
+
+    ``body`` is what a signature covers: the bytes after the blank line ending a part's
+    headers, every line ending in CRLF. The part has no headers until the caller sets them.
+    """
+    return _VerbatimPart(body)
+
+
 def build_message(headers: Sequence[tuple[str, HeaderValue]], body: EnginePart) -> EnginePart:
     """Build a whole message: ``headers`` first, then the body part's own headers and content.
 
     The message's headers come before the body's Content-Type, the order mail is read in; the
     body's headers are copied as they are, folding included, so a parsed body stays intact —
     but for a ``MIME-Version`` the message sets itself, which a message carries once. The body
-    keeps its own list of parts: attaching to the message leaves the body as it is.
+    keeps its own list of parts: attaching to the message leaves the body as it is. A verbatim
+    body is kept as the bytes it holds, never read through the package's payload getter.
 
     Raises:
         RfcComplianceError: As :func:`fold_header` does, for any of ``headers``.
     """
-    message: EnginePart = EmailMessage(policy=POLICY)
+    message: EnginePart = (
+        _VerbatimPart(body.body) if isinstance(body, _VerbatimPart) else EmailMessage(policy=POLICY)
+    )
     for name, value in headers:
         add_header(message, name, value)
     has_mime_version = "MIME-Version" in message
@@ -534,9 +587,10 @@ def build_message(headers: Sequence[tuple[str, HeaderValue]], body: EnginePart) 
         if has_mime_version and name.lower() == "mime-version":
             continue
         message.set_raw(name, raw_value)
-    message.set_payload(copy.copy(body.get_payload()))
-    message.preamble = body.preamble
-    message.epilogue = body.epilogue
+    if not isinstance(body, _VerbatimPart):
+        message.set_payload(copy.copy(body.get_payload()))
+        message.preamble = body.preamble
+        message.epilogue = body.epilogue
     return message
 
 
@@ -587,7 +641,7 @@ def render(part: EnginePart) -> Iterator[bytes]:
             _check_boundary(sub_part.get_boundary() or "")
     sink = _ChunkSink()
     try:
-        BytesGenerator(sink, mangle_from_=False, policy=POLICY).flatten(part)
+        _WireGenerator(sink, mangle_from_=False, policy=POLICY).flatten(part)
     except MimeError:
         raise
     except _PACKAGE_FAILURES as error:

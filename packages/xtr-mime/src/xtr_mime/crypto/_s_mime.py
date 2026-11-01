@@ -1,17 +1,18 @@
 """What S/MIME signing and encrypting share without cryptography: the files, and the part made.
 
 The certificates and keys are read from files, as their paths are given; what cryptography
-writes is read back by the engine into the :class:`~xtr_mime.part.SMimePart` a message carries.
+writes becomes the :class:`~xtr_mime.part.SMimePart` a message carries, its body as written.
 """
 
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, final
 
-from xtr_mime._engine import parse, to_bytes
+from xtr_mime._engine import parse
 from xtr_mime._error_text import escaped
 from xtr_mime.exception import MimeRuntimeError
 from xtr_mime.part import SMimePart
@@ -19,8 +20,9 @@ from xtr_mime.part import SMimePart
 __all__ = ["PemFile", "read_part", "read_pem_file"]
 
 _FILE_PREFIX: Final = "file://"
-# Headers never hold an empty line, so the first one ends them.
-_END_OF_HEADERS: Final = b"\r\n\r\n"
+# Headers never hold an empty line, so the first one ends them; cryptography ends the lines of
+# an enveloped message with a bare line feed, and those of a signed one with CRLF.
+_END_OF_HEADERS: Final = re.compile(rb"\r?\n\r?\n")
 
 
 @final
@@ -52,11 +54,12 @@ def read_pem_file(path: str | os.PathLike[str]) -> PemFile:
 def read_part(output: bytes) -> SMimePart:
     """Read what cryptography wrote — headers, a blank line, a body — into a part.
 
-    The part keeps the media type and the Content-Type parameters written, and the body as the
-    engine writes it again: the same bytes, every line ending in CRLF. The other headers
-    written — ``MIME-Version`` among them — are left to the message and to the caller.
+    The part keeps the media type and the Content-Type parameters written, and the body as
+    written, every line ending in CRLF: only the headers are read by the engine, the body is
+    what a signature covers. The other headers written — ``MIME-Version`` among them — are
+    left to the message and to the caller.
     """
-    tree = parse(output)
+    head, body = _END_OF_HEADERS.split(output, maxsplit=1)
+    tree = parse(head + b"\r\n\r\n")
     parameters = dict(tree.get_params([])[1:])
-    body = to_bytes(tree).partition(_END_OF_HEADERS)[2]
     return SMimePart(body, tree.get_content_maintype(), tree.get_content_subtype(), parameters)

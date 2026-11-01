@@ -7,6 +7,7 @@ It reads the certificates and keys too. Importing it without the extra raises
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, final
 
@@ -32,6 +33,8 @@ _HASHES: Final = {
     "sha512": hashes.SHA512,
 }
 _CIPHERS: Final = {"aes-128-cbc": algorithms.AES128, "aes-256-cbc": algorithms.AES256}
+# A line end that is not CRLF: a bare CR, or a bare LF.
+_BARE_LINE_END: Final = re.compile(rb"\r(?!\n)|(?<!\r)\n")
 
 _SigningPrivateKey = rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey
 
@@ -51,11 +54,12 @@ class Signature:
         """Return ``data`` signed: a ``multipart/signed`` message holding it and the signature.
 
         ``data`` is signed in the canonical form S/MIME signs, every line ending in CRLF — the
-        form the message holds it in, and the one the engine renders already.
+        form the message holds it in. A bare CR, which a forwarded message may hold, is made a
+        CRLF here: cryptography writes it so but would sign it as it is.
         """
         builder = (
             pkcs7.PKCS7SignatureBuilder()
-            .set_data(data)
+            .set_data(_BARE_LINE_END.sub(b"\r\n", data))
             .add_signer(self.certificate, self.private_key, _HASHES[self.algorithm]())
         )
         for certificate in self.extra_certificates:

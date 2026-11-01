@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, ClassVar, final
 
 from typing_extensions import override
 
-from xtr_mime._engine import parse
+from xtr_mime._engine import build_verbatim, set_fields
 
 from .abstract_part import AbstractPart
 
@@ -18,15 +19,18 @@ if TYPE_CHECKING:
 
 __all__ = ["SMimePart"]
 
+_BARE_LINE_FEED = re.compile(rb"(?<!\r)\n")
+
 
 @final
 class SMimePart(AbstractPart):
     """A body written as it is given, under a media type and Content-Type parameters.
 
     A signature covers bytes: the body of a ``multipart/signed`` part, its boundaries and the
-    signed part inside, must reach the receiver exactly as they were signed. The body is read
-    back by the engine under the part's headers and written again byte for byte, its lines
-    ending in CRLF.
+    signed part inside, must reach the receiver exactly as they were signed. The body is kept
+    as the bytes given, a bare line feed turned into CRLF once, and written as they are every
+    time the part renders — never read back by the engine, which would write some of the
+    headers inside it otherwise.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = (
@@ -52,8 +56,8 @@ class SMimePart(AbstractPart):
             parameters: The Content-Type parameters, ``boundary`` for a multipart.
         """
         super().__init__()
-        self._body: bytes = (
-            body.encode("utf-8", "surrogateescape") if isinstance(body, str) else body
+        self._body: bytes = _BARE_LINE_FEED.sub(
+            b"\r\n", body.encode("utf-8", "surrogateescape") if isinstance(body, str) else body
         )
         self._media_type: str = media_type
         self._media_subtype: str = media_subtype
@@ -77,7 +81,6 @@ class SMimePart(AbstractPart):
 
     @override
     def _to_engine(self) -> EnginePart:
-        # The body is read back under the headers it is written with: a multipart's parts are
-        # found by the boundary its Content-Type names.
-        head = self.get_prepared_headers().to_string()
-        return parse(head.encode("utf-8", "surrogateescape") + b"\r\n" + self._body)
+        part = build_verbatim(self._body)
+        set_fields(part, self.get_prepared_headers().to_array())
+        return part

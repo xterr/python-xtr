@@ -1697,3 +1697,40 @@ def test_an_eight_bit_body_in_another_charset_survives_to_string() -> None:
 
     assert rendered.encode("utf-8", "surrogateescape") == _engine.to_bytes(part)
     assert _engine.to_bytes(part).endswith("Žluť\r\n".encode("iso-8859-2"))
+
+
+# What a reader and writer would change: a fold before a long word, the whitespace after a
+# colon, a bare CR, a boundary line with trailing spaces, bytes that are not UTF-8.
+_VERBATIM_BODY = (
+    b"--b  \r\nX-Token:\r\n " + b"t" * 80 + b"\r\nX-A:   v\r\nX-C: a\rb\r\n\r\n\xe9\xff\r\n--b--"
+)
+
+
+@pytest.mark.parametrize("content_type", ["multipart/signed", "text/plain", "message/rfc822"])
+def test_a_verbatim_part_writes_its_headers_then_its_body_unchanged(content_type: str) -> None:
+    part = _engine.build_verbatim(_VERBATIM_BODY)
+    _engine.set_fields(part, [f'Content-Type: {content_type}; boundary="b"'])
+
+    rendered = _engine.to_bytes(part)
+
+    assert rendered == f'Content-Type: {content_type}; boundary="b"\r\n\r\n'.encode() + (
+        _VERBATIM_BODY
+    )
+
+
+def test_a_message_around_a_verbatim_body_writes_the_body_unchanged() -> None:
+    body = _engine.build_verbatim(_VERBATIM_BODY)
+    _engine.set_fields(body, ['Content-Type: multipart/signed; boundary="b"'])
+
+    message = _engine.build_message([("Subject", "Hi")], body)
+
+    assert _engine.to_bytes(message).endswith(b'boundary="b"\r\n\r\n' + _VERBATIM_BODY)
+
+
+def test_a_verbatim_part_inside_a_multipart_is_written_unchanged() -> None:
+    child = _engine.build_verbatim(_VERBATIM_BODY)
+    _engine.set_fields(child, ['Content-Type: multipart/signed; boundary="b"'])
+
+    rendered = _engine.to_bytes(_engine.build_multipart("mixed", "outer", [child]))
+
+    assert b'boundary="b"\r\n\r\n' + _VERBATIM_BODY + b"\r\n--outer--" in rendered

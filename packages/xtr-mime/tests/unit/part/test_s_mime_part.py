@@ -87,6 +87,19 @@ def test_a_body_with_bare_line_feeds_is_written_with_crlf() -> None:
     assert part.body_to_string() == "Ym9k\r\neQ==\r\n"
 
 
+def test_a_signed_body_the_engine_would_rewrite_is_sent_as_given() -> None:
+    body = (
+        b"x\r\n--b0undary  \r\nSubject:x\r\nX-A:   v\r\nX-C: a\rb\r\n\r\n"
+        b"\xe9\xff\r\n--b0undary--\r\n"
+    )
+    part = SMimePart(body, "multipart", "signed", {"boundary": "b0undary"})
+    message = Message(Headers().add_mailbox_list_header("From", ["a@example.com"]), part)
+
+    sent = [b"".join(message.to_iterable()), message.to_string().encode("utf-8", "surrogateescape")]
+
+    assert all(rendered.endswith(b"\r\n\r\n" + body) for rendered in sent)
+
+
 def test_a_message_with_the_part_as_body_sends_the_body_unchanged() -> None:
     message = Message(Headers().add_mailbox_list_header("From", ["a@example.com"]), _signed())
 
