@@ -33,6 +33,11 @@ def test_the_package_exports_the_parts() -> None:
     assert xtr_mime.FormDataPart is xtr_mime.part.multipart.FormDataPart
 
 
+def test_the_package_exports_dkim_signing() -> None:
+    assert set(xtr_mime.crypto.__all__) <= set(xtr_mime.__all__)
+    assert xtr_mime.DkimSigner is xtr_mime.crypto.DkimSigner
+
+
 def test_the_package_exports_the_messages() -> None:
     assert {
         "BodyRendererInterface",

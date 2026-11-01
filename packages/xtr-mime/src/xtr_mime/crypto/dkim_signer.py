@@ -1,0 +1,217 @@
+"""Signs a message with DKIM (RFC 6376, RFC 8301), so a receiver can tell it came from a domain."""
+
+from __future__ import annotations
+
+import os
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar, Final, TypeVar, final
+
+from typing_extensions import override
+
+from xtr_mime._error_text import escaped
+from xtr_mime.exception import InvalidArgumentError, LogicError, MimeRuntimeError
+from xtr_mime.header import UnstructuredHeader
+from xtr_mime.message import Message
+
+from .dkim_options import DkimOptions
+
+if TYPE_CHECKING:
+    from xtr_mime.header import HeaderInterface
+
+__all__ = ["DkimSigner"]
+
+_NO_EXTRA: Final = 'The "dkim" extra is required to use DKIM: uv add "xtr-mime[dkim]".'
+_FILE_PREFIX: Final = "file://"
+# RFC 6376 names a selector and a domain in DNS: dot-separated labels. An underscore, which
+# some providers put in selectors, is accepted too.
+_LABELS: Final = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*")
+_ALWAYS_IGNORED: Final = frozenset({"return-path", "x-transport"})
+_T = TypeVar("_T")
+
+
+@final
+class DkimSigner:
+    """Signs messages for one domain and selector, with one RSA key.
+
+    :meth:`sign` renders the message, hands the bytes to dkimpy and returns a new message with
+    the DKIM-Signature field dkimpy wrote, folded as it was signed. The signature covers every
+    header of the message but ``Return-Path``, ``X-Transport``, those the options name to
+    ignore (never ``From``) and those without a body; it does not cover the body part's own
+    headers (Content-Type and the like) beyond what the body hash holds.
+
+    The signature's ``t=`` tag is read by dkimpy from the system clock — the one time xtr-mime
+    reads outside :mod:`xtr_clock`. Needs the ``dkim`` extra (``xtr-mime[dkim]``: dkimpy, and
+    cryptography to open the key).
+    """
+
+    CANON_SIMPLE: ClassVar[str] = "simple"
+    CANON_RELAXED: ClassVar[str] = "relaxed"
+    ALGO_SHA256: ClassVar[str] = "rsa-sha256"
+    ALGO_ED25519: ClassVar[str] = "ed25519-sha256"  # RFC 8463
+
+    __slots__ = ("_default_options", "_domain_name", "_private_key", "_selector")
+
+    def __init__(
+        self,
+        private_key: str | os.PathLike[str],
+        domain_name: str,
+        selector: str,
+        *,
+        default_options: DkimOptions | None = None,
+        passphrase: str = "",
+    ) -> None:
+        """Open the key now, so a key that does not work fails here rather than at sending.
+
+        Args:
+            private_key: The key as PEM text, or the path to a PEM file — a path object, or a
+                string starting with ``file://``.
+            domain_name: The signing domain, the ``d=`` tag.
+            selector: The selector the public key is published under, the ``s=`` tag.
+            default_options: The options :meth:`sign` uses for whatever it is not given.
+            passphrase: The passphrase of an encrypted key; empty for one that is not.
+
+        Raises:
+            LogicError: The ``dkim`` extra is not installed.
+            InvalidArgumentError: The domain name or selector is not DNS labels, the key file
+                cannot be read, or the key does not open or is not an RSA key.
+        """
+        try:
+            from ._dkimpy import load_private_key  # noqa: PLC0415 -- the dkim extra is optional.
+        except ImportError as error:
+            raise LogicError(_NO_EXTRA) from error
+        _check_labels("domain name", domain_name)
+        _check_labels("selector", selector)
+        self._private_key: bytes = load_private_key(_read_key(private_key), passphrase)
+        self._domain_name: str = domain_name
+        self._selector: str = selector
+        self._default_options: DkimOptions = default_options or DkimOptions()
+
+    def sign(self, message: Message, options: DkimOptions | None = None) -> Message:
+        """Return a message with the headers ``message`` is sent with and a DKIM-Signature.
+
+        ``message`` is left as it is; the message returned shares its body. ``options`` win
+        over the signer's for each option they set.
+
+        Raises:
+            InvalidArgumentError: The algorithm or a canonicalization is not one DKIM knows.
+            MimeRuntimeError: The algorithm is ``ed25519-sha256``, which is not supported, or
+                dkimpy refuses to sign: the message has no From to sign.
+            LogicError: As rendering the message does — no author, no body to build.
+            RfcComplianceError: As rendering the message does.
+        """
+        # The dkim extra is optional; building the signer loaded it.
+        from ._dkimpy import SignatureRequest, sign  # noqa: PLC0415 -- see above.
+
+        settings = self._settings(options or DkimOptions())
+        headers = message.get_prepared_headers()
+        body = message.get_body()
+        names = [header.get_name() for header in headers.all() if settings.signs(header)]
+        rendered = b"".join(Message(headers, body).to_iterable())
+        field = sign(
+            rendered,
+            SignatureRequest(
+                selector=self._selector,
+                domain_name=self._domain_name,
+                private_key=self._private_key,
+                canonicalization=settings.canonicalization,
+                header_names=tuple(names),
+                show_body_length=settings.show_body_length,
+            ),
+        )
+        return Message(headers.add(_SignatureHeader(field)), body)
+
+    def _settings(self, options: DkimOptions) -> _Settings:
+        """Merge ``options`` over the signer's, then over the defaults, and check them."""
+        defaults = self._default_options
+        algorithm = _first(options.get_algorithm(), defaults.get_algorithm(), self.ALGO_SHA256)
+        if algorithm not in {self.ALGO_SHA256, self.ALGO_ED25519}:
+            raise InvalidArgumentError(f'Invalid DKIM signing algorithm "{escaped(algorithm)}".')
+        canons = (
+            _first(options.get_header_canon(), defaults.get_header_canon(), self.CANON_RELAXED),
+            _first(options.get_body_canon(), defaults.get_body_canon(), self.CANON_RELAXED),
+        )
+        for canon in canons:
+            if canon not in {self.CANON_SIMPLE, self.CANON_RELAXED}:
+                raise InvalidArgumentError(f'Invalid DKIM canonicalization "{escaped(canon)}".')
+        if algorithm == self.ALGO_ED25519:
+            raise MimeRuntimeError(
+                f'The "{self.ALGO_ED25519}" DKIM signing algorithm is not supported yet.'
+            )
+        ignored = _first(options.get_headers_to_ignore(), defaults.get_headers_to_ignore(), ())
+        show_length = _first(
+            options.get_body_show_length(), defaults.get_body_show_length(), fallback=False
+        )
+        names = (_ALWAYS_IGNORED | {name.lower() for name in ignored}) - {"from"}
+        return _Settings(canons, names, show_length)
+
+
+@dataclass(frozen=True, slots=True)
+class _Settings:
+    """The options one signature is made with, every one decided."""
+
+    canonicalization: tuple[str, str]
+    ignored: frozenset[str]
+    show_body_length: bool
+
+    def signs(self, header: HeaderInterface) -> bool:
+        """Tell whether ``header`` is signed: not ignored, and with a body to write."""
+        return header.get_name().lower() not in self.ignored and bool(header.get_body_as_string())
+
+
+@final
+class _SignatureHeader(UnstructuredHeader):
+    """The DKIM-Signature field, written exactly as dkimpy folded it when signing.
+
+    With ``simple`` header canonicalization a verifier hashes this field byte for byte as
+    dkimpy did: refolded by the engine, it would no longer verify. Its value is the field
+    unfolded; setting another value drops the folding, and the engine writes that one.
+    """
+
+    __slots__: ClassVar[tuple[str, ...]] = ("_folded",)
+
+    def __init__(self, field: str) -> None:
+        folded = field.removesuffix("\r\n")
+        name, _, value = folded.partition(":")
+        super().__init__(name, value.replace("\r\n", "").strip(" "))
+        self._folded: str | None = folded
+
+    @override
+    def set_value(self, value: str) -> None:
+        super().set_value(value)
+        self._folded = None
+
+    @override
+    def to_string(self) -> str:
+        return super().to_string() if self._folded is None else self._folded
+
+
+def _first(value: _T | None, default: _T | None, fallback: _T) -> _T:
+    """Return the option set for this signature, else the signer's, else ``fallback``."""
+    if value is not None:
+        return value
+    return fallback if default is None else default
+
+
+def _check_labels(what: str, value: str) -> None:
+    if not _LABELS.fullmatch(value):
+        raise InvalidArgumentError(
+            f'The DKIM {what} "{escaped(value)}" is not dot-separated labels of letters, digits, '
+            '"-" and "_".'
+        )
+
+
+def _read_key(private_key: str | os.PathLike[str]) -> bytes:
+    """Return the PEM bytes of ``private_key``, read from its file when it names one."""
+    if isinstance(private_key, str) and not private_key.startswith(_FILE_PREFIX):
+        # A key is ASCII: anything else is replaced, and the key then fails to open.
+        return private_key.encode("ascii", "replace")
+    path = private_key.removeprefix(_FILE_PREFIX) if isinstance(private_key, str) else private_key
+    try:
+        return Path(path).read_bytes()
+    except OSError as error:
+        raise InvalidArgumentError(
+            f'Unable to load DKIM private key: the file "{escaped(os.fspath(path))}" cannot be '
+            f"read: {error.strerror}."
+        ) from error

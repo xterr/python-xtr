@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from .address import Address
 from .body_renderer_interface import BodyRendererInterface
+from .crypto import DkimOptions, DkimSigner
 from .draft_email import DraftEmail
 from .email import Email
 from .exception import (
@@ -74,6 +75,8 @@ __all__ = [
     "DataPart",
     "DateHeader",
     "DigestPart",
+    "DkimOptions",
+    "DkimSigner",
     "DraftEmail",
     "Email",
     "File",
