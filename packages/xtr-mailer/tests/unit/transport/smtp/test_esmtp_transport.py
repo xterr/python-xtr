@@ -58,7 +58,9 @@ def test_it_is_an_smtp_transport() -> None:
 
 async def test_it_greets_with_ehlo() -> None:
     async with ScriptedSmtpServer() as server:
-        _ = await esmtp_transport(server).send(email())
+        transport = esmtp_transport(server)
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert server.commands[:2] == ["EHLO [127.0.0.1]", "MAIL FROM:<sender@example.org>"]
 
@@ -69,6 +71,7 @@ async def test_a_subclass_extends_the_commands_from_the_capabilities() -> None:
         transport = _DsnEsmtpTransport(server.host, server.port).set_timeout(2.0)
 
         _ = await transport.send(email())
+        await transport.stop()
 
     assert "MAIL FROM:<sender@example.org> RET=HDRS" in server.commands
     assert "RCPT TO:<recipient@example.org> NOTIFY=FAILURE" in server.commands
@@ -77,8 +80,10 @@ async def test_a_subclass_extends_the_commands_from_the_capabilities() -> None:
 async def test_a_non_ascii_local_part_goes_out_with_smtputf8_when_offered() -> None:
     async with ScriptedSmtpServer() as server:
         server.capabilities = ["SMTPUTF8"]
+        transport = esmtp_transport(server)
 
-        _ = await esmtp_transport(server).send(_unicode_email("info@dømi.fo", "dømi@dømi.fo"))
+        _ = await transport.send(_unicode_email("info@dømi.fo", "dømi@dømi.fo"))
+        await transport.stop()
 
     assert "MAIL FROM:<info@xn--dmi-0na.fo> SMTPUTF8" in server.commands
     assert "RCPT TO:<dømi@xn--dmi-0na.fo>" in server.commands
@@ -96,13 +101,16 @@ async def test_a_non_ascii_local_part_needs_the_server_to_offer_smtputf8() -> No
             ),
         ):
             _ = await transport.send(_unicode_email("info@dømi.fo", "dømi@dømi.fo"))
+        await transport.stop()
 
     assert not any(command.startswith("MAIL") for command in server.commands)
 
 
 async def test_a_non_ascii_domain_alone_is_encoded_without_smtputf8() -> None:
     async with ScriptedSmtpServer() as server:
-        _ = await esmtp_transport(server).send(_unicode_email("info@dømi.fo", "a@example.com"))
+        transport = esmtp_transport(server)
+        _ = await transport.send(_unicode_email("info@dømi.fo", "a@example.com"))
+        await transport.stop()
 
     assert "MAIL FROM:<info@xn--dmi-0na.fo>" in server.commands
     assert "RCPT TO:<a@example.com>" in server.commands
@@ -123,8 +131,10 @@ async def test_tls_required_on_a_plain_session_is_refused() -> None:
 async def test_a_refused_ehlo_falls_back_to_helo() -> None:
     async with ScriptedSmtpServer() as server:
         server.replies["EHLO"] = ["502 5.5.1 EHLO not implemented"]
+        transport = esmtp_transport(server)
 
-        _ = await esmtp_transport(server).send(email())
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert server.commands[:2] == ["EHLO [127.0.0.1]", "HELO [127.0.0.1]"]
     assert len(server.messages) == 1

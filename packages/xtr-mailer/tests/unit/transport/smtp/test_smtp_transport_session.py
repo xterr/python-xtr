@@ -42,9 +42,11 @@ async def test_a_send_after_stop_opens_a_new_session() -> None:
         await transport.stop()
 
         _ = await transport.send(raw("Message 2"), envelope())
+        connected = transport._client.is_connected
+        await transport.stop()
 
     assert len(server.peers) == 2
-    assert transport._client.is_connected
+    assert connected
 
 
 @pytest.mark.parametrize("refusal", ["500 5.5.2 What", "garbage"])
@@ -90,9 +92,11 @@ async def test_the_session_is_restarted_after_the_threshold() -> None:
 
         for index in range(3):
             _ = await transport.send(raw(f"Message {index}"), envelope())
+        commands = list(server.commands)
+        await transport.stop()
 
-    assert server.commands.count("QUIT") == 1
-    assert server.commands.index("QUIT") == server.commands.index("DATA", 5) + 1
+    assert commands.count("QUIT") == 1
+    assert commands.index("QUIT") == commands.index("DATA", 5) + 1
     assert len(server.peers) == 2
 
 
@@ -114,6 +118,7 @@ async def test_a_zero_restart_threshold_keeps_one_session() -> None:
 
         for index in range(3):
             _ = await transport.send(raw(f"Message {index}"), envelope())
+        await transport.stop()
 
     assert len(server.peers) == 1
 
@@ -125,10 +130,12 @@ async def test_concurrent_sends_take_turns_on_one_session() -> None:
         async with anyio.create_task_group() as group:
             for index in range(8):
                 _ = group.start_soon(transport.send, raw(f"Message {index}"), envelope())
+        commands = list(server.commands)
+        await transport.stop()
 
     assert len(server.peers) == 1
     assert (
-        server.commands[1:]
+        commands[1:]
         == [
             "MAIL FROM:<sender@example.org>",
             "RCPT TO:<recipient@example.org>",
@@ -150,6 +157,7 @@ async def test_a_cancelled_send_closes_the_session_and_is_no_failure() -> None:
         connected_after_cancel = transport._client.is_connected
         server.stall.clear()
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert [type(event) for event in recorded] == [MessageEvent, MessageEvent, SentMessageEvent]
     assert not connected_after_cancel
@@ -165,6 +173,7 @@ async def test_a_refused_recipient_resets_the_session_for_the_next_email() -> No
         with pytest.raises(Exception, match='got code "550"'):
             _ = await transport.send(raw("Message 1"), envelope())
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert "RSET" in server.commands
     assert len(server.peers) == 1
@@ -190,7 +199,9 @@ async def test_the_session_is_logged_as_it_starts_and_stops() -> None:
 
 async def test_the_sent_message_carries_the_exchange() -> None:
     async with ScriptedSmtpServer() as server:
-        sent = await smtp_transport(server).send(raw(), envelope())
+        transport = smtp_transport(server)
+        sent = await transport.send(raw(), envelope())
+        await transport.stop()
 
     assert sent is not None
     assert sent.get_debug() == (

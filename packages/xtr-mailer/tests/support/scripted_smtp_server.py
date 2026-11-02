@@ -16,6 +16,7 @@ __all__ = ["STALL", "ScriptedSmtpServer"]
 STALL = "<stall>"
 """A scripted reply that is never sent: the server goes silent at that line instead."""
 
+_HANG_UP_GRACE = 1.0
 _END_OF_DATA = b".\r\n"
 _END_OF_MESSAGE = b"\r\n.\r\n"
 _STUFFED_PERIOD = re.compile(rb"(?m)^\.\.")
@@ -84,6 +85,8 @@ class ScriptedSmtpServer:
         self._implicit_tls = implicit_tls
         self._server: asyncio.Server | None = None
         self._writers: list[asyncio.StreamWriter] = []
+        self._tls_writers: set[asyncio.StreamWriter] = set()
+        self._sessions: list[asyncio.Task[object]] = []
 
     async def __aenter__(self) -> Self:
         """Listen on a free local port."""
@@ -102,7 +105,19 @@ class ScriptedSmtpServer:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Close every connection, then stop listening."""
+        """Let every client hang up, then close what is left and stop listening.
+
+        A client still connected is sent an end of file, which it answers by closing its
+        side — before the test's event loop ends, not when the garbage collector frees it
+        later and warns of an unclosed transport. A TLS connection cannot be half-closed:
+        it, and any connection still open after :data:`_HANG_UP_GRACE` seconds, is closed
+        from this side.
+        """
+        for writer in self._writers:
+            if writer not in self._tls_writers and writer.can_write_eof():
+                writer.write_eof()
+        if pending := [session for session in self._sessions if not session.done()]:
+            _ = await asyncio.wait(pending, timeout=_HANG_UP_GRACE)
         self.hang_up()
         if self._server is not None:
             self._server.close()
@@ -114,6 +129,9 @@ class ScriptedSmtpServer:
             writer.close()
 
     async def _serve(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        task = asyncio.current_task()
+        if task is not None:
+            self._sessions.append(task)
         self._writers.append(writer)
         peer: tuple[str, int] = writer.get_extra_info("peername")  # pyright: ignore[reportAny] — get_extra_info() is Any in typeshed
         self.peers.append(peer[0])
@@ -122,7 +140,9 @@ class ScriptedSmtpServer:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.throttle[0])
         try:
             await self._converse(reader, writer)
-        except (ConnectionError, OSError):
+        except (ConnectionError, OSError, RuntimeError):
+            # RuntimeError: a reply held back by a delay, written after the end of file the
+            # server sends when the test ends.
             pass
         finally:
             writer.close()
@@ -160,6 +180,7 @@ class ScriptedSmtpServer:
 
     async def _start_tls(self, writer: asyncio.StreamWriter, context: ssl.SSLContext) -> bool:
         transport = writer.transport
+        self._tls_writers.add(writer)
         try:
             await writer.start_tls(context)
         except AttributeError:

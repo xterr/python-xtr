@@ -208,3 +208,17 @@ async def test_it_can_speak_tls_from_the_first_byte(tmp_path: Path) -> None:
         writer.close()
 
     assert greeting == "220 localhost ESMTP ready"
+
+
+async def test_a_client_still_connected_has_hung_up_once_the_server_exits() -> None:
+    async with ScriptedSmtpServer() as server:
+        _, reader, writer = await _talk(server)
+
+        async def hang_up_at_end_of_file() -> None:
+            _ = await reader.read()
+            writer.close()
+
+        client = asyncio.create_task(hang_up_at_end_of_file())
+
+    assert client.done()
+    assert writer.is_closing()

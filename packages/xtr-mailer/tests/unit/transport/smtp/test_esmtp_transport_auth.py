@@ -130,8 +130,10 @@ async def test_a_lost_connection_during_authentication_is_raised_as_it_is() -> N
 async def test_the_next_authenticator_may_succeed() -> None:
     async with _server_offering_every_mechanism() as server:
         server.replies["AUTH"] = [_CHALLENGE, _REFUSED, "235 2.7.0 Accepted"]
+        transport = _transport(server)
 
-        _ = await _transport(server).send(email())
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert server.commands[:5] == ["EHLO [127.0.0.1]", *_CRAM_MD5, "RSET", *_PLAIN]
     assert len(server.messages) == 1
@@ -139,14 +141,18 @@ async def test_the_next_authenticator_may_succeed() -> None:
 
 async def test_no_username_skips_authentication() -> None:
     async with _server_offering_every_mechanism() as server:
-        _ = await esmtp_transport(server).send(email())
+        transport = esmtp_transport(server)
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert not any(command.startswith("AUTH") for command in server.commands)
 
 
 async def test_a_server_offering_no_authentication_is_not_asked_for_it() -> None:
     async with ScriptedSmtpServer() as server:
-        _ = await _transport(server).send(email())
+        transport = _transport(server)
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert not any(command.startswith("AUTH") for command in server.commands)
 

@@ -42,12 +42,14 @@ async def test_a_message_goes_out_as_mail_rcpt_and_data() -> None:
         transport = smtp_transport(server)
 
         _ = await transport.send(raw("Message 1"), envelope())
+        await transport.stop()
 
     assert server.commands == [
         "HELO [127.0.0.1]",
         "MAIL FROM:<sender@example.org>",
         "RCPT TO:<recipient@example.org>",
         "DATA",
+        "QUIT",
     ]
     assert server.messages == [b"Message 1\r\n"]
 
@@ -61,6 +63,7 @@ async def test_the_connection_is_reopened_after_a_timeout_rather_than_reset() ->
             _ = await transport.send(raw("Message 1"), envelope())
         server.stall.clear()
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert _helos(server) == 2
     assert "RSET" not in server.commands
@@ -78,6 +81,7 @@ async def test_the_connection_is_closed_after_a_service_closing_reply() -> None:
             _ = await transport.send(raw("Message 2"), envelope())
         connected_after_refusal = transport._client.is_connected
         _ = await transport.send(raw("Message 3"), envelope())
+        await transport.stop()
 
     assert caught.value.code == 421
     assert not connected_after_refusal
@@ -104,6 +108,7 @@ async def test_a_ping_answered_with_a_queued_reply_reconnects() -> None:
 
         _ = await transport.send(raw("Message 1"), envelope())
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert _helos(server) == 2
     assert len(server.messages) == 2
@@ -115,6 +120,7 @@ async def test_a_send_below_the_ping_threshold_does_not_ping() -> None:
 
         for index in range(3):
             _ = await transport.send(raw(f"Message {index}"), envelope())
+        await transport.stop()
 
     assert "NOOP" not in server.commands
 
@@ -130,6 +136,7 @@ async def test_a_send_after_a_transport_error_reconnects() -> None:
         connected_after_failure = transport._client.is_connected
         server.drop.clear()
         _ = await transport.send(raw("Message 3"), envelope())
+        await transport.stop()
 
     assert not connected_after_failure
     assert len(server.peers) == 2
@@ -145,6 +152,7 @@ async def test_a_send_above_the_ping_threshold_pings_first() -> None:
         clock.sleep(1.5)
 
         _ = await transport.send(raw("Message 3"), envelope())
+        await transport.stop()
 
     assert "NOOP" not in before
     assert server.commands[len(before)] == "NOOP"
@@ -169,7 +177,9 @@ async def test_the_envelope_is_written_with_its_domains_encoded() -> None:
         .text(".")
     )
     async with ScriptedSmtpServer() as server:
-        _ = await smtp_transport(server).send(message)
+        transport = smtp_transport(server)
+        _ = await transport.send(message)
+        await transport.stop()
 
     assert "MAIL FROM:<sender@xn--exmple-cua.org>" in server.commands
     assert "RCPT TO:<recipient@xn--exmple-cua.org>" in server.commands
@@ -230,6 +240,7 @@ async def test_the_message_id_the_server_gives_is_the_sent_message_s() -> None:
         transport = smtp_transport(server, event_dispatcher=dispatcher)
 
         _ = await transport.send(email())
+        await transport.stop()
 
     sent = [event for event in recorded if isinstance(event, SentMessageEvent)]
     assert [event.get_message().get_message_id() for event in sent] == ["000501c4054c"]

@@ -17,8 +17,10 @@ pytestmark = pytest.mark.anyio
 async def test_plain_smtp_never_sends_a_non_ascii_local_part() -> None:
     message = Email().from_("info@dømi.fo").to("dømi@dømi.fo").text(".")
     async with ScriptedSmtpServer() as server:
+        transport = smtp_transport(server)
         with pytest.raises(InvalidArgumentError, match="SMTPUTF8"):
-            _ = await smtp_transport(server).send(message)
+            _ = await transport.send(message)
+        await transport.stop()
 
     assert not any(command.startswith("MAIL") for command in server.commands)
 
@@ -26,8 +28,10 @@ async def test_plain_smtp_never_sends_a_non_ascii_local_part() -> None:
 async def test_an_acceptance_naming_no_id_leaves_the_message_id_alone() -> None:
     async with ScriptedSmtpServer() as server:
         server.replies["DATA_END"] = ["250 Message accepted"]
+        transport = smtp_transport(server)
 
-        sent = await smtp_transport(server).send(raw(), envelope())
+        sent = await transport.send(raw(), envelope())
+        await transport.stop()
 
     assert sent is not None
     assert sent.get_message_id() == ""
@@ -43,6 +47,7 @@ async def test_a_reset_that_loses_the_connection_ends_the_session() -> None:
             _ = await transport.send(raw("Message 1"), envelope())
         server.drop.clear()
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert len(server.peers) == 2
     assert server.messages == [b"Message 2\r\n"]
@@ -58,6 +63,7 @@ async def test_a_server_hanging_up_between_emails_is_connected_to_again() -> Non
                 await anyio.sleep(0.01)
 
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert len(server.peers) == 2
     assert server.messages == [b"Message 1\r\n", b"Message 2\r\n"]
@@ -75,6 +81,7 @@ async def test_a_ping_due_on_a_connection_the_server_closed_opens_a_new_session(
         clock.sleep(2)
 
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert len(server.peers) == 2
     assert server.messages == [b"Message 1\r\n", b"Message 2\r\n"]
@@ -89,6 +96,7 @@ async def test_a_refused_ping_opens_a_new_session() -> None:
         clock.sleep(11)
 
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert "NOOP" in server.commands
     assert len(server.peers) == 2
@@ -104,6 +112,7 @@ async def test_a_send_cancelled_while_connecting_leaves_no_session() -> None:
             _ = await transport.send(raw(), envelope())
         server.greeting = "220 localhost ESMTP ready"
         _ = await transport.send(raw(), envelope())
+        await transport.stop()
 
     assert len(server.peers) == 2
     assert len(server.messages) == 1
@@ -122,6 +131,7 @@ async def test_a_send_cancelled_during_its_ping_ends_the_session() -> None:
         connected_after_cancel = transport._client.is_connected
         server.delay.clear()
         _ = await transport.send(raw("Message 3"), envelope())
+        await transport.stop()
 
     assert not connected_after_cancel
     assert len(server.peers) == 2
@@ -139,6 +149,7 @@ async def test_a_send_cancelled_during_its_reset_ends_the_session() -> None:
         connected_after_cancel = transport._client.is_connected
         server.delay.clear()
         _ = await transport.send(raw("Message 2"), envelope())
+        await transport.stop()
 
     assert not connected_after_cancel
     assert len(server.peers) == 2

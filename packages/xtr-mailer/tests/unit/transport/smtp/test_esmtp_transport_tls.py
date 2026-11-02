@@ -29,7 +29,9 @@ def _trusting(server: ScriptedSmtpServer) -> EsmtpTransport:
 
 async def test_starttls_is_used_when_the_server_offers_it(certificate: Certificate) -> None:
     async with _starttls_server(certificate) as server:
-        _ = await _trusting(server).send(email())
+        transport = _trusting(server)
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert server.tls_upgrades == 1
     assert server.commands[:4] == [
@@ -42,7 +44,9 @@ async def test_starttls_is_used_when_the_server_offers_it(certificate: Certifica
 
 async def test_starttls_is_not_used_when_auto_tls_is_off(certificate: Certificate) -> None:
     async with _starttls_server(certificate) as server:
-        _ = await _trusting(server).set_auto_tls(False).send(email())
+        transport = _trusting(server).set_auto_tls(False)
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert server.tls_upgrades == 0
     assert "STARTTLS" not in server.commands
@@ -50,7 +54,9 @@ async def test_starttls_is_not_used_when_auto_tls_is_off(certificate: Certificat
 
 async def test_required_tls_is_met_by_starttls(certificate: Certificate) -> None:
     async with _starttls_server(certificate) as server:
-        _ = await _trusting(server).set_require_tls(True).send(email())
+        transport = _trusting(server).set_require_tls(True)
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert server.tls_upgrades == 1
 
@@ -71,6 +77,7 @@ async def test_an_implicit_tls_session_never_starts_tls_again(certificate: Certi
         transport = EsmtpTransport("localhost", server.port, True).set_verify_peer(False)
 
         _ = await transport.set_require_tls(True).send(email())
+        await transport.stop()
 
     assert "STARTTLS" not in server.commands
     assert len(server.messages) == 1

@@ -74,6 +74,7 @@ async def _refusal(server: ScriptedSmtpServer, *, reply_timeout: float = 2.0) ->
 async def _refusal_of(transport: EsmtpTransport) -> MailerError:
     with pytest.raises(MailerError) as caught:
         _ = await transport.send(email())
+    await transport.stop()
     return caught.value
 
 
@@ -114,8 +115,10 @@ async def test_a_hostile_greeting_is_a_transport_error(greeting: str) -> None:
 async def test_a_hostile_capability_list_is_read_without_failing() -> None:
     async with ScriptedSmtpServer() as server:
         server.capabilities = ["\udcffBAD", "AUTH", "SIZE=" + "9" * 4000, "-", "AUTH  "]
+        transport = esmtp_transport(server)
 
-        _ = await esmtp_transport(server).send(email())
+        _ = await transport.send(email())
+        await transport.stop()
 
     assert len(server.messages) == 1
 
@@ -123,8 +126,10 @@ async def test_a_hostile_capability_list_is_read_without_failing() -> None:
 async def test_a_hostile_message_id_is_read_without_failing() -> None:
     async with ScriptedSmtpServer() as server:
         server.replies["DATA_END"] = ["250 Ok: queued as " + "A" * 8000]
+        transport = esmtp_transport(server)
 
-        sent = await esmtp_transport(server).send(email())
+        sent = await transport.send(email())
+        await transport.stop()
 
     assert sent is not None
     assert sent.get_message_id() == "A" * 8000
@@ -157,6 +162,7 @@ async def test_a_server_echoing_the_credentials_never_shows_them() -> None:
 
         with pytest.raises(TransportError) as caught:
             _ = await transport.send(email())
+        await transport.stop()
 
     assert "[redacted]" in str(caught.value)
     for error in _chain(caught.value):
@@ -175,6 +181,7 @@ async def test_a_server_echoing_the_credentials_into_the_debug_log_never_shows_t
         transport = esmtp_transport(server).set_username(_USER).set_password(_PASSWORD)
 
         sent = await transport.send(email())
+        await transport.stop()
 
     assert sent is not None
     assert "AUTH PLAIN [redacted]" in sent.get_debug()
@@ -231,7 +238,7 @@ async def test_a_password_utf8_cannot_write_is_left_out_of_the_context(
 ) -> None:
     async with ScriptedSmtpServer() as server:
         server.capabilities = [f"AUTH {authenticator.get_auth_keyword()}"]
-        server.replies["AUTH"] = replies
+        server.replies["AUTH"] = list(replies)
         transport = esmtp_transport(server).set_username(_USER)
         transport = transport.set_password(_PASSWORD + "\udcff")
         transport.set_authenticators([authenticator])
