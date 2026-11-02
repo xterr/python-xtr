@@ -153,6 +153,21 @@ async def test_a_reply_s_surrogates_go_out_as_raw_bytes() -> None:
     assert line == b"250 caf\xe9\r\n"
 
 
+async def test_a_delayed_verb_is_answered_once_its_delay_is_over() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.delay["NOOP"] = 0.2
+        reader, writer = await asyncio.open_connection(server.host, server.port)
+        _ = await _reply(reader)
+        writer.write(b"NOOP\r\n")
+        started = asyncio.get_running_loop().time()
+        reply = await asyncio.wait_for(_reply(reader), 2.0)
+        elapsed = asyncio.get_running_loop().time() - started
+        writer.close()
+
+    assert reply == "250 2.0.0 Ok"
+    assert elapsed >= 0.2
+
+
 async def test_it_switches_to_tls_after_starttls(tmp_path: Path) -> None:
     certificate = make_certificate(tmp_path)
     client_context = ssl.create_default_context(cafile=certificate.cert_path)

@@ -75,3 +75,39 @@ async def test_a_send_cancelled_while_connecting_leaves_no_session() -> None:
 
     assert len(server.peers) == 2
     assert len(server.messages) == 1
+
+
+async def test_a_send_cancelled_during_its_ping_ends_the_session() -> None:
+    clock = MockClock()
+    async with ScriptedSmtpServer() as server:
+        transport = smtp_transport(server, clock=clock).set_timeout(3).set_ping_threshold(1)
+        _ = await transport.send(raw("Message 1"), envelope())
+        clock.sleep(2)
+        server.delay["NOOP"] = 0.6
+
+        with anyio.move_on_after(0.2):
+            _ = await transport.send(raw("Message 2"), envelope())
+        connected_after_cancel = transport._client.is_connected
+        server.delay.clear()
+        _ = await transport.send(raw("Message 3"), envelope())
+
+    assert not connected_after_cancel
+    assert len(server.peers) == 2
+    assert server.messages == [b"Message 1\r\n", b"Message 3\r\n"]
+
+
+async def test_a_send_cancelled_during_its_reset_ends_the_session() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["RCPT"] = ["550 5.1.1 No such user"]
+        server.delay["RSET"] = 0.6
+        transport = smtp_transport(server)
+
+        with anyio.move_on_after(0.2):
+            _ = await transport.send(raw("Message 1"), envelope())
+        connected_after_cancel = transport._client.is_connected
+        server.delay.clear()
+        _ = await transport.send(raw("Message 2"), envelope())
+
+    assert not connected_after_cancel
+    assert len(server.peers) == 2
+    assert server.messages == [b"Message 2\r\n"]

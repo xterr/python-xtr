@@ -49,6 +49,7 @@ class ScriptedSmtpServer:
         replies: Scripted replies by verb; ``DATA_END`` answers the end of a message.
         stall: Verbs the server never answers; ``DATA_END`` never answers a message,
             ``DATA_BODY`` stops reading one partway, so the client's writes back up.
+        delay: Seconds the server holds its reply to a verb before sending it.
         drop: Verbs at which the server closes the connection without a reply.
         throttle: Reads a message at most ``size`` bytes every ``pause`` seconds,
             like a slow but healthy server, with a small receive buffer so the
@@ -70,6 +71,7 @@ class ScriptedSmtpServer:
         self.capabilities: list[str] = ["PIPELINING", "8BITMIME"]
         self.replies: dict[str, list[str]] = {}
         self.stall: set[str] = set()
+        self.delay: dict[str, float] = {}
         self.drop: set[str] = set()
         self.throttle: tuple[int, float] | None = None
         self.commands: list[str] = []
@@ -137,6 +139,7 @@ class ScriptedSmtpServer:
             if reply == STALL:
                 _ = await reader.read()
                 return
+            await asyncio.sleep(self.delay.get(verb, 0))
             await self._send(writer, reply)
             authenticating = verb == "AUTH" and reply.startswith("334")
             match verb:

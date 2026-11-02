@@ -164,9 +164,9 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
         return False
 
     async def _send_on_session(self, message: SentMessage) -> None:
-        if self._clock.now().timestamp() - self._last_message_time > self._ping_threshold:
-            await self._ping()
         try:
+            if self._clock.now().timestamp() - self._last_message_time > self._ping_threshold:
+                await self._ping()
             await self._start()
             envelope = message.get_envelope()
             await self._do_mail_from_command(
@@ -207,17 +207,20 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
         """Reset the session after a refusal; end it after anything else."""
         if not self._started:
             return
-        if isinstance(error, UnexpectedResponseError) and error.code != _SERVICE_CLOSING:
-            # The server answered: the session is in step and can be reused once reset.
-            try:
+        try:
+            if isinstance(error, UnexpectedResponseError) and error.code != _SERVICE_CLOSING:
+                # The server answered: the session is in step and can be reused once reset.
                 _ = await self.execute_command("RSET", [250])
-            except TransportError:
-                if not self._client.is_connected:
-                    await self._stop()
-        else:
-            # A 421 closes the channel; a timeout or a lost connection may leave a reply
-            # unread, which the next command would take for its own.
-            await self._stop()
+            else:
+                # A 421 closes the channel; a timeout or a lost connection may leave a reply
+                # unread, which the next command would take for its own.
+                await self._stop()
+        except TransportError:
+            if not self._client.is_connected:
+                await self._stop()
+        except BaseException:
+            self._terminate()  # Cancelled mid-reset: its reply may still be on its way.
+            raise
         _ = self._client.take_transcript()
 
     async def _start(self) -> None:
@@ -247,9 +250,7 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
                 {"transport": str(self), "reason": str(error)},
             )
         finally:
-            self._client.close()
-            self._started = False
-            self._log('Email transport "{transport}" stopped')
+            self._terminate()
 
     def _terminate(self) -> None:
         if self._started:
@@ -266,8 +267,7 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
         except TransportError:
             alive = False
         if not alive:
-            # Also when a reply is queued behind the NOOP's — typically a 421: the next
-            # command would read it as its own.
+            # Also when a reply waits behind the NOOP's (a 421): the next command would read it.
             await self._stop()
 
     async def _check_restart_threshold(self) -> None:
