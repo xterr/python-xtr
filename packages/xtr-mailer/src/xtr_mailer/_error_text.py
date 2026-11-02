@@ -22,12 +22,13 @@ def shown(value: str) -> str:
 
 
 def type_name(cls: type) -> str:
-    """Name ``cls`` by its package when it is a mailer class, else by its module.
+    """Name ``cls`` by its package when it is a mailer or a mime class, else by its module.
 
-    Each mailer class has a file of its own named after it, and is imported from the package
-    that file sits in: ``xtr_mailer.transport.Transports``, not ``...transports.Transports``.
+    Each mailer and mime class has a file of its own named after it, and is imported from the
+    package that file sits in: ``xtr_mailer.transport.Transports``, not
+    ``...transports.Transports``.
     """
     module = cls.__module__
-    if module.startswith("xtr_mailer."):
+    if module.startswith(("xtr_mailer.", "xtr_mime.")):
         module = module.rpartition(".")[0]
     return f"{module}.{cls.__qualname__}"

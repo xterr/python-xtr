@@ -140,3 +140,44 @@ def test_a_header_the_engine_refuses_stops_the_email_before_it_is_sent() -> None
         _ = SentMessage(email, _envelope())
 
     assert "\r" not in str(raised.value)
+
+
+def test_an_email_left_unrendered_is_not_rendered_until_it_is_read() -> None:
+    email = _CountingEmail().from_("fabien@example.com").to("helene@example.com").text("text")
+
+    _ = SentMessage(email, _envelope(), render_now=False)
+
+    assert email.renderings == []
+
+
+def test_an_email_left_unrendered_is_rendered_once_when_read() -> None:
+    email = _CountingEmail().from_("fabien@example.com").to("helene@example.com").text("text")
+    sent = SentMessage(email, _envelope(), render_now=False)
+
+    first = sent.to_string()
+
+    assert sent.to_string() == first
+    assert len(email.renderings) == 1
+    assert f"Message-ID: <{sent.get_message_id()}>\r\n" in first
+
+
+def test_an_email_left_unrendered_still_gets_a_message_id() -> None:
+    sent = SentMessage(_email(), _envelope(), render_now=False)
+
+    assert re.fullmatch(r"[0-9a-f]{32}@example\.com", sent.get_message_id())
+
+
+def test_an_email_left_unrendered_is_still_checked() -> None:
+    email = Email().from_("fabien@example.com").text("text")
+
+    with pytest.raises(MimeLogicError, match=re.escape('An email must have a "To", "Cc", or')):
+        _ = SentMessage(email, _envelope(), render_now=False)
+
+
+def test_a_header_the_engine_refuses_fails_an_unrendered_email_only_when_it_is_read() -> None:
+    email = _email().subject("x" * 1000)
+
+    sent = SentMessage(email, _envelope(), render_now=False)
+
+    with pytest.raises(RfcComplianceError, match="longer than 998 octets"):
+        _ = sent.to_string()

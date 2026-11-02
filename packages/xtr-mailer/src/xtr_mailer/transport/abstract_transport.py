@@ -142,7 +142,7 @@ class AbstractTransport(TransportInterface, ABC):
         dispatcher = self._event_dispatcher
         if dispatcher is None:
             self._ensure_remote_template_support(message)
-            return await self._send_limited(SentMessage(message, envelope), limiter)
+            return await self._send_limited(self._sent_message(message, envelope), limiter)
         event = await dispatcher.dispatch(MessageEvent(message, envelope, str(self)))
         if event.is_rejected():
             return None
@@ -150,12 +150,24 @@ class AbstractTransport(TransportInterface, ABC):
         self._ensure_remote_template_support(message)
         try:
             # Rendered here, inside the try: a message that cannot be rendered is a failure too.
-            sent = await self._send_limited(SentMessage(message, event.get_envelope()), limiter)
+            sent = await self._send_limited(
+                self._sent_message(message, event.get_envelope()), limiter
+            )
         except Exception as error:
             _ = await dispatcher.dispatch(FailedMessageEvent(message, error))
             raise
         _ = await dispatcher.dispatch(SentMessageEvent(sent))
         return sent
+
+    def _sent_message(self, message: RawMessage, envelope: Envelope) -> SentMessage:
+        """Check ``message`` and render it, once, for :meth:`_do_send` to write.
+
+        A transport that never writes the bytes leaves them unrendered instead.
+
+        Raises:
+            xtr_mime.MimeError: The message cannot be sent as it is, or rendered.
+        """
+        return SentMessage(message, envelope)
 
     async def _send_limited(
         self, sent: SentMessage, limiter: LimiterInterface | None

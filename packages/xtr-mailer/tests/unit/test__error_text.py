@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+from xtr_mime import Message, RawMessage
+from xtr_mime.part import DataPart
 
 from tests.support.fake_transport import FakeTransport
 from xtr_mailer._error_text import shown, type_name
@@ -29,6 +31,12 @@ def test_a_value_is_shown_escaped_and_cut_short(value: str, expected: str) -> No
 def test_a_mailer_class_is_named_by_the_package_it_is_imported_from() -> None:
     assert type_name(Transports) == "xtr_mailer.transport.Transports"
     assert type_name(NullTransport) == "xtr_mailer.transport.NullTransport"
+
+
+def test_a_mime_class_is_named_by_the_package_it_is_imported_from() -> None:
+    assert type_name(RawMessage) == "xtr_mime.RawMessage"
+    assert type_name(Message) == "xtr_mime.Message"
+    assert type_name(DataPart) == "xtr_mime.part.DataPart"
 
 
 def test_any_other_class_is_named_by_its_module() -> None:

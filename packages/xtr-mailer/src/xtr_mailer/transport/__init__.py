@@ -3,6 +3,8 @@
 A :class:`TransportInterface` sends an email now; :class:`AbstractTransport` is the base that
 announces it to listeners and keeps the pace. :class:`NullTransport` sends nothing anywhere,
 and :class:`Transports` puts the named transports of an application behind one.
+:class:`AbstractHttpTransport` is the base of a transport reaching a provider over HTTP, and
+:class:`AbstractApiTransport` of one handing a provider's API an email's fields.
 :class:`RoundRobinTransport` spreads email over several transports and
 :class:`FailoverTransport` falls back to the next when one fails; both are a
 :class:`StoppableTransportInterface`, ending the sessions their transports hold open.
@@ -14,6 +16,8 @@ and :class:`Transports` puts the named transports of an application behind one.
 
 from __future__ import annotations
 
+from .abstract_api_transport import AbstractApiTransport
+from .abstract_http_transport import AbstractHttpTransport
 from .abstract_transport import AbstractTransport
 from .abstract_transport_factory import AbstractTransportFactory
 from .dsn import Dsn, DsnOption
@@ -30,6 +34,8 @@ from .transport_interface import TransportInterface
 from .transports import Transports
 
 __all__ = [
+    "AbstractApiTransport",
+    "AbstractHttpTransport",
     "AbstractTransport",
     "AbstractTransportFactory",
     "Dsn",

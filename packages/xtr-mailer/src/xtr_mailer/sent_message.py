@@ -26,6 +26,10 @@ class SentMessage:
     The message id is the transport's: the ``Message-ID`` of a message, until the transport
     sets the id its server gave (an SMTP ``250 Ok queued as ...``, a provider's API id). A raw
     message has none until then.
+
+    A transport that never sends the bytes — one handing a provider's API the email's fields —
+    leaves the message unrendered: it is rendered the first time it is read, if ever, so the
+    send does not stop on a header the engine would refuse and the API accepts.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = (
@@ -36,14 +40,20 @@ class SentMessage:
         "_raw",
     )
 
-    def __init__(self, message: RawMessage, envelope: Envelope) -> None:
-        """Check ``message`` can be sent and render it.
+    def __init__(self, message: RawMessage, envelope: Envelope, *, render_now: bool = True) -> None:
+        """Check ``message`` can be sent and render it, now or when it is first read.
+
+        Args:
+            message: What is sent.
+            envelope: Who it is sent for and to.
+            render_now: Whether a message is rendered here; ``False`` renders it the first time
+                it is read, raising there what rendering raises.
 
         Raises:
             xtr_mime.LogicError: The message cannot be sent as it is: no recipient, no author,
                 no body, or a draft.
             xtr_mime.MimeError: The message cannot be rendered — a header or a body the
-                engine refuses.
+                engine refuses — and is rendered now.
         """
         message.ensure_validity()
         self._original: RawMessage = message
@@ -58,7 +68,8 @@ class SentMessage:
             identification = headers.get("Message-ID")
             if isinstance(identification, IdentificationHeader):
                 self._message_id = identification.get_id() or ""
-            self._raw: RawMessage = RawMessage(b"".join(prepared.to_iterable()))
+            rendered = prepared.to_iterable()
+            self._raw: RawMessage = RawMessage(b"".join(rendered) if render_now else rendered)
         else:
             self._raw = message
 
