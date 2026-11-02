@@ -17,6 +17,7 @@ from .stoppable_transport_interface import StoppableTransportInterface
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from collections.abc import Set as AbstractSet
 
     from xtr_clock import ClockInterface
     from xtr_logging_contracts import LoggerInterface
@@ -39,6 +40,10 @@ class RoundRobinTransport(StoppableTransportInterface):
     mistake another transport would make too, so it reaches the caller at once; a cancelled send
     is neither, and reaches the caller as it is — the transport stays live, and the email is not
     tried elsewhere, since whether it reached the server is unknown.
+
+    One send tries each transport at most once: a transport whose rest runs out while the
+    others are tried is not tried again for the same email, so a send ends however long each
+    try takes.
 
     The first turn goes to a random transport, so short-lived processes that each send an email
     or two still spread them. Sends may overlap: picking a transport, and marking one dead, each
@@ -89,7 +94,9 @@ class RoundRobinTransport(StoppableTransportInterface):
                 said — or every one is dead already.
         """
         error: TransportError | None = None
-        while (transport := self._get_next_transport()) is not None:
+        tried: set[int] = set()
+        while (transport := self._get_next_transport(tried)) is not None:
+            tried.add(id(transport))
             try:
                 return await transport.send(copy.copy(message), envelope)
             except TransportError as failure:
@@ -116,22 +123,25 @@ class RoundRobinTransport(StoppableTransportInterface):
         names = " ".join(str(transport) for transport in self._transports)
         return f"{self._get_name_symbol()}({names})"
 
-    def _get_next_transport(self) -> TransportInterface | None:
-        """Return the next live transport, and move the turn past it.
+    def _get_next_transport(self, tried: AbstractSet[int]) -> TransportInterface | None:
+        """Return the next live transport not in ``tried``, and move the turn past it.
 
-        A dead transport whose rest is over is live again. ``None`` when a full turn finds none.
+        A dead transport whose rest is over is live again. ``tried`` holds the ``id`` of each
+        transport the current send went through already. ``None`` when a full turn finds none.
         """
         if self._cursor is None:
             self._cursor = self._get_initial_cursor()
         cursor = self._cursor
         while True:
             transport = self._transports[cursor]
-            dead_since = self._dead_since.get(id(transport))
-            if dead_since is None:
-                break
-            if self._now() - dead_since > self._retry_period:
-                del self._dead_since[id(transport)]
-                break
+            key = id(transport)
+            if key not in tried:
+                dead_since = self._dead_since.get(key)
+                if dead_since is None:
+                    break
+                if self._now() - dead_since > self._retry_period:
+                    del self._dead_since[key]
+                    break
             cursor = self._move(cursor)
             if cursor == self._cursor:
                 return None

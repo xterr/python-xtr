@@ -248,6 +248,22 @@ async def test_an_error_other_than_a_transport_failure_reaches_the_caller_at_onc
     assert [len(t1.received), len(t2.received)] == [2, 1]
 
 
+@pytest.mark.usefixtures("first_turn")
+async def test_a_send_tries_each_transport_once_however_long_each_try_takes() -> None:
+    clock = MockClock()
+    transports = [
+        ScriptedTransport(name, [_failure()] * 5, pause=lambda: clock.sleep_async(61))
+        for name in ("t1", "t2", "t3")
+    ]
+    transport = RoundRobinTransport(transports, clock=clock)
+
+    with pytest.raises(TransportError) as caught:
+        _ = await transport.send(_email())
+
+    assert str(caught.value) == "All transports failed."
+    assert [len(each.received) for each in transports] == [1, 1, 1]
+
+
 async def test_stop_stops_the_transports_that_hold_a_connection() -> None:
     connection, nested = _Connection("smtp://a"), _Connection("smtp://b")
     transport = RoundRobinTransport(

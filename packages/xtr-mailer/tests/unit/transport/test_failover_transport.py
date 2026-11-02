@@ -138,3 +138,33 @@ async def test_an_error_other_than_a_transport_failure_does_not_move_on() -> Non
     assert caught.value is error
     assert t1.sent == [sent]
     assert t2.received == []
+
+
+async def test_a_send_tries_each_transport_once_when_each_try_outlasts_the_retry_period() -> None:
+    clock = MockClock()
+    t1, t2 = (
+        ScriptedTransport(name, [_failure()] * 5, pause=lambda: clock.sleep_async(61))
+        for name in ("t1", "t2")
+    )
+    transport = FailoverTransport([t1, t2], clock=clock)
+
+    with pytest.raises(TransportError) as caught:
+        _ = await transport.send(_email())
+
+    assert str(caught.value) == "All transports failed."
+    assert [len(t1.received), len(t2.received)] == [1, 1]
+
+
+async def test_a_send_tries_each_transport_once_without_a_retry_period() -> None:
+    clock = MockClock()
+    t1, t2 = (
+        ScriptedTransport(name, [_failure()] * 5, pause=lambda: clock.sleep_async(1))
+        for name in ("t1", "t2")
+    )
+    transport = FailoverTransport([t1, t2], 0, clock=clock)
+
+    with pytest.raises(TransportError) as caught:
+        _ = await transport.send(_email())
+
+    assert str(caught.value) == "All transports failed."
+    assert [len(t1.received), len(t2.received)] == [1, 1]
