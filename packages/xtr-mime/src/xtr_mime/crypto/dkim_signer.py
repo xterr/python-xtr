@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 from dataclasses import dataclass
@@ -50,6 +51,8 @@ class DkimSigner:
     the body part's own headers (Content-Type and the like) beyond what the body hash holds.
     ``From`` is listed once more than it appears, so a From added above the signed one breaks
     the signature rather than being shown as its author.
+    ``Bcc`` is neither sent nor signed, but the message returned keeps it, so the envelope read
+    from that message still reaches every hidden recipient.
 
     The signature's ``t=`` tag is read by dkimpy from the system clock — the one time xtr-mime
     reads outside :mod:`xtr_clock`. Needs the ``dkim`` extra (``xtr-mime[dkim]``: dkimpy, and
@@ -101,7 +104,7 @@ class DkimSigner:
         self._default_options: DkimOptions = default_options or DkimOptions()
 
     def sign(self, message: Message, options: DkimOptions | None = None) -> Message:
-        """Return a message with the headers ``message`` is sent with and a DKIM-Signature.
+        """Return a message with the headers ``message`` is sent with, its Bcc and a DKIM-Signature.
 
         ``message`` is left as it is; the message returned carries its body as signed — a
         stream body is read here, once. ``options`` win over the signer's for each option
@@ -139,7 +142,12 @@ class DkimSigner:
                 show_body_length=settings.show_body_length,
             ),
         )
-        return Message(Headers(_SignatureHeader(field), *headers.all()), SignedBody(body, rendered))
+        signed = Headers(_SignatureHeader(field), *headers.all())
+        bcc = message.get_headers().get("Bcc")
+        if bcc is not None:
+            # Rendering leaves Bcc out, so the bytes sent stay the bytes signed.
+            _ = signed.add(copy.deepcopy(bcc))
+        return Message(signed, SignedBody(body, rendered))
 
     def _settings(self, options: DkimOptions) -> _Settings:
         """Merge ``options`` over the signer's, then over the defaults, and check them."""

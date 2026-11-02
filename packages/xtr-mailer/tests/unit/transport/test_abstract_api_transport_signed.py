@@ -1,4 +1,4 @@
-"""A signed email handed to a provider's API: DKIM keeps its fields, S/MIME is refused."""
+"""A signed email handed to a transport: DKIM keeps its fields and Bcc, an API refuses S/MIME."""
 
 from __future__ import annotations
 
@@ -9,36 +9,43 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from typing_extensions import override
+from xtr_event_dispatcher import EventDispatcher
 from xtr_http_client import MockHttpClient
 from xtr_mime import Email, MimeRuntimeError
 from xtr_mime.crypto import DkimSigner, SMimeSigner
 
 from tests.support.certificates import make_certificate
-from xtr_mailer import MailerRuntimeError
+from tests.support.fake_transport import FakeTransport
+from xtr_mailer import Envelope, MailerRuntimeError
+from xtr_mailer.event import MessageEvent
 from xtr_mailer.transport import AbstractApiTransport
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_http_client_contracts import HttpResponseInterface
+    from xtr_mime import Address
 
-    from xtr_mailer import Envelope, SentMessage
+    from xtr_mailer import SentMessage
 
 pytestmark = pytest.mark.anyio
 
 
 class _ApiTransport(AbstractApiTransport):
-    """Keeps the email each call was built from."""
+    """Keeps the email each call was built from, and who it went ``to``."""
 
-    def __init__(self) -> None:
-        super().__init__(MockHttpClient())
+    def __init__(self, event_dispatcher: EventDispatcherInterface | None = None) -> None:
+        super().__init__(MockHttpClient(), event_dispatcher)
         self.emails: list[Email] = []
+        self.recipients: list[list[str]] = []
 
     @override
     async def _do_send_api(
         self, sent_message: SentMessage, email: Email, envelope: Envelope
     ) -> HttpResponseInterface:
         self.emails.append(email)
+        self.recipients.append(_addresses(self._get_recipients(email, envelope)))
         async with await self._http_client.request("POST", "https://api.example.com/") as answer:
             return answer
 
@@ -76,6 +83,25 @@ def _attachments(email: Email) -> list[tuple[str | None, str, str | bytes, bool]
     ]
 
 
+def _addresses(addresses: list[Address]) -> list[str]:
+    return [address.get_address() for address in addresses]
+
+
+def _copied_email() -> Email:
+    return (
+        Email()
+        .from_("fabien@example.com")
+        .to("to@example.com")
+        .cc("cc@example.com")
+        .bcc("hidden@example.com")
+        .text("Hello!")
+    )
+
+
+def _signer() -> DkimSigner:
+    return DkimSigner(_dkim_key(), "example.com", "default")
+
+
 async def test_a_dkim_signed_email_is_handed_over_with_the_parts_it_was_signed_with() -> None:
     transport = _ApiTransport()
     email = _email()
@@ -91,6 +117,60 @@ async def test_a_dkim_signed_email_is_handed_over_with_the_parts_it_was_signed_w
         ("logo.gif", "image/gif", b"GIF89a", True),
         ("invoice.txt", "text/plain", b"total: 42", False),
     ]
+
+
+async def test_an_email_signed_by_a_listener_keeps_its_bcc_out_of_the_api_s_to() -> None:
+    dispatcher = EventDispatcher()
+
+    def sign(event: MessageEvent) -> None:
+        message = event.get_message()
+        assert isinstance(message, Email)
+        event.set_message(_signer().sign(message))
+
+    dispatcher.add_listener(MessageEvent, sign, -228)
+    transport = _ApiTransport(dispatcher)
+
+    _ = await transport.send(_copied_email())
+
+    [handed] = transport.emails
+    assert transport.recipients == [["to@example.com"]]
+    assert _addresses(handed.get_bcc()) == ["hidden@example.com"]
+
+
+async def test_an_email_signed_before_its_envelope_was_read_keeps_its_bcc_out_of_the_to() -> None:
+    email = _copied_email()
+    transport = _ApiTransport()
+
+    _ = await transport.send(_signer().sign(email), Envelope.create(email))
+
+    [handed] = transport.emails
+    assert transport.recipients == [["to@example.com"]]
+    assert _addresses(handed.get_bcc()) == ["hidden@example.com"]
+
+
+async def test_an_email_signed_then_sent_through_an_api_is_sent_to_its_bcc() -> None:
+    sent = await _ApiTransport().send(_signer().sign(_copied_email()))
+
+    assert sent is not None
+    assert _addresses(sent.get_envelope().get_recipients()) == [
+        "to@example.com",
+        "cc@example.com",
+        "hidden@example.com",
+    ]
+
+
+async def test_an_email_signed_then_sent_as_bytes_is_sent_to_its_bcc_never_named() -> None:
+    sent = await FakeTransport().send(_signer().sign(_copied_email()))
+
+    assert sent is not None
+    assert _addresses(sent.get_envelope().get_recipients()) == [
+        "to@example.com",
+        "cc@example.com",
+        "hidden@example.com",
+    ]
+    rendered = b"".join(sent.to_iterable())
+    assert b"hidden@example.com" not in rendered
+    assert b"\r\nbcc:" not in rendered.lower()
 
 
 async def test_an_s_mime_signed_email_is_refused(tmp_path: Path) -> None:

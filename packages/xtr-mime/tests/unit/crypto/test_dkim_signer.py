@@ -7,6 +7,7 @@ signature's ``t=`` and ``b=`` change with the clock, so tags are compared, never
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import os
 import re
@@ -22,7 +23,12 @@ require_dkim_extra()
 
 # Imported after the skip: without the extra the key helper does not import.
 from tests.support.dkim_keys import DOMAIN, SELECTOR, dkim_key  # noqa: E402 -- see above.
-from tests.support.dkim_signing import signed_names, tags, wire  # noqa: E402 -- see above.
+from tests.support.dkim_signing import (  # noqa: E402 -- see above.
+    field_names,
+    signed_names,
+    tags,
+    wire,
+)
 from tests.support.dkim_signing import signer as _signer  # noqa: E402 -- see above.
 from xtr_mime import (  # noqa: E402 -- see above.
     Address,
@@ -35,6 +41,7 @@ from xtr_mime import (  # noqa: E402 -- see above.
     TextPart,
 )
 from xtr_mime.crypto import DkimOptions, DkimSigner  # noqa: E402 -- see above.
+from xtr_mime.header import MailboxListHeader  # noqa: E402 -- see above.
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -209,6 +216,30 @@ def test_the_message_signed_is_left_as_it_was() -> None:
     assert type(signed) is Message
     assert not message.get_headers().has("DKIM-Signature")
     assert b"DKIM-Signature" not in wire(message)
+
+
+def test_the_bcc_of_the_message_signed_is_kept_for_the_envelope_and_never_sent() -> None:
+    message = _email().add_cc("cc@example.com").add_bcc("hidden@example.com")
+
+    signed = _signer().sign(message)
+
+    bcc = signed.get_headers().get("Bcc")
+    assert isinstance(bcc, MailboxListHeader)
+    assert [address.get_address() for address in bcc.get_addresses()] == ["hidden@example.com"]
+    sent = wire(signed)
+    assert "bcc" not in [name.lower() for name in field_names(sent)]
+    assert b"hidden@example.com" not in sent
+    assert "bcc" not in [name.lower() for name in signed_names(signed)]
+    assert dkim_key().verifies(sent)
+
+
+def test_the_bcc_kept_changes_none_of_the_bytes_signed() -> None:
+    signed = _signer().sign(_email().add_bcc("hidden@example.com"))
+    without_bcc = copy.copy(signed)
+
+    without_bcc.get_headers().remove("Bcc")
+
+    assert wire(without_bcc) == wire(signed)
 
 
 def test_the_signature_is_written_as_dkimpy_folded_it_until_its_value_changes() -> None:
