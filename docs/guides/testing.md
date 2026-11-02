@@ -267,9 +267,9 @@ instance serves the bus and the worker, so both share the same record.
        assert jobs.rejected == ()
    ```
 
-3. Add `?serialize=true` to the DSN. The transport carries each message through
-   the serializer its factory was built with, so a field that only a real broker
-   refuses fails here.
+3. Add `?serialize=true` to the DSN. The transport then encodes and decodes each
+   message with the serializer of its factory. A field that only a real broker
+   refuses then fails here.
 4. Call `jobs.clear()` between tests to reset the record.
 
 The worker returns once it drains the queue. The

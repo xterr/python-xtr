@@ -6,9 +6,11 @@ import asyncio
 from typing import TYPE_CHECKING, final
 
 import pytest
+from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_event_dispatcher import EventDispatcher
 from xtr_messenger import (
+    Dsn,
     HandlersLocator,
     InMemoryTransport,
     InMemoryTransportFactory,
@@ -16,6 +18,7 @@ from xtr_messenger import (
     MessageBusConfig,
     RedispatchMessage,
     TransportConfig,
+    TransportFactoryInterface,
     WorkerFactory,
     WorkerInterface,
 )
@@ -25,10 +28,15 @@ from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 from tests.support.messages import Named
 from xtr_scheduler import RecurringMessage, Schedule
 from xtr_scheduler.event_listener import DispatchSchedulerEventListener
-from xtr_scheduler.messenger import ScheduledStamp, SchedulerTransportFactory
+from xtr_scheduler.generator import MessageGenerator
+from xtr_scheduler.messenger import ScheduledStamp, SchedulerTransport, SchedulerTransportFactory
 from xtr_scheduler.schedule_provider_locator import ScheduleProviderLocator
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from xtr_messenger import SenderInterface
+
     from xtr_scheduler.event import PostRunEvent
 
 pytestmark = pytest.mark.anyio
@@ -50,6 +58,36 @@ class StopAfter:
         self._left -= 1
         if self._left == 0 and self.worker is not None:
             self.worker.stop()
+
+
+@final
+class PatientSchedulerTransportFactory(TransportFactoryInterface):
+    """Serves one schedule, asking for due runs once an hour of the clock.
+
+    The transport never waits past the next due run, so a longer poll changes
+    nothing about when a run is sent: it only spares a frozen clock thousands
+    of one-second steps on the way to a run a day away.
+    """
+
+    def __init__(self, schedule: Schedule, clock: MockClock) -> None:
+        self._schedule = schedule
+        self._clock = clock
+
+    @override
+    def supports(self, dsn: Dsn) -> bool:
+        return dsn.scheme == "schedule"
+
+    @override
+    def create(self, group: Mapping[str, TransportConfig]) -> Mapping[str, SenderInterface]:
+        return {
+            name: SchedulerTransport(
+                MessageGenerator(self._schedule, "default", self._clock),
+                name=name,
+                clock=self._clock,
+                poll_interval=3600,
+            )
+            for name in group
+        }
 
 
 async def test_a_redispatched_run_lands_where_routing_sends_it() -> None:
@@ -111,7 +149,7 @@ async def test_nightly_runs_around_a_clock_change_cross_a_serializing_transport(
     stop = StopAfter(3)
     events.add_listener(WorkerMessageHandledEvent, stop)
     events.add_listener(WorkerMessageFailedEvent, stop)
-    factories = [SchedulerTransportFactory({"default": schedule}, clock=clock), in_memory]
+    factories = [PatientSchedulerTransportFactory(schedule, clock), in_memory]
     workers = WorkerFactory(config, factories, HandlersLocator(), event_dispatcher=events)
     worker = workers.worker(["scheduler_default"])
     stop.worker = worker

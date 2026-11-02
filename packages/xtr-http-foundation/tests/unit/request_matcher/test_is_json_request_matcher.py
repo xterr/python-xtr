@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import json
+from typing import NoReturn
+
 import pytest
 from xtr_http_message import ServerRequest, Stream
 
 from xtr_http_foundation import IsJsonRequestMatcher
-
-_DEPTH = 100_000
-"""Deep enough that every supported runtime's JSON parser gives up on the nesting."""
 
 
 @pytest.mark.anyio
@@ -53,16 +53,21 @@ async def test_it_refuses_a_body_that_cannot_be_read() -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    "body",
-    [
-        b'{"a":' * _DEPTH + b"1" + b"}" * _DEPTH,
-        b"[" * _DEPTH + b"]" * _DEPTH,
-    ],
-    ids=["object", "array"],
-)
-async def test_it_refuses_a_body_nested_deeper_than_the_parser_reads(body: bytes) -> None:
-    request = ServerRequest("POST", "/", body=body)
+async def test_it_refuses_a_body_nested_deeper_than_the_parser_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The parser gives up on deep nesting with a RecursionError.
+
+    How deep that is depends on the runtime — on 3.14, on the stack the process
+    was given — so no body is deep enough everywhere; the parser is made to
+    give up instead.
+    """
+
+    def gives_up(*_args: object, **_kwargs: object) -> NoReturn:
+        raise RecursionError
+
+    monkeypatch.setattr(json, "loads", gives_up)
+    request = ServerRequest("POST", "/", body=b'{"a": {"a": 1}}')
 
     assert await IsJsonRequestMatcher().matches(request) is False
 

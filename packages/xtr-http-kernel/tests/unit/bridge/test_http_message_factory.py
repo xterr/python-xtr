@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+import json
+from typing import TYPE_CHECKING, NoReturn, cast
 from urllib.parse import unquote
 
 import pytest
@@ -30,8 +31,6 @@ pytestmark = pytest.mark.anyio
 
 _BOUNDARY = "thinboundary"
 _MULTIPART = f"multipart/form-data; boundary={_BOUNDARY}".encode()
-_TOO_DEEP = 100_000
-"""A nesting depth every supported runtime's JSON parser gives up on."""
 
 
 def _multipart(parts: Sequence[tuple[str, str | None, bytes]]) -> bytes:
@@ -222,18 +221,6 @@ async def test_a_body_of_no_declared_kind_leaves_no_parsed_body(
         ),
         pytest.param(b"application/json", b"{}", {}, id="empty-object"),
         pytest.param(b"application/json", b'{"city":"Paris"', None, id="malformed"),
-        pytest.param(
-            b"application/json",
-            b'{"a":' * _TOO_DEEP + b"1" + b"}" * _TOO_DEEP,
-            None,
-            id="object-nested-too-deep",
-        ),
-        pytest.param(
-            b"application/json",
-            b"[" * _TOO_DEEP + b"]" * _TOO_DEEP,
-            None,
-            id="array-nested-too-deep",
-        ),
         pytest.param(b"application/json", b"[1, 2]", None, id="array"),
         pytest.param(b"application/json", b'"Paris"', None, id="string"),
         pytest.param(
@@ -257,6 +244,32 @@ async def test_a_json_body_is_the_parsed_body_only_where_it_describes_an_object(
     )
 
     assert message.get_parsed_body() == parsed
+
+
+async def test_a_json_body_nested_deeper_than_the_parser_reads_is_no_parsed_body(
+    factory: HttpMessageFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The parser gives up on deep nesting with a RecursionError.
+
+    How deep that is depends on the runtime — on 3.14, on the stack the process
+    was given — so no body is deep enough everywhere; the parser is made to
+    give up instead.
+    """
+
+    def gives_up(*_args: object, **_kwargs: object) -> NoReturn:
+        raise RecursionError
+
+    monkeypatch.setattr(json, "loads", gives_up)
+    message = await factory.create_request(
+        asgi_request(
+            method="POST",
+            headers=[(b"host", b"a.test"), (b"content-type", b"application/json")],
+            body=b'{"a": {"a": 1}}',
+        )
+    )
+
+    assert message.get_parsed_body() is None
 
 
 async def test_a_submitted_form_is_the_parsed_body_as_the_framework_parsed_it(

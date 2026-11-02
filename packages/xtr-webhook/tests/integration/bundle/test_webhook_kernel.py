@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hmac
-from typing import TYPE_CHECKING, cast
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, NoReturn, cast
 
 import pytest
+import xtr_http_foundation.request_matcher.is_json_request_matcher as json_matcher_module
 from fastapi import FastAPI
 from xtr_dependency_injection import Kernel
 from xtr_http_client import MockHttpClient, MockResponse
@@ -85,10 +87,22 @@ async def test_an_incoming_webhook_reaches_its_consumer_through_the_served_endpo
     assert [RemoteEvent("parsed", "the-id", {"foo": "bar"})] == services.CONSUMED
 
 
-async def test_a_body_nested_too_deep_to_read_is_refused_through_the_served_endpoint() -> None:
+async def test_a_body_nested_too_deep_to_read_is_refused_through_the_served_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The JSON parser gives up on deep nesting with a RecursionError.
+
+    How deep that is depends on the runtime — on 3.14, on the stack the process
+    was given — so no body is deep enough everywhere; the parser the request
+    matcher reads the body with is made to give up instead.
+    """
+
+    def gives_up(*_args: object, **_kwargs: object) -> NoReturn:
+        raise RecursionError
+
+    monkeypatch.setattr(json_matcher_module, "json", SimpleNamespace(loads=gives_up))
     app = _application()
-    depth = 100_000
-    body = b'{"a":' * depth + b"1" + b"}" * depth
+    body = b'{"a": {"a": 1}}'
     headers = {
         **JSON_HEADERS,
         "Webhook-Signature": _legacy_signature(
