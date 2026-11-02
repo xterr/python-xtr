@@ -10,6 +10,7 @@ import re
 from email.errors import MessageError
 from typing import Final
 
+from xtr_mime._error_text import escaped
 from xtr_mime.exception import RfcComplianceError
 
 __all__ = [
@@ -29,6 +30,8 @@ __all__ = [
 FOLD_WIDTH: Final = 76
 # RFC 5322, 2.1.1: the hard limit on a line, whatever folding allows.
 _MAX_LINE_LENGTH: Final = 998
+# How much of a refused value an error repeats: enough to find it, never a whole header.
+_SHOWN_LENGTH: Final = 64
 
 # Every C0 control but TAB, DEL, the C1 controls (NEL among them), the line and paragraph
 # separators and a lone surrogate: a line break would start a new header, some readers end a
@@ -106,10 +109,12 @@ def body_of(name: str, folded: str) -> str:
 
 
 def refuse_forbidden(what: str, value: str) -> None:
-    if _FORBIDDEN.search(value):
+    found = _FORBIDDEN.search(value)
+    if found:
+        shown = escaped(value[:_SHOWN_LENGTH]) + ("…" if len(value) > _SHOWN_LENGTH else "")
         raise RfcComplianceError(
             f"{what} must not contain a control character, a line separator or a lone "
-            f"surrogate: {value!r}."
+            f'surrogate: {found.group()!r} in "{shown}".'
         )
 
 

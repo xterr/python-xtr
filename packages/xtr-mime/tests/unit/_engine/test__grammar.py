@@ -6,7 +6,7 @@ import pytest
 
 from tests.support.engine_cases import SEPARATORS
 from xtr_mime import _engine
-from xtr_mime._engine._grammar import check_folded
+from xtr_mime._engine._grammar import check_folded, refuse_forbidden
 from xtr_mime._engine._values import MessageIds
 from xtr_mime.exception import RfcComplianceError
 
@@ -40,6 +40,24 @@ def test_a_folded_field_keeps_its_tabs() -> None:
 def test_a_folded_line_longer_than_998_octets_is_refused() -> None:
     with pytest.raises(RfcComplianceError, match="998"):
         check_folded("Subject: " + "ø" * 500 + "\r\n")
+
+
+def test_a_refused_value_is_repeated_whole_and_escaped_when_short() -> None:
+    with pytest.raises(RfcComplianceError) as raised:
+        refuse_forbidden("The X-A header", "a\r\nb")
+
+    assert str(raised.value).endswith(": '\\r' in \"a\\r\\nb\".")
+
+
+def test_a_refused_value_is_cut_to_its_first_64_characters() -> None:
+    value = "a" * 1000 + "\nBcc: victim@example.com"
+
+    with pytest.raises(RfcComplianceError) as raised:
+        refuse_forbidden("The X-A header", value)
+
+    message = str(raised.value)
+    assert message.endswith(": '\\n' in \"" + "a" * 64 + '…".')
+    assert "a" * 65 not in message
 
 
 @pytest.mark.parametrize(
