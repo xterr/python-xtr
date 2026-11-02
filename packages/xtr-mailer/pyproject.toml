@@ -60,10 +60,14 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     "xtr-dependency-injection>=5.0,<6",
+    # A real dispatcher carries the email events in transport tests.
+    "xtr-event-dispatcher>=5.0,<6",
     # MockHttpClient stands in for the network in transport tests.
     "xtr-http-client>=5.0,<6",
     # The event tests stamp a queued email for the message bus.
     "xtr-messenger>=5.0,<6",
+    # The rate-limiting tests cap a transport with a real limiter.
+    "xtr-rate-limiter>=5.0,<6",
     # The TLS tests generate the certificate the scripted SMTP server presents.
     "cryptography>=45",
 ]
@@ -135,6 +139,9 @@ ignore = [
     "TRY003",
     "EM101",
     "EM102",
+    # The logging contract's LoggerInterface takes a context mapping, not the standard
+    # library's format arguments; PLE1205 reads one as the other.
+    "PLE1205",
 ]
 fixable = ["ALL"]
 unfixable = []

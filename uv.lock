@@ -5321,8 +5321,10 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
     { name = "xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher" },
     { name = "xtr-http-client" },
     { name = "xtr-messenger" },
+    { name = "xtr-rate-limiter" },
 ]
 
 [package.metadata]
@@ -5353,8 +5355,10 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-rate-limiter", editable = "packages/xtr-rate-limiter" },
 ]
 
 [[package]]
