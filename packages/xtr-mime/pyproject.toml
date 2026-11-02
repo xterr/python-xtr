@@ -40,6 +40,14 @@ magic = ["python-magic>=0.4.27"]
 # Wire the package from one configuration.
 di = ["xtr-dependency-injection>=5.0,<6"]
 
+# Advertises the bundle to debug:bundles; it is only reported, never activated.
+[project.entry-points."xtr_dependency_injection.bundles"]
+mime = "xtr_mime.bundle:MimeBundle"
+
+# Advertises the recipe — what *Use in an application* takes — for recipes:sync.
+[project.entry-points."xtr_recipes"]
+mime = "xtr_mime.recipe"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",
