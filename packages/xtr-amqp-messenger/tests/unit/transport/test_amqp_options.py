@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
-
 from xtr_messenger import InvalidTransportOptionError
-from xtr_messenger.bridge.amqp.amqp_options import AMQP_OPTIONS, AmqpOptions
-from xtr_messenger.bridge.amqp.reliability import Reliability
 from xtr_messenger.bridge.taskiq.taskiq_worker import default_max_async_tasks
+
+from xtr_amqp_messenger.transport.amqp_options import AMQP_OPTIONS, AmqpOptions
+from xtr_amqp_messenger.transport.reliability import Reliability
 
 
 def test_the_defaults() -> None:

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-
 from xtr_messenger import InvalidTransportOptionError
-from xtr_messenger.bridge.amqp.connection_options import ConnectionOptions
+
+from xtr_amqp_messenger.transport.connection_options import ConnectionOptions
 
 _HOST = "amqp://guest:guest@localhost:5672/"
 _TLS_HOST = "amqps://guest:guest@localhost:5671/"

@@ -17,11 +17,11 @@ from aio_pika.channel import Channel
 from taskiq import InMemoryBroker, TaskiqMessage, TaskiqResult
 from taskiq_aio_pika import AioPikaBroker
 from typing_extensions import override
+from xtr_messenger.bridge.taskiq.labels import RETRIES_LABEL
 from yarl import URL
 
-from xtr_messenger.bridge.amqp.dead_letter_middleware import DeadLetterMiddleware
-from xtr_messenger.bridge.amqp.reliability import DEFAULT_DEAD_LETTER_QUEUE
-from xtr_messenger.bridge.taskiq.labels import RETRIES_LABEL
+from xtr_amqp_messenger.transport.dead_letter_middleware import DeadLetterMiddleware
+from xtr_amqp_messenger.transport.reliability import DEFAULT_DEAD_LETTER_QUEUE
 
 if TYPE_CHECKING:
     from aio_pika.abc import AbstractChannel, AbstractMessage, TimeoutType

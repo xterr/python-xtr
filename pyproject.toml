@@ -13,6 +13,7 @@ package = false
 
 [tool.uv.sources]
 xtr-cache                = { workspace = true }
+xtr-amqp-messenger       = { workspace = true }
 xtr-cache-contracts      = { workspace = true }
 xtr-clock                = { workspace = true }
 xtr-cli                  = { workspace = true }

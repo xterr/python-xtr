@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 from taskiq_aio_pika.queue import QueueType
-
 from xtr_messenger import InvalidTransportOptionError
-from xtr_messenger.bridge.amqp.queue_options import QueueOptions
+
+from xtr_amqp_messenger.transport.queue_options import QueueOptions
 
 
 def test_the_defaults() -> None:

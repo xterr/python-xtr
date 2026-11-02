@@ -14,10 +14,6 @@ from typing import final
 import pytest
 from taskiq import Context, SmartRetryMiddleware, TaskiqMessage
 from taskiq_aio_pika import AioPikaBroker
-
-from tests.support.fakes import RecordingBus
-from tests.support.messages import IngestDocument, ingest_document
-from tests.support.serialization import json_serializer
 from xtr_messenger import (
     Dsn,
     Envelope,
@@ -29,11 +25,15 @@ from xtr_messenger import (
     WorkerProvidingInterface,
     name_of,
 )
-from xtr_messenger.bridge.amqp import AmqpTransportFactory, declared_queues
 from xtr_messenger.bridge.taskiq.labels import HEADERS_LABEL, RETRIES_LABEL
 from xtr_messenger.bridge.taskiq.taskiq_sender import TaskiqSender
 from xtr_messenger.bridge.taskiq.taskiq_worker import TaskiqWorker, default_max_async_tasks
 from xtr_messenger.message_registry import declared_names
+
+from tests.support.fakes import RecordingBus
+from tests.support.messages import IngestDocument, ingest_document
+from tests.support.serialization import json_serializer
+from xtr_amqp_messenger.transport import AmqpTransportFactory, declared_queues
 
 _HOST = "amqp://guest:guest@localhost:5672/"
 _OTHER = "amqp://guest:guest@other:5672/"

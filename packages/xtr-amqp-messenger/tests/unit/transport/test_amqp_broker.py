@@ -15,12 +15,12 @@ from __future__ import annotations
 from taskiq import SmartRetryMiddleware
 from taskiq_aio_pika import AioPikaBroker
 
-from xtr_messenger.bridge.amqp.amqp_broker import create_amqp_broker, declared_queues
-from xtr_messenger.bridge.amqp.amqp_options import AmqpOptions
-from xtr_messenger.bridge.amqp.connection_options import ConnectionOptions
-from xtr_messenger.bridge.amqp.dead_letter_middleware import DeadLetterMiddleware
-from xtr_messenger.bridge.amqp.exchange_options import ExchangeOptions
-from xtr_messenger.bridge.amqp.reliability import Reliability
+from xtr_amqp_messenger.transport.amqp_broker import create_amqp_broker, declared_queues
+from xtr_amqp_messenger.transport.amqp_options import AmqpOptions
+from xtr_amqp_messenger.transport.connection_options import ConnectionOptions
+from xtr_amqp_messenger.transport.dead_letter_middleware import DeadLetterMiddleware
+from xtr_amqp_messenger.transport.exchange_options import ExchangeOptions
+from xtr_amqp_messenger.transport.reliability import Reliability
 
 _HOST = "amqp://guest:guest@localhost:5672/"
 

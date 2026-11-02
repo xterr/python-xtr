@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-
 from xtr_messenger import InvalidTransportOptionError
-from xtr_messenger.bridge.amqp.reliability import DEFAULT_DEAD_LETTER_QUEUE, Reliability
+
+from xtr_amqp_messenger.transport.reliability import DEFAULT_DEAD_LETTER_QUEUE, Reliability
 
 
 def test_the_defaults() -> None:
