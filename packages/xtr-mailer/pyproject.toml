@@ -90,6 +90,13 @@ reportPrivateUsage = "error"
 # limit puts the break inside the string.
 reportImplicitStringConcatenation = "none"
 
+# Envelope.create() builds the delayed envelope, which derives from Envelope.
+# The import is deferred, so no cycle exists at runtime — only in the static
+# graph.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_mailer"
+reportImportCycles = "none"
+
 # Tests check state a class keeps to itself, for the same reason ruff's
 # SLF001 is off for tests.
 [[tool.basedpyright.executionEnvironments]]

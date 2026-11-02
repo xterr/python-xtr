@@ -4,10 +4,15 @@ A mailer hands each email to a transport built from a DSN (``smtp://localhost:25
 ``sendmail://default``, ``failover(smtp://a smtp://b)``) and sends it in-process, or queues it
 on a message bus for a worker to send. Listeners on the way override the envelope and headers,
 and sign the email with DKIM or S/MIME.
+
+An :class:`Envelope` is who an email is delivered for and to, apart from its headers;
+:class:`SentMessage` is what a transport sent. A :class:`RemoteTemplateEmail` is rendered by
+the mail provider from a :class:`RemoteTemplate` it hosts.
 """
 
 from __future__ import annotations
 
+from .envelope import Envelope
 from .exception import (
     HttpTransportError,
     IncompleteDsnError,
@@ -19,17 +24,24 @@ from .exception import (
     UnexpectedResponseError,
     UnsupportedSchemeError,
 )
+from .remote_template import RemoteTemplate
+from .remote_template_email import RemoteTemplateEmail
+from .sent_message import SentMessage
 from .transport import Dsn, DsnOption
 
 __all__ = [
     "Dsn",
     "DsnOption",
+    "Envelope",
     "HttpTransportError",
     "IncompleteDsnError",
     "InvalidArgumentError",
     "LogicError",
     "MailerError",
     "MailerRuntimeError",
+    "RemoteTemplate",
+    "RemoteTemplateEmail",
+    "SentMessage",
     "TransportError",
     "UnexpectedResponseError",
     "UnsupportedSchemeError",
