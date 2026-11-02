@@ -36,7 +36,7 @@ def test_changing_the_returned_variables_leaves_the_template_alone() -> None:
     assert template.get_variables() == {"firstName": "Fabien"}
 
 
-def test_the_representation_shows_the_reference_and_variables() -> None:
-    template = RemoteTemplate("welcome", {"firstName": "Fabien"})
+def test_the_representation_shows_the_reference_and_the_variable_names_only() -> None:
+    template = RemoteTemplate("welcome", {"firstName": "Fabien", "count": 3})
 
-    assert repr(template) == "RemoteTemplate('welcome', {'firstName': 'Fabien'})"
+    assert repr(template) == "RemoteTemplate('welcome', variables=['firstName', 'count'])"

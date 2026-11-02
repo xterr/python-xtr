@@ -37,5 +37,9 @@ class RemoteTemplate:
 
     @override
     def __repr__(self) -> str:
-        """Show the reference and the variables."""
-        return f"RemoteTemplate({self._reference!r}, {self._variables!r})"
+        """Show the reference and the names of the variables, never their values.
+
+        The values are usually about the recipient — a name, an order, a link — and a repr
+        ends up in logs and tracebacks.
+        """
+        return f"RemoteTemplate({self._reference!r}, variables={list(self._variables)!r})"
