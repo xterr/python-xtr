@@ -62,6 +62,8 @@ dev = [
     "xtr-dependency-injection>=5.0,<6",
     # MockHttpClient stands in for the network in transport tests.
     "xtr-http-client>=5.0,<6",
+    # The event tests stamp a queued email for the message bus.
+    "xtr-messenger>=5.0,<6",
     # The TLS tests generate the certificate the scripted SMTP server presents.
     "cryptography>=45",
 ]

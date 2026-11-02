@@ -5322,6 +5322,7 @@ dev = [
     { name = "ty" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-http-client" },
+    { name = "xtr-messenger" },
 ]
 
 [package.metadata]
@@ -5353,6 +5354,7 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
+    { name = "xtr-messenger", editable = "packages/xtr-messenger" },
 ]
 
 [[package]]
