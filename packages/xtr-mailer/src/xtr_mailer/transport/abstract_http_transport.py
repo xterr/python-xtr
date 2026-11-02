@@ -100,10 +100,14 @@ class AbstractHttpTransport(AbstractTransport, ABC):
     async def _do_send(self, message: SentMessage) -> None:
         """Make the request, log the exchange, and turn a client's error into one of ours.
 
+        Ours is raised once the client's is handled, so not even the hidden context of the
+        error holds the client's, and the URL it names.
+
         Raises:
             HttpTransportError: The provider refused the email.
             TransportError: The provider cannot be reached, or its answer cannot be read.
         """
+        failure: TransportError
         try:
             response = await self._do_send_http(message)
         except HttpTransportError as error:
@@ -111,22 +115,24 @@ class AbstractHttpTransport(AbstractTransport, ABC):
             raise
         except HttpError as error:
             status = error.response.get_status_code()
-            refusal = HttpTransportError(
+            failure = HttpTransportError(
                 f'Unable to send an email: the provider of the "{self}" transport answered with '
                 f"HTTP {status}.",
                 error.response,
                 status,
             )
-            refusal.append_debug(http_debug(error.response.get_info()))
-            raise refusal from None
+            failure.append_debug(http_debug(error.response.get_info()))
         except DecodingError:
-            raise TransportError(
+            failure = TransportError(
                 f'Unable to send an email: the provider of the "{self}" transport answered with '
                 "a body that cannot be read."
-            ) from None
+            )
         except HttpClientError as error:
-            raise TransportError(
+            failure = TransportError(
                 f'Could not reach the provider of the "{self}" transport '
                 f"({type(error).__qualname__})."
-            ) from None
-        message.append_debug(http_debug(response.get_info()))
+            )
+        else:
+            message.append_debug(http_debug(response.get_info()))
+            return
+        raise failure

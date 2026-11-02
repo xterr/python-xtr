@@ -127,7 +127,27 @@ async def test_a_provider_that_cannot_be_reached_is_a_transport_error() -> None:
         'Could not reach the provider of the "posting://api.example.com" transport '
         "(TransportError)."
     )
-    assert raised.value.__suppress_context__
+    assert raised.value.__context__ is None
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        pytest.param(MockResponse(b"{}", {"http_code": 503}), id="refused"),
+        pytest.param(MockResponse(b"not json"), id="unreadable"),
+        pytest.param(MockResponse(info={"error": "Connection refused"}), id="unreachable"),
+    ],
+)
+async def test_the_client_s_error_is_kept_out_of_the_hidden_context(answer: MockResponse) -> None:
+    transport = PostingHttpTransport(MockHttpClient(answer))
+    _ = transport.set_host("api:key-secret@api.example.com")
+
+    with pytest.raises(TransportError) as raised:
+        _ = await transport.send(_email())
+
+    # The client's error names the URL it was given, user info and query included.
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
 
 
 async def test_an_email_the_engine_refuses_is_never_posted() -> None:
