@@ -120,6 +120,32 @@ def test_a_host_with_a_control_character_is_refused(host: str) -> None:
     assert str(caught.value) == "The SMTP host name must not contain control characters."
 
 
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        "smtp://smtp..example.com:2525?auto_tls=0",
+        "smtps://smtp..example.com",
+        f"smtp://{'a' * 64}.example.com",
+        "smtp://smtp.\ufffd.example.com",
+        "smtp://smtp.\u3002example.com",
+        "smtp://exa\udcffmple.com",
+    ],
+)
+def test_a_host_the_resolver_cannot_encode_is_refused_when_the_transport_is_built(
+    dsn: str,
+) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = Transport.from_dsn(dsn)
+
+    assert str(caught.value) == "The SMTP host name is not a name the resolver can look up."
+    assert caught.value.__context__ is None
+
+
+def test_a_failover_naming_a_host_the_resolver_cannot_encode_is_refused() -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = Transport.from_dsn("failover(smtp://smtp..example.com:2525 smtp://127.0.0.1:2525)")
+
+
 @pytest.mark.parametrize("port", [-1, 65536])
 def test_a_port_out_of_range_is_refused(port: int) -> None:
     with pytest.raises(InvalidArgumentError) as caught:

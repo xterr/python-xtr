@@ -17,7 +17,7 @@ from xtr_mailer.transport.smtp._smtp_reply import render_reply, unexpected_respo
 from xtr_mailer.transport.smtp._smtp_transcript import SmtpTranscript
 
 from ._errors import failure, response_of, unreachable
-from ._session import open_session, parse_capabilities
+from ._session import greet, open_session, parse_capabilities
 from ._tls import peer_matches, upgrade
 from ._upload import send_message
 
@@ -207,7 +207,7 @@ class SmtpClient:
         self._transcript.reset()
         failed: MailerError
         try:
-            greeting = await self._smtp.connect()
+            greeting = await greet(self._smtp, self._description)
         except aiosmtplib.SMTPResponseException as error:
             failed = self._refused(None, (220,), response_of(error))
         except aiosmtplib.SMTPException as error:

@@ -7,14 +7,16 @@ from typing import TYPE_CHECKING, Final
 
 import aiosmtplib
 
-from xtr_mailer.exception import InvalidArgumentError
+from xtr_mailer.exception import InvalidArgumentError, TransportError
+
+from ._errors import unreachable
 
 if TYPE_CHECKING:
     import socket
 
     from xtr_mailer.transport.smtp._smtp_connection_config import SmtpConnectionConfig
 
-__all__ = ["open_session", "parse_capabilities"]
+__all__ = ["greet", "open_session", "parse_capabilities"]
 
 _CAPABILITY: Final = re.compile(r"[0-9]{3}[ -]([A-Z0-9-]+)((?:[ =].*)?)", re.IGNORECASE)
 
@@ -40,6 +42,24 @@ def open_session(config: SmtpConnectionConfig, sock: socket.socket | None) -> ai
         )
     except ValueError as error:
         raise InvalidArgumentError(str(error)) from None
+
+
+async def greet(smtp: aiosmtplib.SMTP, description: str) -> aiosmtplib.SMTPResponse:
+    """Connect ``smtp`` to its server, ``description`` in errors, and return the greeting.
+
+    Raises:
+        TransportError: The resolver could not look the host name up.
+        aiosmtplib.SMTPException: The server could not be reached, or greeted badly.
+    """
+    try:
+        greeting = await smtp.connect()
+    except ValueError:
+        # The resolver refuses a name it cannot encode with a UnicodeError, which aiosmtplib
+        # lets through, having closed the session; its text quotes the name, so it is dropped.
+        pass
+    else:
+        return greeting
+    raise TransportError(unreachable(description, "the resolver cannot look the host name up."))
 
 
 def parse_capabilities(reply: str) -> dict[str, list[str]]:

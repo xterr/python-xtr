@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 import pytest
 
@@ -17,6 +18,7 @@ from xtr_mailer.exception import (
     TransportError,
     UnexpectedResponseError,
 )
+from xtr_mailer.transport import FailoverTransport, Transport
 from xtr_mailer.transport.smtp.auth import (
     CramMd5Authenticator,
     LoginAuthenticator,
@@ -238,3 +240,25 @@ async def test_a_password_utf8_cannot_write_is_left_out_of_the_context(
 
     assert isinstance(error, InvalidArgumentError)
     _assert_shows_no_secret(error)
+
+
+async def test_a_resolver_refusing_the_first_host_lets_failover_reach_the_backup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def refuse(*arguments: object, **options: object) -> NoReturn:
+        del arguments, options
+        raise UnicodeError("encoding with 'idna' codec failed")
+
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", refuse)
+    async with ScriptedSmtpServer() as server:
+        transport = Transport.from_dsn(
+            f"failover(smtp://mail.example.com:2525?auto_tls=0 "
+            f"smtp://{server.host}:{server.port}?auto_tls=0)"
+        )
+        assert isinstance(transport, FailoverTransport)
+
+        sent = await transport.send(email())
+        await transport.stop()
+
+    assert sent is not None
+    assert len(server.messages) == 1

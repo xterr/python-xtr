@@ -54,6 +54,30 @@ def test_a_host_name_or_address_is_accepted(host: str) -> None:
     assert SmtpConnectionConfig(host).host == host
 
 
+@pytest.mark.parametrize(
+    "host",
+    [
+        "smtp..example.com",
+        f"{'a' * 64}.example.com",
+        "smtp.\ufffd.example.com",
+        "smtp.\u3002example.com",
+        "exa\udcffmple.com",
+    ],
+)
+def test_a_host_the_resolver_cannot_encode_is_refused_without_showing_it(host: str) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = SmtpConnectionConfig(host)
+
+    assert str(caught.value) == "The SMTP host name is not a name the resolver can look up."
+    assert caught.value.__context__ is None
+    assert caught.value.__cause__ is None
+
+
+@pytest.mark.parametrize("host", ["192.0.2.1", "::1", "[::1]"])
+def test_an_ip_address_is_accepted_as_the_host(host: str) -> None:
+    assert SmtpConnectionConfig(host).host == host
+
+
 @pytest.mark.parametrize("port", [0, -1, 65536])
 def test_a_port_out_of_range_is_refused(port: int) -> None:
     with pytest.raises(InvalidArgumentError) as caught:

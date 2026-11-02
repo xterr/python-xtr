@@ -38,6 +38,25 @@ def is_ip_address(address: str) -> bool:
     return isinstance(parsed, ipaddress.IPv6Address) or not bracketed
 
 
+def _is_resolvable(host: str) -> bool:
+    """Tell whether the resolver can be handed ``host``: an IP address, or a name IDNA encodes.
+
+    The resolver encodes a name with IDNA and lets a failure escape as a ``UnicodeError``;
+    refused here, such a name never reaches a send.
+    """
+    try:
+        _ = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        pass
+    else:
+        return True
+    try:
+        _ = host.encode("idna")
+    except UnicodeError:
+        return False
+    return True
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class SmtpConnectionConfig:
@@ -45,7 +64,9 @@ class SmtpConnectionConfig:
 
     Attributes:
         host: The server's name or address; a literal IPv6 address may be bracketed. A
-            control, format or line-separating character is refused.
+            control, format or line-separating character is refused, as is a name the
+            resolver cannot encode — an empty label, one over 63 characters, a character
+            IDNA does not allow.
         port: The server's port, from 1 to 65535.
         tls: Speak TLS from the first byte, rather than switching with ``STARTTLS``.
         timeout: Seconds to wait for the connection and for each reply; positive and finite,
@@ -73,6 +94,9 @@ class SmtpConnectionConfig:
         """Refuse a setting no connection could be made with, before anything connects."""
         if any(unicodedata.category(character) in _CONTROL_CATEGORIES for character in self.host):
             raise InvalidArgumentError("The SMTP host name must not contain control characters.")
+        if not _is_resolvable(self.host):
+            # Not quoted: the name may hold any character, a lone surrogate among them.
+            raise InvalidArgumentError("The SMTP host name is not a name the resolver can look up.")
         if not 0 < self.port <= _MAX_PORT:
             raise InvalidArgumentError(
                 f'The SMTP port must be between 1 and {_MAX_PORT}, "{self.port}" given.'
