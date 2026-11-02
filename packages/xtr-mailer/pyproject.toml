@@ -71,6 +71,8 @@ dev = [
     "xtr-console>=5.0,<6",
     # The TLS tests generate the certificate the scripted SMTP server presents.
     "cryptography>=45",
+    # The API transport tests send an email signed with DKIM.
+    "xtr-mime[dkim]>=5.0,<6",
 ]
 
 [build-system]

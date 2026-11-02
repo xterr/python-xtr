@@ -366,6 +366,11 @@ Every error derives from `MimeError`, importable from `xtr_mime` and `xtr_mime.e
   There is no expiry (`x=`) and no cap on the body length signed; `body_show_length` only writes
   `l=` with the whole body's length. The signature's `t=` is read from the system clock by
   dkimpy, so a `MockClock` does not freeze it.
+- **A DKIM-signed message turns back into an email from the parts it was signed from.**
+  `MessageConverter` reads the text, HTML and attachments of the parts the signature was made
+  over, not the bytes signed. A body read from a stream that cannot seek back was read when
+  signing and comes out empty; attach bytes, a `File` or a seekable stream to a message you sign
+  and hand to a provider's API. A body signed or encrypted with S/MIME is refused.
 - **A DKIM or S/MIME passphrase is for an encrypted key only.** `DkimSigner` and `SMimeSigner`
   refuse a passphrase given with a key that is not encrypted (`InvalidArgumentError`), as
   cryptography, which opens the key, refuses it; pass an empty passphrase for such a key.

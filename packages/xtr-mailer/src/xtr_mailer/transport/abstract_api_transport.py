@@ -27,8 +27,9 @@ class AbstractApiTransport(AbstractHttpTransport, ABC):
     """Sends an email as the fields of the API call :meth:`_do_send_api` builds from it.
 
     The call is built from an :class:`~xtr_mime.Email`: a message is read back into one by
-    :class:`~xtr_mime.MessageConverter`, and raw bytes — which have no fields to read — are
-    refused; an SMTP transport sends those.
+    :class:`~xtr_mime.MessageConverter` — a DKIM-signed one from the parts it was signed from —
+    while raw bytes, which have no fields to read, and a body signed or encrypted with S/MIME,
+    whose fields cannot be handed over apart from it, are refused; an SMTP transport sends those.
 
     The email is never rendered: the provider builds the message from the fields it is given,
     so an email the rendering engine would refuse — a ``Subject`` of a single word longer than
@@ -56,8 +57,8 @@ class AbstractApiTransport(AbstractHttpTransport, ABC):
         """Read the email the message is, and call the API with it.
 
         Raises:
-            MailerRuntimeError: The message is raw bytes, or a message too complex to be read
-                back into an email.
+            MailerRuntimeError: The message is raw bytes, a message too complex to be read
+                back into an email, or one whose body is signed or encrypted with S/MIME.
         """
         original = message.get_original_message()
         if not isinstance(original, Message):

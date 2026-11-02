@@ -30,12 +30,16 @@ class SignedBody(AbstractPart):
     inside them otherwise. The signature covers the bytes signed, so the signed message keeps
     them and writes them as they are. The body's headers are the ones it was rendered with;
     the part takes no header added later.
+
+    The part signed is kept as well, for what reads a body's fields rather than its bytes —
+    :class:`~xtr_mime.MessageConverter`, turning the signed message back into an email.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = (
         "_body",
         "_media_subtype",
         "_media_type",
+        "_part",
         "_prepared",
     )
 
@@ -46,10 +50,15 @@ class SignedBody(AbstractPart):
             RfcComplianceError: A header of ``body`` is refused.
         """
         super().__init__()
+        self._part: AbstractPart = body
         self._media_type: str = body.get_media_type()
         self._media_subtype: str = body.get_media_subtype()
         self._prepared: Headers = body.get_prepared_headers()
         self._body: bytes = rendered.partition(_END_OF_HEADERS)[2]
+
+    def get_signed_part(self) -> AbstractPart:
+        """Return the part the frozen bytes were rendered from."""
+        return self._part
 
     @override
     def get_media_type(self) -> str:

@@ -5316,6 +5316,7 @@ dev = [
     { name = "xtr-event-dispatcher" },
     { name = "xtr-http-client" },
     { name = "xtr-messenger" },
+    { name = "xtr-mime", extra = ["dkim"] },
     { name = "xtr-rate-limiter" },
 ]
 
@@ -5348,6 +5349,7 @@ dev = [
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-mime", extras = ["dkim"], editable = "packages/xtr-mime" },
     { name = "xtr-rate-limiter", editable = "packages/xtr-rate-limiter" },
 ]
 

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
 
+from .crypto._signed_body import SignedBody
 from .email import Email
 from .exception import MimeRuntimeError
-from .part import AlternativePart, DataPart, MixedPart, RelatedPart, TextPart
+from .part import AlternativePart, DataPart, MixedPart, RelatedPart, SMimePart, TextPart
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -24,6 +25,10 @@ class MessageConverter:
     A transport that hands a provider's API fields — not MIME — needs them. Only the trees an
     email builds are understood: a text or HTML part, both in ``alternative``, inside
     ``related`` with inline parts, inside ``mixed`` with attachments.
+
+    A message signed with DKIM is read from the part its signature was made over, so the email
+    carries the same text, HTML and attachments. A body signed or encrypted with S/MIME is
+    refused: its fields cannot be handed over apart from the signature or the encryption.
     """
 
     @staticmethod
@@ -31,12 +36,20 @@ class MessageConverter:
         """Return ``message`` if it is an email, else an email with its headers and body.
 
         Raises:
-            MimeRuntimeError: The body is not a tree an email builds.
+            MimeRuntimeError: The body is not a tree an email builds, or is signed or
+                encrypted with S/MIME.
         """
         if isinstance(message, Email):
             return message
         body = message.get_body()
+        if isinstance(body, SignedBody):
+            body = body.get_signed_part()
         match body:
+            case SMimePart():
+                raise _refused(
+                    message,
+                    "is signed or encrypted with S/MIME: only the whole message can be sent",
+                )
             case MixedPart():
                 return _from_parts(message, body.get_parts(), related=True)
             case _:
@@ -105,9 +118,13 @@ def _charset(part: TextPart) -> str:
 
 
 def _too_complex(message: Message) -> MimeRuntimeError:
+    return _refused(message, "is too complex")
+
+
+def _refused(message: Message, reason: str) -> MimeRuntimeError:
     cls = type(message)
     module = "xtr_mime" if cls.__module__.startswith("xtr_mime.") else cls.__module__
     return MimeRuntimeError(
         f'Unable to create an Email from an instance of "{module}.{cls.__qualname__}" as the '
-        "body is too complex."
+        f"body {reason}."
     )

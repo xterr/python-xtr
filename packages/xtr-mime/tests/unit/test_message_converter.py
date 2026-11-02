@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Final
 import pytest
 from xtr_clock import MockClock
 
+from tests.support import dkim_signing, smime_signing
 from tests.support.part_shape import shape
 from xtr_mime import Email, Message, MessageConverter
 from xtr_mime.exception import MimeRuntimeError
@@ -29,6 +30,10 @@ HTML: Final = 'HTML content <img src="cid:test.jpg" />'
 TOO_COMPLEX: Final = (
     'Unable to create an Email from an instance of "xtr_mime.Message" as the body is too complex.'
 )
+S_MIME: Final = (
+    'Unable to create an Email from an instance of "xtr_mime.Message" as the body is signed or '
+    "encrypted with S/MIME: only the whole message can be sent."
+)
 
 
 def _base() -> Email:
@@ -43,7 +48,7 @@ def _attached() -> DataPart:
     return DataPart(GIF, "test_attached.jpg", "image/gif")
 
 
-def _summary(email: Email) -> object:
+def _summary(email: Email) -> tuple[object, ...]:
     return (
         email.get_headers().to_array(),
         email.get_text_body(),
@@ -54,8 +59,10 @@ def _summary(email: Email) -> object:
     )
 
 
-def _assert_conversion(expected: Email) -> None:
+def _assert_conversion(expected: Email, *, dkim: bool = False) -> None:
     message = Message(expected.get_headers(), expected.get_body())
+    if dkim:
+        message = dkim_signing.signer().sign(message)
 
     converted = MessageConverter.to_email(message)
 
@@ -66,7 +73,12 @@ def _assert_conversion(expected: Email) -> None:
         assert re.fullmatch(pattern, str(converted.get_html_body()))
         _ = expected.html("HTML content")
         _ = converted.html("HTML content")
-    assert _summary(converted) == _summary(expected)
+    if dkim:
+        # The signed headers are the ones the message is sent with, the signature above them.
+        assert converted.get_headers().has("DKIM-Signature")
+        assert _summary(converted)[1:] == _summary(expected)[1:]
+    else:
+        assert _summary(converted) == _summary(expected)
 
 
 def test_to_email_returns_an_email_as_it_is() -> None:
@@ -117,6 +129,27 @@ CONVERSIONS: Final[list[tuple[str, Callable[[Email], Email]]]] = [
 )
 def test_to_email(build: Callable[[Email], Email]) -> None:
     _assert_conversion(build(_base().__copy__()))
+
+
+@pytest.mark.parametrize(
+    "build", [build for _, build in CONVERSIONS], ids=[label for label, _ in CONVERSIONS]
+)
+def test_to_email_reads_the_body_a_dkim_signature_covers(build: Callable[[Email], Email]) -> None:
+    _assert_conversion(build(_base().__copy__()), dkim=True)
+
+
+def test_to_email_refuses_a_body_signed_with_s_mime(tmp_path: Path) -> None:
+    signed = smime_signing.signer(tmp_path).sign(smime_signing.email())
+
+    with pytest.raises(MimeRuntimeError, match=f"^{re.escape(S_MIME)}$"):
+        _ = MessageConverter.to_email(signed)
+
+
+def test_to_email_refuses_an_s_mime_body_signed_with_dkim(tmp_path: Path) -> None:
+    signed = smime_signing.signer(tmp_path).sign(smime_signing.email())
+
+    with pytest.raises(MimeRuntimeError, match=f"^{re.escape(S_MIME)}$"):
+        _ = MessageConverter.to_email(dkim_signing.signer().sign(signed))
 
 
 def test_to_email_keeps_the_charset_of_each_body() -> None:
