@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 _MEGABYTE = 1024 * 1024
 _SECRET = "s3cret-pass"
+_USER = "s3cret-user"
 #: Long enough to notice a parser going quadratic on a megabyte; far beyond a linear one.
 _BUDGET_SECONDS = 2.0
 #: Building a hundred thousand transports takes about a second; quadratic would take hours.
@@ -85,6 +86,38 @@ def test_a_control_character_inside_a_dsn_is_refused(dsn: str) -> None:
         pytest.param(f"null://user:{_SECRET}@a:99999", id="bad port"),
         pytest.param(f"null://user:{_SECRET}@a\r\nb", id="crlf"),
         pytest.param(f"failover(null://user:{_SECRET}@a)?retry_period=-1", id="negative retry"),
+        pytest.param(
+            f"roundrobin(failover(null://a)?retry_period=15smtp://{_USER}:{_SECRET}@smtp.example.com)",
+            id="dsn glued onto a nested retry period",
+        ),
+        pytest.param(
+            f"failover(null://a)?retry_period=15,smtp://{_USER}:{_SECRET}@smtp.example.com",
+            id="dsn glued onto a retry period with a comma",
+        ),
+        pytest.param(
+            f"failover(null://a)?retry_period=15 smtp://{_USER}:{_SECRET}@smtp.example.com",
+            id="dsn after the retry period",
+        ),
+        pytest.param(
+            f"failover(null://a)smtp://{_USER}:{_SECRET}@smtp.example.com",
+            id="dsn glued after the group",
+        ),
+        pytest.param(
+            f"failover(null://a) smtp://{_USER}:{_SECRET}@smtp.example.com",
+            id="dsn after the group",
+        ),
+        pytest.param(
+            f"failover(null://a)?{_USER}:{_SECRET}@smtp.example.com",
+            id="credentials as the option of a group",
+        ),
+        pytest.param(
+            f"failover(null://a)?retry_period={_USER}:{_SECRET}@smtp.example.com",
+            id="credentials as the retry period",
+        ),
+        pytest.param(
+            f"roundrobin(null://a foo(smtp://{_USER}:{_SECRET}@smtp.example.com))",
+            id="credentials inside an unknown keyword",
+        ),
     ],
 )
 def test_no_refusal_shows_the_credentials(dsn: str) -> None:
@@ -94,9 +127,20 @@ def test_no_refusal_shows_the_credentials(dsn: str) -> None:
         _ = Transport.from_dsn(dsn, logger=logger)
 
     for error in _chain(caught.value):
-        assert _SECRET not in str(error)
-        assert _SECRET not in repr(error)
-    assert all(_SECRET not in record for record in logger.records)
+        for secret in (_USER, _SECRET):
+            assert secret not in str(error)
+            assert secret not in repr(error)
+    assert all(_SECRET not in record and _USER not in record for record in logger.records)
+
+
+@pytest.mark.parametrize("keyword", ["foo", "a:b", "user@host", "x://y"])
+def test_an_unknown_keyword_is_shown_as_word_characters_only(keyword: str) -> None:
+    with pytest.raises(MailerError) as caught:
+        _ = _builder().from_string(f"{keyword}(dummy://a)")
+
+    quoted = str(caught.value).partition('"')[2].partition('"')[0]
+    assert ":" not in quoted
+    assert "@" not in quoted
 
 
 def test_a_megabyte_of_unclosed_groups_is_refused_fast() -> None:

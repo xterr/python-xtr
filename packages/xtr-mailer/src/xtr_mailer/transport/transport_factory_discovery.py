@@ -30,7 +30,7 @@ from xtr_mailer.exception import LogicError
 from .transport_factory_interface import TransportFactoryInterface
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
     from importlib.metadata import EntryPoint
 
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
@@ -40,6 +40,9 @@ if TYPE_CHECKING:
     from .dsn import Dsn
 
 __all__ = ["TransportFactoryDiscovery"]
+
+#: The keywords every discovered factory is built with.
+_KEYWORDS: Final = ("event_dispatcher", "http_client", "logger")
 
 
 @final
@@ -116,22 +119,33 @@ class TransportFactoryDiscovery:
         The entry point is loaded through a reference typed to return ``object`` so nothing
         untyped escapes, and the result is checked against the protocol: a library advertising
         something that is not a transport factory is skipped rather than breaking every other
-        scheme.
+        scheme. One naming a module or a class that is not there is skipped the same way, and
+        nothing of the import error is kept, so the scheme reads as unsupported.
+
+        Raises:
+            LogicError: The factory cannot be built with the discovery keywords, or needs an
+                HTTP client this discovery was not given.
         """
         load: Callable[[], object] = entry.load
         try:
             advertised = load()
-        except ImportError:
+        except (ImportError, AttributeError):
             return None
         if not (inspect.isclass(advertised) and issubclass(advertised, TransportFactoryInterface)):
             return None
+        # Checked before building, outside any handler, so no TypeError is chained to the error.
+        if not _accepts(advertised, _KEYWORDS):
+            raise LogicError(
+                f'The "{shown(entry.name)}" transport factory cannot be built with the keywords '
+                '"event_dispatcher", "http_client" and "logger".'
+            )
         keywords: dict[str, object] = {
             "event_dispatcher": self._event_dispatcher,
             "logger": self._logger,
         }
         if self._http_client is not None:
             keywords["http_client"] = self._http_client
-        elif _needs_http_client(advertised):
+        elif not _accepts(advertised, keywords):
             raise LogicError(
                 f'The "{shown(entry.name)}" transport needs an HTTP client; '
                 "build the transports with one."
@@ -140,13 +154,13 @@ class TransportFactoryDiscovery:
         return made if isinstance(made, TransportFactoryInterface) else None
 
 
-def _needs_http_client(factory_class: type) -> bool:
-    """Tell whether ``factory_class`` cannot be built without an ``http_client``."""
+def _accepts(factory_class: type, keywords: Iterable[str]) -> bool:
+    """Tell whether ``factory_class`` can be built with exactly ``keywords``."""
     try:
-        _ = inspect.signature(factory_class).bind(event_dispatcher=None, logger=None)
+        _ = inspect.signature(factory_class).bind(**dict.fromkeys(keywords))
     except TypeError:
-        return True
-    return False
+        return False
+    return True
 
 
 def _construct(factory_class: Callable[..., object], keywords: Mapping[str, object]) -> object:

@@ -10,7 +10,7 @@ is looked at a bounded number of times, so a hostile string of any length is ref
 proportional to its length. Groups nest at most :data:`MAX_DEPTH` deep.
 
 Nothing here quotes the string in an error, since a DSN carries credentials: a refusal shows,
-cut short, only a keyword it does not know or a retry period it cannot read.
+cut short, only a keyword it does not know — word characters, which no credentials ride in.
 """
 
 from __future__ import annotations
@@ -157,9 +157,10 @@ def _close(group: DsnGroup, text: str, position: int) -> tuple[DsnGroup, int]:
         # Not an option of the group: whatever it is, it is no part of the DSN string.
         raise InvalidArgumentError(GARBAGE)
     if _SECONDS.fullmatch(value) is None:
+        # The value is not quoted: a DSN glued onto it by a missing space would bring its
+        # credentials into the message.
         raise InvalidArgumentError(
-            f'The "{_RETRY_PERIOD}" option must be a number of seconds, zero or more; '
-            f'"{shown(value)}" is not.'
+            f'The "{_RETRY_PERIOD}" option must be a number of seconds, zero or more.'
         )
     group.retry_period = float(value)
     return group, end

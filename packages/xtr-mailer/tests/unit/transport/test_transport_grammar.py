@@ -81,7 +81,7 @@ def test_a_member_dsn_keeps_its_own_query() -> None:
 @pytest.mark.parametrize("raw", ["-5", "nan", "NaN", "inf", "abc", "", "1e3", "1_0", "5s"])
 def test_it_refuses_a_retry_period_that_is_not_seconds(raw: str) -> None:
     assert _refusal(f"failover(dummy://a)?retry_period={raw}") == (
-        f'The "retry_period" option must be a number of seconds, zero or more; "{raw}" is not.'
+        'The "retry_period" option must be a number of seconds, zero or more.'
     )
 
 

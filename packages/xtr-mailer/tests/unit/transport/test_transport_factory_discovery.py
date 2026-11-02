@@ -1,16 +1,31 @@
 from __future__ import annotations
 
 from importlib.metadata import EntryPoint
+from typing import TYPE_CHECKING
 
 import pytest
+from typing_extensions import override
 from xtr_event_dispatcher import EventDispatcher
 from xtr_http_client import MockHttpClient
 from xtr_logging_contracts import NullLogger
 
 from tests.support.dummy_transport_factory import DummyTransportFactory
-from xtr_mailer import LogicError
-from xtr_mailer.transport import Dsn, NullTransportFactory, TransportFactoryDiscovery
+from xtr_mailer import LogicError, UnsupportedSchemeError
+from xtr_mailer.transport import (
+    AbstractTransportFactory,
+    Dsn,
+    NullTransport,
+    NullTransportFactory,
+    Transport,
+    TransportFactoryDiscovery,
+)
 from xtr_mailer.transport import transport_factory_discovery as module
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from xtr_event_dispatcher_contracts import EventDispatcherInterface
+    from xtr_http_client_contracts import HttpClientInterface
 
 _GROUP = TransportFactoryDiscovery.GROUP
 _DUMMY = "tests.support.dummy_transport_factory:DummyTransportFactory"
@@ -135,3 +150,50 @@ def test_an_entry_that_cannot_be_loaded_or_is_no_factory_is_skipped(
     discovery = TransportFactoryDiscovery(http_client=MockHttpClient())
 
     assert discovery.factory_for(Dsn("dummy", "host")) is None
+
+
+def test_an_entry_naming_a_missing_class_reads_as_an_unsupported_scheme(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _advertise(monkeypatch, dummy="tests.support.dummy_transport_factory:Missing")
+    builder = Transport(discovery=TransportFactoryDiscovery(http_client=MockHttpClient()))
+
+    with pytest.raises(UnsupportedSchemeError) as caught:
+        _ = builder.from_string("dummy://user:s3cret@host")
+
+    assert str(caught.value) == 'The "dummy" scheme is not supported.'
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+class LoggerlessTransportFactory(AbstractTransportFactory):
+    def __init__(
+        self,
+        event_dispatcher: EventDispatcherInterface | None = None,
+        http_client: HttpClientInterface | None = None,
+    ) -> None:
+        super().__init__(event_dispatcher, http_client)
+
+    @override
+    def create(self, dsn: Dsn) -> NullTransport:
+        return NullTransport()
+
+    @override
+    def _get_supported_schemes(self) -> Sequence[str]:
+        return ("dummy",)
+
+
+@pytest.mark.parametrize("http_client", [None, MockHttpClient()], ids=["no client", "client"])
+def test_a_factory_refusing_the_discovery_keywords_is_named_for_what_it_refuses(
+    monkeypatch: pytest.MonkeyPatch, http_client: MockHttpClient | None
+) -> None:
+    _advertise(monkeypatch, dummy=f"{__name__}:LoggerlessTransportFactory")
+
+    with pytest.raises(LogicError) as caught:
+        _ = TransportFactoryDiscovery(http_client=http_client).factory_for(Dsn("dummy", "host"))
+
+    assert str(caught.value) == (
+        'The "dummy" transport factory cannot be built with the keywords "event_dispatcher", '
+        '"http_client" and "logger".'
+    )
+    assert caught.value.__context__ is None
