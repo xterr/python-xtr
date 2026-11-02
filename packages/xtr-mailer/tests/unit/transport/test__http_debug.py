@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from xtr_mailer.transport._http_debug import http_debug
@@ -79,6 +81,18 @@ def test_every_header_named_after_a_credential_is_redacted(name: str) -> None:
         ),
         pytest.param("Refresh: 0; url=/r?key=secret", "Refresh: 0; url=/r", id="relative-refresh"),
         pytest.param(
+            'Refresh: 0; url="/r?key=secret"', 'Refresh: 0; url="/r"', id="double-quoted-refresh"
+        ),
+        pytest.param(
+            "Refresh: 0; url='/r?key=secret'", "Refresh: 0; url='/r'", id="single-quoted-refresh"
+        ),
+        pytest.param("Refresh: 0; /r?key=secret", "Refresh: 0; /r", id="prefix-less-refresh"),
+        pytest.param(
+            "Refresh: 0, 'https://api:secret@api.example.com/r?key=secret'",
+            "Refresh: 0, 'https://api.example.com/r'",
+            id="prefix-less-quoted-refresh",
+        ),
+        pytest.param(
             "Link: </page?token=secret>; rel=next",
             "Link: </page>; rel=next",
             id="link",
@@ -87,6 +101,11 @@ def test_every_header_named_after_a_credential_is_redacted(name: str) -> None:
             "X-Debug: see http://api:secret@api.example.com/x?a=secret for more",
             "X-Debug: see http://api.example.com/x for more",
             id="url-in-text",
+        ),
+        pytest.param(
+            "X-Debug: 9+http://api:secret@api.example.com/x?a=secret",
+            "X-Debug: 9+http://api.example.com/x",
+            id="url-after-digits",
         ),
     ],
 )
@@ -129,6 +148,32 @@ def test_a_long_line_of_an_answer_is_cut_short() -> None:
     debug = http_debug(_info("https://api.example.com/", "X-Long: " + "a" * 2000))
 
     assert debug.endswith("< X-Long: " + "a" * 992 + "…\n")
+
+
+@pytest.mark.parametrize("size", [100_000, 1_000_000], ids=["100KB", "1MB"])
+@pytest.mark.parametrize(
+    "unit",
+    [
+        pytest.param("a", id="letters"),
+        pytest.param("a:/", id="colons-and-slashes"),
+        pytest.param("//:a", id="slashes-then-colon"),
+        pytest.param("@", id="at-signs"),
+        pytest.param("a@b:", id="user-info"),
+        pytest.param("url ", id="url-words"),
+        pytest.param("<a", id="brackets"),
+        pytest.param("Z9+.-", id="scheme-characters"),
+    ],
+)
+@pytest.mark.parametrize("end", ["", "://h/"], ids=["no-url", "url-at-the-end"])
+def test_a_long_header_value_is_logged_in_linear_time(size: int, unit: str, end: str) -> None:
+    line = "X-Echo: " + unit * (size // len(unit)) + end
+
+    started = time.perf_counter()
+    debug = http_debug(_info("https://api.example.com/", "HTTP/1.1 200 OK", line))
+    elapsed = time.perf_counter() - started
+
+    assert debug.endswith("…\n")
+    assert elapsed < 0.05
 
 
 def test_a_url_that_cannot_be_read_is_not_shown() -> None:

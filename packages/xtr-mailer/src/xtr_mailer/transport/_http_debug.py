@@ -40,9 +40,20 @@ _REDACTED_NAMES: Final = frozenset(
 _REDACTED_WORDS: Final = ("auth", "cookie", "key", "secret", "session", "token")
 # The headers whose whole value is a URI reference, relative ones included.
 _URI_VALUED: Final = frozenset({"content-location", "location"})
-_ABSOLUTE_URL: Final = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*://[^\s<>\"']*")
-_BRACKETED: Final = re.compile(r"<([^<>]*)>")
-_URL_PARAMETER: Final = re.compile(r"(\burl\s*=\s*)([^\s\"']*)", re.IGNORECASE)
+# A value is the provider's, as long as it likes, so none of it is read more than a few times: an
+# absolute URL is found from its ``://`` and its scheme read back from there, never by trying
+# every letter of a long run as the start of one; a scheme is at most its last characters.
+_SCHEME_CHARACTERS: Final = re.compile(r"[A-Za-z0-9+.\-]*+")
+_NOT_A_LETTER: Final = re.compile(r"[0-9+.\-]*+")
+_URL_CHARACTERS: Final = re.compile(r"[^\s<>\"']*+")
+_SCHEME_LENGTH: Final = 32
+_BRACKETED: Final = re.compile(r"<([^<>]*+)>")
+# ``url`` as a word, its ``u`` looked for first so the search skips what cannot start one.
+_URL_PARAMETER: Final = re.compile(r"([uU](?<!\w[uU])[rR][lL]\s*+=\s*+[\"']?)([^\s\"']*+)")
+# A refresh may name its target with no ``url=``: ``0; /next``.
+_REFRESH_TARGET: Final = re.compile(
+    r"(\A\s*[\d.]*\s*[;,]\s*[\"']?)(?!url\s*=)([^\s\"']+)", re.IGNORECASE
+)
 _LINE_LENGTH: Final = 1000
 _LINE_COUNT: Final = 100
 
@@ -85,8 +96,12 @@ def _lines(lines: object) -> list[str]:
 def _line(line: str) -> str:
     name, colon, value = line.partition(":")
     shown = f"{name}:{_value(name.strip().lower(), value)}" if colon else line
-    escaped = "".join(char if char.isprintable() else repr(char)[1:-1] for char in shown)
-    return escaped[:_LINE_LENGTH] + ("…" if len(escaped) > _LINE_LENGTH else "")
+    # Escaping only ever lengthens a line, so what is kept of it is all in its first characters.
+    escaped = "".join(
+        char if char.isprintable() else repr(char)[1:-1] for char in shown[:_LINE_LENGTH]
+    )
+    cut = len(shown) > _LINE_LENGTH or len(escaped) > _LINE_LENGTH
+    return escaped[:_LINE_LENGTH] + ("…" if cut else "")
 
 
 def _value(name: str, value: str) -> str:
@@ -94,6 +109,34 @@ def _value(name: str, value: str) -> str:
         return " [redacted]"
     if name in _URI_VALUED:
         return f" {_reference(value.strip())}"
+    if name == "refresh":
+        value = _REFRESH_TARGET.sub(lambda found: found[1] + _reference(found[2]), value, count=1)
     value = _BRACKETED.sub(lambda found: f"<{_reference(found[1])}>", value)
     value = _URL_PARAMETER.sub(lambda found: found[1] + _reference(found[2]), value)
-    return _ABSOLUTE_URL.sub(lambda found: _reference(found[0]), value)
+    return _absolute_urls(value)
+
+
+def _absolute_urls(value: str) -> str:
+    """Write every absolute URL in ``value`` as `_reference` does: a scheme, ``://``, the rest."""
+    backwards = value[::-1]
+    shown: list[str] = []
+    written = 0
+    mark = value.find("://")
+    while mark != -1:
+        run = len(value) - _run_end(_SCHEME_CHARACTERS, backwards, len(value) - mark)
+        scheme = max(run, mark - _SCHEME_LENGTH)
+        start = scheme + _run_end(_NOT_A_LETTER, value[scheme:mark], 0)
+        if start == mark:
+            mark = value.find("://", mark + 1)
+            continue
+        end = _run_end(_URL_CHARACTERS, value, mark + 3)
+        shown += (value[written:start], _reference(value[start:end]))
+        written = end
+        mark = value.find("://", end)
+    return "".join(shown) + value[written:]
+
+
+def _run_end(run: re.Pattern[str], value: str, start: int) -> int:
+    """Where the run of ``value`` from ``start`` that ``run`` matches ends."""
+    found = run.match(value, start)
+    return found.end() if found else start
