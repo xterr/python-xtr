@@ -49,6 +49,8 @@ smime = ["xtr-mime[smime]>=5.0,<6"]
 # names; a provider library advertises its own schemes under the same group.
 [project.entry-points."xtr_mailer.transport_factories"]
 null = "xtr_mailer.transport:NullTransportFactory"
+smtp = "xtr_mailer.transport.smtp:EsmtpTransportFactory"
+smtps = "xtr_mailer.transport.smtp:EsmtpTransportFactory"
 
 [dependency-groups]
 dev = [

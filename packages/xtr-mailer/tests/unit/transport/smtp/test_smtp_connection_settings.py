@@ -62,6 +62,33 @@ def test_the_timeout_is_kept_in_seconds() -> None:
     assert _settings().set_timeout(5).get_timeout() == 5.0
 
 
+@pytest.mark.parametrize("seconds", [float("nan"), float("inf"), 0, -1])
+def test_a_timeout_that_would_wait_forever_or_not_at_all_is_refused(seconds: float) -> None:
+    with pytest.raises(InvalidArgumentError, match="positive number of seconds"):
+        _ = _settings().set_timeout(seconds)
+
+
+def test_the_source_ip_is_the_system_choice_by_default() -> None:
+    assert _settings().get_source_ip() is None
+
+
+@pytest.mark.parametrize("address", ["192.0.2.1", "2001:db8::1", "[2001:db8::1]"])
+def test_a_source_ip_reaches_the_next_session(address: str) -> None:
+    settings = _settings().set_source_ip(address)
+
+    assert settings.get_source_ip() == address
+    assert settings._config.source_address == address
+
+
+def test_the_source_ip_can_be_left_to_the_system_again() -> None:
+    assert _settings().set_source_ip("192.0.2.1").set_source_ip(None).get_source_ip() is None
+
+
+def test_a_source_ip_that_is_no_address_is_refused() -> None:
+    with pytest.raises(InvalidArgumentError, match="IPv4 or IPv6 address"):
+        _ = _settings().set_source_ip("mail.example.com")
+
+
 def test_peer_verification_can_be_turned_off() -> None:
     assert not _settings().set_verify_peer(False).is_peer_verified()
 

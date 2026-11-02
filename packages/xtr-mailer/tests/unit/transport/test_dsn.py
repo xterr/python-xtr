@@ -258,6 +258,15 @@ def test_it_refuses_a_boolean_option_that_is_not_a_boolean(query: str, shown: st
     assert str(caught.value) == f'Value "{shown}" of the "enabled" DSN option is not a boolean.'
 
 
+def test_a_boolean_option_holding_more_than_a_word_is_refused_unquoted() -> None:
+    dsn = Dsn.from_string("scheme://localhost?enabled=x smtp://user:s3cret@example.com")
+
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = dsn.get_boolean_option("enabled")
+
+    assert str(caught.value) == 'The value of the "enabled" DSN option is not a boolean.'
+
+
 def test_it_never_shows_the_credentials() -> None:
     dsn = Dsn.from_string("smtp://s3cr3t-user:s3cr3t-pass@example.com:465?verify_peer=0")
 

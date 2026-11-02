@@ -62,13 +62,33 @@ class SmtpConnectionSettings:
         return self._config.local_hostname
 
     def set_timeout(self, seconds: float) -> Self:
-        """Wait at most ``seconds`` to connect and for each reply; 60 by default."""
+        """Wait at most ``seconds`` to connect and for each reply; 60 by default.
+
+        Raises:
+            InvalidArgumentError: ``seconds`` is not positive, or not finite — an infinite
+                or undefined timeout would wait forever on a server gone silent.
+        """
         self._config = dataclasses.replace(self._config, timeout=float(seconds))
         return self
 
     def get_timeout(self) -> float:
         """Return how long a connection and each reply are waited for, in seconds."""
         return self._config.timeout
+
+    def set_source_ip(self, address: str | None) -> Self:
+        """Leave from the local IP ``address``, an IPv6 one maybe bracketed; ``None``: any.
+
+        Picks the network a session goes out on, on a host with several.
+
+        Raises:
+            InvalidArgumentError: ``address`` is no IPv4 or IPv6 address.
+        """
+        self._config = dataclasses.replace(self._config, source_address=address)
+        return self
+
+    def get_source_ip(self) -> str | None:
+        """Return the local IP address sessions leave from, or ``None`` for the system's choice."""
+        return self._config.source_address
 
     def set_verify_peer(self, verify: bool) -> Self:
         """Check the server's certificate and name over TLS, as by default; ``False`` trusts any."""

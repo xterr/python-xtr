@@ -12,6 +12,7 @@ from xtr_rate_limiter import InMemoryStorage, LimiterConfig, RateLimiterFactory
 
 from tests.support.dummy_transport import DummyTransport
 from tests.support.dummy_transport_factory import DummyTransportFactory
+from tests.support.esmtp_state import esmtp_state
 from tests.support.fake_transport import FakeTransport
 from xtr_mailer import InvalidArgumentError, UnsupportedSchemeError
 from xtr_mailer.transport import (
@@ -23,6 +24,7 @@ from xtr_mailer.transport import (
     TransportFactoryDiscovery,
     Transports,
 )
+from xtr_mailer.transport.smtp import EsmtpTransport
 
 if TYPE_CHECKING:
     from xtr_mailer.transport import TransportInterface
@@ -96,6 +98,16 @@ def test_from_dsns_builds_a_transport_per_name() -> None:
 
     assert isinstance(transports, Transports)
     assert str(transports) == "[main,spare]"
+
+
+def test_from_dsn_builds_smtp_transports_through_the_installed_factory() -> None:
+    transport = Transport.from_dsn("failover(smtp://a smtp://b)")
+
+    assert isinstance(transport, FailoverTransport)
+    assert [esmtp_state(member) for member in transport._transports] == [
+        esmtp_state(EsmtpTransport("a")),
+        esmtp_state(EsmtpTransport("b")),
+    ]
 
 
 @pytest.mark.parametrize(

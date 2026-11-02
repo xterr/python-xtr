@@ -37,3 +37,49 @@ def test_a_peer_fingerprint_that_is_no_digest_is_refused(fingerprint: str) -> No
     assert str(caught.value) == (
         f'The peer fingerprint "{fingerprint}" is not an MD5, SHA-1 or SHA-256 digest in hex.'
     )
+
+
+@pytest.mark.parametrize(
+    "host", ["a\x00b", "a\nb", "a\x7fb", "a\x9bb", "a\u2028b", "a\u2029b", "a\u200bb"]
+)
+def test_a_host_with_a_control_character_is_refused(host: str) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = SmtpConnectionConfig(host)
+
+    assert str(caught.value) == "The SMTP host name must not contain control characters."
+
+
+@pytest.mark.parametrize("host", ["mail.example.com", "[2001:db8::1]", "bücher.example"])
+def test_a_host_name_or_address_is_accepted(host: str) -> None:
+    assert SmtpConnectionConfig(host).host == host
+
+
+@pytest.mark.parametrize("port", [0, -1, 65536])
+def test_a_port_out_of_range_is_refused(port: int) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = SmtpConnectionConfig(port=port)
+
+    assert str(caught.value) == f'The SMTP port must be between 1 and 65535, "{port}" given.'
+
+
+@pytest.mark.parametrize("timeout", [float("nan"), float("inf"), float("-inf"), 0.0, -1.0])
+def test_a_timeout_that_is_not_a_positive_number_of_seconds_is_refused(timeout: float) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = SmtpConnectionConfig(timeout=timeout)
+
+    assert str(caught.value) == (
+        f'The SMTP timeout must be a positive number of seconds, "{timeout}" given.'
+    )
+
+
+@pytest.mark.parametrize("address", ["192.0.2.1", "2001:db8::1", "[2001:db8::1]"])
+def test_a_source_address_that_is_an_ip_address_is_accepted(address: str) -> None:
+    assert SmtpConnectionConfig(source_address=address).source_address == address
+
+
+@pytest.mark.parametrize("address", ["", "mail.example.com", "[192.0.2.1]", "[::1", "1.2.3"])
+def test_a_source_address_that_is_no_ip_address_is_refused(address: str) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = SmtpConnectionConfig(source_address=address)
+
+    assert str(caught.value) == "The source IP must be an IPv4 or IPv6 address."

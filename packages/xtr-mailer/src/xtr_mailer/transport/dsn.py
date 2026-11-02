@@ -22,6 +22,7 @@ from urllib.parse import parse_qsl, unquote, urlsplit
 
 from typing_extensions import override
 
+from xtr_mailer._error_text import option_value
 from xtr_mailer.exception import InvalidArgumentError
 
 if TYPE_CHECKING:
@@ -172,7 +173,8 @@ class Dsn:
 
         Raises:
             InvalidArgumentError: If the value is none of those. A typo such as
-                ``verify_peer=fasle`` would otherwise quietly read as false.
+                ``verify_peer=fasle`` would otherwise quietly read as false. The value is
+                quoted only when it is one plain word.
         """
         match self._options.get(key):
             case None:
@@ -183,11 +185,13 @@ class Dsn:
                     return True
                 if normalised in _FALSE:
                     return False
-                shown = value
+                shown = option_value(value)
             case tuple():
                 shown = "list"
             case _:
                 shown = "mapping"
+        if shown is None:
+            raise InvalidArgumentError(f'The value of the "{key}" DSN option is not a boolean.')
         raise InvalidArgumentError(f'Value "{shown}" of the "{key}" DSN option is not a boolean.')
 
     @override
