@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, BinaryIO, ClassVar, Final, Literal, TypeAlias
 from typing_extensions import override
 
 from xtr_mime._engine import BinaryLeaf, TextLeaf, build_binary, build_text, set_fields
-from xtr_mime._error_text import body_charset_error, check_charset
+from xtr_mime._error_text import body_charset_error, check_charset, escaped
 from xtr_mime.exception import InvalidArgumentError
 
 from .abstract_part import AbstractPart
@@ -204,7 +204,7 @@ def _check_readable(path: str) -> None:
     # os.path answers False for a path it cannot even stat, where Path raises a
     # PermissionError before 3.14.
     if os.path.isdir(path) or (os.path.isfile(path) and not os.access(path, os.R_OK)):  # noqa: PTH112, PTH113 — see above.
-        raise InvalidArgumentError(f'Path "{_escaped(path)}" is not readable.')
+        raise InvalidArgumentError(f'Path "{escaped(path)}" is not readable.')
 
 
 def _read(path: str) -> bytes:
@@ -212,18 +212,9 @@ def _read(path: str) -> bytes:
         return Path(path).read_bytes()
     except OSError as error:
         raise InvalidArgumentError(
-            f'Unable to open path "{_escaped(path)}": Failed to open stream: {error.strerror}.'
+            f'Unable to open path "{escaped(path)}": Failed to open stream: {error.strerror}.'
         ) from error
     except ValueError as error:
         raise InvalidArgumentError(
-            f'Unable to open path "{_escaped(path)}": Failed to open stream: {error}.'
+            f'Unable to open path "{escaped(path)}": Failed to open stream: {error}.'
         ) from error
-
-
-def _escaped(path: str) -> str:
-    """Show ``path`` as ``repr`` does, without its quotes.
-
-    An error ends up in a log, where a line break or a null byte taken from a path must not
-    reach as such.
-    """
-    return repr(path)[1:-1]
