@@ -10,9 +10,18 @@ from xtr_mailer.exception import UnexpectedResponseError
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-__all__ = ["render_reply", "unexpected_response"]
+__all__ = ["message_id_of", "render_reply", "unexpected_response"]
 
 _SURROGATE: Final = re.compile("[\ud800-\udfff]")
+_MESSAGE_ID: Final = re.compile(
+    r"^250 (?:\S+ )?Ok:?+ (?:queued as |id=)?+(?P<id>[A-Z0-9._-]++)", re.IGNORECASE | re.MULTILINE
+)
+
+
+def message_id_of(reply: str) -> str:
+    """Return the id a server's acceptance of an email names, ``""`` when it names none."""
+    found = _MESSAGE_ID.search(reply)
+    return found["id"] if found else ""
 
 
 def render_reply(code: int, text: str) -> str:

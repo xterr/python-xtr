@@ -10,6 +10,7 @@ from xtr_mime import Message
 from xtr_mailer._error_text import shown, type_name
 from xtr_mailer.exception import InvalidArgumentError, LogicError
 
+from .stoppable_transport_interface import StoppableTransportInterface
 from .transport_interface import TransportInterface
 
 if TYPE_CHECKING:
@@ -33,6 +34,8 @@ class Transports(TransportInterface):
     header names another. The header is taken off the email before it goes — it is an
     instruction to this class, not something a recipient should see — and put back if the
     send fails or is cancelled, so the email can be sent again as it was.
+
+    :meth:`close` ends the sessions its transports hold open, when the application shuts down.
     """
 
     __slots__ = ("_default", "_transports")
@@ -83,6 +86,22 @@ class Transports(TransportInterface):
             for header in removed:
                 _ = headers.add(header)
             raise
+
+    async def close(self) -> None:
+        """Stop each transport that holds a session open — SMTP, sendmail, a group of them.
+
+        One failing to stop does not keep the others open: each is stopped, then the first
+        error is raised. The next email through a stopped transport opens a new session.
+        """
+        error: Exception | None = None
+        for transport in self._transports.values():
+            if isinstance(transport, StoppableTransportInterface):
+                try:
+                    await transport.stop()
+                except Exception as failure:  # noqa: BLE001 -- raised once the others are stopped
+                    error = failure if error is None else error
+        if error is not None:
+            raise error
 
     @override
     def __str__(self) -> str:

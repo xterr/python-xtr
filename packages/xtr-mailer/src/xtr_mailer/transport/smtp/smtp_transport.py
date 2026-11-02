@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from typing import TYPE_CHECKING, Final
 
 from typing_extensions import override
@@ -20,10 +19,11 @@ from xtr_mailer.transport.stoppable_transport_interface import StoppableTranspor
 from ._smtp_client import SmtpClient
 from ._smtp_connection_config import SmtpConnectionConfig
 from ._smtp_connection_settings import SmtpConnectionSettings
+from ._smtp_reply import message_id_of
+from ._smtp_session_thresholds import SmtpSessionThresholds
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from typing import Self
 
     from xtr_clock import ClockInterface
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
@@ -35,13 +35,12 @@ if TYPE_CHECKING:
 
 __all__ = ["SmtpTransport"]
 
-_MESSAGE_ID: Final = re.compile(
-    r"^250 (?:\S+ )?Ok:?+ (?:queued as |id=)?+(?P<id>[A-Z0-9._-]++)", re.IGNORECASE | re.MULTILINE
-)
 _SERVICE_CLOSING: Final = 421
 
 
-class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTransportInterface):
+class SmtpTransport(
+    AbstractTransport, SmtpConnectionSettings, SmtpSessionThresholds, StoppableTransportInterface
+):
     """Sends each email over one SMTP session, kept open from one email to the next.
 
     The session opens with the first email: the greeting, then ``HELO`` naming the local
@@ -88,22 +87,8 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
         self._client: SmtpClient = SmtpClient(self._config)
         self._lock: asyncio.Lock = asyncio.Lock()
         self._started: bool = False
-        self._restart_threshold: int = 100
-        self._restart_threshold_sleep: float = 0.0
         self._restart_counter: int = 0
-        self._ping_threshold: float = 100.0
         self._last_message_time: float = 0.0
-
-    def set_restart_threshold(self, threshold: int, sleep: float = 0) -> Self:
-        """End the session after ``threshold`` emails, ``0`` never; wait ``sleep`` seconds then."""
-        self._restart_threshold = threshold
-        self._restart_threshold_sleep = sleep
-        return self
-
-    def set_ping_threshold(self, seconds: float) -> Self:
-        """``NOOP`` before an email idle over ``seconds`` (100); servers drop chatty sessions."""
-        self._ping_threshold = seconds
-        return self
 
     @override
     async def send(
@@ -156,8 +141,7 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
 
     def _parse_message_id(self, mta_result: str) -> str:
         """Return the id the server's acceptance names, ``""`` when it names none."""
-        found = _MESSAGE_ID.search(mta_result)
-        return found["id"] if found else ""
+        return message_id_of(mta_result)
 
     def _server_supports_smtp_utf8(self) -> bool:
         """Whether the server takes addresses with a non-ASCII local part; plain SMTP does not."""
@@ -230,32 +214,43 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
         self._log('Email transport "{transport}" starting')
         client = self._client = SmtpClient(self._config)
         try:
-            _ = await client.connect()
+            await self._connect(client)
             _ = await self.execute_command(f"HELO {self.get_local_domain()}", [250])
         except BaseException:
             client.close()
+            self._disconnect(clean=False)
             raise
         self._started = True
         self._last_message_time = 0.0
         self._log('Email transport "{transport}" started')
 
+    async def _connect(self, client: SmtpClient) -> None:
+        """Connect ``client`` to start a session; overridden to reach the peer some other way."""
+        _ = await client.connect()
+
+    def _disconnect(self, *, clean: bool) -> None:
+        """Let go of what :meth:`_connect` opened besides the client; ``clean`` after a ``QUIT``."""
+        del clean  # A server connection is the client's alone: nothing else to let go of.
+
     async def _stop(self) -> None:
         if not self._started:
             return
         self._log('Email transport "{transport}" stopping')
+        clean = False
         try:
             _ = await self.execute_command("QUIT", [221])
+            clean = True
         except TransportError as error:
-            self._logger.debug(
-                'Email transport "{transport}" could not quit cleanly: {reason}',
-                {"transport": str(self), "reason": str(error)},
+            self._log(
+                'Email transport "{transport}" could not quit cleanly: {reason}', reason=str(error)
             )
         finally:
-            self._terminate()
+            self._terminate(clean=clean)
 
-    def _terminate(self) -> None:
+    def _terminate(self, *, clean: bool = False) -> None:
         if self._started:
             self._client.close()
+            self._disconnect(clean=clean)
             self._started = False
             self._log('Email transport "{transport}" stopped')
 
@@ -280,11 +275,11 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
         await self._stop()
         self._restart_counter = 0
         if (sleep := self._restart_threshold_sleep) > 0:
-            self._logger.debug(
+            self._log(
                 'Email transport "{transport}" sleeps for {seconds} seconds after stopping',
-                {"transport": str(self), "seconds": sleep},
+                seconds=sleep,
             )
             await self._clock.sleep_async(sleep)
 
-    def _log(self, message: str) -> None:
-        self._logger.debug(message, {"transport": str(self)})
+    def _log(self, message: str, **context: object) -> None:
+        self._logger.debug(message, {"transport": str(self), **context})

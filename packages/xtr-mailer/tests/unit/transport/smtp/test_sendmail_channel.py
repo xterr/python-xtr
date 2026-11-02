@@ -1,26 +1,27 @@
 from __future__ import annotations
 
 import asyncio
-import shlex
 import socket
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.support.sendmail_fakes import FakeSendmail, assert_reaped, fake_command
 from tests.support.smtp_clients import send_data
 from xtr_mailer.exception import InvalidArgumentError, LogicError, TransportError
 from xtr_mailer.transport.smtp._sendmail_channel import SendmailChannel
 from xtr_mailer.transport.smtp._smtp_client import SmtpClient
 from xtr_mailer.transport.smtp._smtp_connection_config import SmtpConnectionConfig
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 pytestmark = pytest.mark.anyio
 
-FAKE_SENDMAIL = Path(__file__).parents[3] / "fixtures" / "fake_sendmail.py"
 
-
-def _command(*arguments: str) -> str:
-    return shlex.join([sys.executable, str(FAKE_SENDMAIL), "-bs", *arguments])
+def _command() -> str:
+    return fake_command("-bs")
 
 
 async def _start(channel: SendmailChannel) -> SmtpClient:
@@ -29,9 +30,11 @@ async def _start(channel: SendmailChannel) -> SmtpClient:
     return client
 
 
-async def test_a_message_is_delivered_through_the_child(tmp_path: Path) -> None:
-    record = tmp_path / "mail.eml"
-    channel = SendmailChannel(_command("--record", str(record)))
+async def test_a_message_is_delivered_through_the_child(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = FakeSendmail(monkeypatch, tmp_path)
+    channel = SendmailChannel(_command())
     client = await _start(channel)
 
     _ = await client.ehlo()
@@ -43,16 +46,18 @@ async def test_a_message_is_delivered_through_the_child(tmp_path: Path) -> None:
     exit_code = await channel.close()
 
     assert reply == "250 2.0.0 Ok: queued as FAKE42"
-    assert record.read_bytes() == b"Subject: hi\r\n\r\n.body\r\n"
+    assert fake.messages.read_bytes() == b"Subject: hi\r\n\r\n.body\r\n"
     assert exit_code == 0
 
 
-async def test_every_message_of_a_session_is_delivered_through_the_child(tmp_path: Path) -> None:
+async def test_every_message_of_a_session_is_delivered_through_the_child(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     # The child answers from its own process the moment a message ends, so a client
     # that yields between its last write and arming the reply read loses the reply.
-    record = tmp_path / "mail.eml"
+    fake = FakeSendmail(monkeypatch, tmp_path)
     messages = [f"Subject: {index}\r\n".encode() for index in range(20)]
-    channel = SendmailChannel(_command("--record", str(record)))
+    channel = SendmailChannel(_command())
     client = await _start(channel)
 
     replies = [await send_data(client, message) for message in messages]
@@ -61,7 +66,7 @@ async def test_every_message_of_a_session_is_delivered_through_the_child(tmp_pat
     exit_code = await channel.close()
 
     assert replies == ["250 2.0.0 Ok: queued as FAKE42"] * 20
-    assert record.read_bytes() == b"".join(messages)
+    assert fake.messages.read_bytes() == b"".join(messages)
     assert exit_code == 0
 
 
@@ -69,8 +74,11 @@ async def test_its_description_names_the_command() -> None:
     assert SendmailChannel("/usr/sbin/sendmail -bs").description == "process /usr/sbin/sendmail -bs"
 
 
-async def test_a_child_that_dies_mid_session_raises_a_transport_error() -> None:
-    command = _command("--die-at", "MAIL")
+async def test_a_child_that_dies_mid_session_raises_a_transport_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _ = FakeSendmail(monkeypatch, tmp_path, die_at="MAIL")
+    command = _command()
     channel = SendmailChannel(command)
     client = await _start(channel)
     _ = await client.ehlo()
@@ -83,8 +91,11 @@ async def test_a_child_that_dies_mid_session_raises_a_transport_error() -> None:
     assert exit_code == 3
 
 
-async def test_a_child_that_does_not_exit_is_killed() -> None:
-    channel = SendmailChannel(_command("--linger"), timeout=0.2)
+async def test_a_child_that_does_not_exit_is_killed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _ = FakeSendmail(monkeypatch, tmp_path, linger="1")
+    channel = SendmailChannel(_command(), timeout=0.2)
     client = await _start(channel)
 
     _ = await client.execute("QUIT", [221])
@@ -167,3 +178,79 @@ async def test_it_needs_a_posix_system(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(TransportError, match="POSIX"):
         _ = await channel.open()
+
+
+async def test_a_child_released_unclean_is_killed_and_reaped(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = FakeSendmail(monkeypatch, tmp_path, linger="1")
+    channel = SendmailChannel(_command())
+    client = await _start(channel)
+    pid = await fake.started()
+
+    client.close()
+    channel.release(kill=True)
+
+    await assert_reaped(pid)
+    exit_code = await channel.close()
+    assert exit_code is not None
+    assert exit_code < 0
+
+
+async def test_a_child_released_after_its_session_exits_on_its_own(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = FakeSendmail(monkeypatch, tmp_path)
+    channel = SendmailChannel(_command())
+    client = await _start(channel)
+    pid = await fake.started()
+
+    _ = await client.execute("QUIT", [221])
+    client.close()
+    channel.release(kill=False)
+
+    assert await channel.close() == 0
+    await assert_reaped(pid)
+
+
+async def test_opening_again_reaps_the_released_child(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = FakeSendmail(monkeypatch, tmp_path, linger="1")
+    channel = SendmailChannel(_command(), timeout=0.2)
+    client = await _start(channel)
+    first = await fake.started()
+    _ = await client.execute("QUIT", [221])
+    client.close()
+    channel.release(kill=False)
+    fake.record.unlink()
+
+    client = await _start(channel)
+
+    await assert_reaped(first)
+    assert await fake.started() != first
+    client.close()
+    channel.release(kill=True)
+    _ = await channel.close()
+
+
+async def test_releasing_a_channel_never_opened_does_nothing() -> None:
+    channel = SendmailChannel(_command())
+
+    channel.release(kill=True)
+
+    assert await channel.close() is None
+
+
+async def test_the_child_writes_its_errors_nowhere(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    _ = FakeSendmail(monkeypatch, tmp_path, stderr="100")
+    channel = SendmailChannel(_command())
+    client = await _start(channel)
+
+    _ = await client.execute("QUIT", [221])
+    client.close()
+    _ = await channel.close()
+
+    assert capfd.readouterr().err == ""

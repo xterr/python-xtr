@@ -21,9 +21,9 @@ _SHOWN_LENGTH: Final = 64
 _PLAIN_WORD: Final = re.compile(r"[A-Za-z0-9.+_-]{0,40}")
 
 
-def shown(value: str) -> str:
-    """Show the start of ``value`` as ``repr`` does, without its quotes, ``…`` if it goes on."""
-    return repr(value[:_SHOWN_LENGTH])[1:-1] + ("…" if len(value) > _SHOWN_LENGTH else "")
+def shown(value: str, length: int = _SHOWN_LENGTH) -> str:
+    """Show ``value``'s first ``length`` characters as ``repr`` would, unquoted; ``…`` if cut."""
+    return repr(value[:length])[1:-1] + ("…" if len(value) > length else "")
 
 
 def option_value(value: str) -> str | None:
