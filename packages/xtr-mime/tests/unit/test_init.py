@@ -53,3 +53,11 @@ def test_the_package_exports_the_messages() -> None:
         "MessageConverter",
         "RawMessage",
     } <= set(xtr_mime.__all__)
+
+
+def test_the_package_exports_the_html_to_text_converters() -> None:
+    assert set(xtr_mime.html_to_text_converter.__all__) <= set(xtr_mime.__all__)
+    assert (
+        xtr_mime.DefaultHtmlToTextConverter
+        is xtr_mime.html_to_text_converter.DefaultHtmlToTextConverter
+    )

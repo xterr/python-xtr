@@ -14,6 +14,8 @@ usable on their own too: :class:`FormDataPart` is the body of an HTTP form uploa
 :class:`Email` is the builder; :class:`Message` is headers over any body part, and
 :class:`RawMessage` bytes already rendered. :class:`MessageConverter` reads an email back out
 of a message whose body an email could have built.
+
+:class:`DefaultHtmlToTextConverter` writes the text alternative of an HTML body.
 """
 
 from __future__ import annotations
@@ -44,6 +46,7 @@ from .header import (
     PathHeader,
     UnstructuredHeader,
 )
+from .html_to_text_converter import DefaultHtmlToTextConverter, HtmlToTextConverterInterface
 from .magic_mime_type_guesser import MagicMimeTypeGuesser
 from .message import Message
 from .message_converter import MessageConverter
@@ -75,6 +78,7 @@ __all__ = [
     "BodyRendererInterface",
     "DataPart",
     "DateHeader",
+    "DefaultHtmlToTextConverter",
     "DigestPart",
     "DkimOptions",
     "DkimSigner",
@@ -86,6 +90,7 @@ __all__ = [
     "HeaderInterface",
     "HeaderKind",
     "Headers",
+    "HtmlToTextConverterInterface",
     "IdentificationHeader",
     "InvalidArgumentError",
     "LogicError",
