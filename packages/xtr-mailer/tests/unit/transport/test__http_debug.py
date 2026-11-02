@@ -33,6 +33,92 @@ def test_a_header_that_may_carry_a_credential_is_redacted(name: str) -> None:
     assert "secret" not in debug
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "WWW-Authenticate",
+        "Proxy-Authenticate",
+        "Authentication-Info",
+        "Proxy-Authentication-Info",
+        "Set-Cookie2",
+        "X-Api-Key",
+        "x-auth-token",
+        "X-Client-SECRET",
+        "X-Signing-Key",
+        "X-Session-Id",
+        "X-Cookie-Jar",
+    ],
+)
+def test_every_header_named_after_a_credential_is_redacted(name: str) -> None:
+    line = f'{name}: Bearer realm="api", token="secret"'
+
+    debug = http_debug(_info("https://api.example.com/", line))
+
+    assert debug.endswith(f"< {name}: [redacted]\n")
+    assert "secret" not in debug
+
+
+@pytest.mark.parametrize(
+    ("line", "shown"),
+    [
+        pytest.param(
+            "Location: https://api.example.com/next?key=secret#part",
+            "Location: https://api.example.com/next",
+            id="location",
+        ),
+        pytest.param("location: /next?key=secret", "location: /next", id="relative-location"),
+        pytest.param(
+            "Content-Location: https://api:secret@api.example.com/m?x=1",
+            "Content-Location: https://api.example.com/m",
+            id="content-location",
+        ),
+        pytest.param(
+            "Refresh: 5; URL=https://api.example.com/r;v=1?key=secret",
+            "Refresh: 5; URL=https://api.example.com/r;v=1",
+            id="refresh",
+        ),
+        pytest.param("Refresh: 0; url=/r?key=secret", "Refresh: 0; url=/r", id="relative-refresh"),
+        pytest.param(
+            "Link: </page?token=secret>; rel=next",
+            "Link: </page>; rel=next",
+            id="link",
+        ),
+        pytest.param(
+            "X-Debug: see http://api:secret@api.example.com/x?a=secret for more",
+            "X-Debug: see http://api.example.com/x for more",
+            id="url-in-text",
+        ),
+    ],
+)
+def test_a_url_an_answer_carries_loses_its_user_info_and_query(line: str, shown: str) -> None:
+    debug = http_debug(_info("https://api.example.com/", line))
+
+    assert debug.endswith(f"< {shown}\n")
+    assert "secret" not in debug
+
+
+@pytest.mark.parametrize(
+    ("line", "shown"),
+    [
+        pytest.param("\r\nSet-Cookie: x", "\\r\\nSet-Cookie: [redacted]", id="line-break"),
+        pytest.param("\u2028X-Note: a", "\\u2028X-Note: a", id="line-separator"),
+    ],
+)
+def test_a_control_character_in_a_header_name_is_shown_escaped(line: str, shown: str) -> None:
+    debug = http_debug(_info("https://api.example.com/", line))
+
+    assert debug == f"> POST https://api.example.com/\n< {shown}\n"
+
+
+def test_a_long_answer_is_cut_to_its_first_hundred_lines() -> None:
+    lines = [f"X-Line: {number}" for number in range(250)]
+
+    debug = http_debug(_info("https://api.example.com/", *lines))
+
+    assert debug.count("\n< ") == 101
+    assert debug.endswith("< X-Line: 99\n< … 150 more lines\n")
+
+
 def test_a_control_character_in_an_answer_is_shown_escaped() -> None:
     debug = http_debug(_info("https://api.example.com/", "X-Reason: a\r\nb\x00c"))
 

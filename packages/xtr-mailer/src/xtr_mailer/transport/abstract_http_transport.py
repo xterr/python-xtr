@@ -37,8 +37,10 @@ class AbstractHttpTransport(AbstractTransport, ABC):
 
     The exchange is appended to the sent message's debug log — or to the error's, when the
     provider refuses the email — as the request line and each line of the answer, with nothing
-    that could be a credential: no user info or query in the URL, no cookie or authorization
-    header value, never the request's headers.
+    that could be a credential: no user info or query in any URL, the request's or one the
+    answer echoes; no value of a header named after a credential (an authorization, an
+    authentication challenge, a cookie, a session, a token, a secret, a key); never the
+    request's headers.
 
     No error of the HTTP client goes on as it is. An answer the client raised for — a status
     read with ``throw`` left on — becomes an :class:`~xtr_mailer.exception.HttpTransportError`

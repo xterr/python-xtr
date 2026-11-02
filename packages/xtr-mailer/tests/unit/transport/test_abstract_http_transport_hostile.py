@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import anyio
 import pytest
+from typing_extensions import override
 from xtr_http_client import MockHttpClient, MockResponse
 from xtr_http_client_contracts.exception import TransportTimeoutError
 from xtr_mime import Email
@@ -34,6 +35,26 @@ async def _stall(method: str, url: str, options: RequestOptions) -> MockResponse
 async def _time_out(method: str, url: str, options: RequestOptions) -> MockResponse:
     del method, options
     raise TransportTimeoutError(f"Idle timeout reached for {url}.")
+
+
+class _Redirected(MockResponse):
+    """Reports the lines of every hop, as a client that followed redirects does."""
+
+    hops: tuple[str, ...] = (
+        "HTTP/1.1 302 Found",
+        "Location: https://api:secret@api.example.com/v2/send?key=secret",
+        "WWW-Authenticate: Bearer error=invalid_token, token=secret",
+        "HTTP/1.1 307 Temporary Redirect",
+        "Location: /v3/send?key=secret",
+        "HTTP/1.1 200 OK",
+        "Content-Location: https://api.example.com/v3/messages/1?key=secret",
+    )
+
+    @override
+    def get_info(self, key: str | None = None) -> object:
+        info = cast("dict[str, object]", super().get_info())
+        info = {**info, "response_headers": list(self.hops), "redirect_count": 2}
+        return info if key is None else info.get(key)
 
 
 async def test_a_cancelled_send_is_neither_sent_nor_failed() -> None:
@@ -98,3 +119,12 @@ async def test_a_cookie_the_provider_sets_is_never_logged() -> None:
     assert sent is not None
     assert "< Set-Cookie: [redacted]\n" in sent.get_debug()
     assert "secret" not in sent.get_debug()
+
+
+async def test_what_a_provider_echoes_across_redirects_is_never_logged() -> None:
+    sent = await PostingHttpTransport(MockHttpClient(_Redirected(b'{"id": "1"}'))).send(_email())
+
+    assert sent is not None
+    assert "secret" not in sent.get_debug()
+    assert "< Location: https://api.example.com/v2/send\n" in sent.get_debug()
+    assert "< Location: /v3/send\n" in sent.get_debug()
