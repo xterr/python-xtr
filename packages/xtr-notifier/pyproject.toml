@@ -35,10 +35,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Queue messages through the bus instead of sending them where they are made.
-messenger = ["xtr-messenger>=5.0,<6"]
-# Wire the notifier from one configuration.
-di = ["xtr-dependency-injection>=5.0,<6"]
+# The Slack provider, found by its `slack://` DSN scheme.
+slack = ["xtr-slack-notifier>=5.0,<6"]
 
 # Provider factories advertise themselves here, keyed by the DSN scheme they serve so only
 # the matching library is ever imported: chat providers under the chatter's group, SMS and

@@ -34,7 +34,7 @@ importance — and each channel hands a message to a transport chosen by a DSN
 
 ```sh
 uv add xtr-notifier
-uv add "xtr-notifier[messenger]"   # queue messages through xtr-messenger
+uv add "xtr-notifier[slack]"   # with the Slack provider, xtr-slack-notifier
 ```
 
 A provider's transport reaches it through an HTTP client: install
@@ -162,9 +162,9 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add "xtr-notifier[messenger]"`, or `uv add xtr-notifier` to send in-process
-  only. Each provider is a library of its own (see [Providers](#providers)). It works with
-  [xtr-http-client](../xtr-http-client), which providers are reached through,
+- **Install** — `uv add xtr-notifier`, or `uv add "xtr-notifier[slack]"` to bring the Slack
+  provider along. Each provider is a library of its own (see [Providers](#providers)). It works
+  with [xtr-http-client](../xtr-http-client), which providers are reached through,
   [xtr-event-dispatcher](../xtr-event-dispatcher), which announces every message and records
   them for tests, and [xtr-messenger](../xtr-messenger), which queues them — each used when
   installed.

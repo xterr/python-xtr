@@ -5408,11 +5408,8 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-di = [
-    { name = "xtr-dependency-injection" },
-]
-messenger = [
-    { name = "xtr-messenger" },
+slack = [
+    { name = "xtr-slack-notifier" },
 ]
 
 [package.dev-dependencies]
@@ -5434,14 +5431,13 @@ dev = [
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
-    { name = "xtr-messenger", marker = "extra == 'messenger'", editable = "packages/xtr-messenger" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+    { name = "xtr-slack-notifier", marker = "extra == 'slack'", editable = "packages/xtr-slack-notifier" },
 ]
-provides-extras = ["messenger", "di"]
+provides-extras = ["slack"]
 
 [package.metadata.requires-dev]
 dev = [

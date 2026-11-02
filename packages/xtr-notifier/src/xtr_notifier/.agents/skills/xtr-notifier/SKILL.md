@@ -100,9 +100,9 @@ when the event dispatcher bundle is active — get it from the container.
 `NotifierBundle`, writes `<app>/config/packages/notifier.py`, and `NOTIFIER_CHATTER_DSN` and
 `NOTIFIER_TEXTER_DSN` (both `null://null`) in `.env`. It prints the steps it cannot make.
 
-1. **Install** — `uv add "xtr-notifier[messenger]"` (or `xtr-notifier` alone); a provider
-   library per provider. xtr-http-client, xtr-event-dispatcher and xtr-messenger are used when
-   installed.
+1. **Install** — `uv add xtr-notifier` (`"xtr-notifier[slack]"` brings xtr-slack-notifier); a
+   provider library per provider. xtr-http-client, xtr-event-dispatcher and xtr-messenger are
+   used when installed.
 2. **Activate** — `NotifierBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
    (`from xtr_notifier.bundle import NotifierBundle`).
 3. **Brings along** — the HTTP client, messenger and event dispatcher bundles, each when its
