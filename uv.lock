@@ -5301,6 +5301,9 @@ amqp = [
     { name = "taskiq-aio-pika" },
     { name = "typing-extensions" },
 ]
+orm = [
+    { name = "xtr-orm-messenger" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -5331,9 +5334,10 @@ requires-dist = [
     { name = "typing-extensions", marker = "extra == 'amqp'", specifier = ">=4.4" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-orm-messenger", marker = "extra == 'orm'", editable = "packages/xtr-orm-messenger" },
     { name = "xtr-serializer", editable = "packages/xtr-serializer" },
 ]
-provides-extras = ["amqp"]
+provides-extras = ["amqp", "orm"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -5454,6 +5458,7 @@ dev = [
     { name = "xtr-dependency-injection" },
     { name = "xtr-logging" },
     { name = "xtr-messenger" },
+    { name = "xtr-orm-messenger" },
     { name = "xtr-service-contracts" },
 ]
 
@@ -5483,6 +5488,7 @@ dev = [
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-orm-messenger", editable = "packages/xtr-orm-messenger" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 
@@ -5499,25 +5505,17 @@ dependencies = [
     { name = "xtr-orm" },
 ]
 
-[package.optional-dependencies]
-postgres = [
-    { name = "xtr-orm", extra = ["postgres"] },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "aiosqlite" },
     { name = "anyio" },
+    { name = "asyncpg" },
     { name = "basedpyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
-    { name = "xtr-console" },
-    { name = "xtr-dependency-injection" },
-    { name = "xtr-recipes" },
     { name = "xtr-serializer" },
-    { name = "xtr-service-contracts" },
 ]
 
 [package.metadata]
@@ -5528,24 +5526,19 @@ requires-dist = [
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
     { name = "xtr-orm", editable = "packages/xtr-orm" },
-    { name = "xtr-orm", extras = ["postgres"], marker = "extra == 'postgres'", editable = "packages/xtr-orm" },
 ]
-provides-extras = ["postgres"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "aiosqlite", specifier = ">=0.20" },
     { name = "anyio", specifier = ">=4.0" },
+    { name = "asyncpg", specifier = ">=0.29" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
-    { name = "xtr-console", editable = "packages/xtr-console" },
-    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
-    { name = "xtr-recipes", editable = "packages/xtr-recipes" },
     { name = "xtr-serializer", editable = "packages/xtr-serializer" },
-    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 
 [[package]]

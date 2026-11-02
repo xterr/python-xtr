@@ -1,13 +1,10 @@
 # The recipe for xtr-orm-messenger: what *Use in an application* in the README
 # takes, as data. Keep the two in step — the README is the source.
 #
-# No [files] and no [env]: a transport is named in the message bus
-# configuration, which is the messenger's, and its DSN names a connection the
-# orm already configures.
-
-[bundles]
-# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
-"xtr_orm_messenger.bundle:OrmMessengerBundle" = { all = true }
+# No [bundles]: the package ships none — the orm bundle registers the transport
+# factory when the messenger bundle is active too. No [files] and no [env]: a
+# transport is named in the message bus configuration, which is the messenger's,
+# and its DSN names a connection the orm already configures.
 
 [gitignore]
 # Nothing: the messages live in the database.
@@ -16,9 +13,9 @@ lines = []
 [notes]
 steps = [
   "Name a transport orm://default in config/packages/messenger.py and route your messages to it: TransportConfig(\"orm://default\", queue=\"jobs\").",
-  "To have orm:migrations:diff write the messages table instead of the transport creating it on first use, return OrmMessengerConfig(migrations_connection=\"default\") from config/packages/orm_messenger.py.",
+  "Run orm:migrations:diff: it writes the messages table of every orm:// transport on that connection. Add auto_setup=false to the DSN to leave the table to the migrations alone.",
 ]
 check = [
-  "<script> debug:bundles — orm_messenger, messenger and orm are listed and active",
+  "<script> debug:bundles — messenger and orm are listed and active",
 ]
 run = ["<script> messenger:consume <transport>"]

@@ -41,8 +41,9 @@ class OrmTransportFactory(TransportFactoryInterface, PublisherClosingInterface):
     transport holding a connection.
 
     Not discovered by DSN scheme like a transport needing nothing: it needs
-    the application's connections, so it is either registered by its bundle or
-    passed to the bus yourself::
+    the application's connections, which only the orm bundle holds. With a
+    container, that bundle registers it when this package is installed;
+    without one, pass it to the bus yourself::
 
         MessageBusFactory(config, [OrmTransportFactory(registry, serializer)])
     """

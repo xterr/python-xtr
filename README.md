@@ -122,10 +122,11 @@ graph LR
     orm -. optional .-> svccon
     orm -. optional .-> console
     orm -. optional .-> messenger
+    orm -. optional .-> ormmessenger
     ormmessenger[xtr-orm-messenger] --> messenger
     ormmessenger --> orm
     ormmessenger --> clock
-    ormmessenger -. optional .-> di
+    messenger -. optional .-> ormmessenger
     ratelimiter[xtr-rate-limiter] --> clock
     ratelimiter --> eventcon
     ratelimiter -. optional .-> cachecon
@@ -344,7 +345,8 @@ starting with the package's one-line pitch, and a `LICENSE`. A package integrate
 [xtr-dependency-injection](packages/xtr-dependency-injection) through a bundle under
 `src/xtr_<name>/bundle/`. Neither the container nor any other xtr package it integrates with
 is a dependency: each is in the dev group for the tests, and the integration is used when the
-application installs it. Extras are only for third-party backends.
+application installs it. Extras are only for third-party backends — and for a transport package
+an application would otherwise add by hand, as `xtr-messenger[orm]` brings xtr-orm-messenger.
 
 #### Directory template
 

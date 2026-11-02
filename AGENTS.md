@@ -49,6 +49,11 @@ say so before falling back to anything else.
       the other way round: `xtr-security-jwt`'s `JwtBundle` requires the security bundle and
       registers its authenticator into it through the bundle's extension points. The family's
       bundle does not know the add-on exists.
+    - A bridge that plugs one library into another, and needs services only the second
+      library's bundle holds, ships no bundle: that bundle wires it when the bridge is installed,
+      checking with `importlib.util.find_spec` and keeping the bridge in its dev group only.
+      `xtr-orm-messenger` is one — the orm bundle registers its transport factory, built on the
+      orm's connections, when the messenger bundle is active too.
     - A contracts package never ships a bundle.
   - When another library must depend on the interface without pulling the implementation, the
     interfaces live in a companion package `xtr-<name>-contracts`.
