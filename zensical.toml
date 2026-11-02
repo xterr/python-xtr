@@ -149,6 +149,7 @@ modules = [
   "packages/xtr-messenger/src/xtr_messenger",
   "packages/xtr-notifier/src/xtr_notifier",
   "packages/xtr-orm/src/xtr_orm",
+  "packages/xtr-orm-messenger/src/xtr_orm_messenger",
   "packages/xtr-password-hasher/src/xtr_password_hasher",
   "packages/xtr-rate-limiter/src/xtr_rate_limiter",
   "packages/xtr-recipes/src/xtr_recipes",
