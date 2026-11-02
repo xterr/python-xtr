@@ -1,0 +1,140 @@
+from __future__ import annotations
+
+import pytest
+from xtr_clock import MockClock
+from xtr_mime import Headers, Message, TextPart
+
+from tests.support.scripted_transport import ScriptedTransport
+from xtr_mailer import LogicError, TransportError
+from xtr_mailer.transport import FailoverTransport, RoundRobinTransport
+
+pytestmark = pytest.mark.anyio
+
+
+def _email() -> Message:
+    headers = Headers()
+    _ = headers.add_mailbox_list_header("From", ["from@example.com"])
+    _ = headers.add_mailbox_list_header("To", ["to@example.com"])
+    return Message(headers, TextPart("..."))
+
+
+def _failure() -> TransportError:
+    return TransportError("down")
+
+
+def test_it_takes_turns_only_when_a_transport_fails() -> None:
+    assert isinstance(FailoverTransport([ScriptedTransport("t1")]), RoundRobinTransport)
+
+
+def test_it_refuses_to_have_no_transport() -> None:
+    with pytest.raises(TransportError) as caught:
+        _ = FailoverTransport([])
+
+    assert str(caught.value) == (
+        '"xtr_mailer.transport.FailoverTransport" must have at least one transport configured.'
+    )
+
+
+def test_it_is_named_after_its_transports() -> None:
+    transport = FailoverTransport(
+        [ScriptedTransport("t1://local"), ScriptedTransport("t2://local")]
+    )
+
+    assert str(transport) == "failover(t1://local t2://local)"
+
+
+async def test_the_first_transport_takes_every_email_while_it_works() -> None:
+    t1, t2 = ScriptedTransport("t1"), ScriptedTransport("t2")
+    transport = FailoverTransport([t1, t2])
+
+    for _ in range(3):
+        _ = await transport.send(_email())
+
+    assert len(t1.sent) == 3
+    assert t2.received == []
+
+
+async def test_it_fails_once_every_transport_failed() -> None:
+    t1, t2 = ScriptedTransport("t1", [_failure()]), ScriptedTransport("t2", [_failure()])
+    transport = FailoverTransport([t1, t2])
+
+    with pytest.raises(TransportError) as caught:
+        _ = await transport.send(_email())
+
+    assert str(caught.value) == "All transports failed."
+    assert [len(t1.received), len(t2.received)] == [1, 1]
+
+
+async def test_the_next_transport_takes_over_from_a_failed_one() -> None:
+    t1, t2 = ScriptedTransport("t1", [_failure()]), ScriptedTransport("t2")
+    transport = FailoverTransport([t1, t2], clock=MockClock())
+
+    for _ in range(3):
+        _ = await transport.send(_email())
+
+    assert len(t1.received) == 1
+    assert len(t2.sent) == 3
+
+
+async def test_a_dead_transport_takes_over_again_once_its_retry_period_is_over() -> None:
+    clock = MockClock()
+    t1 = ScriptedTransport("t1", [_failure()])
+    t2 = ScriptedTransport("t2", [None, None, None, _failure()])
+    transport = FailoverTransport([t1, t2], 6, clock=clock)
+    _ = await transport.send(_email())  # t1 fails, t2
+    for _ in range(3):  # t2, t2, then t2 fails and t1 is back after 12 seconds
+        clock.sleep(4)
+        _ = await transport.send(_email())
+
+    clock.sleep(4)
+    last = await transport.send(_email())
+
+    assert len(t2.sent) == 3
+    assert len(t1.sent) == 2
+    assert t1.sent[-1] == last
+
+
+async def test_it_fails_while_the_dead_transports_are_within_their_retry_period() -> None:
+    clock = MockClock()
+    t1 = ScriptedTransport("t1", [_failure(), _failure()])
+    t2 = ScriptedTransport("t2", [None, None, _failure()])
+    transport = FailoverTransport([t1, t2], 40, clock=clock)
+    _ = await transport.send(_email())
+    clock.sleep(4)
+    _ = await transport.send(_email())
+    clock.sleep(4)
+
+    with pytest.raises(TransportError) as caught:
+        _ = await transport.send(_email())
+
+    assert str(caught.value) == "All transports failed."
+    assert len(t1.received) == 1
+
+
+async def test_a_recovered_transport_takes_over_when_the_current_one_fails() -> None:
+    clock = MockClock()
+    t1 = ScriptedTransport("t1", [_failure()])
+    t2 = ScriptedTransport("t2", [None, None, _failure()])
+    transport = FailoverTransport([t1, t2], 1, clock=clock)
+    _ = await transport.send(_email())
+    clock.sleep(1)
+    _ = await transport.send(_email())
+    clock.sleep(1)
+
+    last = await transport.send(_email())
+
+    assert t1.sent == [last]
+
+
+async def test_an_error_other_than_a_transport_failure_does_not_move_on() -> None:
+    error = LogicError("broken email")
+    t1, t2 = ScriptedTransport("t1", [error]), ScriptedTransport("t2")
+    transport = FailoverTransport([t1, t2])
+
+    with pytest.raises(LogicError) as caught:
+        _ = await transport.send(_email())
+    sent = await transport.send(_email())
+
+    assert caught.value is error
+    assert t1.sent == [sent]
+    assert t2.received == []
