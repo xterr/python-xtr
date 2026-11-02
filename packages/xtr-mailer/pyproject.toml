@@ -92,9 +92,9 @@ reportImplicitStringConcatenation = "none"
 
 # Envelope.create() builds the delayed envelope, which derives from Envelope.
 # The import is deferred, so no cycle exists at runtime — only in the static
-# graph.
+# graph, where it is reported on the delayed envelope's module alone.
 [[tool.basedpyright.executionEnvironments]]
-root = "src/xtr_mailer"
+root = "src/xtr_mailer/_delayed_envelope.py"
 reportImportCycles = "none"
 
 # Tests check state a class keeps to itself, for the same reason ruff's
