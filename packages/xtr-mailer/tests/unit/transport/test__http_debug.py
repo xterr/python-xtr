@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import time
-
 import pytest
 
+from tests.support.growth import assert_linear_growth
 from xtr_mailer.transport._http_debug import http_debug
 
 
@@ -150,7 +149,6 @@ def test_a_long_line_of_an_answer_is_cut_short() -> None:
     assert debug.endswith("< X-Long: " + "a" * 992 + "…\n")
 
 
-@pytest.mark.parametrize("size", [100_000, 1_000_000], ids=["100KB", "1MB"])
 @pytest.mark.parametrize(
     "unit",
     [
@@ -165,15 +163,13 @@ def test_a_long_line_of_an_answer_is_cut_short() -> None:
     ],
 )
 @pytest.mark.parametrize("end", ["", "://h/"], ids=["no-url", "url-at-the-end"])
-def test_a_long_header_value_is_logged_in_linear_time(size: int, unit: str, end: str) -> None:
-    line = "X-Echo: " + unit * (size // len(unit)) + end
+def test_a_long_header_value_is_logged_in_linear_time(unit: str, end: str) -> None:
+    def logged(size: int) -> str:
+        line = "X-Echo: " + unit * (size // len(unit)) + end
+        return http_debug(_info("https://api.example.com/", "HTTP/1.1 200 OK", line))
 
-    started = time.perf_counter()
-    debug = http_debug(_info("https://api.example.com/", "HTTP/1.1 200 OK", line))
-    elapsed = time.perf_counter() - started
-
-    assert debug.endswith("…\n")
-    assert elapsed < 0.05
+    assert logged(1_000_000).endswith("…\n")
+    assert_linear_growth(logged, 250_000)
 
 
 def test_a_url_that_cannot_be_read_is_not_shown() -> None:

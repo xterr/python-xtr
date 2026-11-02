@@ -1,8 +1,11 @@
-"""What the builder does with a DSN written to break it: refuses it, fast, keeping secrets."""
+"""What the builder does with a DSN written to break it: refuses it, fast, keeping secrets.
+
+Fast means in time growing with the DSN's length, never with its square: each hostile shape is
+read at a quarter of a megabyte and at a megabyte (see :mod:`tests.support.growth`).
+"""
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -11,23 +14,30 @@ from xtr_http_client import MockHttpClient
 from xtr_logging_contracts import AbstractLogger
 
 from tests.support.dummy_transport_factory import DummyTransportFactory
+from tests.support.growth import assert_linear_growth
 from xtr_mailer import MailerError
 from xtr_mailer.transport import Transport, TransportFactoryDiscovery
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
     from xtr_logging_contracts import Context, LevelLike
 
 _MEGABYTE = 1024 * 1024
 _SECRET = "s3cret-pass"
 _USER = "s3cret-user"
-#: Long enough to notice a parser going quadratic on a megabyte; far beyond a linear one.
-_BUDGET_SECONDS = 2.0
-#: Building a hundred thousand transports takes about a second; quadratic would take hours.
-_BUILD_BUDGET_SECONDS = 10.0
 #: The longest message a refusal may carry: it quotes a capped part of the DSN, never all of it.
 _LONGEST_MESSAGE = 200
+
+_HOSTILE: dict[str, Callable[[int], str]] = {
+    "unclosed groups": lambda size: "failover(" * (size // 9),
+    "balanced nesting": lambda size: "failover(" * (size // 20) + "dummy://a" + ")" * (size // 20),
+    "open parentheses": lambda size: "(" * size,
+    "long keyword": lambda size: "k" * size + "(dummy://a)",
+    "long scheme": lambda size: "s" * size + "://a",
+    "long retry period": lambda size: "failover(dummy://a)?retry_period=" + "x" * size,
+    "garbage": lambda size: "dummy://a " + "x " * (size // 2),
+}
 
 
 class _RecordingLogger(AbstractLogger):
@@ -51,10 +61,8 @@ def _chain(error: BaseException) -> Iterator[BaseException]:
 
 
 def _refusal(dsn: str) -> MailerError:
-    started = time.perf_counter()
     with pytest.raises(MailerError) as caught:
         _ = _builder().from_string(dsn)
-    assert time.perf_counter() - started < _BUDGET_SECONDS
     return caught.value
 
 
@@ -144,66 +152,75 @@ def test_an_unknown_keyword_is_shown_as_word_characters_only(keyword: str) -> No
 
 
 def test_a_megabyte_of_unclosed_groups_is_refused_fast() -> None:
-    error = _refusal("failover(" * (_MEGABYTE // 9))
+    error = _refusal(_HOSTILE["unclosed groups"](_MEGABYTE))
 
     assert str(error) == "The mailer DSN must contain a scheme."
 
 
 def test_a_megabyte_of_balanced_nesting_is_refused_fast() -> None:
-    depth = _MEGABYTE // 20
-    error = _refusal("failover(" * depth + "dummy://a" + ")" * depth)
+    error = _refusal(_HOSTILE["balanced nesting"](_MEGABYTE))
 
     assert str(error) == "The mailer DSN nests its transports more than 32 deep."
 
 
 def test_a_megabyte_of_open_parentheses_is_refused_fast() -> None:
-    error = _refusal("(" * _MEGABYTE)
+    error = _refusal(_HOSTILE["open parentheses"](_MEGABYTE))
 
     assert str(error) == "The mailer DSN must contain a scheme."
 
 
 def test_a_megabyte_keyword_is_refused_with_a_short_message() -> None:
-    error = _refusal("k" * _MEGABYTE + "(dummy://a)")
+    error = _refusal(_HOSTILE["long keyword"](_MEGABYTE))
 
     assert str(error).startswith('The "kkk')
     assert len(str(error)) < _LONGEST_MESSAGE
 
 
 def test_a_megabyte_scheme_is_refused_with_a_short_message() -> None:
-    error = _refusal("s" * _MEGABYTE + "://a")
+    error = _refusal(_HOSTILE["long scheme"](_MEGABYTE))
 
     assert str(error).startswith('The "sss')
     assert len(str(error)) < _LONGEST_MESSAGE
 
 
 def test_a_megabyte_retry_period_is_refused_with_a_short_message() -> None:
-    error = _refusal("failover(dummy://a)?retry_period=" + "x" * _MEGABYTE)
+    error = _refusal(_HOSTILE["long retry period"](_MEGABYTE))
 
     assert len(str(error)) < _LONGEST_MESSAGE
 
 
 def test_a_megabyte_of_garbage_is_refused_fast() -> None:
-    error = _refusal("dummy://a " + "x " * (_MEGABYTE // 2))
+    error = _refusal(_HOSTILE["garbage"](_MEGABYTE))
 
     assert str(error) == "The mailer DSN has some garbage at the end."
 
 
-def test_a_megabyte_of_spaces_between_members_is_read_fast() -> None:
-    started = time.perf_counter()
+@pytest.mark.parametrize("build", _HOSTILE.values(), ids=_HOSTILE.keys())
+def test_a_hostile_dsn_is_refused_in_linear_time(build: Callable[[int], str]) -> None:
+    assert_linear_growth(lambda size: _refusal(build(size)), _MEGABYTE // 4)
 
-    _ = _builder().from_string("failover(dummy://a" + " " * _MEGABYTE + "dummy://b)")
 
-    assert time.perf_counter() - started < _BUDGET_SECONDS
+def test_spaces_between_members_are_read_in_linear_time() -> None:
+    builder = _builder()
+
+    assert_linear_growth(
+        lambda size: builder.from_string("failover(dummy://a" + " " * size + "dummy://b)"),
+        _MEGABYTE // 4,
+    )
 
 
 @pytest.mark.parametrize("scheme", ["dummy", "null"], ids=["given factory", "discovered factory"])
-def test_a_megabyte_of_members_is_read_fast(scheme: str) -> None:
+def test_members_are_read_in_linear_time(scheme: str) -> None:
     builder = Transport(
         [DummyTransportFactory(http_client=MockHttpClient())], TransportFactoryDiscovery()
     )
-    started = time.perf_counter()
 
-    built = builder.from_string("roundrobin(" + f"{scheme}://a " * (_MEGABYTE // 10) + ")")
+    assert_linear_growth(
+        lambda size: builder.from_string("roundrobin(" + f"{scheme}://a " * size + ")"), 2_500
+    )
 
-    assert time.perf_counter() - started < _BUILD_BUDGET_SECONDS
+
+def test_a_hundred_thousand_members_are_read() -> None:
+    built = _builder().from_string("roundrobin(" + "dummy://a " * 100_000 + ")")
+
     assert str(built).startswith("roundrobin(")
