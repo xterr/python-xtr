@@ -30,19 +30,9 @@ dependencies = [
     "xtr-orm>=5.0,<6",
 ]
 
-[project.optional-dependencies]
-# Wakes a waiting worker the moment a message is sent, through the database's
-# own notifications, instead of when its poll interval runs out.
-postgres = [
-    "xtr-orm[postgres]>=5.0,<6",
-]
-
-# Advertises the bundle so debug:bundles can name it when installed but not listed.
-# Advertising activates nothing: an application lists the bundles it wants.
-[project.entry-points."xtr_dependency_injection.bundles"]
-orm_messenger = "xtr_orm_messenger.bundle:OrmMessengerBundle"
-
 # Advertises the recipe — what *Use in an application* takes — for recipes:sync.
+# No bundle: with the messenger and orm bundles active, the orm bundle registers
+# the transport factory when this package is installed.
 [project.entry-points."xtr_recipes"]
 orm_messenger = "xtr_orm_messenger.recipe"
 
@@ -56,12 +46,11 @@ dev = [
     "ty>=0.0.83",
     # Every test runs on SQLite files under the test's own directory: no server.
     "aiosqlite>=0.20",
-    "xtr-console>=5.0,<6",
-    "xtr-dependency-injection>=5.0,<6",
-    "xtr-recipes>=5.0,<6",
-    # The envelope serializer the tests encode with is built on it, as the bundle's is.
+    # The PostgreSQL suite, run when XTR_TEST_POSTGRES_URL names a server. An
+    # application's driver is the one its connection already uses.
+    "asyncpg>=0.29",
+    # The envelope serializer the tests encode with is built on it, as the messenger's is.
     "xtr-serializer>=5.0,<6",
-    "xtr-service-contracts>=5.0,<6",
 ]
 
 [build-system]
@@ -129,9 +118,6 @@ fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
-# The bundle registers factory functions whose signatures the container reads
-# at runtime; deferring these would register the factories under nothing.
-"src/xtr_orm_messenger/bundle/*.py" = ["TC001", "TC002", "TC003"]
 "tests/**/*.py" = [
     "S101",     # assert is the point of pytest
     "ARG",      # fixtures look unused

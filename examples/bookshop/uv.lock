@@ -2709,9 +2709,10 @@ requires-dist = [
     { name = "typing-extensions", marker = "extra == 'amqp'", specifier = ">=4.4" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
+    { name = "xtr-orm-messenger", marker = "extra == 'orm'", editable = "../../packages/xtr-orm-messenger" },
     { name = "xtr-serializer", editable = "../../packages/xtr-serializer" },
 ]
-provides-extras = ["amqp"]
+provides-extras = ["amqp", "orm"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2778,6 +2779,7 @@ dev = [
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "../../packages/xtr-logging" },
     { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
+    { name = "xtr-orm-messenger", editable = "../../packages/xtr-orm-messenger" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
 

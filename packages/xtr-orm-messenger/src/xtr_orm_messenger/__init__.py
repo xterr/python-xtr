@@ -18,6 +18,7 @@ from .transport import (
     ORM_OPTIONS,
     ORM_SCHEME,
     Connection,
+    MessagesTableDriver,
     OrmOptions,
     OrmReceivedStamp,
     OrmReceiver,
@@ -26,6 +27,7 @@ from .transport import (
     OrmTransportFactory,
     StoredMessage,
     messages_table,
+    messages_tables,
 )
 
 try:
@@ -42,6 +44,7 @@ __all__ = [
     "ORM_SCHEME",
     "Connection",
     "InvalidOrmDsnError",
+    "MessagesTableDriver",
     "OrmMessengerError",
     "OrmOptions",
     "OrmReceivedStamp",
@@ -53,4 +56,5 @@ __all__ = [
     "TransportError",
     "__version__",
     "messages_table",
+    "messages_tables",
 ]

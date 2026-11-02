@@ -31,11 +31,16 @@ changes they announce if it wants.
 
 ```sh
 uv add xtr-orm-messenger
-uv add "xtr-orm-messenger[postgres]"   # PostgreSQL through asyncpg, notifications included
+uv add "xtr-messenger[orm]"            # the same, from the message bus's side
 ```
 
-It needs [xtr-messenger](../xtr-messenger) and [xtr-orm](../xtr-orm), which come with it; the
-database driver is xtr-orm's extra (`postgres`, `mysql`, `sqlite`).
+It needs [xtr-messenger](../xtr-messenger) and [xtr-orm](../xtr-orm), which come with it. It
+brings no database driver: a transport writes through the connection its DSN names, with the
+driver the application installed for that connection — xtr-orm's `postgres`, `mysql` or
+`sqlite` extra. On PostgreSQL through asyncpg, a waiting worker is woken by notifications; with
+any other driver it polls. It ships no bundle: with a
+container, the [orm bundle](../xtr-orm#message-bus-transport) registers the transport once this
+package is installed.
 
 ## Quick start
 
@@ -69,7 +74,7 @@ await WorkerFactory(config, [factory]).worker(["jobs"]).run()
 ```
 
 The bus writes the message into `messenger_messages`; the worker claims it, hands it to its
-handlers and deletes it. With the [bundle](#kernel--bundle) all of that is wired for you.
+handlers and deletes it. With a [container](#use-in-an-application) all of that is wired for you.
 
 ## How it works
 
@@ -98,6 +103,27 @@ message out again.
 
 A message that does not decode can never be handled, so it is rejected at once, its reason
 logged on the `messenger` logger — never its body.
+
+## The DSN
+
+```sh
+# .env
+MESSENGER_DSN=orm://default
+```
+
+The format is `orm://<connection_name>`: the name of a connection the application configures
+in xtr-orm, for when it has several and the messages go on one other than `default`; `orm://`
+alone is the default connection. The URL, the driver and the pool are the connection's. The
+transport creates a table named `messenger_messages` the first time it runs. To name the table
+otherwise, give `table_name` in the DSN:
+
+```sh
+# .env
+MESSENGER_DSN=orm://default?table_name=your_custom_table_name
+```
+
+The queue a transport reads and writes is `queue` — `?queue=jobs`, or
+`TransportConfig(dsn, queue="jobs")` — the setting every xtr-messenger transport takes for it.
 
 ## Options
 
@@ -148,43 +174,28 @@ refused when longer than `redeliver_timeout`.
 
 ## Use in an application
 
-Everything adding this package to an application on
-[xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
-removing it undoes.
+Everything adding this package to an application takes — and, read backwards, what removing it
+undoes. It ships no bundle: the [orm bundle](../xtr-orm#message-bus-transport) registers the
+transport, built on its connections, when the messenger bundle is active too.
 
-- **Install** — `uv add xtr-orm-messenger`, or `uv add "xtr-orm-messenger[postgres]"` for
-  PostgreSQL through asyncpg, the driver notifications go through. The database the transport
-  writes to is a connection [xtr-orm](../xtr-orm) configures.
-- **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
-  `OrmMessengerBundle`. There is no configuration file, environment variable or ignore line to
-  write; it prints the step naming a transport, which a recipe cannot make for you.
-- **Activate** — `OrmMessengerBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
-  imported from `xtr_orm_messenger.bundle`.
-- **Brings along** — the messenger and the orm bundles, always: the transport is for the one and
-  built on the other.
-- **Configure** — nothing is required: name a transport `orm://default` in the message bus
-  configuration, `<app>/config/packages/messenger.py`, and route messages to it. The transport
-  creates its table the first time it runs. To have `orm:migrations:diff` write the table
-  instead, return `OrmMessengerConfig(migrations_connection="default")` from a `@configure`
-  function in `<app>/config/packages/orm_messenger.py` and turn `auto_setup` off — see
-  [Kernel / bundle](#kernel--bundle).
-- **Environment** — nothing: the DSN names a connection, whose URL the orm reads.
-- **Ignore** — nothing.
-- **Run** — a worker is `<script> messenger:consume <transport>`.
-- **Remove** — drop the `orm://` transports and the routing to them, drop the `BUNDLES` entry and
-  `<app>/config/packages/orm_messenger.py`; a migration dropping the table, if a revision wrote
-  it. Then `uv remove xtr-orm-messenger`.
-- **Check** — `debug:bundles` shows `orm_messenger` as `listed` and `active`, and `messenger` and
-  `orm` as `required`.
+- **Install** — `uv add xtr-orm-messenger`, or `uv add "xtr-messenger[orm]"`, beside
+  [xtr-messenger](../xtr-messenger/README.md#use-in-an-application) and
+  [xtr-orm](../xtr-orm/README.md#use-in-an-application) set up as their *Use in an application*
+  says. The database driver is the connection's own.
+- **Recipe** — `uv run xtr-recipes recipes:sync` writes nothing: there is no bundle to list, no
+  configuration file, environment variable or ignore line. It prints the step naming a
+  transport, which a recipe cannot make for you.
+- **Configure** — name a transport `orm://default` in `<app>/config/packages/messenger.py` and
+  route messages to it, as below.
+- **Run** — `<script> orm:migrations:diff` writes the messages table of every `orm://`
+  transport into its connection's next revision; until it is applied, the transport creates the
+  table the first time it runs, unless `auto_setup=false`. A worker is
+  `<script> messenger:consume <transport>`.
+- **Remove** — drop the `orm://` transports and the routing to them, and a migration dropping
+  the table. Then `uv remove xtr-orm-messenger`.
+- **Check** — `debug:config messenger` lists the `orm://` transports.
 
-## Kernel / bundle
-
-```python
-# app/config/bundles.py
-from xtr_orm_messenger.bundle import OrmMessengerBundle
-
-BUNDLES = {OrmMessengerBundle: {"all": True}}
-```
+Everything else — the bundles, the connections, the bus — is xtr-orm's and xtr-messenger's.
 
 ```python
 # app/config/packages/messenger.py
@@ -200,31 +211,14 @@ def messenger() -> MessageBusConfig:
     )
 ```
 
-```python
-# app/config/packages/orm_messenger.py
-from xtr_dependency_injection import configure
-from xtr_orm_messenger.bundle import OrmMessengerConfig
-
-
-@configure
-def orm_messenger() -> OrmMessengerConfig:
-    return OrmMessengerConfig(migrations_connection="default")
-```
-
-The bundle registers `OrmTransportFactory` with the messenger, built on the orm's
+The orm bundle registers `OrmTransportFactory` with the messenger, built on its
 `ConnectionRegistry` and the messenger's envelope serializer, and consulted ahead of the
 factories found by DSN scheme. A bus and every worker of the container share it, and so share
 each transport. When the kernel shuts down, the connections workers listened on are given back.
 
-`OrmMessengerConfig` is a frozen dataclass buildable with no arguments:
-
-| Field | Default | What it sets |
-| --- | --- | --- |
-| `migrations_connection` | `None` | the connection whose migrations write the messages table; `None` maps nothing |
-| `table_name` | `messenger_messages` | the table mapped — the `table_name` the transports use |
-
-Its zero-config path builds and boots with no application configuration and touches no database
-until a transport runs a statement.
+Without a container, `messages_tables(bus_config, connection, default_connection)` names the
+tables the transports of a bus configuration keep on a connection, and `MessagesTableDriver`
+adds one to the `MetaData` a connection's migrations compare with.
 
 ## Errors
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from .connection import LISTING_PAGE_SIZE, Connection
 from .messages_table import messages_table
 from .messages_table_driver import MessagesTableDriver
+from .messages_tables import messages_tables
 from .orm_options import DEFAULT_QUEUE, DEFAULT_TABLE_NAME, ORM_OPTIONS, ORM_SCHEME, OrmOptions
 from .orm_received_stamp import OrmReceivedStamp
 from .orm_receiver import MAX_RETRIES, RECONNECT_TIMEOUT, OrmReceiver
@@ -33,4 +34,5 @@ __all__ = [
     "PostgreSqlNotifier",
     "StoredMessage",
     "messages_table",
+    "messages_tables",
 ]

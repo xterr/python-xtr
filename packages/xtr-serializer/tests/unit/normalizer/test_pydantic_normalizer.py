@@ -150,7 +150,7 @@ from xtr_serializer.normalizer import _adapter_cache as adapter_cache
 from xtr_serializer.normalizer.pydantic_normalizer import PydanticNormalizer
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
     from xtr_serializer.context.context import Context
 
@@ -967,31 +967,58 @@ def test_it_locates_each_error_where_the_data_read_as_json_has_it(
     assert len(raised.value.errors) == 2
 
 
-MANY = 20_000
+MANY = 10_000
+
+
+def _refused_mapping(size: int) -> object:
+    return {f"k{index}": "x" for index in range(size)}
+
+
+def _refused_list(size: int) -> object:
+    return Values(["x"] * size)
+
+
+def _seconds_to_locate_every_refusal(data: object, type_: object, context: Context) -> float:
+    """Return the best of three timings of collecting every refused value of ``data``."""
+    clock = MonotonicClock()
+    best = math.inf
+    for _ in range(3):
+        started = clock.now()
+        with pytest.raises(PartialDenormalizationError):
+            _ = PydanticNormalizer().denormalize(
+                data, type_, context={**context, COLLECT_DENORMALIZATION_ERRORS: True}
+            )
+        best = min(best, (clock.now() - started).total_seconds())
+    return best
 
 
 @pytest.mark.parametrize(
-    ("data", "type_", "context"),
+    ("build", "type_", "context"),
     [
-        ({f"k{index}": "x" for index in range(MANY)}, dict[str, int], {}),
-        ({f"k{index}": "x" for index in range(MANY)}, dict[str, int], {FROM_ATTRIBUTES: True}),
-        (Values(["x"] * MANY), list[int], {FROM_ATTRIBUTES: True}),
+        (_refused_mapping, dict[str, int], {}),
+        (_refused_mapping, dict[str, int], {FROM_ATTRIBUTES: True}),
+        (_refused_list, list[int], {FROM_ATTRIBUTES: True}),
     ],
     ids=["mapping-read-as-json", "mapping-read-from-attributes", "list-read-from-attributes"],
 )
 def test_it_locates_every_refused_value_of_a_large_container_in_linear_time(
-    data: object, type_: object, context: Context
+    build: Callable[[int], object], type_: object, context: Context
 ) -> None:
-    clock = MonotonicClock()
-    started = clock.now()
+    """Twice the values take about twice as long; locating each by scanning would take four.
 
+    Measured against itself rather than against a budget, so the answer is the same on a
+    slow runner and a fast one, and on every Python the package supports.
+    """
     with pytest.raises(PartialDenormalizationError) as raised:
         _ = PydanticNormalizer().denormalize(
-            data, type_, context={**context, COLLECT_DENORMALIZATION_ERRORS: True}
+            build(MANY), type_, context={**context, COLLECT_DENORMALIZATION_ERRORS: True}
         )
-
-    assert clock.now() - started < timedelta(seconds=0.5)
     assert len(raised.value.errors) == MANY
+
+    single = _seconds_to_locate_every_refusal(build(MANY), type_, context)
+    double = _seconds_to_locate_every_refusal(build(2 * MANY), type_, context)
+
+    assert double < 3 * single
 
 
 @pytest.mark.parametrize(

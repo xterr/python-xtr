@@ -1,13 +1,14 @@
 ---
 name: xtr-orm-messenger
-description: How to queue xtr-messenger messages in a database table with xtr-orm-messenger — an orm DSN naming an xtr-orm connection, OrmTransportFactory and its bundle, queues, delays, redelivery of messages a dead worker held, PostgreSQL notifications, sending in the unit of work's transaction, the messages table in migrations, and counting, listing or finding queued messages. Use when an application wants a message queue without a broker, configures an orm transport, routes messages to the database, runs a worker on a table, maps the messenger_messages table into migrations, or tests code that sends through the orm transport.
+description: How to queue xtr-messenger messages in a database table with xtr-orm-messenger — an orm DSN naming an xtr-orm connection, OrmTransportFactory registered by the orm bundle, queues, delays, redelivery of messages a dead worker held, PostgreSQL notifications, sending in the unit of work's transaction, the messages table in migrations, and counting, listing or finding queued messages. Use when an application wants a message queue without a broker, installs xtr-messenger[orm], configures an orm transport, routes messages to the database, runs a worker on a table, migrates the messenger_messages table, or tests code that sends through the orm transport.
 ---
 
 # xtr-orm-messenger
 
 A transport for xtr-messenger whose messages live in a table on a connection xtr-orm
-configures. For buses, routing and workers load the `xtr-messenger` skill; for connections and
-migrations, `xtr-orm`.
+configures. It ships no bundle: with the messenger and orm bundles active, the orm bundle
+registers it once it is installed. For buses, routing and workers load the `xtr-messenger`
+skill; for connections and migrations, `xtr-orm`.
 
 ## Quick reference
 
@@ -16,9 +17,11 @@ migrations, `xtr-orm`.
 - Options (DSN query or `options`) — `table_name` (`messenger_messages`), `redeliver_timeout`
   (`3600` s), `auto_setup` (`true`), `poll_interval` (`1.0` s), `transactional` (`false`),
   `use_notify` (`true`), `check_delayed_interval` / `get_notify_timeout` (`60000` ms).
-- `OrmTransportFactory(registry, serializer, clock=None)` — not discovered by scheme: the
+- `OrmTransportFactory(registry, serializer, clock=None)` — not discovered by scheme: the orm
   bundle registers it with the messenger's envelope serializer, or you pass it to
   `MessageBusFactory` / `WorkerFactory`.
+- Migrations — each connection's migrator adds the table of every `orm://` transport on it, so
+  `orm:migrations:diff` writes it; `messages_tables(bus_config, connection, default)` names them.
 - Settling deletes the row; a row handed out longer than `redeliver_timeout` is claimed again.
 - A `DelayStamp` makes the message due later, rounded up to a whole second.
 
@@ -77,16 +80,15 @@ do not care where messages are kept.
 
 ## Use in an application
 
-1. `uv run xtr-recipes recipes:add xtr-orm-messenger` — or `"xtr-orm-messenger[postgres]"` for
-   PostgreSQL through asyncpg. It lists `OrmMessengerBundle`, which brings the messenger and orm
-   bundles.
+1. With `MessengerBundle` and `OrmBundle` already active, `uv add "xtr-messenger[orm]"`. Nothing
+   to activate: the orm bundle registers the transport. No driver to add either: the transport
+   uses the connection's, notifications included when that driver is asyncpg.
 2. In `<app>/config/packages/messenger.py`, name a transport `orm://default` and route messages
    to it.
-3. Optional: return `OrmMessengerConfig(migrations_connection="default")` from
-   `<app>/config/packages/orm_messenger.py`, add `auto_setup=false` to the DSN, and run
-   `orm:migrations:diff` — the table joins that connection's migrations.
+3. Run `<script> orm:migrations:diff` — the next revision creates the messages table. Add
+   `auto_setup=false` to the DSN to leave the table to the migrations alone.
 4. Run a worker with `<script> messenger:consume <transport>`.
-5. Check with `<script> debug:bundles` — `orm_messenger` active, `messenger` and `orm` required.
+5. Check with `<script> debug:config messenger` — the `orm://` transports are listed.
 
 ## Errors
 
@@ -103,3 +105,4 @@ do not care where messages are kept.
 - Do not rely on `transactional=true` without something committing the unit's session.
 - Do not set `redeliver_timeout` below the time a handler takes, unless it calls `keepalive`.
 - Do not expect notifications through a PostgreSQL driver other than asyncpg: it polls.
+- Do not look for an `OrmMessengerBundle`: there is none; list `OrmBundle` and `MessengerBundle`.
