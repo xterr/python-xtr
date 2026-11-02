@@ -33,6 +33,7 @@ members = [
     "xtr-messenger",
     "xtr-notifier",
     "xtr-orm",
+    "xtr-orm-messenger",
     "xtr-password-hasher",
     "xtr-rate-limiter",
     "xtr-recipes",
@@ -5482,6 +5483,68 @@ dev = [
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+
+[[package]]
+name = "xtr-orm-messenger"
+version = "5.2.1"
+source = { editable = "packages/xtr-orm-messenger" }
+dependencies = [
+    { name = "msgspec" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-messenger" },
+    { name = "xtr-orm" },
+]
+
+[package.optional-dependencies]
+postgres = [
+    { name = "xtr-orm", extra = ["postgres"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "aiosqlite" },
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-console" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-recipes" },
+    { name = "xtr-serializer" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "msgspec", specifier = ">=0.18" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.41" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-orm", editable = "packages/xtr-orm" },
+    { name = "xtr-orm", extras = ["postgres"], marker = "extra == 'postgres'", editable = "packages/xtr-orm" },
+]
+provides-extras = ["postgres"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "aiosqlite", specifier = ">=0.20" },
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-recipes", editable = "packages/xtr-recipes" },
+    { name = "xtr-serializer", editable = "packages/xtr-serializer" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 

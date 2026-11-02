@@ -34,6 +34,7 @@ xtr-maker                = { workspace = true }
 xtr-messenger            = { workspace = true }
 xtr-notifier             = { workspace = true }
 xtr-orm                  = { workspace = true }
+xtr-orm-messenger        = { workspace = true }
 xtr-password-hasher      = { workspace = true }
 xtr-rate-limiter         = { workspace = true }
 xtr-recipes              = { workspace = true }
