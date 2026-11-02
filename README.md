@@ -40,6 +40,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
 | [xtr-maker](packages/xtr-maker) | Console commands that write application code for the xtr libraries, refusing a file that already exists. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
+| [xtr-amqp-messenger](packages/xtr-amqp-messenger) | A RabbitMQ transport for xtr-messenger: queues on an AMQP broker, a retry ladder, delays and real dead-lettering, through taskiq. |
 | [xtr-notifier](packages/xtr-notifier) | Notifications sent to chat, SMS and push channels — picked by the notification or its importance — through any provider configured by DSN, directly or through the message bus. |
 | [xtr-telegram-notifier](packages/xtr-telegram-notifier) | Telegram for xtr-notifier: chat messages posted, edited and answered through a bot, with keyboards, media and file uploads. |
 | [xtr-slack-notifier](packages/xtr-slack-notifier) | Slack for xtr-notifier: chat messages posted, scheduled and updated in a channel, laid out with Block Kit blocks. |
@@ -127,6 +128,8 @@ graph LR
     ormmessenger --> orm
     ormmessenger --> clock
     messenger -. optional .-> ormmessenger
+    amqpmessenger[xtr-amqp-messenger] --> messenger
+    messenger -. optional .-> amqpmessenger
     ratelimiter[xtr-rate-limiter] --> clock
     ratelimiter --> eventcon
     ratelimiter -. optional .-> cachecon
@@ -346,7 +349,8 @@ starting with the package's one-line pitch, and a `LICENSE`. A package integrate
 `src/xtr_<name>/bundle/`. Neither the container nor any other xtr package it integrates with
 is a dependency: each is in the dev group for the tests, and the integration is used when the
 application installs it. Extras are only for third-party backends — and for a transport package
-an application would otherwise add by hand, as `xtr-messenger[orm]` brings xtr-orm-messenger.
+an application would otherwise add by hand, as `xtr-messenger[orm]` brings xtr-orm-messenger and
+`xtr-messenger[amqp]` xtr-amqp-messenger.
 
 #### Directory template
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 from aio_pika.abc import ExchangeType
-
 from xtr_messenger import InvalidTransportOptionError
-from xtr_messenger.bridge.amqp.exchange_options import ExchangeOptions
+
+from xtr_amqp_messenger.transport.exchange_options import ExchangeOptions
 
 
 def test_the_defaults() -> None:

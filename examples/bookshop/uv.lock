@@ -2116,6 +2116,40 @@ wheels = [
 ]
 
 [[package]]
+name = "xtr-amqp-messenger"
+version = "5.2.1"
+source = { editable = "../../packages/xtr-amqp-messenger" }
+dependencies = [
+    { name = "aio-pika" },
+    { name = "anyio" },
+    { name = "taskiq" },
+    { name = "taskiq-aio-pika" },
+    { name = "typing-extensions" },
+    { name = "xtr-messenger" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aio-pika", specifier = ">=9.4" },
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "taskiq", specifier = ">=0.12.4" },
+    { name = "taskiq-aio-pika", specifier = ">=0.6.0" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-recipes", editable = "../../packages/xtr-recipes" },
+    { name = "xtr-serializer", editable = "../../packages/xtr-serializer" },
+]
+
+[[package]]
 name = "xtr-cache"
 version = "5.2.1"
 source = { editable = "../../packages/xtr-cache" }
@@ -2692,21 +2726,13 @@ dependencies = [
 
 [package.optional-dependencies]
 amqp = [
-    { name = "aio-pika" },
-    { name = "anyio" },
-    { name = "taskiq" },
-    { name = "taskiq-aio-pika" },
-    { name = "typing-extensions" },
+    { name = "xtr-amqp-messenger" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "aio-pika", marker = "extra == 'amqp'", specifier = ">=9.4" },
-    { name = "anyio", marker = "extra == 'amqp'", specifier = ">=4.0" },
-    { name = "taskiq", marker = "extra == 'amqp'", specifier = ">=0.12.4" },
-    { name = "taskiq-aio-pika", marker = "extra == 'amqp'", specifier = ">=0.6.0" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "typing-extensions", marker = "extra == 'amqp'", specifier = ">=4.4" },
+    { name = "xtr-amqp-messenger", marker = "extra == 'amqp'", editable = "../../packages/xtr-amqp-messenger" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
     { name = "xtr-orm-messenger", marker = "extra == 'orm'", editable = "../../packages/xtr-orm-messenger" },
@@ -2716,15 +2742,14 @@ provides-extras = ["amqp", "orm"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "aio-pika", specifier = ">=9.4" },
     { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "taskiq", specifier = ">=0.12.4" },
-    { name = "taskiq-aio-pika", specifier = ">=0.6.0" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-amqp-messenger", editable = "../../packages/xtr-amqp-messenger" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },

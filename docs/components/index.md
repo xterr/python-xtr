@@ -47,6 +47,7 @@ To use a package alone, install it with `uv add` and read its README.
 | Package | What it does | API |
 |---|---|---|
 | [xtr-messenger](https://github.com/xterr/python-xtr/tree/main/packages/xtr-messenger) | A message bus with envelopes, stamps, a chain of middleware and transports. | [API](https://xterr.github.io/python-xtr/api/xtr_messenger/) |
+| [xtr-amqp-messenger](https://github.com/xterr/python-xtr/tree/main/packages/xtr-amqp-messenger) | A message bus transport on a RabbitMQ broker. | [API](https://xterr.github.io/python-xtr/api/xtr_amqp_messenger/) |
 | [xtr-scheduler](https://github.com/xterr/python-xtr/tree/main/packages/xtr-scheduler) | Recurring messages on the message bus, with cron and periodic triggers. | [API](https://xterr.github.io/python-xtr/api/xtr_scheduler/) |
 | [xtr-event-dispatcher](https://github.com/xterr/python-xtr/tree/main/packages/xtr-event-dispatcher) | Sends events to listeners and subscribers by priority. A listener can stop the event. | [API](https://xterr.github.io/python-xtr/api/xtr_event_dispatcher/) |
 | [xtr-remote-event](https://github.com/xterr/python-xtr/tree/main/packages/xtr-remote-event) | Events from other systems, as one value type, sent to the consumer of their source. | [API](https://xterr.github.io/python-xtr/api/xtr_remote_event/) |

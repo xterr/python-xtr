@@ -1,0 +1,19 @@
+# The recipe for xtr-amqp-messenger: what *Use in an application* in the README
+# takes, as data. Keep the two in step — the README is the source.
+#
+# No [bundles] and no [files]: the package ships no bundle — the message bus finds
+# its factory by the DSN scheme — and the bus configuration is the messenger's.
+# No [env]: the messenger's recipe already writes MESSENGER_DSN, a RabbitMQ one.
+
+[gitignore]
+# Nothing: messages live on the broker.
+lines = []
+
+[notes]
+steps = [
+  "Enable the rabbitmq_delayed_message_exchange plugin on the broker MESSENGER_DSN points at, for delays and retry backoff, or add delayed_message_exchange_plugin=false to the DSN.",
+]
+check = [
+  "<script> debug:config messenger — the amqp:// transports are listed",
+]
+run = ["<script> messenger:consume <transport>"]

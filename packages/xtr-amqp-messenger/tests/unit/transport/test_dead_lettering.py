@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, cast, final
 import pytest
 from taskiq import InMemoryBroker
 from taskiq_aio_pika import AioPikaBroker
-
-from xtr_messenger.bridge.amqp.dead_lettering import publish_dead_letter
 from xtr_messenger.exception import MessageBusError
+
+from xtr_amqp_messenger.transport.dead_lettering import publish_dead_letter
 
 if TYPE_CHECKING:
     from aio_pika.abc import AbstractChannel
