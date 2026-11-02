@@ -15,7 +15,8 @@ if TYPE_CHECKING:
 __all__ = ["UnsupportedSchemeError"]
 
 #: The provider libraries published alongside this one, by the scheme they serve. A scheme
-#: listed here whose library is absent is a missing install, and the error says what to add.
+#: listed here whose library is absent is a missing install, and the error names the extra of
+#: this package, called after the provider, that brings it.
 _SCHEME_TO_DISTRIBUTION: Mapping[str, str] = {
     "mailgun": "xtr-mailgun-mailer",
 }
@@ -26,8 +27,9 @@ class UnsupportedSchemeError(LogicError):
 
     The common cause is a provider library that is not installed, so a scheme
     a first-party provider library serves is answered with the command that
-    installs it. Any other scheme is answered with the schemes that are
-    supported, when the caller knows them. The message names the scheme only:
+    installs it — this package's extra named after the provider, quoted so a
+    shell does not read its brackets. Any other scheme is answered with the
+    schemes that are supported, when the caller knows them. The message names the scheme only:
     never the DSN, which carries credentials — and shows it escaped and cut short, as it is
     whatever the application's configuration says.
 
@@ -60,7 +62,7 @@ class UnsupportedSchemeError(LogicError):
         if package is not None and not _installed(package):
             super().__init__(
                 f'Unable to send emails via "{provider}" as the bridge is not installed. '
-                f'Try running "uv add {package}".'
+                f'Try running: uv add "xtr-mailer[{provider}]".'
             )
             return
         message = f'The "{shown(scheme)}" scheme is not supported'

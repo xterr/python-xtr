@@ -5295,17 +5295,8 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-console = [
-    { name = "xtr-console" },
-]
 dkim = [
     { name = "xtr-mime", extra = ["dkim"] },
-]
-messenger = [
-    { name = "xtr-messenger" },
-]
-rate-limiter = [
-    { name = "xtr-rate-limiter" },
 ]
 smime = [
     { name = "xtr-mime", extra = ["smime"] },
@@ -5320,6 +5311,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "xtr-console" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-http-client" },
@@ -5332,18 +5324,15 @@ requires-dist = [
     { name = "aiosmtplib", specifier = ">=5.1,<6" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
-    { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
-    { name = "xtr-messenger", marker = "extra == 'messenger'", editable = "packages/xtr-messenger" },
     { name = "xtr-mime", editable = "packages/xtr-mime" },
     { name = "xtr-mime", extras = ["dkim"], marker = "extra == 'dkim'", editable = "packages/xtr-mime" },
     { name = "xtr-mime", extras = ["smime"], marker = "extra == 'smime'", editable = "packages/xtr-mime" },
-    { name = "xtr-rate-limiter", marker = "extra == 'rate-limiter'", editable = "packages/xtr-rate-limiter" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
-provides-extras = ["messenger", "rate-limiter", "console", "dkim", "smime"]
+provides-extras = ["dkim", "smime"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -5354,6 +5343,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },

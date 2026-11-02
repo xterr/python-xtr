@@ -188,13 +188,13 @@ def test_it_refuses_a_scheme_nothing_serves_naming_only_the_scheme() -> None:
     assert str(caught.value) == 'The "other" scheme is not supported.'
 
 
-def test_it_names_the_library_to_install_for_a_known_provider() -> None:
+def test_it_names_the_extra_to_install_for_a_known_provider() -> None:
     with pytest.raises(UnsupportedSchemeError) as caught:
         _ = Transport.from_dsn("mailgun+api://KEY:DOMAIN@default")
 
     assert str(caught.value) == (
         'Unable to send emails via "mailgun" as the bridge is not installed. '
-        'Try running "uv add xtr-mailgun-mailer".'
+        'Try running: uv add "xtr-mailer[mailgun]".'
     )
     assert "KEY" not in str(caught.value)
     assert "DOMAIN" not in str(caught.value)

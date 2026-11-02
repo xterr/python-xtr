@@ -20,9 +20,9 @@ def test_it_is_a_logic_error_of_this_package() -> None:
     assert issubclass(UnsupportedSchemeError, MailerError)
 
 
-@pytest.mark.parametrize(("scheme", "distribution"), [("mailgun", "xtr-mailgun-mailer")])
-def test_it_names_the_library_to_install_for_a_known_scheme(
-    scheme: str, distribution: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("scheme", ["mailgun"])
+def test_it_names_the_extra_to_install_for_a_known_scheme(
+    scheme: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(module, "_installed", _absent)
 
@@ -30,7 +30,7 @@ def test_it_names_the_library_to_install_for_a_known_scheme(
 
     assert str(error) == (
         f'Unable to send emails via "{scheme}" as the bridge is not installed. '
-        f'Try running "uv add {distribution}".'
+        f'Try running: uv add "xtr-mailer[{scheme}]".'
     )
 
 

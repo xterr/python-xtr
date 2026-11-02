@@ -40,12 +40,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Queue email on the message bus instead of sending it where it is made.
-messenger = ["xtr-messenger>=5.0,<6"]
-# Cap how often a transport sends, with a limiter named per transport.
-rate-limiter = ["xtr-rate-limiter>=5.0,<6"]
-# Send a test email from the command line.
-console = ["xtr-console>=5.0,<6"]
 # Sign outgoing email with DKIM.
 dkim = ["xtr-mime[dkim]>=5.0,<6"]
 # Sign and encrypt outgoing email with S/MIME.
@@ -73,6 +67,8 @@ dev = [
     "xtr-messenger>=5.0,<6",
     # The rate-limiting tests cap a transport with a real limiter.
     "xtr-rate-limiter>=5.0,<6",
+    # The command that sends a test email is written against it.
+    "xtr-console>=5.0,<6",
     # The TLS tests generate the certificate the scripted SMTP server presents.
     "cryptography>=45",
 ]
