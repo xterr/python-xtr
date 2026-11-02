@@ -10,6 +10,7 @@ from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_logging_contracts import NullLogger
 
+from xtr_mailer._error_text import type_name
 from xtr_mailer.envelope import Envelope
 from xtr_mailer.event import FailedMessageEvent, MessageEvent, SentMessageEvent
 from xtr_mailer.exception import LogicError
@@ -42,9 +43,14 @@ class AbstractTransport(TransportInterface, ABC):
     included, since the email is rendered once, for the send, and a listener recording failures
     must hear of one it cannot be rendered for.
 
+    A cancelled send — a timeout, a cancel scope, a cancelled task — dispatches neither of the
+    last two: the email was neither sent nor refused, and whether it reached the server is
+    unknown.
+
     Two caps on the pace, both off until set: :meth:`set_max_per_second` spaces the sends out
     by waiting on the clock after each, and :meth:`set_rate_limiter_factory` refuses an email
-    once a limiter has no token left for it.
+    once a limiter has no token left for it. A cancelled send counts towards the pace but waits
+    for nothing: the caller that cancelled it is not held up for the next one's turn.
     """
 
     def __init__(
@@ -102,9 +108,16 @@ class AbstractTransport(TransportInterface, ABC):
         factory = self._rate_limiter_factory
         limiter = None if factory is None else factory.create()
         try:
-            return await self._send_announced(message, envelope, limiter)
-        finally:
+            sent = await self._send_announced(message, envelope, limiter)
+        except Exception:
             await self._throttle()
+            raise
+        # Cancelled or interrupted, which no Exception is: count the send, wait for nothing.
+        except BaseException:
+            self._last_sent = self._clock.now().timestamp()
+            raise
+        await self._throttle()
+        return sent
 
     @abstractmethod
     async def _do_send(self, message: SentMessage) -> None:
@@ -156,7 +169,7 @@ class AbstractTransport(TransportInterface, ABC):
             and RemoteTemplateTransportInterface not in type(self).__mro__
         ):
             raise LogicError(
-                f'The "{type(self).__name__}" transport does not support sending emails rendered '
+                f'The "{type_name(type(self))}" transport does not support sending emails rendered '
                 "from a remote template."
             )
 

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, final
 from typing_extensions import override
 from xtr_mime import Message
 
-from xtr_mailer._error_text import shown
+from xtr_mailer._error_text import shown, type_name
 from xtr_mailer.exception import InvalidArgumentError, LogicError
 
 from .transport_interface import TransportInterface
@@ -32,7 +32,7 @@ class Transports(TransportInterface):
     An email goes to the first transport, in configuration order, unless an ``X-Transport``
     header names another. The header is taken off the email before it goes — it is an
     instruction to this class, not something a recipient should see — and put back if the
-    send fails, so the email can be sent again as it was.
+    send fails or is cancelled, so the email can be sent again as it was.
     """
 
     __slots__ = ("_default", "_transports")
@@ -46,7 +46,7 @@ class Transports(TransportInterface):
         self._transports: dict[str, TransportInterface] = dict(transports)
         if not self._transports:
             raise LogicError(
-                '"xtr_mailer.transport.Transports" must have at least one transport configured.'
+                f'"{type_name(Transports)}" must have at least one transport configured.'
             )
         self._default: TransportInterface = next(iter(self._transports.values()))
 
@@ -59,7 +59,8 @@ class Transports(TransportInterface):
         Raises:
             InvalidArgumentError: The header names a transport there is none of; the email is
                 left as it was.
-            Exception: Whatever the transport raised, once the header is put back.
+            BaseException: Whatever the transport raised, or the cancellation that stopped
+                it, once the header is put back.
         """
         headers = message.get_headers() if isinstance(message, Message) else None
         if headers is None or not headers.has(_HEADER):
@@ -76,7 +77,9 @@ class Transports(TransportInterface):
         headers.remove(_HEADER)
         try:
             return await transport.send(message, envelope)
-        except Exception:
+        # A cancellation is not an Exception: it must put the header back too, or a retry of
+        # the cancelled email silently goes to the default transport. Nothing here awaits.
+        except BaseException:
             for header in removed:
                 _ = headers.add(header)
             raise

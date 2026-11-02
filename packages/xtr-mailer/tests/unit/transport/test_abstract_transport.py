@@ -145,8 +145,8 @@ async def test_a_remote_template_is_refused_by_a_transport_that_cannot_send_one(
         _ = await FakeTransport(EventDispatcher()).send(email)
 
     assert str(caught.value) == (
-        'The "FakeTransport" transport does not support sending emails rendered from a remote '
-        "template."
+        'The "tests.support.fake_transport.FakeTransport" transport does not support sending '
+        "emails rendered from a remote template."
     )
 
 
