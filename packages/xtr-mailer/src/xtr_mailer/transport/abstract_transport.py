@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import copy
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 from xtr_clock import SystemClock
@@ -53,9 +54,14 @@ class AbstractTransport(TransportInterface, ABC):
 
     The pace holds however many tasks send at once: each send takes the next free slot, one
     interval after the slot before it, then waits until its slot comes — sends may still overlap
-    once started, but never start closer together than the pace allows. A slot is taken for
-    good: an email rejected, refused or failing keeps it, and so does a send cancelled while it
-    waits, which leaves its slot unused rather than pulling the later ones forward.
+    once started, but never start closer together than the pace allows. An email rejected,
+    refused or failing keeps its slot. A send cancelled while it waits gives its slot back when
+    no live send holds a later one, together with every slot of a cancelled send just before
+    it, so a cancelled burst leaves the transport free from the slot after the last live send;
+    a slot ahead of a live send's stays unused, rather than pulling the later ones forward.
+
+    Thread safety: one event loop. The slots are kept with no lock, so every send through one
+    transport runs on the same event loop.
     """
 
     def __init__(
@@ -76,6 +82,7 @@ class AbstractTransport(TransportInterface, ABC):
         self._clock: ClockInterface = clock if clock is not None else SystemClock()
         self._rate: float = 0.0
         self._next_slot: float | None = None
+        self._slots: list[_Slot] = []
         self._rate_limiter_factory: RateLimiterFactoryInterface | None = None
 
     def set_max_per_second(self, rate: float) -> Self:
@@ -85,6 +92,7 @@ class AbstractTransport(TransportInterface, ABC):
         """
         self._rate = max(rate, 0.0)
         self._next_slot = None
+        self._slots = []
         return self
 
     def set_rate_limiter_factory(self, rate_limiter_factory: RateLimiterFactoryInterface) -> Self:
@@ -172,19 +180,53 @@ class AbstractTransport(TransportInterface, ABC):
     async def _wait_for_slot(self) -> None:
         """Take the next slot at the pace :meth:`set_max_per_second` set, and wait for it.
 
-        Reading the next slot and moving it on happen with no await between them, so no other
-        task sending through this transport can take the same slot: on one event loop, that is
-        what a lock would guarantee, without one.
+        Reading the next slot and moving it on — or back, when a cancelled wait gives its slot
+        back — happen with no await between them, so no other task sending through this
+        transport can take the same slot: on one event loop, that is what a lock would
+        guarantee, without one.
         """
         if self._rate == 0:
             return
         now = self._clock.now().timestamp()
-        slot = now if self._next_slot is None else max(now, self._next_slot)
-        self._next_slot = slot + 1 / self._rate
-        wait = slot - now
-        if wait > 0:
-            self._logger.debug(
-                'Email transport "{transport}" sleeps for {seconds} seconds.',
-                {"transport": str(self), "seconds": round(wait, 2)},
-            )
-            await self._clock.sleep_async(wait)
+        slot = _Slot(now if self._next_slot is None else max(now, self._next_slot))
+        self._next_slot = slot.start + 1 / self._rate
+        slots = self._slots
+        slots.append(slot)
+        wait = slot.start - now
+        started = False
+        try:
+            if wait > 0:
+                self._logger.debug(
+                    'Email transport "{transport}" sleeps for {seconds} seconds.',
+                    {"transport": str(self), "seconds": round(wait, 2)},
+                )
+                await self._clock.sleep_async(wait)
+            started = True
+        finally:
+            if started:
+                _started(slots, slot)
+            else:
+                self._give_back(slots, slot)
+
+    def _give_back(self, slots: list[_Slot], slot: _Slot) -> None:
+        """Mark ``slot`` unused, and hand back every unused slot no live send holds one after."""
+        slot.cancelled = True
+        if slots is not self._slots:  # The pace was set afresh while it waited.
+            return
+        while slots and slots[-1].cancelled:
+            self._next_slot = slots.pop().start
+
+
+def _started(slots: list[_Slot], slot: _Slot) -> None:
+    """Drop the slots before ``slot``: a send started in it, so none of them is handed back."""
+    # A send waking late finds its slot dropped by a later one already, and drops nothing.
+    del slots[: next((index for index, each in enumerate(slots) if each is slot), 0)]
+
+
+@final
+@dataclass(eq=False, slots=True)
+class _Slot:
+    """When a send may start, and whether the send waiting for it was cancelled."""
+
+    start: float
+    cancelled: bool = False

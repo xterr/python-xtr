@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
 from typing import TYPE_CHECKING
 
 import anyio
 import pytest
+from anyio.lowlevel import checkpoint
 from typing_extensions import override
 from xtr_mime import Address, Headers, Message, RawMessage, TextPart
 
@@ -113,6 +115,122 @@ async def test_a_send_cancelled_while_waiting_keeps_the_others_spaced() -> None:
             pass
 
     assert transport.times == pytest.approx([0, 1, 1.5])
+
+
+async def test_a_cancelled_burst_gives_its_slots_back() -> None:
+    clock = VirtualClock()
+    transport = _TimedTransport(clock).set_max_per_second(1)
+    burst = anyio.CancelScope()
+
+    async def send_burst() -> None:
+        with burst:
+            async with anyio.create_task_group() as senders:
+                for _ in range(100):
+                    _ = senders.start_soon(transport.send, _MESSAGE, _envelope())
+
+    async def cancel_burst() -> None:
+        await clock.sleep_async(5.5)
+        burst.cancel()
+
+    async def send_after_the_burst() -> None:
+        await clock.sleep_async(6)
+        _ = await transport.send(_MESSAGE, _envelope())
+
+    async with anyio.create_task_group() as group:
+        _ = group.start_soon(send_burst)
+        _ = group.start_soon(cancel_burst)
+        _ = group.start_soon(send_after_the_burst)
+        while await clock.advance():
+            pass
+
+    assert transport.times == pytest.approx([0, 1, 2, 3, 4, 5, 6])
+
+
+async def test_the_last_waiting_send_cancelled_gives_its_slot_to_the_next() -> None:
+    clock = VirtualClock()
+    transport = _TimedTransport(clock).set_max_per_second(2)
+    last = anyio.CancelScope()
+
+    async def send_last() -> None:
+        with last:
+            _ = await transport.send(_MESSAGE, _envelope())
+
+    async def cancel_last_then_send() -> None:
+        await clock.sleep_async(0.25)
+        last.cancel()
+        await checkpoint()  # the cancelled send unwinds before this one takes a slot
+        _ = await transport.send(_MESSAGE, _envelope())
+
+    async with anyio.create_task_group() as group:
+        _ = group.start_soon(transport.send, _MESSAGE, _envelope())
+        _ = group.start_soon(transport.send, _MESSAGE, _envelope())
+        _ = group.start_soon(send_last)
+        await anyio.wait_all_tasks_blocked()
+        _ = group.start_soon(cancel_last_then_send)
+        while await clock.advance():
+            pass
+
+    assert transport.times == pytest.approx([0, 0.5, 1])
+
+
+async def test_cancelled_waits_and_new_sends_never_start_closer_than_the_pace() -> None:
+    clock = VirtualClock()
+    transport = _TimedTransport(clock).set_max_per_second(2)
+    scopes = [anyio.CancelScope() for _ in range(6)]
+
+    async def send_in(scope: anyio.CancelScope) -> None:
+        with scope:
+            _ = await transport.send(_MESSAGE, _envelope())
+
+    async def cancel_and_send(at: float, cancelled: list[int], sends: int) -> None:
+        await clock.sleep_async(at)
+        for index in cancelled:
+            scopes[index].cancel()
+        await checkpoint()
+        async with anyio.create_task_group() as senders:
+            for _ in range(sends):
+                _ = senders.start_soon(transport.send, _MESSAGE, _envelope())
+
+    async with anyio.create_task_group() as group:
+        for scope in scopes:
+            _ = group.start_soon(send_in, scope)
+        await anyio.wait_all_tasks_blocked()
+        _ = group.start_soon(cancel_and_send, 0.75, [5, 4], 2)
+        _ = group.start_soon(cancel_and_send, 1.2, [3, 2], 1)
+        while await clock.advance():
+            pass
+
+    starts = sorted(transport.times)
+    assert len(starts) == 6
+    assert all(later - earlier >= 0.5 - 1e-9 for earlier, later in pairwise(starts))
+
+
+async def test_a_wait_cancelled_after_the_pace_was_set_afresh_gives_nothing_back() -> None:
+    clock = VirtualClock()
+    transport = _TimedTransport(clock).set_max_per_second(1)
+    waiting = anyio.CancelScope()
+
+    async def send_waiting() -> None:
+        with waiting:
+            _ = await transport.send(_MESSAGE, _envelope())
+
+    async def reset_then_cancel() -> None:
+        await clock.sleep_async(0.25)
+        _ = transport.set_max_per_second(1)
+        _ = await transport.send(_MESSAGE, _envelope())
+        waiting.cancel()
+        await checkpoint()
+        _ = await transport.send(_MESSAGE, _envelope())
+
+    async with anyio.create_task_group() as group:
+        _ = group.start_soon(transport.send, _MESSAGE, _envelope())
+        _ = group.start_soon(send_waiting)
+        await anyio.wait_all_tasks_blocked()
+        _ = group.start_soon(reset_then_cancel)
+        while await clock.advance():
+            pass
+
+    assert transport.times == pytest.approx([0, 0.25, 1.25])
 
 
 async def test_concurrent_sends_through_transports_are_paced() -> None:
