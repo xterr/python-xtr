@@ -223,7 +223,8 @@ removing it undoes.
   one, asking every guesser **tagged** for it, and a class subclassing `MimeTypeGuesserInterface`
   is tagged without being told. Extensions the table lacks go in a
   `<app>/config/packages/mime.py` `@configure` function returning `MimeConfig` — see
-  [Kernel / bundle](#kernel--bundle).
+  [Kernel / bundle](#kernel--bundle). They apply to the container's `MimeTypes` service only:
+  a `File` attachment reads `MimeTypes.get_default()`, which the bundle never changes.
 - **Environment** — nothing read from the environment.
 - **Ignore** — nothing: the bundle writes no file into the project.
 - **Remove** — drop the `BUNDLES` entry (`uv run xtr-recipes recipes:remove xtr-mime` does it, and
@@ -246,10 +247,26 @@ It registers:
 
 | Service | Under | Built |
 |---|---|---|
-| `MimeTypes` | `MimeTypesInterface`, `MimeTypeGuesserInterface` | when first asked for; it then becomes `MimeTypes.get_default()`, the table a part naming a file's type reads |
+| `MimeTypes` | `MimeTypesInterface`, `MimeTypeGuesserInterface` | when first asked for; the container's own table, never `MimeTypes.get_default()` |
 | `DefaultHtmlToTextConverter` | `HtmlToTextConverterInterface` | when first asked for |
 
 Nothing is built at boot, and nothing is read from disk until the table is.
+
+A `File` attachment names its type from `MimeTypes.get_default()`, the table the whole process
+shares, not from the container's. To have attachments read the configured table, give each one
+its `content_type`, or make the container's table the process's default yourself — a change to
+every kernel and every caller in the process, which the bundle never makes for you:
+
+```python
+# app/boot/mime_default.py
+from xtr_dependency_injection import Injected, on_boot
+from xtr_mime import MimeTypes
+
+
+@on_boot
+async def share_the_mime_types(mime_types: Injected[MimeTypes]) -> None:
+    MimeTypes.set_default(mime_types)
+```
 
 ```python
 # app/services/attachments.py
@@ -318,8 +335,8 @@ Every error derives from `MimeError`, importable from `xtr_mime` and `xtr_mime.e
 |---|---|
 | `MimeError` | The base: catch it to catch them all |
 | `LogicError` | The library was used in a way that cannot work — an email with no sender or body, an extra not installed, a check on a message that cannot have what it asks about, a tagged service that is not a guesser. Also a `RuntimeError` |
-| `MimeRuntimeError` | Something outside the code failed — a file gone or unreadable, libmagic's database missing, the `ed25519-sha256` DKIM algorithm asked for. Also a `RuntimeError` |
-| `InvalidArgumentError` | A value cannot be used — an unknown charset or DKIM algorithm, an unreadable path, a key that does not open, an S/MIME cipher cryptography cannot use, an extra map the table cannot read. Also a `ValueError` |
+| `MimeRuntimeError` | Something outside the code failed — an S/MIME certificate or key file missing or unreadable, libmagic failing on a file, the `ed25519-sha256` DKIM algorithm asked for. Also a `RuntimeError` |
+| `InvalidArgumentError` | A value cannot be used — a missing or unreadable attachment, DKIM key file or file to guess the type of, an unknown charset or DKIM algorithm, a key that does not open, an S/MIME cipher cryptography cannot use, an extra map the table cannot read. Also a `ValueError` |
 | `RfcComplianceError` | A value breaks the mail standards — an address that is not one, a domain with no ASCII form, a header line over 998 octets. An `InvalidArgumentError` |
 
 ## Known limitations
@@ -370,9 +387,10 @@ Every error derives from `MimeError`, importable from `xtr_mime` and `xtr_mime.e
   takes time growing with the square of the input on markup left unclosed, and loses the text
   after a `<script>` or `<style>` that is never closed. Convert HTML you do not write on one of
   those releases or a later one; every 3.14 release has the fixes.
-- **The bundle's table is the process's default.** Once built, it is what
-  `MimeTypes.get_default()` returns everywhere in the process; two kernels in one process share
-  the last one built.
+- **The configured extra map is the container's alone.** `MimeConfig.extra_map` shapes the
+  container's `MimeTypes` service; a `File` attachment reads `MimeTypes.get_default()`, which
+  the bundle leaves as it is. Pass a `content_type`, or set the default yourself as
+  [Kernel / bundle](#kernel--bundle) shows — process-wide, last kernel to set it wins.
 
 ## Development
 

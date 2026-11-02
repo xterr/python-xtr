@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Final, final
+from typing import ClassVar, Final, final
 
 from typing_extensions import override
 
@@ -12,6 +12,7 @@ __all__ = [
     "CONTAINER_BUILT_ANSWER",
     "AnsweringGuesser",
     "ContainerBuiltGuesser",
+    "CountingGuesser",
     "LookalikeGuesser",
 ]
 
@@ -56,3 +57,21 @@ class LookalikeGuesser:
 
     def guess_mime_type(self, path: str) -> str | None:
         return CONTAINER_BUILT_ANSWER if path else None
+
+
+@final
+class CountingGuesser(MimeTypeGuesserInterface):
+    """Counts how many the container builds — built only when the table holding it is."""
+
+    built: ClassVar[int] = 0
+
+    def __init__(self) -> None:
+        CountingGuesser.built += 1
+
+    @override
+    def is_guesser_supported(self) -> bool:
+        return False
+
+    @override
+    def guess_mime_type(self, path: str) -> str | None:
+        return None if path else CONTAINER_BUILT_ANSWER

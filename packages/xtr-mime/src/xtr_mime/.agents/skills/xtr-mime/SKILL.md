@@ -112,7 +112,9 @@ only where the markup's lines do.
    imported from `xtr_mime.bundle`.
 3. **Brings along** — nothing.
 4. **Configure** — optional: `MimeConfig(extra_map=...)` in a `<app>/config/packages/mime.py`
-   `@configure` function adds extensions the table lacks.
+   `@configure` function adds extensions to the container's table only. A `File` attachment
+   reads `MimeTypes.get_default()`, which the bundle never changes: pass `content_type`, or set
+   the default yourself (process-wide) — [references/application.md](references/application.md).
 5. **Environment** — nothing. **Ignore** — nothing.
 6. **Use** — inject `MimeTypesInterface` (also `MimeTypeGuesserInterface`) and
    `HtmlToTextConverterInterface`. A class subclassing `MimeTypeGuesserInterface` is asked by the

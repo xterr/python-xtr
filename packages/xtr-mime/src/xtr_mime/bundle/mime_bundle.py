@@ -4,9 +4,12 @@ An application listing :class:`MimeBundle` gets a :class:`~xtr_mime.MimeTypes` u
 ``MimeTypesInterface`` and ``MimeTypeGuesserInterface``, asking every service the application or
 another bundle tags :data:`~xtr_mime.bundle.MIME_TYPE_GUESSER_TAG` before it answers from a
 file's extension; a class subclassing ``MimeTypeGuesserInterface`` is tagged without being told.
-The table becomes :meth:`MimeTypes.get_default() <xtr_mime.MimeTypes.get_default>` when it is
-built, so a part naming a file's type reads the same table. It also gets a
-:class:`~xtr_mime.DefaultHtmlToTextConverter` under ``HtmlToTextConverterInterface``.
+It also gets a :class:`~xtr_mime.DefaultHtmlToTextConverter` under
+``HtmlToTextConverterInterface``.
+
+The table is the container's own: building it leaves
+:meth:`MimeTypes.get_default() <xtr_mime.MimeTypes.get_default>`, which a part naming a file's
+type reads, as it was — a container never changes what the whole process shares.
 
 Nothing is built at boot: the table reads the standard library's type table when it is first
 asked for.
@@ -91,7 +94,7 @@ async def _mime_types(
     extra_map: Mapping[str, Sequence[str]],
     guesser_names: Sequence[str],
 ) -> MimeTypes:
-    """Build the table, register its guessers, and make it the process's default one.
+    """Build the table and register its guessers.
 
     Args:
         guessers: The guessers offered to the table, built only when the table is.
@@ -113,5 +116,4 @@ async def _mime_types(
                 f"guesser: it needs is_guesser_supported() and guess_mime_type()"
             )
         table.register_guesser(guesser)
-    MimeTypes.set_default(table)
     return table

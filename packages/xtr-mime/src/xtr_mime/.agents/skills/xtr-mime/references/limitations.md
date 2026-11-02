@@ -19,4 +19,5 @@
   `OneTwo`. Write a converter implementing `HtmlToTextConverterInterface` for anything else.
 - **Old `html.parser`.** Before CPython 3.11.14, 3.12.12 and 3.13.6 unclosed markup is quadratic
   and an unclosed `<script>` hides the rest.
-- **One table per kernel.** The bundle's table becomes the process-wide default once built.
+- **Attachments reading the configured table.** `MimeConfig.extra_map` shapes the container's
+  table; a `File` attachment reads `MimeTypes.get_default()`, which the bundle never sets.

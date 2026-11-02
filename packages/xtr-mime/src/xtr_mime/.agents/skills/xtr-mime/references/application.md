@@ -4,7 +4,7 @@ With `xtr-mime` installed and `MimeBundle` listed, the container holds:
 
 | Service | Under | Built |
 | --- | --- | --- |
-| `MimeTypes` | `MimeTypesInterface`, `MimeTypeGuesserInterface` | when first asked for; it then becomes `MimeTypes.get_default()` for the whole process |
+| `MimeTypes` | `MimeTypesInterface`, `MimeTypeGuesserInterface` | when first asked for; the container's own, never `MimeTypes.get_default()` |
 | `DefaultHtmlToTextConverter` | `HtmlToTextConverterInterface` | when first asked for |
 
 Nothing is built at boot.
@@ -24,6 +24,22 @@ def mime() -> MimeConfig:
 
 `extra_map` maps a `type/subtype` to a sequence of extensions without their leading dot; they
 rank before the standard table's. Anything else is refused with `InvalidArgumentError`.
+
+The map shapes the container's table only. A `File` attachment names its type from
+`MimeTypes.get_default()`, which the bundle leaves alone. Give the attachment a
+`content_type`, or make the container's table the default yourself — process-wide, so every
+kernel and caller in the process then reads it:
+
+```python
+# app/boot/mime_default.py
+from xtr_dependency_injection import Injected, on_boot
+from xtr_mime import MimeTypes
+
+
+@on_boot
+async def share_the_mime_types(mime_types: Injected[MimeTypes]) -> None:
+    MimeTypes.set_default(mime_types)
+```
 
 ## Guessers
 
@@ -85,5 +101,5 @@ async def test_the_mime_bundle_works_unconfigured() -> None:
     await assert_zero_config(MimeBundle)
 ```
 
-Building the table makes it the process's default: a test that builds it puts
-`MimeTypes.set_default(...)` back afterwards if other tests read the default.
+Building the table changes nothing outside the container. Only an application that calls
+`MimeTypes.set_default` itself has to put the earlier default back in tests.
