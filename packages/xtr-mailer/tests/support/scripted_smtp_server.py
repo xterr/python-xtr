@@ -103,11 +103,15 @@ class ScriptedSmtpServer:
         traceback: TracebackType | None,
     ) -> None:
         """Close every connection, then stop listening."""
-        for writer in self._writers:
-            writer.close()
+        self.hang_up()
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
+
+    def hang_up(self) -> None:
+        """Close every open connection, as a server restarting between two emails would."""
+        for writer in self._writers:
+            writer.close()
 
     async def _serve(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self._writers.append(writer)

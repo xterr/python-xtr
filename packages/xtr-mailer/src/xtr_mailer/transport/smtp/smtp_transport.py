@@ -224,8 +224,9 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
         _ = self._client.take_transcript()
 
     async def _start(self) -> None:
-        if self._started:
+        if self._started and self._client.is_connected:
             return
+        self._terminate()  # The server may have hung up since the last email.
         self._log('Email transport "{transport}" starting')
         client = self._client = SmtpClient(self._config)
         try:

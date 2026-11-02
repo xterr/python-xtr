@@ -168,6 +168,18 @@ async def test_a_delayed_verb_is_answered_once_its_delay_is_over() -> None:
     assert elapsed >= 0.2
 
 
+async def test_hanging_up_closes_every_open_connection() -> None:
+    async with ScriptedSmtpServer() as server:
+        reader, writer = await asyncio.open_connection(server.host, server.port)
+        _ = await _reply(reader)
+
+        server.hang_up()
+        rest = await asyncio.wait_for(reader.read(), 2.0)
+        writer.close()
+
+    assert rest == b""
+
+
 async def test_it_switches_to_tls_after_starttls(tmp_path: Path) -> None:
     certificate = make_certificate(tmp_path)
     client_context = ssl.create_default_context(cafile=certificate.cert_path)

@@ -48,6 +48,38 @@ async def test_a_reset_that_loses_the_connection_ends_the_session() -> None:
     assert server.messages == [b"Message 2\r\n"]
 
 
+async def test_a_server_hanging_up_between_emails_is_connected_to_again() -> None:
+    async with ScriptedSmtpServer() as server:
+        transport = smtp_transport(server)
+        _ = await transport.send(raw("Message 1"), envelope())
+        server.hang_up()
+        with anyio.fail_after(2):
+            while transport._client.is_connected:  # noqa: ASYNC110 — the client signals no event when the server hangs up
+                await anyio.sleep(0.01)
+
+        _ = await transport.send(raw("Message 2"), envelope())
+
+    assert len(server.peers) == 2
+    assert server.messages == [b"Message 1\r\n", b"Message 2\r\n"]
+
+
+async def test_a_ping_due_on_a_connection_the_server_closed_opens_a_new_session() -> None:
+    clock = MockClock()
+    async with ScriptedSmtpServer() as server:
+        transport = smtp_transport(server, clock=clock).set_ping_threshold(1)
+        _ = await transport.send(raw("Message 1"), envelope())
+        server.hang_up()
+        with anyio.fail_after(2):
+            while transport._client.is_connected:  # noqa: ASYNC110 — the client signals no event when the server hangs up
+                await anyio.sleep(0.01)
+        clock.sleep(2)
+
+        _ = await transport.send(raw("Message 2"), envelope())
+
+    assert len(server.peers) == 2
+    assert server.messages == [b"Message 1\r\n", b"Message 2\r\n"]
+
+
 async def test_a_refused_ping_opens_a_new_session() -> None:
     clock = MockClock()
     async with ScriptedSmtpServer() as server:
