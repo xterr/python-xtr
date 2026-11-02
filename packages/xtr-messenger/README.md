@@ -54,7 +54,6 @@ uv add xtr-console                             # beside it: the messenger:consum
 | Extra | Brings | For |
 | --- | --- | --- |
 | *(none)* | `xtr-serializer`, `typing-extensions`, `xtr-logging-contracts`, `xtr-event-dispatcher-contracts` | `sync://`, `in-memory://`, the whole core, dataclass and pydantic messages |
-| `taskiq` | `taskiq` | The [taskiq bridge](#transports): publishing and consuming through any taskiq broker |
 | `amqp` | [xtr-amqp-messenger](../xtr-amqp-messenger) — and through it `taskiq`, `taskiq-aio-pika` | `amqp://`: RabbitMQ, with retries and real dead-lettering |
 | `orm` | [xtr-orm-messenger](../xtr-orm-messenger) | `orm://`: messages in a table on an [xtr-orm](../xtr-orm) connection |
 
@@ -699,12 +698,12 @@ The tree encodes what each piece costs to import:
 
 ```
 transport/          nothing    — sync, in_memory, the contracts
-bridge/taskiq/      [taskiq]   — broker-agnostic: publish, consume, bind a bus
+bridge/taskiq/      taskiq     — broker-agnostic: publish, consume, bind a bus
 ```
 
 Everything under `transport/` imports with nothing optional installed; a transport needing a
 driver is a bridge, reachable only once that driver is installed — taskiq for the taskiq bridge,
-which the `taskiq` and `amqp` extras bring. Nothing in this package names a broker driver, so
+which the `amqp` extra brings too. Nothing in this package names a broker driver, so
 the taskiq bridge works installed without aio-pika: beside taskiq, the application adds the
 package of the broker it picks — Redis, NATS — or uses taskiq's in-memory broker. RabbitMQ is a
 package of its own, built on that bridge. Tests enforce all three claims.

@@ -2122,18 +2122,20 @@ source = { editable = "../../packages/xtr-amqp-messenger" }
 dependencies = [
     { name = "aio-pika" },
     { name = "anyio" },
+    { name = "taskiq" },
     { name = "taskiq-aio-pika" },
     { name = "typing-extensions" },
-    { name = "xtr-messenger", extra = ["taskiq"] },
+    { name = "xtr-messenger" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "aio-pika", specifier = ">=9.4" },
     { name = "anyio", specifier = ">=4.0" },
+    { name = "taskiq", specifier = ">=0.12.4" },
     { name = "taskiq-aio-pika", specifier = ">=0.6.0" },
     { name = "typing-extensions", specifier = ">=4.4" },
-    { name = "xtr-messenger", extras = ["taskiq"], editable = "../../packages/xtr-messenger" },
+    { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
 ]
 
 [package.metadata.requires-dev]
@@ -2726,15 +2728,9 @@ dependencies = [
 amqp = [
     { name = "xtr-amqp-messenger" },
 ]
-taskiq = [
-    { name = "anyio" },
-    { name = "taskiq" },
-]
 
 [package.metadata]
 requires-dist = [
-    { name = "anyio", marker = "extra == 'taskiq'", specifier = ">=4.0" },
-    { name = "taskiq", marker = "extra == 'taskiq'", specifier = ">=0.12.4" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-amqp-messenger", marker = "extra == 'amqp'", editable = "../../packages/xtr-amqp-messenger" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
@@ -2742,7 +2738,7 @@ requires-dist = [
     { name = "xtr-orm-messenger", marker = "extra == 'orm'", editable = "../../packages/xtr-orm-messenger" },
     { name = "xtr-serializer", editable = "../../packages/xtr-serializer" },
 ]
-provides-extras = ["taskiq", "amqp", "orm"]
+provides-extras = ["amqp", "orm"]
 
 [package.metadata.requires-dev]
 dev = [

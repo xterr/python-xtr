@@ -32,7 +32,7 @@ uv add xtr-amqp-messenger
 uv add "xtr-messenger[amqp]"   # the same, from the message bus's side
 ```
 
-It brings xtr-messenger with its `taskiq` extra, `taskiq-aio-pika` and `aio-pika`. It ships no
+It brings xtr-messenger, `taskiq`, `taskiq-aio-pika` and `aio-pika`. It ships no
 bundle: the bus finds its factory by the DSN scheme, and the factory needs only the envelope
 serializer, which discovery hands over.
 

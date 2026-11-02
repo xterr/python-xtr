@@ -25,11 +25,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# The broker-agnostic taskiq bridge: publish through, and consume with, any taskiq broker.
-taskiq = [
-    "taskiq>=0.12.4",
-    "anyio>=4.0",
-]
 # RabbitMQ: the transport is its own package, built on the taskiq bridge.
 amqp = [
     "xtr-amqp-messenger>=5.0,<6",

@@ -23,11 +23,11 @@ classifiers = [
 dependencies = [
     "aio-pika>=9.4",
     "anyio>=4.0",
+    "taskiq>=0.12.4",
     "taskiq-aio-pika>=0.6.0",
     "typing-extensions>=4.4",
-    # The broker-agnostic taskiq bridge this transport builds on lives in the
-    # message bus; its extra brings taskiq.
-    "xtr-messenger[taskiq]>=5.0,<6",
+    # The broker-agnostic taskiq bridge this transport builds on lives in the message bus.
+    "xtr-messenger>=5.0,<6",
 ]
 
 # Found by the message bus when a DSN's scheme is amqp or amqps, with no wiring:
