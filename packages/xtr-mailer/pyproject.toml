@@ -106,6 +106,13 @@ reportImplicitStringConcatenation = "none"
 root = "src/xtr_mailer/_delayed_envelope.py"
 reportImportCycles = "none"
 
+# An authenticator logs in through the ESMTP transport, which builds the default
+# authenticators. The transport is imported for typing alone, so no cycle exists at
+# runtime — only in the static graph, where it is reported on the auth package.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/xtr_mailer/transport/smtp/auth"
+reportImportCycles = "none"
+
 # Tests check state a class keeps to itself, for the same reason ruff's
 # SLF001 is off for tests.
 [[tool.basedpyright.executionEnvironments]]
@@ -162,6 +169,7 @@ unfixable = []
     "FBT003",  # a scripted outcome is a value, not a flag
     "S105",    # fake secret literals are test data
     "S106",    # fake secret literals are test data
+    "S107",    # fake secret literals are test data
 ]
 
 [tool.ruff.lint.pydocstyle]

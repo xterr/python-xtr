@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.support.certificates import make_certificate
-from tests.support.scripted_smtp_server import ScriptedSmtpServer
+from tests.support.scripted_smtp_server import STALL, ScriptedSmtpServer
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -127,6 +127,30 @@ async def test_a_stalled_message_is_recorded_but_never_answered() -> None:
         writer.close()
 
     assert server.messages == [b"body\r\n"]
+
+
+async def test_a_scripted_stall_silences_the_server_at_that_line() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["AUTH"] = ["334 VXNlcm5hbWU6", STALL]
+        _, reader, writer = await _talk(server, "AUTH LOGIN")
+        writer.write(b"dXNlcg==\r\n")
+        with pytest.raises(TimeoutError):
+            _ = await asyncio.wait_for(reader.readline(), 0.05)
+        writer.close()
+
+    assert server.commands == ["AUTH LOGIN", "dXNlcg=="]
+
+
+async def test_a_reply_s_surrogates_go_out_as_raw_bytes() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["NOOP"] = ["250 caf\udce9"]
+        reader, writer = await asyncio.open_connection(server.host, server.port)
+        _ = await _reply(reader)
+        writer.write(b"NOOP\r\n")
+        line = await reader.readline()
+        writer.close()
+
+    assert line == b"250 caf\xe9\r\n"
 
 
 async def test_it_switches_to_tls_after_starttls(tmp_path: Path) -> None:

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Final
 
 from xtr_mailer.exception import UnexpectedResponseError
 
@@ -11,13 +12,17 @@ if TYPE_CHECKING:
 
 __all__ = ["render_reply", "unexpected_response"]
 
+_SURROGATE: Final = re.compile("[\ud800-\udfff]")
+
 
 def render_reply(code: int, text: str) -> str:
     """Rebuild a reply from its code and its lines, joined by CRLF.
 
     A reply that could not be parsed has no code (``0`` or less); ``text`` is then
-    what the server sent, and is returned trimmed.
+    what the server sent, and is returned trimmed. Bytes that were not UTF-8 come back
+    as U+FFFD, so the reply can be written anywhere text goes.
     """
+    text = _SURROGATE.sub("\ufffd", text)
     if code <= 0:
         return text.strip()
     lines = text.split("\n")

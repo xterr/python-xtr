@@ -64,13 +64,15 @@ async def test_ehlo_names_the_local_hostname_and_returns_the_capabilities() -> N
         server.capabilities = ["STARTTLS", "AUTH PLAIN login", "SIZE=1000", "BAD_EXT", "8BITMIME"]
         client = await _connected(server)
 
-        capabilities = await client.ehlo()
+        reply = await client.ehlo()
+        capabilities = client.capabilities
 
         assert client.supports_extension("starttls")
         assert not client.supports_extension("SMTPUTF8")
         client.close()
 
     assert server.commands == ["EHLO client.example"]
+    assert reply.startswith("250-localhost\r\n250-STARTTLS\r\n")
     assert capabilities == {
         "STARTTLS": [],
         "AUTH": ["PLAIN", "LOGIN"],
@@ -536,6 +538,13 @@ async def test_a_command_sent_without_a_connection_raises_a_transport_error() ->
         _ = await client.noop()
 
 
+async def test_a_message_body_sent_without_a_connection_raises_a_transport_error() -> None:
+    client = SmtpClient(Config("127.0.0.1", 2525))
+
+    with pytest.raises(TransportError, match="has been closed unexpectedly"):
+        _ = await client.message(b"x")
+
+
 # Authentication
 
 
@@ -587,6 +596,75 @@ async def test_commands_after_an_auth_exchange_are_not_redacted() -> None:
     assert caught.value.debug.startswith("> MAIL FROM:<sender@example.com>\n")
 
 
+async def test_a_password_the_server_echoes_is_scrubbed_from_the_refusal() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["AUTH"] = ["535 5.7.8 Bad password s3cret for AHVzZXIAczNjcmV0"]
+        client = await _connected(server)
+        client.conceal("s3cret")
+
+        with pytest.raises(UnexpectedResponseError) as caught:
+            _ = await client.execute("AUTH PLAIN AHVzZXIAczNjcmV0", [235])
+        client.close()
+
+    assert "s3cret" not in str(caught.value)
+    assert "AHVzZXIAczNjcmV0" not in str(caught.value)
+    assert caught.value.debug == (
+        "> AUTH PLAIN [redacted]\n< 535 5.7.8 Bad password [redacted] for [redacted]\n"
+    )
+
+
+async def test_the_transcript_holds_the_exchanges_since_it_was_last_taken() -> None:
+    async with ScriptedSmtpServer() as server:
+        client = await _connected(server)
+        _ = await client.noop()
+        _ = client.take_transcript()
+
+        _ = await client.rset()
+        transcript = client.take_transcript()
+        client.close()
+
+    assert transcript == "> RSET\n< 250 2.0.0 Ok\n"
+
+
+async def test_a_reply_queued_behind_another_is_pending() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["NOOP"] = ["250 2.0.0 Ok\r\n421 4.4.1 Closing"]
+        client = await _connected(server)
+        pending_before = client.has_pending_data
+
+        _ = await client.noop()
+
+        assert client.has_pending_data
+        client.close()
+
+    assert not pending_before
+    assert not client.has_pending_data
+
+
+async def test_a_reply_that_is_not_utf8_reads_with_replacement_characters() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["NOOP"] = ["550 caf\udce9"]
+        client = await _connected(server)
+
+        with pytest.raises(UnexpectedResponseError) as caught:
+            _ = await client.noop()
+        client.close()
+
+    assert str(caught.value).endswith('with message "550 caf\ufffd".')
+
+
+async def test_a_command_utf8_cannot_write_is_refused_without_quoting_it() -> None:
+    async with ScriptedSmtpServer() as server:
+        client = await _connected(server)
+
+        with pytest.raises(InvalidArgumentError) as caught:
+            _ = await client.execute("AUTH PLAIN \udcff", [235])
+        client.close()
+
+    assert str(caught.value) == "An SMTP command must only hold characters UTF-8 can write."
+    assert server.commands == []
+
+
 # Arguments
 
 
@@ -632,7 +710,8 @@ async def test_starttls_switches_the_connection_to_tls(certificate: Certificate)
         _ = await client.ehlo()
 
         await client.starttls()
-        capabilities = await client.ehlo()
+        _ = await client.ehlo()
+        capabilities = client.capabilities
         client.close()
 
     assert server.tls_upgrades == 1

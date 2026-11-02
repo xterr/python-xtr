@@ -11,7 +11,10 @@ from typing import TYPE_CHECKING, Self, final
 if TYPE_CHECKING:
     from types import TracebackType
 
-__all__ = ["ScriptedSmtpServer"]
+__all__ = ["STALL", "ScriptedSmtpServer"]
+
+STALL = "<stall>"
+"""A scripted reply that is never sent: the server goes silent at that line instead."""
 
 _END_OF_DATA = b".\r\n"
 _END_OF_MESSAGE = b"\r\n.\r\n"
@@ -36,7 +39,9 @@ class ScriptedSmtpServer:
     Every command is answered with its default reply unless :attr:`replies` holds a
     scripted one for its verb; a scripted reply is used once. While an ``AUTH``
     exchange is under way (the last reply was ``334``), every line is answered
-    from the ``AUTH`` script.
+    from the ``AUTH`` script. A scripted :data:`STALL` silences the server at that
+    line; a reply's lone surrogates go out as the raw bytes they stand for, so a
+    reply can carry bytes that are not UTF-8.
 
     Attributes:
         greeting: The first reply; ``None`` keeps the server silent.
@@ -128,10 +133,10 @@ class ScriptedSmtpServer:
             verb = "AUTH" if authenticating else command.partition(" ")[0].upper()
             if verb in self.drop:
                 return
-            if verb in self.stall:
+            reply = STALL if verb in self.stall else self._scripted(verb) or self._default(verb)
+            if reply == STALL:
                 _ = await reader.read()
                 return
-            reply = self._scripted(verb) or self._default(verb)
             await self._send(writer, reply)
             authenticating = verb == "AUTH" and reply.startswith("334")
             match verb:
@@ -211,5 +216,5 @@ class ScriptedSmtpServer:
 
     @staticmethod
     async def _send(writer: asyncio.StreamWriter, reply: str) -> None:
-        writer.write(reply.encode() + b"\r\n")
+        writer.write(reply.encode("utf-8", "surrogateescape") + b"\r\n")
         await writer.drain()

@@ -26,6 +26,7 @@ from xtr_mailer.exception import (
 
 from ._smtp_connection_config import DIGEST_ALGORITHMS
 from ._smtp_reply import render_reply, unexpected_response
+from ._smtp_transcript import REDACTED, SmtpTranscript
 
 if TYPE_CHECKING:
     import socket
@@ -42,7 +43,6 @@ _LINE_ENDINGS: Final = re.compile(rb"\r\n|\r|\n")
 _LEADING_PERIOD: Final = re.compile(rb"(?m)^\.")
 _SERVICE_CLOSING: Final = 421
 _AUTH_CONTINUE: Final = 334
-_REDACTED: Final = "[redacted]"
 _MESSAGE: Final = "[message]"
 _CHUNK_SIZE: Final = 64 * 1024
 _MALFORMED_LINE: Final = "Malformed SMTP response line: "
@@ -57,10 +57,19 @@ class SmtpClient:
     tells a refusal it can recover from (reset, try the next authenticator) from
     a closed channel. A lost or silent connection raises a :class:`TransportError`.
     Either error's ``debug`` holds the failing command and its reply — never the
-    lines of an ``AUTH`` exchange, which carry credentials.
+    lines of an ``AUTH`` exchange, which carry credentials, nor a secret the server
+    echoes back (see :class:`SmtpTranscript`). The exchanges that went through are kept
+    for :meth:`take_transcript`, redacted the same way.
     """
 
-    __slots__ = ("_authenticating", "_capabilities", "_config", "_description", "_smtp")
+    __slots__ = (
+        "_authenticating",
+        "_capabilities",
+        "_config",
+        "_description",
+        "_smtp",
+        "_transcript",
+    )
 
     def __init__(self, config: SmtpConnectionConfig) -> None:
         """Prepare a session; nothing connects until :meth:`connect`.
@@ -72,6 +81,7 @@ class SmtpClient:
         self._description = config.description
         self._capabilities: dict[str, list[str]] = {}
         self._authenticating = False
+        self._transcript = SmtpTranscript()
         self._smtp = self._session(None)
 
     @property
@@ -91,6 +101,25 @@ class SmtpClient:
             return False
         context: object = self._smtp.get_transport_info("sslcontext")  # pyright: ignore[reportAny] — aiosmtplib types transport info as Any
         return context is not None
+
+    @property
+    def has_pending_data(self) -> bool:
+        """Whether the server sent more than the last reply, which the next command would read.
+
+        A server closing the channel often queues a ``421`` behind its answer to a ``NOOP``.
+        """
+        protocol = self._smtp.protocol
+        # aiosmtplib keeps what it received past a reply in a buffer it has no public reader
+        # for; pinned below 6, as for the drain in _drained.
+        return protocol is not None and bool(protocol._buffer)  # noqa: SLF001 — see above  # pyright: ignore[reportPrivateUsage] — see above
+
+    def conceal(self, secret: str, identity: str = "") -> None:
+        """Keep ``secret`` out of errors and the transcript; ``identity`` out of AUTH replies."""
+        self._transcript.conceal(secret, identity)
+
+    def take_transcript(self) -> str:
+        """Return and forget the exchanges since the last call: ``> `` sent, ``< `` received."""
+        return self._transcript.take()
 
     async def connect(self) -> str:
         """Connect to the configured server and return its greeting.
@@ -120,12 +149,17 @@ class SmtpClient:
         self._smtp = self._session(sock)
         return await self._open()
 
-    async def ehlo(self) -> dict[str, list[str]]:
-        """Greet with ``EHLO`` and return the extensions the server offers.
+    @property
+    def capabilities(self) -> dict[str, list[str]]:
+        """The extensions the last ``EHLO`` offered.
 
-        Returns:
-            Each extension's upper-cased keyword, mapped to its upper-cased parameters.
+        Each extension's upper-cased keyword, mapped to its upper-cased parameters; empty
+        before ``EHLO``, after ``STARTTLS`` and in a new session.
         """
+        return dict(self._capabilities)
+
+    async def ehlo(self) -> str:
+        """Greet with ``EHLO``, read the extensions the server offers, and return its reply."""
         reply = await self._exchange(f"EHLO {self._local_hostname}", (250,), self._smtp.ehlo)
         capabilities: dict[str, list[str]] = {}
         for line in reply.split("\r\n")[1:]:
@@ -135,7 +169,7 @@ class SmtpClient:
                     parameters.split(" ") if parameters else []
                 )
         self._capabilities = capabilities
-        return dict(capabilities)
+        return reply
 
     async def helo(self) -> str:
         """Greet with ``HELO``, for a server that offers no extensions."""
@@ -168,13 +202,13 @@ class SmtpClient:
 
         Raises:
             LogicError: ``expected_codes`` is empty.
-            InvalidArgumentError: ``command`` contains a line break.
+            InvalidArgumentError: ``command`` contains a line break, or a character UTF-8
+                cannot write.
             UnexpectedResponseError: The reply's code is not one of ``expected_codes``.
             TransportError: The connection was lost or the reply did not come in time.
         """
-        payload = command.encode()
         return await self._exchange(
-            command, expected_codes, lambda: self._smtp.execute_command(payload)
+            command, expected_codes, lambda: self._smtp.execute_command(command.encode())
         )
 
     async def mail_from(self, address: str, options: Sequence[str] = ()) -> str:
@@ -188,13 +222,18 @@ class SmtpClient:
     async def data(self, message: bytes) -> str:
         """Send ``message`` after ``DATA`` and return the server's acceptance.
 
-        Line endings become CRLF and a line starting with a period gets a second
-        one, so no line of the message can end it early.
-
         Returns:
             The reply accepting the message, which may name the id it was queued as.
         """
         _ = await self.execute("DATA", (354,))
+        return await self.message(message)
+
+    async def message(self, message: bytes) -> str:
+        """Send ``message``, once ``DATA`` was accepted, and return the server's acceptance.
+
+        Line endings become CRLF and a line starting with a period gets a second
+        one, so no line of the message can end it early.
+        """
         return await self._exchange(_MESSAGE, (250,), lambda: self._send_message(message))
 
     async def noop(self) -> str:
@@ -243,13 +282,16 @@ class SmtpClient:
     async def _open(self) -> str:
         self._capabilities = {}
         self._authenticating = False
+        self._transcript.reset()
         try:
             greeting = await self._smtp.connect()
         except aiosmtplib.SMTPResponseException as error:
             raise self._refused(None, (220,), _response(error)) from None
         except aiosmtplib.SMTPException as error:
             raise self._failure(error) from None
-        return render_reply(greeting.code, greeting.message)
+        reply = render_reply(greeting.code, greeting.message)
+        self._transcript.record(None, reply)
+        return reply
 
     async def _exchange(
         self,
@@ -259,27 +301,33 @@ class SmtpClient:
     ) -> str:
         if not expected_codes:
             raise LogicError("You must set the expected response code.")
-        shown = self._shown(command)
         starts_auth = command.partition(" ")[0].upper() == "AUTH"
+        authenticating = self._authenticating or starts_auth
+        shown = self._shown(command)
         try:
             response = await send()
         except aiosmtplib.SMTPResponseException as error:
             self._authenticating = False
-            raise self._refused(shown, expected_codes, _response(error)) from None
+            raise self._refused(shown, expected_codes, _response(error), authenticating) from None
         except aiosmtplib.SMTPException as error:
             self._authenticating = False
             failure = self._failure(error)
             failure.append_debug(f"> {shown}\n")
             raise failure from None
+        except UnicodeEncodeError:
+            # The message would quote the character, which may be part of a credential.
+            raise InvalidArgumentError(
+                "An SMTP command must only hold characters UTF-8 can write."
+            ) from None
         except ValueError as error:
             # aiosmtplib refuses a command that would smuggle a second one in.
             raise InvalidArgumentError(str(error)) from None
-        self._authenticating = (self._authenticating or starts_auth) and (
-            response.code == _AUTH_CONTINUE
-        )
+        self._authenticating = authenticating and response.code == _AUTH_CONTINUE
         if response.code not in expected_codes:
-            raise self._refused(shown, expected_codes, response)
-        return render_reply(response.code, response.message)
+            raise self._refused(shown, expected_codes, response, authenticating)
+        reply = render_reply(response.code, response.message)
+        self._transcript.record(shown, reply, authenticating=authenticating)
+        return reply
 
     async def _upgrade(self) -> aiosmtplib.SMTPResponse:
         try:
@@ -353,11 +401,13 @@ class SmtpClient:
 
     def _shown(self, command: str) -> str:
         if self._authenticating:
-            return _REDACTED
+            self._transcript.learn(command)
+            return REDACTED
         verb, _, rest = command.partition(" ")
         mechanism, _, credentials = rest.partition(" ")
         if verb.upper() == "AUTH" and credentials:
-            return f"{verb} {mechanism} {_REDACTED}"
+            self._transcript.learn(credentials)
+            return f"{verb} {mechanism} {REDACTED}"
         return command
 
     def _refused(
@@ -365,8 +415,12 @@ class SmtpClient:
         shown: str | None,
         expected_codes: Sequence[int],
         response: aiosmtplib.SMTPResponse,
+        authenticating: bool = False,
     ) -> UnexpectedResponseError:
-        reply = render_reply(response.code, response.message)
+        reply = self._transcript.scrub(
+            render_reply(response.code, response.message), authenticating=authenticating
+        )
+        self._transcript.record(shown, reply)
         error = unexpected_response(expected_codes, response.code, reply)
         if shown is not None:
             error.append_debug(f"> {shown}\n")
