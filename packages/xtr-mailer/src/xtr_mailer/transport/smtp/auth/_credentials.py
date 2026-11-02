@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 
 from xtr_mailer.exception import InvalidArgumentError
 
@@ -14,14 +15,12 @@ def utf8(text: str) -> bytes:
 
     Raises:
         InvalidArgumentError: ``text`` holds a character UTF-8 cannot write. The message
-            does not quote it: it is part of a credential.
+            does not quote it, and it is raised once the encoding error is handled so not
+            even its context holds the credential.
     """
-    try:
+    with contextlib.suppress(UnicodeEncodeError):
         return text.encode()
-    except UnicodeEncodeError:
-        raise InvalidArgumentError(
-            "The SMTP credentials must only hold characters UTF-8 can write."
-        ) from None
+    raise InvalidArgumentError("The SMTP credentials must only hold characters UTF-8 can write.")
 
 
 def base64_line(text: str) -> str:

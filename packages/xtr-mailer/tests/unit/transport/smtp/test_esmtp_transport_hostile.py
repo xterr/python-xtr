@@ -17,11 +17,18 @@ from xtr_mailer.exception import (
     TransportError,
     UnexpectedResponseError,
 )
+from xtr_mailer.transport.smtp.auth import (
+    CramMd5Authenticator,
+    LoginAuthenticator,
+    PlainAuthenticator,
+    XOAuth2Authenticator,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from xtr_mailer.transport.smtp import EsmtpTransport
+    from xtr_mailer.transport.smtp.auth import AuthenticatorInterface
 
 pytestmark = pytest.mark.anyio
 
@@ -36,6 +43,16 @@ def _chain(error: BaseException) -> Iterator[BaseException]:
     while current is not None:
         yield current
         current = current.__cause__ or current.__context__
+
+
+def _assert_shows_no_secret(error: BaseException) -> None:
+    assert error.__context__ is None
+    for link in _chain(error):
+        for secret in _SECRETS:
+            assert secret not in str(link)
+            assert secret not in repr(link)
+            assert secret not in repr(link.args)
+            assert secret not in getattr(link, "debug", "")
 
 
 class _RawPasswordAuthenticator:
@@ -172,3 +189,52 @@ async def test_a_command_that_cannot_be_encoded_is_an_invalid_argument() -> None
 
     assert isinstance(error, InvalidArgumentError)
     assert "\udcff" not in str(error)
+
+
+async def test_a_malformed_reply_echoing_the_credentials_leaves_them_out_of_the_context() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.capabilities = ["AUTH PLAIN"]
+        server.replies["MAIL"] = [f"XX5 echo {_PLAIN} {_PASSWORD}"]
+        transport = esmtp_transport(server).set_username(_USER).set_password(_PASSWORD)
+
+        error = await _refusal_of(transport)
+
+    assert isinstance(error, UnexpectedResponseError)
+    _assert_shows_no_secret(error)
+
+
+async def test_a_malformed_end_of_data_reply_leaves_the_password_out_of_the_context() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.capabilities = ["AUTH PLAIN"]
+        server.replies["DATA_END"] = [f"QQQ {_PASSWORD}"]
+        transport = esmtp_transport(server).set_username(_USER).set_password(_PASSWORD)
+
+        error = await _refusal_of(transport)
+
+    assert isinstance(error, UnexpectedResponseError)
+    _assert_shows_no_secret(error)
+
+
+@pytest.mark.parametrize(
+    ("authenticator", "replies"),
+    [
+        (CramMd5Authenticator(), []),
+        (PlainAuthenticator(), []),
+        (LoginAuthenticator(), ["334 VXNlcm5hbWU6", "334 UGFzc3dvcmQ6"]),
+        (XOAuth2Authenticator(), []),
+    ],
+)
+async def test_a_password_utf8_cannot_write_is_left_out_of_the_context(
+    authenticator: AuthenticatorInterface, replies: list[str]
+) -> None:
+    async with ScriptedSmtpServer() as server:
+        server.capabilities = [f"AUTH {authenticator.get_auth_keyword()}"]
+        server.replies["AUTH"] = replies
+        transport = esmtp_transport(server).set_username(_USER)
+        transport = transport.set_password(_PASSWORD + "\udcff")
+        transport.set_authenticators([authenticator])
+
+        error = await _refusal_of(transport)
+
+    assert isinstance(error, InvalidArgumentError)
+    _assert_shows_no_secret(error)

@@ -67,6 +67,42 @@ async def test_a_reply_too_long_to_read_is_an_empty_code() -> None:
     assert caught.value.debug == "> NOOP\n< Response too long\n"
 
 
+async def test_a_malformed_reply_leaves_nothing_of_it_in_the_context() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["NOOP"] = ["QQQ s3cret"]
+        client = await connected_client(server)
+        client.conceal("s3cret")
+
+        with pytest.raises(UnexpectedResponseError) as caught:
+            _ = await client.execute("NOOP", [250])
+        client.close()
+
+    assert caught.value.__context__ is None
+    assert "s3cret" not in str(caught.value)
+
+
+async def test_a_malformed_greeting_leaves_nothing_of_it_in_the_context() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.greeting = "QQQ go away"
+        client = smtp_client(server)
+
+        with pytest.raises(UnexpectedResponseError) as caught:
+            _ = await client.connect()
+
+    assert caught.value.__context__ is None
+
+
+async def test_a_lost_connection_leaves_nothing_of_the_library_in_the_context() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.drop.add("NOOP")
+        client = await connected_client(server)
+
+        with pytest.raises(TransportError) as caught:
+            _ = await client.execute("NOOP", [250])
+
+    assert caught.value.__context__ is None
+
+
 # Broken connections
 
 

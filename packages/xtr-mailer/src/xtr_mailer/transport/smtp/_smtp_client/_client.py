@@ -9,6 +9,7 @@ import aiosmtplib
 from xtr_mailer.exception import (
     InvalidArgumentError,
     LogicError,
+    MailerError,
     TransportError,
     UnexpectedResponseError,
 )
@@ -204,15 +205,18 @@ class SmtpClient:
         self._capabilities = {}
         self._authenticating = False
         self._transcript.reset()
+        failed: MailerError
         try:
             greeting = await self._smtp.connect()
         except aiosmtplib.SMTPResponseException as error:
-            raise self._refused(None, (220,), response_of(error)) from None
+            failed = self._refused(None, (220,), response_of(error))
         except aiosmtplib.SMTPException as error:
-            raise failure(error, self._description) from None
-        reply = render_reply(greeting.code, greeting.message)
-        self._transcript.record(None, reply)
-        return reply
+            failed = failure(error, self._description)
+        else:
+            reply = render_reply(greeting.code, greeting.message)
+            self._transcript.record(None, reply)
+            return reply
+        raise failed
 
     async def _exchange(
         self,
@@ -220,36 +224,41 @@ class SmtpClient:
         expected_codes: Sequence[int],
         send: Callable[[], Awaitable[aiosmtplib.SMTPResponse]],
     ) -> str:
-        """Send one command through ``send``, the way every command of the session goes."""
+        """Send one command through ``send``, the way every command of the session goes.
+
+        Raised once aiosmtplib's error is handled, ours has no context holding what it kept.
+        """
         if not expected_codes:
             raise LogicError("You must set the expected response code.")
         starts_auth = command.partition(" ")[0].upper() == "AUTH"
         authenticating = self._authenticating or starts_auth
         shown = self._transcript.shown(command, authenticating=self._authenticating)
+        failed: MailerError
         try:
             response = await send()
         except aiosmtplib.SMTPResponseException as error:
             self._authenticating = False
-            raise self._refused(shown, expected_codes, response_of(error), authenticating) from None
+            failed = self._refused(shown, expected_codes, response_of(error), authenticating)
         except aiosmtplib.SMTPException as error:
             self._authenticating = False
-            lost = failure(error, self._description)
-            lost.append_debug(f"> {shown}\n")
-            raise lost from None
+            failed = failure(error, self._description)
+            failed.append_debug(f"> {shown}\n")
         except UnicodeEncodeError:
             # The message would quote the character, which may be part of a credential.
-            raise InvalidArgumentError(
+            failed = InvalidArgumentError(
                 "An SMTP command must only hold characters UTF-8 can write."
-            ) from None
+            )
         except ValueError as error:
             # aiosmtplib refuses a command that would smuggle a second one in.
-            raise InvalidArgumentError(str(error)) from None
-        self._authenticating = authenticating and response.code == _AUTH_CONTINUE
-        if response.code not in expected_codes:
-            raise self._refused(shown, expected_codes, response, authenticating)
-        reply = render_reply(response.code, response.message)
-        self._transcript.record(shown, reply, authenticating=authenticating)
-        return reply
+            failed = InvalidArgumentError(str(error))
+        else:
+            self._authenticating = authenticating and response.code == _AUTH_CONTINUE
+            if response.code not in expected_codes:
+                raise self._refused(shown, expected_codes, response, authenticating)
+            reply = render_reply(response.code, response.message)
+            self._transcript.record(shown, reply, authenticating=authenticating)
+            return reply
+        raise failed
 
     def _check_peer(self, mismatch: str) -> None:
         """Close the session and raise ``mismatch`` unless the certificate is the pinned one."""

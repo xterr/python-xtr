@@ -204,6 +204,18 @@ async def test_a_command_utf8_cannot_write_is_refused_without_quoting_it() -> No
     assert server.commands == []
 
 
+async def test_a_command_utf8_cannot_write_is_left_out_of_the_context() -> None:
+    async with ScriptedSmtpServer() as server:
+        client = await connected_client(server)
+
+        with pytest.raises(InvalidArgumentError) as caught:
+            _ = await client.execute("AUTH PLAIN s3cret\udcff", [235])
+        client.close()
+
+    assert caught.value.__context__ is None
+    assert "s3cret" not in repr(caught.value.args)
+
+
 async def test_a_command_with_a_line_break_is_refused() -> None:
     async with ScriptedSmtpServer() as server:
         client = await connected_client(server)
