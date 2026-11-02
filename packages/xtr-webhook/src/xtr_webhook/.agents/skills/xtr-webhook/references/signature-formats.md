@@ -10,6 +10,11 @@ and is understood with no conversion step. `SignatureFormat.parse(value)` is the
 anything arriving from outside, and raises `InvalidArgumentError` with
 `"<value>" is not a signature format; use "legacy", "standard" or "transitional".`
 
+Under every format the body is the event's payload as compact JSON, so any receiver reads it as
+the object it is; the event's id travels in `Webhook-Id`, and its name where the format says. A
+field an event class derived from `RemoteEvent` adds is not posted. `RequestParser` builds a
+plain `RemoteEvent(name, id, payload)` once a signature verified.
+
 ## Legacy
 
 The historical format, and the default, so an existing pair of endpoints keeps working.

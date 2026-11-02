@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import secrets
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
+from joserfc import jws
 from joserfc.jwk import ECKey, KeySet, OctKey, RSAKey
 from typing_extensions import override
 from xtr_clock import MockClock
@@ -84,6 +86,44 @@ def _attempted_keys(monkeypatch: pytest.MonkeyPatch) -> list[Key]:
     return tried
 
 
+def _signed(payload: bytes) -> str:
+    """Sign ``payload`` exactly as given with the provider's own key."""
+    return jws.serialize_compact({"alg": "RS256"}, payload, RSAKey.import_key(RSA_PRIVATE_PEM))
+
+
+def _forged(header: bytes, payload: bytes) -> str:
+    """Assemble a compact token from raw parts, under a signature no key made."""
+    parts = (header, payload, b"x" * 32)
+    return ".".join(base64.urlsafe_b64encode(part).rstrip(b"=").decode() for part in parts)
+
+
+def _deeply_nested(depth: int = 1000) -> bytes:
+    """Return a JSON document nested deeper than a decoder may be able to follow."""
+    return b"[" * depth + b"]" * depth
+
+
+def _decoder_hitting_its_depth_limit(monkeypatch: pytest.MonkeyPatch) -> list[bytes]:
+    """Make every JSON decode of a nested array hit the depth limit, and record what was decoded.
+
+    Whether a document a thousand arrays deep exhausts the decoder depends on
+    the interpreter; this makes it do so on every one, the way it does on
+    the oldest one supported.
+    """
+    decoded: list[bytes] = []
+    loads = json.loads
+
+    def limited(document: str | bytes, cls: type[json.JSONDecoder] | None = None) -> object:
+        text = document.encode() if isinstance(document, str) else bytes(document)
+        decoded.append(text)
+        if b"[[" in text:
+            message = "maximum recursion depth exceeded while decoding a JSON array"
+            raise RecursionError(message)
+        return cast("object", loads(document, cls=cls))
+
+    monkeypatch.setattr(json, "loads", limited)
+    return decoded
+
+
 def test_it_implements_the_provider_interface() -> None:
     assert isinstance(_provider(), JwsProviderInterface)
 
@@ -131,6 +171,65 @@ def test_a_token_from_another_key_does_not_verify() -> None:
     loaded = _provider().load(_token_from_the_second_key())
 
     assert loaded.is_verified() is False
+
+
+def test_a_signed_payload_too_deep_to_decode_is_refused_as_unreadable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = _signed(_deeply_nested())
+    _ = _decoder_hitting_its_depth_limit(monkeypatch)
+
+    with pytest.raises(InvalidArgumentError, match="payload"):
+        _ = _provider().load(token)
+
+
+def test_a_header_too_deep_to_decode_is_refused_as_unreadable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = _forged(b'{"alg":"RS256","x":[[0]]}', b"{}")
+    _ = _decoder_hitting_its_depth_limit(monkeypatch)
+
+    with pytest.raises(InvalidArgumentError, match="not a readable JWS"):
+        _ = _provider().load(token)
+
+
+def test_a_signed_payload_that_is_not_json_is_refused_as_unreadable() -> None:
+    with pytest.raises(InvalidArgumentError, match="payload"):
+        _ = _provider().load(_signed(b"not json"))
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"RS256","crit":5}',
+        b'{"alg":"RS256","crit":[["a"]]}',
+        b'["alg"]',
+        b'"alg"',
+        b'["alg","b64"]',
+    ],
+)
+def test_a_header_the_verifier_cannot_judge_is_refused_as_unreadable(header: bytes) -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = _provider().load(_forged(header, b"{}"))
+
+
+def test_a_signed_payload_that_is_not_an_object_is_refused_as_unreadable() -> None:
+    with pytest.raises(InvalidArgumentError, match="payload"):
+        _ = _provider().load(_signed(b"[1, 2]"))
+
+
+def test_the_payload_of_a_token_whose_signature_fails_is_never_decoded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Nothing a token says is read before it is known to be ours: a forged
+    # token is refused on its signature, whatever its payload holds.
+    forged = _forged(b'{"alg":"RS256","typ":"JWT"}', _deeply_nested())
+    decoded = _decoder_hitting_its_depth_limit(monkeypatch)
+
+    loaded = _provider().load(forged)
+
+    assert loaded.is_verified() is False
+    assert _deeply_nested() not in decoded
 
 
 def test_an_additional_public_key_verifies_a_rotated_token(tmp_path: Path) -> None:

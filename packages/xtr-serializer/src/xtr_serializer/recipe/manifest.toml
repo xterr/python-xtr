@@ -1,0 +1,26 @@
+# The recipe for xtr-serializer: what *Use in an application* in the README
+# takes, as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+# It brings the console bundle along when xtr-console is installed.
+"xtr_serializer.bundle:SerializerBundle" = { all = true }
+
+# No [files]: configuring is optional. With none there is one serializer, holding
+# the pydantic normalizer, the JSON encoder and every normalizer and encoder
+# tagged for it — which a class subclassing one of the interfaces is, without
+# being told, while a service that only has their methods is not. An application
+# that sets a default context or names more serializers writes
+# config/packages/serializer.py itself.
+
+# No [env]: nothing is read from the environment.
+
+[gitignore]
+# Nothing: the serializer writes no file into the project.
+lines = []
+
+[notes]
+check = [
+  "<script> debug:bundles — serializer is listed and active",
+  "<script> debug:serializer <module:Class> — in debug mode, how the class is read and written, and the classes of its hierarchy",
+]

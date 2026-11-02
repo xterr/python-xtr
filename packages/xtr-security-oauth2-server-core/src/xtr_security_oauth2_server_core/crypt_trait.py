@@ -173,9 +173,15 @@ class CryptTrait:
                 holder sealed.
         """
         key = self._key()
+        _refuse_a_header_that_is_no_object(token)
         try:
             opened = jwe.decrypt_compact(token, key, algorithms=_ALGORITHMS)
-        except (JoseError, ValueError) as error:
+        except (JoseError, ValueError, TypeError, RecursionError) as error:
+            # The header is decoded before anything is decrypted, and one
+            # nesting deeper than the decoder follows ends in a
+            # ``RecursionError`` on some interpreters: unreadable all the same.
+            # A member of the wrong shape — a ``crit`` that is no list of
+            # names — fails joserfc's header check with a ``TypeError``.
             raise OAuth2Error(_UNREADABLE) from error
         plaintext = opened.plaintext
         if plaintext is None:
@@ -208,3 +214,23 @@ class CryptTrait:
         """
         state = "unset" if self._encryption_key is None else "set"
         return f"<{type(self).__name__} encryption_key={state}>"
+
+
+def _refuse_a_header_that_is_no_object(token: str) -> None:
+    """Refuse ``token`` when its protected header decodes to something other than an object.
+
+    joserfc reads the header's members by name, so an array or a string
+    standing where the object should be is turned away before it is judged. A
+    header that does not decode at all is left to joserfc, whose refusal is
+    the cause the error carries.
+
+    Raises:
+        OAuth2Error: When the header decodes to anything but a JSON object.
+    """
+    segment = token.partition(".")[0]
+    try:
+        header = cast("object", json.loads(base64.urlsafe_b64decode(f"{segment}==")))
+    except (ValueError, RecursionError):
+        return
+    if not isinstance(header, dict):
+        raise OAuth2Error(_UNREADABLE)

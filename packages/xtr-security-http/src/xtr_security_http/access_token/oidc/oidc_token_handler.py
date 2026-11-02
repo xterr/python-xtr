@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast, final
 
-from joserfc import jwt
+from joserfc import jws, jwt
 from joserfc.errors import InvalidKeyIdError, JoseError
 from joserfc.jwt import JWTClaimsRegistry
 from xtr_clock import SystemClock
@@ -122,15 +122,23 @@ class OidcTokenHandler:
     async def _decode(self, access_token: str) -> Token:
         """Verify the signature, refetching the key set once on an unknown ``kid``.
 
+        A header nesting deeper than the decoder follows is read before the
+        signature can be checked, and ends in a ``RecursionError`` on some
+        interpreters: the token cannot be read, so it is refused as any other.
+        A header that is no JSON object is refused before joserfc judges it,
+        and one whose members have the wrong shape — a ``crit`` that is no
+        list of names — fails joserfc's own check with a ``TypeError``.
+
         Raises:
             InvalidAccessTokenError: When the token cannot be verified.
         """
         try:
+            _require_object_header(access_token)
             key_set = await self._key_set_provider.get_key_set()
             return jwt.decode(access_token, key_set, algorithms=list(self._algorithms))
         except InvalidKeyIdError as error:
             return await self._decode_after_refresh(access_token, error)
-        except (JoseError, OidcKeySetError, ValueError) as error:
+        except (JoseError, OidcKeySetError, ValueError, TypeError, RecursionError) as error:
             raise InvalidAccessTokenError(f"The token could not be verified: {error}") from error
 
     async def _decode_after_refresh(self, access_token: str, cause: InvalidKeyIdError) -> Token:
@@ -142,7 +150,7 @@ class OidcTokenHandler:
         try:
             key_set = await self._key_set_provider.get_key_set(force_refresh=True)
             return jwt.decode(access_token, key_set, algorithms=list(self._algorithms))
-        except (JoseError, OidcKeySetError, ValueError) as error:
+        except (JoseError, OidcKeySetError, ValueError, TypeError, RecursionError) as error:
             raise InvalidAccessTokenError(
                 f"The token names an unknown key: {cause}",
             ) from error
@@ -248,3 +256,18 @@ def _scopes(claims: Mapping[str, object]) -> list[str]:
     if isinstance(scp, (list, tuple)):
         return [str(one) for one in cast("Sequence[object]", scp)]
     return []
+
+
+def _require_object_header(access_token: str) -> None:
+    """Refuse a token whose protected header is no JSON object.
+
+    joserfc reads the header's members by name, so an array or a string
+    standing where the object should be is turned away here, before it is
+    judged.
+
+    Raises:
+        InvalidAccessTokenError: When the header is no JSON object.
+    """
+    header = cast("object", jws.extract_compact(access_token.encode()).headers())
+    if not isinstance(header, dict):
+        raise InvalidAccessTokenError("The token header is not a JSON object.")

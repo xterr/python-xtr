@@ -32,7 +32,9 @@ class ConsumeRemoteEventMessage:
             under. Separate from ``event.name`` so a payload converter can
             decide which consumer an event belongs to without rewriting the
             event it read.
-        event: The event as it was read, handed on untouched.
+        event: The event as it was read, handed on untouched. Declared as
+            the base of the remote events' hierarchy, so an event of a
+            derived class crosses a serializing transport as that class.
     """
 
     type: str

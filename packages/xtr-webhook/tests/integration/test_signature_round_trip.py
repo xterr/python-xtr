@@ -23,6 +23,7 @@ from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient, MockResponse
 from xtr_http_message import ServerRequest
 from xtr_remote_event import RemoteEvent
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
 from xtr_webhook.client import RequestParser
 from xtr_webhook.exception import RejectWebhookError
@@ -30,7 +31,6 @@ from xtr_webhook.server import (
     HeadersConfigurator,
     HeaderSignatureConfigurator,
     JsonBodyConfigurator,
-    JsonPayloadSerializer,
     SignatureFormat,
     Transport,
 )
@@ -70,6 +70,10 @@ def _frozen() -> MockClock:
     return MockClock(datetime.fromtimestamp(_SENT_AT, tz=UTC))
 
 
+def _serializer() -> Serializer:
+    return Serializer([PydanticNormalizer()], [JsonEncoder()])
+
+
 async def _send(
     event: RemoteEvent,
     signature_format: SignatureFormat,
@@ -84,7 +88,7 @@ async def _send(
     transport = Transport(
         MockHttpClient(answer),
         HeadersConfigurator(clock=clock, signature_format=signature_format),
-        JsonBodyConfigurator(JsonPayloadSerializer(), signature_format),
+        JsonBodyConfigurator(_serializer(), signature_format),
         HeaderSignatureConfigurator(signature_format=signature_format),
     )
 

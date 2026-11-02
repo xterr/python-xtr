@@ -52,6 +52,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-security](packages/xtr-security) | The security bundle: the family facade and the container wiring that configures it. |
 | [xtr-security-oauth2-server-core](packages/xtr-security-oauth2-server-core) | The OAuth 2.0 authorization-server library: grants, servers, entities, response types and the resource server. |
 | [xtr-security-oauth2-server](packages/xtr-security-oauth2-server) | An OAuth 2.0 authorization server and resource-server authenticator. |
+| [xtr-serializer](packages/xtr-serializer) | Objects turned into JSON and back exactly — dataclasses, models, class hierarchies and dates arrive as they left, or are refused — through a chain of normalizers and encoders. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
 | [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
 | [xtr-scheduler](packages/xtr-scheduler) | Recurring messages on xtr-messenger: cron and intervals, catch-up after downtime, locks and saved state. |
@@ -72,6 +73,7 @@ graph LR
     logging --> svccon[xtr-service-contracts]
     messenger[xtr-messenger] --> logcon
     messenger --> eventcon
+    messenger --> serializer
     lock[xtr-lock] --> clock
     lock --> logcon
     cachecon[xtr-cache-contracts] --> clock
@@ -84,6 +86,7 @@ graph LR
     events --> logcon
     messenger -. optional .-> console[xtr-console]
     scheduler[xtr-scheduler] --> messenger
+    scheduler --> serializer
     scheduler --> clock
     scheduler --> lock
     scheduler --> cachecon
@@ -202,9 +205,11 @@ graph LR
     maker -. optional .-> events
     cli[xtr-cli] --> console
     remoteevent[xtr-remote-event] --> messenger
+    remoteevent --> serializer
     remoteevent --> svccon
     webhook[xtr-webhook] --> remoteevent
     webhook --> messenger
+    webhook --> serializer
     webhook --> clock
     webhook --> httpmsgcon
     webhook --> svccon
@@ -231,6 +236,8 @@ graph LR
     workflow --> eventcon
     workflow --> logcon
     workflow --> svccon
+    serializer[xtr-serializer] -. optional .-> di
+    serializer -. optional .-> console
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from xtr_remote_event import RemoteEvent
+from xtr_serializer import JsonEncoder, NotNormalizableValueError, PydanticNormalizer, Serializer
 
-from tests.support.fake_payload_serializer import FakePayloadSerializer
+from tests.fixtures.events import UnnamedEvent
 from xtr_webhook.exception import InvalidArgumentError
 from xtr_webhook.server import JsonBodyConfigurator, OutgoingRequest, SignatureFormat
 
@@ -11,146 +14,106 @@ from xtr_webhook.server import JsonBodyConfigurator, OutgoingRequest, SignatureF
 # where it matters.
 _WHSEC = "s3cr3t"
 _NOT_LEGACY = [SignatureFormat.STANDARD, SignatureFormat.TRANSITIONAL]
+_NESTED: dict[str, object] = {
+    "order": {"lines": [{"sku": "A-1", "qty": 2}], "note": None},
+    "total": 42.5,
+    "paid": True,
+    "currency": "EUR",
+}
 
 
-def test_the_payload_is_handed_to_the_serializer() -> None:
-    payload: dict[str, object] = {"foo": "bar"}
-    serializer = FakePayloadSerializer()
-    request = OutgoingRequest(headers={"Webhook-Event": "event-name", "Webhook-Id": "event-id"})
+def _configured(
+    event: RemoteEvent,
+    signature_format: SignatureFormat | str = SignatureFormat.LEGACY,
+    request: OutgoingRequest | None = None,
+) -> OutgoingRequest:
+    built = request or OutgoingRequest()
+    serializer = Serializer([PydanticNormalizer()], [JsonEncoder()])
+    JsonBodyConfigurator(serializer, signature_format).configure(event, _WHSEC, built)
+    return built
 
-    JsonBodyConfigurator(serializer).configure(
-        RemoteEvent("event-name", "event-id", payload),
-        _WHSEC,
-        request,
+
+def test_the_legacy_body_is_exactly_the_serialized_payload() -> None:
+    request = _configured(RemoteEvent("event-name", "event-id", _NESTED))
+
+    assert request.body == (
+        b'{"order":{"lines":[{"sku":"A-1","qty":2}],"note":null},'
+        b'"total":42.5,"paid":true,"currency":"EUR"}'
     )
-
-    assert serializer.payloads == [{"foo": "bar"}]
-
-
-def test_the_serialized_payload_becomes_the_body() -> None:
-    serializer = FakePayloadSerializer(b'{"foo":"bar"}')
-    request = OutgoingRequest()
-
-    JsonBodyConfigurator(serializer).configure(
-        RemoteEvent("event-name", "event-id", {"foo": "bar"}),
-        _WHSEC,
-        request,
-    )
-
-    assert request.body == b'{"foo":"bar"}'
-
-
-def test_it_says_the_body_is_json() -> None:
-    request = OutgoingRequest()
-
-    JsonBodyConfigurator(FakePayloadSerializer()).configure(
-        RemoteEvent("event-name", "event-id", {}),
-        _WHSEC,
-        request,
-    )
-
-    assert request.headers["Content-Type"] == "application/json"
-
-
-def test_it_leaves_headers_another_configurator_already_wrote() -> None:
-    request = OutgoingRequest(headers={"Webhook-Id": "event-id"})
-
-    JsonBodyConfigurator(FakePayloadSerializer()).configure(
-        RemoteEvent("event-name", "event-id", {}),
-        _WHSEC,
-        request,
-    )
-
-    assert request.headers["Webhook-Id"] == "event-id"
-
-
-def test_the_legacy_format_sends_the_payload_as_it_stands() -> None:
-    serializer = FakePayloadSerializer()
-
-    JsonBodyConfigurator(serializer).configure(
-        RemoteEvent("event-name", "event-id", {"foo": "bar"}),
-        _WHSEC,
-        OutgoingRequest(),
-    )
-
-    assert serializer.payloads == [{"foo": "bar"}]
 
 
 @pytest.mark.parametrize("signature_format", _NOT_LEGACY)
 def test_the_event_name_travels_in_the_payload_when_no_header_carries_it(
     signature_format: SignatureFormat,
 ) -> None:
-    serializer = FakePayloadSerializer()
+    request = _configured(RemoteEvent("event-name", "event-id", {"foo": "bar"}), signature_format)
 
-    JsonBodyConfigurator(serializer, signature_format=signature_format).configure(
-        RemoteEvent("event-name", "event-id", {"foo": "bar"}),
-        _WHSEC,
-        OutgoingRequest(),
-    )
-
-    assert serializer.payloads == [{"foo": "bar", "type": "event-name"}]
+    assert request.body == b'{"foo":"bar","type":"event-name"}'
 
 
 @pytest.mark.parametrize("signature_format", _NOT_LEGACY)
 def test_a_type_the_payload_already_carries_is_not_overwritten(
     signature_format: SignatureFormat,
 ) -> None:
-    serializer = FakePayloadSerializer()
+    request = _configured(RemoteEvent("event-name", "event-id", {"type": "set"}), signature_format)
 
-    JsonBodyConfigurator(serializer, signature_format=signature_format).configure(
-        RemoteEvent("event-name", "event-id", {"type": "already.set"}),
-        _WHSEC,
-        OutgoingRequest(),
-    )
-
-    assert serializer.payloads == [{"type": "already.set"}]
+    assert request.body == b'{"type":"set"}'
 
 
 @pytest.mark.parametrize("signature_format", _NOT_LEGACY)
 def test_the_events_payload_is_left_as_it_arrived(signature_format: SignatureFormat) -> None:
     payload: dict[str, object] = {"foo": "bar"}
-    event = RemoteEvent("event-name", "event-id", payload)
 
-    JsonBodyConfigurator(FakePayloadSerializer(), signature_format=signature_format).configure(
-        event,
-        _WHSEC,
-        OutgoingRequest(),
-    )
+    _ = _configured(RemoteEvent("event-name", "event-id", payload), signature_format)
 
-    assert event.payload == {"foo": "bar"}
     assert payload == {"foo": "bar"}
 
 
-@pytest.mark.parametrize("signature_format", _NOT_LEGACY)
-@pytest.mark.parametrize("payload", [{"foo": "bar"}, {"type": "already.set"}])
-def test_the_serializer_is_handed_a_copy_not_the_events_own_payload(
-    payload: dict[str, object],
-    signature_format: SignatureFormat,
-) -> None:
-    serializer = FakePayloadSerializer()
-    event = RemoteEvent("event-name", "event-id", payload)
+def test_only_the_payload_of_an_event_with_fields_of_its_own_is_written() -> None:
+    request = _configured(UnnamedEvent("event-name", "event-id", {"foo": "bar"}, "soft"))
 
-    JsonBodyConfigurator(serializer, signature_format=signature_format).configure(
-        event,
-        _WHSEC,
-        OutgoingRequest(),
-    )
-
-    assert serializer.payloads[0] is not event.payload
+    assert request.body == b'{"foo":"bar"}'
 
 
 def test_the_format_may_be_written_as_the_string_a_configuration_carries() -> None:
-    serializer = FakePayloadSerializer()
+    request = _configured(RemoteEvent("event-name", "event-id", {}), "standard")
 
-    JsonBodyConfigurator(serializer, signature_format="standard").configure(
-        RemoteEvent("event-name", "event-id", {}),
-        _WHSEC,
-        OutgoingRequest(),
-    )
-
-    assert serializer.payloads == [{"type": "event-name"}]
+    assert request.body == b'{"type":"event-name"}'
 
 
 def test_a_format_no_member_carries_is_refused_at_construction() -> None:
     with pytest.raises(InvalidArgumentError):
-        _ = JsonBodyConfigurator(FakePayloadSerializer(), signature_format="nope")
+        _ = JsonBodyConfigurator(Serializer([PydanticNormalizer()], [JsonEncoder()]), "nope")
+
+
+def test_it_says_the_body_is_json() -> None:
+    request = _configured(RemoteEvent("event-name", "event-id", {}))
+
+    assert request.headers["Content-Type"] == "application/json"
+
+
+def test_it_leaves_headers_another_configurator_already_wrote() -> None:
+    request = _configured(
+        RemoteEvent("event-name", "event-id", {}),
+        request=OutgoingRequest(headers={"Webhook-Id": "x"}),
+    )
+
+    assert request.headers["Webhook-Id"] == "x"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [datetime(2026, 3, 1, 9, 30), {"a", "b"}],  # noqa: DTZ001 — the naive datetime is the case.
+    ids=["naive-datetime", "set"],
+)
+def test_a_payload_value_json_cannot_carry_is_refused_and_no_body_is_written(
+    value: object,
+) -> None:
+    request = OutgoingRequest()
+
+    with pytest.raises(NotNormalizableValueError) as refused:
+        _ = _configured(RemoteEvent("event-name", "event-id", {"when": value}), request=request)
+
+    assert request.body is None
+    assert "2026" not in str(refused.value)
+    assert "'a'" not in str(refused.value)

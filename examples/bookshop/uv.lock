@@ -427,6 +427,7 @@ version = "5.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "pydantic" },
     { name = "uvicorn" },
     { name = "xtr-cache" },
     { name = "xtr-cache-contracts" },
@@ -440,7 +441,7 @@ dependencies = [
     { name = "xtr-lock" },
     { name = "xtr-logging" },
     { name = "xtr-logging-contracts" },
-    { name = "xtr-messenger", extra = ["amqp", "pydantic"] },
+    { name = "xtr-messenger", extra = ["amqp"] },
     { name = "xtr-orm", extra = ["postgres", "sqlite"] },
     { name = "xtr-password-hasher" },
     { name = "xtr-rate-limiter", extra = ["redis"] },
@@ -468,6 +469,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.121.3" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "uvicorn", specifier = ">=0.30" },
     { name = "xtr-cache", editable = "../../packages/xtr-cache" },
     { name = "xtr-cache-contracts", editable = "../../packages/xtr-cache-contracts" },
@@ -481,7 +483,7 @@ requires-dist = [
     { name = "xtr-lock", editable = "../../packages/xtr-lock" },
     { name = "xtr-logging", editable = "../../packages/xtr-logging" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
-    { name = "xtr-messenger", extras = ["pydantic", "amqp"], editable = "../../packages/xtr-messenger" },
+    { name = "xtr-messenger", extras = ["amqp"], editable = "../../packages/xtr-messenger" },
     { name = "xtr-orm", extras = ["sqlite", "postgres"], editable = "../../packages/xtr-orm" },
     { name = "xtr-password-hasher", editable = "../../packages/xtr-password-hasher" },
     { name = "xtr-rate-limiter", extras = ["redis"], editable = "../../packages/xtr-rate-limiter" },
@@ -2682,10 +2684,10 @@ name = "xtr-messenger"
 version = "5.2.1"
 source = { editable = "../../packages/xtr-messenger" }
 dependencies = [
-    { name = "msgspec" },
     { name = "typing-extensions" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts" },
+    { name = "xtr-serializer" },
 ]
 
 [package.optional-dependencies]
@@ -2696,24 +2698,20 @@ amqp = [
     { name = "taskiq-aio-pika" },
     { name = "typing-extensions" },
 ]
-pydantic = [
-    { name = "pydantic" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "aio-pika", marker = "extra == 'amqp'", specifier = ">=9.4" },
     { name = "anyio", marker = "extra == 'amqp'", specifier = ">=4.0" },
-    { name = "msgspec", specifier = ">=0.18" },
-    { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0" },
     { name = "taskiq", marker = "extra == 'amqp'", specifier = ">=0.12.4" },
     { name = "taskiq-aio-pika", marker = "extra == 'amqp'", specifier = ">=0.6.0" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "typing-extensions", marker = "extra == 'amqp'", specifier = ">=4.4" },
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "../../packages/xtr-logging-contracts" },
+    { name = "xtr-serializer", editable = "../../packages/xtr-serializer" },
 ]
-provides-extras = ["pydantic", "amqp"]
+provides-extras = ["amqp"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2887,6 +2885,7 @@ source = { editable = "../../packages/xtr-remote-event" }
 dependencies = [
     { name = "typing-extensions" },
     { name = "xtr-messenger" },
+    { name = "xtr-serializer" },
     { name = "xtr-service-contracts" },
 ]
 
@@ -2894,6 +2893,7 @@ dependencies = [
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
+    { name = "xtr-serializer", editable = "../../packages/xtr-serializer" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
 
@@ -2905,6 +2905,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
 ]
 
@@ -2913,6 +2914,7 @@ name = "xtr-scheduler"
 version = "5.2.1"
 source = { editable = "../../packages/xtr-scheduler" }
 dependencies = [
+    { name = "pydantic" },
     { name = "typing-extensions" },
     { name = "xtr-cache-contracts" },
     { name = "xtr-clock" },
@@ -2920,6 +2922,7 @@ dependencies = [
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-lock" },
     { name = "xtr-messenger" },
+    { name = "xtr-serializer" },
     { name = "xtr-service-contracts" },
 ]
 
@@ -2931,6 +2934,7 @@ cron = [
 [package.metadata]
 requires-dist = [
     { name = "croniter", marker = "extra == 'cron'", specifier = ">=6.2.4,<7" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-cache-contracts", editable = "../../packages/xtr-cache-contracts" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
@@ -2938,6 +2942,7 @@ requires-dist = [
     { name = "xtr-event-dispatcher-contracts", editable = "../../packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-lock", editable = "../../packages/xtr-lock" },
     { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
+    { name = "xtr-serializer", editable = "../../packages/xtr-serializer" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
 provides-extras = ["cron"]
@@ -3181,6 +3186,35 @@ dev = [
 ]
 
 [[package]]
+name = "xtr-serializer"
+version = "5.2.1"
+source = { editable = "../../packages/xtr-serializer" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "email-validator", specifier = ">=2.0" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
+    { name = "xtr-console", editable = "../../packages/xtr-console" },
+    { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
+]
+
+[[package]]
 name = "xtr-service-contracts"
 version = "5.2.1"
 source = { editable = "../../packages/xtr-service-contracts" }
@@ -3235,7 +3269,6 @@ name = "xtr-webhook"
 version = "5.2.1"
 source = { editable = "../../packages/xtr-webhook" }
 dependencies = [
-    { name = "msgspec" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
     { name = "xtr-http-client-contracts" },
@@ -3245,12 +3278,12 @@ dependencies = [
     { name = "xtr-http-message-contracts" },
     { name = "xtr-messenger" },
     { name = "xtr-remote-event" },
+    { name = "xtr-serializer" },
     { name = "xtr-service-contracts" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "msgspec", specifier = ">=0.18" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-http-client-contracts", editable = "../../packages/xtr-http-client-contracts" },
@@ -3260,6 +3293,7 @@ requires-dist = [
     { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
     { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
     { name = "xtr-remote-event", editable = "../../packages/xtr-remote-event" },
+    { name = "xtr-serializer", editable = "../../packages/xtr-serializer" },
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
 ]
 

@@ -7,10 +7,15 @@ exactly what the token endpoint hands out.
 
 from __future__ import annotations
 
+import base64
+import json
+from typing import TYPE_CHECKING, cast
+
 import pytest
 from fastapi import APIRouter, FastAPI
 from xtr_dependency_injection import Injected
 from xtr_security import Security
+from xtr_security_jwt.services.jws_provider.joserfc_jws_provider import JoserfcJwsProvider
 
 from tests.support.served import (
     CLIENT_ID,
@@ -23,6 +28,11 @@ from tests.support.served import (
     text_field,
     text_fields,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import httpx
 
 pytestmark = pytest.mark.anyio
 
@@ -161,3 +171,118 @@ async def test_a_withdrawn_token_stops_opening_the_api() -> None:
     assert before.status_code == 200
     assert withdrawn.status_code == 200
     assert after.status_code == 401
+
+
+def _recording_route(reached: list[str]) -> Callable[[FastAPI], None]:
+    """Mount ``/api/open``, a route behind the firewall that notes each time it runs."""
+
+    def extend(app: FastAPI) -> None:
+        router = APIRouter(prefix="/api")
+
+        @router.get("/open")
+        async def open_route() -> dict[str, str]:
+            reached.append("open")
+
+            return {"read": "yes"}
+
+        app.include_router(router)
+
+    return extend
+
+
+def _too_deep_to_read() -> str:
+    """Return a token whose claims nest a thousand arrays deep, under a signature no key made."""
+    parts = (b'{"alg":"RS256","typ":"JWT"}', b"[" * 1000 + b"]" * 1000, b"x" * 32)
+
+    return ".".join(base64.urlsafe_b64encode(part).rstrip(b"=").decode() for part in parts)
+
+
+def _decoder_hitting_its_depth_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every JSON decode of nested arrays give up, as the oldest interpreter's does.
+
+    Whether a document a thousand arrays deep exhausts the decoder depends on
+    the interpreter; this makes it do so on every one.
+    """
+    loads = json.loads
+
+    def limited(document: str | bytes, cls: type[json.JSONDecoder] | None = None) -> object:
+        text = document.encode() if isinstance(document, str) else bytes(document)
+        if b"[[" in text:
+            message = "maximum recursion depth exceeded while decoding a JSON array"
+            raise RecursionError(message)
+        return cast("object", loads(document, cls=cls))
+
+    monkeypatch.setattr(json, "loads", limited)
+
+
+async def _ask_with(token: str) -> tuple[httpx.Response, list[str]]:
+    """Present ``token`` to ``/api/open``, answering what the caller got and whether it ran."""
+    reached: list[str] = []
+    application = served_application(
+        oauth2_kernel("tests.fixtures.oauth2_firewall_app"),
+        _recording_route(reached),
+    )
+    async with serving(application, raise_app_exceptions=False) as client:
+        answered = await client.get("/api/open", headers={"Authorization": f"Bearer {token}"})
+
+    return answered, reached
+
+
+async def test_a_reader_failing_unexpectedly_keeps_the_api_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A failure nobody answers is no reason to skip the rest of the firewall:
+    # the access rule on ``/api`` would never be asked, and the route would
+    # run for nobody. The request fails instead.
+    def _broken(provider: JoserfcJwsProvider, token: str) -> None:
+        del provider, token
+        message = "the token reader broke"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(JoserfcJwsProvider, "load", _broken)
+    answered, reached = await _ask_with("a.b.c")
+
+    assert answered.status_code == 500
+    assert reached == []
+
+
+async def test_a_token_too_deep_to_read_is_refused_as_an_invalid_token() -> None:
+    answered, reached = await _ask_with(_too_deep_to_read())
+
+    assert answered.status_code == 401
+    assert 'error="invalid_token"' in answered.headers["www-authenticate"]
+    assert reached == []
+
+
+async def test_a_token_too_deep_to_read_is_refused_whatever_the_decoder_gives_up_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _decoder_hitting_its_depth_limit(monkeypatch)
+
+    answered, reached = await _ask_with(_too_deep_to_read())
+
+    assert answered.status_code == 401
+    assert 'error="invalid_token"' in answered.headers["www-authenticate"]
+    assert reached == []
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"RS256","crit":5}',
+        b'{"alg":"RS256","crit":[["a"]]}',
+        b'["alg"]',
+        b'"alg"',
+    ],
+)
+async def test_a_token_whose_header_cannot_be_judged_is_refused_as_an_invalid_token(
+    header: bytes,
+) -> None:
+    parts = (header, b"{}", b"x" * 32)
+    token = ".".join(base64.urlsafe_b64encode(part).rstrip(b"=").decode() for part in parts)
+
+    answered, reached = await _ask_with(token)
+
+    assert answered.status_code == 401
+    assert 'error="invalid_token"' in answered.headers["www-authenticate"]
+    assert reached == []

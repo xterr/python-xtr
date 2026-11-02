@@ -3,7 +3,7 @@
 A class in a scanned module implementing ``TransportFactoryInterface`` is registered by the
 messenger bundle automatically and consulted *ahead of* the factories found by entry point —
 no decorator, no entry point, no factory list passed by hand. It must be buildable by the
-container (here: with no arguments).
+container: here it takes the envelope serializer the messenger bundle registers.
 
 A published transport would advertise its scheme with an entry point instead::
 
@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
-from xtr_messenger import Dsn, TransportConfig, TransportFactoryInterface
+from xtr_messenger import Dsn, SerializerInterface, TransportConfig, TransportFactoryInterface
 
 from bookshop.transport.outbox_transport import OutboxTransport
 
@@ -38,10 +38,11 @@ class OutboxTransportFactory(TransportFactoryInterface):
     a singleton in the container — keeps what it built.
     """
 
-    __slots__ = ("_made",)
+    __slots__ = ("_made", "_serializer")
 
-    def __init__(self) -> None:
-        """Start with nothing built."""
+    def __init__(self, serializer: SerializerInterface) -> None:
+        """Start with nothing built; every transport encodes with ``serializer``."""
+        self._serializer = serializer
         self._made: dict[str, OutboxTransport] = {}
 
     @override
@@ -56,6 +57,6 @@ class OutboxTransportFactory(TransportFactoryInterface):
         """The transport ``name`` stands for, built the first time."""
         made = self._made.get(name)
         if made is None:
-            made = OutboxTransport(name)
+            made = OutboxTransport(name, self._serializer)
             self._made[name] = made
         return made

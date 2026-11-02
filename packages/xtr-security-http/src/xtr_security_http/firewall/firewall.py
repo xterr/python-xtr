@@ -67,8 +67,12 @@ class Firewall(EventSubscriberInterface):
     answers it — the matched firewall's stored listener first, the
     listeners that only observe the failure after it — has its response
     set on the request's event, so the request is answered rather than
-    failing. A caller driving the events by hand, with no dispatcher
-    handed to ``on_request``, sees the failure raise as it was raised.
+    failing. A failure no listener answers is raised as it was raised: the
+    steps after the one that failed — the access decision among them — never
+    ran, so letting the request go on would hand the route a request nobody
+    decided about. The firewall fails closed, and the request fails with the
+    error. A caller driving the events by hand, with no dispatcher handed to
+    ``on_request``, sees every failure raise as it was raised.
 
     The kernel has one lifecycle per request — no request is handled inside
     another — so the main-request-only guard the upstream subscriber opens
@@ -123,6 +127,9 @@ class Firewall(EventSubscriberInterface):
             dispatcher: Where a failure the chain raises is announced. The
                 dispatcher passes itself; a caller driving the events by
                 hand leaves it out and sees the failure raise.
+
+        Raises:
+            Exception: Whatever a step raised, when no listener answered it.
         """
         del name
         context = await self._firewall_map.match(event.request)
@@ -148,8 +155,9 @@ class Firewall(EventSubscriberInterface):
                 raise
             failure = ExceptionEvent(event.request, event.state, error)
             _ = await dispatcher.dispatch(failure)
-            if failure.response is not None:
-                event.set_response(failure.response)
+            if failure.response is None:
+                raise
+            event.set_response(failure.response)
 
     async def on_exception(self, event: ExceptionEvent) -> None:
         """Route the failure to the listener of the firewall that ran the request.

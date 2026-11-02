@@ -3,7 +3,9 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from xtr_serializer import ClassDiscriminatorMapping
 
+from tests.fixtures.events import DeliveryReport, StrayNotice
 from xtr_remote_event import RemoteEvent
 
 
@@ -40,9 +42,29 @@ def test_nothing_can_be_changed_after_the_fact() -> None:
         _assign(event, "name", "payment.refunded")
 
 
-def test_an_event_type_of_its_own_can_be_derived_from_it() -> None:
-    @dataclasses.dataclass(frozen=True, slots=True)
-    class PaymentEvent(RemoteEvent):
-        amount: int = 0
+def test_it_is_the_base_of_a_hierarchy_tagged_under_dollar_type() -> None:
+    mapping = ClassDiscriminatorMapping.for_class(RemoteEvent)
 
-    assert PaymentEvent("payment.captured", "evt_1", {}, amount=500).amount == 500
+    assert mapping is not None
+    assert mapping.type_property == "$type"
+
+
+def test_a_plain_event_is_written_under_its_own_name() -> None:
+    mapping = ClassDiscriminatorMapping.for_class(RemoteEvent)
+
+    assert mapping is not None
+    assert mapping.types_mapping["remote_event"] is RemoteEvent
+
+
+def test_an_application_event_joins_the_hierarchy_under_the_name_it_registered() -> None:
+    mapping = ClassDiscriminatorMapping.for_class(RemoteEvent)
+
+    assert mapping is not None
+    assert mapping.types_mapping["test_delivery_report"] is DeliveryReport
+
+
+def test_a_class_of_another_hierarchy_is_no_remote_event() -> None:
+    mapping = ClassDiscriminatorMapping.for_class(RemoteEvent)
+
+    assert mapping is not None
+    assert StrayNotice not in mapping.types_mapping.values()

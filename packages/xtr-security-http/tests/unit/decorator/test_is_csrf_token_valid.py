@@ -128,6 +128,20 @@ async def test_it_reads_the_value_from_the_form_payload() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'{"a":' * 100_000 + b"1" + b"}" * 100_000,
+        b"[" * 100_000 + b"]" * 100_000,
+    ],
+    ids=["object", "array"],
+)
+async def test_a_payload_nested_too_deep_to_read_carries_no_value(body: bytes) -> None:
+    request = _request(headers=[(b"content-type", b"application/json")], body=body)
+
+    assert await _checked(IsCsrfTokenValid("delete_book"), request) == ("delete_book", None)
+
+
 async def test_it_reads_the_value_from_the_query_when_the_bitmask_names_it() -> None:
     request = _request(query=b"_token=from-query")
 

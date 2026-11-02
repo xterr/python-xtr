@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from typing import NoReturn
+
 import pytest
 from xtr_http_message import ServerRequest, Stream
 
@@ -45,6 +48,26 @@ async def test_it_refuses_a_body_that_cannot_be_read() -> None:
     body = Stream.create(b'{"total": 4200}')
     await body.close()
     request = ServerRequest("GET", "/").with_body(body)
+
+    assert await IsJsonRequestMatcher().matches(request) is False
+
+
+@pytest.mark.anyio
+async def test_it_refuses_a_body_nested_deeper_than_the_parser_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The parser gives up on deep nesting with a RecursionError.
+
+    How deep that is depends on the runtime — on 3.14, on the stack the process
+    was given — so no body is deep enough everywhere; the parser is made to
+    give up instead.
+    """
+
+    def gives_up(*_args: object, **_kwargs: object) -> NoReturn:
+        raise RecursionError
+
+    monkeypatch.setattr(json, "loads", gives_up)
+    request = ServerRequest("POST", "/", body=b'{"a": {"a": 1}}')
 
     assert await IsJsonRequestMatcher().matches(request) is False
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from typing_extensions import override
@@ -191,6 +193,48 @@ async def test_a_malformed_token_is_refused() -> None:
 
     with pytest.raises(InvalidAccessTokenError):
         _ = await handler.get_user_badge_from("not-a-token")
+
+
+@pytest.mark.anyio
+async def test_a_token_whose_header_is_too_deep_to_decode_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Whether a deeply nested header exhausts the decoder depends on the
+    # interpreter; the decoder is made to give up here, as the oldest does.
+    handler = _handler(make_key())
+    header = base64.urlsafe_b64encode(b'{"alg":"RS256","x":[[0]]}').rstrip(b"=").decode()
+    loads = json.loads
+
+    def _exhausted(document: str | bytes, cls: type[json.JSONDecoder] | None = None) -> object:
+        text = document.encode() if isinstance(document, str) else bytes(document)
+        if b"[[" in text:
+            message = "maximum recursion depth exceeded while decoding a JSON array"
+            raise RecursionError(message)
+        return cast("object", loads(document, cls=cls))
+
+    monkeypatch.setattr(json, "loads", _exhausted)
+
+    with pytest.raises(InvalidAccessTokenError):
+        _ = await handler.get_user_badge_from(f"{header}.e30.eHh4")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"RS256","crit":5}',
+        b'{"alg":"RS256","crit":[["a"]]}',
+        b'["alg"]',
+        b'"alg"',
+        b'["alg","b64"]',
+    ],
+)
+async def test_a_token_whose_header_cannot_be_judged_is_refused(header: bytes) -> None:
+    handler = _handler(make_key())
+    encoded = base64.urlsafe_b64encode(header).rstrip(b"=").decode()
+
+    with pytest.raises(InvalidAccessTokenError):
+        _ = await handler.get_user_badge_from(f"{encoded}.e30.eHh4")
 
 
 def test_the_none_algorithm_is_refused_in_the_allow_list() -> None:

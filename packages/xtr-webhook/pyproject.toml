@@ -22,7 +22,6 @@ classifiers = [
 ]
 dependencies = [
     "typing-extensions>=4.4",
-    "msgspec>=0.18",
     "xtr-clock>=5.0,<6",
     # The client interface a webhook is sent through; the client itself is installed by the
     # application that sends webhooks.
@@ -32,6 +31,8 @@ dependencies = [
     "xtr-http-message-contracts>=5.0,<6",
     "xtr-messenger>=5.0,<6",
     "xtr-remote-event>=5.0,<6",
+    # What writes the event's payload as the body, and decodes the JSON of an arriving one.
+    "xtr-serializer>=5.0,<6",
     "xtr-service-contracts>=5.0,<6",
     # The endpoint webhooks arrive at, contributed to the application's routes.
     "xtr-http-kernel>=5.0,<6",

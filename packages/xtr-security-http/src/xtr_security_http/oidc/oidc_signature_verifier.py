@@ -126,7 +126,10 @@ class OidcSignatureVerifier:
         # any request is sent to its JWKS — and no MAC algorithm is ever
         # accepted, so a public key published by the provider can never be
         # turned into the shared secret of an "HS256" token (key confusion).
-        headers = cast("Mapping[str, object]", signature.headers())
+        protected = cast("object", signature.headers())
+        if not isinstance(protected, dict):
+            raise AuthenticationError("Invalid ID token format: the header is not a JSON object.")
+        headers = cast("Mapping[str, object]", protected)
         algorithm = headers.get("alg")
         if not isinstance(algorithm, str) or algorithm not in self._algorithms:
             expected = '", "'.join(self._algorithms)
@@ -145,7 +148,9 @@ class OidcSignatureVerifier:
         key_set = _key_set(keys)
         try:
             token = jwt.decode(id_token, key_set, algorithms=list(self._algorithms))
-        except (JoseError, ValueError) as error:
+        except (JoseError, ValueError, TypeError) as error:
+            # A header member of the wrong shape (a ``crit`` that is no list
+            # of names) fails joserfc's header check with a TypeError.
             raise AuthenticationError(
                 f"The ID token signature could not be verified: {error}",
             ) from error

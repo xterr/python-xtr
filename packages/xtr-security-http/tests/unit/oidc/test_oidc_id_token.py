@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+from typing import cast
 
 import pytest
 from joserfc import jwt
@@ -81,6 +83,28 @@ async def test_a_payload_that_is_not_an_object_is_refused() -> None:
 
     with pytest.raises(AuthenticationError):
         _ = await _reader().decode(list_payload)
+
+
+@pytest.mark.anyio
+async def test_a_payload_too_deep_to_decode_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Whether a thousand nested arrays exhaust the decoder depends on the
+    # interpreter; the decoder is made to give up here, as the oldest does.
+    from joserfc import jws  # noqa: PLC0415 -- test-local helpers
+
+    nested = jws.serialize_compact({"alg": "RS256"}, b"[" * 1000 + b"]" * 1000, _key())
+    loads = json.loads
+
+    def _exhausted(document: str | bytes, cls: type[json.JSONDecoder] | None = None) -> object:
+        text = document.encode() if isinstance(document, str) else bytes(document)
+        if b"[[" in text:
+            message = "maximum recursion depth exceeded while decoding a JSON array"
+            raise RecursionError(message)
+        return cast("object", loads(document, cls=cls))
+
+    monkeypatch.setattr(json, "loads", _exhausted)
+
+    with pytest.raises(AuthenticationError):
+        _ = await _reader().decode(nested)
 
 
 @pytest.mark.anyio

@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, final
 from typing_extensions import override
 from xtr_messenger import (
     EncodedEnvelope,
-    JsonSerializer,
     ReceivedStamp,
     TransportInterface,
     TransportMessageIdStamp,
@@ -17,7 +16,7 @@ from xtr_messenger import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from xtr_messenger import Envelope
+    from xtr_messenger import Envelope, SerializerInterface
 
 __all__ = ["OutboxTransport"]
 
@@ -33,10 +32,10 @@ class OutboxTransport(TransportInterface):
 
     __slots__ = ("_counter", "_pending", "_serializer", "delivered", "failed", "name")
 
-    def __init__(self, name: str) -> None:
-        """Start empty; encode with the JSON serializer every transport uses by default."""
+    def __init__(self, name: str, serializer: SerializerInterface) -> None:
+        """Start empty; encode with ``serializer``, the one every transport of the bus uses."""
         self.name = name
-        self._serializer = JsonSerializer()
+        self._serializer = serializer
         self._pending: deque[tuple[str, EncodedEnvelope]] = deque()
         self._counter = 0
         self.delivered: list[str] = []

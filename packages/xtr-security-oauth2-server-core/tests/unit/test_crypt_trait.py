@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import json
+from typing import cast
 
 import pytest
 from joserfc import jwe
@@ -159,6 +161,30 @@ def test_a_token_that_will_not_open_is_not_blamed_on_the_caller(holder: _Holder)
     assert not isinstance(refusal.value, InvalidArgumentError)
 
 
+def test_it_refuses_a_token_whose_header_is_too_deep_to_decode(
+    holder: _Holder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A client hands a code or a refresh token back, header and all. Whether a
+    # deeply nested header exhausts the decoder depends on the interpreter;
+    # the decoder is made to give up here, as the oldest does.
+    header = base64.urlsafe_b64encode(b'{"alg":"dir","enc":"A256GCM","x":[[0]]}')
+    token = header.rstrip(b"=").decode() + "..eHh4eHh4eHh4eHh4.eHh4.eHh4eHh4eHh4eHh4eHh4eA"
+    loads = json.loads
+
+    def _exhausted(document: str | bytes, cls: type[json.JSONDecoder] | None = None) -> object:
+        text = document.encode() if isinstance(document, str) else bytes(document)
+        if b"[[" in text:
+            message = "maximum recursion depth exceeded while decoding a JSON array"
+            raise RecursionError(message)
+        return cast("object", loads(document, cls=cls))
+
+    monkeypatch.setattr(json, "loads", _exhausted)
+
+    with pytest.raises(OAuth2Error, match="could not be decrypted"):
+        _ = holder.decrypt(token)
+
+
 def test_it_refuses_a_token_whose_payload_is_not_json(holder: _Holder) -> None:
     key = OctKey.import_key(bytes(range(32)), parameters={"use": "enc"})
     token = jwe.encrypt_compact(
@@ -167,6 +193,25 @@ def test_it_refuses_a_token_whose_payload_is_not_json(holder: _Holder) -> None:
         key,
         algorithms=("dir", "A256GCM"),
     )
+
+    with pytest.raises(OAuth2Error, match="could not be decrypted"):
+        _ = holder.decrypt(token)
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        b'{"alg":"dir","enc":"A256GCM","crit":5}',
+        b'{"alg":"dir","enc":"A256GCM","crit":[["a"]]}',
+        b'["alg","enc"]',
+        b'"alg enc"',
+    ],
+)
+def test_it_refuses_a_token_whose_header_cannot_be_judged(holder: _Holder, header: bytes) -> None:
+    # The protected header a client hands back is judged before anything is
+    # decrypted; one the decrypter cannot read is one this holder never sealed.
+    parts = (header, b"", b"x" * 12, b"x" * 8, b"x" * 16)
+    token = ".".join(base64.urlsafe_b64encode(part).rstrip(b"=").decode() for part in parts)
 
     with pytest.raises(OAuth2Error, match="could not be decrypted"):
         _ = holder.decrypt(token)

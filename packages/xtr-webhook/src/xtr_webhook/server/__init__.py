@@ -17,9 +17,7 @@ from __future__ import annotations
 from .header_signature_configurator import HeaderSignatureConfigurator
 from .headers_configurator import HeadersConfigurator
 from .json_body_configurator import JsonBodyConfigurator
-from .json_payload_serializer import JsonPayloadSerializer
 from .outgoing_request import OutgoingRequest
-from .payload_serializer_interface import PayloadSerializerInterface
 from .request_configurator_interface import RequestConfiguratorInterface
 from .signature_format import SignatureFormat
 from .transport import Transport
@@ -29,9 +27,7 @@ __all__ = [
     "HeaderSignatureConfigurator",
     "HeadersConfigurator",
     "JsonBodyConfigurator",
-    "JsonPayloadSerializer",
     "OutgoingRequest",
-    "PayloadSerializerInterface",
     "RequestConfiguratorInterface",
     "SignatureFormat",
     "Transport",

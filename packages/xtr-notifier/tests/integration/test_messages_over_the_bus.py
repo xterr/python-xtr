@@ -9,14 +9,16 @@ from __future__ import annotations
 
 import pytest
 from xtr_messenger import (
-    DataclassCodec,
+    Envelope,
     HandlersLocator,
     InMemoryTransport,
     InMemoryTransportFactory,
+    JsonSerializer,
     MessageBusConfig,
     MessageBusFactory,
     TransportConfig,
 )
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
 from tests.support.fake_transport import FakeTransport
 from xtr_notifier import Chatter, Texter
@@ -36,6 +38,10 @@ _OPTIONS = MessageOptions(
     "ops",
     {"blocks": [{"type": "section", "fields": [1, 2.5, None]}], "unfurl": True, "ts": "1.2"},
 )
+
+
+def _wire() -> JsonSerializer:
+    return JsonSerializer(Serializer([PydanticNormalizer()], [JsonEncoder()]))
 
 
 def _notification() -> Notification:
@@ -60,15 +66,13 @@ def _messages() -> list[MessageInterface]:
 
 
 @pytest.mark.parametrize("message", _messages(), ids=["chat", "sms", "push"])
-@pytest.mark.parametrize("forbid_unknown_fields", [False, True])
-def test_the_codec_brings_every_field_back(
-    message: MessageInterface, forbid_unknown_fields: bool
-) -> None:
-    codec = DataclassCodec(forbid_unknown_fields=forbid_unknown_fields)
+def test_the_wire_brings_every_field_back(message: MessageInterface) -> None:
+    wire = _wire()
 
-    decoded = codec.decode(type(message), codec.encode(message))
+    decoded = wire.decode(wire.encode(Envelope(message))).message
 
     assert decoded == message
+    assert type(decoded) is type(message)
 
 
 @pytest.mark.anyio
@@ -77,7 +81,7 @@ async def test_a_message_dispatched_comes_back_off_the_wire_unchanged() -> None:
         transports={"mem": TransportConfig("in-memory://?serialize=true")},
         routing={ChatMessage: "mem", SmsMessage: "mem", PushMessage: "mem"},
     )
-    factories = [InMemoryTransportFactory()]
+    factories = [InMemoryTransportFactory(_wire())]
     recorder = factories[0].create(config.transports)["mem"]
     assert isinstance(recorder, InMemoryTransport)
     bus = MessageBusFactory(config, factories).bus()

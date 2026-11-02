@@ -176,8 +176,10 @@ dispatcher. At the request it matches the map, runs the matched firewall's chain
 routing, so a request no route would answer is still challenged as a request — and parks the
 matched firewall and its exception listener on the request's security state; a failure the
 chain raises is announced on the exception event and answered by that listener, exactly once;
-the finish of the request puts the stored listener away. A route documents its security with
-the framework's own params; the firewall contributes no OpenAPI scheme of its own.
+a failure no listener answers is raised as it was raised, so the request fails rather than
+going on with the rest of the chain — the access decision included — never asked. The finish
+of the request puts the stored listener away. A route documents its security with the
+framework's own params; the firewall contributes no OpenAPI scheme of its own.
 
 ### Firewall listeners
 
