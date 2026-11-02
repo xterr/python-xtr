@@ -16,15 +16,20 @@ _HIDDEN: Final = frozenset({"head", "script", "style"})
 _HORIZONTAL_SPACE: Final = re.compile(r"[^\S\n]+")
 _BLANK_LINES: Final = re.compile(r"\n{3,}")
 
+_LONG_REFERENCE: Final = re.compile(r"&#(?:([xX])([0-9a-fA-F]{7,})|([0-9]{8,}))(;?)")
+"""A numeric character reference written with more digits than U+10FFFF, the last code point."""
+
 
 @final
 class DefaultHtmlToTextConverter:
     """Strips the tags of an HTML body, keeping the text a reader would see.
 
     The head, scripts and styles are dropped with what they hold, comments and declarations
-    vanish, character references are decoded, and whitespace is collapsed: runs of spaces
-    within a line become one space, and runs of blank lines one blank line. An element
-    that is opened but never closed hides nothing: its text is kept.
+    vanish, and character references are decoded; a numeric one past U+10FFFF, however many
+    digits it is written with, reads as U+FFFD. Whitespace is collapsed: each line is trimmed
+    and a run of whitespace inside it becomes one space, runs of blank lines become one blank
+    line, and the whole text is trimmed, so the indentation of a ``<pre>`` block is lost. An
+    element that is opened but never closed hides nothing: its text is kept.
 
     The HTML is read by the standard library's tolerant parser, so malformed or hostile markup
     converts without an error, in time that grows with its length.
@@ -36,11 +41,32 @@ class DefaultHtmlToTextConverter:
         """Return the text ``html`` reads as."""
         del charset  # the text stays a str; the part carrying it encodes it in its charset
         collector = _TextCollector()
-        collector.feed(html)
+        collector.feed(_LONG_REFERENCE.sub(_shortened, html))
         collector.close()
         text = collector.text().replace("\r\n", "\n").replace("\r", "\n")
         lines = (_HORIZONTAL_SPACE.sub(" ", line).strip() for line in text.split("\n"))
         return _BLANK_LINES.sub("\n\n", "\n".join(lines)).strip()
+
+
+def _shortened(reference: re.Match[str]) -> str:
+    """Return ``reference`` without its leading zeros, or U+FFFD when it names no code point.
+
+    The parser reads the digits of a reference with ``int()``, which refuses more than a few
+    thousand of them and, where an application lifts that limit, takes time growing faster than
+    their count. Leading zeros change no number, and a number with more digits than U+10FFFF
+    — 6 in hexadecimal, 7 in decimal — is past the last code point: a browser reads it as
+    U+FFFD, and so does the converter, without reading its digits. No reference reaches the
+    parser with more digits than U+10FFFF has.
+
+    The rewrite comes before the parser, so it reaches the text of a raw text element too —
+    ``<xmp>``, ``<plaintext>`` — which a browser shows as written; only a reference this long
+    reads differently there.
+    """
+    marker, hexadecimal, decimal, end = reference.groups("")
+    digits = (hexadecimal or decimal).lstrip("0") or "0"
+    if len(digits) > (6 if marker else 7):
+        return "\N{REPLACEMENT CHARACTER}"
+    return f"&#{marker}{digits}{end}"
 
 
 class _TextCollector(HTMLParser):

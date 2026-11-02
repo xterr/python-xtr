@@ -63,6 +63,69 @@ def test_entities_are_decoded() -> None:
     assert _convert("Fish &amp; chips &lt;3 &#x41;&#66; &eacute;") == "Fish & chips <3 AB é"
 
 
+def test_a_reference_padded_with_more_zeros_than_int_reads_names_its_character() -> None:
+    assert _convert("<p>Hi &#" + "0" * 4300 + "65;</p>") == "Hi A"
+
+
+@pytest.mark.parametrize(
+    ("reference", "character"),
+    [
+        ("&#x" + "0" * 4300 + "41;", "A"),
+        ("&#" + "0" * 4300 + "65", "A"),
+        ("&#" + "0" * 4300 + "1048576;", "\U00100000"),
+        ("&#X" + "0" * 4300 + "100000;", "\U00100000"),
+        ("&#" + "0" * 4300 + ";", "\ufffd"),
+    ],
+    ids=[
+        "hexadecimal",
+        "without a semicolon",
+        "seven decimal digits",
+        "six hexadecimal digits",
+        "zero",
+    ],
+)
+def test_leading_zeros_do_not_change_the_character_a_reference_names(
+    reference: str, character: str
+) -> None:
+    assert _convert(f"a {reference} b") == f"a {character} b"
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "&#" + "1" * 5000 + ";",
+        "&#x" + "f" * 5000 + ";",
+        "&#" + "9" * 5000,
+        "&#" + "0" * 4300 + "11141120;",
+        "&#x" + "0" * 4300 + "1000000;",
+    ],
+    ids=[
+        "decimal",
+        "hexadecimal",
+        "without a semicolon",
+        "eight decimal digits after zeros",
+        "seven hexadecimal digits after zeros",
+    ],
+)
+def test_a_reference_past_the_last_code_point_reads_as_the_replacement_character(
+    reference: str,
+) -> None:
+    assert _convert(f"a {reference} b") == "a \ufffd b"
+
+
+@pytest.mark.parametrize(
+    ("html", "text"),
+    [
+        ('<a title="&#' + "1" * 5000 + ';">x</a>', "x"),
+        ("<title>&#" + "0" * 4300 + "65;</title>", "A"),
+        ("<textarea>&#" + "1" * 5000 + ";</textarea>", "\ufffd"),
+    ],
+    ids=["attribute value", "title", "textarea"],
+)
+def test_a_long_reference_converts_wherever_the_parser_decodes_one(html: str, text: str) -> None:
+    assert _convert(html) == text
+
+
 def test_comments_and_declarations_are_dropped() -> None:
     assert _convert("<!DOCTYPE html>a<!-- hidden -->b<?xml x?>c<![CDATA[d]]>e") == "abce"
 

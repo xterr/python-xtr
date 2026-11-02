@@ -56,6 +56,17 @@ Coming with the package's errors.
   is refused, as cryptography signs with PKCS #1 v1.5 only. `SMimeEncrypter` encrypts with
   `aes-128-cbc` or `aes-256-cbc` (the default) for certificates holding an RSA key; the RC2,
   DES, 3DES and `aes-192-cbc` ciphers are refused with `InvalidArgumentError`.
+- **The text made from an HTML body is written for reading, not the markup minus its tags.**
+  On purpose, `DefaultHtmlToTextConverter` decodes character references, drops `<script>` —
+  as it drops the head and `<style>` — with what it holds, collapses whitespace, and trims every
+  line and the whole text, so a `<pre>` block loses its indentation. Where the text must keep
+  the body's characters as written, use a converter of your own implementing
+  `HtmlToTextConverterInterface`.
+- **Untrusted HTML needs an interpreter with the 2025 `html.parser` fixes.** The converter reads
+  HTML with the standard library's parser, which before CPython 3.11.14, 3.12.12 and 3.13.6
+  takes time growing with the square of the input on markup left unclosed, and loses the text
+  after a `<script>` or `<style>` that is never closed. Convert HTML you do not write on one of
+  those releases or a later one; every 3.14 release has the fixes.
 
 ## Development
 

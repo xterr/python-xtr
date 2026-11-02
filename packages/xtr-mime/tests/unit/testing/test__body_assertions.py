@@ -5,13 +5,13 @@ from __future__ import annotations
 import io
 import re
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import pytest
 from typing_extensions import override
 
 from xtr_mime import Email, Headers, Message, RawMessage
-from xtr_mime.exception import LogicError
+from xtr_mime.exception import InvalidArgumentError, LogicError
 from xtr_mime.testing import (
     assert_email_attachment_count,
     assert_email_html_body_contains,
@@ -24,6 +24,13 @@ from xtr_mime.testing import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+_BODY_CHECKS: Final = {
+    "text body": (Email.text, assert_email_text_body_contains),
+    "text body not": (Email.text, assert_email_text_body_not_contains),
+    "html body": (Email.html, assert_email_html_body_contains),
+    "html body not": (Email.html, assert_email_html_body_not_contains),
+}
 
 
 def _failure(message: str) -> pytest.RaisesExc[AssertionError]:
@@ -145,6 +152,23 @@ def test_an_html_body_holding_the_text_fails_the_html_body_not_contains_check() 
 
 def test_an_html_body_without_the_text_passes_the_html_body_not_contains_check() -> None:
     assert_email_html_body_not_contains(Email(), "Hello")
+
+
+@pytest.mark.parametrize("charset", ["nope", "utf-8\x00"], ids=["unknown", "null byte"])
+@pytest.mark.parametrize(("set_body", "check"), _BODY_CHECKS.values(), ids=_BODY_CHECKS.keys())
+def test_a_body_in_a_charset_no_codec_reads_fails_the_check_as_it_fails_rendering(
+    set_body: Callable[[Email, bytes, str], Email],
+    check: Callable[[RawMessage, str], None],
+    charset: str,
+) -> None:
+    email = set_body(Email(), b"Hello", charset)
+    with pytest.raises(InvalidArgumentError) as rendering:
+        _ = email.get_body().to_string()
+
+    with pytest.raises(InvalidArgumentError) as checking:
+        check(email, "Hello")
+
+    assert str(checking.value) == str(rendering.value)
 
 
 @pytest.mark.parametrize(

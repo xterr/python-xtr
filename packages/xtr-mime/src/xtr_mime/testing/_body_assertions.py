@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, BinaryIO
 
+from xtr_mime._error_text import body_charset_error
 from xtr_mime.email import Email
 from xtr_mime.exception import LogicError
 
@@ -57,6 +58,8 @@ def assert_email_text_body_contains(message: RawMessage, expected_text: str) -> 
     Raises:
         AssertionError: When it does not.
         LogicError: When ``message`` is not an :class:`~xtr_mime.Email`.
+        InvalidArgumentError: When the body is bytes or a file in a charset Python does not
+            know, as rendering the email reports it.
     """
     if expected_text not in _text_body_of(message):
         fail(f'the Email text body contains "{expected_text}"')
@@ -68,6 +71,8 @@ def assert_email_text_body_not_contains(message: RawMessage, expected_text: str)
     Raises:
         AssertionError: When it does.
         LogicError: When ``message`` is not an :class:`~xtr_mime.Email`.
+        InvalidArgumentError: When the body is bytes or a file in a charset Python does not
+            know, as rendering the email reports it.
     """
     if expected_text in _text_body_of(message):
         fail(f'the Email text body does not contain "{expected_text}"')
@@ -79,6 +84,8 @@ def assert_email_html_body_contains(message: RawMessage, expected_text: str) -> 
     Raises:
         AssertionError: When it does not.
         LogicError: When ``message`` is not an :class:`~xtr_mime.Email`.
+        InvalidArgumentError: When the body is bytes or a file in a charset Python does not
+            know, as rendering the email reports it.
     """
     if expected_text not in _html_body_of(message):
         fail(f'the Email HTML body contains "{expected_text}"')
@@ -90,6 +97,8 @@ def assert_email_html_body_not_contains(message: RawMessage, expected_text: str)
     Raises:
         AssertionError: When it does.
         LogicError: When ``message`` is not an :class:`~xtr_mime.Email`.
+        InvalidArgumentError: When the body is bytes or a file in a charset Python does not
+            know, as rendering the email reports it.
     """
     if expected_text in _html_body_of(message):
         fail(f'the Email HTML body does not contain "{expected_text}"')
@@ -140,4 +149,9 @@ def _read(body: str | bytes | BinaryIO | None, charset: str | None) -> str:
         if body.seekable():
             _ = body.seek(0)
         body = body.read()
-    return body.decode(charset or "utf-8", errors="replace")
+    encoding = charset or "utf-8"
+    try:
+        return body.decode(encoding, errors="replace")
+    except (LookupError, ValueError) as error:
+        # No codec goes by that name, or a null byte in it stops the search for one.
+        raise body_charset_error(encoding, error) from error
