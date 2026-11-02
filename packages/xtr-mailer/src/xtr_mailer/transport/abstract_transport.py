@@ -48,9 +48,14 @@ class AbstractTransport(TransportInterface, ABC):
     unknown.
 
     Two caps on the pace, both off until set: :meth:`set_max_per_second` spaces the sends out
-    by waiting on the clock after each, and :meth:`set_rate_limiter_factory` refuses an email
-    once a limiter has no token left for it. A cancelled send counts towards the pace but waits
-    for nothing: the caller that cancelled it is not held up for the next one's turn.
+    by waiting on the clock before each, and :meth:`set_rate_limiter_factory` refuses an email
+    once a limiter has no token left for it.
+
+    The pace holds however many tasks send at once: each send takes the next free slot, one
+    interval after the slot before it, then waits until its slot comes — sends may still overlap
+    once started, but never start closer together than the pace allows. A slot is taken for
+    good: an email rejected, refused or failing keeps it, and so does a send cancelled while it
+    waits, which leaves its slot unused rather than pulling the later ones forward.
     """
 
     def __init__(
@@ -70,7 +75,7 @@ class AbstractTransport(TransportInterface, ABC):
         self._logger: LoggerInterface = logger if logger is not None else NullLogger()
         self._clock: ClockInterface = clock if clock is not None else SystemClock()
         self._rate: float = 0.0
-        self._last_sent: float = 0.0
+        self._next_slot: float | None = None
         self._rate_limiter_factory: RateLimiterFactoryInterface | None = None
 
     def set_max_per_second(self, rate: float) -> Self:
@@ -79,7 +84,7 @@ class AbstractTransport(TransportInterface, ABC):
         The pace starts afresh: the next email goes at once.
         """
         self._rate = max(rate, 0.0)
-        self._last_sent = 0.0
+        self._next_slot = None
         return self
 
     def set_rate_limiter_factory(self, rate_limiter_factory: RateLimiterFactoryInterface) -> Self:
@@ -105,19 +110,10 @@ class AbstractTransport(TransportInterface, ABC):
         """
         message = copy.copy(message)
         envelope = copy.copy(envelope) if envelope is not None else Envelope.create(message)
+        await self._wait_for_slot()
         factory = self._rate_limiter_factory
         limiter = None if factory is None else factory.create()
-        try:
-            sent = await self._send_announced(message, envelope, limiter)
-        except Exception:
-            await self._throttle()
-            raise
-        # Cancelled or interrupted, which no Exception is: count the send, wait for nothing.
-        except BaseException:
-            self._last_sent = self._clock.now().timestamp()
-            raise
-        await self._throttle()
-        return sent
+        return await self._send_announced(message, envelope, limiter)
 
     @abstractmethod
     async def _do_send(self, message: SentMessage) -> None:
@@ -173,15 +169,22 @@ class AbstractTransport(TransportInterface, ABC):
                 "from a remote template."
             )
 
-    async def _throttle(self) -> None:
-        """Wait until the next email is due, at the pace :meth:`set_max_per_second` set."""
+    async def _wait_for_slot(self) -> None:
+        """Take the next slot at the pace :meth:`set_max_per_second` set, and wait for it.
+
+        Reading the next slot and moving it on happen with no await between them, so no other
+        task sending through this transport can take the same slot: on one event loop, that is
+        what a lock would guarantee, without one.
+        """
         if self._rate == 0:
             return
-        wait = 1 / self._rate - (self._clock.now().timestamp() - self._last_sent)
+        now = self._clock.now().timestamp()
+        slot = now if self._next_slot is None else max(now, self._next_slot)
+        self._next_slot = slot + 1 / self._rate
+        wait = slot - now
         if wait > 0:
             self._logger.debug(
                 'Email transport "{transport}" sleeps for {seconds} seconds.',
                 {"transport": str(self), "seconds": round(wait, 2)},
             )
             await self._clock.sleep_async(wait)
-        self._last_sent = self._clock.now().timestamp()

@@ -23,7 +23,7 @@ def _envelope() -> Envelope:
     return Envelope(Address("fabien@example.com"), [Address("helene@example.com")])
 
 
-async def test_a_cancelled_send_does_not_wait_for_its_turn() -> None:
+async def test_a_send_cancelled_mid_way_waits_for_nothing_after_its_turn() -> None:
     clock = MockClock()
     transport = StallingTransport(clock=clock).set_max_per_second(1 / 10)
     transport.stalled = True
@@ -34,7 +34,7 @@ async def test_a_cancelled_send_does_not_wait_for_its_turn() -> None:
     with pytest.raises(TimeoutError):
         _ = await asyncio.wait_for(transport.send(_MESSAGE, _envelope()), 0.05)
 
-    assert clock.now().timestamp() == start
+    assert clock.now().timestamp() - start == pytest.approx(10)
 
 
 async def test_a_cancelled_send_counts_towards_the_pace() -> None:
