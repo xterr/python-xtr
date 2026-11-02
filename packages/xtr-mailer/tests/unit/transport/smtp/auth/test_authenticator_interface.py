@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.unit.transport.smtp.auth.exchange import authenticate
+from tests.support.smtp_auth_exchange import authenticate
 from xtr_mailer.transport.smtp.auth import AuthenticatorInterface
 
 if TYPE_CHECKING:
