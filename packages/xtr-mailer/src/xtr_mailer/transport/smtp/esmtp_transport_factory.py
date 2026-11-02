@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
@@ -24,6 +25,8 @@ _SECONDS: Final = "a number of seconds, zero or more"
 _ADDRESS: Final = "an IPv4 or IPv6 address"
 _DIGEST: Final = "an MD5, SHA-1 or SHA-256 digest in hex"
 _DOMAIN: Final = "a domain name or an address"
+# What EHLO can carry as the client's name: visible ASCII, at least one character.
+_EHLO_NAME: Final = re.compile(r"[!-~]+")
 
 
 @final
@@ -107,8 +110,9 @@ def _configure_session(transport: EsmtpTransport, dsn: Dsn) -> None:
     """Set the name ``transport`` greets with, its pace, and when it restarts or pings."""
     local_domain = read_text(dsn, "local_domain", _DOMAIN)
     if local_domain is not None:
-        if any(character.isspace() for character in local_domain):
-            # The name goes out in EHLO: one with a space in it would split the command.
+        if _EHLO_NAME.fullmatch(local_domain) is None:
+            # The name goes out in EHLO: a space would split the command, and an empty or
+            # non-ASCII name would only be refused there, when the first email is sent.
             raise refusal("local_domain", _DOMAIN, local_domain)
         _ = transport.set_local_domain(local_domain)
     rate = read_number(dsn, "max_per_second", "a number of emails a second, zero or more")

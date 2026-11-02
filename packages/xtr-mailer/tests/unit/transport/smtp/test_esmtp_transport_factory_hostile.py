@@ -146,6 +146,14 @@ def test_a_failover_naming_a_host_the_resolver_cannot_encode_is_refused() -> Non
         _ = Transport.from_dsn("failover(smtp://smtp..example.com:2525 smtp://127.0.0.1:2525)")
 
 
+@pytest.mark.parametrize("domain", ["", "b%C3%BCcher.example", "a%09b", "a%01b", "a%C2%A0b"])
+def test_a_local_domain_ehlo_cannot_carry_is_refused_by_name(domain: str) -> None:
+    error = _create(f"smtp://example.com?local_domain={domain}")
+
+    assert str(error).startswith('The "local_domain" option is not valid: it must be ')
+    assert error.__context__ is None
+
+
 @pytest.mark.parametrize("port", [-1, 65536])
 def test_a_port_out_of_range_is_refused(port: int) -> None:
     with pytest.raises(InvalidArgumentError) as caught:
