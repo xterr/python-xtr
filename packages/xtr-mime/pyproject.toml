@@ -37,8 +37,6 @@ dkim = ["dkimpy>=1.1.8,<2", "cryptography>=45"]
 smime = ["cryptography>=45"]
 # Guess a file's type from its content rather than its name.
 magic = ["python-magic>=0.4.27"]
-# Wire the package from one configuration.
-di = ["xtr-dependency-injection>=5.0,<6"]
 
 # Advertises the bundle to debug:bundles; it is only reported, never activated.
 [project.entry-points."xtr_dependency_injection.bundles"]

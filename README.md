@@ -250,7 +250,6 @@ graph LR
     serializer[xtr-serializer] -. optional .-> di
     serializer -. optional .-> console
     mime[xtr-mime] --> clock
-    mime -. optional .-> di
     mailer[xtr-mailer] --> mime
     mailer --> clock
     mailer --> eventcon
@@ -260,7 +259,6 @@ graph LR
     mailer -. optional .-> messenger
     mailer -. optional .-> ratelimiter
     mailer -. optional .-> console
-    mailer -. optional .-> di
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

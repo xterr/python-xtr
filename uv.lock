@@ -5298,9 +5298,6 @@ dependencies = [
 console = [
     { name = "xtr-console" },
 ]
-di = [
-    { name = "xtr-dependency-injection" },
-]
 dkim = [
     { name = "xtr-mime", extra = ["dkim"] },
 ]
@@ -5333,7 +5330,6 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-console", marker = "extra == 'console'", editable = "packages/xtr-console" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
@@ -5344,7 +5340,7 @@ requires-dist = [
     { name = "xtr-rate-limiter", marker = "extra == 'rate-limiter'", editable = "packages/xtr-rate-limiter" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
-provides-extras = ["messenger", "rate-limiter", "console", "dkim", "smime", "di"]
+provides-extras = ["messenger", "rate-limiter", "console", "dkim", "smime"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -5515,9 +5511,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-di = [
-    { name = "xtr-dependency-injection" },
-]
 dkim = [
     { name = "cryptography" },
     { name = "dkimpy" },
@@ -5550,9 +5543,8 @@ requires-dist = [
     { name = "python-magic", marker = "extra == 'magic'", specifier = ">=0.4.27" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
-    { name = "xtr-dependency-injection", marker = "extra == 'di'", editable = "packages/xtr-dependency-injection" },
 ]
-provides-extras = ["dkim", "smime", "magic", "di"]
+provides-extras = ["dkim", "smime", "magic"]
 
 [package.metadata.requires-dev]
 dev = [

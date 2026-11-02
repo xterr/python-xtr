@@ -1,6 +1,6 @@
 # MimeBundle in an application
 
-With `xtr-mime[di]` installed and `MimeBundle` listed, the container holds:
+With `xtr-mime` installed and `MimeBundle` listed, the container holds:
 
 | Service | Under | Built |
 | --- | --- | --- |

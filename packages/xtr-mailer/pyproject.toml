@@ -50,8 +50,6 @@ console = ["xtr-console>=5.0,<6"]
 dkim = ["xtr-mime[dkim]>=5.0,<6"]
 # Sign and encrypt outgoing email with S/MIME.
 smime = ["xtr-mime[smime]>=5.0,<6"]
-# Wire the mailer from one configuration.
-di = ["xtr-dependency-injection>=5.0,<6"]
 
 [dependency-groups]
 dev = [

@@ -42,7 +42,6 @@ uv add xtr-mime
 | `dkim` | dkimpy, cryptography | `DkimSigner` |
 | `smime` | cryptography | `SMimeSigner`, `SMimeEncrypter` |
 | `magic` | python-magic | `MagicMimeTypeGuesser`, which also needs libmagic itself: `brew install libmagic`, `apt install libmagic1` |
-| `di` | xtr-dependency-injection | `MimeBundle` — see [Use in an application](#use-in-an-application) |
 
 `uv add "xtr-mime[dkim,smime]"` takes several. Without `dkim` or `smime`, the signers still
 import; building one raises `LogicError` naming the extra to install. Without `magic` or
@@ -213,8 +212,8 @@ Everything adding this package to an application on
 [xtr-dependency-injection](../xtr-dependency-injection) takes — and, read backwards, what
 removing it undoes.
 
-- **Install** — `uv add "xtr-mime[di]"`: the `di` extra brings the container the bundle plugs
-  into. Add `dkim`, `smime` or `magic` beside it for what each brings.
+- **Install** — `uv add xtr-mime`; add `dkim`, `smime` or `magic` for what each brings. The
+  container the bundle plugs into, xtr-dependency-injection, is the application's own.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
   `MimeBundle`. There is no config file, environment or ignore line to write.
 - **Activate** — `MimeBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
@@ -234,7 +233,7 @@ removing it undoes.
 
 ## Kernel / bundle
 
-With the `di` extra installed, list the bundle:
+With xtr-dependency-injection in the application, list the bundle:
 
 ```python
 # app/config/bundles.py

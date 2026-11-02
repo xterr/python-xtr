@@ -107,7 +107,7 @@ only where the markup's lines do.
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
 `MimeBundle`. There is no config file, environment or ignore line to write.
 
-1. **Install** — `uv add "xtr-mime[di]"`; add `dkim`, `smime` or `magic` for what each brings.
+1. **Install** — `uv add xtr-mime`; add `dkim`, `smime` or `magic` for what each brings.
 2. **Activate** — `MimeBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
    imported from `xtr_mime.bundle`.
 3. **Brings along** — nothing.
