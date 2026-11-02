@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 from collections.abc import Iterable
+from copy import copy
 from typing import TYPE_CHECKING, BinaryIO, Final
 
 import pytest
@@ -97,6 +98,33 @@ def test_to_string_refuses_a_generator_left_half_read() -> None:
 
     with pytest.raises(LogicError, match=f"^{CLOSED}$"):
         _ = message.to_string()
+
+
+def test_a_generator_read_to_its_end_through_a_copy_is_kept_for_the_original() -> None:
+    message = RawMessage(_generator())
+    assert b"".join(copy(message).to_iterable()) == b"some string"
+
+    assert b"".join(message.to_iterable()) == b"some string"
+    assert copy(message).to_string() == "some string"
+
+
+def test_a_generator_left_half_read_through_a_copy_cannot_be_read_by_the_original() -> None:
+    message = RawMessage(_generator())
+    chunks = copy(message).to_iterable()
+    _ = next(chunks)
+    chunks.close()
+
+    with pytest.raises(LogicError, match=f"^{CLOSED}$"):
+        _ = b"".join(message.to_iterable())
+
+
+def test_a_generator_still_being_read_through_a_copy_cannot_be_read_by_another() -> None:
+    message = RawMessage(_generator())
+    chunks = copy(message).to_iterable()
+    _ = next(chunks)
+
+    with pytest.raises(LogicError, match=f"^{CLOSED}$"):
+        _ = b"".join(copy(message).to_iterable())
 
 
 def test_to_iterable_on_a_file_rewinds_and_yields_lines() -> None:

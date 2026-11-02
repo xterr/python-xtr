@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator, Iterator
-from typing import TYPE_CHECKING, BinaryIO, Final, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, BinaryIO, Final, Protocol, final, runtime_checkable
 
 from .exception import InvalidArgumentError, LogicError
 
@@ -34,14 +34,21 @@ class RawMessage:
     of chunks — a generator — can be read once: what it yields is kept as it goes, so a
     message read to its end can be sent again, and one left half read cannot.
 
+    A copy reads the same iterator as the message it copies: the bytes one of them read to the
+    end are there for every other, and a read one of them left half done — or is still doing —
+    leaves every other unable to read.
+
     A string may carry bytes that are not UTF-8 as the surrogates :meth:`to_string` gives them
     as; any other lone surrogate has no bytes to be sent as, and the message is refused.
     """
 
     def __init__(self, message: str | bytes | BinaryIO | Iterable[bytes]) -> None:
         """Keep ``message``; nothing is read until the message is."""
-        self._message: str | bytes | BinaryIO | Iterable[bytes] = message
-        self._generator_closed: bool = False
+        self._message: str | bytes | BinaryIO | Iterable[bytes] | _ReadOnce = (
+            _ReadOnce(message)
+            if isinstance(message, Iterator) and not isinstance(message, _BinaryFile)
+            else message
+        )
 
     def to_string(self) -> str:
         """Return the whole message as text; bytes that are not UTF-8 survive as surrogates.
@@ -67,8 +74,6 @@ class RawMessage:
             LogicError: The message is a generator that was left half read.
             InvalidArgumentError: The message is a string UTF-8 cannot hold.
         """
-        if self._generator_closed:
-            raise LogicError(_CLOSED)
         message = self._message
         if isinstance(message, str):
             yield _encoded(message)
@@ -78,8 +83,8 @@ class RawMessage:
             if message.seekable():
                 _ = message.seek(0)
             yield from iter(message.readline, b"")
-        elif isinstance(message, Iterator):
-            yield from self._read_once(message)
+        elif isinstance(message, _ReadOnce):
+            yield from message.read()
         else:
             yield from message
 
@@ -90,19 +95,35 @@ class RawMessage:
             LogicError: In a subclass, the message cannot be sent as it is.
         """
 
-    def _read_once(self, chunks: Iterator[bytes]) -> Generator[bytes, None, None]:
+
+@final
+class _ReadOnce:
+    """Chunks that can be read once, held by a message and every copy of it.
+
+    The first read takes the chunks; once it reaches their end, the bytes it read are what
+    every later read yields. Until then — and for good, when it stops half way — there is
+    nothing left to read.
+    """
+
+    __slots__ = ("_chunks", "_content")
+
+    def __init__(self, chunks: Iterator[bytes]) -> None:
+        self._chunks: Iterator[bytes] | None = chunks
+        self._content: bytes | None = None
+
+    def read(self) -> Generator[bytes, None, None]:
+        if self._content is not None:
+            yield self._content
+            return
+        chunks = self._chunks
+        if chunks is None:
+            raise LogicError(_CLOSED)
+        self._chunks = None
         read: list[bytes] = []
-        finished = False
-        try:
-            for chunk in chunks:
-                read.append(chunk)
-                yield chunk
-            finished = True
-        finally:
-            if finished:
-                self._message = b"".join(read)
-            else:
-                self._generator_closed = True
+        for chunk in chunks:
+            read.append(chunk)
+            yield chunk
+        self._content = b"".join(read)
 
 
 def _encoded(message: str) -> bytes:

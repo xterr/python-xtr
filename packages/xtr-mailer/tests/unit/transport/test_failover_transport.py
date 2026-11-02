@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
+from typing_extensions import override
 from xtr_clock import MockClock
-from xtr_mime import Headers, Message, TextPart
+from xtr_mime import Address, Headers, Message, RawMessage, TextPart
+from xtr_mime.exception import LogicError as MimeLogicError
 
 from tests.support.scripted_transport import ScriptedTransport
-from xtr_mailer import LogicError, TransportError
+from xtr_mailer import Envelope, LogicError, TransportError
 from xtr_mailer.transport import FailoverTransport, RoundRobinTransport
 
+if TYPE_CHECKING:
+    from xtr_mailer import SentMessage
+
 pytestmark = pytest.mark.anyio
+
+_WIRE = b"Subject: Hi\r\n\r\nHello!\r\n"
 
 
 def _email() -> Message:
@@ -20,6 +29,34 @@ def _email() -> Message:
 
 def _failure() -> TransportError:
     return TransportError("down")
+
+
+class _Reading(ScriptedTransport):
+    """Reads the bytes of each email it is handed, up to :attr:`chunks` chunks, before answering."""
+
+    def __init__(self, name: str, chunks: int | None = None, *, fails: bool = False) -> None:
+        super().__init__(name, [_failure()] if fails else [])
+        self.chunks: int | None = chunks
+        self.read: list[bytes] = []
+
+    @override
+    async def send(
+        self, message: RawMessage, envelope: Envelope | None = None
+    ) -> SentMessage | None:
+        chunks = message.to_iterable()
+        if self.chunks is None:
+            self.read.append(b"".join(chunks))
+        else:
+            self.read.append(b"".join(next(chunks) for _ in range(self.chunks)))
+        return await super().send(message, envelope)
+
+
+def _read_once() -> RawMessage:
+    return RawMessage(iter([b"Subject: Hi\r\n", b"\r\n", b"Hello!\r\n"]))
+
+
+def _envelope() -> Envelope:
+    return Envelope(Address("from@example.com"), [Address("to@example.com")])
 
 
 def test_it_takes_turns_only_when_a_transport_fails() -> None:
@@ -63,6 +100,28 @@ async def test_it_fails_once_every_transport_failed() -> None:
 
     assert str(caught.value) == "All transports failed."
     assert [len(t1.received), len(t2.received)] == [1, 1]
+
+
+async def test_the_next_transport_sends_a_read_once_body_the_failed_one_read_in_full() -> None:
+    t1, t2 = _Reading("t1", fails=True), _Reading("t2")
+    transport = FailoverTransport([t1, t2])
+
+    sent = await transport.send(_read_once(), _envelope())
+
+    assert t2.read == [_WIRE]
+    assert sent is not None
+    assert b"".join(sent.to_iterable()) == _WIRE
+
+
+async def test_a_read_once_body_the_failed_transport_left_half_read_is_not_sent() -> None:
+    t1, t2 = _Reading("t1", 1, fails=True), _Reading("t2")
+    transport = FailoverTransport([t1, t2])
+
+    with pytest.raises(MimeLogicError, match="generator is already closed"):
+        _ = await transport.send(_read_once(), _envelope())
+
+    assert t2.read == []
+    assert t2.sent == []
 
 
 async def test_the_next_transport_takes_over_from_a_failed_one() -> None:

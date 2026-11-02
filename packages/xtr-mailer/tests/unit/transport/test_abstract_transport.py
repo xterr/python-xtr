@@ -172,3 +172,15 @@ async def test_a_remote_template_email_without_a_template_is_an_ordinary_email()
     email = RemoteTemplateEmail().from_("f@example.com").to("h@example.com").text("Hi")
 
     assert await FakeTransport().send(email) is not None
+
+
+async def test_a_message_read_once_sends_the_same_bytes_each_time_it_is_sent() -> None:
+    transport = FakeTransport()
+    message = RawMessage(iter([b"Subject: Hi\r\n", b"\r\n", b"Hello!\r\n"]))
+
+    _ = await transport.send(message, _envelope())
+    _ = await transport.send(message, _envelope())
+
+    assert [b"".join(sent.to_iterable()) for sent in transport.sent] == [
+        b"Subject: Hi\r\n\r\nHello!\r\n"
+    ] * 2
