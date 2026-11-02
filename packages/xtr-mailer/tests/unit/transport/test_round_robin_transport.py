@@ -59,9 +59,12 @@ class _Tampering(ScriptedTransport):
 
 class _Connection(ScriptedTransport):
     stops: int = 0
+    error: Exception | None = None
 
     async def stop(self) -> None:
         self.stops += 1
+        if self.error is not None:
+            raise self.error
 
 
 def test_it_is_a_stoppable_transport() -> None:
@@ -273,3 +276,15 @@ async def test_stop_stops_the_transports_that_hold_a_connection() -> None:
     await transport.stop()
 
     assert (connection.stops, nested.stops) == (1, 1)
+
+
+async def test_stop_stops_every_transport_then_raises_the_first_error() -> None:
+    first, second, third = _Connection("smtp://a"), _Connection("smtp://b"), _Connection("smtp://c")
+    first.error, second.error = _failure("a"), _failure("b")
+    transport = RoundRobinTransport([first, second, third])
+
+    with pytest.raises(TransportError) as caught:
+        await transport.stop()
+
+    assert caught.value is first.error
+    assert (first.stops, second.stops, third.stops) == (1, 1, 1)

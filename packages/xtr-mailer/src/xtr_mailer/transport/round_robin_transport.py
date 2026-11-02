@@ -48,6 +48,9 @@ class RoundRobinTransport(StoppableTransportInterface):
     The first turn goes to a random transport, so short-lived processes that each send an email
     or two still spread them. Sends may overlap: picking a transport, and marking one dead, each
     happen with no await in the middle, so no two sends see the turn half-moved.
+
+    Thread safety: one event loop. The turn and the dead transports are kept with no lock, so
+    every send through one transport runs on the same event loop.
     """
 
     def __init__(
@@ -112,10 +115,20 @@ class RoundRobinTransport(StoppableTransportInterface):
 
     @override
     async def stop(self) -> None:
-        """Stop each transport that holds a session open, nested groups included."""
+        """Stop each transport that holds a session open, nested groups included.
+
+        One failing to stop does not keep the others open: each is stopped, then the first
+        error is raised.
+        """
+        error: Exception | None = None
         for transport in self._transports:
             if isinstance(transport, StoppableTransportInterface):
-                await transport.stop()
+                try:
+                    await transport.stop()
+                except Exception as failure:  # noqa: BLE001 -- raised once the others are stopped
+                    error = failure if error is None else error
+        if error is not None:
+            raise error
 
     @override
     def __str__(self) -> str:
