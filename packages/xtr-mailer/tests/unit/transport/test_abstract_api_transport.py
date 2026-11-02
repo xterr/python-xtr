@@ -129,16 +129,42 @@ async def test_the_recipients_are_the_envelope_s_but_the_copies_and_the_hidden_o
     ]
 
 
-async def test_the_recipients_of_an_envelope_given_are_all_kept() -> None:
+async def test_the_copies_of_a_converted_message_are_left_out_of_the_recipients() -> None:
     transport = _ApiTransport()
-    email = _email().cc("cc@example.com")
-    given = Envelope(Address("fabien@example.com"), [Address("cc@example.com")])
+    headers = Headers().add_mailbox_list_header("From", ["fabien@example.com"])
+    _ = headers.add_mailbox_list_header("To", ["to@example.com"])
+    _ = headers.add_mailbox_list_header("Cc", ["cc@example.com"])
+    _ = headers.add_mailbox_list_header("Bcc", ["bcc@example.com"])
+
+    _ = await transport.send(Message(headers, TextPart("Hello!")))
+
+    [(_, email, envelope)] = transport.calls
+    assert transport._get_recipients(email, envelope) == [Address("to@example.com")]
+
+
+async def test_the_copies_are_left_out_of_an_envelope_created_from_the_email() -> None:
+    transport = _ApiTransport()
+    email = _email().cc("cc@example.com").bcc("bcc@example.com")
+
+    _ = await transport.send(email, Envelope.create(email))
+
+    [(_, email, envelope)] = transport.calls
+    assert transport._get_recipients(email, envelope) == [Address("helene@example.com")]
+
+
+async def test_an_envelope_given_keeps_the_recipients_that_are_no_copy_of_the_email() -> None:
+    transport = _ApiTransport()
+    email = _email().cc("cc@example.com").bcc("bcc@example.com")
+    given = Envelope(
+        Address("fabien@example.com"),
+        [Address("cc@example.com"), Address("extra@example.com"), Address("bcc@example.com")],
+    )
 
     _ = await transport.send(email, given)
 
     [(_, email, envelope)] = transport.calls
-    # The envelope keeps addresses of its own, never the email's: none is taken for a copy.
-    assert transport._get_recipients(email, envelope) == [Address("cc@example.com")]
+    # A copy reaches its recipient through the provider's own copy field, never twice.
+    assert transport._get_recipients(email, envelope) == [Address("extra@example.com")]
 
 
 async def test_an_email_is_never_rendered_for_the_api() -> None:

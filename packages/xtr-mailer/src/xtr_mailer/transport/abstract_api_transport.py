@@ -84,13 +84,13 @@ class AbstractApiTransport(AbstractHttpTransport, ABC):
         """Return the envelope's recipients, but the email's copy and hidden recipients.
 
         What a provider takes as the ``to`` of an API call, the copies going in fields of their
-        own. An address is left out only when it is one of the email's own: the recipients an
-        envelope reads from the email's headers are, while one an envelope was given is an
-        address of the envelope's, kept whatever it is.
+        own, so a copy is never sent twice. A recipient is told from a copy by its address, not
+        by the object holding it: reading a message back into an email, or an envelope from the
+        email's headers, copies the addresses. Any other recipient of the envelope is kept.
         """
-        copies = [*email.get_cc(), *email.get_bcc()]
+        copies = {copy.get_address() for copy in (*email.get_cc(), *email.get_bcc())}
         return [
             recipient
             for recipient in envelope.get_recipients()
-            if all(recipient is not copy for copy in copies)
+            if recipient.get_address() not in copies
         ]
