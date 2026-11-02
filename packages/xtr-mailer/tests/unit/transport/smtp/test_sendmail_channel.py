@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.smtp_clients import send_data
 from xtr_mailer.exception import InvalidArgumentError, LogicError, TransportError
 from xtr_mailer.transport.smtp._sendmail_channel import SendmailChannel
 from xtr_mailer.transport.smtp._smtp_client import SmtpClient
@@ -34,10 +35,11 @@ async def test_a_message_is_delivered_through_the_child(tmp_path: Path) -> None:
     client = await _start(channel)
 
     _ = await client.ehlo()
-    _ = await client.mail_from("sender@example.com")
-    _ = await client.rcpt_to("rcpt@example.com")
-    reply = await client.data(b"Subject: hi\r\n\r\n.body\r\n")
-    await client.quit()
+    _ = await client.execute("MAIL FROM:<sender@example.com>", [250])
+    _ = await client.execute("RCPT TO:<rcpt@example.com>", [250])
+    reply = await send_data(client, b"Subject: hi\r\n\r\n.body\r\n")
+    _ = await client.execute("QUIT", [221])
+    client.close()
     exit_code = await channel.close()
 
     assert reply == "250 2.0.0 Ok: queued as FAKE42"
@@ -53,8 +55,9 @@ async def test_every_message_of_a_session_is_delivered_through_the_child(tmp_pat
     channel = SendmailChannel(_command("--record", str(record)))
     client = await _start(channel)
 
-    replies = [await client.data(message) for message in messages]
-    await client.quit()
+    replies = [await send_data(client, message) for message in messages]
+    _ = await client.execute("QUIT", [221])
+    client.close()
     exit_code = await channel.close()
 
     assert replies == ["250 2.0.0 Ok: queued as FAKE42"] * 20
@@ -73,7 +76,7 @@ async def test_a_child_that_dies_mid_session_raises_a_transport_error() -> None:
     _ = await client.ehlo()
 
     with pytest.raises(TransportError) as caught:
-        _ = await client.mail_from("sender@example.com")
+        _ = await client.execute("MAIL FROM:<sender@example.com>", [250])
     exit_code = await channel.close()
 
     assert str(caught.value) == f'Connection to "process {command}" has been closed unexpectedly.'
@@ -84,7 +87,8 @@ async def test_a_child_that_does_not_exit_is_killed() -> None:
     channel = SendmailChannel(_command("--linger"), timeout=0.2)
     client = await _start(channel)
 
-    await client.quit()
+    _ = await client.execute("QUIT", [221])
+    client.close()
     exit_code = await channel.close()
 
     assert exit_code is not None

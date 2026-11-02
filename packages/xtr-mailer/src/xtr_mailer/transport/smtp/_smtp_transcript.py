@@ -41,6 +41,22 @@ class SmtpTranscript:
         if secret:
             self._learned.add(secret)
 
+    def shown(self, command: str, *, authenticating: bool) -> str:
+        """Return ``command`` as a line may show it, learning the credentials it carries.
+
+        A line sent while ``authenticating`` is all credential; an ``AUTH`` command keeps
+        its mechanism and hides the initial response after it.
+        """
+        if authenticating:
+            self.learn(command)
+            return REDACTED
+        verb, _, rest = command.partition(" ")
+        mechanism, _, credentials = rest.partition(" ")
+        if verb.upper() == "AUTH" and credentials:
+            self.learn(credentials)
+            return f"{verb} {mechanism} {REDACTED}"
+        return command
+
     def reset(self) -> None:
         """Forget the lines and what was learned, for a new session; keep what was concealed."""
         self._lines = []

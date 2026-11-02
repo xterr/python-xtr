@@ -63,3 +63,25 @@ def test_a_recorded_reply_is_scrubbed() -> None:
     transcript.record("[redacted]", "235 hi me p4ss", authenticating=True)
 
     assert transcript.take() == f"> [redacted]\n< 235 hi {REDACTED} {REDACTED}\n"
+
+
+def test_a_line_sent_while_authenticating_is_shown_redacted_and_learned() -> None:
+    transcript = SmtpTranscript()
+
+    shown = transcript.shown("cGF5bG9hZA==", authenticating=True)
+
+    assert shown == REDACTED
+    assert transcript.scrub("535 cGF5bG9hZA==") == f"535 {REDACTED}"
+
+
+def test_an_auth_command_shows_its_mechanism_and_learns_its_initial_response() -> None:
+    transcript = SmtpTranscript()
+
+    shown = transcript.shown("AUTH PLAIN AHVzZXIAcw==", authenticating=False)
+
+    assert shown == f"AUTH PLAIN {REDACTED}"
+    assert transcript.scrub("535 AHVzZXIAcw==") == f"535 {REDACTED}"
+
+
+def test_any_other_command_is_shown_as_it_is() -> None:
+    assert SmtpTranscript().shown("AUTH LOGIN", authenticating=False) == "AUTH LOGIN"

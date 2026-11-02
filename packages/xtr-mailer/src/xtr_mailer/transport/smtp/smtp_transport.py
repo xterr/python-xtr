@@ -133,9 +133,9 @@ class SmtpTransport(AbstractTransport, SmtpConnectionSettings, StoppableTranspor
     async def execute_command(self, command: str, codes: Sequence[int]) -> str:
         """Send ``command`` on the session and return the reply, which must have one of ``codes``.
 
-        Every command of the session goes through here, so a subclass can change one. An
-        authenticator logs in with it, while the session's turn is held; called from
-        anywhere else, it would cut into an email being sent.
+        Every command of the session but an ``EHLO`` and ``STARTTLS`` goes through here, so a
+        subclass can change one. An authenticator logs in with it, while the session's turn
+        is held; called from anywhere else, it would cut into an email being sent.
 
         Raises:
             LogicError: ``codes`` is empty.
