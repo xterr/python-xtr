@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Protocol, final, runtime_checkable
+import re
+from typing import TYPE_CHECKING, ClassVar, Final, Protocol, final, runtime_checkable
 
 from typing_extensions import override
 
-from xtr_mime._engine import BinaryLeaf, build_binary, set_fields
+from xtr_mime._engine import build_verbatim, set_fields
 
 from .data_part import DataPart
 
@@ -17,6 +18,9 @@ if TYPE_CHECKING:
     from xtr_mime.header import Headers
 
 __all__ = ["MessagePart"]
+
+# Any line end: CRLF, a bare LF or a bare CR.
+_LINE_END: Final = re.compile(rb"\r\n|\r|\n")
 
 
 class _RenderableMessage(Protocol):
@@ -46,7 +50,9 @@ class MessagePart(DataPart):
 
     The message is rendered when the part is, and written in ``8bit``: RFC 2046 allows a
     ``message/rfc822`` body only ``7bit``, ``8bit`` or ``binary``, so a reader opens it as the
-    message it is.
+    message it is. Its bytes are written as they are, 8-bit ones included, but for its line
+    ends, every one written as CRLF — the only line end SMTP carries; the message itself is
+    left as it is.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = ("_message",)
@@ -67,12 +73,6 @@ class MessagePart(DataPart):
 
     @override
     def _to_engine(self) -> EnginePart:
-        leaf = BinaryLeaf(
-            content=b"".join(self._message.to_iterable()),
-            maintype=self.get_media_type(),
-            subtype=self.get_media_subtype(),
-            transfer_encoding="8bit",
-        )
-        part = build_binary(leaf)
+        part = build_verbatim(_LINE_END.sub(b"\r\n", b"".join(self._message.to_iterable())))
         set_fields(part, self.get_prepared_headers().to_array())
         return part

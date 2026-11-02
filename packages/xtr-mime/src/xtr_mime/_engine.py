@@ -133,6 +133,8 @@ __all__ = [
 _FOLD_WIDTH: Final = 76
 # RFC 5322, 2.1.1: the hard limit on a line, whatever folding allows.
 _MAX_LINE_LENGTH: Final = 998
+# The transfer encodings whose body is the bytes themselves, nothing to decode.
+_UNENCODED: Final = frozenset({"", "7bit", "8bit", "binary"})
 
 
 # Not final: its base declares the attributes its constructor sets, which a final class would
@@ -559,8 +561,9 @@ def build_multipart(subtype: str, boundary: str, children: Sequence[EnginePart])
 def build_verbatim(body: bytes) -> EnginePart:
     """Build a part written as its headers, a blank line, then ``body`` exactly as it is.
 
-    ``body`` is what a signature covers: the bytes after the blank line ending a part's
-    headers, every line ending in CRLF. The part has no headers until the caller sets them.
+    ``body`` is bytes the part must carry unchanged — what a signature covers, a message
+    attached to another — every line ending in CRLF. The part has no headers until the caller
+    sets them.
     """
     return _VerbatimPart(body)
 
@@ -572,7 +575,8 @@ def build_message(headers: Sequence[tuple[str, HeaderValue]], body: EnginePart) 
     body's headers are copied as they are, folding included, so a parsed body stays intact —
     but for a ``MIME-Version`` the message sets itself, which a message carries once. The body
     keeps its own list of parts: attaching to the message leaves the body as it is. A verbatim
-    body is kept as the bytes it holds, never read through the package's payload getter.
+    body is kept as the bytes it holds, and an unencoded one is copied as its bytes: the
+    package's payload getter decodes them as text, which its writer then refuses as not ASCII.
 
     Raises:
         RfcComplianceError: As :func:`fold_header` does, for any of ``headers``.
@@ -587,10 +591,16 @@ def build_message(headers: Sequence[tuple[str, HeaderValue]], body: EnginePart) 
         if has_mime_version and name.lower() == "mime-version":
             continue
         message.set_raw(name, raw_value)
-    if not isinstance(body, _VerbatimPart):
+    if isinstance(body, _VerbatimPart):
+        return message
+    if body.is_multipart():
         message.set_payload(copy.copy(body.get_payload()))
-        message.preamble = body.preamble
-        message.epilogue = body.epilogue
+    elif str(body.get("Content-Transfer-Encoding", "")).strip().lower() in _UNENCODED:
+        message.set_payload(cast("bytes", body.get_payload(decode=True)))
+    else:
+        message.set_payload(body.get_payload())
+    message.preamble = body.preamble
+    message.epilogue = body.epilogue
     return message
 
 
