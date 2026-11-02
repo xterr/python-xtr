@@ -51,6 +51,11 @@ dkim = ["xtr-mime[dkim]>=5.0,<6"]
 # Sign and encrypt outgoing email with S/MIME.
 smime = ["xtr-mime[smime]>=5.0,<6"]
 
+# The transport factory for each DSN scheme this package serves, found by the scheme a DSN
+# names; a provider library advertises its own schemes under the same group.
+[project.entry-points."xtr_mailer.transport_factories"]
+null = "xtr_mailer.transport:NullTransportFactory"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",

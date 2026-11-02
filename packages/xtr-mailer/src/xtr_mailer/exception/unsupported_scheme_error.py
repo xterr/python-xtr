@@ -5,6 +5,8 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, distribution
 from typing import TYPE_CHECKING
 
+from xtr_mailer._error_text import shown
+
 from .logic_error import LogicError
 
 if TYPE_CHECKING:
@@ -26,7 +28,8 @@ class UnsupportedSchemeError(LogicError):
     a first-party provider library serves is answered with the command that
     installs it. Any other scheme is answered with the schemes that are
     supported, when the caller knows them. The message names the scheme only:
-    never the DSN, which carries credentials.
+    never the DSN, which carries credentials — and shows it escaped and cut short, as it is
+    whatever the application's configuration says.
 
     Attributes:
         scheme: The scheme no factory serves.
@@ -60,7 +63,7 @@ class UnsupportedSchemeError(LogicError):
                 f'Try running "uv add {package}".'
             )
             return
-        message = f'The "{scheme}" scheme is not supported'
+        message = f'The "{shown(scheme)}" scheme is not supported'
         if name and self.supported:
             listed = '", "'.join(self.supported)
             message += f'; supported schemes for mailer "{name}" are: "{listed}"'

@@ -6,11 +6,16 @@ and :class:`Transports` puts the named transports of an application behind one.
 :class:`RoundRobinTransport` spreads email over several transports and
 :class:`FailoverTransport` falls back to the next when one fails; both are a
 :class:`StoppableTransportInterface`, ending the sessions their transports hold open.
+
+:class:`Transport` builds any of them from a DSN string, through the
+:class:`TransportFactoryInterface` serving each scheme — given, or found installed by
+:class:`TransportFactoryDiscovery`; :class:`AbstractTransportFactory` is the base of each.
 """
 
 from __future__ import annotations
 
 from .abstract_transport import AbstractTransport
+from .abstract_transport_factory import AbstractTransportFactory
 from .dsn import Dsn, DsnOption
 from .failover_transport import FailoverTransport
 from .null_transport import NullTransport
@@ -18,12 +23,15 @@ from .null_transport_factory import NullTransportFactory
 from .remote_template_transport_interface import RemoteTemplateTransportInterface
 from .round_robin_transport import RoundRobinTransport
 from .stoppable_transport_interface import StoppableTransportInterface
+from .transport import Transport
+from .transport_factory_discovery import TransportFactoryDiscovery
 from .transport_factory_interface import TransportFactoryInterface
 from .transport_interface import TransportInterface
 from .transports import Transports
 
 __all__ = [
     "AbstractTransport",
+    "AbstractTransportFactory",
     "Dsn",
     "DsnOption",
     "FailoverTransport",
@@ -32,6 +40,8 @@ __all__ = [
     "RemoteTemplateTransportInterface",
     "RoundRobinTransport",
     "StoppableTransportInterface",
+    "Transport",
+    "TransportFactoryDiscovery",
     "TransportFactoryInterface",
     "TransportInterface",
     "Transports",

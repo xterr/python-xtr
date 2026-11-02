@@ -8,6 +8,7 @@ and sign the email with DKIM or S/MIME.
 An :class:`Envelope` is who an email is delivered for and to, apart from its headers;
 :class:`SentMessage` is what a transport sent. A :class:`RemoteTemplateEmail` is rendered by
 the mail provider from a :class:`RemoteTemplate` it hosts.
+:class:`Transport` builds the transport a DSN string describes.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from .exception import (
 from .remote_template import RemoteTemplate
 from .remote_template_email import RemoteTemplateEmail
 from .sent_message import SentMessage
-from .transport import Dsn, DsnOption
+from .transport import Dsn, DsnOption, Transport
 
 __all__ = [
     "Dsn",
@@ -42,6 +43,7 @@ __all__ = [
     "RemoteTemplate",
     "RemoteTemplateEmail",
     "SentMessage",
+    "Transport",
     "TransportError",
     "UnexpectedResponseError",
     "UnsupportedSchemeError",

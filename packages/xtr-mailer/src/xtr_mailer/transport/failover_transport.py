@@ -42,12 +42,13 @@ class FailoverTransport(RoundRobinTransport):
 
         Args:
             transports: The transports, most preferred first.
-            retry_period: How many seconds a dead transport is skipped for.
+            retry_period: How many seconds a dead transport is skipped for, zero or more.
             logger: Where each failure of a transport is logged; ``None`` logs nothing.
             clock: What a dead transport's rest is measured on.
 
         Raises:
             TransportError: ``transports`` is empty.
+            InvalidArgumentError: ``retry_period`` is negative or not a number.
         """
         super().__init__(transports, retry_period, logger=logger, clock=clock)
         self._current: TransportInterface | None = None

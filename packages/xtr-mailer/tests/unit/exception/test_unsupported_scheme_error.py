@@ -90,3 +90,14 @@ def test_it_carries_what_it_was_told() -> None:
     assert error.scheme == "other"
     assert error.name == "main"
     assert error.supported == ("null",)
+
+
+def test_it_shows_a_long_or_broken_scheme_cut_short_and_escaped() -> None:
+    error = UnsupportedSchemeError("s" * 10_000 + "\r\n")
+
+    assert str(error) == f'The "{"s" * 64}…" scheme is not supported.'
+    assert error.scheme == "s" * 10_000 + "\r\n"
+
+
+def test_it_shows_an_escaped_scheme_whole_when_short() -> None:
+    assert str(UnsupportedSchemeError("a\nb")) == 'The "a\\nb" scheme is not supported.'

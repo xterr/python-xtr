@@ -39,6 +39,7 @@ _T = TypeVar("_T")
 _TRUE = frozenset({"1", "true", "on", "yes"})
 _FALSE = frozenset({"0", "false", "off", "no", ""})
 _BRACKETED: Pattern[str] = re.compile(r"([^\[\]]+)\[([^\[\]]*)\]")
+_CONTROL: Pattern[str] = re.compile(r"[\x00-\x1f\x7f]")
 
 
 @final
@@ -96,21 +97,23 @@ class Dsn:
                 Whitespace around it is ignored, as an environment file often adds some.
 
         Raises:
-            InvalidArgumentError: If ``dsn`` cannot be read as a URL, carries no
-                scheme, carries whitespace inside its scheme, or carries no host.
+            InvalidArgumentError: If ``dsn`` cannot be read as a URL, carries a
+                control character inside it, carries no scheme, or carries no host.
         """
         dsn = dsn.strip()
+        # The URL reader drops tabs and line breaks and keeps the other control characters: a
+        # DSN it would have to mend, or that would carry one to a server, is refused rather
+        # than read as something it does not say.
+        if _CONTROL.search(dsn) is not None:
+            raise InvalidArgumentError("The mailer DSN is invalid.")
         parts = _split_or_none(dsn)
         if parts is None:
             raise InvalidArgumentError("The mailer DSN is invalid.")
         split, port = parts
         if not split.scheme:
             raise InvalidArgumentError("The mailer DSN must contain a scheme.")
-        # urlsplit lowercases the scheme and drops tabs and newlines; the DSN as written
-        # keeps the case, and a scheme it had to mend is refused rather than guessed at.
+        # urlsplit lowercases the scheme; the DSN as written keeps the case.
         scheme = dsn.partition(":")[0]
-        if scheme.lower() != split.scheme:
-            raise InvalidArgumentError("The mailer DSN is invalid.")
         if not (split.netloc or split.path or split.query):
             # Nothing at all after the scheme: there is no URL here to read a host from.
             raise InvalidArgumentError("The mailer DSN is invalid.")

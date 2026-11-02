@@ -11,7 +11,7 @@ from xtr_clock import SystemClock
 from xtr_logging_contracts import EXCEPTION_KEY, NullLogger
 
 from xtr_mailer._error_text import type_name
-from xtr_mailer.exception import TransportError
+from xtr_mailer.exception import InvalidArgumentError, TransportError
 
 from .stoppable_transport_interface import StoppableTransportInterface
 
@@ -65,16 +65,24 @@ class RoundRobinTransport(StoppableTransportInterface):
 
         Args:
             transports: The transports, in turn order.
-            retry_period: How many seconds a dead transport is skipped for.
+            retry_period: How many seconds a dead transport is skipped for, zero or more.
             logger: Where each failure of a transport is logged; ``None`` logs nothing.
             clock: What a dead transport's rest is measured on.
 
         Raises:
             TransportError: ``transports`` is empty.
+            InvalidArgumentError: ``retry_period`` is negative or not a number.
         """
         if not transports:
             raise TransportError(
                 f'"{type_name(type(self))}" must have at least one transport configured.'
+            )
+        # Written so NaN, which compares false with everything, is refused too: it would leave
+        # a dead transport resting for ever, and a negative period never rests one.
+        if not retry_period >= 0:
+            raise InvalidArgumentError(
+                "The retry period must be a number of seconds, zero or more; "
+                f"{retry_period!r} is not."
             )
         self._transports: tuple[TransportInterface, ...] = tuple(transports)
         self._retry_period: float = retry_period

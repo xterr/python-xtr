@@ -112,6 +112,25 @@ def test_it_refuses_whitespace_inside_the_scheme(raw: str) -> None:
     assert str(caught.value) == "The mailer DSN is invalid."
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        pytest.param("smtp://exam\r\nple.com", id="crlf in the host"),
+        pytest.param("smtp://example.com\x00", id="nul after the host"),
+        pytest.param("smtp://user:pa\tss@example.com", id="tab in the password"),
+        pytest.param("smtp://example.com?a=\x7f", id="del in an option"),
+        pytest.param("smtp://example.com/\x1b", id="escape in the path"),
+    ],
+)
+def test_it_refuses_a_control_character_inside_the_dsn(raw: str) -> None:
+    # The URL reader drops some of these and keeps others: either way the DSN is not the one
+    # written, so it is refused rather than read as something else.
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = Dsn.from_string(raw)
+
+    assert str(caught.value) == "The mailer DSN is invalid."
+
+
 def test_it_is_built_from_its_parts() -> None:
     dsn = Dsn("smtp", "example.com", "user1", "pass2", 99, {"region": "eu"})
 
