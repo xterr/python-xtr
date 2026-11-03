@@ -192,8 +192,11 @@ async def test_without_a_dispatcher_a_raw_message_is_queued_without_an_envelope(
 
 
 def _handlers_failed(*errors: Exception) -> HandlersFailedError:
+    """Build the error the way the bus's handling middleware raises it: from the first error."""
     envelope = BusEnvelope.wrap(SendEmailMessage(_email()))
-    return HandlersFailedError(envelope, {f"handler{n}": error for n, error in enumerate(errors)})
+    failure = HandlersFailedError(envelope, {f"handler{n}": e for n, e in enumerate(errors)})
+    failure.__cause__ = errors[0]
+    return failure
 
 
 async def test_the_transport_error_a_handler_raised_is_raised_as_it_is() -> None:
@@ -204,6 +207,16 @@ async def test_the_transport_error_a_handler_raised_is_raised_as_it_is() -> None
         await Mailer(FakeTransport(), bus).send(_email())
 
     assert caught.value is refused
+
+
+async def test_the_transport_error_a_handler_raised_keeps_its_own_cause() -> None:
+    bus, refused = RecordingBus(), TransportError("Connection refused.")
+    bus.error = _handlers_failed(refused)
+
+    with pytest.raises(TransportError) as caught:
+        await Mailer(FakeTransport(), bus).send(_email())
+
+    assert caught.value.__cause__ is None
 
 
 async def test_a_handler_failure_without_a_transport_error_is_raised_as_it_is() -> None:

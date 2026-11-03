@@ -189,9 +189,11 @@ def test_the_default_headers_given_are_copied() -> None:
 class _Renderer:
     def __init__(self) -> None:
         self.rendered: list[Message] = []
+        self.headers_at_render: list[list[str]] = []
 
     def render(self, message: Message) -> None:
         self.rendered.append(message)
+        self.headers_at_render.append(message.get_headers().get_names())
 
 
 def test_the_renderer_renders_the_email_after_its_headers_are_set() -> None:
@@ -201,7 +203,7 @@ def test_the_renderer_renders_the_email_after_its_headers_are_set() -> None:
     MessageListener(_text(("foo", "bar")), renderer).on_message(_event(message))
 
     assert renderer.rendered == [message]
-    assert message.get_headers().has("foo")
+    assert renderer.headers_at_render == [["foo"]]
 
 
 def test_without_headers_or_renderer_the_email_is_left_as_it_is() -> None:

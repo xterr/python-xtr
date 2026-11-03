@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from xtr_messenger.stamp import TransportNamesStamp
 from xtr_mime import Address, Message, RawMessage
-from xtr_mime.header import Headers, ParameterizedHeader
+from xtr_mime.header import Headers, MailboxListHeader
 
 from xtr_mailer import Envelope
 from xtr_mailer.event import MessageEvent
@@ -56,12 +56,14 @@ def test_an_email_sent_now_keeps_its_header() -> None:
 
 
 def test_a_header_that_is_not_text_names_the_transports_as_it_renders() -> None:
-    message = Message(Headers(ParameterizedHeader("X-Bus-Transport", "async")))
+    header = MailboxListHeader("X-Bus-Transport", [Address("async@example.com")])
+    message = Message(Headers(header))
     event = MessageEvent(message, _ENVELOPE, "smtp", queued=True)
 
     MessengerTransportListener().on_message(event)
 
-    assert event.get_stamps() == [TransportNamesStamp(("async",))]
+    assert event.get_stamps() == [TransportNamesStamp(("async@example.com",))]
+    assert not message.get_headers().has("X-Bus-Transport")
 
 
 def test_queued_raw_bytes_get_no_stamp() -> None:

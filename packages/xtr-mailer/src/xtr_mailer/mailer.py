@@ -97,14 +97,20 @@ class Mailer(MailerInterface):
 async def _dispatch(
     bus: MessageBusInterface, message: SendEmailMessage, stamps: list[StampInterface]
 ) -> None:
-    """Dispatch ``message``; when a handler raised a transport error, raise that one."""
+    """Dispatch ``message``; when a handler raised a transport error, raise that one.
+
+    It is raised as the handler raised it, outside the ``except`` block: the bus's error is
+    already caused by it, so chaining the two would make the chain loop.
+    """
     # Only an application that hands over a bus has the messenger package installed.
     from xtr_messenger import HandlersFailedError  # noqa: PLC0415 -- see above.
 
     try:
         _ = await bus.dispatch(message, *stamps)
     except HandlersFailedError as error:
-        for nested in error.errors.values():
-            if isinstance(nested, TransportError):
-                raise nested from error
-        raise
+        refused = next((e for e in error.errors.values() if isinstance(e, TransportError)), None)
+        if refused is None:
+            raise
+    else:
+        return
+    raise refused
