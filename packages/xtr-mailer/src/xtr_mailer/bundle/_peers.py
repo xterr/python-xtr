@@ -1,14 +1,15 @@
 """What the mailer's services take from optional peers, present or not.
 
 A peer bundle may be inactive — no HTTP client installed, no event dispatcher, no message bus,
-no rate limiter — and a container cannot inject what it does not hold. So each peer reaches the
-services through a holder the bundle always registers: built from the peer's service when the
-peer is active, holding ``None`` otherwise. The services then take one fixed set of parameters.
+no rate limiter, no logging — and a container cannot inject what it does not hold. So each peer
+reaches the services through a holder the bundle always registers: built from the peer's service
+when the peer is active, holding ``None`` otherwise. The services then take one fixed set of
+parameters.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, final
+from typing import TYPE_CHECKING, ClassVar, Final, final
 
 from xtr_mailer._error_text import shown
 from xtr_mailer.exception import LogicError
@@ -19,10 +20,21 @@ if TYPE_CHECKING:
     from xtr_dependency_injection import ServiceLocator
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_http_client_contracts import HttpClientInterface
+    from xtr_logging_contracts import LoggerInterface
     from xtr_messenger import MessageBusInterface
     from xtr_rate_limiter import RateLimiterFactoryInterface
 
-__all__ = ["EventDispatcherPeer", "HttpClientPeer", "MessageBusPeer", "RateLimitersPeer"]
+__all__ = [
+    "MAILER_CHANNEL",
+    "EventDispatcherPeer",
+    "HttpClientPeer",
+    "LoggerPeer",
+    "MessageBusPeer",
+    "RateLimitersPeer",
+]
+
+#: The logging channel the transports and the listeners write to.
+MAILER_CHANNEL: Final = "mailer"
 
 
 @final
@@ -45,6 +57,17 @@ class EventDispatcherPeer:
     def __init__(self, event_dispatcher: EventDispatcherInterface | None) -> None:
         """Hold ``event_dispatcher``."""
         self.event_dispatcher: EventDispatcherInterface | None = event_dispatcher
+
+
+@final
+class LoggerPeer:
+    """Where the transports and the listeners log, or ``None`` to log nothing."""
+
+    __slots__: ClassVar[tuple[str, ...]] = ("logger",)
+
+    def __init__(self, logger: LoggerInterface | None) -> None:
+        """Hold ``logger``."""
+        self.logger: LoggerInterface | None = logger
 
 
 @final

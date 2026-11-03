@@ -23,7 +23,13 @@ from xtr_mailer.transport import (
     Transports,
 )
 
-from ._peers import EventDispatcherPeer, HttpClientPeer, MessageBusPeer, RateLimitersPeer
+from ._peers import (
+    EventDispatcherPeer,
+    HttpClientPeer,
+    LoggerPeer,
+    MessageBusPeer,
+    RateLimitersPeer,
+)
 from .envelope_config import EnvelopeConfig
 from .mailer_config import MailerConfig
 from .tracking_config import TrackingConfig
@@ -43,11 +49,13 @@ TAGGED_FACTORY_PREFIX: Final = "mailer.transport_factory."
 
 
 def transport_factory_discovery(
-    http_client: HttpClientPeer, event_dispatcher: EventDispatcherPeer
+    http_client: HttpClientPeer, event_dispatcher: EventDispatcherPeer, logger: LoggerPeer
 ) -> TransportFactoryDiscovery:
-    """Find the installed factories, each handed the HTTP client and the event dispatcher."""
+    """Find the installed factories, each handed the HTTP client, the dispatcher and the logger."""
     return TransportFactoryDiscovery(
-        event_dispatcher=event_dispatcher.event_dispatcher, http_client=http_client.http_client
+        event_dispatcher=event_dispatcher.event_dispatcher,
+        http_client=http_client.http_client,
+        logger=logger.logger,
     )
 
 
@@ -56,13 +64,16 @@ async def mailer_transports(
     factories: ServiceLocator[TransportFactoryInterface],
     discovery: TransportFactoryDiscovery,
     rate_limiters: RateLimitersPeer,
+    logger: LoggerPeer,
 ) -> AsyncIterator[Transports]:
     """Build the configured transports, and end their sessions when the container closes.
 
     The DSNs are read here, on first use — never at build or boot — so a DSN given through
     ``env()`` is checked where it is used. The rate limiters are fetched first, since the
     transports are built without awaiting. The factories an application tagged are tried
-    before the installed ones, in tag order.
+    before the installed ones, in tag order. A ``failover(...)`` or ``roundrobin(...)`` group
+    logs each member that fails through ``logger``; the members log through the factory that
+    built them.
 
     Raises:
         LogicError: A transport names a rate limiter that is not configured.
@@ -86,7 +97,10 @@ async def mailer_transports(
         key=lambda key: int(key.removeprefix(TAGGED_FACTORY_PREFIX)),
     )
     builder = Transport(
-        [await factories.get(key) for key in tagged], discovery, rate_limiter_factories=capping
+        [await factories.get(key) for key in tagged],
+        discovery,
+        rate_limiter_factories=capping,
+        logger=logger.logger,
     )
     transports = builder.from_strings({name: item.dsn for name, item in configured.items()})
     try:

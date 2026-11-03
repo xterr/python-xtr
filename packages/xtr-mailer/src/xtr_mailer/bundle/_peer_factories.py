@@ -11,18 +11,24 @@ from typing import TYPE_CHECKING, Annotated
 from xtr_dependency_injection import Target
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_client_contracts import HttpClientInterface
+from xtr_logging_contracts import LoggerInterface
 
-from ._peers import EventDispatcherPeer, HttpClientPeer
+from ._peers import MAILER_CHANNEL, EventDispatcherPeer, HttpClientPeer, LoggerPeer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-__all__ = ["event_dispatcher_peer", "http_client_peer"]
+__all__ = ["event_dispatcher_peer", "http_client_peer", "logger_peer"]
 
 
 def event_dispatcher_peer(event_dispatcher: EventDispatcherInterface) -> EventDispatcherPeer:
     """Hold the application's default event dispatcher."""
     return EventDispatcherPeer(event_dispatcher)
+
+
+def logger_peer(logger: Annotated[LoggerInterface, Target(MAILER_CHANNEL)]) -> LoggerPeer:
+    """Hold the logger of the mailer's own channel."""
+    return LoggerPeer(logger)
 
 
 def http_client_peer(qualifier: str | None) -> Callable[..., HttpClientPeer]:

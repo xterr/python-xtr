@@ -20,6 +20,7 @@ from xtr_mailer.event_listener import (
     SmimeSignedMessageListener,
 )
 
+from ._peers import LoggerPeer
 from .dkim_signer_config import DkimSignerConfig
 from .smime_encrypter_config import SmimeEncrypterConfig
 from .smime_signer_config import SmimeSignerConfig
@@ -70,23 +71,28 @@ def smime_encrypted_message_listener(
     """Return the factory of the encrypting listener over the ``repository`` service.
 
     The service is configuration, so its annotation is written onto the factory at runtime
-    rather than in its signature.
+    rather than in its signature. A recipient without a certificate is logged on the mailer's
+    channel.
     """
 
     def build(
-        repository: SmimeCertificateRepositoryInterface, encrypter: SmimeEncrypterConfig
+        repository: SmimeCertificateRepositoryInterface,
+        encrypter: SmimeEncrypterConfig,
+        logger: LoggerPeer,
     ) -> SmimeEncryptedMessageListener:
         return SmimeEncryptedMessageListener(
             repository,
             encrypter.cipher,
             encrypter.on_missing_certificate,
             encrypter.encrypt_for_sender,
+            logger.logger,
         )
 
     build.__name__ = "mailer_smime_encrypted_message_listener"
     build.__annotations__ = {
         "repository": _annotation(repository),
         "encrypter": SmimeEncrypterConfig,
+        "logger": LoggerPeer,
         "return": SmimeEncryptedMessageListener,
     }
     return build

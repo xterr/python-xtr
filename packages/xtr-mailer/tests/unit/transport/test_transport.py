@@ -93,6 +93,28 @@ def test_from_dsn_builds_through_the_discovered_factories() -> None:
         assert member._logger is logger
 
 
+def test_from_dsn_hands_its_logger_to_the_groups_too() -> None:
+    logger = NullLogger()
+
+    transport = Transport.from_dsn("failover(null://a null://b)", logger=logger)
+
+    assert isinstance(transport, FailoverTransport)
+    assert transport._logger is logger
+
+
+def test_every_group_logs_to_the_logger_the_builder_was_given() -> None:
+    logger = NullLogger()
+    builder = Transport([DummyTransportFactory(http_client=MockHttpClient())], logger=logger)
+
+    transport = builder.from_string("roundrobin(dummy://a failover(dummy://b dummy://a))")
+
+    assert isinstance(transport, RoundRobinTransport)
+    inner = transport._transports[1]
+    assert isinstance(inner, FailoverTransport)
+    assert transport._logger is logger
+    assert inner._logger is logger
+
+
 def test_from_dsns_builds_a_transport_per_name() -> None:
     transports = Transport.from_dsns({"main": "null://null", "spare": "null://null"})
 

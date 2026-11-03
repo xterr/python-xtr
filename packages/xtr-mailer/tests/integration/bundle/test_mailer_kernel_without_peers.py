@@ -15,6 +15,7 @@ _PEERS = (
     "xtr_console",
     "xtr_event_dispatcher",
     "xtr_http_client",
+    "xtr_logging",
     "xtr_messenger",
     "xtr_rate_limiter",
 )

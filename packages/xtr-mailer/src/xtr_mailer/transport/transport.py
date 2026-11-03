@@ -46,9 +46,11 @@ class Transport:
     A scheme is looked up in the factories given first, in order, then among those the
     discovery finds installed. The DSN strings carry credentials: none is kept, and no error
     raised here quotes one.
+
+    A group logs each member that fails, through the logger the builder is given.
     """
 
-    __slots__ = ("_discovery", "_factories", "_rate_limiter_factories")
+    __slots__ = ("_discovery", "_factories", "_logger", "_rate_limiter_factories")
 
     def __init__(
         self,
@@ -56,6 +58,7 @@ class Transport:
         discovery: TransportFactoryDiscovery | None = None,
         *,
         rate_limiter_factories: Mapping[str, RateLimiterFactoryInterface] | None = None,
+        logger: LoggerInterface | None = None,
     ) -> None:
         """Build through ``factories``, then through the ones ``discovery`` finds.
 
@@ -66,12 +69,15 @@ class Transport:
                 given factories only.
             rate_limiter_factories: The limiter each named transport of :meth:`from_strings`
                 is capped by, keyed by its name; a name not listed is not capped.
+            logger: Where each group built logs a member that fails; ``None`` logs nothing.
+                The members log where their factory was told to.
         """
         self._factories: tuple[TransportFactoryInterface, ...] = tuple(factories)
         self._discovery: TransportFactoryDiscovery | None = discovery
         self._rate_limiter_factories: Mapping[str, RateLimiterFactoryInterface] = (
             rate_limiter_factories or {}
         )
+        self._logger: LoggerInterface | None = logger
 
     @classmethod
     def from_dsn(
@@ -88,7 +94,7 @@ class Transport:
             event_dispatcher: Where the transports built announce emails.
             http_client: What transports reaching their provider over HTTP use; a scheme
                 needing one is refused without it.
-            logger: Where the transports built log.
+            logger: Where the transports built log, groups included.
 
         Raises:
             InvalidArgumentError: ``dsn`` cannot be read.
@@ -179,18 +185,21 @@ class Transport:
         return cls(
             discovery=TransportFactoryDiscovery(
                 event_dispatcher=event_dispatcher, http_client=http_client, logger=logger
-            )
+            ),
+            logger=logger,
         )
 
     def _build(self, node: DsnNode) -> TransportInterface:
         """Build the transport ``node`` reads as; groups nest a bounded depth."""
         if isinstance(node, str):
             return self.from_dsn_object(Dsn.from_string(node))
-        return _group(node, [self._build(member) for member in node.members])
+        return _group(node, [self._build(member) for member in node.members], self._logger)
 
 
-def _group(group: DsnGroup, members: list[TransportInterface]) -> TransportInterface:
-    """Build the transport ``group``'s keyword names over ``members``.
+def _group(
+    group: DsnGroup, members: list[TransportInterface], logger: LoggerInterface | None
+) -> TransportInterface:
+    """Build the transport ``group``'s keyword names over ``members``, logging to ``logger``.
 
     The match covers every keyword, which the type checker holds it to.
     """
@@ -200,4 +209,6 @@ def _group(group: DsnGroup, members: list[TransportInterface]) -> TransportInter
             kind = FailoverTransport
         case "roundrobin":
             kind = RoundRobinTransport
-    return kind(members) if group.retry_period is None else kind(members, group.retry_period)
+    if group.retry_period is None:
+        return kind(members, logger=logger)
+    return kind(members, group.retry_period, logger=logger)

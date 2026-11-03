@@ -72,6 +72,8 @@ dev = [
     "xtr-event-dispatcher>=5.0,<6",
     # MockHttpClient stands in for the network in transport tests.
     "xtr-http-client>=5.0,<6",
+    # The kernel tests read what the transports and the listeners log on the mailer's channel.
+    "xtr-logging>=5.0,<6",
     # The event tests stamp a queued email for the message bus.
     "xtr-messenger>=5.0,<6",
     # The rate-limiting tests cap a transport with a real limiter.

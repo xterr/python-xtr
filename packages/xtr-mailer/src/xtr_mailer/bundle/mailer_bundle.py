@@ -8,8 +8,9 @@ closes.
 
 The peers are optional, each wired only when its bundle is active: the HTTP client provider
 transports talk through, the event dispatcher the listeners hear every email on, the message
-bus email is queued on, the rate limiters capping the transports and the console the
-``mailer:test`` command runs in.
+bus email is queued on, the rate limiters capping the transports, the logging channel
+``mailer`` the transports and the listeners write to, and the console the ``mailer:test``
+command runs in.
 """
 
 from __future__ import annotations
@@ -35,7 +36,14 @@ from xtr_mailer.mailer_interface import MailerInterface
 from xtr_mailer.transport import TransportFactoryInterface, TransportInterface, Transports
 
 from ._listeners import register_listeners
-from ._peers import EventDispatcherPeer, HttpClientPeer, MessageBusPeer, RateLimitersPeer
+from ._peers import (
+    MAILER_CHANNEL,
+    EventDispatcherPeer,
+    HttpClientPeer,
+    LoggerPeer,
+    MessageBusPeer,
+    RateLimitersPeer,
+)
 from ._services import (
     TAGGED_FACTORY_PREFIX,
     mailer,
@@ -61,10 +69,23 @@ _EXTRAS: Final = {
 @required_bundle("xtr_messenger.bundle:MessengerBundle", ignore_on_invalid=True)
 @required_bundle("xtr_http_client.bundle:HttpClientBundle", ignore_on_invalid=True)
 @required_bundle("xtr_rate_limiter.bundle:RateLimiterBundle", ignore_on_invalid=True)
+@required_bundle("xtr_logging.bundle:LoggingBundle", ignore_on_invalid=True)
 @required_bundle("xtr_console.bundle:ConsoleBundle", ignore_on_invalid=True)
 @as_bundle("mailer", config=MailerConfig)
 class MailerBundle(Bundle[MailerConfig]):
     """Wires the mailer, its transports, its listeners and its command to the container."""
+
+    @override
+    def prepend_extension(self, builder: ContainerBuilder) -> None:
+        """Give the logging bundle, when it is active, the channel the mailer logs to."""
+        if not bundle_active(builder, "logging"):
+            return
+        from xtr_logging.bundle import LoggingConfig  # noqa: PLC0415 -- optional peer
+
+        def add_mailer_channel(config: LoggingConfig) -> LoggingConfig:
+            return config.with_channels(MAILER_CHANNEL)
+
+        builder.prepend_extension_config(LoggingConfig, add_mailer_channel)
 
     @override
     def load_extension(
@@ -109,7 +130,7 @@ class MailerBundle(Bundle[MailerConfig]):
 def _register_peers(
     config: MailerConfig, services: ServiceConfigurator, builder: ContainerBuilder
 ) -> None:
-    """Register the holders of the HTTP client, the event dispatcher, the bus and the limiters.
+    """Register the holders of the HTTP client, the dispatcher, the bus, the limiters, the logger.
 
     Raises:
         LogicError: A transport is capped by a rate limiter without the rate limiter bundle.
@@ -134,6 +155,12 @@ def _register_peers(
     else:
         _refuse_rate_limiters(config)
         _ = services.instance(RateLimitersPeer(None))
+    if bundle_active(builder, "logging"):
+        from ._peer_factories import logger_peer  # noqa: PLC0415 -- as above
+
+        _ = services.set(logger_peer)
+    else:
+        _ = services.instance(LoggerPeer(None))
 
 
 def _register_message_bus(services: ServiceConfigurator, builder: ContainerBuilder) -> None:
