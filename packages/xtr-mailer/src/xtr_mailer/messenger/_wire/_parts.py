@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Final, TypeVar, cast
 
 from xtr_mime import DataPart, ParameterizedHeader, SMimePart, TextPart
 
+from ._header_limits import parameters
 from ._headers import read_headers, write_headers
 from ._json import (
     JsonObject,
@@ -21,7 +22,6 @@ from ._json import (
     fields,
     kind_of,
     optional_text,
-    pairs,
     refuse,
     text,
     written_content,
@@ -137,11 +137,9 @@ def _smime(found: JsonObject, path: str) -> SMimePart:
     body = decoded(found["body"], f"{path}.body")
     media_type = text(found["media_type"], f"{path}.media_type", _SHORT)
     media_subtype = text(found["media_subtype"], f"{path}.media_subtype", _SHORT)
-    parameters = {
+    held = {
         name: value
-        for name, value in pairs(found["parameters"], f"{path}.parameters")
+        for name, value in parameters(found["parameters"], f"{path}.parameters")
         if value is not None
     }
-    return built(
-        path, "an S/MIME part", lambda: SMimePart(body, media_type, media_subtype, parameters)
-    )
+    return built(path, "an S/MIME part", lambda: SMimePart(body, media_type, media_subtype, held))

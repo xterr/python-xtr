@@ -8,6 +8,7 @@ from xtr_mime import Address, Group
 
 from xtr_mailer.envelope import Envelope
 
+from ._header_limits import listed
 from ._json import JsonObject, built, fields, holds, items, refuse, text
 
 __all__ = [
@@ -59,7 +60,7 @@ def read_entry(data: object, path: str) -> Address | Group:
     if holds(data, "group"):
         found = fields(data, path, ("group", "addresses"))
         name = text(found["group"], f"{path}.group", _NAME_LENGTH)
-        members = items(found["addresses"], f"{path}.addresses")
+        members = listed(found["addresses"], f"{path}.addresses")
         addresses = [
             read_address(member, f"{path}.addresses[{i}]") for i, member in enumerate(members)
         ]

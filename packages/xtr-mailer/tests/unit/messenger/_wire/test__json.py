@@ -14,7 +14,6 @@ from xtr_mailer.messenger._wire._json import (
     items,
     number,
     optional_text,
-    pairs,
     text,
 )
 
@@ -72,16 +71,6 @@ def test_a_list_gives_its_items() -> None:
 def test_anything_but_a_list_is_refused() -> None:
     with pytest.raises(InvalidArgumentError, match="x is not a list"):
         _ = items({}, "x")
-
-
-def test_parameters_are_names_and_values() -> None:
-    assert pairs([["a", "1"], ["b", None]], "x") == [("a", "1"), ("b", None)]
-
-
-@pytest.mark.parametrize("data", [[["a"]], [["a", "1", "2"]], [[1, "1"]], [["a", 1]], ["a"]])
-def test_a_parameter_that_is_no_name_and_value_is_refused(data: object) -> None:
-    with pytest.raises(InvalidArgumentError, match=r"x\[0\]"):
-        _ = pairs(data, "x")
 
 
 def test_a_number_outside_its_range_is_refused() -> None:

@@ -30,7 +30,6 @@ __all__ = [
     "kind_of",
     "number",
     "optional_text",
-    "pairs",
     "refuse",
     "text",
     "written_content",
@@ -123,22 +122,6 @@ def number(data: object, path: str, low: int, high: int) -> int:
     if type(data) is not int or not low <= data <= high:
         refuse(path, f"is not a whole number from {low} to {high}")
     return data
-
-
-def pairs(data: object, path: str) -> list[tuple[str, str | None]]:
-    """Give the name and value of each parameter in a list of them; a value may be null.
-
-    Raises:
-        InvalidArgumentError: ``data`` is no list of names and values.
-    """
-    found: list[tuple[str, str | None]] = []
-    for index, pair in enumerate(items(data, path)):
-        where = f"{path}[{index}]"
-        listed = items(pair, where)
-        if len(listed) != 2:  # noqa: PLR2004 -- a name and its value.
-            refuse(where, "is not a parameter: a name and its value")
-        found.append((text(listed[0], f"{where}[0]", 64), optional_text(listed[1], f"{where}[1]")))
-    return found
 
 
 def encoded(data: bytes) -> str:

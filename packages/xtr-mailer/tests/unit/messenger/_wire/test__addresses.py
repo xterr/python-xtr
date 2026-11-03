@@ -36,6 +36,13 @@ def test_an_address_entry_comes_back_an_address() -> None:
     assert read_entry(write_entry(Address("a@example.com")), "e") == Address("a@example.com")
 
 
+def test_a_group_of_more_members_than_an_address_list_holds_is_refused() -> None:
+    members = [{"address": f"u{index}@example.com", "name": ""} for index in range(1001)]
+
+    with pytest.raises(InvalidArgumentError, match=r"e\.addresses holds more than 1000 entries"):
+        _ = read_entry({"group": "Team", "addresses": members}, "e")
+
+
 @pytest.mark.parametrize(
     "data",
     [

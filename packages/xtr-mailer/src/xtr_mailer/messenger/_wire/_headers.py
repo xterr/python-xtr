@@ -2,7 +2,8 @@
 
 A header travels as its kind, name, charset, language and what its class holds. Its name is
 checked before any header class sees it — printable ASCII, at most 256 characters — so a name
-read from the queue never reaches a class whose refusal would repeat it.
+read from the queue never reaches a class whose refusal would repeat it. What it holds is
+bounded, and the headers of a part together, before they are built: see ``_header_limits``.
 """
 
 from __future__ import annotations
@@ -27,6 +28,14 @@ from xtr_mailer.exception import InvalidArgumentError
 from xtr_mailer.header import MetadataHeader, TagHeader, TrackingHeader
 
 from ._addresses import read_address, read_entry, write_address, write_entry
+from ._header_limits import (
+    BLOCK_LENGTH,
+    VALUE_LENGTH,
+    carried,
+    header_value,
+    listed,
+    parameters,
+)
 from ._json import (
     JsonObject,
     built,
@@ -35,7 +44,6 @@ from ._json import (
     kind_of,
     number,
     optional_text,
-    pairs,
     refuse,
     text,
 )
@@ -103,9 +111,13 @@ def read_headers(data: object, path: str, headers: Headers | None = None) -> Hea
     found = fields(data, path, ("line_length", "fields"))
     line_length = number(found["line_length"], f"{path}.line_length", 1, 998)
     read = Headers() if headers is None else headers
+    spent = 0
     for index, entry in enumerate(items(found["fields"], f"{path}.fields")):
         where = f"{path}.fields[{index}]"
         header = _read(entry, where)
+        spent += carried(header)
+        if spent > BLOCK_LENGTH:
+            refuse(path, f"holds more than {BLOCK_LENGTH} characters of header text")
         _ = built(where, "a header these headers may hold", lambda h=header: read.add(h))
     read.set_max_line_length(line_length)
     return read
@@ -182,33 +194,34 @@ def _built(kind: str, name: str, found: JsonObject, path: str) -> HeaderInterfac
             header = MailboxHeader if kind == "mailbox" else PathHeader
             return built(path, "a header", lambda: header(name, address))
         case "mailbox_list":
-            listed = items(found["entries"], f"{path}.entries")
-            entries = [read_entry(item, f"{path}.entries[{i}]") for i, item in enumerate(listed)]
+            listing = listed(found["entries"], f"{path}.entries")
+            entries = [read_entry(item, f"{path}.entries[{i}]") for i, item in enumerate(listing)]
             return built(path, "a header", lambda: MailboxListHeader(name, entries))
         case "id":
-            listed = items(found["ids"], f"{path}.ids")
-            ids = [text(item, f"{path}.ids[{i}]") for i, item in enumerate(listed)]
+            listing = listed(found["ids"], f"{path}.ids")
+            ids = [header_value(item, f"{path}.ids[{i}]") for i, item in enumerate(listing)]
             return built(path, "a header", lambda: IdentificationHeader(name, ids))
         case "parameterized":
-            value = text(found["value"], f"{path}.value")
-            parameters = dict(pairs(found["parameters"], f"{path}.parameters"))
-            return built(path, "a header", lambda: ParameterizedHeader(name, value, parameters))
+            value = header_value(found["value"], f"{path}.value")
+            held = dict(parameters(found["parameters"], f"{path}.parameters"))
+            return built(path, "a header", lambda: ParameterizedHeader(name, value, held))
         case "folded":
-            field = text(found["field"], f"{path}.field")
+            # The field holds its folds; its class refuses any other line break.
+            field = text(found["field"], f"{path}.field", VALUE_LENGTH)
             return built(path, "a header", lambda: FoldedHeader(field))
         case _:
             return _built_text(kind, name, found, path)
 
 
 def _built_text(kind: str, name: str, found: JsonObject, path: str) -> HeaderInterface:
-    value = text(found["value"], f"{path}.value")
+    value = header_value(found["value"], f"{path}.value")
     match kind:
         case "date":
             return built(path, "a header", lambda: DateHeader(name, datetime.fromisoformat(value)))
         case "tag":
             return built(path, "a header", lambda: TagHeader(value))
         case "metadata":
-            key = text(found["key"], f"{path}.key", 256)
+            key = header_value(found["key"], f"{path}.key", 256)
             return built(path, "a header", lambda: MetadataHeader(key, value))
         case "tracking":
             opens = _flag(found["opens"], f"{path}.opens")

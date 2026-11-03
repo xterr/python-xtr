@@ -10,9 +10,11 @@ from xtr_mime.header import FoldedHeader
 
 from xtr_mailer.exception import InvalidArgumentError
 from xtr_mailer.header import MetadataHeader, TagHeader, TrackingHeader
+from xtr_mailer.messenger._wire._header_limits import BLOCK_LENGTH, LIST_LENGTH, VALUE_LENGTH
 from xtr_mailer.messenger._wire._headers import read_headers, write_headers
 
 _TEXT_HEADER = {"$type": "text", "name": "X-A", "charset": "utf-8", "language": None, "value": "v"}
+_LONG = "a" * (VALUE_LENGTH + 1)
 
 
 def _back(headers: Headers) -> Headers:
@@ -169,3 +171,82 @@ def test_a_tracking_flag_that_is_no_boolean_is_refused() -> None:
 
     with pytest.raises(InvalidArgumentError, match=r"fields\[0\]\.opens is not true"):
         _ = read_headers(_fields({**entry, "clicks": None}), "headers")
+
+
+def _held(kind: str, name: str, **held: object) -> dict[str, object]:
+    return {"$type": kind, "name": name, "charset": "utf-8", "language": None, **held}
+
+
+def _each_kind(value: str) -> list[dict[str, object]]:
+    return [
+        _held("text", "X-A", value=value),
+        _held("tag", "X-Tag", value=value),
+        _held("metadata", "X-Metadata-K", key="K", value=value),
+        _held("tracking", "X-Track", opens=None, clicks=None, value=value),
+        _held("parameterized", "X-P", value=value, parameters=[]),
+        _held("parameterized", "X-P", value="v", parameters=[["a", value]]),
+        _held("id", "References", ids=["a@example.com", value]),
+    ]
+
+
+_KIND_IDS = ["text", "tag", "metadata", "tracking", "parameterized", "parameter", "id"]
+
+
+@pytest.mark.parametrize("entry", _each_kind(_LONG), ids=_KIND_IDS)
+def test_a_header_value_longer_than_a_real_email_writes_is_refused(
+    entry: dict[str, object],
+) -> None:
+    with pytest.raises(InvalidArgumentError, match=f"is longer than {VALUE_LENGTH} characters"):
+        _ = read_headers(_fields(entry), "headers")
+
+
+def test_a_folded_field_longer_than_a_real_email_writes_is_refused() -> None:
+    entry = _held("folded", "X-A", field="X-A: " + " ".join(["a" * 900] * 10))
+
+    with pytest.raises(InvalidArgumentError, match=r"fields\[0\]\.field is longer"):
+        _ = read_headers(_fields(entry), "headers")
+
+
+@pytest.mark.parametrize("value", ["v\r\nBcc: victim@example.com", "v\x00", "v\udc80"])
+@pytest.mark.parametrize("entry", range(len(_KIND_IDS)), ids=_KIND_IDS)
+def test_a_header_value_holding_what_would_break_its_line_is_refused(
+    entry: int, value: str
+) -> None:
+    with pytest.raises(InvalidArgumentError, match="holds a line break") as raised:
+        _ = read_headers(_fields(_each_kind(value)[entry]), "headers")
+
+    assert "victim" not in str(raised.value)
+
+
+def test_an_address_list_longer_than_a_real_email_writes_is_refused() -> None:
+    entries = [{"address": f"u{index}@example.com", "name": ""} for index in range(LIST_LENGTH + 1)]
+
+    with pytest.raises(InvalidArgumentError, match=r"fields\[0\]\.entries holds more than"):
+        _ = read_headers(_fields(_held("mailbox_list", "Cc", entries=entries)), "headers")
+
+
+def test_an_id_list_longer_than_a_real_email_writes_is_refused() -> None:
+    ids = [f"{index}@example.com" for index in range(LIST_LENGTH + 1)]
+
+    with pytest.raises(InvalidArgumentError, match=r"fields\[0\]\.ids holds more than"):
+        _ = read_headers(_fields(_held("id", "References", ids=ids)), "headers")
+
+
+def _block(count: int) -> dict[str, object]:
+    return _fields(*(_held("text", f"X-{i}", value="a" * VALUE_LENGTH) for i in range(count)))
+
+
+def test_headers_holding_as_much_text_as_a_real_email_writes_are_read() -> None:
+    headers = read_headers(_block(BLOCK_LENGTH // VALUE_LENGTH - 1), "headers")
+
+    assert len(list(headers.all())) == BLOCK_LENGTH // VALUE_LENGTH - 1
+
+
+def test_headers_holding_more_text_than_a_real_email_writes_are_refused() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = read_headers(_block(BLOCK_LENGTH // VALUE_LENGTH), "headers")
+
+    assert str(raised.value) == (
+        f"The queued email cannot be read: headers holds more than {BLOCK_LENGTH} characters "
+        "of header text."
+    )
