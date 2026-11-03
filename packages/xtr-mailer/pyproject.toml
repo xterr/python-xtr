@@ -1,7 +1,7 @@
 [project]
 name = "xtr-mailer"
 version = "5.2.1"
-description = "Send email through SMTP, sendmail or a provider's API — picked by DSN, in-process or queued on a message bus, with failover, round-robin, envelope and header overrides, DKIM and S/MIME signing."
+description = "Send email through SMTP, sendmail or a provider's API — picked by DSN, in-process or queued on a message bus, with failover, round-robin, envelope and header overrides, DKIM and S/MIME signing, and S/MIME encryption."
 readme = "README.md"
 authors = [
     { name = "Xterr", email = "me@xterr.dev" }
@@ -54,6 +54,10 @@ sendmail = "xtr_mailer.transport:SendmailTransportFactory"
 "sendmail+smtp" = "xtr_mailer.transport:SendmailTransportFactory"
 smtp = "xtr_mailer.transport.smtp:EsmtpTransportFactory"
 smtps = "xtr_mailer.transport.smtp:EsmtpTransportFactory"
+
+# Advertises the bundle to debug:bundles; it is only reported, never activated.
+[project.entry-points."xtr_dependency_injection.bundles"]
+mailer = "xtr_mailer.bundle:MailerBundle"
 
 [dependency-groups]
 dev = [

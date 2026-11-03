@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from xtr_mime import Address, Email, Message, RawMessage
@@ -139,8 +139,25 @@ def test_a_mode_that_is_not_known_is_refused(mode: str) -> None:
     )
 
 
+def test_a_mode_that_is_not_a_string_is_refused() -> None:
+    mode = _as_text(["fail"])
+
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = _Listener(InMemorySmimeCertificateRepository(), on_missing_certificate=mode)
+
+    assert str(raised.value) == (
+        'The "on_missing_certificate" option must be "fail", "encrypt" or "skip" '
+        '(got a value of type "list").'
+    )
+
+
 def _absent(name: str) -> None:
     del name
+
+
+def _as_text(value: object) -> str:
+    """Hand ``value`` over where text is expected, as an application's mistake would."""
+    return cast("str", value)
 
 
 def test_it_is_refused_without_the_smime_extra(monkeypatch: pytest.MonkeyPatch) -> None:

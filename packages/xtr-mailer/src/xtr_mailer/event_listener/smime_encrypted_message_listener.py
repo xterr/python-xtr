@@ -11,7 +11,8 @@ from xtr_mime import Message
 from xtr_mime.crypto import SMimeEncrypter
 
 from xtr_mailer._error_text import shown
-from xtr_mailer.exception import InvalidArgumentError, LogicError, MailerRuntimeError
+from xtr_mailer._on_missing_certificate import ENCRYPT, FAIL, MODES, SKIP, checked_mode
+from xtr_mailer.exception import LogicError, MailerRuntimeError
 
 if TYPE_CHECKING:
     from xtr_logging_contracts import LoggerInterface
@@ -56,11 +57,11 @@ class SmimeEncryptedMessageListener:
     PRIORITY: Final = -200
 
     #: Refuse the email when a recipient has no certificate.
-    ON_MISSING_CERTIFICATE_FAIL: Final = "fail"
+    ON_MISSING_CERTIFICATE_FAIL: Final = FAIL
     #: Encrypt for the recipients with a certificate; the others still receive the email.
-    ON_MISSING_CERTIFICATE_ENCRYPT: Final = "encrypt"
+    ON_MISSING_CERTIFICATE_ENCRYPT: Final = ENCRYPT
     #: Encrypt for the recipients with a certificate and drop the others from the envelope.
-    ON_MISSING_CERTIFICATE_SKIP: Final = "skip"
+    ON_MISSING_CERTIFICATE_SKIP: Final = SKIP
 
     __slots__: ClassVar[tuple[str, ...]] = (
         "_cipher",
@@ -94,18 +95,14 @@ class SmimeEncryptedMessageListener:
 
         Raises:
             LogicError: The ``smime`` extra is not installed.
-            InvalidArgumentError: ``on_missing_certificate`` is not one of the modes.
+            InvalidArgumentError: ``on_missing_certificate`` is not one of the modes, or not a
+                string.
         """
         if find_spec("cryptography") is None:
             raise LogicError(_NO_EXTRA)
-        if on_missing_certificate not in _MODES:
-            raise InvalidArgumentError(
-                'The "on_missing_certificate" option must be "fail", "encrypt" or "skip" '
-                f'(got "{shown(on_missing_certificate)}").'
-            )
         self._repository: SmimeCertificateRepositoryInterface = repository
         self._cipher: str = cipher
-        self._on_missing_certificate: str = on_missing_certificate
+        self._on_missing_certificate: str = checked_mode(on_missing_certificate)
         self._encrypt_for_sender: bool = encrypt_for_sender
         self._logger: LoggerInterface = logger if logger is not None else NullLogger()
 
@@ -125,7 +122,7 @@ class SmimeEncryptedMessageListener:
         if header is None:
             return
         mode = header.get_body_as_string()
-        if mode not in _MODES:
+        if mode not in MODES:
             mode = self._on_missing_certificate
         envelope = event.get_envelope()
         certificates = self._certificates(envelope, mode)
@@ -172,12 +169,3 @@ class SmimeEncryptedMessageListener:
                 if recipient.get_address() in certificates
             )
         return certificates
-
-
-_MODES: Final = frozenset(
-    {
-        SmimeEncryptedMessageListener.ON_MISSING_CERTIFICATE_FAIL,
-        SmimeEncryptedMessageListener.ON_MISSING_CERTIFICATE_ENCRYPT,
-        SmimeEncryptedMessageListener.ON_MISSING_CERTIFICATE_SKIP,
-    }
-)
