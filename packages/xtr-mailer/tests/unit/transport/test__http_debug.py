@@ -168,8 +168,9 @@ def test_a_long_header_value_is_logged_in_linear_time(unit: str, end: str) -> No
         line = "X-Echo: " + unit * (size // len(unit)) + end
         return http_debug(_info("https://api.example.com/", "HTTP/1.1 200 OK", line))
 
-    assert logged(1_000_000).endswith("…\n")
-    assert_linear_growth(logged, 250_000)
+    # The megabyte is logged last, once smaller values grew linearly: a quadratic scan fails
+    # at a small size rather than running for minutes on the megabyte.
+    assert assert_linear_growth(logged, 250_000).endswith("…\n")
 
 
 def test_a_url_that_cannot_be_read_is_not_shown() -> None:

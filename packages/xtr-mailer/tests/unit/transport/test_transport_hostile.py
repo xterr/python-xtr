@@ -1,7 +1,9 @@
 """What the builder does with a DSN written to break it: refuses it, fast, keeping secrets.
 
 Fast means in time growing with the DSN's length, never with its square: each hostile shape is
-read at a quarter of a megabyte and at a megabyte (see :mod:`tests.support.growth`).
+read at sizes climbing four-fold up to a megabyte, the megabyte last (see
+:mod:`tests.support.growth`), so a quadratic reading fails at a small size instead of running
+for minutes on the megabyte.
 """
 
 from __future__ import annotations
@@ -64,6 +66,11 @@ def _refusal(dsn: str) -> MailerError:
     with pytest.raises(MailerError) as caught:
         _ = _builder().from_string(dsn)
     return caught.value
+
+
+def _refused_in_linear_time(shape: str) -> MailerError:
+    """Refuse the hostile ``shape`` at sizes up to a megabyte; return the megabyte's refusal."""
+    return assert_linear_growth(lambda size: _refusal(_HOSTILE[shape](size)), _MEGABYTE // 4)
 
 
 @pytest.mark.parametrize(
@@ -152,58 +159,53 @@ def test_an_unknown_keyword_is_shown_as_word_characters_only(keyword: str) -> No
 
 
 def test_a_megabyte_of_unclosed_groups_is_refused_fast() -> None:
-    error = _refusal(_HOSTILE["unclosed groups"](_MEGABYTE))
+    error = _refused_in_linear_time("unclosed groups")
 
     assert str(error) == "The mailer DSN must contain a scheme."
 
 
 def test_a_megabyte_of_balanced_nesting_is_refused_fast() -> None:
-    error = _refusal(_HOSTILE["balanced nesting"](_MEGABYTE))
+    error = _refused_in_linear_time("balanced nesting")
 
     assert str(error) == "The mailer DSN nests its transports more than 32 deep."
 
 
 def test_a_megabyte_of_open_parentheses_is_refused_fast() -> None:
-    error = _refusal(_HOSTILE["open parentheses"](_MEGABYTE))
+    error = _refused_in_linear_time("open parentheses")
 
     assert str(error) == "The mailer DSN must contain a scheme."
 
 
-def test_a_megabyte_keyword_is_refused_with_a_short_message() -> None:
-    error = _refusal(_HOSTILE["long keyword"](_MEGABYTE))
+def test_a_megabyte_keyword_is_refused_fast_with_a_short_message() -> None:
+    error = _refused_in_linear_time("long keyword")
 
     assert str(error).startswith('The "kkk')
     assert len(str(error)) < _LONGEST_MESSAGE
 
 
-def test_a_megabyte_scheme_is_refused_with_a_short_message() -> None:
-    error = _refusal(_HOSTILE["long scheme"](_MEGABYTE))
+def test_a_megabyte_scheme_is_refused_fast_with_a_short_message() -> None:
+    error = _refused_in_linear_time("long scheme")
 
     assert str(error).startswith('The "sss')
     assert len(str(error)) < _LONGEST_MESSAGE
 
 
-def test_a_megabyte_retry_period_is_refused_with_a_short_message() -> None:
-    error = _refusal(_HOSTILE["long retry period"](_MEGABYTE))
+def test_a_megabyte_retry_period_is_refused_fast_with_a_short_message() -> None:
+    error = _refused_in_linear_time("long retry period")
 
     assert len(str(error)) < _LONGEST_MESSAGE
 
 
 def test_a_megabyte_of_garbage_is_refused_fast() -> None:
-    error = _refusal(_HOSTILE["garbage"](_MEGABYTE))
+    error = _refused_in_linear_time("garbage")
 
     assert str(error) == "The mailer DSN has some garbage at the end."
-
-
-@pytest.mark.parametrize("build", _HOSTILE.values(), ids=_HOSTILE.keys())
-def test_a_hostile_dsn_is_refused_in_linear_time(build: Callable[[int], str]) -> None:
-    assert_linear_growth(lambda size: _refusal(build(size)), _MEGABYTE // 4)
 
 
 def test_spaces_between_members_are_read_in_linear_time() -> None:
     builder = _builder()
 
-    assert_linear_growth(
+    _ = assert_linear_growth(
         lambda size: builder.from_string("failover(dummy://a" + " " * size + "dummy://b)"),
         _MEGABYTE // 4,
     )
@@ -215,7 +217,7 @@ def test_members_are_read_in_linear_time(scheme: str) -> None:
         [DummyTransportFactory(http_client=MockHttpClient())], TransportFactoryDiscovery()
     )
 
-    assert_linear_growth(
+    _ = assert_linear_growth(
         lambda size: builder.from_string("roundrobin(" + f"{scheme}://a " * size + ")"), 2_500
     )
 
