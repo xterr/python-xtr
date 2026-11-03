@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, final
 
-from xtr_console import ConsoleStyle, ExitCode, Option, as_command, escape
+from xtr_console import ConsoleStyle, ExitCode, Option, as_command
 from xtr_mime import Email, MimeError
 
 from xtr_mailer.exception import MailerError
@@ -72,6 +72,9 @@ class MailerTestCommand:
                 _ = message.get_headers().add_text_header("X-Transport", transport_name)
             _ = await self._transport.send(message)
         except (MailerError, MimeError) as error:
-            io.error(escape(str(error)))
+            # Standard error, which -q leaves on: the failure is what a quiet run must still say.
+            io.error_console.print(
+                f"[ERROR] {error}", style="white on red", markup=False, emoji=False, highlight=False
+            )
             return ExitCode.FAILURE
         return ExitCode.SUCCESS

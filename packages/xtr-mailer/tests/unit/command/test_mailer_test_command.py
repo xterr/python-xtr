@@ -140,6 +140,18 @@ async def test_the_transports_send_it_through_the_one_named() -> None:
     assert len(other.sent) == 1
 
 
+async def test_a_transport_named_0_is_the_one_sent_through() -> None:
+    main, zero = ScriptedTransport("main"), ScriptedTransport("0")
+
+    code = await _tester(Transports({"main": main, "0": zero})).execute(
+        ["to@example.com", "--transport", "0"]
+    )
+
+    assert code == ExitCode.SUCCESS
+    assert main.received == []
+    assert len(zero.sent) == 1
+
+
 async def test_a_sent_email_prints_nothing() -> None:
     tester = _tester(NullTransport())
 
@@ -185,6 +197,16 @@ async def test_a_transport_failure_is_reported() -> None:
 
     assert code == ExitCode.FAILURE
     assert str(error) in _printed(tester)
+
+
+async def test_a_failure_is_reported_on_the_error_output_even_when_quiet() -> None:
+    error = TransportError('Connection could not be established with host "mail.example.com:465".')
+    tester = _tester(ScriptedTransport("main", [error]))
+
+    code = await tester.execute(["to@example.com", "-q"])
+
+    assert code == ExitCode.FAILURE
+    assert (tester.display, " ".join(tester.error_display.split())) == ("", f"[ERROR] {error}")
 
 
 async def test_without_a_container_the_console_names_the_transport_it_needs() -> None:
