@@ -99,10 +99,10 @@ async def test_a_rate_limiter_that_is_not_configured_fails_the_first_email() -> 
 def test_signing_without_its_extra_fails_the_build(
     monkeypatch: pytest.MonkeyPatch, config: MailerConfig, extra: str, module: str
 ) -> None:
-    def find_spec(name: str) -> object:
+    def locate(name: str) -> object:
         return None if name == module else name
 
-    monkeypatch.setattr(bundle_module, "find_spec", find_spec)
+    monkeypatch.setattr(bundle_module, "find_spec", locate)
 
     with pytest.raises(LogicError) as caught:
         _ = mailer_kernel(Application(mailer=config)).build()

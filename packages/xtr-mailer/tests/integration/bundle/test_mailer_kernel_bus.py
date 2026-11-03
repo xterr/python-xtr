@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Protocol
+
 import pytest
+import xtr_messenger.message_registry
 from xtr_http_client.bundle import HttpClientConfig
-from xtr_messenger import MessageBusConfig, TransportConfig, WorkerFactory
+from xtr_messenger import MessageBusConfig, TransportConfig, WorkerFactory, name_of
 from xtr_mime import Email
 
 from tests.support.mailer_kernel import Application, Provided, mailer_kernel
@@ -14,11 +17,21 @@ from xtr_mailer.bundle import MAILER_TRANSPORT_FACTORY_TAG, MailerConfig
 from xtr_mailer.event_listener import MessageLoggerListener
 from xtr_mailer.messenger import SendEmailMessage
 
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
 pytestmark = pytest.mark.anyio
 
 
+class _Unchecked(Protocol):
+    """A protocol no class can be checked against."""
+
+    def written(self) -> object: ...
+
+
 def _queuing(
-    factory: RecordingTransportFactory, routing: dict[type | str, str] | None = None
+    factory: RecordingTransportFactory,
+    routing: Mapping[type | str, str | Sequence[str]] | None = None,
 ) -> Application:
     bus = MessageBusConfig(
         transports={
@@ -74,10 +87,43 @@ async def test_the_bus_transport_header_picks_the_queue() -> None:
     assert [name for name, _ in factory.sent] == ["main"]
 
 
-async def test_an_email_the_bus_does_not_route_is_sent_at_once() -> None:
+@pytest.mark.parametrize(
+    ("routing", "queued"),
+    [
+        ({SendEmailMessage: "mail"}, True),
+        ({object: ["mail"]}, True),
+        ({"*": "mail"}, True),
+        ({name_of(SendEmailMessage): "mail"}, False),
+        ({_Unchecked: "mail"}, False),
+        ({SendEmailMessage: []}, False),
+        ({}, False),
+    ],
+    ids=["class", "base class", "catch-all", "wire name", "protocol", "no transport", "none"],
+)
+async def test_an_email_is_queued_for_the_worker_or_sent_at_once_never_dropped(
+    routing: Mapping[type | str, str | Sequence[str]], queued: bool
+) -> None:
+    factory = RecordingTransportFactory()
+
+    async with await mailer_kernel(_queuing(factory, routing)).boot() as booted:
+        await (await booted.container.get(MailerInterface)).send(_email())
+        sent_at_once = len(factory.sent)
+        await (await booted.container.get(WorkerFactory)).worker(["mail"]).run()
+
+    assert (sent_at_once, len(factory.sent)) == ((0, 1) if queued else (1, 1))
+
+
+async def test_an_email_whose_class_declares_its_transport_is_queued_for_the_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    declared = xtr_messenger.message_registry._TRANSPORTS_BY_TYPE
+    monkeypatch.setitem(declared, SendEmailMessage, ("mail",))
     factory = RecordingTransportFactory()
 
     async with await mailer_kernel(_queuing(factory, routing={})).boot() as booted:
         await (await booted.container.get(MailerInterface)).send(_email())
+        sent_before = list(factory.sent)
+        await (await booted.container.get(WorkerFactory)).worker(["mail"]).run()
 
+    assert sent_before == []
     assert [name for name, _ in factory.sent] == ["main"]
