@@ -120,13 +120,14 @@ def check_folded(folded: str) -> None:
 
     Run on everything the engine folds, so a line break that slips through it — as one did
     before CVE-2024-6923 was fixed — never reaches the wire, nor a character some reader ends
-    a line at, nor a line longer than RFC 5322 allows.
+    a line at, nor a line longer than RFC 5322 allows, nor a continuation line of whitespace
+    alone, which RFC 5322 forbids writing and a lenient reader takes for the end of the headers.
     """
     lines = folded.removesuffix("\r\n").split("\r\n")
     if (
         not folded.endswith("\r\n")
         or any("\r" in line or "\n" in line for line in lines)
-        or not all(line.startswith((" ", "\t")) for line in lines[1:])
+        or not all(line.startswith((" ", "\t")) and line.strip(" \t") for line in lines[1:])
     ):
         raise RfcComplianceError(
             f'A folded header has a line that is not a continuation of it: "{capped(folded)}".'

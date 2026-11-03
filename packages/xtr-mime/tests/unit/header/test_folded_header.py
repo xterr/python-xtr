@@ -74,3 +74,9 @@ def test_a_field_that_is_not_one_folded_header_is_refused_without_being_repeated
 def test_a_field_without_a_header_name_is_refused(field: str) -> None:
     with pytest.raises(RfcComplianceError, match="header name"):
         _ = FoldedHeader(field)
+
+
+@pytest.mark.parametrize("blank", [" ", "\t", " \t "], ids=["space", "tab", "spaces and tab"])
+def test_a_continuation_line_of_whitespace_only_is_refused(blank: str) -> None:
+    with pytest.raises(RfcComplianceError, match="not a continuation"):
+        _ = FoldedHeader(f"X-A: v\r\n{blank}\r\n x")
