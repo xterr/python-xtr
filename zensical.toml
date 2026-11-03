@@ -15,6 +15,11 @@ exclude_docs = """
 /AGENTS.md
 """
 
+# One style sheet holds the whole design system, so the theme stays replaceable.
+extra_css = ["stylesheets/xtr.css"]
+# One script, only for the copy button of the command on the home page.
+extra_javascript = ["javascripts/xtr.js"]
+
 nav = [
   { "Home" = "index.md" },
   { "Setup" = [
@@ -49,25 +54,55 @@ nav = [
 
 [project.theme]
 language = "en"
+# Template overrides, for the home page hero. Only blocks of base.html are
+# replaced, so a new release of the theme keeps its own partials.
+custom_dir = "overrides"
 features = [
   "content.action.edit",
   "content.code.copy",
-  "navigation.indexes",
-  "navigation.sections",
-  "navigation.top",
+  # Turns a title attribute into a styled tooltip, for permalinks and actions.
+  "content.tooltips",
   "navigation.footer",
+  "navigation.indexes",
+  # Page changes do not reload the document, so the header keeps its state.
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.instant.progress",
+  # Breadcrumbs above the title, so a deep page says where it sits.
+  "navigation.path",
+  "navigation.sections",
+  # Each top entry of the navigation becomes a tab in the header, so the
+  # sidebar shows one section at a time instead of every page of the site.
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.top",
+  "navigation.tracking",
   "search.highlight",
+  "search.suggest",
+  # The table of contents follows the reading position.
+  "toc.follow",
 ]
+
+# Geist for text and Geist Mono for code: a close pair, and both read well at
+# small sizes. Google Fonts serves them.
+[project.theme.font]
+text = "Geist"
+code = "Geist Mono"
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
 scheme = "default"
+# "custom" leaves the colours to stylesheets/xtr.css, for both schemes.
+primary = "custom"
+accent = "custom"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
+primary = "custom"
+accent = "custom"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
