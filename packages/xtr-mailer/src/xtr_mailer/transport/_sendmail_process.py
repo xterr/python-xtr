@@ -12,13 +12,17 @@ from xtr_mailer.exception import TransportError
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-__all__ = ["pipe_to_sendmail"]
+__all__ = ["UNTAKEN_ARGUMENT", "pipe_to_sendmail"]
 
 #: The bytes of each output stream kept for an error; the rest is read and dropped.
 _KEPT_BYTES: Final = 4096
 #: The characters of that output an error shows.
 _SHOWN_CHARACTERS: Final = 1000
 _CHUNK: Final = 65536
+#: Why a process whose arguments the system refuses could not start; the argument is not shown.
+UNTAKEN_ARGUMENT: Final = (
+    "Process could not be started: an argument holds a character the system cannot take."
+)
 
 
 async def pipe_to_sendmail(arguments: Sequence[str], message: bytes, time_limit: float) -> None:
@@ -41,6 +45,8 @@ async def pipe_to_sendmail(arguments: Sequence[str], message: bytes, time_limit:
         )
     except OSError as error:
         raise TransportError(f"Process could not be started: {shown(str(error), 200)}") from None
+    except ValueError:  # A NUL, or a character the file system encoding has no bytes for.
+        raise TransportError(UNTAKEN_ARGUMENT) from None
     try:
         async with asyncio.timeout(time_limit):
             closed_early, output, errors = await asyncio.gather(

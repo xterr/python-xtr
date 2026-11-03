@@ -64,3 +64,17 @@ async def test_the_reason_a_process_cannot_start_is_cut_short(tmp_path: Path) ->
 
     assert str(caught.value).startswith("Process could not be started: ")
     assert len(str(caught.value)) < 260
+
+
+@pytest.mark.parametrize(
+    "argument",
+    [pytest.param("to\x00@example.com", id="nul"), pytest.param("to\ud800@x.org", id="surrogate")],
+)
+async def test_an_argument_the_system_cannot_take_fails_without_showing_it(argument: str) -> None:
+    with pytest.raises(TransportError) as caught:
+        await pipe_to_sendmail([*_ARGUMENTS, "--", argument], b"x", 5)
+
+    assert str(caught.value) == (
+        "Process could not be started: an argument holds a character the system cannot take."
+    )
+    assert caught.value.__cause__ is None
