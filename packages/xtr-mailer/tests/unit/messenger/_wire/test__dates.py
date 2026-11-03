@@ -32,6 +32,27 @@ def test_a_date_in_an_hour_the_clocks_repeat_comes_back_the_same_one(fold: int) 
     assert (back.tzinfo, back.fold, back.utcoffset()) == (_BUCHAREST, fold, date.utcoffset())
 
 
+@pytest.mark.parametrize("fold", [0, 1])
+@pytest.mark.parametrize(
+    "date",
+    [
+        datetime(2026, 3, 29, 2, 30, tzinfo=_BUCHAREST) + timedelta(hours=1),
+        datetime(2026, 3, 8, 2, 30, tzinfo=ZoneInfo("America/New_York")),
+    ],
+    ids=["Bucharest", "New York"],
+)
+def test_a_date_in_an_hour_the_clocks_skip_comes_back_as_written(date: datetime, fold: int) -> None:
+    skipped = date.replace(fold=fold)
+
+    back = _back(skipped)
+
+    assert (back.isoformat(), back.tzinfo, back.fold) == (
+        skipped.isoformat(),
+        skipped.tzinfo,
+        fold,
+    )
+
+
 def test_a_date_in_utc_comes_back_in_utc() -> None:
     date = datetime(2026, 11, 3, 9, 30, 15, 120, tzinfo=UTC)
 

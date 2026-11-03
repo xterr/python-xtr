@@ -119,6 +119,27 @@ async def test_a_date_in_an_hour_the_clocks_repeat_comes_off_the_queue_the_same_
     assert (date, date.tzinfo, date.fold) == (email.get_date(), zone, fold)
 
 
+@pytest.mark.parametrize("fold", [0, 1])
+@pytest.mark.parametrize(
+    ("zone", "wall_time"),
+    [("Europe/Bucharest", (2026, 3, 29, 3, 30)), ("America/New_York", (2026, 3, 8, 2, 30))],
+    ids=["Bucharest", "New York"],
+)
+async def test_a_date_in_an_hour_the_clocks_skip_is_sent_with_the_date_line_sent_directly(
+    zone: str, wall_time: tuple[int, int, int, int, int], fold: int
+) -> None:
+    email = _email().date(datetime(*wall_time, tzinfo=ZoneInfo(zone), fold=fold))
+    date_line = re.compile(rb"(?m)^Date: .*$")
+
+    queued = await through_the_queue(email)
+    sent = await MessageHandler(NullTransport())(queued)
+
+    assert sent is not None
+    assert date_line.findall(sent.to_string().encode()) == date_line.findall(
+        email.to_string().encode()
+    )
+
+
 async def test_a_subject_padded_past_a_line_is_sent_by_the_worker_as_it_is_directly() -> None:
     email = _email().subject(f"{'Invoice':<80}#123")
 
