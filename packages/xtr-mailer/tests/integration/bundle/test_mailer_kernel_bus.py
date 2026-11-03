@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Protocol
 
 import pytest
 import xtr_messenger.message_registry
-from xtr_http_client.bundle import HttpClientConfig
 from xtr_messenger import MessageBusConfig, TransportConfig, WorkerFactory, name_of
 from xtr_mime import Email
 
@@ -42,8 +41,7 @@ def _queuing(
     )
     return Application(
         mailer=MailerConfig(dsn="fake://main"),
-        # A test never reaches the network: the client the transports are handed answers itself.
-        peers={"messenger": bus, "http_client": HttpClientConfig(mock_response_factory=True)},
+        peers={"messenger": bus},
         provided=[Provided(factory, tag=MAILER_TRANSPORT_FACTORY_TAG)],
     )
 

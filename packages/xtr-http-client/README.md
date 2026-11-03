@@ -111,6 +111,9 @@ the rest. An option this client does not know is refused with `InvalidArgumentEr
 the closest one it does, because an option spelled wrong that was quietly dropped is a setting
 that silently never applied.
 
+A host `resolve` pins to an address stays pinned for the requests after it; `reset()` forgets
+every pin and keeps the connections open.
+
 A `body` mapping holding a file opened `"rb"` is uploaded as `multipart/form-data` — plain
 values as `data`, each file as a part named after its file and typed from that name — and a
 mapping without one stays url-encoded:
