@@ -10,6 +10,7 @@ import sys
 from typing import final
 
 from xtr_mailer.exception import InvalidArgumentError, LogicError, TransportError
+from xtr_mailer.transport._sendmail_process import UNTAKEN_ARGUMENT
 
 __all__ = ["SendmailChannel"]
 
@@ -123,6 +124,12 @@ class SendmailChannel:
         except OSError as error:
             ours.close()
             raise TransportError(f"Process could not be started: {error}") from None
+        except ValueError:  # A NUL, or a character the file system encoding has no bytes for.
+            ours.close()
+            raise TransportError(UNTAKEN_ARGUMENT) from None
+        except BaseException:
+            ours.close()  # Cancelled while it starts: no child will ever answer on it.
+            raise
         finally:
             # The child holds its own copy; keeping ours would hide its exit from the client.
             theirs.close()

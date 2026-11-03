@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import socket
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 import pytest
 
@@ -240,6 +240,38 @@ async def test_releasing_a_channel_never_opened_does_nothing() -> None:
     channel.release(kill=True)
 
     assert await channel.close() is None
+
+
+async def test_a_cancel_while_the_child_starts_closes_both_sockets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    made: list[socket.socket] = []
+    socketpair = socket.socketpair
+
+    def recorded_socketpair() -> tuple[socket.socket, socket.socket]:
+        pair = socketpair()
+        made.extend(pair)
+        return pair
+
+    async def cancelled(*_arguments: object, **_settings: object) -> NoReturn:
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(socket, "socketpair", recorded_socketpair)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", cancelled)
+
+    with pytest.raises(asyncio.CancelledError):
+        _ = await SendmailChannel(_command()).open()
+
+    assert [each.fileno() for each in made] == [-1, -1]
+
+
+async def test_a_command_the_system_cannot_take_fails_without_showing_it() -> None:
+    with pytest.raises(TransportError) as caught:
+        _ = await SendmailChannel("/usr/sbin/sendmail\ud800 -bs").open()
+
+    assert str(caught.value) == (
+        "Process could not be started: an argument holds a character the system cannot take."
+    )
 
 
 async def test_the_child_writes_its_errors_nowhere(
