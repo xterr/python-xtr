@@ -69,7 +69,7 @@ await Mailer(transport, MessageBus([HandleMessageMiddleware(handlers)])).send(em
 
 The listeners run again in the worker, so signatures and headers are made where the mail goes. A
 `TransportError` a handler raised reaches the caller unchanged. Attach bytes or a `File`, never a
-stream that cannot seek back, to an email that is both signed and queued.
+stream that cannot seek back, to an email that is queued and also signed or encrypted.
 
 ## Shape every email with listeners
 
@@ -82,17 +82,27 @@ dispatcher = EventDispatcher()
 recorder = MessageLoggerListener()
 for listener in (
     recorder,
-    EnvelopeListener("bounces@example.com", allowed_recipients=[r"[^@]+@example\.com"]),
+    EnvelopeListener(
+        "bounces@example.com",
+        recipients=["staging@example.com"],
+        allowed_recipients=[r"[^@]+@example\.com"],
+    ),
 ):
     dispatcher.add_listener(MessageEvent, listener.on_message, priority=listener.PRIORITY)
 
 transport = Transport.from_dsn("null://null", event_dispatcher=dispatcher)
 sent = await transport.send(email)
 assert sent.get_envelope().get_sender().get_address() == "bounces@example.com"
+assert [r.get_address() for r in sent.get_envelope().get_recipients()] == [
+    "staging@example.com",
+    "ana@example.com",
+]
 ```
 
-`allowed_recipients` are Python regular expressions matched against a whole address. Register a
-listener at its own `PRIORITY`; higher runs earlier, and DKIM signs last.
+`allowed_recipients` are Python regular expressions matched against a whole address, and they
+only matter beside `recipients`: they keep the email's own envelope recipients that match, after
+the ones given. With no `recipients`, nothing is filtered. Register a listener at its own
+`PRIORITY`; higher runs earlier, and DKIM signs last.
 
 ## Testing
 
@@ -132,7 +142,8 @@ environment, and `MAILER_DSN` in `.env`. There is no ignore line to write.
    `headers`, `tracking`, `dkim_signer`, `smime_signer`, `smime_encrypter` — needs
    xtr-event-dispatcher, and says so at build otherwise —
    [references/application.md](references/application.md).
-5. **Environment** — `MAILER_DSN`, read when the transport is first built. **Ignore** — nothing.
+5. **Environment** — `MAILER_DSN`, read when the mailer or the transport is first resolved.
+   **Ignore** — nothing.
 6. **Use** — inject `MailerInterface`. To send from a worker, route
    `xtr_mailer.messenger.SendEmailMessage` in `<app>/config/packages/messenger.py`; there is no
    configuration switch for it.
@@ -148,12 +159,16 @@ environment, and `MAILER_DSN` in `.env`. There is no ignore line to write.
 | `MailerError` | Base of them all |
 | `MailerRuntimeError` | The world failed while sending — no recipient has an S/MIME certificate, a default header cannot be set. Also `RuntimeError` |
 | `LogicError` | Misuse — no transport, raw bytes with no envelope, a remote template on a transport that cannot render one, an extra missing, a rate limiter named but not configured. Also `RuntimeError` |
-| `InvalidArgumentError` | A value cannot be used — a DSN, an option, an allow-list pattern, an unknown transport name, a queued email beyond the wire's limits. Also `ValueError` |
+| `InvalidArgumentError` | A value cannot be used — a DSN, an option, an allow-list pattern, an unknown transport name. Also `ValueError` |
 | `IncompleteDsnError` | A DSN leaves out the user or password its scheme needs. An `InvalidArgumentError` |
 | `TransportError` | The mail could not be handed over. Carries `code` and a credential-free `debug`. What failover and round-robin move on from. A `MailerRuntimeError` |
 | `UnexpectedResponseError` | An SMTP server answered with a code the exchange disallows. A `TransportError` |
 | `HttpTransportError` | A provider's API refused the email; carries the `response`. A `TransportError` |
 | `UnsupportedSchemeError` | No installed factory serves the scheme; it names the library to install. A `LogicError` |
+
+An email the queue cannot carry is refused outside this hierarchy: the serializer reads every
+queued email back, so `mailer.send` raises xtr-messenger's `MessageEncodingFailedError` naming
+the limit or the class, and a tampered message in the worker a `MessageDecodingFailedError`.
 
 ## Do not
 

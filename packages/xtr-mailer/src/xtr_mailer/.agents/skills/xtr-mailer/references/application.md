@@ -1,8 +1,10 @@
 # In an application
 
 The bundle registers `Mailer` under `MailerInterface` and `Transports` under
-`TransportInterface`, builds nothing at boot, and reads no DSN, opens no socket and reads no key
-file until an email is sent. The transports' sessions are closed when the container closes.
+`TransportInterface`, and builds nothing at boot. The DSN is read when either is first asked for
+— the mailer takes the transports, so resolving one resolves both — and no socket is opened and
+no key file read until an email is sent. The transports' sessions are closed when the container
+closes.
 
 ```python
 # app/config/bundles.py
@@ -54,6 +56,7 @@ def mailer() -> MailerConfig:
         },
         envelope=EnvelopeConfig(
             sender="bounces@example.com",
+            recipients=["staging@example.com"],
             allowed_recipients=[r"[^@]+@example\.com"],
         ),
         headers={"X-Campaign": "spring", "Reply-To": ["support@example.com"]},
@@ -67,8 +70,8 @@ xtr-event-dispatcher bundle. Configured without it the build is refused, naming 
 xtr-mailer.`
 
 `rate_limiter` names a limiter the xtr-rate-limiter bundle configures; without that bundle the
-build is refused, and a limiter named but not configured fails when the first email is sent. A
-`failover(...)` or `roundrobin(...)` group takes none.
+build is refused, and a limiter named but not configured fails when the mailer is resolved, not
+when an email is sent. A `failover(...)` or `roundrobin(...)` group takes none.
 
 ## Signing and encryption
 

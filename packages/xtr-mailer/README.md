@@ -204,7 +204,7 @@ Give the port. A `smtp://` DSN with none reaches 465 for every host but the lite
 | `local_domain` | what the greeting names this host as | `[127.0.0.1]` |
 | `max_per_second` | emails a second this transport starts; 0 is no pacing | 0 |
 | `restart_threshold` | emails after which the session is reopened; 0 is never | 100 |
-| `restart_threshold_sleep` | seconds to wait before reopening it | 0 |
+| `restart_threshold_sleep` | seconds to wait after closing the session, before the next email reopens it; ignored while `restart_threshold` is 0 | 0 |
 | `ping_threshold` | seconds of silence after which the server is pinged | 100 |
 
 A bad value is an `InvalidArgumentError` naming the option. The user and password are the SMTP
@@ -216,12 +216,17 @@ server offers.
 | DSN | Runs |
 |---|---|
 | `sendmail://default` | `/usr/sbin/sendmail -bs` — an SMTP session over the program's own streams |
-| `sendmail://default?command=%2Fusr%2Fsbin%2Fsendmail%20-t` | `/usr/sbin/sendmail -t` — the message piped in, recipients read from its headers |
+| `sendmail://default?command=%2Fusr%2Fsbin%2Fsendmail%20-t` | `/usr/sbin/sendmail -i -f<sender> -- <recipients>` — the message piped in, the envelope's recipients named |
 
-The command must hold `-bs` or `-t`. In `-t` mode `-i` is added when neither `-i` nor `-oi` is
-given, and `-f<sender>` unless the command sets `-f`. The command is **not** run through a
-shell: no quoting, globbing, pipeline or `$VAR` has any effect, and the program is looked up as
-written. Not every `sendmail` implements `-bs`; see [Known limitations](#known-limitations).
+The command must hold `-bs` or `-t`. `-t` picks the piped mode and is then dropped: the envelope
+names the recipients, after `--` so none is read as an option, rather than sendmail reading them
+from the headers — which would also deliver to a `Bcc`. `-i` is added when neither `-i` nor `-oi`
+is given, and `-f<sender>` unless the command sets `-f`. The command is **not** run through a
+shell: it is split into words the way a shell splits them, quotes grouping a word that holds a
+space — `-F "Example Shop"` is two arguments, the second with its space — and the words are
+handed to the operating system as they are. So globbing, a pipeline and `$VAR` have no effect,
+and the program is looked up as written. Not every `sendmail` implements `-bs`; see
+[Known limitations](#known-limitations).
 
 **`native://`.** `sendmail` on `PATH`, else `/usr/sbin/sendmail` when it is executable, run as
 `-t -i`, one process per email. With neither, building the transport raises a `TransportError`
@@ -245,7 +250,11 @@ dispatcher = EventDispatcher()
 recorder = MessageLoggerListener()
 for listener in (
     recorder,
-    EnvelopeListener("bounces@example.com", allowed_recipients=[r"[^@]+@example\.com"]),
+    EnvelopeListener(
+        "bounces@example.com",
+        recipients=["staging@example.com"],
+        allowed_recipients=[r"[^@]+@example\.com"],
+    ),
     MessageListener(),
 ):
     dispatcher.add_listener(MessageEvent, listener.on_message, priority=listener.PRIORITY)
@@ -254,6 +263,10 @@ transport = Transport.from_dsn("null://null", event_dispatcher=dispatcher)
 sent = await transport.send(email)
 
 assert sent.get_envelope().get_sender().get_address() == "bounces@example.com"
+assert [r.get_address() for r in sent.get_envelope().get_recipients()] == [
+    "staging@example.com",
+    "ana@example.com",
+]
 assert recorder.get_events().get_transports() == ["null://"]
 ```
 
@@ -267,8 +280,11 @@ assert recorder.get_events().get_transports() == ["null://"]
 | `EnvelopeListener` | -255 | Overrides the envelope sender and recipients, keeping those an allow-list pattern matches |
 | `MessageLoggerListener` | -255 | Keeps every email it saw, for a test or a development report |
 
-`EnvelopeListener`'s `allowed_recipients` are Python regular expressions, each matched against a
-whole address: `r"[^@]+@example\.com"` passes `ana@example.com` and refuses
+`EnvelopeListener`'s `allowed_recipients` matter only beside `recipients`: the allow-list keeps
+the email's own envelope recipients that match, after the ones given, and with no `recipients`
+nothing is filtered at all — a listener given a sender and an allow-list changes the sender and
+leaves every recipient where it was. The patterns are Python regular expressions, each matched
+against a whole address: `r"[^@]+@example\.com"` passes `ana@example.com` and refuses
 `ana@example.com.example.org`.
 
 In an application these are registered, at these priorities, by the bundle from configuration —
@@ -380,9 +396,9 @@ removing it undoes.
   [xtr-event-dispatcher](../xtr-event-dispatcher) installed, and says so at build otherwise. To
   send from a worker, route `xtr_mailer.messenger.SendEmailMessage` in
   `<app>/config/packages/messenger.py`; there is no switch for it here.
-- **Environment** — `MAILER_DSN`, the DSN the written configuration reads when the transport is
-  first built, not when the application boots. It carries the mail server's password, which no
-  container report shows.
+- **Environment** — `MAILER_DSN`, the DSN the written configuration reads when the mailer or the
+  transport is first resolved, not when the application boots. It carries the mail server's
+  password, which no container report shows.
 - **Ignore** — nothing: an email is sent, never written to disk.
 - **Remove** — drop the `BUNDLES` entry, delete `<app>/config/packages/mailer.py` and the
   variable (`uv run xtr-recipes recipes:remove xtr-mailer` does all three), then
@@ -407,13 +423,15 @@ It registers:
 | Service | Under | Built |
 |---|---|---|
 | `Mailer` | `MailerInterface` | when first asked for |
-| `Transports` | `TransportInterface` | when the first email is sent; the DSN is read then, and the sessions are closed when the container does |
+| `Transports` | `TransportInterface` | with the mailer, which takes it: the DSN is read then, and the sessions are closed when the container does |
 | `MessageLoggerListener` | itself | in debug only, and only with the event dispatcher bundle |
 | `MailerTestCommand` | `mailer:test` | with the console bundle |
 | `SendEmailMessageHandler` | the handler of `SendEmailMessage` | with the messenger bundle |
 
-Nothing is built at boot, and no DSN is read, no socket opened and no key file read until an
-email is sent.
+Nothing is built at boot. The DSN is read when the mailer or the transport is first asked for —
+the mailer takes the transports, so resolving either resolves both — and a DSN that does not
+parse, a scheme no factory serves and a rate limiter named but not configured are refused there,
+before any email. No socket is opened and no key file read until an email is sent.
 
 ```python
 # app/services/order_mail.py
@@ -441,7 +459,7 @@ class OrderMail:
 |---|---|---|
 | `dsn` | `None` | The one transport every email goes through. Cannot be given with `transports` |
 | `transports` | `{}` | Transports by name, a DSN or a `TransportConfig` each; the first sends unless `X-Transport` names another |
-| `envelope` | `EnvelopeConfig()` | The sender and recipients to override, and the allow-list to keep |
+| `envelope` | `EnvelopeConfig()` | The sender and recipients to override, and the allow-list keeping an email's own recipients beside the ones given — which does nothing without `recipients` |
 | `headers` | `{}` | Headers every email carries, a string or a list of strings each |
 | `tracking` | `TrackingConfig()` | Open and click tracking, as an `X-Track` header |
 | `dkim_signer` | `None` | The key, domain and selector to sign with. Needs the `dkim` extra |
@@ -473,6 +491,7 @@ def mailer() -> MailerConfig:
         },
         envelope=EnvelopeConfig(
             sender="bounces@example.com",
+            recipients=["staging@example.com"],
             allowed_recipients=[r"[^@]+@example\.com"],
         ),
         headers={"X-Campaign": "spring", "Reply-To": ["support@example.com"]},
@@ -483,8 +502,10 @@ def mailer() -> MailerConfig:
 **Rate limiting.** `TransportConfig(dsn, rate_limiter="mail")` names a limiter the
 [xtr-rate-limiter](../xtr-rate-limiter) bundle configures; an email over the limit raises
 `RateLimitExceededError`. Without that bundle the build is refused, naming the limiter. A
-`failover(...)` or `roundrobin(...)` group takes none — cap its members' DSNs instead, or the
-whole thing with `max_per_second`.
+`failover(...)` or `roundrobin(...)` group takes none, and neither does it take `max_per_second`:
+an option after a group's `)` is read as `retry_period` alone, so anything else is an
+`InvalidArgumentError` — `The mailer DSN has some garbage at the end.` Pace each member's own
+DSN with `max_per_second` instead, or cap a single transport with `rate_limiter`.
 
 **Signing and encryption.**
 
@@ -531,9 +552,13 @@ Only an email carrying an `X-SMime-Encrypt` header is encrypted; the header is n
 encrypted.
 
 **Logging.** With the [xtr-logging](../xtr-logging) bundle the mailer writes to a `mailer`
-channel the bundle adds — the transport starting, each email sent, each one that failed, and the
-recipients an encrypted email had no certificate for. Without that bundle nothing is logged and
-nothing complains.
+channel the bundle adds. No line says an email was sent or failed: what is written is the
+transport's own doings, at debug — an SMTP session starting, started, stopping and stopped, a
+sendmail run starting and stopped, a wait `max_per_second` imposed and the one after a session
+closed at its `restart_threshold` — plus, at error, each member of a `failover(...)` or
+`roundrobin(...)` group that failed, and, at warning, the recipients an encrypted email had no
+certificate for. Read a `MessageLoggerListener` for what was sent. Without that bundle nothing
+is logged and nothing complains.
 
 **A provider's transports.** Installing a provider library is enough: its factory is found by
 the DSN's scheme. A factory needing more than the discovery hands it is registered by its own
@@ -549,12 +574,17 @@ Every error derives from `MailerError`, importable from `xtr_mailer` and `xtr_ma
 | `MailerError` | The base: catch it to catch them all |
 | `MailerRuntimeError` | Something outside the code failed while sending — no recipient has an S/MIME certificate, a default header cannot be set. Also a `RuntimeError` |
 | `LogicError` | The library was used in a way that cannot work — a `Transports` with no transport, raw bytes with no envelope, a remote-template email on a transport that cannot render one, an extra not installed, a rate limiter named but not configured. Also a `RuntimeError` |
-| `InvalidArgumentError` | A value cannot be used — a DSN that does not parse, an option value of the wrong shape, a bad allow-list pattern, a transport name that does not exist, a queued email beyond what the wire carries. Also a `ValueError` |
+| `InvalidArgumentError` | A value cannot be used — a DSN that does not parse, an option value of the wrong shape, a bad allow-list pattern, a transport name that does not exist. Also a `ValueError` |
 | `IncompleteDsnError` | A DSN leaves out a part its scheme needs, such as the user or password a provider's factory requires. An `InvalidArgumentError` |
 | `TransportError` | The mail could not be handed over — no connection, a refused recipient, a sendmail process that failed. Carries `code` and a `debug` transcript that never holds a credential. What `failover(...)` and `roundrobin(...)` move on from. A `MailerRuntimeError` |
 | `UnexpectedResponseError` | An SMTP server answered with a code the exchange does not allow; `code` is that reply code. A `TransportError` |
 | `HttpTransportError` | A provider's API answered with a status saying the email was not accepted; carries the `response`. A `TransportError` |
-| `UnsupportedSchemeError` | No installed factory serves a DSN's scheme. For a known provider it names the library to install: `Unable to send emails via "mailgun" as the bridge is not installed. Try running: uv add "xtr-mailer[mailgun]".` A `LogicError` |
+| `UnsupportedSchemeError` | No installed factory serves a DSN's scheme: `The "acme" scheme is not supported.` A `mailgun` scheme — the one provider this package knows of — names the extra instead: `Unable to send emails via "mailgun" as the bridge is not installed. Try running: uv add "xtr-mailer[mailgun]".` A `LogicError` |
+
+An email the queue cannot carry is the one refusal that is not a `MailerError`: the serializer
+reads every queued email back before handing it over, so `mailer.send` raises
+[xtr-messenger](../xtr-messenger)'s `MessageEncodingFailedError`, naming the limit or the class
+— see [Known limitations](#known-limitations).
 
 ## Providers
 
@@ -569,9 +599,10 @@ This package ships the transports that need no provider:
 | xtr-mailer | `sendmail`, `sendmail+smtp` | a local sendmail | `sendmail://default` |
 | xtr-mailer | `native` | the host's own sendmail | `native://default` |
 
-No provider library is published yet, so there is no `xtr-mailer[<provider>]` extra to install:
-a provider scheme raises `UnsupportedSchemeError` naming the library it would come from. Writing
-one is a package with an `AbstractApiTransport` or `AbstractHttpTransport`, an
+No provider library is published yet, and this package carries no `xtr-mailer[<provider>]` extra
+to install: a provider scheme raises `UnsupportedSchemeError`, which names the extra for a
+`mailgun` scheme — the one provider it knows of — and the scheme alone for any other. Writing a
+provider library is a package with an `AbstractApiTransport` or `AbstractHttpTransport`, an
 `AbstractTransportFactory` and an entry point; the agent skill's
 [references/providers.md](src/xtr_mailer/.agents/skills/xtr-mailer/references/providers.md)
 walks through it.
@@ -601,30 +632,40 @@ walks through it.
   the reply, and it waits for a send already in flight, each step of which may take the full
   `timeout` — 60 seconds by default. Several transports are stopped one after another, so their
   waits add up. Lower `timeout` where shutdown must be quick.
-- **Queued emails are bounded, as they are read back.** What the broker hands a worker is
-  untrusted, and folding a forged header is costly, so an email is held to: per message or part,
-  512 headers, 64 KiB of header text, 8 KiB per value, 1000 entries in an address or id list and
-  64 header parameters; per email, 2048 headers, 192 KiB of header text, 2000 addresses (Bcc
-  counted), 16 KiB of display-name text, 1024 non-ASCII name words, 16 KiB of non-ASCII text per
-  value and 32 KiB per email, 256 parts, 100 attachments, and parts nested 32 deep. A real email
-  stays far under every one. The limits apply when the email is **read**, so an oversized one is
-  written to the queue and refused in the worker, with an `InvalidArgumentError` naming where —
-  `message.headers.fields holds more than 512 headers.` — never what it held.
+- **Queued emails are bounded, and the bound bites where the email is written.** What the broker
+  hands a worker is untrusted, and folding a forged header is costly, so an email read from the
+  queue is held to: per message or part, 512 headers, 64 KiB of header text, 8 KiB per value,
+  1000 entries in an address or id list and 64 header parameters; per email, 2048 headers,
+  192 KiB of header text, 2000 addresses (Bcc counted), 16 KiB of display-name text, 1024
+  non-ASCII name words, 16 KiB of non-ASCII text per value and 32 KiB per email, 256 parts, 100
+  attachments, and parts nested 32 deep. Each piece of an email carries its own bound too: a
+  file name and a content type at most 256 characters, a header name 1 to 256 printable ASCII
+  characters, a display name 256, a charset and a language 64, an address 320, and a remote
+  template's variables plain JSON — a tuple or a set among them is refused. A real email stays
+  far under every one. The limits are read limits, but the serializer reads every email back
+  before handing it over, so an oversized one never reaches the broker: `mailer.send` raises
+  [xtr-messenger](../xtr-messenger)'s `MessageEncodingFailedError`, naming where the email went
+  over — `message.headers.fields holds more than 512 headers.` — never what it held. A message
+  tampered with on the broker is refused in the worker the same way, with a
+  `MessageDecodingFailedError`. Neither is a `MailerError`.
 - **A path or stream attachment travels as content.** An email queued carries its attachments'
   bytes, not their paths, so the worker needs no access to the file — and a 10 MB attachment is
   10 MB on the broker. A stream that cannot seek back is read once: attached to an email that is
-  also signed and queued, it reaches the server empty, because the signature read it first.
-  Attach bytes or a `File` to an email you sign and queue.
+  also signed or encrypted and queued, it reaches the server empty, because the signing or
+  encrypting listener read it first. Attach bytes or a `File` to an email you sign, encrypt and
+  queue.
 - **An envelope read from the headers is fixed when the email is queued.** Queue an email with no
   explicit envelope and the addresses its `To`, `Cc` and `Bcc` held at that moment travel with
   it; a listener in the worker changing those headers does not change where the mail goes.
 - **The queue carries this library's own classes only.** An application subclass of `Email`, of a
-  header or of a part is refused with an `InvalidArgumentError` naming the class — `An email of
-  class "MyEmail" cannot be queued.` Carry your own data in headers, or send in-process.
-- **`X-Bus-Transport` reaches the mail server.** It is removed from the copy that is queued, so a
-  worker never sees it, but the email the caller holds keeps it — and an email that is not routed
-  to the bus is sent in-process, header and all, which an SMTP server passes on and ignores.
-  Remove it yourself where that matters.
+  header or of a part is refused as the email is written, naming the class: `mailer.send` raises
+  `MessageEncodingFailedError` and its reason is `An email of class "MyEmail" cannot be queued.`
+  Carry your own data in headers, or send in-process.
+- **`X-Bus-Transport` reaches the mail server.** It is removed from the copy the event carries,
+  not from the email that is queued: the worker reads it off the queue and renders it, header and
+  all, so an SMTP server is given it too — as it is for an email that is not routed to the bus
+  and so sent in-process. The email the caller holds keeps it either way. A server passes it on
+  and ignores it; remove it yourself where that matters.
 - **An email is queued only when `SendEmailMessage` is routed.** There is no switch in this
   package's configuration: with the messenger bundle active and
   `xtr_mailer.messenger.SendEmailMessage` routed — by its class, one of its bases, or `"*"` — the

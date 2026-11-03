@@ -15,8 +15,10 @@ that bite while writing code.
   OpenSMTPD's `sendmail` does not implement. Use `?command=/usr/sbin/sendmail%20-t` there.
 - **The 60-second child timeout is not a DSN option.** Only `SendmailTransport.set_timeout()`
   changes it.
-- **A group takes no rate limiter.** Cap the members' DSNs with `max_per_second`, or a single
-  transport with `TransportConfig(dsn, rate_limiter=...)`.
+- **A group takes neither a rate limiter nor `max_per_second`.** An option after a group's `)` is
+  read as `retry_period` alone, so anything else is `The mailer DSN has some garbage at the end.`
+  Pace each member's own DSN with `max_per_second`, or cap a single transport with
+  `TransportConfig(dsn, rate_limiter=...)`.
 
 ## Lifetimes
 
@@ -31,20 +33,26 @@ that bite while writing code.
 - **An email is queued only when `SendEmailMessage` is routed** — by its class, a base, or
   `"*"`. There is no `message_bus` option. A route under its wire name is not a route; an
   unrouted email is sent in-process, never dropped.
-- **The limits apply when the email is read back**, not when it is written, so an oversized one
-  reaches the broker and is refused in the worker. Per message or part: 512 headers, 64 KiB of
-  header text, 8 KiB per value, 1000 list entries, 64 parameters. Per email: 2048 headers,
-  192 KiB of header text, 2000 addresses (Bcc counted), 16 KiB of display-name text, 1024
-  non-ASCII name words, 16 KiB of non-ASCII text per value and 32 KiB per email, 256 parts, 100
-  attachments, parts nested 32 deep.
+- **The limits are read limits, and the serializer reads every email back before handing it
+  over**, so an oversized one never reaches the broker: `mailer.send` raises xtr-messenger's
+  `MessageEncodingFailedError` naming the limit, and a message tampered with on the broker is
+  refused in the worker with a `MessageDecodingFailedError`. Neither is a `MailerError`. Per
+  message or part: 512 headers, 64 KiB of header text, 8 KiB per value, 1000 list entries, 64
+  parameters. Per email: 2048 headers, 192 KiB of header text, 2000 addresses (Bcc counted),
+  16 KiB of display-name text, 1024 non-ASCII name words, 16 KiB of non-ASCII text per value and
+  32 KiB per email, 256 parts, 100 attachments, parts nested 32 deep. Per piece: a file name and
+  a content type 256 characters, a header name 1 to 256 printable ASCII, a display name 256, a
+  charset and a language 64, an address 320, and a template's variables plain JSON.
 - **Attachments travel as content**, paths and streams included — a 10 MB attachment is 10 MB on
   the broker. A stream that cannot seek back, on an email also signed, arrives empty.
 - **An envelope read from the headers is fixed at queue time**; a listener in the worker changing
   `To`, `Cc` or `Bcc` does not change where the mail goes.
 - **Only this library's own classes travel.** An application subclass of `Email`, a header or a
-  part is refused, naming the class.
-- **`X-Bus-Transport` is removed from the queued copy only.** The caller's email keeps it, and an
-  unrouted email carries it to the mail server, which ignores it.
+  part is refused as the email is written, with a `MessageEncodingFailedError` whose reason names
+  the class: `An email of class "MyEmail" cannot be queued.`
+- **`X-Bus-Transport` is removed from the event's copy only.** The queued email keeps it, so the
+  worker's SMTP DATA carries it; the caller's email keeps it too, and an unrouted email carries
+  it to the mail server in-process. A server ignores it.
 
 ## S/MIME
 
