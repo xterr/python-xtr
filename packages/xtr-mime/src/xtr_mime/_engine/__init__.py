@@ -67,9 +67,10 @@ from ._build import (
     build_multipart,
     build_text,
     build_verbatim,
+    prepend_fields,
     set_fields,
 )
-from ._fold import fold_header, header_body
+from ._fold import fold_header, header_body, header_field
 from ._grammar import check_folded, check_message_id
 from ._policy import EnginePart
 from ._render import parse, render, to_bytes, to_string
@@ -104,7 +105,9 @@ __all__ = [
     "encode_idn_address",
     "fold_header",
     "header_body",
+    "header_field",
     "parse",
+    "prepend_fields",
     "render",
     "set_fields",
     "to_bytes",

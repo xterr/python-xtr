@@ -24,8 +24,10 @@ from xtr_mailer.messenger._wire._header_limits import (
     LIST_LENGTH,
     PARAMETER_COUNT,
     VALUE_LENGTH,
+    HeldText,
     carried,
     header_value,
+    held_texts,
     listed,
     parameters,
 )
@@ -118,3 +120,25 @@ def test_a_header_carries_its_name_and_the_text_it_holds(
     header: UnstructuredHeader, length: int
 ) -> None:
     assert carried(header) == length
+
+
+def test_each_text_an_address_list_holds_is_told_by_what_it_is() -> None:
+    header = MailboxListHeader("To", [Group("Team", [Address("c@x.com", "C")]), Address("d@x.com")])
+
+    assert list(held_texts(header)) == [
+        HeldText("Team", "name"),
+        HeldText("c@x.com", "address"),
+        HeldText("C", "name"),
+        HeldText("d@x.com", "address"),
+        HeldText("", "name"),
+    ]
+
+
+def test_a_parameter_value_is_told_from_the_value_and_the_parameter_name() -> None:
+    header = ParameterizedHeader("Content-Disposition", "attachment", {"filename": "a.txt"})
+
+    assert list(held_texts(header)) == [
+        HeldText("attachment", "value"),
+        HeldText("filename", "value"),
+        HeldText("a.txt", "parameter"),
+    ]

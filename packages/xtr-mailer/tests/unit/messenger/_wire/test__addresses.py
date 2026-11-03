@@ -43,6 +43,25 @@ def test_a_group_of_more_members_than_an_address_list_holds_is_refused() -> None
         _ = read_entry({"group": "Team", "addresses": members}, "e")
 
 
+def test_a_name_of_256_characters_is_read() -> None:
+    assert (
+        read_address({"address": "a@example.com", "name": "n" * 256}, "a").get_name() == "n" * 256
+    )
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"address": "a@example.com", "name": "n" * 257},
+        {"group": "n" * 257, "addresses": []},
+    ],
+    ids=["address", "group"],
+)
+def test_a_name_longer_than_256_characters_is_refused(data: object) -> None:
+    with pytest.raises(InvalidArgumentError, match="is longer than 256 characters"):
+        _ = read_entry(data, "e")
+
+
 @pytest.mark.parametrize(
     "data",
     [

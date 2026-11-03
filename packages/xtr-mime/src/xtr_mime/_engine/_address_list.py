@@ -17,7 +17,6 @@ from ._unstructured import encoded_words
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
-    from email.headerregistry import BaseHeader
 
     from ._values import Mailbox, MailboxGroup
 
@@ -29,7 +28,8 @@ _ATOM: Final = r"[^\x00-\x20\x7f()<>\[\]:;@\\,.\"]+"
 _PHRASE: Final = re.compile(rf"{_ATOM}(?: {_ATOM})*")
 
 
-def address_header(name: str, value: Sequence[Mailbox | MailboxGroup]) -> BaseHeader | FoldedHeader:
+def address_header(name: str, value: Sequence[Mailbox | MailboxGroup]) -> FoldedHeader:
+    """Build an address header, folded once: the fold read back is the one kept."""
     items = [to_engine_address(item) for item in value]
     header = ADDRESS(name, items)
     utf8 = any(not address.username.isascii() for address in _addresses_of(items))
@@ -44,8 +44,6 @@ def address_header(name: str, value: Sequence[Mailbox | MailboxGroup]) -> BaseHe
             f"The {name} header would not read back to the names it was given: {folded!r}."
         )
     check_reads_back(name, items, folded)
-    if folded == written and not utf8:
-        return header
     return FoldedHeader(name, str(header), folded)
 
 

@@ -249,6 +249,23 @@ def test_set_fields_refuses_a_field_that_is_not_one(field: str) -> None:
         _engine.set_fields(part, [field])
 
 
+def test_prepend_fields_puts_the_fields_before_the_headers_the_part_carries() -> None:
+    part = _engine.build_text(text_leaf())
+    _engine.set_fields(part, ["Content-Type: text/plain"])
+
+    _engine.prepend_fields(part, ["Subject: first", "X-A: second"])
+
+    rendered = _engine.to_bytes(part)
+    assert rendered.startswith(b"Subject: first\r\nX-A: second\r\nContent-Type: text/plain\r\n\r\n")
+
+
+def test_prepend_fields_refuses_a_field_that_is_not_one() -> None:
+    part = _engine.build_text(text_leaf())
+
+    with pytest.raises(RfcComplianceError):
+        _engine.prepend_fields(part, ["X-Written: a\r\nInjected: 1"])
+
+
 def test_a_message_puts_its_own_headers_before_the_body_headers() -> None:
     body = _engine.build_text(text_leaf())
 

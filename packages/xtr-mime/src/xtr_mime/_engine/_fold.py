@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from ._policy import EnginePart
     from ._values import HeaderValue
 
-__all__ = ["add_header", "fold_header", "header_body", "make_header"]
+__all__ = ["add_header", "fold_header", "header_body", "header_field", "make_header"]
 
 
 def fold_header(name: str, value: HeaderValue) -> str:
@@ -56,8 +56,23 @@ def header_body(name: str, value: HeaderValue) -> str:
     Raises:
         RfcComplianceError: ``value`` is not allowed in a header, as :func:`fold_header` says.
     """
-    body = body_of(name, _fold(name, value))
-    return body.removeprefix("\r\n").removeprefix(" ")
+    return _body(name, _fold(name, value))
+
+
+def header_field(name: str, value: HeaderValue) -> str | None:
+    """Render the field as :func:`fold_header` does, ``None`` when its body is empty.
+
+    A header with no body is not written: the field is folded once, and both told from it.
+    A name holding a colon is refused only for a header with a body, which would be written.
+
+    Raises:
+        RfcComplianceError: As :func:`fold_header` does.
+    """
+    folded = _fold(name, value)
+    if not _body(name, folded).replace("\r\n", ""):
+        return None
+    check_name(name)
+    return folded.removesuffix("\r\n")
 
 
 def add_header(part: EnginePart, name: str, value: HeaderValue) -> None:
@@ -78,6 +93,11 @@ def make_header(name: str, value: HeaderValue) -> BaseHeader | FoldedHeader:
     Raises:
         RfcComplianceError: As :func:`fold_header` does.
     """
+    return _made(name, value)[0]
+
+
+def _made(name: str, value: HeaderValue) -> tuple[BaseHeader | FoldedHeader, str]:
+    """Build the header and fold it, once: the check and the caller share the folded field."""
     try:
         header = _build_header(name, value)
         written = header.folded if isinstance(header, FoldedHeader) else header.fold(policy=POLICY)
@@ -87,12 +107,17 @@ def make_header(name: str, value: HeaderValue) -> BaseHeader | FoldedHeader:
         raise RfcComplianceError(f"The {name} header cannot be written: {error}.") from error
     folded = join_blank_lines(written)
     check_folded(folded)
-    return header if folded == written else FoldedHeader(name, str(header), folded)
+    if folded != written:
+        header = FoldedHeader(name, str(header), folded)
+    return header, folded
 
 
 def _fold(name: str, value: HeaderValue) -> str:
-    header = make_header(name, value)
-    return header.folded if isinstance(header, FoldedHeader) else header.fold(policy=POLICY)
+    return _made(name, value)[1]
+
+
+def _body(name: str, folded: str) -> str:
+    return body_of(name, folded).removeprefix("\r\n").removeprefix(" ")
 
 
 def _build_header(name: str, value: HeaderValue) -> BaseHeader | FoldedHeader:

@@ -80,6 +80,20 @@ def test_a_part_that_is_no_attachment_is_refused() -> None:
         _ = _read(written)
 
 
+def test_an_email_of_100_attachments_is_read() -> None:
+    written = _written(Email())
+    attachments = [_write_part(DataPart(b"x", "a.bin"))] * 100
+
+    assert len(_read({**written, "attachments": attachments}).get_attachments()) == 100
+
+
+def test_an_email_of_more_than_100_attachments_is_refused() -> None:
+    written = {**_written(Email()), "attachments": [_write_part(DataPart(b"x", "a.bin"))] * 101}
+
+    with pytest.raises(InvalidArgumentError, match=r"attachments holds more than 100 attach"):
+        _ = _read(written)
+
+
 def test_a_body_without_a_charset_is_refused() -> None:
     written = {**_written(Email().text("t")), "text_charset": None}
 

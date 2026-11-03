@@ -26,6 +26,7 @@ __all__ = [
     "build_multipart",
     "build_text",
     "build_verbatim",
+    "prepend_fields",
     "set_fields",
 ]
 
@@ -175,6 +176,21 @@ def set_fields(part: EnginePart, fields: Sequence[str]) -> None:
         folded = f"{field_text}\r\n"
         check_folded(folded)
         part.set_raw(name, FoldedHeader(name, SOURCE_FOLD.sub("", rest).strip(" \t"), folded))
+
+
+def prepend_fields(part: EnginePart, fields: Sequence[str]) -> None:
+    """Put ``fields`` before the headers ``part`` carries, which stay as they are.
+
+    A message's own headers go before its body's, which the body's parts have folded already:
+    they are not rendered a second time.
+
+    Raises:
+        RfcComplianceError: As :func:`set_fields` does, for any of ``fields``.
+    """
+    carried = list(part.raw_items())
+    set_fields(part, fields)
+    for name, value in carried:
+        part.set_raw(name, value)
 
 
 def _finish(part: EnginePart, media_type: Parameterized, leaf: TextLeaf | BinaryLeaf) -> None:

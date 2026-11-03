@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from email.header import Header
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
 from xtr_mime._header_reader import read_unstructured
 from xtr_mime.exception import RfcComplianceError
@@ -12,16 +12,14 @@ from xtr_mime.exception import RfcComplianceError
 from ._grammar import FOLD_WIDTH, body_of, refuse_forbidden
 from ._policy import POLICY, UNSTRUCTURED, FoldedHeader
 
-if TYPE_CHECKING:
-    from email.headerregistry import BaseHeader
-
 __all__ = ["encoded_words", "unstructured_header", "write_text"]
 
 # The whitespace unstructured text is folded at.
 _BLANKS: Final = re.compile(r"([ \t]+)")
 
 
-def unstructured_header(name: str, value: str) -> BaseHeader | FoldedHeader:
+def unstructured_header(name: str, value: str) -> FoldedHeader:
+    """Build an unstructured header, folded once: the fold read back is the one kept."""
     refuse_forbidden(f"The {name} header", value)
     header = UNSTRUCTURED(name, value)
     # The engine reads an encoded word in the value as one: what it decodes to may hold what
@@ -30,8 +28,10 @@ def unstructured_header(name: str, value: str) -> BaseHeader | FoldedHeader:
     # A lenient reader takes "=?" for the start of an encoded word wherever it finds one — in
     # the middle of a word, after one that does not decode — where a mail client reads text:
     # a word holding it is always written encoded, so no reader decodes a part of it.
-    if "=?" not in value and _reads_back_as(name, header.fold(policy=POLICY), value):
-        return header
+    if "=?" not in value:
+        written = header.fold(policy=POLICY)
+        if _reads_back_as(name, written, value):
+            return FoldedHeader(name, str(header), written)
     folded = write_text(name, value)
     if not _reads_back_as(name, folded, value):
         raise RfcComplianceError(

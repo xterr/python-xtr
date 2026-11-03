@@ -190,6 +190,16 @@ def test_parts_nested_32_deep_are_read() -> None:
     assert isinstance(read_message(_written_tree(30), "message"), Message)
 
 
+def test_a_multipart_of_more_than_256_parts_is_refused_before_they_are_read() -> None:
+    written = write_message(Message(Headers(), TextPart("x")))
+    parts = [{"$type": "x-unread"}] * 257
+    headers: dict[str, object] = {"line_length": 76, "fields": []}
+    body = {"$type": "mixed", "headers": headers, "parts": parts}
+
+    with pytest.raises(InvalidArgumentError, match=r"body\.parts holds more than 256 parts"):
+        _ = read_message({**written, "body": body}, "message")
+
+
 @pytest.mark.parametrize(
     "changed",
     [

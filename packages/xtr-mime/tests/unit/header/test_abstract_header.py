@@ -140,3 +140,27 @@ def test_a_value_the_engine_refuses_is_an_rfc_compliance_error() -> None:
 
     with pytest.raises(RfcComplianceError):
         _ = header.to_string()
+
+
+def test_the_field_is_the_one_to_string_writes() -> None:
+    assert _TextHeader("Subject", "Test").to_field() == "Subject: Test"
+
+
+def test_a_header_without_a_body_has_no_field() -> None:
+    assert _TextHeader("h:Sender", "").to_field() is None
+
+
+def test_a_header_named_with_a_colon_has_no_field_once_it_has_a_body() -> None:
+    with pytest.raises(RfcComplianceError, match="colon"):
+        _ = _TextHeader("h:Sender", "value").to_field()
+
+
+class _WrittenItsOwnWay(_TextHeader):
+    @override
+    def to_string(self) -> str:
+        return f"{self.get_name()}: as written"
+
+
+def test_a_header_that_writes_itself_its_own_way_is_its_own_field() -> None:
+    assert _WrittenItsOwnWay("X-A", "v").to_field() == "X-A: as written"
+    assert _WrittenItsOwnWay("X-A", "").to_field() is None

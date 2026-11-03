@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Final
 from typing_extensions import override
 from xtr_clock import SystemClock
 
-from ._engine import build_message, render, set_fields, to_string
+from ._engine import build_message, prepend_fields, render, to_string
 from .exception import LogicError
 from .header import Headers, MailboxHeader, MailboxListHeader
 from .part import TextPart
@@ -175,5 +175,5 @@ class Message(RawMessage):
             body = TextPart("")
         # The body's engine tree stays inside xtr-mime: the message is its one other reader.
         message = build_message((), body._to_engine())  # noqa: SLF001  # pyright: ignore[reportPrivateUsage] -- see above.
-        set_fields(message, [*headers.to_array(), *body.get_prepared_headers().to_array()])
+        prepend_fields(message, headers.to_array())
         return message

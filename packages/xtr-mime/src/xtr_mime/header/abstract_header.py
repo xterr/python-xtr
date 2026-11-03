@@ -6,7 +6,7 @@ import re
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, ClassVar, Final, NoReturn
 
-from xtr_mime._engine import fold_header, header_body
+from xtr_mime._engine import fold_header, header_body, header_field
 from xtr_mime._error_text import capped
 from xtr_mime.exception import InvalidArgumentError, RfcComplianceError
 
@@ -116,6 +116,24 @@ class AbstractHeader(metaclass=ABCMeta):
             RfcComplianceError: The engine refuses the value, as :meth:`to_string` says.
         """
         return header_body(self._name, self._engine_value()).replace("\r\n", "")
+
+    def to_field(self) -> str | None:
+        """Return the field as :meth:`to_string` writes it, ``None`` when it has no body.
+
+        What :class:`Headers` renders a header with: the value is folded once for both, where
+        asking :meth:`get_body_as_string` then :meth:`to_string` folds it twice. A subclass
+        that writes itself its own way is rendered through those two methods instead.
+
+        Raises:
+            RfcComplianceError: As :meth:`to_string` does, for a header with a body.
+        """
+        kind = type(self)
+        if (
+            kind.to_string is not AbstractHeader.to_string
+            or kind.get_body_as_string is not AbstractHeader.get_body_as_string
+        ):
+            return self.to_string() if self.get_body_as_string() else None
+        return header_field(self._name, self._engine_value())
 
     def _refuse_body(self, expected: str, body: object) -> NoReturn:
         raise InvalidArgumentError(

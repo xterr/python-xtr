@@ -82,6 +82,53 @@ def test_headers_without_bodies_are_not_displayed() -> None:
     assert headers.to_string() == "Foo: bar\r\n"
 
 
+class _WrittenElsewhere:
+    """A header of an application's own, built on no class of this package."""
+
+    def __init__(self, name: str, body: str) -> None:
+        self._name: str = name
+        self._body: str = body
+
+    def set_body(self, body: object) -> None:
+        self._body = str(body)
+
+    def get_body(self) -> object:
+        return self._body
+
+    def set_charset(self, charset: str) -> None:
+        del charset
+
+    def get_charset(self) -> str:
+        return "utf-8"
+
+    def set_language(self, language: str) -> None:
+        del language
+
+    def get_language(self) -> str | None:
+        return None
+
+    def get_name(self) -> str:
+        return self._name
+
+    def set_max_line_length(self, line_length: int) -> None:
+        del line_length
+
+    def get_max_line_length(self) -> int:
+        return 76
+
+    def to_string(self) -> str:
+        return f"{self._name}: {self._body}"
+
+    def get_body_as_string(self) -> str:
+        return self._body
+
+
+def test_a_header_of_an_application_is_written_as_it_writes_itself() -> None:
+    headers = Headers(_WrittenElsewhere("X-Own", "as written"), _WrittenElsewhere("X-None", ""))
+
+    assert headers.to_array() == ["X-Own: as written"]
+
+
 def test_to_array() -> None:
     # Adapted: upstream's iso-8859-1 byte 0x8F is a C1 control as a character, refused here.
     value = "a" * 60 + "\xf8"

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Final
 from ._addresses import read_envelope, write_envelope
 from ._json import JsonObject, fields, refuse
 from ._messages import read_message, write_message
+from ._render_budget import check_render_cost
 
 if TYPE_CHECKING:
     from xtr_mime import RawMessage
@@ -44,11 +45,17 @@ def write(message: RawMessage, envelope: Envelope | None) -> JsonObject:
 def read(data: object) -> tuple[RawMessage, Envelope | None]:
     """Read the email and the envelope :func:`write` wrote.
 
+    The email read is held to what sending it may cost (``_render_budget``) before it is
+    handed on.
+
     Raises:
-        InvalidArgumentError: The data is not what :func:`write` writes.
+        InvalidArgumentError: The data is not what :func:`write` writes, or the email holds
+            more than sending one may cost.
     """
     found = fields(data, "the data", ("version", "message", "envelope"))
     version = found["version"]
     if type(version) is not int or version != _VERSION:
         refuse("version", f"is not {_VERSION}, the version this mailer reads")
-    return read_message(found["message"], "message"), read_envelope(found["envelope"], "envelope")
+    message = read_message(found["message"], "message")
+    check_render_cost(message)
+    return message, read_envelope(found["envelope"], "envelope")

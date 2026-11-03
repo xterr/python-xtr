@@ -29,10 +29,18 @@ if TYPE_CHECKING:
     from xtr_mime import AbstractPart, Email
     from xtr_mime.email import Body
 
-__all__ = ["EMAIL_FIELDS", "TEMPLATE_FIELD", "read_email_fields", "write_email_fields"]
+__all__ = [
+    "ATTACHMENT_COUNT",
+    "EMAIL_FIELDS",
+    "TEMPLATE_FIELD",
+    "read_email_fields",
+    "write_email_fields",
+]
 
 EMAIL_FIELDS: Final = ("text", "text_charset", "html", "html_charset", "attachments")
 TEMPLATE_FIELD: Final = "template"
+# More than a provider takes on one message; each costs a part to send (``_render_budget``).
+ATTACHMENT_COUNT: Final = 100
 
 _SHORT: Final = 64
 
@@ -81,7 +89,10 @@ def read_email_fields(
         if charset is None:
             refuse(f"{path}.{name}_charset", "is null where a body is set")
         _ = email.text(body, charset) if name == "text" else email.html(body, charset)
-    for index, item in enumerate(items(found["attachments"], f"{path}.attachments")):
+    attachments = items(found["attachments"], f"{path}.attachments")
+    if len(attachments) > ATTACHMENT_COUNT:
+        refuse(f"{path}.attachments", f"holds more than {ATTACHMENT_COUNT} attachments")
+    for index, item in enumerate(attachments):
         where = f"{path}.attachments[{index}]"
         part = read_part(item, where)
         if not isinstance(part, DataPart):

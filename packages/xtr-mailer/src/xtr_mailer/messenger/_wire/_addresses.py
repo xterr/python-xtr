@@ -23,8 +23,9 @@ __all__ = [
 # RFC 3696: 64 octets of local part, an at sign and 255 of domain; checked before the address
 # is, so a validator never reads a longer one.
 _ADDRESS_LENGTH: Final = 320
-# A display name longer than a line could not be written.
-_NAME_LENGTH: Final = 998
+# Longer than any name a client shows beside an address; a name is costly to fold, so the
+# bound keeps sending a queued email cheap (``_render_budget``).
+_NAME_LENGTH: Final = 256
 
 
 def write_address(address: Address) -> JsonObject:

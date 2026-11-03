@@ -13,6 +13,9 @@ sent. Header text is bounded as it is read instead, by limits a real email stays
 - the headers of one message or part together, 64 KiB of text: eight values as long as one
   may be, many times what a signed and tracked email carries.
 
+What a whole email holds across its headers and parts is bounded once it is read
+(``_render_budget``), from the pieces of text :func:`held_texts` tells apart.
+
 A value must not hold what would break its line once written — a line break, a control
 character but the tab, a line separator or a lone surrogate — which sending would refuse.
 """
@@ -20,7 +23,7 @@ character but the tab, a line separator or a lone surrogate — which sending wo
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Literal, NamedTuple
 
 from xtr_mime import (
     Address,
@@ -35,6 +38,8 @@ from xtr_mime import (
 from ._json import items, refuse, text
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from xtr_mime import Group, HeaderInterface
 
 __all__ = [
@@ -42,8 +47,10 @@ __all__ = [
     "LIST_LENGTH",
     "PARAMETER_COUNT",
     "VALUE_LENGTH",
+    "HeldText",
     "carried",
     "header_value",
+    "held_texts",
     "listed",
     "parameters",
 ]
@@ -100,7 +107,42 @@ def parameters(data: object, path: str) -> list[tuple[str, str | None]]:
 
 def carried(header: HeaderInterface) -> int:
     """Give the characters of text ``header`` carries: its name and what it holds."""
-    return len(header.get_name()) + _held(header)
+    return len(header.get_name()) + sum(len(held.text) for held in held_texts(header))
+
+
+class HeldText(NamedTuple):
+    """A piece of text a header holds, and what it is.
+
+    An address; the name shown beside one, or a group's; a parameter's value — a file name
+    among them; or any other value: a text, an identifier, a parameter's name.
+    """
+
+    text: str
+    kind: Literal["value", "address", "name", "parameter"]
+
+
+def held_texts(header: HeaderInterface) -> Iterator[HeldText]:
+    """Give each piece of text ``header`` holds: values, parameters, addresses and their names."""
+    # A parameterized header is a text header too: it is matched first.
+    match header:
+        case ParameterizedHeader():
+            yield HeldText(header.get_value(), "value")
+            for key, value in header.get_parameters().items():
+                yield HeldText(key, "value")
+                yield HeldText(value or "", "parameter")
+        case UnstructuredHeader():
+            yield HeldText(header.get_value(), "value")
+        case MailboxHeader() | PathHeader():
+            yield from _address(header.get_address())
+        case MailboxListHeader():
+            for entry in header.get_address_list():
+                yield from _entry(entry)
+        case IdentificationHeader():
+            for identifier in header.get_ids():
+                yield HeldText(identifier, "value")
+        case _:
+            # A date: the engine writes it in a fixed form.
+            return
 
 
 def _bounded(found: list[object], path: str, limit: int, what: str) -> list[object]:
@@ -109,30 +151,15 @@ def _bounded(found: list[object], path: str, limit: int, what: str) -> list[obje
     return found
 
 
-def _held(header: HeaderInterface) -> int:
-    # A parameterized header is a text header too: it is matched first.
-    match header:
-        case ParameterizedHeader():
-            held = header.get_parameters().items()
-            return len(header.get_value()) + sum(len(k) + len(v or "") for k, v in held)
-        case UnstructuredHeader():
-            return len(header.get_value())
-        case MailboxHeader() | PathHeader():
-            return _address(header.get_address())
-        case MailboxListHeader():
-            return sum(map(_entry, header.get_address_list()))
-        case IdentificationHeader():
-            return sum(map(len, header.get_ids()))
-        case _:
-            # A date: the engine writes it in a fixed form.
-            return 0
-
-
-def _entry(entry: Address | Group) -> int:
+def _entry(entry: Address | Group) -> Iterator[HeldText]:
     if isinstance(entry, Address):
-        return _address(entry)
-    return len(entry.get_name()) + sum(map(_address, entry.get_addresses()))
+        yield from _address(entry)
+        return
+    yield HeldText(entry.get_name(), "name")
+    for address in entry.get_addresses():
+        yield from _address(address)
 
 
-def _address(address: Address) -> int:
-    return len(address.get_address()) + len(address.get_name())
+def _address(address: Address) -> Iterator[HeldText]:
+    yield HeldText(address.get_address(), "address")
+    yield HeldText(address.get_name(), "name")

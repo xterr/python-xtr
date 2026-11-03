@@ -10,6 +10,7 @@ from xtr_mime.address import Address
 from xtr_mime.exception import LogicError
 
 from ._header_builder import HeaderKind, build_header
+from .abstract_header import AbstractHeader
 from .date_header import DateHeader
 from .identification_header import IdentificationHeader
 from .mailbox_header import MailboxHeader
@@ -207,7 +208,7 @@ class Headers:
 
     def to_array(self) -> list[str]:
         """Return every header with a body as its folded field; one without a body is skipped."""
-        return [header.to_string() for header in self.all() if header.get_body_as_string()]
+        return [field for header in self.all() if (field := _field(header)) is not None]
 
     def get_header_body(self, name: str) -> object:
         """Return the body of the first header of that name, ``None`` if there is none."""
@@ -254,6 +255,12 @@ class Headers:
         if not isinstance(header, ParameterizedHeader):
             raise LogicError(_not_parameterized("set", parameter, name))
         header.set_parameter(parameter, value)
+
+
+def _field(header: HeaderInterface) -> str | None:
+    if isinstance(header, AbstractHeader):
+        return header.to_field()
+    return header.to_string() if header.get_body_as_string() else None
 
 
 def _not_parameterized(action: str, parameter: str, name: str) -> str:

@@ -31,6 +31,7 @@ from ._email_fields import EMAIL_FIELDS, TEMPLATE_FIELD, read_email_fields, writ
 from ._headers import read_headers, write_headers
 from ._json import JsonObject, built, decoded, encoded, fields, items, kind_of, refuse
 from ._parts import read_leaf, write_leaf
+from ._render_budget import PART_COUNT
 
 if TYPE_CHECKING:
     from xtr_mime import AbstractPart
@@ -161,6 +162,8 @@ def _read_part(data: object, path: str, depth: int) -> AbstractPart:
         return read_leaf(data, path)
     found = fields(data, path, ("$type", "headers", "parts"))
     listed = items(found["parts"], f"{path}.parts")
+    if len(listed) > PART_COUNT:
+        refuse(f"{path}.parts", f"holds more than {PART_COUNT} parts")
     parts = [_read_part(item, f"{path}.parts[{i}]", depth + 1) for i, item in enumerate(listed)]
     part = built(path, "a multipart", lambda: _multipart(multipart, parts))
     return _with_headers(part, found, path)
