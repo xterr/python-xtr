@@ -14,8 +14,9 @@ from typing import TYPE_CHECKING, Final
 import pytest
 from xtr_clock import MockClock
 
-from tests.support import dkim_signing, smime_signing
+from tests.support.dkim_extra import needs_dkim_extra
 from tests.support.part_shape import shape
+from tests.support.smime_extra import needs_smime_extra
 from xtr_mime import Email, Message, MessageConverter
 from xtr_mime.exception import MimeRuntimeError
 from xtr_mime.part import AlternativePart, DataPart, MixedPart, RelatedPart, TextPart
@@ -62,7 +63,7 @@ def _summary(email: Email) -> tuple[object, ...]:
 def _assert_conversion(expected: Email, *, dkim: bool = False) -> None:
     message = Message(expected.get_headers(), expected.get_body())
     if dkim:
-        message = dkim_signing.signer().sign(message)
+        message = _dkim_signed(message)
 
     converted = MessageConverter.to_email(message)
 
@@ -79,6 +80,20 @@ def _assert_conversion(expected: Email, *, dkim: bool = False) -> None:
         assert _summary(converted)[1:] == _summary(expected)[1:]
     else:
         assert _summary(converted) == _summary(expected)
+
+
+def _dkim_signed(message: Message) -> Message:
+    # Imported here: without the dkim extra it does not import, and only its cases skip.
+    from tests.support import dkim_signing  # noqa: PLC0415 -- see above.
+
+    return dkim_signing.signer().sign(message)
+
+
+def _s_mime_signed(tmp_path: Path) -> Message:
+    # Imported here: without the smime extra it does not import, and only its cases skip.
+    from tests.support import smime_signing  # noqa: PLC0415 -- see above.
+
+    return smime_signing.signer(tmp_path).sign(smime_signing.email())
 
 
 def test_to_email_returns_an_email_as_it_is() -> None:
@@ -131,6 +146,7 @@ def test_to_email(build: Callable[[Email], Email]) -> None:
     _assert_conversion(build(_base().__copy__()))
 
 
+@needs_dkim_extra
 @pytest.mark.parametrize(
     "build", [build for _, build in CONVERSIONS], ids=[label for label, _ in CONVERSIONS]
 )
@@ -138,18 +154,21 @@ def test_to_email_reads_the_body_a_dkim_signature_covers(build: Callable[[Email]
     _assert_conversion(build(_base().__copy__()), dkim=True)
 
 
+@needs_smime_extra
 def test_to_email_refuses_a_body_signed_with_s_mime(tmp_path: Path) -> None:
-    signed = smime_signing.signer(tmp_path).sign(smime_signing.email())
+    signed = _s_mime_signed(tmp_path)
 
     with pytest.raises(MimeRuntimeError, match=f"^{re.escape(S_MIME)}$"):
         _ = MessageConverter.to_email(signed)
 
 
+@needs_dkim_extra
+@needs_smime_extra
 def test_to_email_refuses_an_s_mime_body_signed_with_dkim(tmp_path: Path) -> None:
-    signed = smime_signing.signer(tmp_path).sign(smime_signing.email())
+    signed = _s_mime_signed(tmp_path)
 
     with pytest.raises(MimeRuntimeError, match=f"^{re.escape(S_MIME)}$"):
-        _ = MessageConverter.to_email(dkim_signing.signer().sign(signed))
+        _ = MessageConverter.to_email(_dkim_signed(signed))
 
 
 def test_to_email_keeps_the_charset_of_each_body() -> None:
