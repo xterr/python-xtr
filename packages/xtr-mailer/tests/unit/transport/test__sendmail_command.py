@@ -40,14 +40,14 @@ def test_bs_runs_sendmail_in_smtp_mode(command: str, interactive: bool) -> None:
     assert is_interactive(sendmail_arguments(command)) is interactive
 
 
-def test_the_delivery_drops_t_and_names_the_envelope() -> None:
+def test_the_delivery_drops_t_keeps_lone_dots_and_names_the_envelope() -> None:
     arguments = delivery_arguments(
-        ["/usr/sbin/sendmail", "-oi", "-t"], _envelope("a@example.com", "b@example.com", "c@x.org")
+        ["/usr/sbin/sendmail", "-t"], _envelope("a@example.com", "b@example.com", "c@x.org")
     )
 
     assert arguments == [
         "/usr/sbin/sendmail",
-        "-oi",
+        "-i",
         "-fa@example.com",
         "--",
         "b@example.com",
@@ -55,31 +55,24 @@ def test_the_delivery_drops_t_and_names_the_envelope() -> None:
     ]
 
 
+@pytest.mark.parametrize("flag", ["-i", "-oi"])
+def test_a_command_keeping_lone_dots_is_not_given_i_again(flag: str) -> None:
+    arguments = delivery_arguments(["/usr/sbin/sendmail", flag, "-t"], _envelope())
+
+    assert arguments == ["/usr/sbin/sendmail", flag, "-ffrom@example.com", "--", "to@example.com"]
+
+
 def test_a_sender_the_command_gives_is_not_given_again() -> None:
     arguments = delivery_arguments(["/usr/sbin/sendmail", "-t", "-f", "x@y.z"], _envelope())
 
-    assert arguments == ["/usr/sbin/sendmail", "-f", "x@y.z", "--", "to@example.com"]
+    assert arguments == ["/usr/sbin/sendmail", "-f", "x@y.z", "-i", "--", "to@example.com"]
 
 
 def test_a_sender_with_spaces_stays_one_argument() -> None:
     arguments = delivery_arguments(["/usr/sbin/sendmail", "-t"], _envelope('"a b"@example.com'))
 
-    assert arguments[1] == '-f"a b"@example.com'
+    assert arguments[2] == '-f"a b"@example.com'
 
 
-@pytest.mark.parametrize(
-    ("arguments", "expected"),
-    [
-        (["s", "-t"], b"a\n..b\n...c\n"),
-        (["s", "-t", "-i"], b"a\n.b\n..c\n"),
-        (["s", "-oi", "-t"], b"a\n.b\n..c\n"),
-    ],
-)
-def test_a_piped_message_has_lf_endings_and_its_dots_doubled_unless_i(
-    arguments: list[str], expected: bytes
-) -> None:
-    assert piped_message(b"a\r\n.b\r\n..c\r\n", arguments) == expected
-
-
-def test_a_dot_starting_the_message_is_left_as_it_is() -> None:
-    assert piped_message(b".a\r\n", ["s", "-t"]) == b".a\n"
+def test_a_piped_message_has_lf_endings_and_its_dots_as_written() -> None:
+    assert piped_message(b".a\r\n.b\r\n..c\r\n.\r\n") == b".a\n.b\n..c\n.\n"

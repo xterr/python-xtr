@@ -49,9 +49,10 @@ class SendmailTransport(AbstractTransport, StoppableTransportInterface):
     - ``-t`` runs the program once per email and writes the email to its input. The envelope's
       recipients are handed as arguments, after ``--``, and ``-t`` itself is left out, so a Bcc
       is never delivered from the headers; the envelope's sender is handed with ``-f`` unless
-      the command gives one. Line endings become LF, and without ``-i`` or ``-oi`` a dot
-      starting a line is doubled. A status other than ``0`` fails the send, with the start of
-      what the program wrote, escaped.
+      the command gives one, and ``-i`` unless the command holds it or ``-oi``, so a line
+      holding a lone dot does not end the email. Line endings become LF; every dot is written
+      as it is. A status other than ``0`` fails the send, with the start of what the program
+      wrote, escaped.
 
     The command is split into arguments as a POSIX shell splits words, but never run through a
     shell: nothing in it is expanded. A program still running after the timeout — 60 seconds,
@@ -129,6 +130,6 @@ class SendmailTransport(AbstractTransport, StoppableTransportInterface):
     async def _do_send(self, message: SentMessage) -> None:
         self._logger.debug('Email transport "{transport}" starting', {"transport": str(self)})
         arguments = delivery_arguments(self._arguments, message.get_envelope())
-        data = piped_message(b"".join(message.to_iterable()), self._arguments)
+        data = piped_message(b"".join(message.to_iterable()))
         await pipe_to_sendmail(arguments, data, self._timeout)
         self._logger.debug('Email transport "{transport}" stopped', {"transport": str(self)})

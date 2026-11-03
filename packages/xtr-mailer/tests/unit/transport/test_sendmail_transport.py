@@ -55,7 +55,7 @@ async def test_the_message_recipients_are_used_when_the_envelope_names_none(
 
     _ = await SendmailTransport(fake_command("-t")).send(mail, Envelope.create(mail))
 
-    assert fake.argv == [str(FAKE_SENDMAIL), "-ffrom@mail.com", "--", "to@mail.com"]
+    assert fake.argv == [str(FAKE_SENDMAIL), "-i", "-ffrom@mail.com", "--", "to@mail.com"]
 
 
 async def test_the_envelope_recipients_are_used_when_set(
@@ -65,7 +65,7 @@ async def test_the_envelope_recipients_are_used_when_set(
 
     _ = await SendmailTransport(fake_command("-t")).send(*_mail_and_envelope())
 
-    assert fake.argv == [str(FAKE_SENDMAIL), "-ffrom@mail.com", "--", "recipient@mail.com"]
+    assert fake.argv == [str(FAKE_SENDMAIL), "-i", "-ffrom@mail.com", "--", "recipient@mail.com"]
 
 
 async def test_a_failing_sendmail_raises_a_transport_error(
@@ -150,23 +150,24 @@ async def test_stopping_a_transport_that_never_sent_does_nothing() -> None:
 
 
 @pytest.mark.parametrize(
-    ("flags", "expected"),
+    ("flags", "kept"),
     [
-        pytest.param(("-t",), b"Subject: x\n\n..dot\nend\n", id="dots doubled"),
-        pytest.param(("-t", "-i"), b"Subject: x\n\n.dot\nend\n", id="-i"),
-        pytest.param(("-oi", "-t"), b"Subject: x\n\n.dot\nend\n", id="-oi"),
+        pytest.param(("-t",), ["-i"], id="-i added"),
+        pytest.param(("-t", "-i"), ["-i"], id="-i"),
+        pytest.param(("-oi", "-t"), ["-oi"], id="-oi"),
     ],
 )
-async def test_the_message_is_piped_with_lf_line_endings(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, flags: tuple[str, ...], expected: bytes
+async def test_the_message_is_piped_with_lf_line_endings_and_its_dots_as_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, flags: tuple[str, ...], kept: list[str]
 ) -> None:
     fake = FakeSendmail(monkeypatch, tmp_path)
 
     _ = await SendmailTransport(fake_command(*flags)).send(
-        RawMessage(b"Subject: x\r\n\r\n.dot\r\nend\r\n"), _envelope()
+        RawMessage(b"Subject: x\r\n\r\n.dot\r\n.\r\nend\r\n"), _envelope()
     )
 
-    assert fake.input == expected
+    assert fake.input == b"Subject: x\n\n.dot\n.\nend\n"
+    assert [flag for flag in fake.argv if flag in {"-i", "-oi"}] == kept
 
 
 async def test_a_sender_the_command_names_is_kept(
@@ -178,7 +179,13 @@ async def test_a_sender_the_command_names_is_kept(
         RawMessage(b"x"), _envelope()
     )
 
-    assert fake.argv == [str(FAKE_SENDMAIL), "-fbounce@example.com", "--", "recipient@mail.com"]
+    assert fake.argv == [
+        str(FAKE_SENDMAIL),
+        "-fbounce@example.com",
+        "-i",
+        "--",
+        "recipient@mail.com",
+    ]
 
 
 async def test_a_sender_sendmail_could_read_as_an_option_is_refused(

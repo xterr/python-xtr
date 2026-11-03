@@ -93,6 +93,8 @@ pythonVersion = "3.11"
 pythonPlatform = "All"
 include = ["src", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
+# dkimpy ships no type information; typings/ types the call the sendmail DKIM test makes.
+stubPath = "typings"
 
 reportUnusedCallResult = "warning"
 reportUnnecessaryTypeIgnoreComment = "error"
@@ -196,6 +198,10 @@ docstring-code-line-length = "dynamic"
 # ─────────────────────────────────────────────────────────────────
 [tool.ty.src]
 include = ["src", "tests"]
+
+[tool.ty.environment]
+# dkimpy ships no type information; typings/ types the call the sendmail DKIM test makes.
+extra-paths = ["typings"]
 
 # ─────────────────────────────────────────────────────────────────
 # pytest

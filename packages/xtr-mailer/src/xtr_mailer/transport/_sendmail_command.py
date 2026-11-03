@@ -24,7 +24,8 @@ __all__ = ["delivery_arguments", "is_interactive", "piped_message", "sendmail_ar
 _INTERACTIVE: Final = "-bs"
 _PIPED: Final = "-t"
 _SENDER: Final = "-f"
-_LONE_DOTS_KEPT: Final = frozenset({"-i", "-oi"})
+_LONE_DOTS_KEPT: Final = "-i"
+_LONE_DOTS_KEPT_FLAGS: Final = frozenset({_LONE_DOTS_KEPT, "-oi"})
 _CONTROL: Final = re.compile(r"[\x00-\x1f\x7f]")
 
 
@@ -62,13 +63,16 @@ def delivery_arguments(arguments: Sequence[str], envelope: Envelope) -> list[str
 
     ``-t`` goes: the envelope names the recipients, after ``--`` so none is read as an
     option, rather than sendmail reading them from the headers — which would also deliver to
-    a Bcc. The envelope's sender is given with ``-f`` unless the command gives one, written
-    as one argument with it.
+    a Bcc. ``-i`` is added unless the command holds it or ``-oi``: without it sendmail takes a
+    line holding a lone dot for the end of the message. The envelope's sender is given with
+    ``-f`` unless the command gives one, written as one argument with it.
 
     Raises:
         InvalidArgumentError: The sender starts with a hyphen.
     """
     handed = [argument for argument in arguments if argument != _PIPED]
+    if _LONE_DOTS_KEPT_FLAGS.isdisjoint(handed[1:]):
+        handed.append(_LONE_DOTS_KEPT)
     if not any(argument.startswith(_SENDER) for argument in handed[1:]):
         sender = envelope.get_sender().get_encoded_address()
         if sender.startswith("-"):
@@ -84,13 +88,11 @@ def delivery_arguments(arguments: Sequence[str], envelope: Envelope) -> list[str
     return handed
 
 
-def piped_message(message: bytes, arguments: Sequence[str]) -> bytes:
-    """Return ``message`` as sendmail reads it: LF line endings, a leading dot doubled.
+def piped_message(message: bytes) -> bytes:
+    """Return ``message`` as sendmail reads it: with LF line endings, every dot as written.
 
-    Without ``-i`` or ``-oi``, sendmail takes a line holding a lone dot for the end of the
-    message; a dot starting a line is doubled so none can end it early.
+    Sendmail is always handed ``-i`` or ``-oi`` (see :func:`delivery_arguments`), so a line
+    holding a lone dot does not end the message — and no dot is doubled, since outside SMTP
+    sendmail would keep the doubled dot, changing the body a DKIM signature covers.
     """
-    piped = message.replace(b"\r\n", b"\n")
-    if _LONE_DOTS_KEPT.isdisjoint(arguments[1:]):
-        piped = piped.replace(b"\n.", b"\n..")
-    return piped
+    return message.replace(b"\r\n", b"\n")
