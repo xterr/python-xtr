@@ -21,13 +21,14 @@ from xtr_mime import (
 from xtr_mailer.exception import InvalidArgumentError
 from xtr_mailer.messenger._wire._render_budget import (
     ADDRESS_COUNT,
-    FOREIGN_NAME_LENGTH,
+    FOREIGN_NAME_WORDS,
     FOREIGN_TEXT_LENGTH,
     FOREIGN_VALUE_LENGTH,
     HEADER_COUNT,
     HEADER_TEXT_LENGTH,
     NAME_TEXT_LENGTH,
     PART_COUNT,
+    WORD_OCTETS,
     check_render_cost,
 )
 
@@ -35,6 +36,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 _EMOJI = "\U0001f600"
+# A name of 128 one-letter words beyond ASCII, as long as a name may be.
+_WORDS = " ".join(["\u00e9"] * 128)
 
 
 def _message(*values: str, body: object = None) -> Message:
@@ -58,10 +61,13 @@ def _addresses(size: int) -> Message:
     return Message(headers)
 
 
+def _listed(names: list[str], name: str = "Cc") -> Message:
+    addresses = [Address(f"u{i}@example.com", held) for i, held in enumerate(names)]
+    return Message(Headers().add_mailbox_list_header(name, addresses))
+
+
 def _named(name: str, size: int) -> Message:
-    names = [name * 256] * (size // 256) + [name * (size % 256)]
-    addresses = [Address(f"u{i}@example.com", name) for i, name in enumerate(names)]
-    return Message(Headers().add_mailbox_list_header("Cc", addresses))
+    return _listed([name * 256] * (size // 256) + [name * (size % 256)])
 
 
 def _foreign_value(size: int) -> Message:
@@ -73,7 +79,7 @@ def _foreign_text(size: int) -> Message:
 
 
 def _foreign_names(size: int) -> Message:
-    return _named(_EMOJI, size // 4)
+    return _listed([_WORDS] * (size // 128) + [" ".join(["\u00e9"] * (size % 128))])
 
 
 def _parts(size: int) -> Message:
@@ -91,7 +97,7 @@ _LIMITS: list[tuple[Callable[[int], Message], int, str]] = [
     (lambda size: _named("a", size), NAME_TEXT_LENGTH, "characters of names beside addresses"),
     (_foreign_value, FOREIGN_VALUE_LENGTH, "a value of more than 16384 octets beyond ASCII"),
     (_foreign_text, FOREIGN_TEXT_LENGTH, "octets of header text beyond ASCII"),
-    (_foreign_names, FOREIGN_NAME_LENGTH, "octets of names and parameters beyond ASCII"),
+    (_foreign_names, FOREIGN_NAME_WORDS, "words of names beyond ASCII"),
     (_parts, PART_COUNT, "parts"),
     (_header_count, HEADER_COUNT, "headers"),
 ]
@@ -120,7 +126,7 @@ def test_an_email_at_a_limit_is_read(
 def test_an_email_past_a_limit_is_refused_saying_which(
     shape: Callable[[int], Message], limit: int, reason: str
 ) -> None:
-    step = 4 if shape is _foreign_names else 2 if shape in {_foreign_value, _foreign_text} else 1
+    step = 2 if shape in {_foreign_value, _foreign_text} else 1
 
     with pytest.raises(InvalidArgumentError) as raised:
         check_render_cost(shape(limit + step))
@@ -131,10 +137,55 @@ def test_an_email_past_a_limit_is_refused_saying_which(
 
 
 def test_a_file_name_counts_each_time_it_is_written() -> None:
-    email = Email().attach(b"x", _EMOJI * (FOREIGN_NAME_LENGTH // 12 + 1))
+    email = Email().attach(b"x", _EMOJI * (FOREIGN_TEXT_LENGTH // 12 + 1))
 
-    with pytest.raises(InvalidArgumentError, match="names and parameters beyond ASCII"):
+    with pytest.raises(InvalidArgumentError, match="octets of header text beyond ASCII"):
         check_render_cost(email)
+
+
+def _refused_as_too_many_words(names: list[str]) -> None:
+    with pytest.raises(InvalidArgumentError, match="words of names beyond ASCII"):
+        check_render_cost(_listed(names))
+
+
+def test_a_word_of_a_name_beyond_ascii_of_up_to_24_octets_counts_once() -> None:
+    check_render_cost(_listed(["\u00e9" * (WORD_OCTETS // 2)] * FOREIGN_NAME_WORDS))
+
+
+def test_a_word_of_more_octets_counts_once_for_every_24_it_holds() -> None:
+    word = "\u00e9" * (WORD_OCTETS // 2 + 1)
+
+    _refused_as_too_many_words([word] * (FOREIGN_NAME_WORDS // 2 + 1))
+
+
+def test_a_word_longer_than_24_characters_counts_once_a_character() -> None:
+    word = "a" * 24 + "\u00e9"
+
+    _refused_as_too_many_words([word] * (FOREIGN_NAME_WORDS // len(word) + 1))
+
+
+def test_only_spaces_and_tabs_end_a_word_of_a_name() -> None:
+    # Other spaces are not where a header folds: the engine reads one long word.
+    word = "\u00e9\u00a0" * 6 + "\u00e9\u3000" * 6 + "\u00e9"
+
+    _refused_as_too_many_words([word] * (FOREIGN_NAME_WORDS // len(word) + 1))
+
+
+def test_the_bcc_of_a_message_counts_by_its_addresses_alone_as_sending_leaves_it_out() -> None:
+    check_render_cost(_listed([_WORDS] * 1000, "Bcc"))
+
+
+def test_the_addresses_of_the_bcc_of_a_message_are_counted() -> None:
+    with pytest.raises(InvalidArgumentError, match="more than 2000 addresses"):
+        check_render_cost(_listed([""] * (ADDRESS_COUNT + 1), "Bcc"))
+
+
+def test_a_bcc_a_part_carries_is_counted_as_it_is_written() -> None:
+    part = TextPart("t")
+    _ = part.get_headers().add_mailbox_list_header("Bcc", [Address("u@example.com", _WORDS)] * 9)
+
+    with pytest.raises(InvalidArgumentError, match="words of names beyond ASCII"):
+        check_render_cost(_message(body=part))
 
 
 def test_the_attachments_of_an_email_are_counted_as_parts() -> None:

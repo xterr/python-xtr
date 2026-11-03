@@ -1,10 +1,10 @@
 """Queued emails as costly to send as the queue lets one be, each grown by one kind of text.
 
 Each shape builds an email holding ``size`` units of the text that costs the most to fold of
-its kind — emoji in values, names beside addresses and file names, quoted names, addresses,
-values holding ``=?``, parts, headers holding next to nothing — spread over as many parts as
-the limits on one part need. At :data:`LIMITS` of its units it is as large as the queue reads;
-:func:`most_costly` holds every kind at its limit at once.
+its kind — emoji in values, names beside addresses in any script and file names, quoted
+names, addresses, values holding ``=?``, parts, headers holding next to nothing — spread over
+as many parts as the limits on one part need. At :data:`LIMITS` of its units it is as large as
+the queue reads; :func:`most_costly` holds every kind at its limit at once.
 """
 
 from __future__ import annotations
@@ -28,6 +28,12 @@ _PART_HEADERS: Final = 512
 _EMOJI: Final = "\U0001f600"
 _CJK: Final = "\u5f20\u4f1f\u660e"
 _QUOTED: Final = 'a, "b" (c) '
+# A name beyond ASCII costs by its words: one-letter words cost the most for the text held.
+_ONE_LETTER_WORDS: Final = "\u0436 "
+_RIGHT_TO_LEFT: Final = "\u200f\u05d0\u05d1\u200e "
+_COMBINING: Final = "e\u0301\u0302\u0303\u0304"
+# Words of 24 characters, as long as one counted by its octets may be, of emoji joined.
+_JOINED_EMOJI: Final = "\U0001f468\u200d" * 12 + " "
 _ENCODED: Final = "a=?b "
 
 
@@ -168,6 +174,10 @@ SHAPES: Final[dict[str, Callable[[int], Message]]] = {
     "CJK names": _cjk_names,
     "accented names": _accented_names,
     "quoted names": _quoted_names,
+    "one-letter words in names": lambda size: _named(_ONE_LETTER_WORDS, size),
+    "right-to-left names": lambda size: _named(_RIGHT_TO_LEFT, size),
+    "combining names": lambda size: _named(_COMBINING, size),
+    "joined emoji names": lambda size: _named(_JOINED_EMOJI, size),
     "addresses": _addresses,
     "emoji file names": _emoji_file_names,
     "parameters holding =?": _encoded_parameters,
@@ -181,15 +191,21 @@ SHAPES: Final[dict[str, Callable[[int], Message]]] = {
 LIMITS: Final[dict[str, int]] = {
     "emoji values": 8192,
     "values holding =?": 180_000,
+    # A word of a name beyond ASCII counts once for every 24 octets, or longer than 24
+    # characters once a character.
     "emoji names": 1024,
-    "CJK names": 1365,
-    "accented names": 3350,
+    "CJK names": 1024,
+    "accented names": 4563,
     "quoted names": 16_384,
+    "one-letter words in names": 2048,
+    "right-to-left names": 5060,
+    "combining names": 1024,
+    "joined emoji names": 6320,
     # From and To hold the two others.
     "addresses": 1998,
     # A file name is written three times: Content-Type's name, Content-Disposition's name and
     # filename.
-    "emoji file names": 341,
+    "emoji file names": 2730,
     "parameters holding =?": 180_000,
     "flat parts": 256,
     "nested parts": 192_000,
@@ -201,15 +217,25 @@ LIMITS: Final[dict[str, int]] = {
 
 
 def most_costly() -> Email:
-    """An email holding every costly kind of text at its limit at once."""
-    email = _emoji_values(LIMITS["emoji values"] - 1024)
-    _ = email.cc(*[Address(f"c{i}@example.com", _EMOJI * 256) for i in range(4)])
-    names = _pieces(_QUOTED, LIMITS["quoted names"] - 1024, 256)
-    _ = email.bcc(*[Address(f"q{i}@example.com", name) for i, name in enumerate(names)])
+    """An email holding every costly kind of text at its limit at once.
+
+    Its names beyond ASCII are the costliest they may be — emoji, words as long as a name — and
+    the rest of its text beyond ASCII is file names, which cost more an octet than values do.
+    """
+    email = _named(_EMOJI, LIMITS["emoji names"])
+    for name in _pieces(_EMOJI, _MOST_COSTLY_FILE_NAMES, 256):
+        _ = email.attach(b"x", name)
+    quoted = _pieces(_QUOTED, LIMITS["quoted names"] - LIMITS["emoji names"], 256)
+    _ = email.reply_to(*[Address(f"q{i}@example.com", name) for i, name in enumerate(quoted)])
     for start in range(0, 1900, 950):
-        listed = [f"c{i}@example.com" for i in range(start, start + 950)]
+        listed = [f"l{i}@example.com" for i in range(start, start + 950)]
         _ = email.get_headers().add_mailbox_list_header(f"X-List-{start}", listed)
-    _ = _add_encoded_parameters(email, 125_000)
+    _ = _add_encoded_parameters(email, _MOST_COSTLY_ENCODED)
     while len(email.get_attachments()) < 100:
         _ = email.attach(b"x", "a.bin")
     return email
+
+
+# What the names leave of the text beyond ASCII, then what all leave of the header text.
+_MOST_COSTLY_FILE_NAMES: Final = 2389
+_MOST_COSTLY_ENCODED: Final = 128_297
