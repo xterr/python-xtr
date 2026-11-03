@@ -10,7 +10,7 @@ import re
 from email.errors import MessageError
 from typing import Final
 
-from xtr_mime._error_text import escaped
+from xtr_mime._error_text import capped
 from xtr_mime.exception import RfcComplianceError
 
 __all__ = [
@@ -30,8 +30,6 @@ __all__ = [
 FOLD_WIDTH: Final = 76
 # RFC 5322, 2.1.1: the hard limit on a line, whatever folding allows.
 _MAX_LINE_LENGTH: Final = 998
-# How much of a refused value an error repeats: enough to find it, never a whole header.
-_SHOWN_LENGTH: Final = 64
 
 # Every C0 control but TAB, DEL, the C1 controls (NEL among them), the line and paragraph
 # separators and a lone surrogate: a line break would start a new header, some readers end a
@@ -77,16 +75,16 @@ def check_message_id(identifier: str) -> None:
     """
     if not _MESSAGE_ID.fullmatch(identifier):
         raise RfcComplianceError(
-            f"{identifier!r} is not a message identifier: id-left@id-right (RFC 5322, 3.6.4), "
-            "without spaces, angle brackets or quoted pairs."
+            f'"{capped(identifier)}" is not a message identifier: id-left@id-right (RFC 5322, '
+            "3.6.4), without spaces, angle brackets or quoted pairs."
         )
 
 
 def check_name(name: str) -> None:
     if not _FIELD_NAME.fullmatch(name):
         raise RfcComplianceError(
-            f"{name!r} is not a header name: printable ASCII, without a space or a colon — a "
-            "reader ends the name at its first colon."
+            f'"{capped(name)}" is not a header name: printable ASCII, without a space or a colon '
+            "— a reader ends the name at its first colon."
         )
 
 
@@ -94,14 +92,14 @@ def check_boundary(boundary: str) -> None:
     # "=?" opens an encoded word: the engine would take such a boundary for one and replace it.
     if not _BOUNDARY.fullmatch(boundary) or "=?" in boundary:
         raise RfcComplianceError(
-            f"The boundary {boundary!r} is not 1 to 70 RFC 2046 boundary characters ending in "
-            'one that is not a space, without "=?".'
+            f'The boundary "{capped(boundary)}" is not 1 to 70 RFC 2046 boundary characters '
+            'ending in one that is not a space, without "=?".'
         )
 
 
 def check_token(what: str, token: str) -> None:
     if not TOKEN.fullmatch(token):
-        raise RfcComplianceError(f"The {what} {token!r} is not a token.")
+        raise RfcComplianceError(f'The {what} "{capped(token)}" is not a token.')
 
 
 def body_of(name: str, folded: str) -> str:
@@ -111,10 +109,9 @@ def body_of(name: str, folded: str) -> str:
 def refuse_forbidden(what: str, value: str) -> None:
     found = _FORBIDDEN.search(value)
     if found:
-        shown = escaped(value[:_SHOWN_LENGTH]) + ("…" if len(value) > _SHOWN_LENGTH else "")
         raise RfcComplianceError(
             f"{what} must not contain a control character, a line separator or a lone "
-            f'surrogate: {found.group()!r} in "{shown}".'
+            f'surrogate: {found.group()!r} in "{capped(value)}".'
         )
 
 
@@ -132,7 +129,7 @@ def check_folded(folded: str) -> None:
         or not all(line.startswith((" ", "\t")) for line in lines[1:])
     ):
         raise RfcComplianceError(
-            f"A folded header has a line that is not a continuation of it: {folded!r}."
+            f'A folded header has a line that is not a continuation of it: "{capped(folded)}".'
         )
     for line in lines:
         refuse_forbidden("A folded header", line)

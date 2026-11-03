@@ -85,6 +85,12 @@ def test_a_raw_message_is_named_email_eml() -> None:
     assert MessagePart(_FakeRawMessage()).get_filename() == "email.eml"
 
 
+def test_it_gives_back_the_message_it_carries() -> None:
+    message = _FakeMessage("Subject")
+
+    assert MessagePart(message).get_message() is message
+
+
 def test_the_message_is_written_as_it_renders() -> None:
     part = MessagePart(_FakeRawMessage())
 

@@ -1,7 +1,7 @@
 """A message: headers and a body part, with the headers sending adds.
 
-Upstream's serialization case has no counterpart: xtr-mailer carries a queued message as a
-pydantic field. Its case for a Date read without a clock component becomes the Date written at
+Upstream's serialization case is xtr-mailer's: it carries a queued message as plain data. Its
+case for a Date read without a clock component becomes the Date written at
 the offset of the clock's zone: the Date always comes from xtr-clock here.
 """
 

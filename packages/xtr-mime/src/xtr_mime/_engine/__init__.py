@@ -70,7 +70,7 @@ from ._build import (
     set_fields,
 )
 from ._fold import fold_header, header_body
-from ._grammar import check_message_id
+from ._grammar import check_folded, check_message_id
 from ._policy import EnginePart
 from ._render import parse, render, to_bytes, to_string
 from ._values import (
@@ -99,6 +99,7 @@ __all__ = [
     "build_multipart",
     "build_text",
     "build_verbatim",
+    "check_folded",
     "check_message_id",
     "encode_idn_address",
     "fold_header",

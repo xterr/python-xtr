@@ -57,6 +57,17 @@ def test_an_invalid_name_is_rejected(name: str) -> None:
     )
 
 
+def test_a_long_invalid_name_is_shown_cut_to_its_first_64_characters() -> None:
+    name = "X" * 10_000 + "\r\nBcc: victim@example.com"
+
+    with pytest.raises(RfcComplianceError) as caught:
+        _ = _TextHeader(name, "value")
+
+    assert str(caught.value) == (
+        f'The header name "{"X" * 64}…" contains characters that are not allowed in a header name.'
+    )
+
+
 @pytest.mark.parametrize(
     "name",
     [

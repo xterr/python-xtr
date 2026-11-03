@@ -66,6 +66,10 @@ class MessagePart(DataPart):
         super().__init__("", name, "message/rfc822", "8bit")
         self._message: _RenderableMessage = message
 
+    def get_message(self) -> _RenderableMessage:
+        """Return the message carried, as it was given."""
+        return self._message
+
     @override
     def get_body(self) -> str:
         """Return the message, rendered."""

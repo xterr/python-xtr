@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from .address import Address
 from .body_renderer_interface import BodyRendererInterface
-from .crypto import DkimOptions, DkimSigner, SMimeEncrypter, SMimeSigner
+from .crypto import DkimOptions, DkimSigner, SignedBody, SMimeEncrypter, SMimeSigner
 from .draft_email import DraftEmail
 from .email import Email
 from .exception import (
@@ -36,6 +36,7 @@ from .group import Group
 from .header import (
     AbstractHeader,
     DateHeader,
+    FoldedHeader,
     HeaderInterface,
     HeaderKind,
     Headers,
@@ -85,6 +86,7 @@ __all__ = [
     "DraftEmail",
     "Email",
     "File",
+    "FoldedHeader",
     "FormDataPart",
     "Group",
     "HeaderInterface",
@@ -114,6 +116,7 @@ __all__ = [
     "SMimeEncrypter",
     "SMimePart",
     "SMimeSigner",
+    "SignedBody",
     "TextPart",
     "UnstructuredHeader",
 ]

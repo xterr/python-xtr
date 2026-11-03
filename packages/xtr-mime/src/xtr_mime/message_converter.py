@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
 
-from .crypto._signed_body import SignedBody
+from .crypto.signed_body import SignedBody
 from .email import Email
 from .exception import MimeRuntimeError
 from .part import AlternativePart, DataPart, MixedPart, RelatedPart, SMimePart, TextPart

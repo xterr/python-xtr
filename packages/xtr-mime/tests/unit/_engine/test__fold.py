@@ -34,13 +34,13 @@ COLON_NAMES = ["h:Sender", "o:tag", "v:version", "Bcc:victim@example.com,x"]
 
 @pytest.mark.parametrize("name", COLON_NAMES)
 def test_a_header_name_holding_a_colon_is_never_folded_for_the_wire(name: str) -> None:
-    with pytest.raises(RfcComplianceError, match=re.escape(repr(name))):
+    with pytest.raises(RfcComplianceError, match=re.escape(f'"{name}"')):
         _ = _engine.fold_header(name, "value")
 
 
 @pytest.mark.parametrize("name", COLON_NAMES)
 def test_a_header_name_holding_a_colon_is_never_added_to_a_part(name: str) -> None:
-    with pytest.raises(RfcComplianceError, match=re.escape(repr(name))):
+    with pytest.raises(RfcComplianceError, match=re.escape(f'"{name}"')):
         _ = render_with(name, "value")
 
 
@@ -49,7 +49,7 @@ def test_a_header_name_holding_a_colon_is_never_rendered(name: str) -> None:
     part = _engine.build_text(text_leaf())
     part.set_raw(name, "value")
 
-    with pytest.raises(RfcComplianceError, match=re.escape(repr(name))):
+    with pytest.raises(RfcComplianceError, match=re.escape(f'"{name}"')):
         _ = _engine.to_bytes(part)
 
 

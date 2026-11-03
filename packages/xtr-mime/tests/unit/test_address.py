@@ -158,6 +158,22 @@ def test_a_quoted_at_sign_in_the_local_part_is_accepted() -> None:
     assert Address('"em@il"@example.test').get_address() == '"em@il"@example.test'
 
 
+def test_a_long_invalid_address_is_shown_cut_to_its_first_64_characters() -> None:
+    with pytest.raises(RfcComplianceError) as caught:
+        _ = Address("a" * 10_000 + "@@example.test")
+
+    assert str(caught.value) == (f'Email "{"a" * 64}…" does not comply with addr-spec of RFC 5322.')
+
+
+def test_a_long_address_that_does_not_parse_is_shown_cut_to_its_first_64_characters() -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = Address.create("<" + "a" * 10_000)
+
+    assert str(caught.value) == (
+        f'Could not parse "<{"a" * 63}…" to an "xtr_mime.Address" instance.'
+    )
+
+
 def test_an_at_sign_in_a_general_address_literal_is_accepted() -> None:
     assert Address("user@[x-tag:em@il]").get_address() == "user@[x-tag:em@il]"
 

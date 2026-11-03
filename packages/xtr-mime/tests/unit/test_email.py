@@ -1,8 +1,9 @@
 """An email: the builder of addresses, subject, priority, bodies and attachments.
 
-Upstream's serialization cases (``serialize``, the serializer's normalizers, the unserialize
-guards on the charsets, the attachment body kept in or out of the payload) have no counterpart:
-xtr-mailer carries a queued email as a pydantic field. Its case for the header assertion of the
+Upstream's serialization cases (``serialize``, the unserialize guards on the charsets, the
+attachment body kept in or out of the payload) are xtr-mailer's, which carries a queued email as
+plain data and ports them through its queue; the serializer's normalizers have no counterpart.
+Its case for the header assertion of the
 test constraints belongs to the testing assertions. Upstream compares parts with object
 equality; parts have none here (a multipart's boundary is random), so a tree is compared by its
 shape.

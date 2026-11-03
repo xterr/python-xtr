@@ -12,7 +12,7 @@ from typing_extensions import override
 
 from ._display_name import TRIMMED, clean_display_name
 from ._engine import Mailbox, encode_idn_address, header_body
-from ._error_text import escaped
+from ._error_text import capped
 from .exception import InvalidArgumentError, RfcComplianceError
 
 if TYPE_CHECKING:
@@ -96,7 +96,7 @@ class Address:
             raise InvalidArgumentError("Email address contains control characters.")
         if not _is_valid(self._address):
             raise RfcComplianceError(
-                f'Email "{escaped(address)}" does not comply with addr-spec of RFC 5322.'
+                f'Email "{capped(address)}" does not comply with addr-spec of RFC 5322.'
             )
         self._name = clean_display_name(name, "The display name")
 
@@ -119,7 +119,7 @@ class Address:
         match = _FROM_STRING.search(address)
         if match is None:
             raise InvalidArgumentError(
-                f'Could not parse "{escaped(address)}" to an "xtr_mime.Address" instance.'
+                f'Could not parse "{capped(address)}" to an "xtr_mime.Address" instance.'
             )
         return cls(match["address"], match["display_name"].strip(" '\""))
 

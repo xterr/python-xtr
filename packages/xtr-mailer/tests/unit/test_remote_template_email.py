@@ -1,9 +1,9 @@
 """An email whose body a mail provider renders from a template it hosts.
 
 Upstream's two serialization cases (a round trip through ``serialize``, and an unserialize
-refusing a template slot of the wrong class) have no counterpart here: a queued email travels as
-a typed message field, whose codec is what checks the template it reads back. A copy, which is
-what a sent message keeps, is checked instead.
+refusing a template slot of the wrong class) are ported through the queue, which carries a
+queued email as plain data: ``tests/integration/test_queued_email.py`` and
+``test_queued_email_refusals.py``. A copy, which is what a sent message keeps, is checked here.
 """
 
 from __future__ import annotations

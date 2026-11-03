@@ -5,7 +5,7 @@ from __future__ import annotations
 import dkim
 import pytest
 from xtr_event_dispatcher import EventDispatcher
-from xtr_messenger import MessageBus
+from xtr_messenger import HandleMessageMiddleware, HandlersLocator, MessageBus
 from xtr_messenger.stamp import TransportNamesStamp
 from xtr_mime import Email, Message
 from xtr_mime.crypto import DkimOptions, DkimSigner
@@ -23,7 +23,7 @@ from xtr_mailer.event_listener import (
     MessageLoggerListener,
     MessengerTransportListener,
 )
-from xtr_mailer.messenger import SendEmailMessage
+from xtr_mailer.messenger import MessageHandler, SendEmailMessage
 from xtr_mailer.transport import NullTransport, Transports
 from xtr_mailer.transport.smtp import EsmtpTransport
 
@@ -52,6 +52,26 @@ def _subjects_and_status(messages: list[object]) -> list[tuple[str | None, objec
         assert isinstance(message, Email)
         shown.append((message.get_subject(), message.get_headers().get_header_body("X-Status")))
     return shown
+
+
+async def test_a_message_sent_through_a_synchronous_bus_is_reported_once() -> None:
+    dispatcher = EventDispatcher()
+    logger = _logged(dispatcher)
+    dispatcher.add_listener(MessageEvent, _status)
+    transports = Transports({"main": NullTransport(dispatcher)})
+    handlers = HandlersLocator()
+    _ = handlers.register(SendEmailMessage, MessageHandler(transports))
+    mailer = Mailer(transports, MessageBus([HandleMessageMiddleware(handlers)]), dispatcher)
+
+    await mailer.send(_email("First").text("Hello"))
+    await mailer.send(_email("Second").text("Hello"))
+
+    events = logger.get_events()
+    assert len(events.get_events()) == 4
+    assert _subjects_and_status(list(events.get_messages())) == [
+        ("First", "sent"),
+        ("Second", "sent"),
+    ]
 
 
 async def test_a_message_left_in_the_queue_is_still_reported() -> None:

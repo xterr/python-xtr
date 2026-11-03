@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from tests.support.engine_cases import SEPARATORS
 from xtr_mime import _engine
-from xtr_mime._engine._grammar import check_folded, refuse_forbidden
+from xtr_mime._engine._grammar import (
+    check_boundary,
+    check_folded,
+    check_message_id,
+    check_name,
+    check_token,
+    refuse_forbidden,
+)
 from xtr_mime._engine._values import MessageIds
 from xtr_mime.exception import RfcComplianceError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @pytest.mark.parametrize("name", ["", "Sub ject", "Sub\tject", "Sub\r\nject", "Šubject", "a\x7f"])
@@ -105,3 +117,40 @@ def test_a_boundary_outside_rfc_2046_is_refused(boundary: str) -> None:
 @pytest.mark.parametrize("boundary", ["a" * 70, "with inner space", "'()+_,-./:?=09AZaz"])
 def test_a_boundary_inside_rfc_2046_is_kept(boundary: str) -> None:
     assert _engine.build_multipart("mixed", boundary, []).get_boundary() == boundary
+
+
+_LONG = "a" * 10_000 + " \r\nBcc: victim@example.com"
+
+
+def _token(value: str) -> None:
+    check_token("charset", value)
+
+
+def _folded(value: str) -> None:
+    check_folded(f"X-A: a\r\nB{value}\r\n")
+
+
+_CHECKS: list[Callable[[str], None]] = [
+    check_name,
+    check_message_id,
+    check_boundary,
+    _token,
+    _folded,
+]
+
+
+@pytest.mark.parametrize(
+    "check", _CHECKS, ids=["name", "message id", "boundary", "token", "folded"]
+)
+def test_a_refused_value_is_shown_cut_to_its_first_64_characters(
+    check: Callable[[str], None],
+) -> None:
+    with pytest.raises(RfcComplianceError) as raised:
+        check(_LONG)
+
+    message = str(raised.value)
+    assert "a…" in message
+    assert "a" * 65 not in message
+    assert "victim" not in message
+    assert "\r" not in message
+    assert "\n" not in message

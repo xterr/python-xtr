@@ -11,6 +11,8 @@ from xtr_mime._engine import build_verbatim, set_fields
 from xtr_mime.part import AbstractPart
 
 if TYPE_CHECKING:
+    from typing import Self
+
     from xtr_mime._engine import EnginePart
     from xtr_mime.header import Headers
 
@@ -33,6 +35,9 @@ class SignedBody(AbstractPart):
 
     The part signed is kept as well, for what reads a body's fields rather than its bytes —
     :class:`~xtr_mime.MessageConverter`, turning the signed message back into an email.
+
+    A signer builds it; :meth:`from_frozen` builds it again from what one holds — a queued
+    message read back in another process — and it renders the same bytes there.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = (
@@ -50,11 +55,27 @@ class SignedBody(AbstractPart):
             RfcComplianceError: A header of ``body`` is refused.
         """
         super().__init__()
-        self._part: AbstractPart = body
-        self._media_type: str = body.get_media_type()
-        self._media_subtype: str = body.get_media_subtype()
-        self._prepared: Headers = body.get_prepared_headers()
-        self._body: bytes = rendered.partition(_END_OF_HEADERS)[2]
+        self._freeze(body, body.get_prepared_headers(), rendered.partition(_END_OF_HEADERS)[2])
+
+    @classmethod
+    def from_frozen(cls, part: AbstractPart, headers: Headers, body: bytes) -> Self:
+        """Build the body ``part`` froze as: written with ``headers``, then ``body`` as it is.
+
+        ``headers`` are the prepared headers of a body frozen before, and ``body`` the bytes it
+        writes after them — what :meth:`get_prepared_headers` and :meth:`body_to_iterable`
+        give. ``part`` is not rendered: it is kept for what reads the body's fields.
+        """
+        frozen = cls.__new__(cls)
+        AbstractPart.__init__(frozen)
+        frozen._freeze(part, copy.copy(headers), body)  # noqa: SLF001 -- built by its own class.
+        return frozen
+
+    def _freeze(self, part: AbstractPart, prepared: Headers, body: bytes) -> None:
+        self._part: AbstractPart = part
+        self._media_type: str = part.get_media_type()
+        self._media_subtype: str = part.get_media_subtype()
+        self._prepared: Headers = prepared
+        self._body: bytes = body
 
     def get_signed_part(self) -> AbstractPart:
         """Return the part the frozen bytes were rendered from."""

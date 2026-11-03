@@ -22,7 +22,7 @@ images that are put where they belong, and a message that is valid to send or re
 render. The `email` package still writes every byte — header encoding and folding included — so
 what goes on the wire is what the standard library writes.
 
-- **Typed all the way down.** `Address`, ten header classes, parts and multiparts; nothing from
+- **Typed all the way down.** `Address`, eleven header classes, parts and multiparts; nothing from
   the `email` package appears in a signature.
 - **Checked addresses.** The mail grammar, international addresses (RFC 6532) and domains,
   without asking DNS anything.
@@ -131,6 +131,9 @@ The key is PEM text, a path, or a string starting with `file://`, opened when th
 (pass `passphrase=` for an encrypted one). The signature covers every header but `Return-Path`,
 `X-Transport` and those `headers_to_ignore` names; sign the message last, after anything else that
 changes it.
+The signed message carries the field as a `FoldedHeader`, written byte for byte as it was folded —
+as `simple` canonicalization needs — and its body as a `SignedBody`, the bytes signed;
+`SignedBody.from_frozen` builds one again from what it holds, in another process.
 
 ### Sign and encrypt with S/MIME
 

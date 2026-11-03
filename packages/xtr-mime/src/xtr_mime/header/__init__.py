@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .abstract_header import AbstractHeader
 from .date_header import DateHeader
+from .folded_header import FoldedHeader
 from .header_interface import HeaderInterface
 from .headers import HeaderKind, Headers
 from .identification_header import IdentificationHeader
@@ -20,6 +21,7 @@ from .unstructured_header import UnstructuredHeader
 __all__ = [
     "AbstractHeader",
     "DateHeader",
+    "FoldedHeader",
     "HeaderInterface",
     "HeaderKind",
     "Headers",

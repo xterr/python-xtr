@@ -2,6 +2,7 @@
 
 A body may render differently each time — an attached message makes up a new Message-ID —
 or only once — a stream that cannot seek back. Each is signed, then rendered twice both ways.
+A body frozen elsewhere — read back from a queue — renders the bytes it was frozen with.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ require_dkim_extra()
 from tests.support.dkim_keys import DOMAIN, dkim_key  # noqa: E402 -- see above.
 from tests.support.dkim_signing import signer, wire  # noqa: E402 -- see above.
 from xtr_mime import Email, Headers, Message, MessagePart  # noqa: E402 -- see above.
+from xtr_mime.crypto import SignedBody  # noqa: E402 -- see above.
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -112,3 +114,30 @@ def test_a_message_without_a_body_is_signed_with_the_empty_text_it_is_sent_with(
     assert signed_body is not None
     assert signed_body.as_debug_string() == "text/plain"
     assert dkim_key().verifies(wire(signed))
+
+
+def _frozen_again(body: SignedBody) -> SignedBody:
+    return SignedBody.from_frozen(
+        body.get_signed_part(), body.get_prepared_headers(), b"".join(body.body_to_iterable())
+    )
+
+
+def test_a_body_frozen_elsewhere_renders_the_bytes_it_was_frozen_with() -> None:
+    signed = signer().sign(_with_attached_message())
+    body = signed.get_body()
+    assert isinstance(body, SignedBody)
+
+    again = Message(signed.get_headers(), _frozen_again(body))
+
+    assert wire(again) == wire(signed)
+    assert dkim_key().verifies(wire(again))
+
+
+def test_a_body_frozen_elsewhere_keeps_the_part_it_was_signed_from() -> None:
+    body = signer().sign(_with_attached_message()).get_body()
+    assert isinstance(body, SignedBody)
+
+    again = _frozen_again(body)
+
+    assert again.get_signed_part() is body.get_signed_part()
+    assert again.as_debug_string() == body.as_debug_string()

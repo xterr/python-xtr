@@ -1,7 +1,7 @@
 """A text part: its body, its prepared headers and the transfer encoding it is written in.
 
 Upstream's serialization cases have no counterpart (a part is not serialized; xtr-mailer
-carries a queued email as a pydantic field), nor have its custom encoders (encoding is the
+carries a queued email as plain data), nor have its custom encoders (encoding is the
 engine's work).
 """
 

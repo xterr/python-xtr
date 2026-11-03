@@ -9,16 +9,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Final, TypeVar, final
 
-from typing_extensions import override
-
 from xtr_mime._error_text import escaped
 from xtr_mime.exception import InvalidArgumentError, LogicError, MimeRuntimeError
-from xtr_mime.header import Headers, UnstructuredHeader
+from xtr_mime.header import FoldedHeader, Headers
 from xtr_mime.message import Message
 from xtr_mime.part import TextPart
 
-from ._signed_body import SignedBody
 from .dkim_options import DkimOptions
+from .signed_body import SignedBody
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -142,7 +140,9 @@ class DkimSigner:
                 show_body_length=settings.show_body_length,
             ),
         )
-        signed = Headers(_SignatureHeader(field), *headers.all())
+        # With simple header canonicalization a verifier hashes the field byte for byte as
+        # dkimpy folded it: refolded by the engine, it would no longer verify.
+        signed = Headers(FoldedHeader(field), *headers.all())
         bcc = message.get_headers().get("Bcc")
         if bcc is not None:
             # Rendering leaves Bcc out, so the bytes sent stay the bytes signed.
@@ -185,33 +185,6 @@ class _Settings:
     def signs(self, header: HeaderInterface) -> bool:
         """Tell whether ``header`` is signed: not ignored, and with a body to write."""
         return header.get_name().lower() not in self.ignored and bool(header.get_body_as_string())
-
-
-@final
-class _SignatureHeader(UnstructuredHeader):
-    """The DKIM-Signature field, written exactly as dkimpy folded it when signing.
-
-    With ``simple`` header canonicalization a verifier hashes this field byte for byte as
-    dkimpy did: refolded by the engine, it would no longer verify. Its value is the field
-    unfolded; setting another value drops the folding, and the engine writes that one.
-    """
-
-    __slots__: ClassVar[tuple[str, ...]] = ("_folded",)
-
-    def __init__(self, field: str) -> None:
-        folded = field.removesuffix("\r\n")
-        name, _, value = folded.partition(":")
-        super().__init__(name, value.replace("\r\n", "").strip(" "))
-        self._folded: str | None = folded
-
-    @override
-    def set_value(self, value: str) -> None:
-        super().set_value(value)
-        self._folded = None
-
-    @override
-    def to_string(self) -> str:
-        return super().to_string() if self._folded is None else self._folded
 
 
 def _first(value: _T | None, default: _T | None, fallback: _T) -> _T:

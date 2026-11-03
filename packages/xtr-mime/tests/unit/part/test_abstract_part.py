@@ -1,7 +1,7 @@
 """What every part shares: its own headers, the prepared ones, and the rendering through them.
 
 Upstream's cases here are all about serialization, which has no counterpart: a part is not
-serialized, and xtr-mailer carries a queued email as a pydantic field. These cover the base
+serialized, and xtr-mailer carries a queued email as plain data. These cover the base
 class instead, through the simplest part.
 """
 
