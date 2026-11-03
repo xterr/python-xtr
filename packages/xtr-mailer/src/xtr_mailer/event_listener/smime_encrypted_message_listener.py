@@ -47,10 +47,11 @@ class SmimeEncryptedMessageListener:
       receive it, unreadable.
     - ``skip``: as ``encrypt``, and the others are dropped from the envelope.
 
-    Whatever the mode, an email no recipient has a certificate for is refused, and a missing
-    certificate is logged as a warning. The encrypted email keeps the headers of the email
-    given, Bcc among them, but the ``X-SMime-Encrypt`` header, which is neither sent nor
-    encrypted; the email given is left as it is.
+    In ``fail`` mode the email is refused before anything is logged; in ``encrypt`` and
+    ``skip`` mode the recipients without a certificate are logged as a warning. Whatever
+    the mode, an email no recipient has a certificate for is refused. The encrypted email
+    keeps the headers of the email given, Bcc among them, but the ``X-SMime-Encrypt``
+    header, which is neither sent nor encrypted; the email given is left as it is.
     """
 
     #: Run after the email is signed with S/MIME, before it is signed with DKIM.

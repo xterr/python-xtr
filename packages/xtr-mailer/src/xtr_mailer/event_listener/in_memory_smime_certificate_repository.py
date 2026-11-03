@@ -18,8 +18,12 @@ __all__ = ["InMemorySmimeCertificateRepository"]
 class InMemorySmimeCertificateRepository(SmimeCertificateRepositoryInterface):
     """Finds each address's certificate path in the mapping it was built with.
 
-    An address is found as it is written in the mapping, letter case included:
-    ``User@example.com`` is not ``user@example.com``.
+    An address is looked up exactly as the mapping writes it, with no normalisation of
+    any kind: letter case counts, so ``User@example.com`` is not ``user@example.com``;
+    Unicode is compared code point by code point, so two spellings of the same accented
+    local part are two addresses; and an international domain is found only in the form
+    the mapping holds, the Unicode one or its ASCII form, never both. Hold each address
+    in the form the emails carry.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = ("_certificates",)
