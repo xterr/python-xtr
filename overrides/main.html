@@ -1,0 +1,65 @@
+{#-
+  The home page hero.
+
+  Only the `hero` block of base.html is replaced, and only for the home page.
+  Every other page, and every partial, stays as the theme ships it, so a new
+  release of the theme does not have to be merged into this file.
+
+  The block renders before the content, and the content of docs/index.md
+  follows below it. The markdown repeats the title, so stylesheets/xtr.css
+  hides that one heading on the page that has a hero.
+
+  The home page is the page with an empty URL. This build leaves
+  `page.is_homepage` undefined, and a page without ancestors is any page at
+  the top of the navigation, so neither of those would be exact.
+-#}
+{% extends "base.html" %}
+
+{% block hero %}
+  {% if page.url == "" %}
+    <section class="xtr-hero">
+      <div class="xtr-hero__backdrop" aria-hidden="true"></div>
+      <div class="xtr-hero__glow" aria-hidden="true"></div>
+      <div class="xtr-hero__inner md-grid">
+        <p class="xtr-hero__eyebrow">
+          <span class="xtr-hero__eyebrow-dot" aria-hidden="true"></span>
+          Python 3.11 or a later version
+        </p>
+        <h1 class="xtr-hero__title">
+          Typed, async building blocks
+          <span class="xtr-hero__title-accent">for Python applications.</span>
+        </h1>
+        <p class="xtr-hero__text">
+          Each package does one job, and each package works alone. Put the
+          packages together in an application, and a container connects them.
+        </p>
+        <div class="xtr-hero__actions">
+          <a class="xtr-hero__cta xtr-hero__cta--primary" href="{{ 'setup/' | url }}">
+            Get started
+            {% include ".icons/lucide/arrow-right.svg" %}
+          </a>
+          {% if config.repo_url %}
+            <a class="xtr-hero__cta xtr-hero__cta--secondary" href="{{ config.repo_url }}">
+              {% include ".icons/simple/github.svg" %}
+              Read the source
+            </a>
+          {% endif %}
+          <span class="xtr-hero__command">
+            <span class="xtr-hero__command-prompt" aria-hidden="true">$</span>
+            <code class="xtr-hero__command-text" id="xtr-hero-command">uvx xtr-cli new shop</code>
+            <button
+              type="button"
+              class="xtr-hero__copy"
+              data-xtr-copy="xtr-hero-command"
+              title="Copy the command"
+              aria-label="Copy the command"
+            >
+              <span class="xtr-hero__copy-idle">{% include ".icons/lucide/copy.svg" %}</span>
+              <span class="xtr-hero__copy-done">{% include ".icons/lucide/check.svg" %}</span>
+            </button>
+          </span>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}
