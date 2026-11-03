@@ -35,6 +35,8 @@ __all__ = ["read_leaf", "write_leaf"]
 _P = TypeVar("_P", bound=TextPart)
 
 _SHORT: Final = 256
+# RFC 2978 registers charset names of at most 40 characters.
+_CHARSET: Final = 64
 _TEXT: Final = ("headers", "body", "charset", "subtype", "encoding", "disposition", "name")
 _DATA: Final = ("headers", "body", "filename", "content_type", "encoding", "disposition")
 _DATA_MORE: Final = ("name", "content_id")
@@ -104,7 +106,7 @@ def read_leaf(data: object, path: str) -> AbstractPart:
 
 def _text(found: JsonObject, path: str) -> TextPart:
     body = content(found["body"], f"{path}.body")
-    charset = optional_text(found["charset"], f"{path}.charset", _SHORT)
+    charset = optional_text(found["charset"], f"{path}.charset", _CHARSET)
     subtype = text(found["subtype"], f"{path}.subtype", _SHORT)
     encoding = text(found["encoding"], f"{path}.encoding", _SHORT)
     part = built(path, "a text part", lambda: TextPart(body, charset, subtype, encoding))

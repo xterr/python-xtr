@@ -14,15 +14,18 @@ import contextlib
 import json
 from typing import TYPE_CHECKING, Final, cast
 
+import anyio
 import pytest
 from xtr_messenger import EncodedEnvelope, MessageDecodingFailedError, name_of
-from xtr_mime import Email
+from xtr_mime import Email, Headers, Message, TextPart
+from xtr_mime.exception import InvalidArgumentError
 
 from tests.support.growth import assert_linear_growth
 from tests.support.queue import WIRE
 from xtr_mailer import RemoteTemplateEmail
-from xtr_mailer.messenger import SendEmailMessage
+from xtr_mailer.messenger import MessageHandler, SendEmailMessage
 from xtr_mailer.messenger._wire import write
+from xtr_mailer.transport import NullTransport
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -94,6 +97,31 @@ def test_bad_base64_is_refused() -> None:
 )
 def test_a_charset_that_is_not_text_is_refused(charset: str, value: object) -> None:
     _ = _refused(_email(**{charset: value}))
+
+
+def _message_in(charset: str) -> dict[str, object]:
+    headers = Headers().add_mailbox_list_header("From", ["a@example.com"])
+    written = write(
+        Message(headers.add_mailbox_list_header("To", ["b@example.com"]), TextPart("hello")), None
+    )
+    message = cast("dict[str, dict[str, object]]", written["message"])
+    return {**written, "message": {**message, "body": {**message["body"], "charset": charset}}}
+
+
+def test_a_body_charset_longer_than_64_characters_is_refused() -> None:
+    error = _refused(_message_in("SECRET-" + "c" * 249))
+
+    assert "c" * 65 not in str(error.__cause__)
+
+
+def test_an_unknown_body_charset_is_refused_at_send_with_no_error_chained() -> None:
+    decoded = _decoded(json.dumps(_message_in("SECRET-" + "c" * 57)))
+    assert isinstance(decoded, SendEmailMessage)
+
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = anyio.run(MessageHandler(NullTransport()), decoded)
+
+    assert (raised.value.__cause__, raised.value.__context__) == (None, None)
 
 
 @pytest.mark.parametrize("template", [{"__str__": _SECRET}, _SECRET, ["welcome"]])

@@ -50,11 +50,17 @@ def body_charset_error(charset: str, error: LookupError | ValueError) -> Invalid
 def check_charset(charset: str) -> None:
     """Refuse a charset no codec goes by.
 
+    The codecs' own error is neither chained nor kept as the context: it repeats the whole
+    name, which may be any length when it was read from a queue.
+
     Raises:
         InvalidArgumentError: There is none; a null byte in the name makes the codecs raise
             ``ValueError`` rather than ``LookupError``.
     """
+    failure: LookupError | ValueError | None = None
     try:
         _ = codecs.lookup(charset)
     except (LookupError, ValueError) as error:
-        raise body_charset_error(charset, error) from error
+        failure = error
+    if failure is not None:
+        raise body_charset_error(charset, failure)

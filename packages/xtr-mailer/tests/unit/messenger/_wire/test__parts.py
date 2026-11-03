@@ -108,6 +108,27 @@ def test_a_part_that_is_not_a_leaf_is_left_to_the_caller() -> None:
     assert write_leaf(_Custom("x")) is None
 
 
+def _text(charset: str) -> dict[str, object]:
+    written = write_leaf(TextPart("hello"))
+    assert written is not None
+    return {**written, "charset": charset}
+
+
+def test_a_charset_name_of_64_characters_is_read() -> None:
+    back = read_leaf(_text("SECRET-" + "c" * 57), "part")
+
+    assert isinstance(back, TextPart)
+
+
+def test_a_longer_charset_name_is_refused_before_the_part_is_built() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = read_leaf(_text("SECRET-" + "c" * 58), "part")
+
+    assert str(raised.value) == (
+        "The queued email cannot be read: part.charset is longer than 64 characters."
+    )
+
+
 @pytest.mark.parametrize("data", [{"$type": "x-evil"}, ["text"], None])
 def test_a_part_of_a_kind_the_queue_does_not_carry_is_refused(data: object) -> None:
     with pytest.raises(InvalidArgumentError, match="part is not a part of a class"):

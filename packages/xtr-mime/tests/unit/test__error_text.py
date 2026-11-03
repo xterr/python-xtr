@@ -6,7 +6,9 @@ import codecs
 
 import pytest
 
-from xtr_mime._error_text import body_charset_error, capped, escaped
+from xtr_mime import TextPart
+from xtr_mime._error_text import body_charset_error, capped, check_charset, escaped
+from xtr_mime.exception import InvalidArgumentError
 
 
 def test_a_value_is_escaped_as_repr_shows_it() -> None:
@@ -33,3 +35,23 @@ def test_an_unknown_charset_is_shown_cut_and_once() -> None:
     error = body_charset_error(charset, raised.value)
 
     assert str(error) == f'The body is not "{"c" * 64}…" text: no codec goes by that name.'
+
+
+@pytest.mark.parametrize(
+    "charset", ["SECRET-" + "c" * 249, "SECRET-\x00" + "c" * 248], ids=["unknown", "null byte"]
+)
+def test_an_unknown_charset_is_refused_with_no_error_of_the_codecs_behind_it(charset: str) -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        check_charset(charset)
+
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
+    assert "c" * 65 not in str(raised.value)
+
+
+def test_rendering_a_body_in_an_unknown_charset_chains_nothing_that_repeats_it() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = TextPart("hello", "SECRET-" + "c" * 249).to_string()
+
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
