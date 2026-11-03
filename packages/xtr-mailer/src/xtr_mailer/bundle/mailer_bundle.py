@@ -98,8 +98,9 @@ class MailerBundle(Bundle[MailerConfig]):
 
         Raises:
             LogicError: A transport is capped by a rate limiter without the rate limiter
-                bundle, an option needs the event dispatcher bundle and it is inactive, or
-                signing or encrypting is configured without its extra.
+                bundle, an HTTP client is named without the HTTP client bundle, an option needs
+                the event dispatcher bundle and it is inactive, or signing or encrypting is
+                configured without its extra.
         """
         _require_extras(config)
         _register_peers(config, services, builder)
@@ -133,13 +134,14 @@ def _register_peers(
     """Register the holders of the HTTP client, the dispatcher, the bus, the limiters, the logger.
 
     Raises:
-        LogicError: A transport is capped by a rate limiter without the rate limiter bundle.
+        LogicError: An HTTP client or a rate limiter is named without the bundle providing it.
     """
     if bundle_active(builder, "http_client"):
         from ._peer_factories import http_client_peer  # noqa: PLC0415 -- names an optional peer
 
         _ = services.set(named_factory(http_client_peer(config.http_client), "mailer_http"))
     else:
+        _refuse_http_client(config)
         _ = services.instance(HttpClientPeer(None))
     if bundle_active(builder, "event_dispatcher"):
         from ._peer_factories import event_dispatcher_peer  # noqa: PLC0415 -- as above
@@ -174,6 +176,19 @@ def _register_message_bus(services: ServiceConfigurator, builder: ContainerBuild
             _ = services.set(message_bus_peer)
             return
     _ = services.instance(MessageBusPeer(None))
+
+
+def _refuse_http_client(config: MailerConfig) -> None:
+    """Refuse an HTTP client named for the transports while there are no HTTP clients.
+
+    Raises:
+        LogicError: ``http_client`` names a client.
+    """
+    if config.http_client is not None:
+        raise LogicError(
+            f'The transports reach their provider through the "{shown(config.http_client)}" HTTP '
+            "client; install xtr-http-client beside xtr-mailer and configure the client."
+        )
 
 
 def _refuse_rate_limiters(config: MailerConfig) -> None:

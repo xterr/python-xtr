@@ -76,7 +76,8 @@ async def mailer_transports(
     built them.
 
     Raises:
-        LogicError: A transport names a rate limiter that is not configured.
+        LogicError: A transport names a rate limiter that is not configured, or one that cannot
+            cap it — a ``failover(...)`` or ``roundrobin(...)`` group is never capped.
         InvalidArgumentError: A DSN cannot be read.
         UnsupportedSchemeError: No factory serves a scheme a DSN names.
     """

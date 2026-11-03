@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
 
-from xtr_mailer.exception import InvalidArgumentError, UnsupportedSchemeError
+from xtr_mailer._error_text import shown
+from xtr_mailer.exception import InvalidArgumentError, LogicError, UnsupportedSchemeError
 
 from ._dsn_grammar import GARBAGE, read_dsn_groups
 from .abstract_transport import AbstractTransport
@@ -47,7 +48,8 @@ class Transport:
     discovery finds installed. The DSN strings carry credentials: none is kept, and no error
     raised here quotes one.
 
-    A group logs each member that fails, through the logger the builder is given.
+    A group logs each member that fails, through the logger the builder is given; it is never
+    capped by a rate limiter, which caps a single transport only.
     """
 
     __slots__ = ("_discovery", "_factories", "_logger", "_rate_limiter_factories")
@@ -68,7 +70,9 @@ class Transport:
             discovery: Where to look for a scheme no factory given serves; ``None`` uses the
                 given factories only.
             rate_limiter_factories: The limiter each named transport of :meth:`from_strings`
-                is capped by, keyed by its name; a name not listed is not capped.
+                is capped by, keyed by its name; a name not listed is not capped. A limiter
+                given for a transport that takes none — a ``failover(...)`` or
+                ``roundrobin(...)`` group — is refused when it is built.
             logger: Where each group built logs a member that fails; ``None`` logs nothing.
                 The members log where their factory was told to.
         """
@@ -129,7 +133,8 @@ class Transport:
         Raises:
             InvalidArgumentError: A DSN cannot be read.
             UnsupportedSchemeError: No factory serves a scheme one names.
-            LogicError: ``dsns`` is empty.
+            LogicError: ``dsns`` is empty, or a rate limiter is given for a transport that takes
+                none.
         """
         return Transports(
             {
@@ -145,17 +150,24 @@ class Transport:
 
         Args:
             dsn: One DSN, or a keyword group of them.
-            rate_limiter_factory: Caps the transport built, when it is one that can be capped.
+            rate_limiter_factory: Caps the transport built, which must take a rate limiter: a
+                ``failover(...)`` or ``roundrobin(...)`` group takes none.
 
         Raises:
             InvalidArgumentError: ``dsn`` cannot be read.
             UnsupportedSchemeError: No factory serves a scheme it names.
+            LogicError: A rate limiter is given and the transport built takes none.
         """
         node, complete = read_dsn_groups(dsn)
         transport = self._build(node)
         if not complete:
             raise InvalidArgumentError(GARBAGE)
-        if rate_limiter_factory is not None and isinstance(transport, AbstractTransport):
+        if rate_limiter_factory is not None:
+            if not isinstance(transport, AbstractTransport):
+                raise LogicError(
+                    f'The "{shown(str(transport))}" transport takes no rate limiter: a '
+                    "failover(...) or roundrobin(...) group is never capped."
+                )
             _ = transport.set_rate_limiter_factory(rate_limiter_factory)
         return transport
 

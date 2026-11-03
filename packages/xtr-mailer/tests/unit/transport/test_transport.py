@@ -14,7 +14,7 @@ from tests.support.dummy_transport import DummyTransport
 from tests.support.dummy_transport_factory import DummyTransportFactory
 from tests.support.esmtp_state import esmtp_state
 from tests.support.fake_transport import FakeTransport
-from xtr_mailer import InvalidArgumentError, UnsupportedSchemeError
+from xtr_mailer import InvalidArgumentError, LogicError, UnsupportedSchemeError
 from xtr_mailer.transport import (
     Dsn,
     FailoverTransport,
@@ -44,6 +44,12 @@ def shape(transport: TransportInterface) -> Shape:
 
 def _builder() -> Transport:
     return Transport([DummyTransportFactory(http_client=MockHttpClient())])
+
+
+def _limiter() -> RateLimiterFactory:
+    return RateLimiterFactory(
+        "mailer", LimiterConfig("fixed_window", limit=1, interval="1 hour"), InMemoryStorage()
+    )
 
 
 _A = ("dummy", "a")
@@ -188,14 +194,19 @@ def test_it_sets_the_rate_limiter_named_after_a_transport() -> None:
     assert factory.built["b"]._rate_limiter_factory is None
 
 
-def test_a_rate_limiter_is_not_set_on_a_transport_that_takes_none() -> None:
-    limiter = RateLimiterFactory(
-        "mailer", LimiterConfig("fixed_window", limit=1, interval="1 hour"), InMemoryStorage()
+@pytest.mark.parametrize(
+    "dsn",
+    ["failover(dummy://a dummy://b)", "roundrobin(dummy://a dummy://b)", "dummy://a"],
+    ids=["failover", "round robin", "transport taking none"],
+)
+def test_a_rate_limiter_is_refused_by_a_transport_it_cannot_cap(dsn: str) -> None:
+    with pytest.raises(LogicError) as caught:
+        _ = _builder().from_string(dsn, _limiter())
+
+    assert str(caught.value) == (
+        f'The "{dsn}" transport takes no rate limiter: a failover(...) or roundrobin(...) group '
+        "is never capped."
     )
-
-    transport = _builder().from_string("dummy://a", limiter)
-
-    assert isinstance(transport, DummyTransport)
 
 
 def test_a_factory_given_wins_over_a_discovered_one() -> None:

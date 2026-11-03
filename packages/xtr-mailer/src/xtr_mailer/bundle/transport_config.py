@@ -19,7 +19,9 @@ class TransportConfig:
         dsn: One DSN, or a ``failover(...)`` / ``roundrobin(...)`` group of them. It carries
             credentials, so pass it through ``env("...")``; it is never shown.
         rate_limiter: The name of the xtr-rate-limiter limiter each email through the
-            transport takes a token from; ``None`` caps nothing.
+            transport takes a token from; ``None`` caps nothing. A group is never capped: one
+            named for a ``failover(...)`` or ``roundrobin(...)`` group is refused when the
+            transports are built, at the first email.
     """
 
     dsn: str = field(repr=False)

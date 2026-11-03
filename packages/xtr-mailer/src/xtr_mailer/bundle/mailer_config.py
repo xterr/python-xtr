@@ -54,7 +54,8 @@ class MailerConfig:
         smime_encrypter: Encrypts each email asking for it with S/MIME; ``None`` encrypts
             nothing.
         http_client: The qualifier of the HTTP client provider transports are reached through;
-            ``None`` means the default one.
+            ``None`` means the default one. Naming one while the xtr-http-client bundle is not
+            active is refused at build.
     """
 
     dsn: str | None = field(default=None, repr=False)
