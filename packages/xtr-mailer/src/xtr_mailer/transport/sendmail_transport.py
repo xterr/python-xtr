@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_logging_contracts import LoggerInterface
     from xtr_mime import RawMessage
+    from xtr_rate_limiter import RateLimiterFactoryInterface
 
     from xtr_mailer.envelope import Envelope
     from xtr_mailer.sent_message import SentMessage
@@ -58,6 +59,10 @@ class SendmailTransport(AbstractTransport, StoppableTransportInterface):
     shell: nothing in it is expanded. A program still running after the timeout — 60 seconds,
     see :meth:`set_timeout` — or when a send is cancelled is killed and waited for; none is
     left behind. :meth:`stop` never raises.
+
+    The pace :meth:`set_max_per_second` sets and the rate limiter
+    :meth:`set_rate_limiter_factory` sets hold in both modes, each email counted once: in
+    ``-bs`` mode the SMTP session applies them, from one session to the next.
     """
 
     #: The command run when none is given: the conventional sendmail, in SMTP mode.
@@ -105,6 +110,22 @@ class SendmailTransport(AbstractTransport, StoppableTransportInterface):
     def get_timeout(self) -> float:
         """Return how long the program is waited for, in seconds."""
         return self._timeout
+
+    @override
+    def set_max_per_second(self, rate: float) -> Self:
+        """Send at most ``rate`` emails a second, in either mode; see the base class."""
+        _ = super().set_max_per_second(rate)
+        if self._session is not None:
+            _ = self._session.set_max_per_second(rate)
+        return self
+
+    @override
+    def set_rate_limiter_factory(self, rate_limiter_factory: RateLimiterFactoryInterface) -> Self:
+        """Take a token for each email, in either mode; see the base class."""
+        _ = super().set_rate_limiter_factory(rate_limiter_factory)
+        if self._session is not None:
+            _ = self._session.set_rate_limiter_factory(rate_limiter_factory)
+        return self
 
     @override
     async def send(
