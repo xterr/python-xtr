@@ -16,6 +16,7 @@ from ._grammar import (
     check_folded,
     check_message_id,
     check_name,
+    join_blank_lines,
 )
 from ._parameters import parameterized_header
 from ._policy import DATE, POLICY, FoldedHeader
@@ -70,15 +71,23 @@ def add_header(part: EnginePart, name: str, value: HeaderValue) -> None:
 
 
 def make_header(name: str, value: HeaderValue) -> BaseHeader | FoldedHeader:
+    """Build the header the engine writes for ``value``, folded and checked.
+
+    A field the package folds with a line of whitespace alone is kept as folded without it.
+
+    Raises:
+        RfcComplianceError: As :func:`fold_header` does.
+    """
     try:
         header = _build_header(name, value)
-        folded = header.folded if isinstance(header, FoldedHeader) else header.fold(policy=POLICY)
+        written = header.folded if isinstance(header, FoldedHeader) else header.fold(policy=POLICY)
     except MimeError:
         raise
     except PACKAGE_FAILURES as error:
         raise RfcComplianceError(f"The {name} header cannot be written: {error}.") from error
+    folded = join_blank_lines(written)
     check_folded(folded)
-    return header
+    return header if folded == written else FoldedHeader(name, str(header), folded)
 
 
 def _fold(name: str, value: HeaderValue) -> str:

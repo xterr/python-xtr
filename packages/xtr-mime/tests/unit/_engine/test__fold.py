@@ -256,3 +256,35 @@ def test_only_the_engine_errors_ever_escape_writing_and_reading_headers() -> Non
         except MimeError:
             continue
         assert not forbidden.intersection(field)
+
+
+def _has_blank_line(field: str) -> bool:
+    return any(not line.strip(" \t") for line in field.split("\r\n")[1:])
+
+
+@pytest.mark.parametrize(
+    "value",
+    [f"{'Invoice':<80}#123", [Mailbox(f"{'Invoice':<80}#123", "c@example.com")]],
+    ids=["text", "address"],
+)
+def test_a_long_whitespace_run_is_never_folded_onto_a_line_of_its_own(value: HeaderValue) -> None:
+    field = _engine.fold_header("To" if isinstance(value, list) else "Subject", value)
+
+    assert not _has_blank_line(field)
+    assert f"Invoice{' ' * 73}#123" in re.sub(r"\r\n(?=[ \t])", "", field)
+
+
+def test_no_generated_subject_is_folded_onto_a_line_of_whitespace_alone() -> None:
+    """A seeded sweep of subjects mixing words and whitespace runs of every length."""
+    rng = random.Random(20261103)  # noqa: S311 -- a reproducible sweep, not a secret
+    words = ["Invoice", "#123", "J\u00fcrgen", "x" * 70, "a"]
+    body = _engine.build_text(text_leaf())
+
+    for _ in range(2000):
+        pieces = [rng.choice(words) + " " * rng.randint(1, 120) for _ in range(rng.randint(1, 4))]
+        subject = "".join(pieces) + rng.choice(words)
+        field = _engine.fold_header("Subject", subject)
+        raw = _engine.to_bytes(_engine.build_message([("Subject", subject)], body))
+
+        assert not _has_blank_line(field)
+        assert not _has_blank_line(raw.partition(b"\r\n\r\n")[0].decode())

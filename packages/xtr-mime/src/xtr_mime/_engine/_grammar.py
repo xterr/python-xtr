@@ -24,6 +24,7 @@ __all__ = [
     "check_message_id",
     "check_name",
     "check_token",
+    "join_blank_lines",
     "refuse_forbidden",
 ]
 
@@ -104,6 +105,29 @@ def check_token(what: str, token: str) -> None:
 
 def body_of(name: str, folded: str) -> str:
     return folded[len(name) + 1 :].removesuffix("\r\n")
+
+
+def join_blank_lines(folded: str) -> str:
+    """Keep every run of whitespace the engine folds on a line that holds more than it.
+
+    The package folds a run of whitespace too long to share a line onto a line of its own,
+    which RFC 5322 forbids writing. Taking out the line break after such a line — or before
+    it, when it is the last — moves the run onto its neighbour: unfolding takes out every line
+    break the same way, so the field still reads as the text it was.
+    """
+    lines = folded.removesuffix("\r\n").split("\r\n")
+    if not folded.endswith("\r\n") or all(line.strip(" \t") for line in lines[1:]):
+        return folded
+    joined = [lines[0]]
+    held = ""
+    for line in lines[1:]:
+        if line.strip(" \t"):
+            joined.append(held + line)
+            held = ""
+        else:
+            held += line
+    joined[-1] += held
+    return "\r\n".join(joined) + "\r\n"
 
 
 def refuse_forbidden(what: str, value: str) -> None:

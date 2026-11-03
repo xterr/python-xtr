@@ -14,6 +14,7 @@ from xtr_mime._engine._grammar import (
     check_message_id,
     check_name,
     check_token,
+    join_blank_lines,
     refuse_forbidden,
 )
 from xtr_mime._engine._values import MessageIds
@@ -154,3 +155,27 @@ def test_a_refused_value_is_shown_cut_to_its_first_64_characters(
     assert "victim" not in message
     assert "\r" not in message
     assert "\n" not in message
+
+
+@pytest.mark.parametrize(
+    ("folded", "joined"),
+    [
+        ("X-A: a\r\n b\r\n", "X-A: a\r\n b\r\n"),
+        ("X-A: a\r\n   \r\n b\r\n", "X-A: a\r\n    b\r\n"),
+        ("X-A: a\r\n \r\n\t\r\n b\r\n", "X-A: a\r\n \t b\r\n"),
+        ("X-A: a\r\n b\r\n   \r\n", "X-A: a\r\n b   \r\n"),
+        ("X-A: a\r\n   ", "X-A: a\r\n   "),
+    ],
+    ids=["none", "between", "two between", "last", "unterminated"],
+)
+def test_a_line_of_whitespace_alone_joins_the_line_after_it(folded: str, joined: str) -> None:
+    assert join_blank_lines(folded) == joined
+
+
+def test_joining_keeps_what_the_field_unfolds_to() -> None:
+    folded = "Subject: Invoice\r\n" + " " * 72 + "\r\n #123\r\n"
+
+    joined = join_blank_lines(folded)
+
+    assert joined.replace("\r\n", "") == folded.replace("\r\n", "")
+    check_folded(joined)

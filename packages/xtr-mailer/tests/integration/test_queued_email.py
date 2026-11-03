@@ -119,6 +119,18 @@ async def test_a_date_in_an_hour_the_clocks_repeat_comes_off_the_queue_the_same_
     assert (date, date.tzinfo, date.fold) == (email.get_date(), zone, fold)
 
 
+async def test_a_subject_padded_past_a_line_is_sent_by_the_worker_as_it_is_directly() -> None:
+    email = _email().subject(f"{'Invoice':<80}#123")
+
+    queued = await through_the_queue(email)
+    sent = await MessageHandler(NullTransport())(queued)
+
+    assert sent is not None
+    head = sent.to_string().partition("\r\n\r\n")[0]
+    assert all(line.strip(" \t") for line in head.split("\r\n"))
+    assert _shape(queued.message) == _shape(email)
+
+
 async def test_inline_and_path_attachments_travel_as_their_content(tmp_path: Path) -> None:
     logo, report = tmp_path / "logo.png", tmp_path / "report.txt"
     _ = logo.write_bytes(b"\x89PNG-logo")
