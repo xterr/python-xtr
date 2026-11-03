@@ -2,9 +2,9 @@
 
 Each shape builds an email holding ``size`` units of the text that costs the most to fold of
 its kind — emoji in values, names beside addresses and file names, quoted names, addresses,
-values holding ``=?``, parts — spread over as many parts as the limits on one part need. At
-:data:`LIMITS` of its units it is as large as the queue reads; :func:`most_costly` holds every
-kind at its limit at once.
+values holding ``=?``, parts, headers holding next to nothing — spread over as many parts as
+the limits on one part need. At :data:`LIMITS` of its units it is as large as the queue reads;
+:func:`most_costly` holds every kind at its limit at once.
 """
 
 from __future__ import annotations
@@ -23,6 +23,8 @@ __all__ = ["LIMITS", "SHAPES", "most_costly", "queued"]
 
 # Header text one part carries, under the 64 KiB the queue reads for one.
 _PART_TEXT: Final = 60_000
+# The headers one part carries, as many as the queue reads for one.
+_PART_HEADERS: Final = 512
 _EMOJI: Final = "\U0001f600"
 _CJK: Final = "\u5f20\u4f1f\u660e"
 _QUOTED: Final = 'a, "b" (c) '
@@ -132,6 +134,28 @@ def _nested_parts(size: int) -> Message:
     return Message(_message_headers(), part)
 
 
+def _headers_holding(value: str) -> Callable[[int], Email]:
+    """Build emails of ``size`` headers holding ``value``, on the email then on attachments.
+
+    Each header has a name of its own: what costs most to a part replacing its headers by name.
+    """
+
+    def build(size: int) -> Email:
+        email = _email()
+        # The email holds From and To already.
+        headers, held = email.get_headers(), 2
+        for index in range(size):
+            if held == _PART_HEADERS:
+                attachment = DataPart(b"x", "a.bin")
+                _ = email.add_part(attachment)
+                headers, held = attachment.get_headers(), 0
+            _ = headers.add_text_header(f"x{index}", value)
+            held += 1
+        return email
+
+    return build
+
+
 def _message_headers() -> Headers:
     headers = Headers().add_mailbox_list_header("From", ["a@example.com"])
     return headers.add_mailbox_list_header("To", ["b@example.com"])
@@ -149,6 +173,8 @@ SHAPES: Final[dict[str, Callable[[int], Message]]] = {
     "parameters holding =?": _encoded_parameters,
     "flat parts": _flat_parts,
     "nested parts": _nested_parts,
+    "tiny headers": _headers_holding("a"),
+    "headers holding =?": _headers_holding("=?"),
 }
 """Each shape, by what it grows."""
 
@@ -167,6 +193,9 @@ LIMITS: Final[dict[str, int]] = {
     "parameters holding =?": 180_000,
     "flat parts": 256,
     "nested parts": 192_000,
+    # From, To and the three headers each of three attachments writes hold the rest of 2048.
+    "tiny headers": 2037,
+    "headers holding =?": 2037,
 }
 """The size of each shape at which it is as large as the queue reads."""
 

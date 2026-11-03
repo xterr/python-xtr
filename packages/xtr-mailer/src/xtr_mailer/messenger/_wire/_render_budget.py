@@ -10,6 +10,9 @@ is sent in well under two seconds:
 
 - header text, 192 KiB across the email and its parts: three parts' worth of the 64 KiB one
   part's headers may hold;
+- headers, 2048 across the email and its parts: each costs its share to send however little it
+  holds, and four parts' worth of the 512 one part may hold is more than an email of as many
+  parts as it may hold writes;
 - addresses, 2000 across every header: two lists as long as one may be;
 - names beside an address or a group, 16 KiB together: a hundred recipients with names as
   long as one may be (256 characters, ``_addresses``);
@@ -41,6 +44,7 @@ __all__ = [
     "FOREIGN_NAME_LENGTH",
     "FOREIGN_TEXT_LENGTH",
     "FOREIGN_VALUE_LENGTH",
+    "HEADER_COUNT",
     "HEADER_TEXT_LENGTH",
     "NAME_TEXT_LENGTH",
     "PART_COUNT",
@@ -48,6 +52,7 @@ __all__ = [
 ]
 
 HEADER_TEXT_LENGTH: Final = 192 * 1024
+HEADER_COUNT: Final = 2048
 ADDRESS_COUNT: Final = 2000
 NAME_TEXT_LENGTH: Final = 16 * 1024
 FOREIGN_VALUE_LENGTH: Final = 16 * 1024
@@ -61,6 +66,7 @@ class _Tally:
     """What the email read so far holds, against each limit."""
 
     header_text: int = 0
+    headers: int = 0
     addresses: int = 0
     name_text: int = 0
     foreign_text: int = 0
@@ -111,6 +117,7 @@ def _part(part: AbstractPart, tally: _Tally) -> None:
 def _headers(headers: Headers, tally: _Tally) -> None:
     for header in headers.all():
         tally.header_text += carried(header)
+        tally.headers += 1
         for held in held_texts(header):
             _held(held, tally)
         _check(tally)
@@ -139,6 +146,7 @@ def _held(held: HeldText, tally: _Tally) -> None:
 def _check(tally: _Tally) -> None:
     for spent, limit, what in (
         (tally.header_text, HEADER_TEXT_LENGTH, "characters of header text"),
+        (tally.headers, HEADER_COUNT, "headers"),
         (tally.addresses, ADDRESS_COUNT, "addresses"),
         (tally.name_text, NAME_TEXT_LENGTH, "characters of names beside addresses"),
         (tally.foreign_text, FOREIGN_TEXT_LENGTH, "octets of header text beyond ASCII"),

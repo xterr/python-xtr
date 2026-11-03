@@ -11,7 +11,10 @@ sent. Header text is bounded as it is read instead, by limits a real email stays
   takes on one message, more references than a thread gathers;
 - the parameters of a header, 64: a Content-Type holds a handful;
 - the headers of one message or part together, 64 KiB of text: eight values as long as one
-  may be, many times what a signed and tracked email carries.
+  may be, many times what a signed and tracked email carries;
+- the headers of one message or part, 512 of them: a real one carries under a hundred, a long
+  chain of Received headers included. Each header costs its own share to send whatever it
+  holds, so their number is bounded as well as their text.
 
 What a whole email holds across its headers and parts is bounded once it is read
 (``_render_budget``), from the pieces of text :func:`held_texts` tells apart.
@@ -43,6 +46,7 @@ if TYPE_CHECKING:
     from xtr_mime import Group, HeaderInterface
 
 __all__ = [
+    "BLOCK_HEADER_COUNT",
     "BLOCK_LENGTH",
     "LIST_LENGTH",
     "PARAMETER_COUNT",
@@ -59,6 +63,7 @@ VALUE_LENGTH: Final = 8 * 1024
 LIST_LENGTH: Final = 1000
 PARAMETER_COUNT: Final = 64
 BLOCK_LENGTH: Final = 64 * 1024
+BLOCK_HEADER_COUNT: Final = 512
 
 # What the engine refuses to write in a header: every C0 control but the tab, DEL, the C1
 # controls, the line and paragraph separators and a lone surrogate.

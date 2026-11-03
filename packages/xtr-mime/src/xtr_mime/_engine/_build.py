@@ -166,16 +166,7 @@ def set_fields(part: EnginePart, fields: Sequence[str]) -> None:
             continuation of it, holds a control character, a line separator or a lone
             surrogate, or is longer than 998 octets.
     """
-    for name in {name.lower() for name in part}:
-        del part[name]
-    for field_text in fields:
-        name, colon, rest = field_text.partition(":")
-        check_name(name)
-        if not colon:
-            raise RfcComplianceError(f"{field_text!r} is not a header field: Name: body.")
-        folded = f"{field_text}\r\n"
-        check_folded(folded)
-        part.set_raw(name, FoldedHeader(name, SOURCE_FOLD.sub("", rest).strip(" \t"), folded))
+    _replace_headers(part, [_field(field_text) for field_text in fields])
 
 
 def prepend_fields(part: EnginePart, fields: Sequence[str]) -> None:
@@ -187,10 +178,28 @@ def prepend_fields(part: EnginePart, fields: Sequence[str]) -> None:
     Raises:
         RfcComplianceError: As :func:`set_fields` does, for any of ``fields``.
     """
-    carried = list(part.raw_items())
-    set_fields(part, fields)
-    for name, value in carried:
-        part.set_raw(name, value)
+    _replace_headers(part, [*map(_field, fields), *part.raw_items()])
+
+
+def _field(field_text: str) -> tuple[str, str]:
+    name, colon, rest = field_text.partition(":")
+    check_name(name)
+    if not colon:
+        raise RfcComplianceError(f"{field_text!r} is not a header field: Name: body.")
+    folded = f"{field_text}\r\n"
+    check_folded(folded)
+    return name, FoldedHeader(name, SOURCE_FOLD.sub("", rest).strip(" \t"), folded)
+
+
+def _replace_headers(part: EnginePart, headers: list[tuple[str, str]]) -> None:
+    """Make ``headers`` the whole list of the part's headers, in one step.
+
+    The package deletes headers one name at a time, each deletion rebuilding the whole list:
+    clearing a part that way costs the number of its names times the number of its headers.
+    Its list — ``_headers``, which ``raw_items`` reads and ``set_raw`` appends to — is set at
+    once instead.
+    """
+    vars(part)["_headers"] = headers
 
 
 def _finish(part: EnginePart, media_type: Parameterized, leaf: TextLeaf | BinaryLeaf) -> None:

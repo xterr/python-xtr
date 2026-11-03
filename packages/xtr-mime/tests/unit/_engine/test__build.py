@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.support.engine_cases import text_leaf
+from tests.support.growth import assert_linear_growth
 from xtr_mime import _engine
 from xtr_mime._engine import BinaryLeaf, Mailbox, Parameterized
 from xtr_mime._engine._policy import POLICY
@@ -257,6 +258,30 @@ def test_prepend_fields_puts_the_fields_before_the_headers_the_part_carries() ->
 
     rendered = _engine.to_bytes(part)
     assert rendered.startswith(b"Subject: first\r\nX-A: second\r\nContent-Type: text/plain\r\n\r\n")
+
+
+def _fields(size: int) -> list[str]:
+    """``size`` fields, each of a name no other has."""
+    return [f"X-{index}: a" for index in range(size)]
+
+
+def test_set_fields_replaces_headers_of_distinct_names_in_time_linear_in_them() -> None:
+    def replace(size: int) -> None:
+        part = _engine.build_verbatim(b"")
+        _engine.set_fields(part, _fields(size))
+        _engine.set_fields(part, ["X-A: b"])
+
+    _ = assert_linear_growth(replace, 5_000)
+
+
+def test_prepend_fields_before_headers_of_distinct_names_takes_time_linear_in_them() -> None:
+    def prepend(size: int) -> int:
+        part = _engine.build_verbatim(b"")
+        _engine.set_fields(part, _fields(size))
+        _engine.prepend_fields(part, ["Subject: first"])
+        return len(part)
+
+    assert assert_linear_growth(prepend, 5_000) == 20_001
 
 
 def test_prepend_fields_refuses_a_field_that_is_not_one() -> None:

@@ -10,7 +10,12 @@ from xtr_mime.header import FoldedHeader
 
 from xtr_mailer.exception import InvalidArgumentError
 from xtr_mailer.header import MetadataHeader, TagHeader, TrackingHeader
-from xtr_mailer.messenger._wire._header_limits import BLOCK_LENGTH, LIST_LENGTH, VALUE_LENGTH
+from xtr_mailer.messenger._wire._header_limits import (
+    BLOCK_HEADER_COUNT,
+    BLOCK_LENGTH,
+    LIST_LENGTH,
+    VALUE_LENGTH,
+)
 from xtr_mailer.messenger._wire._headers import read_headers, write_headers
 
 _TEXT_HEADER = {"$type": "text", "name": "X-A", "charset": "utf-8", "language": None, "value": "v"}
@@ -249,4 +254,24 @@ def test_headers_holding_more_text_than_a_real_email_writes_are_refused() -> Non
     assert str(raised.value) == (
         f"The queued email cannot be read: headers holds more than {BLOCK_LENGTH} characters "
         "of header text."
+    )
+
+
+def _tiny(count: int, *before: object) -> dict[str, object]:
+    return _fields(*before, *(_held("text", "X", value="a") for _ in range(count)))
+
+
+def test_as_many_headers_as_a_real_email_writes_are_read() -> None:
+    headers = read_headers(_tiny(BLOCK_HEADER_COUNT), "headers")
+
+    assert len(list(headers.all())) == BLOCK_HEADER_COUNT
+
+
+def test_more_headers_than_a_real_email_writes_are_refused_before_one_is_read() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = read_headers(_tiny(BLOCK_HEADER_COUNT, "not a header"), "headers")
+
+    assert str(raised.value) == (
+        f"The queued email cannot be read: headers.fields holds more than {BLOCK_HEADER_COUNT} "
+        "headers."
     )

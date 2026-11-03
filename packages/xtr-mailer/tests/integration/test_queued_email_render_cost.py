@@ -88,8 +88,19 @@ def _attachments_holding(value: str) -> str:
         _with_fields(_cc(("J\u00fcrgen \u00e9 " * 111)[:998])),
         _attachments_holding(_EMOJI * 8192),
         queued(_email().cc(*[Address(f"c{i}@example.com", _EMOJI * 256) for i in range(5)])),
+        # From and To are two of the headers the email holds.
+        _with_fields(*[_text("a")] * 511),
+        queued(SHAPES["tiny headers"](LIMITS["tiny headers"] + 1)),
     ],
-    ids=["emoji values", "emoji names", "accented names", "emoji parts", "names past the limit"],
+    ids=[
+        "emoji values",
+        "emoji names",
+        "accented names",
+        "emoji parts",
+        "names past the limit",
+        "headers of a part",
+        "headers of an email",
+    ],
 )
 def test_an_email_past_a_limit_is_refused_at_decode_repeating_nothing(body: str) -> None:
     with pytest.raises(MessageDecodingFailedError) as raised:

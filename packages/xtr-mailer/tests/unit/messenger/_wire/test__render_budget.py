@@ -24,6 +24,7 @@ from xtr_mailer.messenger._wire._render_budget import (
     FOREIGN_NAME_LENGTH,
     FOREIGN_TEXT_LENGTH,
     FOREIGN_VALUE_LENGTH,
+    HEADER_COUNT,
     HEADER_TEXT_LENGTH,
     NAME_TEXT_LENGTH,
     PART_COUNT,
@@ -79,6 +80,11 @@ def _parts(size: int) -> Message:
     return Message(Headers(), MixedPart(*[TextPart("t") for _ in range(size - 1)]))
 
 
+def _header_count(size: int) -> Message:
+    # The text part writes two headers: Content-Type and Content-Transfer-Encoding.
+    return _message(*["a"] * (size - 2), body=TextPart("t"))
+
+
 _LIMITS: list[tuple[Callable[[int], Message], int, str]] = [
     (_header_text, HEADER_TEXT_LENGTH, "characters of header text"),
     (_addresses, ADDRESS_COUNT, "addresses"),
@@ -87,8 +93,18 @@ _LIMITS: list[tuple[Callable[[int], Message], int, str]] = [
     (_foreign_text, FOREIGN_TEXT_LENGTH, "octets of header text beyond ASCII"),
     (_foreign_names, FOREIGN_NAME_LENGTH, "octets of names and parameters beyond ASCII"),
     (_parts, PART_COUNT, "parts"),
+    (_header_count, HEADER_COUNT, "headers"),
 ]
-_IDS = ["header text", "addresses", "names", "value", "text", "names beyond ASCII", "parts"]
+_IDS = [
+    "header text",
+    "addresses",
+    "names",
+    "value",
+    "text",
+    "names beyond ASCII",
+    "parts",
+    "headers",
+]
 
 
 @pytest.mark.parametrize(("shape", "limit", "reason"), _LIMITS, ids=_IDS)

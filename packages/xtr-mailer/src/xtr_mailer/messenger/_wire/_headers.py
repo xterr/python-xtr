@@ -29,6 +29,7 @@ from xtr_mailer.header import MetadataHeader, TagHeader, TrackingHeader
 from ._addresses import read_address, read_entry, write_address, write_entry
 from ._dates import read_date, write_date
 from ._header_limits import (
+    BLOCK_HEADER_COUNT,
     BLOCK_LENGTH,
     VALUE_LENGTH,
     carried,
@@ -111,8 +112,11 @@ def read_headers(data: object, path: str, headers: Headers | None = None) -> Hea
     found = fields(data, path, ("line_length", "fields"))
     line_length = number(found["line_length"], f"{path}.line_length", 1, 998)
     read = Headers() if headers is None else headers
+    entries = items(found["fields"], f"{path}.fields")
+    if len(entries) > BLOCK_HEADER_COUNT:
+        refuse(f"{path}.fields", f"holds more than {BLOCK_HEADER_COUNT} headers")
     spent = 0
-    for index, entry in enumerate(items(found["fields"], f"{path}.fields")):
+    for index, entry in enumerate(entries):
         where = f"{path}.fields[{index}]"
         header = _read(entry, where)
         spent += carried(header)
