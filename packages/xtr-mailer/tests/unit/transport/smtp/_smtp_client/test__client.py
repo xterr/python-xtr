@@ -189,6 +189,21 @@ async def test_a_reply_that_is_not_utf8_reads_with_replacement_characters() -> N
     assert str(caught.value).endswith('with message "550 caf\ufffd".')
 
 
+async def test_a_reply_holding_control_characters_is_shown_escaped() -> None:
+    async with ScriptedSmtpServer() as server:
+        server.replies["MAIL"] = ["550 \x1b[31mdenied\x1b[2J\x07 until\rnow"]
+        client = await connected_client(server)
+
+        with pytest.raises(UnexpectedResponseError) as caught:
+            _ = await client.execute("MAIL FROM:<sender@example.com>", [250])
+        client.close()
+
+    assert str(caught.value) == (
+        'Expected response code "250" but got code "550", with message '
+        '"550 \\x1b[31mdenied\\x1b[2J\\x07 until\\rnow".'
+    )
+
+
 # Arguments
 
 

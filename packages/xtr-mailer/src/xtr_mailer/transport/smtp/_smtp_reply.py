@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Final
 
+from xtr_mailer._error_text import shown
 from xtr_mailer.exception import UnexpectedResponseError
 
 if TYPE_CHECKING:
@@ -12,6 +13,8 @@ if TYPE_CHECKING:
 
 __all__ = ["message_id_of", "render_reply", "unexpected_response"]
 
+#: The characters of a reply an error shows; the error's debug keeps the whole of it.
+_SHOWN_CHARACTERS: Final = 1000
 _SURROGATE: Final = re.compile("[\ud800-\udfff]")
 _MESSAGE_ID: Final = re.compile(
     r"^250 (?:\S+ )?Ok:?+ (?:queued as |id=)?+(?P<id>[A-Z0-9._-]++)", re.IGNORECASE | re.MULTILINE
@@ -45,10 +48,12 @@ def unexpected_response(
 ) -> UnexpectedResponseError:
     """Build the error for ``reply``, whose ``code`` is none of ``expected_codes``.
 
-    A reply with no code reads as an "empty code" and carries code ``0``.
+    A reply with no code reads as an "empty code" and carries code ``0``. The reply is the
+    server's to write: it is shown escaped — its line breaks and the control characters that
+    would steer a terminal the error is printed on — and cut short.
     """
     got = f'code "{code}"' if code > 0 else "empty code"
-    with_message = f', with message "{reply}"' if reply else ""
+    with_message = f', with message "{shown(reply, _SHOWN_CHARACTERS)}"' if reply else ""
     expected = "/".join(str(expected_code) for expected_code in expected_codes)
     return UnexpectedResponseError(
         f'Expected response code "{expected}" but got {got}{with_message}.', max(code, 0)

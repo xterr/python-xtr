@@ -39,3 +39,20 @@ def test_an_empty_reply_is_an_empty_code() -> None:
 
     assert str(error) == 'Expected response code "220" but got empty code.'
     assert error.code == 0
+
+
+def test_an_unexpected_multiline_reply_is_named_on_one_line() -> None:
+    error = unexpected_response([250], 550, "550-5.7.1 Denied\r\n550 5.7.1 See the policy")
+
+    assert str(error) == (
+        'Expected response code "250" but got code "550", with message '
+        '"550-5.7.1 Denied\\r\\n550 5.7.1 See the policy".'
+    )
+
+
+def test_a_long_unexpected_reply_is_cut_short() -> None:
+    error = unexpected_response([250], 550, "550 " + "x" * 2000)
+
+    assert str(error) == (
+        f'Expected response code "250" but got code "550", with message "550 {"x" * 996}…".'
+    )
