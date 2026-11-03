@@ -104,6 +104,18 @@ def test_a_group_name_holding_an_encoded_word_is_refused() -> None:
         _ = _engine.fold_header("To", [MailboxGroup("=?utf-8?q?hello?=", ())])
 
 
+def test_a_long_display_name_holding_an_encoded_word_is_shown_cut() -> None:
+    name = "=?utf-8?q?x?= " + "x" * 980
+
+    with pytest.raises(RfcComplianceError) as raised:
+        _ = _engine.fold_header("Cc", [Mailbox(name, "real@example.com")])
+
+    assert str(raised.value) == (
+        f'The display name "{name[:64]}…" holds an encoded word: a reader would show it '
+        "decoded, not as the literal text it is."
+    )
+
+
 @pytest.mark.parametrize("address", ["dø mi@example.com", "dø@mi@example.com", "dø."])
 def test_a_non_ascii_local_part_the_engine_cannot_parse_is_refused(address: str) -> None:
     with pytest.raises(RfcComplianceError, match="email address"):

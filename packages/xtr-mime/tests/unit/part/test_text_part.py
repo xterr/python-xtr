@@ -206,9 +206,7 @@ def test_a_body_in_an_unknown_charset_is_refused_with_the_charset_escaped() -> N
     with pytest.raises(InvalidArgumentError) as caught:
         _ = part.to_string()
 
-    assert (
-        str(caught.value) == 'The body is not "no\\r\\nsuch" text: unknown encoding: no\\r\\nsuch.'
-    )
+    assert str(caught.value) == 'The body is not "no\\r\\nsuch" text: no codec goes by that name.'
 
 
 def test_a_body_in_a_charset_holding_a_null_byte_is_refused() -> None:

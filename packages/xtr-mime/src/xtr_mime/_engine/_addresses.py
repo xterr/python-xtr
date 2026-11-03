@@ -9,6 +9,7 @@ from typing import Final
 
 import idna
 
+from xtr_mime._error_text import capped
 from xtr_mime.exception import RfcComplianceError
 
 from ._grammar import refuse_forbidden
@@ -38,7 +39,8 @@ def encode_idn_address(address: str) -> str:
         encoded = idna.encode(domain, uts46=True, std3_rules=True).decode("ascii")
     except idna.IDNAError as error:
         raise RfcComplianceError(
-            f"The domain {domain!r} of {address!r} cannot be written in ASCII: {error}."
+            f'The domain "{capped(domain)}" of "{capped(address)}" cannot be written in ASCII: '
+            f"{error}."
         ) from error
     return f"{local}@{encoded}"
 
@@ -52,8 +54,8 @@ def _check_literal_name(display_name: str) -> None:
     refuse_forbidden("A display name", display_name)
     if _ENCODED_WORD.search(display_name):
         raise RfcComplianceError(
-            f"The display name {display_name!r} holds an encoded word: a reader would show it "
-            "decoded, not as the literal text it is."
+            f'The display name "{capped(display_name)}" holds an encoded word: a reader would '
+            "show it decoded, not as the literal text it is."
         )
 
 
@@ -71,7 +73,7 @@ def to_address(mailbox: Mailbox) -> Address:
     refuse_forbidden("An email address", mailbox.address)
     if "=?" in mailbox.address:
         raise RfcComplianceError(
-            f'"{mailbox.address}" holds an encoded word: the engine would decode it into '
+            f'"{capped(mailbox.address)}" holds an encoded word: the engine would decode it into '
             "another address."
         )
     encoded = encode_idn_address(mailbox.address)
@@ -81,7 +83,7 @@ def to_address(mailbox: Mailbox) -> Address:
         return Address(mailbox.display_name, addr_spec=encoded)
     except (ValueError, HeaderParseError) as error:
         raise RfcComplianceError(
-            f'"{mailbox.address}" is not a valid email address: {error}.'
+            f'"{capped(mailbox.address)}" is not a valid email address: {error}.'
         ) from error
 
 
@@ -97,5 +99,5 @@ def _utf8_address(display_name: str, encoded: str) -> Address:
     addresses = as_address_header(header).addresses
     if complaints or len(groups) != 1 or len(addresses) != 1 or addresses[0].display_name:
         reason = complaints[0] if complaints else "not a single bare address"
-        raise RfcComplianceError(f'"{encoded}" is not a valid email address: {reason}.')
+        raise RfcComplianceError(f'"{capped(encoded)}" is not a valid email address: {reason}.')
     return Address(display_name, addresses[0].username, addresses[0].domain)

@@ -34,10 +34,17 @@ def body_charset_error(charset: str, error: LookupError | ValueError) -> Invalid
     """Return the error for a body that cannot be read, or written, in ``charset``.
 
     A codec's own message shows the characters and bytes it names escaped already; the one
-    for an unknown charset, or for a null byte in its name, may repeat the charset as given.
+    for an unknown charset repeats the charset, which is shown once, cut, so its own words
+    stand in for it.
     """
-    reason = str(error) if isinstance(error, UnicodeError) else escaped(str(error))
-    return InvalidArgumentError(f'The body is not "{escaped(charset)}" text: {reason}.')
+    if isinstance(error, UnicodeError):
+        reason = str(error)
+    elif isinstance(error, LookupError):
+        reason = "no codec goes by that name"
+    else:
+        # A null byte in the name: the codecs say so without repeating it.
+        reason = capped(str(error))
+    return InvalidArgumentError(f'The body is not "{capped(charset)}" text: {reason}.')
 
 
 def check_charset(charset: str) -> None:

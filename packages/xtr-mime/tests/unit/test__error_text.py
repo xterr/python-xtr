@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from xtr_mime._error_text import capped, escaped
+import codecs
+
+import pytest
+
+from xtr_mime._error_text import body_charset_error, capped, escaped
 
 
 def test_a_value_is_escaped_as_repr_shows_it() -> None:
@@ -19,3 +23,13 @@ def test_a_value_of_64_characters_is_shown_whole() -> None:
 
 def test_a_longer_value_is_cut_to_its_first_64_characters() -> None:
     assert capped("a" * 64 + "\r\nBcc: victim@example.com") == "a" * 64 + "…"
+
+
+def test_an_unknown_charset_is_shown_cut_and_once() -> None:
+    charset = "c" * 500
+    with pytest.raises(LookupError) as raised:
+        _ = codecs.lookup(charset)
+
+    error = body_charset_error(charset, raised.value)
+
+    assert str(error) == f'The body is not "{"c" * 64}…" text: no codec goes by that name.'

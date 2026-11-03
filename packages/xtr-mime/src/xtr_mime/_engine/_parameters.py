@@ -7,6 +7,7 @@ import urllib.parse
 from email.utils import quote
 from typing import TYPE_CHECKING, Final
 
+from xtr_mime._error_text import capped
 from xtr_mime.exception import RfcComplianceError
 
 from ._grammar import FOLD_WIDTH, SOURCE_FOLD, TOKEN, body_of, check_token, refuse_forbidden
@@ -89,12 +90,12 @@ def _check_parameterized(name: str, value: Parameterized) -> None:
     if name.lower() == "content-type":
         maintype, slash, subtype = value.value.partition("/")
         if not (slash and TOKEN.fullmatch(maintype) and TOKEN.fullmatch(subtype)):
-            raise RfcComplianceError(f"{value.value!r} is not a media type: type/subtype.")
+            raise RfcComplianceError(f'"{capped(value.value)}" is not a media type: type/subtype.')
     else:
         check_token(f"{name} value", value.value)
     for key, item in value.parameters.items():
         if not _PARAMETER_NAME.fullmatch(key):
-            raise RfcComplianceError(f"{key!r} is not a parameter name: an RFC 2231 token.")
+            raise RfcComplianceError(f'"{capped(key)}" is not a parameter name: an RFC 2231 token.')
         refuse_forbidden(f"The {key} parameter", item)
 
 

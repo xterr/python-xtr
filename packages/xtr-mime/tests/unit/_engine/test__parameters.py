@@ -172,6 +172,15 @@ def test_a_content_type_that_is_not_type_slash_subtype_is_refused(value: str) ->
         _ = _engine.fold_header("Content-Type", Parameterized(value))
 
 
+def test_a_long_content_type_that_is_no_media_type_is_shown_cut() -> None:
+    value = "application/" + "x" * 530 + " y"
+
+    with pytest.raises(RfcComplianceError) as raised:
+        _ = _engine.fold_header("Content-Type", Parameterized(value))
+
+    assert str(raised.value) == f'"{value[:64]}…" is not a media type: type/subtype.'
+
+
 @pytest.mark.parametrize(
     "filename",
     [
