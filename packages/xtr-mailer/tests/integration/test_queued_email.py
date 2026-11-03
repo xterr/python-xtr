@@ -13,7 +13,9 @@ from __future__ import annotations
 import base64
 import io
 import re
+from datetime import datetime
 from typing import TYPE_CHECKING, BinaryIO
+from zoneinfo import ZoneInfo
 
 import pytest
 from xtr_messenger import Envelope as BusEnvelope
@@ -100,6 +102,21 @@ async def test_tag_metadata_and_tracking_headers_come_off_the_queue_of_their_cla
         MetadataHeader,
         TrackingHeader,
     ]
+
+
+@pytest.mark.parametrize("fold", [0, 1])
+async def test_a_date_in_an_hour_the_clocks_repeat_comes_off_the_queue_the_same_one(
+    fold: int,
+) -> None:
+    zone = ZoneInfo("Europe/Bucharest")
+    email = _email().date(datetime(2026, 10, 25, 3, 30, tzinfo=zone, fold=fold))
+
+    queued = (await through_the_queue(email)).message
+    assert isinstance(queued, Email)
+
+    date = queued.get_date()
+    assert date is not None
+    assert (date, date.tzinfo, date.fold) == (email.get_date(), zone, fold)
 
 
 async def test_inline_and_path_attachments_travel_as_their_content(tmp_path: Path) -> None:

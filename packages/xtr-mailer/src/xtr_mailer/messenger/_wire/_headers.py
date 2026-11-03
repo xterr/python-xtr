@@ -9,7 +9,6 @@ bounded, and the headers of a part together, before they are built: see ``_heade
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from typing import TYPE_CHECKING, Final, cast
 
 from xtr_mime import (
@@ -28,6 +27,7 @@ from xtr_mailer.exception import InvalidArgumentError
 from xtr_mailer.header import MetadataHeader, TagHeader, TrackingHeader
 
 from ._addresses import read_address, read_entry, write_address, write_entry
+from ._dates import read_date, write_date
 from ._header_limits import (
     BLOCK_LENGTH,
     VALUE_LENGTH,
@@ -143,7 +143,7 @@ def _held(header: HeaderInterface) -> tuple[str, JsonObject]:
         case MailboxListHeader():
             return "mailbox_list", {"entries": list(map(write_entry, header.get_address_list()))}
         case DateHeader():
-            return "date", {"value": header.get_date_time().isoformat()}
+            return "date", {"value": write_date(header.get_date_time())}
         case IdentificationHeader():
             return "id", {"ids": header.get_ids()}
         case _:
@@ -214,10 +214,11 @@ def _built(kind: str, name: str, found: JsonObject, path: str) -> HeaderInterfac
 
 
 def _built_text(kind: str, name: str, found: JsonObject, path: str) -> HeaderInterface:
+    if kind == "date":
+        date = read_date(found["value"], f"{path}.value")
+        return built(path, "a header", lambda: DateHeader(name, date))
     value = header_value(found["value"], f"{path}.value")
     match kind:
-        case "date":
-            return built(path, "a header", lambda: DateHeader(name, datetime.fromisoformat(value)))
         case "tag":
             return built(path, "a header", lambda: TagHeader(value))
         case "metadata":
