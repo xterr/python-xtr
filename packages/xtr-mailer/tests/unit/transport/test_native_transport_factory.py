@@ -8,7 +8,8 @@ import pytest
 from xtr_mime import Address, RawMessage
 
 from tests.support.sendmail_fakes import FAKE_SENDMAIL, FakeSendmail
-from xtr_mailer import Envelope, TransportError, UnsupportedSchemeError
+from xtr_mailer import Envelope, TransportError
+from xtr_mailer.testing import FactoryCases, assert_factory_cases
 from xtr_mailer.transport import (
     Dsn,
     NativeTransportFactory,
@@ -42,13 +43,21 @@ def no_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(native_transport_factory, "FALLBACK_PATH", str(tmp_path / "missing"))
 
 
-def test_it_refuses_another_scheme() -> None:
-    with pytest.raises(UnsupportedSchemeError) as caught:
-        _ = NativeTransportFactory().create(Dsn.from_string("sendmail://default"))
-
-    assert str(caught.value) == (
-        'The "sendmail" scheme is not supported; supported schemes for mailer "native" are: '
-        '"native".'
+def test_it_serves_the_native_scheme_alone() -> None:
+    assert_factory_cases(
+        FactoryCases(
+            create_factory=NativeTransportFactory,
+            supports=[(Dsn("native", "default"), True), (Dsn("sendmail", "default"), False)],
+            unsupported_scheme=[
+                (
+                    Dsn.from_string("sendmail://default"),
+                    (
+                        'The "sendmail" scheme is not supported; supported schemes for mailer '
+                        '"native" are: "native".'
+                    ),
+                )
+            ],
+        )
     )
 
 

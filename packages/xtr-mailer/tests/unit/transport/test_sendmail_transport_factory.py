@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from xtr_event_dispatcher import EventDispatcher
 from xtr_http_client import MockHttpClient
 from xtr_logging_contracts import NullLogger
 
-from xtr_mailer import InvalidArgumentError, UnsupportedSchemeError
+from xtr_mailer import InvalidArgumentError
+from xtr_mailer.testing import FactoryCases, assert_factory_cases
 from xtr_mailer.transport import (
     Dsn,
     SendmailTransport,
@@ -14,46 +17,58 @@ from xtr_mailer.transport import (
     TransportFactoryInterface,
 )
 
+if TYPE_CHECKING:
+    from xtr_mailer.transport import TransportInterface
+
 
 def _factory() -> SendmailTransportFactory:
     return SendmailTransportFactory(None, MockHttpClient(), NullLogger())
+
+
+def _command_of(transport: TransportInterface) -> str:
+    """What two sendmail transports built alike agree on: the command they run."""
+    assert isinstance(transport, SendmailTransport)
+    return transport._command
 
 
 def test_it_is_a_transport_factory() -> None:
     assert isinstance(_factory(), TransportFactoryInterface)
 
 
-@pytest.mark.parametrize(
-    ("dsn", "supported"),
-    [
-        (Dsn("sendmail+smtp", "default"), True),
-        (Dsn("sendmail", "default"), True),
-        (Dsn("sendmail+http", "default"), False),
-    ],
-)
-def test_it_supports_the_sendmail_schemes(dsn: Dsn, supported: bool) -> None:
-    assert _factory().supports(dsn) is supported
+def test_it_does_what_every_factory_owes() -> None:
+    command = "/usr/sbin/sendmail -oi -t"
+    piped = SendmailTransport(command, logger=NullLogger())
+    # A command read from a DSN string is decoded.
+    encoded = Dsn.from_string("sendmail://default?command=/usr/sbin/sendmail%20-oi%20-t")
 
-
-def test_it_creates_a_sendmail_transport_in_smtp_mode_by_default() -> None:
-    transport = _factory().create(Dsn("sendmail+smtp", "default"))
-
-    assert isinstance(transport, SendmailTransport)
-    assert transport._command == "/usr/sbin/sendmail -bs"
-
-
-def test_the_command_option_picks_the_command() -> None:
-    dsn = Dsn("sendmail+smtp", "default", options={"command": "/usr/sbin/sendmail -oi -t"})
-
-    transport = _factory().create(dsn)
-
-    assert transport._command == "/usr/sbin/sendmail -oi -t"
-
-
-def test_a_command_read_from_a_dsn_string_is_decoded() -> None:
-    dsn = Dsn.from_string("sendmail://default?command=/usr/sbin/sendmail%20-oi%20-t")
-
-    assert _factory().create(dsn)._command == "/usr/sbin/sendmail -oi -t"
+    assert_factory_cases(
+        FactoryCases(
+            create_factory=_factory,
+            supports=[
+                (Dsn("sendmail+smtp", "default"), True),
+                (Dsn("sendmail", "default"), True),
+                (Dsn("sendmail+http", "default"), False),
+            ],
+            create=[
+                (
+                    Dsn("sendmail+smtp", "default"),
+                    SendmailTransport("/usr/sbin/sendmail -bs", logger=NullLogger()),
+                ),
+                (Dsn("sendmail+smtp", "default", options={"command": command}), piped),
+                (encoded, piped),
+            ],
+            unsupported_scheme=[
+                (
+                    Dsn("sendmail+http", "default"),
+                    (
+                        'The "sendmail+http" scheme is not supported; supported schemes for '
+                        'mailer "sendmail" are: "sendmail", "sendmail+smtp".'
+                    ),
+                )
+            ],
+            read_state=_command_of,
+        )
+    )
 
 
 @pytest.mark.parametrize("option", ["command[]=a", "command[x]=a"])
@@ -74,16 +89,6 @@ def test_the_transport_gets_the_factory_dispatcher_and_logger() -> None:
 
     assert transport._event_dispatcher is dispatcher
     assert transport._logger is logger
-
-
-def test_it_refuses_another_scheme() -> None:
-    with pytest.raises(UnsupportedSchemeError) as caught:
-        _ = _factory().create(Dsn("sendmail+http", "default"))
-
-    assert str(caught.value) == (
-        'The "sendmail+http" scheme is not supported; supported schemes for mailer "sendmail" '
-        'are: "sendmail", "sendmail+smtp".'
-    )
 
 
 @pytest.mark.parametrize("scheme", ["sendmail", "sendmail+smtp"])
