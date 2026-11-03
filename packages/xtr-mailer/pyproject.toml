@@ -59,6 +59,10 @@ smtps = "xtr_mailer.transport.smtp:EsmtpTransportFactory"
 [project.entry-points."xtr_dependency_injection.bundles"]
 mailer = "xtr_mailer.bundle:MailerBundle"
 
+# The recipe an application applies to activate and configure the bundle above.
+[project.entry-points."xtr_recipes"]
+mailer = "xtr_mailer.recipe"
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.21",
