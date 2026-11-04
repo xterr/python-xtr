@@ -1,7 +1,7 @@
 """What the builder does with a DSN written to break it: refuses it, fast, keeping secrets.
 
 Fast means in time growing with the DSN's length, never with its square: each hostile shape is
-read at sizes climbing four-fold up to a megabyte, the megabyte last (see
+read at sizes doubling up to a megabyte, the megabyte last (see
 :mod:`tests.support.growth`), so a quadratic reading fails at a small size instead of running
 for minutes on the megabyte.
 """
