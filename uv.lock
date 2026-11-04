@@ -5528,8 +5528,11 @@ smime = [
 dev = [
     { name = "anyio" },
     { name = "basedpyright" },
+    { name = "cryptography" },
+    { name = "dkimpy" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "python-magic" },
     { name = "ruff" },
     { name = "ty" },
     { name = "xtr-dependency-injection" },
@@ -5552,8 +5555,11 @@ provides-extras = ["dkim", "smime", "magic"]
 dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
+    { name = "cryptography", specifier = ">=45" },
+    { name = "dkimpy", specifier = ">=1.1.8,<2" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
+    { name = "python-magic", specifier = ">=0.4.27" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },

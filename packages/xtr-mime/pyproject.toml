@@ -54,6 +54,10 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
+    # The extras' libraries, so the DKIM, S/MIME and content-sniffing code is tested and checked.
+    "cryptography>=45",
+    "dkimpy>=1.1.8,<2",
+    "python-magic>=0.4.27",
     "xtr-dependency-injection>=5.0,<6",
 ]
 
