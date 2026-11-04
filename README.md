@@ -279,13 +279,13 @@ uv add "xtr-scheduler[cron]"
 
 Every package shares one version and is released together, even one that did not change — any
 two `xtr-*` packages at the same version are known to work together. Packages require their
-siblings by major version (`xtr-logging-contracts>=5.0,<6`).
+siblings by major version (`xtr-logging-contracts>=6.0,<7`).
 
 [`scripts/release.py`](scripts/release.py) keeps that consistent:
 
 ```sh
 uv run scripts/release.py check        # every package and this README on one version (CI runs this)
-uv run scripts/release.py bump 5.2.1   # move every package and this README; on a new major, rewrite the ranges
+uv run scripts/release.py bump 6.0.0   # move every package and this README; on a new major, rewrite the ranges
 ```
 
 A package classified `Private :: Do Not Upload` moves with the rest but is never published or
@@ -294,15 +294,15 @@ split.
 ## Releasing
 
 ```sh
-uv run scripts/release.py bump 5.2.1
-git commit -am "bump: 5.2.1" && git push
-git tag 5.2.1 && git push origin 5.2.1
+uv run scripts/release.py bump 6.0.0
+git commit -am "bump: 6.0.0" && git push
+git tag 6.0.0 && git push origin 6.0.0
 ```
 
 The tag starts the [release workflow](.github/workflows/release.yml): it waits for CI to pass on
 the tagged commit's push to `main` — nothing is released otherwise — checks the tag against the
 packages' version, publishes every package to PyPI through trusted publishing, and tags each
-read-only repository `5.2.1`.
+read-only repository `6.0.0`.
 
 ## Repositories
 
@@ -399,7 +399,7 @@ packages/xtr-<name>/
 ```toml
 [project]
 name = "xtr-<name>"
-version = "5.2.1"
+version = "6.0.0"
 description = "<one-line pitch, on this project's own terms>."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -433,7 +433,7 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "xtr-dependency-injection>=5.0,<6",
+    "xtr-dependency-injection>=6.0,<7",
 ]
 
 [build-system]

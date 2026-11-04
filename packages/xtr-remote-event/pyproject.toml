@@ -1,6 +1,6 @@
 [project]
 name = "xtr-remote-event"
-version = "5.2.1"
+version = "6.0.0"
 description = "Events received from another system, as one value type, handed to the consumer registered under their source's name — directly or through a message bus."
 readme = "README.md"
 authors = [
@@ -22,10 +22,10 @@ classifiers = [
 ]
 dependencies = [
     "typing-extensions>=4.4",
-    "xtr-messenger>=5.0,<6",
+    "xtr-messenger>=6.0,<7",
     # Remote events are a class hierarchy, tagged with each class's name on the wire.
-    "xtr-serializer>=5.0,<6",
-    "xtr-service-contracts>=5.0,<6",
+    "xtr-serializer>=6.0,<7",
+    "xtr-service-contracts>=6.0,<7",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -45,9 +45,9 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "xtr-dependency-injection>=5.0,<6",
+    "xtr-dependency-injection>=6.0,<7",
     # The round-trip tests carry a date point, the clock's own datetime.
-    "xtr-clock>=5.0,<6",
+    "xtr-clock>=6.0,<7",
 ]
 
 [build-system]

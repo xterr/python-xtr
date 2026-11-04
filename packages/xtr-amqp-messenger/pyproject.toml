@@ -1,6 +1,6 @@
 [project]
 name = "xtr-amqp-messenger"
-version = "5.2.1"
+version = "6.0.0"
 description = "A RabbitMQ transport for xtr-messenger: queues on an AMQP broker, a retry ladder, delays and real dead-lettering, through taskiq."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,7 +27,7 @@ dependencies = [
     "taskiq-aio-pika>=0.6.0",
     "typing-extensions>=4.4",
     # The broker-agnostic taskiq bridge this transport builds on lives in the message bus.
-    "xtr-messenger>=5.0,<6",
+    "xtr-messenger>=6.0,<7",
 ]
 
 # Found by the message bus when a DSN's scheme is amqp or amqps, with no wiring:
@@ -48,9 +48,9 @@ dev = [
     "pytest-cov>=5",
     "ty>=0.0.83",
     # The envelope serializer the tests encode with is built on it, as the messenger's is.
-    "xtr-serializer>=5.0,<6",
+    "xtr-serializer>=6.0,<7",
     # Read the shipped recipe with the parser recipes:sync uses.
-    "xtr-recipes>=5.0,<6",
+    "xtr-recipes>=6.0,<7",
 ]
 
 [build-system]

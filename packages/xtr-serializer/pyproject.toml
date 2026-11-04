@@ -1,6 +1,6 @@
 [project]
 name = "xtr-serializer"
-version = "5.2.1"
+version = "6.0.0"
 description = "Turn objects into JSON and back exactly — dataclasses, models, class hierarchies and dates arrive as they left, or are refused — through a chain of normalizers and encoders."
 readme = "README.md"
 authors = [
@@ -43,9 +43,9 @@ dev = [
     # EmailStr and NameEmail are read by it; their refusals are tested against its words.
     "email-validator>=2.0",
     "ty>=0.0.83",
-    "xtr-clock>=5.0,<6",
-    "xtr-console>=5.0,<6",
-    "xtr-dependency-injection>=5.0,<6",
+    "xtr-clock>=6.0,<7",
+    "xtr-console>=6.0,<7",
+    "xtr-dependency-injection>=6.0,<7",
 ]
 
 [build-system]

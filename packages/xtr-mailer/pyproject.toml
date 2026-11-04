@@ -1,6 +1,6 @@
 [project]
 name = "xtr-mailer"
-version = "5.2.1"
+version = "6.0.0"
 description = "Send email through SMTP, sendmail or a provider's API — picked by DSN, in-process or queued on a message bus, with failover, round-robin, envelope and header overrides, DKIM and S/MIME signing, and S/MIME encryption."
 readme = "README.md"
 authors = [
@@ -25,25 +25,25 @@ dependencies = [
     # Speaks SMTP, to a mail server or to a local sendmail over its standard streams.
     "aiosmtplib>=5.1,<6",
     # The email a transport sends, and the bytes it renders to.
-    "xtr-mime>=5.0,<6",
+    "xtr-mime>=6.0,<7",
     # What throttling, an idle connection's ping and a dead transport's rest are measured with.
-    "xtr-clock>=5.0,<6",
+    "xtr-clock>=6.0,<7",
     # Listeners see every email before it goes, and hear whether it was sent or failed.
-    "xtr-event-dispatcher-contracts>=5.0,<6",
+    "xtr-event-dispatcher-contracts>=6.0,<7",
     # The client interface provider transports talk through; the client itself is
     # installed by the application.
-    "xtr-http-client-contracts>=5.0,<6",
+    "xtr-http-client-contracts>=6.0,<7",
     # Transports log through the logging interface; the application picks the logger.
-    "xtr-logging-contracts>=5.0,<6",
+    "xtr-logging-contracts>=6.0,<7",
     # The listener that keeps every email it saw is emptied when the container resets it.
-    "xtr-service-contracts>=5.0,<6",
+    "xtr-service-contracts>=6.0,<7",
 ]
 
 [project.optional-dependencies]
 # Sign outgoing email with DKIM.
-dkim = ["xtr-mime[dkim]>=5.0,<6"]
+dkim = ["xtr-mime[dkim]>=6.0,<7"]
 # Sign and encrypt outgoing email with S/MIME.
-smime = ["xtr-mime[smime]>=5.0,<6"]
+smime = ["xtr-mime[smime]>=6.0,<7"]
 
 # The transport factory for each DSN scheme this package serves, found by the scheme a DSN
 # names; a provider library advertises its own schemes under the same group.
@@ -71,23 +71,23 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "xtr-dependency-injection>=5.0,<6",
+    "xtr-dependency-injection>=6.0,<7",
     # A real dispatcher carries the email events in transport tests.
-    "xtr-event-dispatcher>=5.0,<6",
+    "xtr-event-dispatcher>=6.0,<7",
     # MockHttpClient stands in for the network in transport tests.
-    "xtr-http-client>=5.0,<6",
+    "xtr-http-client>=6.0,<7",
     # The kernel tests read what the transports and the listeners log on the mailer's channel.
-    "xtr-logging>=5.0,<6",
+    "xtr-logging>=6.0,<7",
     # The event tests stamp a queued email for the message bus.
-    "xtr-messenger>=5.0,<6",
+    "xtr-messenger>=6.0,<7",
     # The rate-limiting tests cap a transport with a real limiter.
-    "xtr-rate-limiter>=5.0,<6",
+    "xtr-rate-limiter>=6.0,<7",
     # The command that sends a test email is written against it.
-    "xtr-console>=5.0,<6",
+    "xtr-console>=6.0,<7",
     # The TLS tests generate the certificate the scripted SMTP server presents.
     "cryptography>=45",
     # The API transport tests send an email signed with DKIM.
-    "xtr-mime[dkim]>=5.0,<6",
+    "xtr-mime[dkim]>=6.0,<7",
 ]
 
 [build-system]

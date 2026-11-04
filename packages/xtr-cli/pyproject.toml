@@ -1,6 +1,6 @@
 [project]
 name = "xtr-cli"
-version = "5.2.1"
+version = "6.0.0"
 description = "Scaffolds a new xtr application — a console application or a web application — in one command, and serves it."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -21,7 +21,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-console>=5.0,<6",
+    "xtr-console>=6.0,<7",
 ]
 
 # `uvx xtr-cli <command>` runs the script named after the distribution; `xtr` is the

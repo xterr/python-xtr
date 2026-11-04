@@ -56,8 +56,8 @@ shop — the webapp template
 
 write pyproject.toml
 …
-run   uv add -- 'xtr-dependency-injection>=5.0,<6' …
-run   uv add --dev -- 'xtr-recipes>=5.0,<6' pytest httpx ruff basedpyright ty
+run   uv add -- 'xtr-dependency-injection>=6.0,<7' …
+run   uv add --dev -- 'xtr-recipes>=6.0,<7' pytest httpx ruff basedpyright ty
 run   uv run xtr-recipes recipes:sync
 run   git init --quiet
 

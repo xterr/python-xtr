@@ -1,6 +1,6 @@
 [project]
 name = "xtr-orm-messenger"
-version = "5.2.1"
+version = "6.0.0"
 description = "A database transport for xtr-messenger: messages kept in a table on an xtr-orm connection, claimed by workers, delayed, redelivered and woken by notifications."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,9 +25,9 @@ dependencies = [
     "msgspec>=0.18",
     "sqlalchemy[asyncio]>=2.0.41",
     "typing-extensions>=4.4",
-    "xtr-clock>=5.0,<6",
-    "xtr-messenger>=5.0,<6",
-    "xtr-orm>=5.0,<6",
+    "xtr-clock>=6.0,<7",
+    "xtr-messenger>=6.0,<7",
+    "xtr-orm>=6.0,<7",
 ]
 
 # Advertises the recipe — what *Use in an application* takes — for recipes:sync.
@@ -50,7 +50,7 @@ dev = [
     # application's driver is the one its connection already uses.
     "asyncpg>=0.29",
     # The envelope serializer the tests encode with is built on it, as the messenger's is.
-    "xtr-serializer>=5.0,<6",
+    "xtr-serializer>=6.0,<7",
 ]
 
 [build-system]

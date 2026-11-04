@@ -1,6 +1,6 @@
 [project]
 name = "xtr-maker"
-version = "5.2.1"
+version = "6.0.0"
 description = "Console commands that write application code for the xtr libraries: messages, schedules, webhooks, entities, commands and listeners."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,18 +23,18 @@ dependencies = [
     "jinja2>=3.1",
     "libcst>=1.4",
     "typing-extensions>=4.4",
-    "xtr-console>=5.0,<6",
-    "xtr-dependency-injection>=5.0,<6",
+    "xtr-console>=6.0,<7",
+    "xtr-dependency-injection>=6.0,<7",
 ]
 
 # Each maker writes code for one library, and is offered only when that library's bundle is
 # active; an extra installs the library beside the makers.
 [project.optional-dependencies]
-event-dispatcher = ["xtr-event-dispatcher>=5.0,<6"]
-messenger = ["xtr-messenger>=5.0,<6"]
-orm = ["xtr-orm>=5.0,<6"]
-scheduler = ["xtr-scheduler>=5.0,<6"]
-webhook = ["xtr-webhook>=5.0,<6"]
+event-dispatcher = ["xtr-event-dispatcher>=6.0,<7"]
+messenger = ["xtr-messenger>=6.0,<7"]
+orm = ["xtr-orm>=6.0,<7"]
+scheduler = ["xtr-scheduler>=6.0,<7"]
+webhook = ["xtr-webhook>=6.0,<7"]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
 # Advertising activates nothing: an application lists the bundles it wants.
@@ -54,15 +54,15 @@ dev = [
     "anyio>=4.0",
     "ty>=0.0.83",
     # Every peer a maker writes code for, so each maker's tests run against its library.
-    "xtr-event-dispatcher>=5.0,<6",
-    "xtr-messenger>=5.0,<6",
+    "xtr-event-dispatcher>=6.0,<7",
+    "xtr-messenger>=6.0,<7",
     # With its SQLite driver: the entity and migration makers' tests use a SQLite database.
-    "xtr-orm[sqlite]>=5.0,<6",
-    "xtr-scheduler>=5.0,<6",
-    "xtr-webhook>=5.0,<6",
+    "xtr-orm[sqlite]>=6.0,<7",
+    "xtr-scheduler>=6.0,<7",
+    "xtr-webhook>=6.0,<7",
     # The bundles make:schedule's --stateful and --lock need active.
-    "xtr-cache>=5.0,<6",
-    "xtr-lock>=5.0,<6",
+    "xtr-cache>=6.0,<7",
+    "xtr-lock>=6.0,<7",
 ]
 
 [build-system]

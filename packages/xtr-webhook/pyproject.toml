@@ -1,6 +1,6 @@
 [project]
 name = "xtr-webhook"
-version = "5.2.1"
+version = "6.0.0"
 description = "Receive webhooks — verified, replay-bounded, turned into events — and send them signed, in the legacy or the Standard Webhooks format."
 readme = "README.md"
 authors = [
@@ -22,22 +22,22 @@ classifiers = [
 ]
 dependencies = [
     "typing-extensions>=4.4",
-    "xtr-clock>=5.0,<6",
+    "xtr-clock>=6.0,<7",
     # The client interface a webhook is sent through; the client itself is installed by the
     # application that sends webhooks.
-    "xtr-http-client-contracts>=5.0,<6",
+    "xtr-http-client-contracts>=6.0,<7",
     # The matchers a parser says which requests are its sender's with.
-    "xtr-http-foundation>=5.0,<6",
-    "xtr-http-message-contracts>=5.0,<6",
-    "xtr-messenger>=5.0,<6",
-    "xtr-remote-event>=5.0,<6",
+    "xtr-http-foundation>=6.0,<7",
+    "xtr-http-message-contracts>=6.0,<7",
+    "xtr-messenger>=6.0,<7",
+    "xtr-remote-event>=6.0,<7",
     # What writes the event's payload as the body, and decodes the JSON of an arriving one.
-    "xtr-serializer>=5.0,<6",
-    "xtr-service-contracts>=5.0,<6",
+    "xtr-serializer>=6.0,<7",
+    "xtr-service-contracts>=6.0,<7",
     # The endpoint webhooks arrive at, contributed to the application's routes.
-    "xtr-http-kernel>=5.0,<6",
+    "xtr-http-kernel>=6.0,<7",
     # What xtr_webhook.testing builds its requests with.
-    "xtr-http-message>=5.0,<6",
+    "xtr-http-message>=6.0,<7",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -59,10 +59,10 @@ dev = [
     "ty>=0.0.83",
     # The tests drive the endpoint over an in-process transport of their own.
     "httpx>=0.27",
-    "xtr-dependency-injection>=5.0,<6",
-    "xtr-http-client>=5.0,<6",
-    "xtr-http-kernel>=5.0,<6",
-    "xtr-http-message>=5.0,<6",
+    "xtr-dependency-injection>=6.0,<7",
+    "xtr-http-client>=6.0,<7",
+    "xtr-http-kernel>=6.0,<7",
+    "xtr-http-message>=6.0,<7",
 ]
 
 [build-system]

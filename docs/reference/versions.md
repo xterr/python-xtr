@@ -6,7 +6,7 @@ same version always work together.
 
 ## Version numbers
 
-The version number has three parts: `MAJOR.MINOR.PATCH`, for example `5.2.1`.
+The version number has three parts: `MAJOR.MINOR.PATCH`, for example `6.0.0`.
 
 | Part | When it changes |
 |---|---|
@@ -17,15 +17,15 @@ The version number has three parts: `MAJOR.MINOR.PATCH`, for example `5.2.1`.
 ## Dependencies between packages
 
 A package requires each other xtr package by its major version. For example,
-`xtr-messenger` 5.2.1 requires `xtr-logging-contracts>=5.0,<6`. Thus, uv can
-install any version 5 of the packages together.
+`xtr-messenger` 6.0.0 requires `xtr-logging-contracts>=6.0,<7`. Thus, uv can
+install any version 6 of the packages together.
 
 Require the xtr packages in your application in the same way:
 
 ```toml
 dependencies = [
-    "xtr-cache>=5.0,<6",
-    "xtr-messenger>=5.0,<6",
+    "xtr-cache>=6.0,<7",
+    "xtr-messenger>=6.0,<7",
 ]
 ```
 
