@@ -270,10 +270,10 @@ def test_a_boolean_option_holding_more_than_a_word_is_refused_unquoted() -> None
 def test_it_never_shows_the_credentials() -> None:
     dsn = Dsn.from_string("smtp://s3cr3t-user:s3cr3t-pass@example.com:465?verify_peer=0")
 
-    for shown in (repr(dsn), str(dsn)):
-        assert "s3cr3t" not in shown
-        assert "example.com" in shown
-        assert "verify_peer" in shown
+    expected = "Dsn(scheme='smtp', host='example.com', port=465, options={'verify_peer': '0'})"
+    assert dsn.host == "example.com"
+    assert repr(dsn) == expected
+    assert str(dsn) == expected
 
 
 def test_its_representation_renders_a_named_option_as_a_plain_dict() -> None:

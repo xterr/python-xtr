@@ -183,6 +183,7 @@ async def test_hanging_up_closes_every_open_connection() -> None:
 async def test_it_switches_to_tls_after_starttls(tmp_path: Path) -> None:
     certificate = make_certificate(tmp_path)
     client_context = ssl.create_default_context(cafile=certificate.cert_path)
+    client_context.minimum_version = ssl.TLSVersion.TLSv1_2
     async with ScriptedSmtpServer(tls_context=certificate.server_context()) as server:
         replies, reader, writer = await _talk(server, "STARTTLS")
         await writer.start_tls(client_context, server_hostname="localhost")
@@ -198,6 +199,7 @@ async def test_it_switches_to_tls_after_starttls(tmp_path: Path) -> None:
 async def test_it_can_speak_tls_from_the_first_byte(tmp_path: Path) -> None:
     certificate = make_certificate(tmp_path)
     client_context = ssl.create_default_context(cafile=certificate.cert_path)
+    client_context.minimum_version = ssl.TLSVersion.TLSv1_2
     async with ScriptedSmtpServer(
         tls_context=certificate.server_context(), implicit_tls=True
     ) as server:

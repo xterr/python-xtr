@@ -52,6 +52,7 @@ def test_it_answers_every_command_and_records_each_message() -> None:
 
 def test_a_forged_record_reaches_the_client_under_the_tls_layer(tmp_path: Path) -> None:
     client_context = ssl.create_default_context()
+    client_context.minimum_version = ssl.TLSVersion.TLSv1_2
     client_context.check_hostname = False
     client_context.verify_mode = ssl.CERT_NONE
     forged = b"\x17\x03\x03\x00\x20" + bytes(32)

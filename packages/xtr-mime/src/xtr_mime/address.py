@@ -53,7 +53,7 @@ _TRAILING_COMMENT: Final = re.compile(rf"{_LITERAL_COMMENT}\Z")
 # list gives a meaning to — '"', "(", ")", ",", ";", "<", ">" — are refused too, so a literal
 # cannot read as the end of the address and the start of another.
 _GENERAL_LITERAL: Final = re.compile(
-    r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?:[!#-'*+\--:=?-Z^-~]+"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?:[!#$%&'*+\-./0-9:=?@A-Z^_`a-z{|}~]+"
 )
 
 # The validator judges the local part against a neutral domain: it refuses names reserved for

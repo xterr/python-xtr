@@ -30,6 +30,7 @@ class Certificate:
     def server_context(self) -> ssl.SSLContext:
         """Return the context a TLS server presents this certificate with."""
         context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(self.cert_path, self.key_path)
         return context
 
