@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -25,8 +26,13 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def unnamed(tmp_path: Path) -> str:
-    """A file whose name the table knows nothing about."""
+def unnamed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """A file whose name the table knows nothing about, and no libmagic to sniff it.
+
+    The table's own libmagic guesser would answer for the file where libmagic is installed;
+    leaving it unable to run keeps every answer here the tagged guessers' alone.
+    """
+    monkeypatch.setitem(sys.modules, "magic", None)
     path = tmp_path / "unnamed"
     _ = path.write_bytes(b"\x00")
     return str(path)
