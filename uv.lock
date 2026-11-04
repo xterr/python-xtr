@@ -30,8 +30,10 @@ members = [
     "xtr-lock",
     "xtr-logging",
     "xtr-logging-contracts",
+    "xtr-mailer",
     "xtr-maker",
     "xtr-messenger",
+    "xtr-mime",
     "xtr-notifier",
     "xtr-orm",
     "xtr-orm-messenger",
@@ -304,6 +306,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/61/62/06741b579156360248d1ec624842ad0edf697050bbaf7c3e46394e106ad1/aiosignal-1.4.0.tar.gz", hash = "sha256:f47eecd9468083c2029cc99945502cb7708b082c232f9aca65da147157b251c7", size = 25007, upload-time = "2025-07-03T22:54:43.528Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fb/76/641ae371508676492379f16e2fa48f4e2c11741bd63c48be4b12a6b09cba/aiosignal-1.4.0-py3-none-any.whl", hash = "sha256:053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e", size = 7490, upload-time = "2025-07-03T22:54:42.156Z" },
+]
+
+[[package]]
+name = "aiosmtplib"
+version = "5.1.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/5c/9cabc5db6d607616e81ba6d8f1f231cd5a75955807a308c1090a59072d6d/aiosmtplib-5.1.3.tar.gz", hash = "sha256:ac2b418d3260ba62d9cfd0fe7359726e9dc009a4e8e8d9909fdfae332f522a7c", size = 77010, upload-time = "2026-09-08T02:11:20.532Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/0a/b56ab8163d54960337fdca475d3dfd56c8badf6172e79cf2ad00d5335dc1/aiosmtplib-5.1.3-py3-none-any.whl", hash = "sha256:f7d76ce3d4995a65a178c1f11e1bd1607706b921d00cb768e7a2c7f7ef5517a8", size = 30116, upload-time = "2026-09-08T02:11:19.352Z" },
 ]
 
 [[package]]
@@ -1214,6 +1225,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/c9/02/bd72be9134d25ed78
 wheels = [
     { url = "https://files.pythonhosted.org/packages/02/08/9c41fb51ab5b43eb21674aff13df270e8ba6c4b29c8624e328dc7a9482af/distlib-0.4.3-py2.py3-none-any.whl", hash = "sha256:4b0ce306c966eb73bc3a7b6abad017c556dadd92c44701562cd528ac7fde4d5b", size = 470628, upload-time = "2026-06-12T08:04:50.506Z" },
 ]
+
+[[package]]
+name = "dkimpy"
+version = "1.1.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dnspython" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f0/6f/84e91828186bbfcedd7f9385ef5e0d369632444195c20e08951b7ffe0481/dkimpy-1.1.8.tar.gz", hash = "sha256:b5f60fb47bbf5d8d762f134bcea0c388eba6b498342a682a21f1686545094b77", size = 66979, upload-time = "2024-07-04T22:16:38.321Z" }
 
 [[package]]
 name = "dnspython"
@@ -3321,6 +3341,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-magic"
+version = "0.4.27"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/db/0b3e28ac047452d079d375ec6798bf76a036a08182dbb39ed38116a49130/python-magic-0.4.27.tar.gz", hash = "sha256:c1ba14b08e4a5f5c31a302b7721239695b2f0f058d125bd5ce1ee36b9d9d3c3b", size = 14677, upload-time = "2022-06-07T20:16:59.508Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/73/9f872cb81fc5c3bb48f7227872c28975f998f3e7c2b1c16e95e6432bbb90/python_magic-0.4.27-py2.py3-none-any.whl", hash = "sha256:c212960ad306f700aa0d01e5d7a325d20548ff97eb9920dcd29513174f0294d3", size = 13840, upload-time = "2022-06-07T20:16:57.763Z" },
+]
+
+[[package]]
 name = "python-multipart"
 version = "0.0.32"
 source = { registry = "https://pypi.org/simple" }
@@ -4869,6 +4898,7 @@ dev = [
     { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-http-foundation" },
+    { name = "xtr-messenger" },
     { name = "xtr-rate-limiter" },
 ]
 
@@ -4898,6 +4928,7 @@ dev = [
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-http-foundation", editable = "packages/xtr-http-foundation" },
+    { name = "xtr-messenger", editable = "packages/xtr-messenger" },
     { name = "xtr-rate-limiter", editable = "packages/xtr-rate-limiter" },
 ]
 
@@ -5251,6 +5282,82 @@ dev = [
 ]
 
 [[package]]
+name = "xtr-mailer"
+version = "5.2.1"
+source = { editable = "packages/xtr-mailer" }
+dependencies = [
+    { name = "aiosmtplib" },
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+    { name = "xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-client-contracts" },
+    { name = "xtr-logging-contracts" },
+    { name = "xtr-mime" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.optional-dependencies]
+dkim = [
+    { name = "xtr-mime", extra = ["dkim"] },
+]
+smime = [
+    { name = "xtr-mime", extra = ["smime"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "cryptography" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-console" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher" },
+    { name = "xtr-http-client" },
+    { name = "xtr-logging" },
+    { name = "xtr-messenger" },
+    { name = "xtr-mime", extra = ["dkim"] },
+    { name = "xtr-rate-limiter" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiosmtplib", specifier = ">=5.1,<6" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+    { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
+    { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
+    { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-mime", editable = "packages/xtr-mime" },
+    { name = "xtr-mime", extras = ["dkim"], marker = "extra == 'dkim'", editable = "packages/xtr-mime" },
+    { name = "xtr-mime", extras = ["smime"], marker = "extra == 'smime'", editable = "packages/xtr-mime" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+provides-extras = ["dkim", "smime"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "cryptography", specifier = ">=45" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
+    { name = "xtr-http-client", editable = "packages/xtr-http-client" },
+    { name = "xtr-logging", editable = "packages/xtr-logging" },
+    { name = "xtr-messenger", editable = "packages/xtr-messenger" },
+    { name = "xtr-mime", extras = ["dkim"], editable = "packages/xtr-mime" },
+    { name = "xtr-rate-limiter", editable = "packages/xtr-rate-limiter" },
+]
+
+[[package]]
 name = "xtr-maker"
 version = "5.2.1"
 source = { editable = "packages/xtr-maker" }
@@ -5392,6 +5499,70 @@ dev = [
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
     { name = "yarl", specifier = ">=1.9" },
+]
+
+[[package]]
+name = "xtr-mime"
+version = "5.2.1"
+source = { editable = "packages/xtr-mime" }
+dependencies = [
+    { name = "email-validator" },
+    { name = "idna" },
+    { name = "typing-extensions" },
+    { name = "xtr-clock" },
+]
+
+[package.optional-dependencies]
+dkim = [
+    { name = "cryptography" },
+    { name = "dkimpy" },
+]
+magic = [
+    { name = "python-magic" },
+]
+smime = [
+    { name = "cryptography" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "cryptography" },
+    { name = "dkimpy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "python-magic" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-dependency-injection" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cryptography", marker = "extra == 'dkim'", specifier = ">=45" },
+    { name = "cryptography", marker = "extra == 'smime'", specifier = ">=45" },
+    { name = "dkimpy", marker = "extra == 'dkim'", specifier = ">=1.1.8,<2" },
+    { name = "email-validator", specifier = ">=2.3" },
+    { name = "idna", specifier = ">=3.10" },
+    { name = "python-magic", marker = "extra == 'magic'", specifier = ">=0.4.27" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+]
+provides-extras = ["dkim", "smime", "magic"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "cryptography", specifier = ">=45" },
+    { name = "dkimpy", specifier = ">=1.1.8,<2" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "python-magic", specifier = ">=0.4.27" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
 ]
 
 [[package]]

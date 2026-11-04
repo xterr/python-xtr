@@ -148,3 +148,29 @@ async def test_closing_lets_go_of_every_pool() -> None:
     assert clients.for_options({})[0] is not client
 
     await clients.aclose()
+
+
+async def test_a_reset_forgets_what_every_pool_pinned() -> None:
+    clients = HttpxClients(3)
+    _, pinned = clients.for_options({})
+    _, elsewhere = clients.for_options({"timeout": 2})
+    pinned["example.test"] = "127.0.0.1"
+    elsewhere["other.test"] = "127.0.0.2"
+
+    clients.reset()
+
+    assert (clients.for_options({})[1], clients.for_options({"timeout": 2})[1]) == ({}, {})
+
+    await clients.aclose()
+
+
+async def test_a_reset_keeps_every_pool_open() -> None:
+    clients = HttpxClients(3)
+    client, _ = clients.for_options({})
+
+    clients.reset()
+
+    assert clients.for_options({})[0] is client
+    assert not client.is_closed
+
+    await clients.aclose()

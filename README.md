@@ -38,9 +38,11 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-http-message-contracts](packages/xtr-http-message-contracts) | The HTTP message interfaces alone: requests, responses, streams, URIs, uploaded files and their factories. |
 | [xtr-logging](packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. |
 | [xtr-logging-contracts](packages/xtr-logging-contracts) | The logging interface alone, for libraries that log but should not choose how. |
+| [xtr-mailer](packages/xtr-mailer) | Email sent through SMTP, sendmail or a provider's API — picked by DSN, in-process or queued on a message bus, with failover, round-robin, envelope and header overrides, DKIM and S/MIME signing. |
 | [xtr-maker](packages/xtr-maker) | Console commands that write application code for the xtr libraries, refusing a file that already exists. |
 | [xtr-messenger](packages/xtr-messenger) | A message bus: envelopes, stamps, a middleware chain and pluggable transports. |
 | [xtr-amqp-messenger](packages/xtr-amqp-messenger) | A RabbitMQ transport for xtr-messenger: queues on an AMQP broker, a retry ladder, delays and real dead-lettering, through taskiq. |
+| [xtr-mime](packages/xtr-mime) | Email messages — addresses, headers, text and HTML bodies, attachments and inline images — rendered to standard MIME by Python's own email package, and signed with DKIM or S/MIME when asked. |
 | [xtr-notifier](packages/xtr-notifier) | Notifications sent to chat, SMS and push channels — picked by the notification or its importance — through any provider configured by DSN, directly or through the message bus. |
 | [xtr-telegram-notifier](packages/xtr-telegram-notifier) | Telegram for xtr-notifier: chat messages posted, edited and answered through a bot, with keyboards, media and file uploads. |
 | [xtr-slack-notifier](packages/xtr-slack-notifier) | Slack for xtr-notifier: chat messages posted, scheduled and updated in a channel, laid out with Block Kit blocks. |
@@ -247,6 +249,16 @@ graph LR
     workflow --> svccon
     serializer[xtr-serializer] -. optional .-> di
     serializer -. optional .-> console
+    mime[xtr-mime] --> clock
+    mailer[xtr-mailer] --> mime
+    mailer --> clock
+    mailer --> eventcon
+    mailer --> httpclientcon
+    mailer --> logcon
+    mailer --> svccon
+    mailer -. optional .-> messenger
+    mailer -. optional .-> ratelimiter
+    mailer -. optional .-> console
 ```
 
 The contracts packages exist so a library can depend on an interface without installing its

@@ -13,8 +13,20 @@ from xtr_dependency_injection import Kernel
 from xtr_http_client import MockHttpClient, MockResponse
 from xtr_http_client_contracts import TransportError
 from xtr_http_kernel import setup
-from xtr_messenger import HandlersFailedError, MessageBusInterface
+from xtr_http_kernel.testing import override_services
+from xtr_messenger import (
+    HandlersFailedError,
+    InMemoryTransport,
+    InMemoryTransportFactory,
+    JsonSerializer,
+    MessageBusConfig,
+    MessageBusFactory,
+    MessageBusInterface,
+    TransportConfig,
+)
 from xtr_remote_event import RemoteEvent
+from xtr_remote_event.messenger import ConsumeRemoteEventMessage
+from xtr_serializer import JsonEncoder, PydanticNormalizer, Serializer
 
 from tests.fixtures.app_webhook import services
 from tests.fixtures.app_webhook.config import APP_CLIENT, PLAIN_SECRET
@@ -48,6 +60,52 @@ def _application() -> FastAPI:
 
 def _legacy_signature(secret: bytes, event: bytes, event_id: bytes, body: bytes) -> str:
     return "sha256=" + hmac.new(secret, event + event_id + body, "sha256").hexdigest()
+
+
+def _queueing_bus() -> tuple[MessageBusInterface, InMemoryTransport]:
+    """A bus queueing each received event on a transport that writes it, and that queue."""
+    config = MessageBusConfig(
+        transports={"queue": TransportConfig("in-memory://?serialize=true")},
+        routing={ConsumeRemoteEventMessage: "queue"},
+    )
+    factory = InMemoryTransportFactory(
+        JsonSerializer(Serializer([PydanticNormalizer()], [JsonEncoder()]))
+    )
+    queue = factory.create(config.transports)["queue"]
+    assert isinstance(queue, InMemoryTransport)
+    return MessageBusFactory(config, [factory]).bus(), queue
+
+
+async def _post_listed(body: bytes) -> tuple[int, tuple[object, ...]]:
+    """Post ``body`` to the served list route; return the status and what was queued."""
+    app = _application()
+    bus, queue = _queueing_bus()
+
+    with override_services(app, {MessageBusInterface: bus}):
+        async with serving(app) as client:
+            response = await client.post("/webhook/listed", content=body, headers=JSON_HEADERS)
+
+    return response.status_code, queue.messages
+
+
+async def test_a_webhook_with_an_event_the_queue_cannot_write_queues_none_of_its_events() -> None:
+    body = b'{"evt_1": {"total": 1}, "evt_2": {"total": 2, "tags": ["vip"]}}'
+
+    status, queued = await _post_listed(body)
+
+    assert (status, queued) == (500, ())
+
+
+async def test_every_event_of_a_webhook_is_queued_in_the_order_it_arrived() -> None:
+    body = b'{"evt_1": {"total": 1}, "evt_2": {"total": 2}}'
+
+    status, queued = await _post_listed(body)
+
+    assert status == 202
+    assert queued == (
+        ConsumeRemoteEventMessage("listed", RemoteEvent("listed", "evt_1", {"total": 1})),
+        ConsumeRemoteEventMessage("listed", RemoteEvent("listed", "evt_2", {"total": 2})),
+    )
 
 
 async def test_an_unknown_type_is_answered_404_through_the_served_endpoint() -> None:

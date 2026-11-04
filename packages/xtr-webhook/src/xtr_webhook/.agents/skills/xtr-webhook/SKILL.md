@@ -15,7 +15,7 @@ sees HTTP. Sending is the same problem from the other side.
 
 - Receive — `setup(app, kernel)` adds `POST /webhook/{type}` (route resource `webhook`, movable
   in `<app>/config/routes/webhook.py`); the type picks the parser and the secret.
-  `WebhookController(parsers, secrets, bus)` is what answers.
+  `WebhookController(parsers, secrets, bus, serializer)` is what answers.
 - Parse — subclass `AbstractRequestParser` and fill in `get_request_matcher()` and
   `async do_parse(request, secret)`. `RequestParser` is the built-in one: once a signature
   verified it builds `RemoteEvent(name, id, payload)` from the headers and the JSON object body.
@@ -75,10 +75,14 @@ def webhook() -> WebhookConfig:
 - The sender is answered before the events are handled — each event goes out as a
   `ConsumeRemoteEventMessage` on the bus — because a sender waiting on a handler times out and
   sends the webhook again.
+- A webhook's events go on the bus all or none: each message is written with the serializer
+  before the first is dispatched, so one it refuses (a payload value JSON cannot carry exactly)
+  fails the request with a `5xx` and nothing dispatched, and the sender's retry queues nothing
+  twice.
 - Routing keys are kept verbatim, dashes included.
 
 Without the container, build the controller by hand over a mapping of parsers, a mapping of
-secrets and a bus. See the package README's Quick start for a runnable one.
+secrets, a bus and a serializer. See the package README's Quick start for a runnable one.
 
 ## Write a parser
 
@@ -284,9 +288,9 @@ async def test_the_parser_reads_every_recorded_payload(case: ParserCase) -> None
   with `Content-Type: application/json` plus `headers`, parses it, and asserts the events match.
   Pass the signature headers a real delivery carries through `headers`.
 - Nothing there imports pytest, so the helpers work under any runner.
-- For the whole endpoint, build a `WebhookController` over a mapping of parsers and a recording
-  bus and call `index_action(type, request, Response())`; assert the status and what reached the
-  bus.
+- For the whole endpoint, build a `WebhookController` over a mapping of parsers, a recording
+  bus and a real `Serializer([PydanticNormalizer()], [JsonEncoder()])`, and call
+  `index_action(type, request, Response())`; assert the status and what reached the bus.
 - For the sending side, give `Transport` a `MockHttpClient` from xtr-http-client over a
   `MockResponse`, and read what was sent off the response: `get_request_url()`,
   `get_request_options()["headers"]` and `["body"]`. `MockResponse(info={"http_code": 500})`

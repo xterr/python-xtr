@@ -9,6 +9,7 @@ from xtr_serializer import SerializerInterface
 
 from tests.fixtures.app_guarded.config import GUARDED_CLIENT
 from tests.fixtures.app_webhook.config import APP_CLIENT, PARSED_TYPE, PLAIN_TYPE
+from tests.fixtures.app_webhook.services import LISTED_TYPE
 from tests.support.secret_header_request_parser import SecretHeaderRequestParser
 from xtr_webhook.bundle import WebhookBundle
 from xtr_webhook.client import RequestParser
@@ -60,7 +61,15 @@ async def test_the_controller_serves_the_routed_types_and_no_other() -> None:
     assert not parsers.has("webhook")
     assert isinstance(parsed, SecretHeaderRequestParser)
     assert isinstance(plain, RequestParser)
-    assert set(parsers.provided_services()) == {PARSED_TYPE, PLAIN_TYPE}
+    assert set(parsers.provided_services()) == {PARSED_TYPE, PLAIN_TYPE, LISTED_TYPE}
+
+
+async def test_the_controller_checks_messages_with_the_serializer_bundles_serializer() -> None:
+    async with await Kernel(APP, env="test").boot() as booted:
+        controller = await booted.container.get(WebhookController)
+        serializer = await booted.container.get(SerializerInterface)
+
+    assert controller._serializer is serializer
 
 
 async def test_asking_for_a_type_the_routing_does_not_name_is_a_logic_error() -> None:

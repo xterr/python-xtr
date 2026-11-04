@@ -43,8 +43,8 @@ class HttpxClients:
     change in them asks for a different pool rather than being ignored.
 
     Each pool also remembers the addresses that requests pinned their hosts
-    to, for as long as the pool lives: a host reached at an address once is
-    reached at it again, without asking a resolver a second time.
+    to, until :meth:`reset` or :meth:`aclose`: a host reached at an address
+    once is reached at it again, without asking a resolver a second time.
 
     ``max_connections`` is the backend's pool-wide ceiling, not a per-host
     one: it counts every connection the pool holds, whichever host each of
@@ -89,6 +89,15 @@ class HttpxClients:
             self._resolved[key] = {}
 
         return client, self._resolved[key]
+
+    def reset(self) -> None:
+        """Forget the address every host was pinned to, keeping every pool open.
+
+        A pin is what the requests of one unit of work asked for; the
+        connections are how the next one gets anywhere, so they stay.
+        """
+        for resolved in self._resolved.values():
+            resolved.clear()
 
     async def aclose(self) -> None:
         """Close every pool, and with it every connection any of them holds."""

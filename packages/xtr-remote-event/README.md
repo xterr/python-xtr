@@ -204,6 +204,53 @@ It takes the payload already decoded and is synchronous: reading the bytes, and 
 they are to be trusted at all, belongs to whatever received them — [xtr-webhook](../xtr-webhook)
 for one.
 
+## Mailer events
+
+Every mail provider reports what became of the messages it was handed — accepted, delivered,
+bounced, opened, clicked — each in its own words. Two event types give those reports the same
+fields whichever provider sent them, so a provider's converter builds one and a consumer of mail
+reports is written once:
+
+- `MailerDeliveryEvent` — where a message stands on its way to its recipient. `name` is one of
+  its constants `RECEIVED`, `DROPPED`, `DELIVERED`, `DEFERRED` or `BOUNCE`, and `reason` is the
+  provider's explanation, `""` when it gave none.
+- `MailerEngagementEvent` — what the recipient did with it: `OPEN`, `CLICK`, `SPAM` or
+  `UNSUBSCRIBE`.
+
+Both derive from `AbstractMailerEvent`, a `RemoteEvent` with four more fields, passed by
+keyword: `date` (when the provider says it happened, and required), `recipient_email`,
+`metadata` (the values the mail was sent with, as the provider hands them back) and `tags`.
+Building `AbstractMailerEvent` itself raises `TypeError`.
+
+```python
+from datetime import UTC, datetime
+
+from xtr_remote_event import MailerDeliveryEvent, RemoteEvent
+
+event: RemoteEvent = MailerDeliveryEvent(
+    MailerDeliveryEvent.BOUNCE,
+    "msg_42",
+    {"event": "failed", "severity": "permanent"},
+    date=datetime(2026, 1, 1, 9, 30, tzinfo=UTC),
+    recipient_email="jane@example.com",
+    metadata={"order_id": "7"},
+    tags=("receipt",),
+    reason="550 No such user",
+)
+
+if isinstance(event, MailerDeliveryEvent) and event.name == MailerDeliveryEvent.BOUNCE:
+    print(f"{event.recipient_email} bounced: {event.reason}")
+```
+
+They are frozen like the event they derive from, and the freeze reaches as far: it binds
+`metadata`, not the mapping behind it.
+
+Both are [events of their own](#events-of-your-own), registered as `"mailer_delivery"` and
+`"mailer_engagement"`: in `ConsumeRemoteEventMessage` on a serializing transport each comes back
+of its own type, every field as it left. `date` is a plain `datetime`, so it keeps its offset
+but not a zone's name, and one in the hour the clocks repeat is refused when written — give it in
+UTC, as providers report it. `metadata` holds JSON data, as `payload` does.
+
 ## Known limitations
 
 - **Every class registered under `RemoteEvent` is part of one schema.** One class pydantic cannot
@@ -296,13 +343,14 @@ I/O.
 
 ## Errors
 
-Everything this library raises derives from `RemoteEventError`.
+Everything this library raises derives from `RemoteEventError`, with one exception: the `TypeError` raised when `AbstractMailerEvent` itself is built, a programming error like building any abstract type.
 
 | Error | Raised when |
 |---|---|
 | `InvalidArgumentError` | a value cannot be used — an empty consumer name, a class with no `consume()`; also a `ValueError` |
 | `ParseError` | a converter cannot read a payload as an event — the sender's doing, so tell the sender |
 | `LogicError` | nothing is registered for a source, or what is registered is not a consumer; also a `RuntimeError` |
+| `TypeError` | `AbstractMailerEvent` itself is built — a programming error, as with any abstract type; not a `RemoteEventError` — `"AbstractMailerEvent" is abstract: build a "MailerDeliveryEvent" or a "MailerEngagementEvent" instead.` |
 
 An event that cannot be written or read is refused by what carries it, not here: on a bus,
 `MessageEncodingFailedError` and `MessageDecodingFailedError` from xtr-messenger.

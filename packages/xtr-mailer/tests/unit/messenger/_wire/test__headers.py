@@ -1,0 +1,277 @@
+"""Headers as a queued email carries them: each of its class, and its name checked on the way in."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta, timezone
+
+import pytest
+from xtr_mime import Address, Group, Headers, UnstructuredHeader
+from xtr_mime.header import FoldedHeader
+
+from xtr_mailer.exception import InvalidArgumentError
+from xtr_mailer.header import MetadataHeader, TagHeader, TrackingHeader
+from xtr_mailer.messenger._wire._header_limits import (
+    BLOCK_HEADER_COUNT,
+    BLOCK_LENGTH,
+    LIST_LENGTH,
+    VALUE_LENGTH,
+)
+from xtr_mailer.messenger._wire._headers import read_headers, write_headers
+
+_TEXT_HEADER = {"$type": "text", "name": "X-A", "charset": "utf-8", "language": None, "value": "v"}
+_LONG = "a" * (VALUE_LENGTH + 1)
+
+
+def _back(headers: Headers) -> Headers:
+    return read_headers(write_headers(headers), "headers")
+
+
+def _headers() -> Headers:
+    headers = (
+        Headers()
+        .add_mailbox_list_header("From", [Address("a@example.com", "Ä"), "b@example.com"])
+        .add_mailbox_list_header("To", [Group("Team", ["c@example.com"]), "d@example.com"])
+        .add_mailbox_header("Sender", Address("s@example.com", "S"))
+        .add_text_header("Subject", "Über alles")
+        .add_date_header(
+            "Date", datetime(2026, 11, 3, 9, 30, 15, 120, timezone(timedelta(hours=2)))
+        )
+        .add_id_header("Message-ID", "abc@example.com")
+        .add_id_header("References", ["a@example.com", "b@example.com"])
+        .add_path_header("Return-Path", "bounces@example.com")
+        .add_parameterized_header("X-P", "value", {"a": "1", "b": None})
+        .add(TagHeader("password-reset"))
+        .add(MetadataHeader("Color", "blue"))
+        .add(TrackingHeader(opens=True, clicks=None))
+        .add(FoldedHeader("DKIM-Signature: v=1; a=rsa-sha256;\r\n b=abc"))
+    )
+    subject = headers.get("Subject")
+    assert subject is not None
+    subject.set_language("de")
+    return headers
+
+
+def test_every_header_comes_back_of_its_class_with_its_name_and_value() -> None:
+    headers = _headers()
+
+    back = _back(headers)
+
+    assert [(type(h), h.get_name()) for h in back.all()] == [
+        (type(h), h.get_name()) for h in headers.all()
+    ]
+    assert back.to_array() == headers.to_array()
+
+
+def test_a_header_keeps_its_charset_and_language() -> None:
+    back = _back(_headers()).get("Subject")
+
+    assert back is not None
+    assert (back.get_charset(), back.get_language()) == ("utf-8", "de")
+
+
+def test_the_line_length_comes_back() -> None:
+    headers = Headers(UnstructuredHeader("X-A", "v"))
+    headers.set_max_line_length(50)
+
+    assert _back(headers).get_max_line_length() == 50
+
+
+def test_a_date_keeps_its_offset_and_microseconds() -> None:
+    date = datetime(2026, 11, 3, 9, 30, 15, 120, tzinfo=UTC)
+
+    back = _back(Headers().add_date_header("Date", date)).get_header_body("Date")
+
+    assert back == date
+
+
+def test_the_tracking_and_metadata_headers_keep_what_they_say() -> None:
+    back = _back(_headers())
+
+    tracking, metadata = back.get("X-Track"), back.get("X-Metadata-Color")
+    assert isinstance(tracking, TrackingHeader)
+    assert (tracking.get_opens(), tracking.get_clicks()) == (True, None)
+    assert isinstance(metadata, MetadataHeader)
+    assert (metadata.get_key(), metadata.get_value()) == ("Color", "blue")
+
+
+def test_the_folded_header_is_written_as_it_was_folded() -> None:
+    back = _back(_headers()).get("DKIM-Signature")
+
+    assert isinstance(back, FoldedHeader)
+    assert back.to_string() == "DKIM-Signature: v=1; a=rsa-sha256;\r\n b=abc"
+
+
+def test_a_header_of_a_class_the_queue_does_not_know_is_refused_when_written() -> None:
+    class _Custom(UnstructuredHeader):
+        pass
+
+    with pytest.raises(InvalidArgumentError, match="_Custom"):
+        _ = write_headers(Headers(_Custom("X-A", "v")))
+
+
+def _fields(*entries: object) -> dict[str, object]:
+    return {"line_length": 76, "fields": list(entries)}
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["X-A\r\nBcc: victim@example.com", "X-A\x00", "", "X " + "A" * 10, "A" * 10_000, 3],
+    ids=["line break", "null", "empty", "space", "long", "number"],
+)
+def test_a_name_that_is_no_header_name_is_refused_before_it_is_built(name: object) -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = read_headers(_fields({**_TEXT_HEADER, "name": name}), "headers")
+
+    message = str(raised.value)
+    assert message.startswith("The queued email cannot be read: headers.fields[0].name ")
+    assert "victim" not in message
+    assert "AAAA" not in message
+
+
+def test_a_header_of_a_kind_the_queue_does_not_know_is_refused() -> None:
+    with pytest.raises(InvalidArgumentError, match=r"headers.fields\[0\] is not a header"):
+        _ = read_headers(_fields({**_TEXT_HEADER, "$type": "x-evil"}), "headers")
+
+
+def test_a_header_its_class_refuses_is_refused() -> None:
+    entry = {**_TEXT_HEADER, "$type": "id", "ids": ["no identifier"]}
+    _ = entry.pop("value")
+
+    with pytest.raises(InvalidArgumentError, match=r"headers.fields\[0\] is not a header"):
+        _ = read_headers(_fields(entry), "headers")
+
+
+def test_a_header_breaking_the_rules_of_headers_is_refused() -> None:
+    entry = {**_TEXT_HEADER, "name": "From"}
+
+    with pytest.raises(InvalidArgumentError, match=r"headers.fields\[0\] is not a header"):
+        _ = read_headers(_fields(entry), "headers")
+
+
+def test_a_folded_header_that_would_start_another_is_refused() -> None:
+    entry = {"$type": "folded", "name": "X-A", "charset": "utf-8", "language": None}
+
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = read_headers(_fields({**entry, "field": "X-A: a\r\nBcc: victim@x"}), "headers")
+
+    assert "victim" not in str(raised.value)
+
+
+def test_a_folded_header_named_otherwise_than_its_field_is_refused() -> None:
+    entry = {"$type": "folded", "name": "X-B", "charset": "utf-8", "language": None}
+
+    with pytest.raises(InvalidArgumentError):
+        _ = read_headers(_fields({**entry, "field": "X-A: a"}), "headers")
+
+
+def test_a_tag_header_under_another_name_is_refused() -> None:
+    entry = {**_TEXT_HEADER, "$type": "tag", "name": "X-Other"}
+
+    with pytest.raises(InvalidArgumentError):
+        _ = read_headers(_fields(entry), "headers")
+
+
+def test_a_tracking_flag_that_is_no_boolean_is_refused() -> None:
+    entry = {**_TEXT_HEADER, "$type": "tracking", "name": "X-Track", "opens": "yes"}
+
+    with pytest.raises(InvalidArgumentError, match=r"fields\[0\]\.opens is not true"):
+        _ = read_headers(_fields({**entry, "clicks": None}), "headers")
+
+
+def _held(kind: str, name: str, **held: object) -> dict[str, object]:
+    return {"$type": kind, "name": name, "charset": "utf-8", "language": None, **held}
+
+
+def _each_kind(value: str) -> list[dict[str, object]]:
+    return [
+        _held("text", "X-A", value=value),
+        _held("tag", "X-Tag", value=value),
+        _held("metadata", "X-Metadata-K", key="K", value=value),
+        _held("tracking", "X-Track", opens=None, clicks=None, value=value),
+        _held("parameterized", "X-P", value=value, parameters=[]),
+        _held("parameterized", "X-P", value="v", parameters=[["a", value]]),
+        _held("id", "References", ids=["a@example.com", value]),
+    ]
+
+
+_KIND_IDS = ["text", "tag", "metadata", "tracking", "parameterized", "parameter", "id"]
+
+
+@pytest.mark.parametrize("entry", _each_kind(_LONG), ids=_KIND_IDS)
+def test_a_header_value_longer_than_a_real_email_writes_is_refused(
+    entry: dict[str, object],
+) -> None:
+    with pytest.raises(InvalidArgumentError, match=f"is longer than {VALUE_LENGTH} characters"):
+        _ = read_headers(_fields(entry), "headers")
+
+
+def test_a_folded_field_longer_than_a_real_email_writes_is_refused() -> None:
+    entry = _held("folded", "X-A", field="X-A: " + " ".join(["a" * 900] * 10))
+
+    with pytest.raises(InvalidArgumentError, match=r"fields\[0\]\.field is longer"):
+        _ = read_headers(_fields(entry), "headers")
+
+
+@pytest.mark.parametrize("value", ["v\r\nBcc: victim@example.com", "v\x00", "v\udc80"])
+@pytest.mark.parametrize("entry", range(len(_KIND_IDS)), ids=_KIND_IDS)
+def test_a_header_value_holding_what_would_break_its_line_is_refused(
+    entry: int, value: str
+) -> None:
+    with pytest.raises(InvalidArgumentError, match="holds a line break") as raised:
+        _ = read_headers(_fields(_each_kind(value)[entry]), "headers")
+
+    assert "victim" not in str(raised.value)
+
+
+def test_an_address_list_longer_than_a_real_email_writes_is_refused() -> None:
+    entries = [{"address": f"u{index}@example.com", "name": ""} for index in range(LIST_LENGTH + 1)]
+
+    with pytest.raises(InvalidArgumentError, match=r"fields\[0\]\.entries holds more than"):
+        _ = read_headers(_fields(_held("mailbox_list", "Cc", entries=entries)), "headers")
+
+
+def test_an_id_list_longer_than_a_real_email_writes_is_refused() -> None:
+    ids = [f"{index}@example.com" for index in range(LIST_LENGTH + 1)]
+
+    with pytest.raises(InvalidArgumentError, match=r"fields\[0\]\.ids holds more than"):
+        _ = read_headers(_fields(_held("id", "References", ids=ids)), "headers")
+
+
+def _block(count: int) -> dict[str, object]:
+    return _fields(*(_held("text", f"X-{i}", value="a" * VALUE_LENGTH) for i in range(count)))
+
+
+def test_headers_holding_as_much_text_as_a_real_email_writes_are_read() -> None:
+    headers = read_headers(_block(BLOCK_LENGTH // VALUE_LENGTH - 1), "headers")
+
+    assert len(list(headers.all())) == BLOCK_LENGTH // VALUE_LENGTH - 1
+
+
+def test_headers_holding_more_text_than_a_real_email_writes_are_refused() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = read_headers(_block(BLOCK_LENGTH // VALUE_LENGTH), "headers")
+
+    assert str(raised.value) == (
+        f"The queued email cannot be read: headers holds more than {BLOCK_LENGTH} characters "
+        "of header text."
+    )
+
+
+def _tiny(count: int, *before: object) -> dict[str, object]:
+    return _fields(*before, *(_held("text", "X", value="a") for _ in range(count)))
+
+
+def test_as_many_headers_as_a_real_email_writes_are_read() -> None:
+    headers = read_headers(_tiny(BLOCK_HEADER_COUNT), "headers")
+
+    assert len(list(headers.all())) == BLOCK_HEADER_COUNT
+
+
+def test_more_headers_than_a_real_email_writes_are_refused_before_one_is_read() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = read_headers(_tiny(BLOCK_HEADER_COUNT, "not a header"), "headers")
+
+    assert str(raised.value) == (
+        f"The queued email cannot be read: headers.fields holds more than {BLOCK_HEADER_COUNT} "
+        "headers."
+    )

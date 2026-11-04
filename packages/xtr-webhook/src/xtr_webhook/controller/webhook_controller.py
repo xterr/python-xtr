@@ -16,6 +16,7 @@ from ._built_parsers import BuiltParsers
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
     from xtr_messenger import MessageBusInterface
+    from xtr_serializer import SerializerInterface
     from xtr_service_contracts import ServiceProviderInterface
 
     from xtr_webhook.client import RequestParserInterface
@@ -28,6 +29,7 @@ _NOT_FOUND: Final = 404
 _PLAIN_TEXT: Final = "text/plain; charset=utf-8"
 _NO_PARSER: Final = "No webhook parser found for the type given in the URL."
 _UNPARSABLE: Final = "Unable to parse the webhook payload."
+_WIRE_FORMAT: Final = "json"
 
 
 async def _as_plain_text(
@@ -65,7 +67,7 @@ class WebhookController:
     out and sends the webhook again.
     """
 
-    __slots__ = ("_bus", "_parsers", "_secrets")
+    __slots__ = ("_bus", "_parsers", "_secrets", "_serializer")
 
     def __init__(
         self,
@@ -73,6 +75,7 @@ class WebhookController:
         | Mapping[str, RequestParserInterface],
         secrets: Mapping[str, str],
         bus: MessageBusInterface,
+        serializer: SerializerInterface,
     ) -> None:
         """Receive webhooks for the types ``parsers`` speaks for.
 
@@ -85,12 +88,16 @@ class WebhookController:
                 a request. A type with no entry is checked against an empty
                 secret, which a parser verifying anything refuses.
             bus: Where an event that was read is handed on.
+            serializer: What writes each message as a bus writing its messages does, so a
+                message it would refuse is found before any message of the webhook is
+                dispatched.
         """
         self._parsers: ServiceProviderInterface[RequestParserInterface] = (
             BuiltParsers(parsers) if isinstance(parsers, Mapping) else parsers
         )
         self._secrets = dict(secrets)
         self._bus = bus
+        self._serializer = serializer
 
     async def index_action(
         self,
@@ -110,6 +117,11 @@ class WebhookController:
         event above all — is left to propagate. The sender then gets a 5xx and
         sends the webhook again, which is the only outcome that does not lose
         what it carried.
+
+        Every event's message is written before the first is dispatched, so a
+        message the bus could not write — a payload value JSON cannot carry
+        exactly — fails the webhook with none of its events dispatched: the
+        sender's retry would otherwise queue the ones before it a second time.
 
         Args:
             event_type: The type in the URL: which subscriber this is for.
@@ -134,7 +146,13 @@ class WebhookController:
         if not events:
             return await parser.create_rejected_response(_UNPARSABLE, request, response)
 
-        for event in [events] if isinstance(events, RemoteEvent) else events:
-            _ = await self._bus.dispatch(ConsumeRemoteEventMessage(event_type, event))
+        messages = [
+            ConsumeRemoteEventMessage(event_type, event)
+            for event in ([events] if isinstance(events, RemoteEvent) else events)
+        ]
+        for message in messages:
+            _ = self._serializer.serialize(message, _WIRE_FORMAT, type_=ConsumeRemoteEventMessage)
+        for message in messages:
+            _ = await self._bus.dispatch(message)
 
         return await parser.create_successful_response(request, response)

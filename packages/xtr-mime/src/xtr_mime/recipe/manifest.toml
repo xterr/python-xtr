@@ -1,0 +1,19 @@
+# The recipe for xtr-mime: what *Use in an application* in the README takes, as
+# data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_mime.bundle:MimeBundle" = { all = true }
+
+# No [files]: configuring is optional. With none the table is the standard
+# library's built-in one, asking every guesser tagged for it. An application
+# adding extensions writes config/packages/mime.py itself.
+
+# No [env]: nothing is read from the environment.
+
+[gitignore]
+# Nothing: the bundle writes no file into the project.
+lines = []
+
+[notes]
+check = ["<script> debug:bundles — mime is listed and active"]

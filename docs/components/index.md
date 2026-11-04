@@ -74,6 +74,13 @@ To use a package alone, install it with `uv add` and read its README.
 | [xtr-slack-notifier](https://github.com/xterr/python-xtr/tree/main/packages/xtr-slack-notifier) | The Slack provider of `xtr-notifier`. | [API](https://xterr.github.io/python-xtr/api/xtr_slack_notifier/) |
 | [xtr-telegram-notifier](https://github.com/xterr/python-xtr/tree/main/packages/xtr-telegram-notifier) | The Telegram provider of `xtr-notifier`. | [API](https://xterr.github.io/python-xtr/api/xtr_telegram_notifier/) |
 
+## Email
+
+| Package | What it does | API |
+|---|---|---|
+| [xtr-mailer](https://github.com/xterr/python-xtr/tree/main/packages/xtr-mailer) | Sends email through SMTP, `sendmail` or the API of a provider. A DSN configures each transport. It sends at once or through the message bus. | [API](https://xterr.github.io/python-xtr/api/xtr_mailer/) |
+| [xtr-mime](https://github.com/xterr/python-xtr/tree/main/packages/xtr-mime) | Makes email messages with addresses, headers, text and HTML bodies, attachments and inline images. It writes them as standard MIME. It can also sign them with DKIM or S/MIME. | [API](https://xterr.github.io/python-xtr/api/xtr_mime/) |
+
 ## Contracts
 
 Each contracts package contains only interfaces. [Contracts](../architecture/contracts.md)

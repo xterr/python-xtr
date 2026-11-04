@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from dataclasses import dataclass, field
 
 import pytest
@@ -205,3 +206,35 @@ def test_its_representation_never_shows_the_credentials() -> None:
     assert "s3cr3t" not in shown
     assert "localhost" in shown
     assert "channel" in shown
+
+
+@pytest.mark.parametrize(
+    ("raw", "user", "password"),
+    [
+        pytest.param(
+            "slack://s3cr3t-user:hunter#x@default",
+            "s3cr3t-user",
+            "hunter",
+            id="fragment-after-password",
+        ),
+        pytest.param(
+            "slack://s3cr3t-user:s3cr3t\uff20x@default",
+            "s3cr3t-user",
+            "s3cr3t",
+            id="full-width-at-sign",
+        ),
+    ],
+)
+def test_it_keeps_the_credentials_out_of_the_error_chain(
+    raw: str, user: str, password: str
+) -> None:
+    with pytest.raises(InvalidArgumentError) as caught:
+        _ = Dsn(raw)
+
+    error = caught.value
+    assert str(error) == "The notifier DSN is invalid."
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    shown = "".join(traceback.format_exception(error))
+    assert user not in shown
+    assert password not in shown

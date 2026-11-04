@@ -178,3 +178,26 @@ async def test_an_unknown_option_is_refused_rather_than_quietly_obeyed() -> None
         _ = await client.send_request(Request("GET", "http://example.test/"), **unknown)
 
     await client.aclose()
+
+
+async def test_a_reset_forgets_the_address_a_host_was_pinned_to() -> None:
+    seen: list[httpx.Request] = []
+
+    async def record(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+
+        return httpx.Response(204)
+
+    client = HttpxHttpClient()
+    _answering(client, record)
+    pinned = {"example.test": "127.0.0.1"}
+    async with await client.request("GET", "http://example.test/", resolve=pinned):
+        pass
+
+    await client.reset()
+    async with await client.request("GET", "http://example.test/"):
+        pass
+
+    assert [request.url.host for request in seen] == ["127.0.0.1", "example.test"]
+
+    await client.aclose()

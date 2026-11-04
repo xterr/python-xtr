@@ -25,11 +25,16 @@ sender. This package is that last step and nothing else.
   onto a worker through [xtr-messenger](https://github.com/xterr/python-xtr).
 - `PayloadConverterInterface.convert(payload)` → `RemoteEvent`. Synchronous, takes the payload
   already decoded.
+- `MailerDeliveryEvent` / `MailerEngagementEvent` — a mail provider's reports, both
+  `AbstractMailerEvent`s: a `RemoteEvent` plus keyword-only `date` (required), `recipient_email`,
+  `metadata` and `tags`; a delivery adds `reason`. `name` is one of the class's constants.
+  Registered as `"mailer_delivery"` and `"mailer_engagement"`, so each crosses a bus as itself.
 - In an application, with xtr-dependency-injection installed beside the package (it is not a
   dependency): activate `RemoteEventBundle`, declare consumers where they live, route
   `ConsumeRemoteEventMessage`. There is no configuration module. Without the container, build the
   `ConsumerLocator` over your consumers yourself; only `xtr_remote_event.bundle` needs it.
-- Everything derives from `RemoteEventError`.
+- Every error derives from `RemoteEventError` but one: building `AbstractMailerEvent` itself
+  raises `TypeError`.
 
 ## Derive an event of your own
 
@@ -162,7 +167,10 @@ class AcmeConverter(PayloadConverterInterface):
         kind = payload.get("kind")
         if not isinstance(kind, str):
             raise ParseError('The payload has no "kind" naming the event.')
-        return RemoteEvent(kind, str(payload["id"]), dict(payload))
+        event_id = payload.get("id")
+        if not isinstance(event_id, str | int):
+            raise ParseError('The payload has no "id" identifying the event.')
+        return RemoteEvent(kind, str(event_id), dict(payload))
 ```
 
 This is where a sender's vocabulary is translated and nowhere else: adding a sender is writing
@@ -170,6 +178,51 @@ one converter rather than touching whatever dispatches events. It takes the payl
 decoded — reading the bytes, and deciding whether they are to be trusted at all, belongs to
 whatever received them — and it is synchronous, because translating a mapping reaches for
 nothing.
+
+## Report what became of a mail
+
+```python
+from collections.abc import Mapping
+from datetime import UTC, datetime
+
+from xtr_remote_event import MailerDeliveryEvent, PayloadConverterInterface, RemoteEvent
+from xtr_remote_event.exception import ParseError
+
+_DELIVERY = {"delivered": MailerDeliveryEvent.DELIVERED, "bounced": MailerDeliveryEvent.BOUNCE}
+
+
+class AcmeMailConverter(PayloadConverterInterface):
+    def convert(self, payload: Mapping[str, object]) -> RemoteEvent:
+        name = _DELIVERY.get(str(payload.get("event")))
+        if name is None:
+            raise ParseError(f'Unsupported event "{payload.get("event")}".')
+        try:
+            event_id = str(payload["id"])
+            date = datetime.fromtimestamp(float(str(payload["timestamp"])), UTC)
+        except (KeyError, ValueError, OverflowError, OSError) as error:
+            raise ParseError(f"Unreadable delivery report: {error!r}.") from error
+        return MailerDeliveryEvent(
+            name,
+            event_id,
+            dict(payload),
+            date=date,
+            recipient_email=str(payload.get("recipient", "")),
+            reason=str(payload.get("reason", "")),
+        )
+```
+
+- `name` is one of the class's constants, never the provider's word: a delivery is `RECEIVED`,
+  `DROPPED`, `DELIVERED`, `DEFERRED` or `BOUNCE`; an engagement (`MailerEngagementEvent`) is
+  `OPEN`, `CLICK`, `SPAM` or `UNSUBSCRIBE`. The converter translates, so consumers never do.
+- The three `RemoteEvent` fields stay positional; everything a mailer event adds is a keyword.
+  `date` is when the provider says it happened, not when the report arrived.
+- `date` is a plain `datetime`: give it in UTC, as providers report it. It keeps its offset on a
+  bus, not a zone's name, and one in the hour the clocks repeat is refused when written.
+- `metadata` holds JSON data, as `payload` does.
+- A payload is the sender's, so whatever reading it raises becomes a `ParseError`: `KeyError` for
+  a missing field, and `ValueError`, `OverflowError` or `OSError` for a timestamp that is not a
+  number or not a time `datetime.fromtimestamp` can convert.
+- `AbstractMailerEvent` holds what both share; building it itself raises `TypeError`.
 
 ## Testing
 
@@ -245,13 +298,14 @@ async def test_a_paid_order_is_marked_paid() -> None:
 
 ## Errors
 
-Everything derives from `RemoteEventError`.
+Everything derives from `RemoteEventError`, with one exception: the `TypeError` raised when `AbstractMailerEvent` itself is built, a programming error like building any abstract type.
 
 | Error | Raised when | Also a |
 | --- | --- | --- |
 | `InvalidArgumentError` | a value cannot be used — an empty consumer name, a class with no `consume()` | `ValueError` |
 | `ParseError` | a converter cannot read a payload as an event | `InvalidArgumentError` |
 | `LogicError` | nothing is registered for a source, or what is registered is not a consumer | `RuntimeError` |
+| `TypeError` | `AbstractMailerEvent` itself is built — a programming error, as with any abstract type | — (not a `RemoteEventError`; the message is `"AbstractMailerEvent" is abstract: build a "MailerDeliveryEvent" or a "MailerEngagementEvent" instead.`) |
 
 A `ParseError` is the sender's doing, so the answer is to tell the sender. A `LogicError` is
 wiring the application got wrong, and is said where the event would otherwise be lost.

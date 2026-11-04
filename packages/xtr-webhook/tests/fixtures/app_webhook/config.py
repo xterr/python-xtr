@@ -7,6 +7,7 @@ from xtr_http_client.bundle import HttpClientConfig, ScopedClientConfig
 from xtr_messenger import MessageBusConfig, TransportConfig
 from xtr_remote_event.messenger import ConsumeRemoteEventMessage
 
+from tests.fixtures.app_webhook.services import LISTED_TYPE, EventListRequestParser
 from tests.support.secret_header_request_parser import SecretHeaderRequestParser
 from xtr_webhook.bundle import RouteConfig, WebhookConfig
 from xtr_webhook.messenger import SendWebhookMessage
@@ -15,18 +16,20 @@ PARSED_TYPE = "test"
 PLAIN_TYPE = "plain"
 PARSED_SECRET = "the-secret"
 PLAIN_SECRET = "plain-secret"
+LISTED_SECRET = "listed-secret"
 APP_CLIENT = "app_client"
 """The client webhooks are sent through, named so a test can tell it from the default one."""
 
 
 @configure
 def webhook() -> WebhookConfig:
-    """Route one type to a custom parser and one to the bundle's own, sending by the app client."""
+    """Route two types to custom parsers and one to the bundle's own, sending by the app client."""
     return WebhookConfig(
         http_client=APP_CLIENT,
         routing={
             PARSED_TYPE: RouteConfig(parser=SecretHeaderRequestParser, secret=PARSED_SECRET),
             PLAIN_TYPE: RouteConfig(secret=PLAIN_SECRET),
+            LISTED_TYPE: RouteConfig(parser=EventListRequestParser, secret=LISTED_SECRET),
         },
     )
 

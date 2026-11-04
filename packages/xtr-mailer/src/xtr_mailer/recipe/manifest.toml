@@ -1,0 +1,32 @@
+# The recipe for xtr-mailer: what *Use in an application* in the README takes, as
+# data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_mailer.bundle:MailerBundle" = { all = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# Needed to send anywhere: with no configuration every email goes to null://null.
+"config/packages/mailer.py" = "files/config/mailer.py.tmpl"
+
+[env]
+# The transport the written configuration reads. null://null accepts an email and
+# discards it, so a fresh application sends without a mail server until one is set
+# here. Read when the transport is first built, not when the application boots.
+MAILER_DSN = "null://null"
+
+[gitignore]
+# Nothing of its own: an email is sent, never written to disk.
+lines = []
+
+[notes]
+steps = [
+  "Set MAILER_DSN to the server that is to carry the mail — smtp://user:pass@mail.example.com:587, sendmail://default, or a provider library's scheme after uv add \"xtr-mailer[<provider>]\".",
+  "To send from a worker instead of the request, uv add xtr-messenger and route xtr_mailer.messenger.SendEmailMessage to an asynchronous transport in config/packages/messenger.py; unrouted, it is handled in-process.",
+]
+check = [
+  "<script> debug:bundles — mailer is listed and active",
+  "<script> debug:config mailer — the resolved transports, envelope, headers and signing",
+  "<script> mailer:test you@example.com — sends one email through the configured transport",
+]

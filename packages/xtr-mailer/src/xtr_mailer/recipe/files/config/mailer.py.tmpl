@@ -1,0 +1,30 @@
+"""Email: the transport the mail goes through, and what every message carries.
+
+A DSN carries a mail server's credentials, so it is read from the environment when the
+transport is first built — never written here, never shown by a container report. Wrap
+several in `` failover(a b) `` to fall back to the second, or `` roundrobin(a b) `` to
+take turns.
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure, env
+from xtr_mailer.bundle import MailerConfig
+
+__all__ = ["mailer"]
+
+
+@configure
+def mailer() -> MailerConfig:
+    """One transport, read from the environment."""
+    return MailerConfig(
+        # Every email goes through this one. To route by the X-Transport header instead,
+        # name them in transports={"main": TransportConfig(dsn, rate_limiter=None), ...}
+        # — which cannot be given together with dsn.
+        dsn=env("MAILER_DSN"),
+        # The sender and recipients every email is forced to, and the patterns a staging
+        # deployment still lets through, go in envelope=EnvelopeConfig(...). Headers every
+        # email carries go in headers={...}, open and click tracking in
+        # tracking=TrackingConfig(...), and signing in dkim_signer=DkimSignerConfig(...),
+        # smime_signer=SmimeSignerConfig(...) and smime_encrypter=SmimeEncrypterConfig(...).
+    )

@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+import pytest
+
+from xtr_mailer.exception import LogicError, MailerError, UnsupportedSchemeError
+from xtr_mailer.exception import unsupported_scheme_error as module
+
+
+def _installed(distribution: str) -> bool:
+    return distribution.startswith("xtr-")
+
+
+def _absent(_distribution: str) -> bool:
+    # The provider library may be installed in the workspace; these tests are about one missing.
+    return False
+
+
+def test_it_is_a_logic_error_of_this_package() -> None:
+    assert issubclass(UnsupportedSchemeError, LogicError)
+    assert issubclass(UnsupportedSchemeError, MailerError)
+
+
+@pytest.mark.parametrize("scheme", ["mailgun"])
+def test_it_names_the_extra_to_install_for_a_known_scheme(
+    scheme: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(module, "_installed", _absent)
+
+    error = UnsupportedSchemeError(scheme)
+
+    assert str(error) == (
+        f'Unable to send emails via "{scheme}" as the bridge is not installed. '
+        f'Try running: uv add "xtr-mailer[{scheme}]".'
+    )
+
+
+def test_it_reads_the_provider_before_a_plus_in_the_scheme(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(module, "_installed", _absent)
+
+    error = UnsupportedSchemeError("mailgun+api")
+
+    assert 'via "mailgun"' in str(error)
+
+
+def test_it_does_not_suggest_a_library_that_is_already_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(module, "_installed", _installed)
+
+    error = UnsupportedSchemeError("mailgun", "default", ["smtp"])
+
+    assert str(error) == (
+        'The "mailgun" scheme is not supported; supported schemes for mailer "default" are: "smtp".'
+    )
+
+
+def test_it_reports_a_known_library_installed_on_this_machine_as_installed() -> None:
+    assert module._installed("xtr-mailer")
+    assert not module._installed("xtr-no-such-distribution")
+
+
+@pytest.mark.parametrize(
+    ("expected", "name", "supported"),
+    [
+        ('The "somethingElse" scheme is not supported.', None, []),
+        ('The "somethingElse" scheme is not supported.', "foo", []),
+        (
+            (
+                'The "somethingElse" scheme is not supported; '
+                'supported schemes for mailer "one" are: "one", "two".'
+            ),
+            "one",
+            ["one", "two"],
+        ),
+    ],
+)
+def test_it_lists_the_supported_schemes_for_an_unknown_scheme(
+    expected: str, name: str | None, supported: list[str]
+) -> None:
+    error = UnsupportedSchemeError("somethingElse", name, supported)
+
+    assert str(error) == expected
+
+
+def test_it_carries_what_it_was_told() -> None:
+    error = UnsupportedSchemeError("other", "main", ["null"])
+
+    assert error.scheme == "other"
+    assert error.name == "main"
+    assert error.supported == ("null",)
+
+
+def test_it_shows_a_long_or_broken_scheme_cut_short_and_escaped() -> None:
+    error = UnsupportedSchemeError("s" * 10_000 + "\r\n")
+
+    assert str(error) == f'The "{"s" * 64}…" scheme is not supported.'
+    assert error.scheme == "s" * 10_000 + "\r\n"
+
+
+def test_it_shows_an_escaped_scheme_whole_when_short() -> None:
+    assert str(UnsupportedSchemeError("a\nb")) == 'The "a\\nb" scheme is not supported.'

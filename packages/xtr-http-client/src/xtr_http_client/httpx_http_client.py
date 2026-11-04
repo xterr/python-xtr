@@ -10,11 +10,12 @@ import httpx
 from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_message import Request
+from xtr_service_contracts import ResetInterface
 
 from .http_client_mixin import HttpClientMixin
 from .internal.httpx_clients import HttpxClients
 from .internal.httpx_errors import timed_out, transport_error
-from .internal.httpx_redirect import next_hop, same_origin
+from .internal.httpx_redirect import exchange
 from .internal.httpx_request import (
     assemble_headers,
     assemble_payload,
@@ -38,7 +39,7 @@ __all__ = ["HttpxHttpClient"]
 
 
 @final
-class HttpxHttpClient(HttpClientMixin, HttpClientInterface):
+class HttpxHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
     """Sends requests over real connections, and hands back answers as they arrive.
 
     A request returns once the status line and the headers are in, whatever
@@ -51,14 +52,20 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface):
     has no ``Authorization`` of its own — which is what lets one set of
     client-wide defaults sit under requests that each know their own mind.
     What each part of an outgoing request is assembled from is in
-    :mod:`xtr_http_client.internal.httpx_request`; what is here is the
-    exchange, and the redirect chain it may turn into.
+    :mod:`xtr_http_client.internal.httpx_request`, and the redirect chain an
+    exchange may turn into is followed in
+    :mod:`xtr_http_client.internal.httpx_redirect`; what is here is the
+    exchange itself, under its deadline.
 
     Connections are pooled by how they connect rather than by host: a proxy,
     a trust store, a protocol version and the deadlines all decide what a
     connection is, so each combination of them gets a pool, and
     ``max_host_connections`` is each pool's ceiling across every host it
     reaches.
+
+    A host a request pins to an address through ``resolve`` stays pinned for
+    the requests after it, in the pool it went through; :meth:`reset` forgets
+    every pin, and keeps the connections open until the client is closed.
 
     ```python
     async with HttpxHttpClient(max_host_connections=4) as client:
@@ -164,6 +171,11 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface):
 
         return await self._send(client, outgoing, merged, headers)
 
+    @override
+    async def reset(self) -> None:
+        """Forget the address every host was pinned to, keeping the connections open."""
+        self._clients.reset()
+
     async def aclose(self) -> None:
         """Close every pool, and with it every connection this client holds."""
         await self._clients.aclose()
@@ -207,7 +219,7 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface):
 
         try:
             with anyio.fail_after(limit):
-                response, history = await _exchange(
+                response, history = await exchange(
                     client,
                     outgoing,
                     _basic_credentials(options, headers),
@@ -227,43 +239,6 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface):
             deadline=deadline,
             decode=not carries(headers, "accept-encoding"),
         )
-
-
-async def _exchange(
-    client: httpx.AsyncClient,
-    outgoing: httpx.Request,
-    auth: tuple[str, str] | None,
-    max_redirects: int,
-) -> tuple[httpx.Response, list[httpx.Response]]:
-    """Send, then follow where each answer points until one points nowhere.
-
-    Following is done here, a hop at a time, for the one thing the backend
-    cannot be told: credentials belong to the host they were meant for, so an
-    ``Authorization`` the backend dropped on the way out of that host is put
-    back the moment the chain returns to it, and nowhere else.
-    """
-    response = await client.send(outgoing, auth=auth, stream=True, follow_redirects=False)
-    history: list[httpx.Response] = []
-    origin = response.request.url
-    authorization = cast("str | None", response.request.headers.get("authorization"))
-
-    while len(history) < max_redirects:
-        following = next_hop(response)
-        if following is None:
-            break
-
-        if (
-            authorization is not None
-            and "authorization" not in following.headers
-            and same_origin(following.url, origin)
-        ):
-            following.headers["Authorization"] = authorization
-
-        history.append(response)
-        await response.aclose()
-        response = await client.send(following, stream=True, follow_redirects=False)
-
-    return response, history
 
 
 def _reachable(url: str) -> str:

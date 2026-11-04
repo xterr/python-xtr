@@ -23,6 +23,7 @@ from xtr_notifier.exception import InvalidArgumentError, MissingRequiredOptionEr
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from urllib.parse import SplitResult
 
 __all__ = ["Dsn"]
 
@@ -63,11 +64,10 @@ class Dsn:
                 scheme, or carries no host.
         """
         self._original_dsn = dsn
-        try:
-            split = urlsplit(dsn)
-            port = split.port
-        except ValueError as error:
-            raise InvalidArgumentError("The notifier DSN is invalid.") from error
+        parts = _split_or_none(dsn)
+        if parts is None:
+            raise InvalidArgumentError("The notifier DSN is invalid.")
+        split, port = parts
         if not split.scheme:
             raise InvalidArgumentError("The notifier DSN must contain a scheme.")
         if not (split.netloc or split.path or split.query):
@@ -185,3 +185,18 @@ def _host_of(netloc: str) -> str:
     if authority.startswith("["):
         return authority.partition("]")[0] + "]"
     return authority.partition(":")[0]
+
+
+def _split_or_none(dsn: str) -> tuple[SplitResult, int | None] | None:
+    """Split ``dsn`` and read its port, or return ``None`` when the URL is malformed.
+
+    The stdlib error quotes the netloc, credentials included, so it is dropped here: the
+    caller raises its own error once this has returned, outside any handler, so no error
+    is chained as the context of the one it raises.
+    """
+    try:
+        split = urlsplit(dsn)
+        port = split.port
+    except ValueError:
+        return None
+    return split, port
