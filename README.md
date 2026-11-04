@@ -284,8 +284,8 @@ siblings by major version (`xtr-logging-contracts>=6.0,<7`).
 [`scripts/release.py`](scripts/release.py) keeps that consistent:
 
 ```sh
-uv run scripts/release.py check        # every package and this README on one version (CI runs this)
-uv run scripts/release.py bump 6.0.0   # move every package and this README; on a new major, rewrite the ranges
+uv run scripts/release.py check        # every package, this README and the docs on one version (CI runs this)
+uv run scripts/release.py bump 6.0.0   # move every package, this README and the docs; on a new major, rewrite the ranges
 ```
 
 A package classified `Private :: Do Not Upload` moves with the rest but is never published or

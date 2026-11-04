@@ -11,9 +11,10 @@ published or split.
     uv run scripts/release.py bump X.Y.Z      # move everything, rewrite ranges, relock
 
 The root README's package template and release commands name the current version,
-and the READMEs and shipped skills quote the sibling ranges an application
-installs, so a package created from the template starts on the shared version and
-no doc offers a range that no longer exists.
+the documentation site names it in its examples, and the READMEs, shipped skills
+and documentation pages quote the sibling ranges an application installs, so a
+package created from the template starts on the shared version and no doc offers a
+range that no longer exists.
     uv run scripts/release.py packages        # publishable packages, as JSON
 """
 
@@ -36,10 +37,13 @@ PRIVATE = "Private :: Do Not Upload"
 VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 REQUIREMENT_NAME = re.compile(r"^[A-Za-z0-9._-]+")
 README = ROOT / "README.md"
+DOCS = ROOT / "docs"
 README_VERSION = re.compile(
     r'(version = "|release\.py bump |"bump: |git tag |push origin |read-only repository `)'
     r"\d+\.\d+\.\d+"
 )
+DOCS_VERSION = re.compile(r"(for example `|`xtr-[a-z0-9-]+` )\d+\.\d+\.\d+")
+DOCS_MAJOR = re.compile(r"(any version )\d+(?= of the packages)")
 DOC_RANGE = re.compile(r"(xtr-[a-z0-9-]+(?:\[[a-z,]+\])?>=)\d+\.0,<\d+")
 
 
@@ -125,21 +129,39 @@ def synced_readme(text: str, version: str) -> str:
     )
 
 
+def synced_page(text: str, version: str) -> str:
+    """Return a documentation page with its examples on ``version`` and its ranges on the major.
+
+    Only a version quoted as an xtr package's (`` `xtr-messenger` 6.0.0 ``) or as
+    *the* example version moves; an example application's own version and a third
+    party's stay as written.
+    """
+    major = int(version.split(".", maxsplit=1)[0])
+    text = DOCS_VERSION.sub(lambda m: f"{m.group(1)}{version}", text)
+    return synced_ranges(DOCS_MAJOR.sub(lambda m: f"{m.group(1)}{major}", text), major)
+
+
 def synced_docs(version: str) -> list[Write]:
     """Return every doc whose version literals are not on ``version`` yet.
 
-    Only the root README carries the version itself; a package README and the
-    skills beside it quote ranges, which follow the major. A skill ships inside
-    the import package, at the version it describes, so its pages move with the
-    README beside them.
+    The root README and the documentation site carry the version itself; a
+    package README and the skills beside it quote ranges, which follow the major.
+    A skill ships inside the import package, at the version it describes, so its
+    pages move with the README beside them.
     """
     major = int(version.split(".", maxsplit=1)[0])
     pages = [README, *sorted(ROOT.glob("packages/*/README.md"))]
     pages += sorted(ROOT.glob("packages/*/src/*/.agents/**/*.md"))
+    site = sorted(DOCS.glob("**/*.md"))
     planned: list[Write] = []
-    for path in pages:
+    for path in pages + site:
         text = path.read_text()
-        wanted = synced_readme(text, version) if path == README else synced_ranges(text, major)
+        if path == README:
+            wanted = synced_readme(text, version)
+        elif path in site:
+            wanted = synced_page(text, version)
+        else:
+            wanted = synced_ranges(text, major)
         if wanted != text:
             planned.append(Write(path, wanted))
     return planned

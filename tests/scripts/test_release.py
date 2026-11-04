@@ -62,6 +62,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     monkeypatch.setattr(release, "ROOT", tmp_path)
     monkeypatch.setattr(release, "README", tmp_path / "README.md")
+    monkeypatch.setattr(release, "DOCS", tmp_path / "docs")
     return tmp_path
 
 
@@ -79,6 +80,18 @@ def skill_page(workspace: Path) -> Path:
     _ = (skill / "SKILL.md").write_text('di = ["xtr-ab>=1.0,<2"]\n')
     _ = (skill / "references" / "bundle.md").write_text('"xtr-a[di]>=1.0,<2"\n')
     return skill
+
+
+@pytest.fixture
+def site_page(workspace: Path) -> Path:
+    page = workspace / "docs" / "reference" / "versions.md"
+    page.parent.mkdir(parents=True)
+    _ = page.write_text(
+        "for example `1.3.0`.\n`xtr-ab` 1.3.0 requires `xtr-a>=1.0,<2`.\n"
+        "any version 1 of the packages.\n"
+        'ConsoleConfig(name="shop", version="1.0.0")\n'
+    )
+    return page
 
 
 def test_ranges_on_siblings_move_to_the_new_major_and_nothing_else_moves(workspace: Path) -> None:
@@ -150,6 +163,26 @@ def test_a_shipped_skill_and_its_references_follow_the_major(skill_page: Path) -
 
 
 @pytest.mark.usefixtures("workspace")
+def test_a_documentation_page_follows_the_version_and_its_major(site_page: Path) -> None:
+    _apply(release.synced_docs("2.0.0"))
+
+    assert site_page.read_text().splitlines()[:3] == [
+        "for example `2.0.0`.",
+        "`xtr-ab` 2.0.0 requires `xtr-a>=2.0,<3`.",
+        "any version 2 of the packages.",
+    ]
+
+
+@pytest.mark.usefixtures("workspace")
+def test_an_example_application_version_in_a_documentation_page_is_left_alone(
+    site_page: Path,
+) -> None:
+    _apply(release.synced_docs("2.0.0"))
+
+    assert 'version="1.0.0"' in site_page.read_text()
+
+
+@pytest.mark.usefixtures("workspace")
 def test_a_doc_already_on_the_version_is_left_alone(package_doc: Path) -> None:
     _apply(release.synced_docs("1.3.0"))
 
@@ -192,6 +225,14 @@ def test_check_names_a_package_doc_left_behind(package_doc: Path) -> None:
     _ = package_doc.write_text('di = ["xtr-ab>=0.0,<1"]\n')
 
     with pytest.raises(SystemExit, match=r"packages/xtr-a/README\.md"):
+        release.check(None)
+
+
+@pytest.mark.usefixtures("workspace")
+def test_check_names_a_documentation_page_left_behind(site_page: Path) -> None:
+    _ = site_page.write_text("for example `1.2.0`.\n")
+
+    with pytest.raises(SystemExit, match=r"docs/reference/versions\.md"):
         release.check(None)
 
 
@@ -257,4 +298,12 @@ def test_every_line_the_readme_sync_rewrites_is_still_in_the_readme() -> None:
     missing = [prefix for prefix in prefixes if not re.search(rf"{prefix}\d+\.\d+\.\d+", text)]
 
     assert missing == []
+    assert release.DOC_RANGE.search(text) is not None
+
+
+def test_every_line_the_documentation_sync_rewrites_is_still_on_the_versions_page() -> None:
+    text = (_SCRIPT.parents[1] / "docs" / "reference" / "versions.md").read_text()
+
+    assert release.DOCS_VERSION.findall(text) == ["for example `", "`xtr-messenger` "]
+    assert release.DOCS_MAJOR.search(text) is not None
     assert release.DOC_RANGE.search(text) is not None
