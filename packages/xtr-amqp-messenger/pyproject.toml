@@ -1,6 +1,6 @@
 [project]
 name = "xtr-amqp-messenger"
-version = "6.0.0"
+version = "6.0.1"
 description = "A RabbitMQ transport for xtr-messenger: queues on an AMQP broker, a retry ladder, delays and real dead-lettering, through taskiq."
 readme = "README.md"
 requires-python = ">=3.11"
