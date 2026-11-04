@@ -2426,6 +2426,7 @@ dev = [
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-http-foundation", editable = "../../packages/xtr-http-foundation" },
+    { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
     { name = "xtr-rate-limiter", editable = "../../packages/xtr-rate-limiter" },
 ]
 
