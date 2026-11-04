@@ -2,13 +2,13 @@
 
 An HTML body may come from anyone, so markup built to make a parser backtrack — deep
 nesting, tags never closed, endless attributes — must cost no more per byte than text. Each
-case converts a small and a four times larger input; a quadratic cost would take sixteen times
-as long, a linear one four.
+case converts inputs of growing sizes, and the CPU time each takes is held to linear growth
+(see :mod:`tests.support.growth`), so a machine slowed by other work does not decide.
 
 Megabytes of character reference digits are held to a budget per megabyte instead, under the
 interpreter's default limit on the digits ``int()`` reads and with no limit, as an application
 may set it: reading such digits as a number would refuse them, or take time growing faster than
-their count.
+their count. The budget is in CPU time too, for the same reason.
 """
 
 from __future__ import annotations
@@ -20,14 +20,13 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 
+from tests.support.growth import assert_linear_growth
 from xtr_mime.html_to_text_converter import DefaultHtmlToTextConverter
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
-_SMALL: Final = 100_000
-_LARGE: Final = 4 * _SMALL
-_GROWTH_LIMIT: Final = 10.0
+_LARGEST: Final = 400_000
 _MEGABYTE: Final = 1_000_000
 _MEGABYTES: Final = 5
 _SECONDS_PER_MEGABYTE: Final = 1.0
@@ -57,9 +56,9 @@ LONG_REFERENCES: Final[dict[str, Callable[[int], str]]] = {
 
 def _seconds(html: str) -> float:
     converter = DefaultHtmlToTextConverter()
-    started = time.perf_counter()
+    started = time.thread_time()
     _ = converter.convert(html, "utf-8")
-    return time.perf_counter() - started
+    return time.thread_time() - started
 
 
 @contextmanager
@@ -74,10 +73,9 @@ def _int_digit_limit(limit: int) -> Generator[None]:
 
 @pytest.mark.parametrize("build", HOSTILE.values(), ids=HOSTILE.keys())
 def test_hostile_markup_converts_in_linear_time(build: Callable[[int], str]) -> None:
-    small = min(_seconds(build(_SMALL)) for _ in range(3))
-    large = min(_seconds(build(_LARGE)) for _ in range(3))
+    converter = DefaultHtmlToTextConverter()
 
-    assert large < max(small, 0.001) * _GROWTH_LIMIT
+    _ = assert_linear_growth(lambda size: converter.convert(build(size), "utf-8"), _LARGEST // 4)
 
 
 @pytest.mark.parametrize(
