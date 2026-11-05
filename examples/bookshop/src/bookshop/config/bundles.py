@@ -35,10 +35,16 @@ What each entry brings:
 - ``MakerBundle`` — the ``make:*`` commands, which write application code; dev only, like
   the dependency it comes from. Where the development dependencies are not installed, a
   deployment's, the kernel stands in for it, inactive there, and never needs its package.
+- ``ClockBundle`` — the clock every bundle that tells the time reads; ``LoggingBundle``
+  (softly) and ``FulltextBundle`` (hard) require it, and a sync lists it like every
+  recipe's bundle.
+- ``RemoteEventBundle`` — what ``WebhookBundle`` requires: the consumers the events a
+  webhook carried are handed to.
+- ``SecurityBundle`` — what ``JwtBundle`` requires: the firewalls, and the token storage
+  the api firewall's jwt authenticator registers into.
 
 Not listed, and active anyway:
 
-- ``ClockBundle`` — required by ``LoggingBundle`` (softly) and ``FulltextBundle`` (hard).
 - ``fulltext_metrics.bundle:MetricsBundle`` — required softly by ``FulltextBundle`` and not
   installed, so it is reported as skipped.
 """
