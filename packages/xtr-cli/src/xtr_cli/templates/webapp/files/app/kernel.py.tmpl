@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Final
 
 from xtr_dependency_injection import Kernel, exclude
-from xtr_dotenv import Dotenv
+
+from ${app}.config.packages.dotenv import DOTENV
 
 __all__ = ["PROJECT_DIR", "kernel", "load_environment"]
 
@@ -37,7 +38,10 @@ kernel: Final = Kernel(
 def load_environment() -> None:
     """Load the layered ``.env`` files into the environment, before the kernel is built.
 
+    ``DOTENV`` in ``config/packages/dotenv.py`` is the one description of the cascade — the
+    same object the dotenv commands read from the container.
+
     ``@exclude`` keeps this helper out of the container: it is an entry point's concern,
     never a service.
     """
-    _ = Dotenv().boot_env(str(PROJECT_DIR / ".env"))
+    _ = DOTENV.boot(PROJECT_DIR)

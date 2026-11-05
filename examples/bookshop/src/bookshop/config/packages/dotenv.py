@@ -1,26 +1,31 @@
-"""The dotenv bundle: the cascade its ``dotenv:dump`` and ``debug:dotenv`` commands describe.
+"""One description of the dotenv cascade: entry points and commands both read it.
 
-The bundle loads nothing — ``bookshop.kernel.load_environment`` does, before the kernel is
-built. This config must describe the same cascade, so both read the same constants.
+``DOTENV`` is the single source of truth. ``kernel.py`` boots the environment from it
+before the kernel builds, and ``dotenv:dump`` and ``debug:dotenv`` read the same object
+from the container. Change the cascade here, and nowhere else.
 """
 
 from __future__ import annotations
 
+from typing import Final
+
 from xtr_dependency_injection import configure
 from xtr_dotenv.bundle import DotenvConfig
 
-from bookshop.kernel import DEBUG_KEY, ENV_KEY, PROD_ENVS, TEST_ENVS
+__all__ = ["DOTENV", "dotenv"]
 
-__all__ = ["dotenv"]
+DOTENV: Final = DotenvConfig(
+    path="%kernel.project_dir%/.env",
+    env_key="APP_ENV",
+    debug_key="APP_DEBUG",
+    default_env="dev",
+    test_envs=("test",),
+    prod_envs=("prod",),
+    debug_envs=("dev", "local", "test"),
+)
 
 
 @configure
 def dotenv() -> DotenvConfig:
-    """Every ``DotenvConfig`` field; ``%kernel.project_dir%`` is resolved by the kernel."""
-    return DotenvConfig(
-        path="%kernel.project_dir%/.env",
-        env_key=ENV_KEY,
-        debug_key=DEBUG_KEY,
-        test_envs=TEST_ENVS,
-        prod_envs=PROD_ENVS,
-    )
+    """Hand the container the one cascade description."""
+    return DOTENV

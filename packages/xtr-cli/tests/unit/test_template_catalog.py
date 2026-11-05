@@ -33,7 +33,13 @@ def test_every_shipped_template_renders(name: str) -> None:
 
     paths = {path for path, _ in template.render(_VALUES)}
 
-    assert {"AGENTS.md", "bin/console", "pyproject.toml", "src/web_shop/kernel.py"} <= paths
+    assert {
+        "AGENTS.md",
+        "bin/console",
+        "pyproject.toml",
+        "src/web_shop/kernel.py",
+        "src/web_shop/config/packages/dotenv.py",
+    } <= paths
     assert "src/web_shop/__main__.py" in paths
     assert all(step for step in template.steps(_VALUES))
 
@@ -53,6 +59,14 @@ def test_every_shipped_template_writes_rules_for_a_coding_agent(name: str) -> No
 
     assert agents.startswith("# AGENTS.md — rules for a coding agent working in web-shop\n")
     assert "$$" not in agents
+
+
+@pytest.mark.parametrize("name", ["cli", "webapp"])
+def test_every_shipped_template_boots_the_environment_from_the_dotenv_starter(name: str) -> None:
+    files = dict(TemplateCatalog.default().load(name).render(_VALUES))
+
+    assert "DOTENV.boot(PROJECT_DIR)" in files["src/web_shop/kernel.py"]
+    assert "${" not in files["src/web_shop/config/packages/dotenv.py"]
 
 
 @pytest.mark.parametrize("name", ["cli", "webapp"])

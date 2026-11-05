@@ -322,8 +322,8 @@ own, keep every secret out of the repository too.
 | storage | `StorageConfig` — the `default` storage and a prefixed `reports` one, in memory under `@when("test")` | `config/packages/storage.py` |
 | storage | a qualified `StorageOperatorInterface` (`Target("reports")`) written to and asked for a file's size | `command/export_books_command.py` |
 | clock | `ClockInterface` injected, `Clock`, `MockClock`, `MonotonicClock`, `mock_time`, `DatePoint`, `ClockAwareMixin` | `service/order_number.py`, `fulltext/bundle/timed_search_engine.py`, `dev_tools/commands.py` |
-| dotenv | `Dotenv().boot_env()` at the entry point; `parse / load / overload / populate / load_env` | `kernel.py`, `dev_tools/commands.py` |
-| dotenv | `DotenvSettings` — typed settings from the same cascade | `service/shop_settings.py` |
+| dotenv | `DOTENV.boot(PROJECT_DIR)` at the entry point — one description in `config/packages/dotenv.py`; `parse / load / overload / populate / load_env` | `kernel.py`, `config/packages/dotenv.py`, `dev_tools/commands.py` |
+| dotenv | `DotenvSettings` — typed settings from the same cascade, its `_dotenv_*` read from `DOTENV` | `service/shop_settings.py` |
 | service-contracts | `ResetInterface` (nominal) and an explicit `kernel.reset` tag | `service/caching_book_catalog.py`, `fulltext/query_log.py` |
 | orm | `OrmConfig` with one connection: the URL from `env("resolve:...")`, engine and session options, migrations under the project | `config/packages/orm.py` |
 | orm | engine and session options in the URL's query — `pool_pre_ping`, `expire_on_commit`, `pool_size` — taking precedence over the config | `.env`, `.env.prod` |
@@ -400,7 +400,8 @@ against — a demo value in `.env`; a real deployment overrides it with the send
 - **Configure a development-only bundle in `config/packages/dev/`**, never directly under
   `config/packages/`: production does not install its package, and only `dev` imports that folder
   (`config/packages/dev/maker.py`).
-- **The dotenv bundle loads nothing**: `load_environment()` runs before the kernel is built.
+- **The dotenv bundle loads nothing**: `load_environment()` boots `DOTENV` — the one
+  description, in `config/packages/dotenv.py` — before the kernel is built.
 - **A config another bundle forwards to with `AliasOf` takes no application base provider** —
   that is a `ConflictingConfigProvidersError`; transform it instead (`config/packages/clock.py`).
 - **A validator also sees a parameter's default** — except `None`, the default of an optional

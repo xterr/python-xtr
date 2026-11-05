@@ -30,6 +30,7 @@ async def test_init_makes_the_project_in_the_current_directory_keeping_its_repos
 
     assert code == ExitCode.SUCCESS
     assert (project / "src" / "my_tool" / "kernel.py").is_file()
+    assert (project / "src" / "my_tool" / "config" / "packages" / "dotenv.py").is_file()
     assert (project / "bin" / "console").stat().st_mode & 0o111
     assert (project / "AGENTS.md").is_file()
     assert all(argv[0] != "git" for argv, _ in runner.calls)
@@ -47,4 +48,5 @@ async def test_init_makes_a_web_application_under_a_name_other_than_the_director
 
     assert code == ExitCode.SUCCESS
     assert (tmp_path / "src" / "billing_api" / "web" / "app.py").is_file()
+    assert (tmp_path / "src" / "billing_api" / "config" / "packages" / "dotenv.py").is_file()
     assert "billing-api — the webapp template" in tester.display

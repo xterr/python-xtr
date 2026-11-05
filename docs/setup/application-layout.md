@@ -19,6 +19,7 @@ shop/
 │   ├── config/
 │   │   ├── bundles.py        # the bundles and their environments
 │   │   └── packages/         # one configuration file for each bundle
+│   │       ├── dotenv.py     # the layers of the .env files
 │   │       └── dev/          # configuration for the dev environment only
 │   └── web/
 │       ├── __main__.py       # the web entry point: uv run shop-web

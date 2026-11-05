@@ -12,15 +12,12 @@ from pathlib import Path
 from typing import Final
 
 from xtr_dependency_injection import Kernel, exclude
-from xtr_dotenv import Dotenv
+
+from bookshop.config.packages.dotenv import DOTENV
 
 __all__ = [
-    "DEBUG_KEY",
-    "ENV_KEY",
     "EXCLUDE",
-    "PROD_ENVS",
     "PROJECT_DIR",
-    "TEST_ENVS",
     "kernel",
     "load_environment",
 ]
@@ -30,11 +27,6 @@ PROJECT_DIR: Final = Path(__file__).resolve().parents[2]
 
 The kernel finds the same directory on its own, as ``kernel.project_dir``.
 """
-
-ENV_KEY: Final = "APP_ENV"
-DEBUG_KEY: Final = "APP_DEBUG"
-TEST_ENVS: Final = ("test",)
-PROD_ENVS: Final = ("prod",)
 
 # DEFAULT_EXCLUDES keeps tests, conftest and __main__ modules out of the scan, and ``exclude=``
 # adds to it; a pattern starting with "." is relative to this package. Left out as well:
@@ -63,16 +55,16 @@ kernel: Final = Kernel(
 
 @exclude
 def load_environment() -> None:
-    """Load the layered ``.env`` files into ``os.environ`` — before the kernel is built.
+    """Boot the layered ``.env`` files into ``os.environ`` — before the kernel is built.
 
     ``@exclude`` keeps this helper out of the scan: it is an entry-point concern, never a
-    service candidate. ``boot_env`` reads ``.env.local.json`` (written by ``dotenv:dump``)
-    when it applies, else the cascade ``.env`` -> ``.env.local`` -> ``.env.{env}`` ->
+    service candidate. ``DOTENV`` — the one description, in ``config/packages/dotenv.py`` —
+    builds the loader and resolves the base path, so the entry point and the
+    ``dotenv:dump`` / ``debug:dotenv`` commands run the very same cascade:
+    ``.env.local.json`` (written by ``dotenv:dump``) when it applies and was compiled from
+    that same description, else ``.env`` -> ``.env.local`` -> ``.env.{env}`` ->
     ``.env.{env}.local``; a real environment variable always wins. It then sets APP_DEBUG
-    to ``1`` or ``0``.
+    to ``1`` or ``0`` — on by default only in the environments ``DOTENV.debug_envs``
+    declares.
     """
-    _ = (
-        Dotenv(env_key=ENV_KEY, debug_key=DEBUG_KEY)
-        .set_prod_envs(PROD_ENVS)
-        .boot_env(str(PROJECT_DIR / ".env"), default_env="dev", test_envs=TEST_ENVS)
-    )
+    _ = DOTENV.boot(PROJECT_DIR)

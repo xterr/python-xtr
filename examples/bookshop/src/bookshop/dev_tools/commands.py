@@ -271,9 +271,9 @@ async def dotenv_api(io: ConsoleStyle) -> int:
     rows.append(["load() — the real SOURCE wins", loaded["SOURCE"]])
     _ = Dotenv(environ=loaded).overload(str(base) + ".dist")
     rows.append(["overload() — the file wins", loaded["SOURCE"]])
-    # boot_env: the cascade, then APP_DEBUG set from the environment kind.
+    # boot_env: the cascade, then APP_DEBUG set from debug_envs — off outside them.
     booted: dict[str, str] = {"APP_ENV": "prod"}
-    _ = Dotenv(environ=booted).set_prod_envs(("prod",)).boot_env(str(base))
+    _ = Dotenv(environ=booted).boot_env(str(base))
     rows.append(["boot_env() in prod -> APP_DEBUG", booted["APP_DEBUG"]])
     io.table(["Call", "Result"], [[a, escape(b)] for a, b in rows])
     return ExitCode.SUCCESS

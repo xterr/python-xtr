@@ -40,6 +40,7 @@ dev = ["xtr-recipes", "pytest", "httpx", "ruff", "basedpyright", "ty"]
 "src/${app}/command/hello_command.py" = "files/app/command/hello_command.py.tmpl"
 "src/${app}/config/__init__.py" = "files/app/config/__init__.py.tmpl"
 "src/${app}/config/packages/__init__.py" = "files/app/config/packages/__init__.py.tmpl"
+"src/${app}/config/packages/dotenv.py" = "files/app/config/packages/dotenv.py.tmpl"
 "src/${app}/config/packages/http_kernel.py" = "files/app/config/packages/http_kernel.py.tmpl"
 "src/${app}/web/__init__.py" = "files/app/web/__init__.py.tmpl"
 "src/${app}/web/__main__.py" = "files/app/web/__main__.py.tmpl"

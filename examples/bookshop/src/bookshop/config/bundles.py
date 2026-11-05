@@ -46,6 +46,7 @@ Not listed, and active anyway:
 from __future__ import annotations
 
 from xtr_cache.bundle import CacheBundle
+from xtr_clock.bundle import ClockBundle
 from xtr_console.bundle import ConsoleBundle
 from xtr_dotenv.bundle import DotenvBundle
 from xtr_event_dispatcher.bundle import EventDispatcherBundle
@@ -56,7 +57,9 @@ from xtr_maker.bundle import MakerBundle
 from xtr_messenger.bundle import MessengerBundle
 from xtr_orm.bundle import OrmBundle
 from xtr_rate_limiter.bundle import RateLimiterBundle
+from xtr_remote_event.bundle import RemoteEventBundle
 from xtr_scheduler.bundle import SchedulerBundle
+from xtr_security.bundle import SecurityBundle
 from xtr_security_jwt.bundle import JwtBundle
 from xtr_storage.bundle import StorageBundle
 from xtr_webhook.bundle import WebhookBundle
@@ -84,4 +87,7 @@ BUNDLES = {
     StorageBundle: {"all": True},
     WebhookBundle: {"all": True},
     MakerBundle: {"dev": True},
+    ClockBundle: {"all": True},
+    RemoteEventBundle: {"all": True},
+    SecurityBundle: {"all": True},
 }

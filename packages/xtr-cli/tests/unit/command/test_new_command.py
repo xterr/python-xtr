@@ -28,6 +28,7 @@ async def test_new_makes_a_console_application_then_installs_and_syncs_it_asking
 
     assert code == ExitCode.SUCCESS
     assert (target / "src" / "shop" / "__main__.py").is_file()
+    assert (target / "src" / "shop" / "config" / "packages" / "dotenv.py").is_file()
     assert (target / "bin" / "console").stat().st_mode & 0o111
     assert (target / "AGENTS.md").is_file()
     assert not (target / "src" / "shop" / "web").exists()
@@ -56,6 +57,7 @@ async def test_webapp_makes_a_web_application_with_the_web_packages(
     assert "xtr-security>=3.0,<4" in runner.calls[0][0]
     assert all(argv[0] != "git" for argv, _ in runner.calls)
     assert (target / "src" / "web_shop" / "web" / "app.py").is_file()
+    assert (target / "src" / "web_shop" / "config" / "packages" / "dotenv.py").is_file()
 
 
 async def test_a_dry_run_prints_the_plan_and_writes_nothing(
