@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# The console entry point: `bin/console <command>`, the same as `uv run ${name} <command>`.
+#
+# uv keeps the environment — this runs from the lock and syncs what is missing — so the
+# console works from a fresh clone, before any `uv sync`. On Windows, which has no sh,
+# run `uv run ${name}` instead.
+set -eu
+root=$$(CDPATH= cd -- "$$(dirname -- "$$0")/.." && pwd -P)
+cd -- "$$root"
+exec uv run ${name} "$$@"

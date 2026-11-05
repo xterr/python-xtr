@@ -7,6 +7,7 @@ A console application on the xtr packages.
 ```sh
 uv run ${name}                  # every command
 uv run ${name} app:hello Ada    # the example command
+bin/console app:hello Ada       # the same command through the bin/console wrapper
 uv run ${name} debug:bundles    # the bundles and whether each is active
 ```
 
@@ -17,6 +18,7 @@ The environment is read from `.env`, then `.env.local`, then `.env.<APP_ENV>` an
 ## Layout
 
 ```
+bin/console            the console wrapper — `uv run ${name}` from anywhere
 src/${app}/
 ├── __main__.py        the console entry point
 ├── kernel.py          the kernel every entry point builds, and the environment loader

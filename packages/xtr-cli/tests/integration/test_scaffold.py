@@ -69,6 +69,8 @@ def test_a_scaffolded_project_runs_and_checks_clean(
         _ = _run(check, project)
     for command in commands:
         _ = _run(("uv", "run", project.name, *command), project)
+    assert (project / "bin" / "console").stat().st_mode & 0o111
+    _ = _run((str(project / "bin" / "console"), "app:hello"), project)
     if webapp:
         served = _run(
             ("uv", "run", "xtr", "serve", f"--project-dir={project}", "--dry-run", "-n"),

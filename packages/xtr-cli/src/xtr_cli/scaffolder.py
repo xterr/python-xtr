@@ -103,6 +103,9 @@ class Scaffolder:
     def apply(self, plan: ScaffoldPlan, report: Callable[[str], None]) -> None:
         """Make the project ``plan`` describes, reporting each step as it starts.
 
+        A file written under ``bin/`` is made executable: git tracks the mode,
+        so the scaffolded repository keeps the wrapper runnable.
+
         Raises:
             DirectoryNotEmptyError: When the directory filled up since it was
                 checked.
@@ -115,6 +118,10 @@ class Scaffolder:
             target = plan.directory.joinpath(*path.split("/"))
             target.parent.mkdir(parents=True, exist_ok=True)
             _ = target.write_text(text, encoding="utf-8")
+            if path.startswith("bin/"):
+                # git tracks the mode, so the mode is part of what the scaffold
+                # writes: a wrapper under bin/ is an executable by convention.
+                target.chmod(0o755)
         for argv in plan.commands:
             report(f"run   {shlex.join(argv)}")
             code = self._runner.run(argv, plan.directory)

@@ -9,6 +9,7 @@ a database, a message bus, an HTTP client, notifications and security configured
 docker compose up -d database   # the PostgreSQL DATABASE_URL points at
 uv run ${name}-web              # serve on WEB_HOST:WEB_PORT, 127.0.0.1:8000 by default
 uv run ${name}                  # every console command
+bin/console app:hello           # the console script ${name} through the bin/console wrapper
 uv run ${name} debug:router     # the routes
 uv run ${name} debug:bundles    # the bundles and whether each is active
 ```
@@ -22,6 +23,7 @@ machine. Nothing connects to either until it is used.
 ## Layout
 
 ```
+bin/console            the console wrapper — `uv run ${name}` from anywhere
 src/${app}/
 ├── __main__.py        the console entry point
 ├── kernel.py          the kernel every entry point builds, and the environment loader

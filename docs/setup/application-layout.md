@@ -10,6 +10,7 @@ shop/
 ├── compose.yaml              # services for development, written by the recipes
 ├── pyproject.toml            # dependencies, console scripts and tool settings
 ├── xtr.lock                  # the recipes that the application applied
+├── bin/console               # the console wrapper: `uv run shop`, from any directory
 ├── src/shop/
 │   ├── __main__.py           # the console entry point: uv run shop
 │   ├── kernel.py             # the kernel that each entry point builds
@@ -33,6 +34,9 @@ Then it builds the container.
 
 Each entry point builds and starts its own kernel. The console entry point runs
 a command. The web entry point serves the FastAPI application.
+
+`bin/console` is the executable wrapper around `uv run shop`: it changes to the
+project's root first, so it works from any directory.
 
 ```python
 kernel: Final = Kernel(
