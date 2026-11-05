@@ -83,6 +83,10 @@ def _kernel(env: str = "test") -> Kernel:
     return Kernel(
         "tests.fixtures.extension_app",
         env=env,
+        # The deployment's environments include one the kernel does not name,
+        # where debug now defaults to off with a warning; both ran with debug
+        # on when these answers were written.
+        debug=True,
         bundles={OAuth2ServerBundle: {"all": True}, ExtensionBundle: {"all": True}},
         concurrent_scoped_access=True,
         resources=("tests.fixtures.extension_app", "tests.support.default_routes"),
