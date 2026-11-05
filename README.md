@@ -662,7 +662,7 @@ removing it undoes.
   and *Ignore* list, from the recipe shipped beside the bundle; keep `recipe/` true when those
   bullets change (see [xtr-recipes](../xtr-recipes)).
 - **Activate** — `<Name>Bundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
-  from `xtr_<name>.bundle` — or "nothing to do" when another bundle requires it.
+  from `xtr_<name>.bundle`.
 - **Brings along** — the bundles its `@required_bundle` pulls in, and when.
 - **Configure** — what the zero-config path gives; then the `<app>/config/packages/<name>.py`
   `@configure` function that changes it, linking to *Kernel / bundle*. A bundle listed for `dev`

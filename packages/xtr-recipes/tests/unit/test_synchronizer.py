@@ -114,6 +114,22 @@ _OWN_BUNDLES = (
     + "}\n"
 )
 
+# The bundle list as an earlier release left it when another bundle required
+# the clock bundle: the requirer listed, the clock bundle held out.
+_CLOCKLESS_BUNDLES = (
+    f'"""{_DEFAULT_DOCSTRING}"""\n'
+    "\n"
+    "from __future__ import annotations\n"
+    "\n"
+    "from xtr_logging.bundle import LoggingBundle\n"
+    "\n"
+    '__all__ = ["BUNDLES"]\n'
+    "\n"
+    "BUNDLES = {\n"
+    '    LoggingBundle: {"all": True},\n'
+    "}\n"
+)
+
 _MESSENGER_MANIFEST = f"""\
 [bundles]
 "{_MESSENGER_TARGET}" = {{ all = true }}
@@ -505,7 +521,7 @@ def test_a_dev_dependencys_recipe_writes_what_any_other_does(tmp_path: Path) -> 
     assert entry.gitignore == ("/var/messenger",)
 
 
-def test_a_bundle_its_recipe_lists_for_dev_does_not_stand_in_for_a_bundle_it_requires(
+def test_a_dev_dependency_and_a_runtime_dependency_are_each_listed_with_their_own_environments(
     tmp_path: Path,
 ) -> None:
     project = build_project(tmp_path, dependencies=[_CLOCK], dev_dependencies=[_LOGGING])
@@ -612,7 +628,7 @@ def test_unconfiguring_leaves_an_env_key_the_owner_set(tmp_path: Path) -> None:
     assert _read(tmp_path, ".env") == "MESSENGER_DSN=amqp://mine\n"
 
 
-def test_a_bundle_another_one_requires_is_not_listed(tmp_path: Path) -> None:
+def test_a_bundle_another_one_requires_is_listed_too(tmp_path: Path) -> None:
     project = build_project(tmp_path, dependencies=[_CLOCK, _LOGGING])
     manifests = {_CLOCK: _CLOCK_MANIFEST, _LOGGING: _LOGGING_MANIFEST}
     synchronizer = _synchronizer(project, manifests)
@@ -620,24 +636,32 @@ def test_a_bundle_another_one_requires_is_not_listed(tmp_path: Path) -> None:
     plan = synchronizer.plan()
     synchronizer.apply(plan)
 
-    assert "  bundle ClockBundle required by another bundle" in plan.render()
-    assert "ClockBundle" not in _read(tmp_path, _BUNDLES)
-    assert _entry(tmp_path, _CLOCK).bundles == {_CLOCK_TARGET: "required"}
+    assert "  bundle ClockBundle listed" in plan.render()
+    assert "ClockBundle" in _read(tmp_path, _BUNDLES)
+    assert _entry(tmp_path, _CLOCK).bundles == {_CLOCK_TARGET: "listed"}
 
 
-def test_a_bundle_is_listed_once_its_requirer_goes_away(tmp_path: Path) -> None:
+def test_a_lock_recording_a_bundle_as_required_heals_on_the_next_sync(tmp_path: Path) -> None:
     project = build_project(tmp_path, dependencies=[_CLOCK, _LOGGING])
     manifests = {_CLOCK: _CLOCK_MANIFEST, _LOGGING: _LOGGING_MANIFEST}
     first = _synchronizer(project, manifests)
     first.apply(first.plan())
-    alone = build_project(tmp_path, dependencies=[_CLOCK])
-    second = _synchronizer(alone, {_CLOCK: _CLOCK_MANIFEST})
+    # What an earlier release left behind: the clock bundle held out of the
+    # list and recorded "required" in the lock.
+    legacy_lock = _read(tmp_path, "xtr.lock").replace(
+        f'"{_CLOCK_TARGET}": "listed"', f'"{_CLOCK_TARGET}": "required"'
+    )
+    _ = (tmp_path / "xtr.lock").write_text(legacy_lock, encoding="utf-8")
+    _ = (tmp_path / _BUNDLES).write_text(_CLOCKLESS_BUNDLES, encoding="utf-8")
+    second = _synchronizer(project, manifests)
 
-    second.apply(second.plan())
+    plan = second.plan()
+    second.apply(plan)
 
+    assert f"write {_BUNDLES}" in plan.render()
+    assert "write xtr.lock" in plan.render()
     assert "ClockBundle" in _read(tmp_path, _BUNDLES)
     assert _entry(tmp_path, _CLOCK).bundles == {_CLOCK_TARGET: "listed"}
-    assert set(_lock(tmp_path).entries) == {_CLOCK}
 
 
 def test_a_recipe_whose_bundle_class_is_absent_is_skipped(tmp_path: Path) -> None:
@@ -788,30 +812,6 @@ def test_a_configured_package_whose_bundle_stops_loading_is_left_alone(tmp_path:
     assert _MESSENGER in _lock(tmp_path).entries
 
 
-@final
-@required_bundle(ClockBundle)
-@as_bundle("sync_dev_tools")
-class DevToolsBundle(Bundle):
-    pass
-
-
-def test_a_bundle_required_only_by_a_bundle_limited_to_some_environments_is_listed(
-    tmp_path: Path,
-) -> None:
-    project = build_project(tmp_path, dependencies=[_CLOCK])
-    bundles = tmp_path / _BUNDLES
-    dev_only = 'BUNDLES = {DevToolsBundle: {"dev": True}}\n'
-    source = f"from tools.bundle import DevToolsBundle\n\n{dev_only}"
-    bundles.parent.mkdir(parents=True, exist_ok=True)
-    _ = bundles.write_text(source, encoding="utf-8")
-    known = {**_KNOWN, "tools.bundle:DevToolsBundle": DevToolsBundle}
-    synchronizer = _synchronizer(project, {_CLOCK: _CLOCK_MANIFEST}, known=known)
-
-    synchronizer.apply(synchronizer.plan())
-
-    assert _entry(tmp_path, _CLOCK).bundles == {_CLOCK_TARGET: "listed"}
-
-
 def test_a_value_set_inside_the_recipes_own_block_survives_a_re_apply(tmp_path: Path) -> None:
     _ = _configured(tmp_path)
     env = tmp_path / ".env"
@@ -824,22 +824,6 @@ def test_a_value_set_inside_the_recipes_own_block_survives_a_re_apply(tmp_path: 
     synchronizer.apply(synchronizer.plan(SyncOptions(only=_MESSENGER)))
 
     assert "MESSENGER_DSN=amqp://real" in _read(tmp_path, ".env")
-
-
-def test_a_bundle_is_not_listed_while_its_requirer_does_not_load(tmp_path: Path) -> None:
-    project = build_project(tmp_path, dependencies=[_LOGGING, _CLOCK])
-    manifests = {_LOGGING: _LOGGING_MANIFEST, _CLOCK: _CLOCK_MANIFEST}
-    first = _synchronizer(project, manifests)
-    first.apply(first.plan())
-    before = _snapshot(tmp_path)
-    without_logging = {
-        target: bundle for target, bundle in _KNOWN.items() if target != _LOGGING_TARGET
-    }
-
-    plan = _synchronizer(project, manifests, known=without_logging).plan()
-
-    assert not plan.has_changes
-    assert _snapshot(tmp_path) == before
 
 
 def test_a_run_that_stops_part_way_locks_only_the_package_it_finished(

@@ -23,7 +23,6 @@ __all__ = ["SyncDraft"]
 _STATE_NOTES: Mapping[BundleState, str] = {
     "listed": "listed",
     "adopted": "already listed",
-    "required": "required by another bundle",
 }
 
 

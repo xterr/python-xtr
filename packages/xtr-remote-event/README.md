@@ -271,8 +271,8 @@ removing it undoes.
   environment variable, no ignore line. It prints the steps to declare your consumers and to
   route `ConsumeRemoteEventMessage`, neither of which a recipe can make for you.
 - **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`,
-  imported from `xtr_remote_event.bundle` — or nothing to do when
-  [xtr-webhook](../xtr-webhook)'s bundle is listed, which requires this one.
+  imported from `xtr_remote_event.bundle`. The [xtr-webhook](../xtr-webhook) bundle requires
+  this one, and a sync lists it whether or not webhook is installed.
 - **Brings along** — the messenger bundle, always: the handler is registered on its bus; and the
   serializer bundle through it, which writes the message.
 - **Configure** — nothing. `RemoteEventConfig` takes no value, because which consumer answers

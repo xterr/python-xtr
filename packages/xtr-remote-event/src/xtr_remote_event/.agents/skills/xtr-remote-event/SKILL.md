@@ -263,8 +263,8 @@ async def test_a_paid_order_is_marked_paid() -> None:
 1. **Install** — `uv add xtr-remote-event xtr-dependency-injection`: the bundle needs the
    container installed beside it, never as an extra. There are no extras.
 2. **Activate** — `RemoteEventBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`
-   (`from xtr_remote_event.bundle import RemoteEventBundle`). Nothing to do when xtr-webhook's
-   bundle is listed, which requires this one.
+   (`from xtr_remote_event.bundle import RemoteEventBundle`). The xtr-webhook bundle requires
+   this one, and a sync lists it whether or not webhook is installed.
 3. **Brings along** — the messenger bundle, always: the handler is registered on its bus; and the
    serializer bundle through it, which writes the message.
 4. **Configure** — nothing. `RemoteEventConfig` takes no value, because which consumer answers

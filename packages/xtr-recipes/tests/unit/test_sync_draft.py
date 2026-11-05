@@ -21,7 +21,7 @@ _RECIPE = Recipe(
     templates={},
     recipe_hash="hash",
 )
-# One installed recipe putting one bundle forward, which nothing else requires.
+# One installed recipe putting one bundle forward.
 _LISTING = SyncDraft(installed={_MESSENGER: _RECIPE}, states={_TARGET: "listed"})
 
 
@@ -99,7 +99,7 @@ def test_a_bundle_the_list_never_held_is_not_reported_as_removed() -> None:
     draft = SyncDraft(
         selection=SyncSelection(unconfigure=(_MESSENGER,)),
         undone={_MESSENGER: ()},
-        lock=RecipeLock({_MESSENGER: LockEntry(bundles={_TARGET: "required"})}),
+        lock=RecipeLock({_MESSENGER: LockEntry(bundles={_TARGET: "listed"})}),
     )
 
     assert _lines(draft) == (f"unconfigure {_MESSENGER}",)
@@ -117,7 +117,7 @@ def test_skipping_reads_as_a_section_saying_the_bundle_class_does_not_load() -> 
 def test_an_untouched_package_keeps_everything_but_its_bundle_standings() -> None:
     prior = LockEntry(
         recipe="hash",
-        bundles={_TARGET: "required"},
+        bundles={_TARGET: "adopted"},
         files={_FILE: LockedFile("abc", adopted=False)},
         env=("MESSENGER_DSN",),
     )
@@ -166,14 +166,3 @@ def test_a_bundle_the_owner_had_listed_first_stays_adopted() -> None:
     )
 
     assert draft.next_lock().entries[_MESSENGER].bundles == {_TARGET: "adopted"}
-
-
-def test_a_bundle_left_out_is_recorded_as_required() -> None:
-    draft = replace(
-        _LISTING,
-        selection=SyncSelection(configure=(_MESSENGER,)),
-        planned={_MESSENGER: PlannedRecipe()},
-        states={_TARGET: "required"},
-    )
-
-    assert draft.next_lock().entries[_MESSENGER].bundles == {_TARGET: "required"}

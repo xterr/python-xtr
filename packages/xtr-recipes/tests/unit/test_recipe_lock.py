@@ -93,6 +93,14 @@ def test_it_drops_unrecognised_bundle_states(tmp_path: Path) -> None:
     assert RecipeLock.load(tmp_path).entries["p"].bundles == {}
 
 
+def test_it_reads_a_legacy_required_state_as_listed(tmp_path: Path) -> None:
+    _ = (tmp_path / "xtr.lock").write_text(
+        '{"p": {"bundles": {"m:B": "required"}}}', encoding="utf-8"
+    )
+
+    assert RecipeLock.load(tmp_path).entries["p"].bundles == {"m:B": "listed"}
+
+
 def test_it_skips_a_file_entry_that_is_not_an_object(tmp_path: Path) -> None:
     _ = (tmp_path / "xtr.lock").write_text('{"p": {"files": {"a.py": "nope"}}}', encoding="utf-8")
 

@@ -26,7 +26,7 @@ It is a developer and CI tool, so install it as a dev dependency.
 - A recipe only writes bundles, files, env and ignore lines, mints keys, and prints notes. It runs
   no recipe step and no template — a generated secret or a minted key is made by xtr-recipes
   itself; the only code it imports is the bundle class a recipe lists, and only from
-  a module under that package's own import package, to read its requirements. It never edits your
+  a module under that package's own import package, to check the class loads. It never edits your
   application code; the notes tell you the steps it cannot take.
 
 ## Add, sync and remove a package
@@ -80,12 +80,11 @@ them.
 
 ## When a bundle is not listed
 
-A recipe's bundle is left out of `config/bundles.py` when another listed bundle already requires it, so
-depending on `xtr-clock` while `xtr-logging` is active lists no `ClockBundle` — the lock records it
-`required`. This is recomputed every sync, so removing the requiring bundle lists it again. A
-requirer limited to some environments does not count, so its peers are still listed. A bundle
-whose class cannot be imported is skipped, and the package is retried next sync; one already
-configured is left as the lock has it.
+Every counted recipe's bundle is listed in `config/bundles.py`, even when another listed bundle
+requires it — the file shows exactly what the application's dependencies configure. A peer with no
+recipe of its own, such as a transitive package's bundle, is activated by the kernel without being
+listed; `debug:bundles` shows it. A bundle whose class cannot be imported is skipped, and the
+package is retried next sync; one already configured is left as the lock has it.
 
 ## Files you have edited
 

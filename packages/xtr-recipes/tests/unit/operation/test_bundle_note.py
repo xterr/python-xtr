@@ -10,7 +10,6 @@ from xtr_recipes.operation.bundle_note import BundleNote
     [
         "listed",
         "already listed",
-        "required by another bundle",
         "removed",
         "skipped: the bundle class does not load",
     ],

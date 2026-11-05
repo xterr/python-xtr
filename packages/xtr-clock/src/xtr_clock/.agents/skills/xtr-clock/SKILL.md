@@ -116,8 +116,7 @@ def test_helper_code() -> None:
 ## Use in an application
 
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
-`ClockBundle`, or leaves it out when another bundle requires it (the logging bundle does). That is
-the steps below a recipe can do; the others it prints for you to make.
+`ClockBundle`. That is the steps below a recipe can do; the others it prints for you to make.
 
 1. **Install** — `uv add xtr-clock xtr-dependency-injection`: the bundle needs the container
    installed beside it, never as an extra. Add the `tzdata` extra on Windows or slim containers.

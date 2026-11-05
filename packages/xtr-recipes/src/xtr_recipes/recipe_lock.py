@@ -16,11 +16,10 @@ if TYPE_CHECKING:
 
 __all__ = ["LOCK_NAME", "BundleState", "LockEntry", "LockedFile", "RecipeLock"]
 
-BundleState: TypeAlias = Literal["listed", "adopted", "required"]
+BundleState: TypeAlias = Literal["listed", "adopted"]
 """How a recipe's bundle came to be in ``BUNDLES``.
 
-``listed`` when the sync added it, ``adopted`` when it was already there, and
-``required`` when another listed bundle requires it, so the sync leaves it out.
+``listed`` when the sync added it, ``adopted`` when it was already there.
 """
 
 LOCK_NAME = "xtr.lock"
@@ -153,7 +152,11 @@ def _as_state(value: object) -> BundleState | None:
         case "adopted":
             return "adopted"
         case "required":
-            return "required"
+            # An earlier release recorded a bundle another listed bundle
+            # requires as "required" and left it out of BUNDLES; it is now
+            # listed, and reading it as listed keeps _settled from churning
+            # the lock.
+            return "listed"
         case _:
             return None
 

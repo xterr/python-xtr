@@ -1,66 +1,24 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
-
-from xtr_dependency_injection import Bundle, as_bundle, required_bundle
-
 from xtr_recipes.bundle_entry import BundleEntry
 from xtr_recipes.bundle_planner import BundlePlanner
-from xtr_recipes.bundle_requirements import BundleRequirements
 from xtr_recipes.bundles_file import BundlesFile
-
-if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
-
-    from xtr_dependency_injection.bundle.bundle import AnyBundle
-
-
-@final
-@as_bundle("planner_clock")
-class ClockBundle(Bundle):
-    pass
-
-
-@final
-@required_bundle(ClockBundle)
-@as_bundle("planner_logging")
-class LoggingBundle(Bundle):
-    pass
-
-
-@final
-@as_bundle("planner_messenger")
-class MessengerBundle(Bundle):
-    pass
-
 
 _CLOCK = "xtr_clock.bundle:ClockBundle"
 _LOGGING = "xtr_logging.bundle:LoggingBundle"
 _MESSENGER = "xtr_messenger.bundle:MessengerBundle"
 _ALL = {"all": True}
-_KNOWN: Mapping[str, type[AnyBundle]] = {
-    _CLOCK: ClockBundle,
-    _LOGGING: LoggingBundle,
-    _MESSENGER: MessengerBundle,
-}
-
-
-def _loader() -> Callable[[str], type[AnyBundle] | None]:
-    def load(target: str) -> type[AnyBundle] | None:
-        return _KNOWN.get(target)
-
-    return load
 
 
 def _planner() -> BundlePlanner:
-    return BundlePlanner(BundleRequirements(_loader()))
+    return BundlePlanner()
 
 
 def _file(*targets: str) -> BundlesFile:
     return BundlesFile(entries=tuple(BundleEntry(target=target, flags=_ALL) for target in targets))
 
 
-def test_a_candidate_nothing_requires_is_listed() -> None:
+def test_a_candidate_is_listed() -> None:
     new_file, states = _planner().finalize(_file(), set(), {_MESSENGER: _ALL})
 
     assert states == {_MESSENGER: "listed"}
@@ -82,32 +40,11 @@ def test_an_adopted_candidate_keeps_the_environments_it_was_listed_with() -> Non
     assert new_file.entries[0].flags == {"dev": True}
 
 
-def test_a_candidate_another_candidate_requires_is_left_out() -> None:
+def test_a_candidate_another_candidate_requires_is_listed_too() -> None:
     new_file, states = _planner().finalize(_file(), set(), {_LOGGING: _ALL, _CLOCK: _ALL})
 
-    assert states == {_LOGGING: "listed", _CLOCK: "required"}
-    assert [entry.target for entry in new_file.entries] == [_LOGGING]
-
-
-def test_a_candidate_an_already_listed_bundle_requires_is_left_out() -> None:
-    _, states = _planner().finalize(_file(_LOGGING), set(), {_CLOCK: _ALL})
-
-    assert states == {_CLOCK: "required"}
-
-
-def test_a_listed_requirer_counts_where_its_entry_is_active_not_where_its_recipe_says() -> None:
-    existing = BundlesFile(entries=(BundleEntry(target=_LOGGING, flags={"dev": True}),))
-
-    _, states = _planner().finalize(existing, set(), {_LOGGING: _ALL, _CLOCK: _ALL})
-
-    assert states == {_LOGGING: "adopted", _CLOCK: "listed"}
-
-
-def test_a_candidate_is_listed_once_its_requirer_is_removed() -> None:
-    new_file, states = _planner().finalize(_file(_LOGGING), {_LOGGING}, {_CLOCK: _ALL})
-
-    assert states == {_CLOCK: "listed"}
-    assert [entry.target for entry in new_file.entries] == [_CLOCK]
+    assert states == {_LOGGING: "listed", _CLOCK: "listed"}
+    assert [entry.target for entry in new_file.entries] == [_LOGGING, _CLOCK]
 
 
 def test_a_removed_target_leaves_the_list() -> None:

@@ -110,11 +110,10 @@ class Synchronizer:
         for name in selection.update:
             prior = current.lock.entries[name]
             planned[name] = planner.update(current.installed[name], prior, chosen.force)
-        bundles, states = BundlePlanner(self._requirements).finalize(
+        bundles, states = BundlePlanner().finalize(
             current.bundles,
             self._removed(selection, current),
             self._candidates(selection, current),
-            _recorded_required(current) if current.unloadable else (),
         )
         draft = SyncDraft(
             selection=selection,
@@ -239,9 +238,8 @@ class Synchronizer:
         """Return every bundle the run puts forward, mapped to its environments.
 
         A full sync names the bundles of every installed recipe, untouched ones
-        included: whether a bundle is left out because something else requires
-        it depends on the whole list, so it is decided afresh each time rather
-        than carried over from the lock.
+        included: each one's standing — listed or adopted — is decided afresh
+        against the list as it stands, rather than carried over from the lock.
 
         A development dependency's bundles are put forward like a runtime
         dependency's, with the environments its recipe declares: the recipe is
@@ -313,16 +311,6 @@ class Synchronizer:
             if child.is_dir() and (child / "__init__.py").is_file()
         )
         return frozenset({top, *(name for name in beside if name.isidentifier())})
-
-
-def _recorded_required(current: _Current) -> frozenset[str]:
-    """Return every bundle target the lock records as left out for being required."""
-    return frozenset(
-        target
-        for entry in current.lock.entries.values()
-        for target, state in entry.bundles.items()
-        if state == "required"
-    )
 
 
 def _text(path: Path) -> str | None:

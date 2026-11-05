@@ -24,8 +24,8 @@ A recipe is declarative only: bundles to list, files to write, environment and i
 add, keys to mint, and notes to print. No recipe step and no template is ever executed: a secret
 or a key a recipe asks for is made by xtr-recipes itself. The one thing imported
 is the bundle class a recipe lists — and only from a module under the declaring distribution's own
-import package, never an arbitrary module a manifest names — so its `@required_bundle` declarations
-can be read to decide whether listing it is redundant; nothing else a dependency ships is imported
+import package, never an arbitrary module a manifest names — so a sync can tell a bundle the
+installation actually carries from one it cannot load; nothing else a dependency ships is imported
 or run. Because applying a recipe is a diff against a committed lock file, it does not matter how a
 package arrived, and running it twice changes nothing the second time.
 
@@ -278,8 +278,9 @@ it diffs cleanly; a sync rewrites it only when it actually changed.
   version. Every package shares one version, so hashing the content is what keeps a release bump
   from "updating" every recipe and churning the lock. A sync re-applies a recipe only when this
   hash moves.
-- A bundle's state is `listed` when the sync added it, `adopted` when it was already in `BUNDLES`,
-  or `required` when another listed bundle requires it so the sync leaves it out.
+- A bundle's state is `listed` when the sync added it, `adopted` when it was already in `BUNDLES`.
+  A lock from an earlier release may record `required`, which is read as `listed` and rewritten on
+  the next sync.
 - `files` records each written file's hash and whether it was adopted. The hash tells an untouched
   file from one you have since edited; an adopted file is one that was already there when the
   recipe first ran and so is never deleted on removal.
@@ -301,13 +302,10 @@ is rewritten in a canonical form — the docstring exactly as written,
 and the `BUNDLES` mapping — that passes `ruff check` and `ruff format --check`; an unchanged entry
 set leaves the file alone. Comments on entries are not kept.
 
-A recipe's bundle is **left out when another bundle in the final list requires it**, transitively,
-hard or soft, through the `@required_bundle` declarations
-[xtr-dependency-injection](../xtr-dependency-injection) reads. This is recomputed every sync, so a
-bundle recorded as `required` becomes `listed` again once the bundle that required it is removed.
-Only a requirer listed for every environment counts, by the flags `BUNDLES` gives it when it is
-already there: one limited to `dev` and `test` would leave its peers inactive in `prod`, so the
-recipe's bundle is listed anyway.
+Every counted recipe's bundle is listed, even when another bundle in the final list also requires
+it: the file shows exactly what the application's dependencies configure. A peer with no recipe of
+its own — a transitive package's bundle — is activated by the kernel without being listed;
+`debug:bundles` shows it.
 A bundle whose class cannot be imported — a broken installation, a module it needs missing — is
 skipped with a message saying so; the package is not locked, so the next sync retries once the
 bundle loads. A package already configured whose bundle stops importing is left exactly

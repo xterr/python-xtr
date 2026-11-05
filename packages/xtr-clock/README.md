@@ -359,11 +359,9 @@ Everything adding this package to an application on
 - **Install** — `uv add xtr-clock xtr-dependency-injection`: the bundle needs the container
   installed beside it, never as an extra. Add `tzdata` on Windows or a slim container.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* step below: it lists
-  `ClockBundle`, or leaves it out when another bundle requires it (the logging bundle does). There
-  is no config file, environment or ignore line to write.
-- **Activate** — usually nothing to do: the logging bundle requires this one. Otherwise
-  `ClockBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported from
-  `xtr_clock.bundle`.
+  `ClockBundle`. There is no config file, environment or ignore line to write.
+- **Activate** — `ClockBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
+  from `xtr_clock.bundle`.
 - **Brings along** — nothing.
 - **Configure** — optional: with no configuration the clock reports in UTC, whatever the
   machine's zone. `<app>/config/packages/clock.py`, a `@configure` function returning
