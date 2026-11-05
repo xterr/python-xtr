@@ -1,6 +1,6 @@
 [project]
 name = "xtr-maker"
-version = "6.0.1"
+version = "6.1.0"
 description = "Console commands that write application code for the xtr libraries: messages, schedules, webhooks, entities, commands and listeners."
 readme = "README.md"
 requires-python = ">=3.11"
