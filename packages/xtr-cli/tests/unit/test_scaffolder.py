@@ -101,6 +101,8 @@ def test_applying_writes_the_files_and_runs_the_commands_in_the_project(tmp_path
     assert (tmp_path / "shop" / "src" / "shop" / "kernel.py").is_file()
     assert (tmp_path / "shop" / "bin" / "console").stat().st_mode & 0o111
     assert not (tmp_path / "shop" / "README.md").stat().st_mode & 0o111
+    assert (tmp_path / "shop" / "AGENTS.md").is_file()
+    assert not (tmp_path / "shop" / "AGENTS.md").stat().st_mode & 0o111
     assert [argv for argv, _ in runner.calls] == list(plan.commands)
     assert {cwd for _, cwd in runner.calls} == {tmp_path / "shop"}
     assert reported == list(plan.render())

@@ -7,6 +7,7 @@ directory.
 ```text
 shop/
 ├── .env                      # environment variables, written by the recipes
+├── AGENTS.md                 # the rules for a coding agent that works in this project
 ├── compose.yaml              # services for development, written by the recipes
 ├── pyproject.toml            # dependencies, console scripts and tool settings
 ├── xtr.lock                  # the recipes that the application applied

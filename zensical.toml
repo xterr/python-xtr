@@ -34,6 +34,7 @@ nav = [
     "guides/configuration.md",
     "guides/console-commands.md",
     "guides/generate-code.md",
+    "guides/agent-skills.md",
     "guides/web-application.md",
     "guides/messages.md",
     "guides/security.md",

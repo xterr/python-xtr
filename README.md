@@ -688,8 +688,9 @@ MIT — see [LICENSE](LICENSE).
 
 A package an application lists directly ships a skill at
 `src/xtr_<name>/.agents/skills/xtr-<name>/SKILL.md`, so a coding agent in that application can
-learn the package from the version it installed (`uvx library-skills` links it in). The rules
-for what it holds are in [AGENTS.md](AGENTS.md#agent-skills);
+learn the package from the version it installed. The application registers them with
+`uvx library-skills --all`, which links in every skill its installed packages ship — rerun it
+after adding a package. The rules for what a skill holds are in [AGENTS.md](AGENTS.md#agent-skills);
 [xtr-clock's](packages/xtr-clock/src/xtr_clock/.agents/skills/xtr-clock/SKILL.md) is a short
 example.
 

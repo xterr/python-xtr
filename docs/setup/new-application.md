@@ -2,7 +2,8 @@
 
 The `xtr-cli` tool makes a new application from a template. It writes the files,
 installs the packages and applies the recipe of each package. The command asks
-no questions.
+no questions. The files include `AGENTS.md`, the rules for a coding agent that
+works in the project.
 
 There are two templates:
 
@@ -57,7 +58,15 @@ There are two templates:
    ```
 
    The command shows a table. Each bundle has the state `active`.
-7. For a web application, start the web server:
+7. Register the skills of the installed packages for a coding agent:
+
+   ```sh
+   uvx library-skills --all
+   ```
+
+   The [Agent skills](../guides/agent-skills.md) guide describes what a skill
+   gives the agent.
+8. For a web application, start the web server:
 
    ```sh
    uv run shop-web
@@ -65,7 +74,7 @@ There are two templates:
 
    The server listens on `http://127.0.0.1:8000`. Open this address in a
    browser. The page shows `{"status": "ok"}`.
-8. Push `Ctrl-C` to stop the server.
+9. Push `Ctrl-C` to stop the server.
 
 > [!NOTE]
 > The web application connects to PostgreSQL and RabbitMQ only when it uses

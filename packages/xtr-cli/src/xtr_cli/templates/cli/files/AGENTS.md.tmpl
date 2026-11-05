@@ -1,0 +1,53 @@
+# AGENTS.md — rules for a coding agent working in ${name}
+
+A console application on the xtr packages. The kernel every entry point builds lives in
+`src/${app}/kernel.py`, and the console commands live in `src/${app}/command/`. The xtr
+packages teach themselves through agent skills; read *Skills first* before writing code.
+
+## Skills first
+
+Every xtr package installed here ships an agent skill, at its own version. Register them
+all, and rerun the command after adding a package:
+
+```sh
+uvx library-skills --all
+```
+
+Load the skill of a package before writing code that uses it. `uvx library-skills list`
+shows what is registered, and `uvx library-skills --check` reports drift between the
+installed packages and their registered skills, so it can run in CI.
+
+## Commands
+
+```sh
+bin/console <command>       # the console; `uv run ${name} <command>` is the same
+uv run pytest
+uv run ruff check && uv run ruff format --check
+uv run basedpyright && uv run ty check
+uv run xtr-recipes recipes:sync --check
+```
+
+## Add a package
+
+```sh
+uv run xtr-recipes recipes:add <package>
+```
+
+It installs the package and applies its recipe — the bundle entry in
+`src/${app}/config/bundles.py`, the configuration module under `src/${app}/config/packages/`,
+the environment block, the ignore lines — and prints the steps it cannot do; do those by
+hand. Then register the package's skill with `uvx library-skills --all`. Removing a package
+is the same read backwards: `uv run xtr-recipes recipes:remove <package>`.
+
+## Do not
+
+- Do not hand-edit `src/${app}/config/bundles.py` into a shape the recipes tool cannot
+  read: `BUNDLES` stays a literal mapping of imported bundle classes to literal flag
+  mappings.
+- Do not edit inside the `###> xtr-<name> ###` … `###< xtr-<name> ###` blocks in `.env`
+  and `.gitignore` — the recipes tool writes those; the lines outside them are the
+  project's own.
+- Keep machine secrets in `.env.local`, never in a committed layer.
+- Commit `xtr.lock`.
+- Do not add an xtr package as an extra of another: install it beside, with
+  `uv run xtr-recipes recipes:add`.

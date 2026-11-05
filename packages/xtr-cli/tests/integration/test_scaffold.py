@@ -70,6 +70,7 @@ def test_a_scaffolded_project_runs_and_checks_clean(
     for command in commands:
         _ = _run(("uv", "run", project.name, *command), project)
     assert (project / "bin" / "console").stat().st_mode & 0o111
+    assert (project / "AGENTS.md").is_file()
     _ = _run((str(project / "bin" / "console"), "app:hello"), project)
     if webapp:
         served = _run(

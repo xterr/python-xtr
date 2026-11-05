@@ -29,6 +29,7 @@ async def test_new_makes_a_console_application_then_installs_and_syncs_it_asking
     assert code == ExitCode.SUCCESS
     assert (target / "src" / "shop" / "__main__.py").is_file()
     assert (target / "bin" / "console").stat().st_mode & 0o111
+    assert (target / "AGENTS.md").is_file()
     assert not (target / "src" / "shop" / "web").exists()
     assert [argv[:3] for argv, _ in runner.calls] == [
         ("uv", "add", "--"),
@@ -69,6 +70,7 @@ async def test_a_dry_run_prints_the_plan_and_writes_nothing(
     assert code == ExitCode.SUCCESS
     assert "write src/shop/kernel.py" in tester.display
     assert "write bin/console" in tester.display
+    assert "write AGENTS.md" in tester.display
     assert "run   uv run xtr-recipes recipes:sync" in tester.display
     assert runner.calls == []
     assert not (tmp_path / "shop").exists()

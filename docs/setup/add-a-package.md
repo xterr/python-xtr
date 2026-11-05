@@ -51,6 +51,14 @@ The recipe also shows the steps that it cannot do. You must do these steps.
 5. Read the **Use in an application** section of the README of the package.
    This section tells you what the package needs, for example an environment
    variable or an extra.
+6. Register the skills again:
+
+   ```sh
+   uvx library-skills --all
+   ```
+
+   If the package ships a skill, the command links it into `.agents/skills/`.
+   The [Agent skills](../guides/agent-skills.md) guide describes the skills.
 
 ## Add a package with an extra
 

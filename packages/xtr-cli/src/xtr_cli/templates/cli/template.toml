@@ -16,6 +16,7 @@ dev = ["xtr-recipes", "pytest", "ruff", "basedpyright", "ty"]
 ".python-version" = "files/python-version.tmpl"
 ".gitignore" = "files/gitignore.tmpl"
 "README.md" = "files/README.md.tmpl"
+"AGENTS.md" = "files/AGENTS.md.tmpl"
 "bin/console" = "files/bin/console.tmpl"
 "src/${app}/__init__.py" = "files/app/__init__.py.tmpl"
 "src/${app}/__main__.py" = "files/app/__main__.py.tmpl"

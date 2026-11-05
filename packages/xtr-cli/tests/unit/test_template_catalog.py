@@ -33,7 +33,7 @@ def test_every_shipped_template_renders(name: str) -> None:
 
     paths = {path for path, _ in template.render(_VALUES)}
 
-    assert {"bin/console", "pyproject.toml", "src/web_shop/kernel.py"} <= paths
+    assert {"AGENTS.md", "bin/console", "pyproject.toml", "src/web_shop/kernel.py"} <= paths
     assert "src/web_shop/__main__.py" in paths
     assert all(step for step in template.steps(_VALUES))
 
@@ -45,6 +45,14 @@ def test_every_shipped_template_writes_an_executable_console_wrapper(name: str) 
     assert console.startswith("#!/usr/bin/env sh\n")
     assert "exec uv run web-shop" in console
     assert "$$" not in console
+
+
+@pytest.mark.parametrize("name", ["cli", "webapp"])
+def test_every_shipped_template_writes_rules_for_a_coding_agent(name: str) -> None:
+    agents = dict(TemplateCatalog.default().load(name).render(_VALUES))["AGENTS.md"]
+
+    assert agents.startswith("# AGENTS.md — rules for a coding agent working in web-shop\n")
+    assert "$$" not in agents
 
 
 @pytest.mark.parametrize("name", ["cli", "webapp"])

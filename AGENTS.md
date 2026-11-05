@@ -169,8 +169,8 @@ These apply to every package that ships a bundle. Read
 
 A package an application depends on directly ships an agent skill that teaches a coding agent
 to use it: `src/xtr_<name>/.agents/skills/xtr-<name>/SKILL.md`. It lives inside the import
-package so it ships in the wheel, at the version it describes; `uvx library-skills` links it
-into an application.
+package so it ships in the wheel, at the version it describes; `uvx library-skills --all`
+registers it in an application, linking in every skill the installed packages ship.
 
 - Who ships one follows the bundle rules: a standalone library ships its own; a component
   family's skill lives in its bundle package (`xtr-security` covers `xtr-security-core`,

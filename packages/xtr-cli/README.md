@@ -155,9 +155,10 @@ application's shutdown hooks run.
 | `webapp` | `xtr new <directory> --webapp` | the same, and `xtr-logging`, `xtr-http-kernel`, `xtr-orm[postgres]`, `xtr-messenger[amqp]`, `xtr-http-client`, `xtr-notifier`, `xtr-security`, `fastapi`, `uvicorn` | `<name>`, `<name>-web` |
 
 Both write `pyproject.toml` (with ruff, basedpyright, ty and pytest configured), `.python-version`,
-`.gitignore`, `README.md`, `bin/console` (the executable `uv run <name>` wrapper),
-`src/<app>/kernel.py`, `src/<app>/__main__.py`, an example
-`app:hello` command and a test that builds the kernel. `webapp` adds `src/<app>/web/` — the
+`.gitignore`, `README.md`, `AGENTS.md` (the rules for a coding agent that works in the
+project), `bin/console` (the executable `uv run <name>` wrapper), `src/<app>/kernel.py`,
+`src/<app>/__main__.py`, an example `app:hello` command and a test that builds the kernel.
+`webapp` adds `src/<app>/web/` — the
 FastAPI application served with `setup(app, kernel)`, its routes and a uvicorn entry point — a
 kernel built with `concurrent_scoped_access=True` for the security bundle, and a test that
 requests the home page.
