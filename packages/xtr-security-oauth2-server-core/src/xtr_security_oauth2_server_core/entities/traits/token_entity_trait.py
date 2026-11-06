@@ -29,11 +29,16 @@ class TokenEntityTrait:
     took is the place it keeps, so the order a token reports is the order it was
     granted in — which is the order the ``scope`` claim and the token response
     read out.
+
+    Every setter forgets the signed form an access token keeps, because each
+    one changes a claim that form carries; the memo is declared on the
+    identifier trait.
     """
 
     _client: ClientEntityInterface
     _expiry_date_time: datetime
     _user_identifier: str | None = None
+    _signed_form: str | None
 
     #: Keyed by identifier, so the same scope cannot be carried twice; the
     #: insertion order of the mapping is the order the token reports.
@@ -46,6 +51,7 @@ class TokenEntityTrait:
     def set_expiry_date_time(self, date_time: datetime) -> None:
         """Stop accepting this token at ``date_time``, which must be aware."""
         self._expiry_date_time = date_time
+        self._signed_form = None
 
     def get_user_identifier(self) -> str | None:
         """Return the resource owner this token is for, or ``None`` for none."""
@@ -54,6 +60,7 @@ class TokenEntityTrait:
     def set_user_identifier(self, identifier: str) -> None:
         """Issue this token on behalf of the resource owner ``identifier``."""
         self._user_identifier = identifier
+        self._signed_form = None
 
     def get_client(self) -> ClientEntityInterface:
         """Return the client this token was issued to."""
@@ -62,6 +69,7 @@ class TokenEntityTrait:
     def set_client(self, client: ClientEntityInterface) -> None:
         """Issue this token to ``client``."""
         self._client = client
+        self._signed_form = None
 
     def get_scopes(self) -> Sequence[ScopeEntityInterface]:
         """Return the scopes this token carries, in the order they were added."""
@@ -70,6 +78,7 @@ class TokenEntityTrait:
     def add_scope(self, scope: ScopeEntityInterface) -> None:
         """Let this token carry ``scope``, once however often it is added."""
         self._scopes_held()[scope.get_identifier()] = scope
+        self._signed_form = None
 
     def _scopes_held(self) -> dict[str, ScopeEntityInterface]:
         """Return the mapping the scopes live in, starting it on first use.

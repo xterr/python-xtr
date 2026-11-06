@@ -56,10 +56,19 @@ class AccessTokenTrait:
 
     Extra claims may be added before signing, and there is no reader for them:
     they exist to be signed in, and :meth:`to_string` is what reads them.
+
+    The token signs once. Every reader of the same token — the token answer,
+    and anything a response type derives from the string a client receives —
+    must see the same string, and a second signing would not be: its times
+    move with the clock, and some algorithms sign the same claims differently
+    every time. Every setter of a signed claim forgets the signed form, so a
+    token changed after signing signs again.
     """
 
     _signer: AccessTokenSigner
     _extra_claims: Mapping[str, object] = _NO_EXTRA_CLAIMS
+    #: Declared, with its default, on the identifier trait every token composes first.
+    _signed_form: str | None
 
     if TYPE_CHECKING:
         # Declared for the type checker, never defined here: whatever composes
@@ -89,6 +98,7 @@ class AccessTokenTrait:
     def set_private_key(self, signer: AccessTokenSigner) -> None:
         """Hand this token the key, the names and the clock it signs itself with."""
         self._signer = signer
+        self._signed_form = None
 
     def set_extra_claims(self, claims: Mapping[str, object]) -> None:
         """Carry ``claims`` in the signed token, besides the ones it mints.
@@ -104,14 +114,20 @@ class AccessTokenTrait:
                 "set as extra claims; name the extra claims something else.",
             )
         self._extra_claims = MappingProxyType(dict(claims))
+        self._signed_form = None
 
     def to_string(self) -> str:
         """Return this token as the signed string a client is handed.
+
+        The first call signs; later calls return that same string, with the
+        times of the first signing, until a signed claim changes.
 
         Raises:
             InvalidArgumentError: When no signer was handed over, or when the
                 provider answered with a token it had not signed.
         """
+        if self._signed_form is not None:
+            return self._signed_form
         signer = self._signer_or_fail()
         issued_at = int(signer.clock.now().timestamp())
         created = signer.jws_provider.create(
@@ -123,7 +139,8 @@ class AccessTokenTrait:
                 "The signature provider answered with an unsigned access token, which no "
                 "resource server may be handed; check the provider's algorithm and key.",
             )
-        return created.get_token()
+        self._signed_form = created.get_token()
+        return self._signed_form
 
     def _claims(self, signer: AccessTokenSigner, issued_at: int) -> Mapping[str, object]:
         """Build the claims this token makes, the extra ones last."""

@@ -29,9 +29,17 @@ class EntityTrait:
     Nothing sets a default identifier. Reading one before it is set raises, the
     same way a mapped column nobody filled does, rather than handing back an
     empty string that would be written into a token as if it were a name.
+
+    It also declares the signed form an access token keeps once it has signed
+    itself. That memo belongs to the access-token trait, but it is declared
+    here, on the first base of every entity, because the identifier is one of
+    the signed claims: renaming the entity must forget the signed form, and
+    the setter doing so lives here. On an entity that never signs, the reset
+    sets an attribute nothing reads.
     """
 
     _identifier: str
+    _signed_form: str | None = None
 
     def get_identifier(self) -> str:
         """Return the identifier this entity is named by."""
@@ -40,6 +48,7 @@ class EntityTrait:
     def set_identifier(self, identifier: str) -> None:
         """Name this entity ``identifier``."""
         self._identifier = identifier
+        self._signed_form = None
 
     @override
     def __repr__(self) -> str:

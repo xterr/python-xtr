@@ -7,13 +7,21 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
+from joserfc import jwt as joserfc_jwt
 from typing_extensions import override
 from xtr_http_message import Response
 
 from tests.support.encryption import ENCRYPTION_KEY, unseal
 from tests.support.entities import AccessToken, RefreshToken, make_client, make_scopes
 from tests.support.messages import document_of
-from tests.support.signing import FROZEN_NOW, make_clock, make_signer
+from tests.support.signing import (
+    ALGORITHM,
+    FROZEN_NOW,
+    ISSUER,
+    SIGNING_KEY,
+    make_clock,
+    make_signer,
+)
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server_core.response_types.bearer_token_response import BearerTokenResponse
 from xtr_security_oauth2_server_core.response_types.response_type_interface import (
@@ -109,6 +117,39 @@ async def test_it_carries_the_signed_access_token() -> None:
     answered = await _answered(_response(access_token))
 
     assert answered["access_token"] == access_token.to_string()
+
+
+@pytest.mark.anyio
+async def test_the_answered_access_token_verifies_and_names_who_it_is_for() -> None:
+    answered = await _answered(_response(_access_token()))
+
+    claims = joserfc_jwt.decode(
+        str(answered["access_token"]),
+        SIGNING_KEY,
+        algorithms=[ALGORITHM],
+    ).claims
+
+    assert {name: claims[name] for name in ("iss", "sub", "aud", "client_id", "scope")} == {
+        "iss": ISSUER,
+        "sub": "user-1",
+        "aud": "client-1",
+        "client_id": "client-1",
+        "scope": "read write",
+    }
+
+
+@pytest.mark.anyio
+async def test_bearer_response_carries_the_memoised_token() -> None:
+    clock = make_clock()
+    access_token = _access_token()
+    access_token.set_private_key(make_signer(clock=clock))
+    response_type = _response(access_token)
+    first = (await _answered(response_type))["access_token"]
+    clock.sleep(5)
+
+    second = (await _answered(response_type))["access_token"]
+
+    assert second == first
 
 
 @pytest.mark.anyio
