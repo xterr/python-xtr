@@ -16,6 +16,7 @@ from xtr_security_http._request_parameters import payload_parameter, query_param
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.event.logout_event import LogoutEvent
 from xtr_security_http.exception import LogoutError
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from .abstract_listener import AbstractListener
 
@@ -124,12 +125,19 @@ class LogoutListener(AbstractListener):
     async def authenticate(self, request_event: RequestEvent) -> None:
         """Carry the logout out: prove the request, announce it, clear the token.
 
+        The request the event carries holds the request event's state bag, the
+        way the authentication step hands its request on, so a listener of the
+        logout reaches what the chain parked there: the session it invalidates
+        is the one the context step reattached.
+
         Raises:
             LogoutError: When a cross-site request forgery manager is wired
                 and the request presented no token value, or one the manager
                 does not vouch for.
         """
-        request = request_event.request
+        request = request_event.request.with_attribute(
+            SecurityRequestAttributes.STATE_BAG, request_event.state
+        )
         await self._prove_the_request(request)
         logout_event = LogoutEvent(request, self._token_storage.get_token())
         _ = await self._dispatcher.dispatch(logout_event)

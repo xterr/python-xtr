@@ -27,6 +27,7 @@ from xtr_security_http.firewall.firewall import _chain_with_logout
 from xtr_security_http.firewall.firewall_listener_interface import FirewallListenerInterface
 from xtr_security_http.firewall.logout_listener import LogoutListener
 from xtr_security_http.http_utils import HttpUtils
+from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -212,8 +213,23 @@ async def test_a_logout_request_is_announced_on_the_firewalls_dispatcher() -> No
     await _listener(storage, dispatcher).authenticate(RequestEvent(request, {}))
 
     (event,) = answering.seen
-    assert event.get_request() is request
+    assert event.get_request().get_uri().get_path() == request.get_uri().get_path()
     assert event.get_token() is token
+
+
+async def test_the_announced_request_carries_the_request_events_state_bag() -> None:
+    """A listener of the logout reaches what the chain parked, the session included."""
+    dispatcher = EventDispatcher()
+    answering = _AnsweringSubscriber()
+    dispatcher.add_subscriber(answering)
+    state: dict[str, object] = {}
+
+    await _listener(_RecordingTokenStorage(), dispatcher).authenticate(
+        RequestEvent(_request(), state)
+    )
+
+    (event,) = answering.seen
+    assert event.get_request().get_attribute(SecurityRequestAttributes.STATE_BAG) is state
 
 
 async def test_the_event_is_announced_before_the_token_is_cleared() -> None:
