@@ -7,7 +7,8 @@
 
 The endpoints live in :mod:`._endpoints`; the discovery document finds each
 route by the endpoint it calls, so it publishes them wherever a routes file
-puts them.
+puts them. :func:`paths_by_endpoint` is that lookup, public so an add-on
+serving a route of its own publishes it wherever a routes file puts it too.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from ._endpoints import (
     token,
     well_known_routes,
 )
+from .mounted_paths import paths_by_endpoint
 
 __all__ = [
     "authorize",
@@ -31,6 +33,7 @@ __all__ = [
     "jwks",
     "metadata",
     "oauth2_server_routes",
+    "paths_by_endpoint",
     "revoke",
     "token",
     "well_known_routes",

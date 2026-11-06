@@ -404,6 +404,12 @@ wherever it ends up, leaving out the ones excluded:
   proof-key methods; **the key set** publishes the signing key's public half and every additional
   public key, each under the `kid` a token's header names.
 
+The description finds each route with `paths_by_endpoint(routes)`, from
+`xtr_security_oauth2_server.routing`: it maps the endpoint function every route of an application
+calls to the path that route is served at, prefixes applied. An endpoint mounted twice keeps its
+first path, and a route calling no endpoint — a mount, say — is left out. An add-on serving a
+route of its own looks it up the same way, so it is published wherever a routes file puts it.
+
 ## Services
 
 `OAuth2ServerBundle` registers, under the interfaces an application injects:
@@ -438,6 +444,11 @@ name the code dispatches under — `@as_event_listener(OAuth2Events.X)`:
 | `OAuth2Events.ACCESS_TOKEN_EXTRA_CLAIMS_RESOLVE` | `AccessTokenExtraClaimsResolveEvent` | Adds claims to an access token before it is signed; the token's own names are refused |
 | `OAuth2Events.TOKEN_REQUEST_RESOLVE` | `TokenRequestResolveEvent` | Replaces the token answer, refusals included |
 | `OAuth2Events.PRE_SAVE_CLIENT` | `PreSaveClientEvent` | Changes a client before it is stored; the shipped listener hands a scope-less client `scopes.default` |
+
+`AuthorizationRequestResolveEvent` reads what every flow's request carries — `get_redirect_uri()`,
+`get_state()`, `get_code_challenge()` — and `get_authorization_request()` hands out the request
+itself, the very object the grant built: a listener reads there the parameters an add-on's own
+request subclass carries, which the event knows nothing of.
 
 The protocol library announces five more, under `RequestEvent`'s names:
 `ACCESS_TOKEN_ISSUED` and `REFRESH_TOKEN_ISSUED` (with `RequestAccessTokenEvent` and

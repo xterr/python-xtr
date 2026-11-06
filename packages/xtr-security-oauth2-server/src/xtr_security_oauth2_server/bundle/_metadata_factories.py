@@ -37,7 +37,7 @@ from xtr_security_oauth2_server.routing import (
     revoke,
     token,
 )
-from xtr_security_oauth2_server.routing._mounted_paths import paths_by_endpoint
+from xtr_security_oauth2_server.routing.mounted_paths import paths_by_endpoint
 
 from ._required_settings import supplied_issuer, supplied_scopes
 
