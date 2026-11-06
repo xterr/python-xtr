@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from xtr_dependency_injection import env
 
+from tests.support.environment import resolved
 from xtr_security.bundle import (
     Oauth2TokenHandlerConfig,
     OidcTokenHandlerConfig,
@@ -190,3 +192,28 @@ def test_a_userinfo_handler_keeps_its_fields() -> None:
     assert config.claim == "preferred_username"
     assert config.discovery_cache is None
     assert config.discovery_cache_key is None
+
+
+def test_an_oidc_handlers_audience_may_be_read_from_the_environment() -> None:
+    config = OidcTokenHandlerConfig(
+        issuers=("https://issuer.example",),
+        audience=env("API_AUDIENCE"),
+        jwks_uri="https://issuer.example/jwks.json",
+    )
+
+    assert resolved(config, {"API_AUDIENCE": "shop-api"}).audience == "shop-api"
+
+
+def test_a_userinfo_endpoint_may_be_read_from_the_environment() -> None:
+    config = OidcUserInfoTokenHandlerConfig(userinfo_base_uri=env("USERINFO_URI"))
+
+    built = resolved(config, {"USERINFO_URI": "https://as.example/userinfo"})
+
+    assert built.userinfo_base_uri == "https://as.example/userinfo"
+
+
+def test_a_userinfo_endpoint_the_environment_leaves_empty_is_refused() -> None:
+    config = OidcUserInfoTokenHandlerConfig(userinfo_base_uri=env("USERINFO_URI"))
+
+    with pytest.raises(InvalidConfigurationError, match="userinfo_base_uri"):
+        _ = resolved(config, {"USERINFO_URI": ""})

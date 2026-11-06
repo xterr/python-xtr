@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from xtr_dependency_injection import env
 
+from tests.support.environment import resolved
 from xtr_security.bundle import LoginLinkConfig
 from xtr_security.exception import InvalidConfigurationError
 
@@ -27,3 +29,11 @@ def test_an_empty_check_path_is_refused() -> None:
 def test_an_empty_link_path_is_refused() -> None:
     with pytest.raises(InvalidConfigurationError, match="path every minted link"):
         _ = LoginLinkConfig(check_path="/login_link", path="")
+
+
+def test_both_paths_may_be_read_from_the_environment() -> None:
+    config = LoginLinkConfig(check_path=env("LINK_CHECK_PATH"), path=env("LINK_PATH"))
+
+    built = resolved(config, {"LINK_CHECK_PATH": "/login_link", "LINK_PATH": "/login"})
+
+    assert (built.check_path, built.path) == ("/login_link", "/login")

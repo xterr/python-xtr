@@ -56,11 +56,13 @@ class LoginLinkConfig:
 
     def __post_init__(self) -> None:
         """Refuse a check path or a link path that names nothing."""
-        if not self.check_path:
+        # Compared, never tested for truth: a path read from the environment is a
+        # placeholder until the service needing it is built, and refuses to decide.
+        if self.check_path == "":
             raise InvalidConfigurationError(
                 "A login link needs the literal check path a followed link arrives at.",
             )
-        if not self.path:
+        if self.path == "":
             raise InvalidConfigurationError(
                 "A login link needs the literal path every minted link leads to.",
             )

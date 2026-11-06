@@ -95,7 +95,9 @@ class HttpBasicConfig:
 
     def __post_init__(self) -> None:
         """Check the realm is there to name the challenge."""
-        if not self.realm:
+        # Compared, never tested for truth: a realm read from the environment is a
+        # placeholder until the service needing it is built, and refuses to decide.
+        if self.realm == "":
             raise InvalidConfigurationError(
                 "An HTTP basic authenticator needs a realm to name its challenge.",
             )

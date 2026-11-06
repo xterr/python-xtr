@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from xtr_dependency_injection import env
 
+from tests.support.environment import resolved
 from xtr_security.bundle import (
     AccessTokenConfig,
     FormLoginConfig,
@@ -92,3 +94,9 @@ def test_a_form_login_needs_the_path_of_its_page() -> None:
 def test_a_json_login_refuses_a_check_path_that_names_nothing() -> None:
     with pytest.raises(InvalidConfigurationError):
         _ = JsonLoginConfig(check_path="")
+
+
+def test_an_http_basic_realm_may_be_read_from_the_environment() -> None:
+    config = HttpBasicConfig(realm=env("REALM"))
+
+    assert resolved(config, {"REALM": "Shop"}).realm == "Shop"

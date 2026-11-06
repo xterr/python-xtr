@@ -117,7 +117,9 @@ class OidcTokenHandlerConfig:
             raise InvalidConfigurationError(
                 "An OIDC token handler needs at least one trusted issuer.",
             )
-        if not self.audience:
+        # Compared, never tested for truth: a value read from the environment is a
+        # placeholder until the service needing it is built, and refuses to decide.
+        if self.audience == "":
             raise InvalidConfigurationError("An OIDC token handler needs an audience.")
         if not 0 <= self.leeway <= _MAX_LEEWAY:
             raise InvalidConfigurationError(
@@ -258,7 +260,9 @@ class OidcUserInfoTokenHandlerConfig:
 
     def __post_init__(self) -> None:
         """Check the endpoint and the discovery key."""
-        if not self.userinfo_base_uri:
+        # Compared, never tested for truth: an endpoint read from the environment is
+        # a placeholder until the service needing it is built, and refuses to decide.
+        if self.userinfo_base_uri == "":
             raise InvalidConfigurationError(
                 "A userinfo token handler needs the endpoint; set userinfo_base_uri.",
             )

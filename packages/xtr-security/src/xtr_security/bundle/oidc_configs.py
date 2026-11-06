@@ -12,6 +12,8 @@ from collections.abc import Mapping, Sequence  # noqa: TC003 -- field types read
 from dataclasses import dataclass, field
 from typing import Literal
 
+from xtr_dependency_injection.config.env_placeholder import env_placeholders_in
+
 from xtr_security.exception import InvalidConfigurationError
 
 __all__ = [
@@ -52,6 +54,16 @@ _KNOWN_PKCE_METHODS = frozenset(("S256", "plain"))
 _KNOWN_USER_DATA_SOURCES = frozenset(("userinfo", "id_token"))
 
 
+def _waits_on_the_environment(value: str) -> bool:
+    """Tell whether ``value`` still holds an environment placeholder.
+
+    Its shape cannot be read yet: string methods see the placeholder's token,
+    not the path. A configuration a service is built from is checked again once
+    the variable is read, against the real value.
+    """
+    return bool(env_placeholders_in(value))
+
+
 @dataclass(frozen=True, slots=True)
 class OidcTokenGeneratorConfig:
     """The tokens the token-generate command mints for one firewall.
@@ -81,9 +93,12 @@ class OidcTokenGeneratorConfig:
             raise InvalidConfigurationError(
                 "An OIDC token generator needs at least one signature algorithm.",
             )
-        if not self.keyset:
+        # Measured and compared, never tested for truth: a value read from the
+        # environment is a placeholder until the service needing it is built, and
+        # refuses to decide. A length reads a string audience and a sequence alike.
+        if self.keyset == "":
             raise InvalidConfigurationError("An OIDC token generator needs its signing keys.")
-        if not self.audience:
+        if len(self.audience) == 0:
             raise InvalidConfigurationError("An OIDC token generator needs an audience.")
         if not self.issuers:
             raise InvalidConfigurationError(
@@ -125,7 +140,7 @@ class OidcBackChannelLogoutConfig:
 
     def __post_init__(self) -> None:
         """Check the route is a path and the lifetime outlives a session."""
-        if not self.route.startswith("/"):
+        if not _waits_on_the_environment(self.route) and not self.route.startswith("/"):
             raise InvalidConfigurationError(
                 f"The back-channel logout route {self.route!r} is not an absolute "
                 "path; route names are not supported, only literal paths.",
@@ -162,9 +177,8 @@ class OidcEndSessionConfig:
 
     def __post_init__(self) -> None:
         """Check the redirect path is a path."""
-        if self.post_logout_redirect_path is not None and (
-            not self.post_logout_redirect_path.startswith("/")
-        ):
+        path = self.post_logout_redirect_path
+        if path is not None and not _waits_on_the_environment(path) and not path.startswith("/"):
             raise InvalidConfigurationError(
                 f"The end-session redirect path {self.post_logout_redirect_path!r} is "
                 "not an absolute path; route names are not supported, only literal "
@@ -243,9 +257,11 @@ class OidcLoginConfig:
 
     def __post_init__(self) -> None:
         """Check the client, its secret and the login's choices."""
-        if not self.issuer:
+        # Compared, never tested for truth: a value read from the environment is a
+        # placeholder until the service needing it is built, and refuses to decide.
+        if self.issuer == "":
             raise InvalidConfigurationError("An OIDC login needs the provider's issuer.")
-        if not self.client_id:
+        if self.client_id == "":
             raise InvalidConfigurationError("An OIDC login needs its client id.")
         if self.token_endpoint_auth_method not in _KNOWN_METHODS:
             raise InvalidConfigurationError(

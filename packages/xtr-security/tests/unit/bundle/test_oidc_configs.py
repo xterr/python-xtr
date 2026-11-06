@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from xtr_dependency_injection import env
 
+from tests.support.environment import resolved
 from xtr_security.bundle import (
     OidcBackChannelLogoutConfig,
     OidcEndSessionConfig,
@@ -258,3 +260,52 @@ def test_a_generator_keeps_its_fields() -> None:
     assert config.audience == ("shop-api", "admin-api")
     assert tuple(config.issuers) == ("https://issuer.example",)
     assert config.claim == "preferred_username"
+
+
+def test_a_logins_issuer_and_client_may_be_read_from_the_environment() -> None:
+    config = OidcLoginConfig(
+        issuer=env("OIDC_ISSUER"), client_id=env("OIDC_CLIENT_ID"), client_secret="secret"
+    )
+
+    built = resolved(config, {"OIDC_ISSUER": "https://issuer.example", "OIDC_CLIENT_ID": "shop"})
+
+    assert (built.issuer, built.client_id) == ("https://issuer.example", "shop")
+
+
+def test_a_generators_keys_and_audience_may_be_read_from_the_environment() -> None:
+    config = OidcTokenGeneratorConfig(
+        algorithms=("RS256",),
+        keyset=env("OIDC_KEYSET"),
+        audience=env("OIDC_AUDIENCE"),
+        issuers=("https://issuer.example",),
+    )
+
+    built = resolved(config, {"OIDC_KEYSET": '{"keys": []}', "OIDC_AUDIENCE": "shop-api"})
+
+    assert (built.keyset, built.audience) == ('{"keys": []}', "shop-api")
+
+
+def test_a_back_channel_route_may_be_read_from_the_environment() -> None:
+    config = OidcBackChannelLogoutConfig(route=env("BACKCHANNEL_ROUTE"))
+
+    assert resolved(config, {"BACKCHANNEL_ROUTE": "/bc"}).route == "/bc"
+
+
+def test_a_back_channel_route_the_environment_makes_relative_is_refused() -> None:
+    config = OidcBackChannelLogoutConfig(route=env("BACKCHANNEL_ROUTE"))
+
+    with pytest.raises(InvalidConfigurationError, match="not an absolute path"):
+        _ = resolved(config, {"BACKCHANNEL_ROUTE": "bc"})
+
+
+def test_an_end_session_redirect_may_be_read_from_the_environment() -> None:
+    config = OidcEndSessionConfig(post_logout_redirect_path=env("BYE_PATH"))
+
+    assert resolved(config, {"BYE_PATH": "/bye"}).post_logout_redirect_path == "/bye"
+
+
+def test_an_end_session_redirect_the_environment_makes_relative_is_refused() -> None:
+    config = OidcEndSessionConfig(post_logout_redirect_path=env("BYE_PATH"))
+
+    with pytest.raises(InvalidConfigurationError, match="not an absolute path"):
+        _ = resolved(config, {"BYE_PATH": "bye"})
