@@ -39,7 +39,7 @@ from xtr_security_oauth2_server.routing import (
 )
 from xtr_security_oauth2_server.routing._mounted_paths import paths_by_endpoint
 
-from ._required_settings import supplied, supplied_scopes
+from ._required_settings import supplied_issuer, supplied_scopes
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -150,14 +150,14 @@ async def metadata_document(
     grant needs first.
 
     Raises:
-        InvalidConfigurationError: When the deployment named no issuer, so
-            there is nothing to build the absolute URLs from, or no scope, so
-            there would be nothing to publish as supported.
+        InvalidConfigurationError: When the deployment named no issuer, or one
+            that is not an origin, so there is nothing to build the absolute
+            URLs from, or no scope, so there would be nothing to publish as
+            supported.
     """
     server = config.authorization_server
-    issuer = supplied(
+    issuer = supplied_issuer(
         server.issuer,
-        "authorization_server.issuer",
         "this server could not say who it is, nor where its endpoints are",
     )
     scopes = supplied_scopes(config.scopes.available)

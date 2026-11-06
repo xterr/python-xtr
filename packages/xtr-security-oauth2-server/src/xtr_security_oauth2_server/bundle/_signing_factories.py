@@ -33,7 +33,7 @@ from xtr_security_oauth2_server_core.entities.access_token_signer import AccessT
 from xtr_security_oauth2_server._missing_key_file import MINT_COMMAND, missing_key_file
 from xtr_security_oauth2_server._service_qualifier import SERVICE_QUALIFIER
 
-from ._required_settings import supplied
+from ._required_settings import supplied, supplied_issuer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -172,11 +172,7 @@ def signer_factory(config: AuthorizationServerConfig) -> Callable[..., AccessTok
         return AccessTokenSigner(
             jws_provider,
             signing_key_id(key_loader, algorithm),
-            supplied(
-                issuer,
-                "authorization_server.issuer",
-                "an access token would not say who issued it",
-            ),
+            supplied_issuer(issuer, "an access token would not say who issued it"),
             clock,
             audience,
         )

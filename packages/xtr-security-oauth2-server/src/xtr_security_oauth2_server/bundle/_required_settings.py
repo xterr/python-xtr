@@ -13,6 +13,7 @@ at the file it belongs in.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final, NoReturn
+from urllib.parse import urlsplit
 
 from xtr_security_oauth2_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
@@ -23,8 +24,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CONFIG_FILE",
+    "refuse_unless_an_origin",
     "refuse_without_persistence",
     "supplied",
+    "supplied_issuer",
     "supplied_scopes",
 ]
 
@@ -52,6 +55,55 @@ def supplied(value: str | None, setting: str, because: str, hint: str = "") -> s
         f"The setting {setting} is not configured, so {because}. Write it in "
         f"{CONFIG_FILE}.{advice}",
     )
+
+
+def supplied_issuer(value: str | None, because: str) -> str:
+    """Return the issuer, refusing it when it is unset or is not an origin.
+
+    The configuration checks an issuer written as it stands, but one read out
+    of the environment is only known once the service needing it is built, so
+    every service reading the issuer takes it through here: each gets the same
+    refusal, whichever is built first.
+
+    Args:
+        value: The issuer as the service received it, its placeholder resolved.
+        because: What cannot be done without it, as a clause.
+
+    Raises:
+        InvalidConfigurationError: When nothing was configured, or the value
+            is not an origin.
+    """
+    issuer = supplied(value, "authorization_server.issuer", because)
+    refuse_unless_an_origin(issuer)
+
+    return issuer
+
+
+def refuse_unless_an_origin(issuer: str) -> None:
+    """Refuse ``issuer`` unless it is a scheme and a host and nothing more.
+
+    The discovery document lives at a fixed path under the issuer, so an issuer
+    carrying a path of its own would put that document somewhere no client
+    would look — and the ``iss`` every token claims has to be exactly this
+    string.
+
+    Raises:
+        InvalidConfigurationError: When the issuer is not an origin.
+    """
+    split = urlsplit(issuer)
+    if (
+        split.scheme == ""
+        or split.netloc == ""
+        or split.path != ""
+        or split.query != ""
+        or split.fragment != ""
+    ):
+        raise InvalidConfigurationError(
+            f"The setting authorization_server.issuer is {issuer!r}, which is not an origin; "
+            "name it as a scheme and a host with no path, query or fragment, such as "
+            f"'https://authorization.example.com', in {CONFIG_FILE} or in the environment "
+            "variable or parameter it is read from.",
+        )
 
 
 def supplied_scopes(available: Sequence[str]) -> tuple[str, ...]:

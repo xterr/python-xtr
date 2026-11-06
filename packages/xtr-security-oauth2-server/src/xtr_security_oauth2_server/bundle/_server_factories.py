@@ -48,7 +48,7 @@ from xtr_security_oauth2_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
 
-from ._required_settings import supplied
+from ._required_settings import supplied, supplied_issuer
 from ._signing_factories import QUALIFIER
 
 if TYPE_CHECKING:
@@ -104,7 +104,7 @@ def token_server_factory(
             access_token_repository,
             refresh_token_repository,
             jws_provider,
-            supplied(issuer, "authorization_server.issuer", _NAMELESS),
+            supplied_issuer(issuer, _NAMELESS),
             supplied(
                 encryption_key,
                 "authorization_server.encryption_key",

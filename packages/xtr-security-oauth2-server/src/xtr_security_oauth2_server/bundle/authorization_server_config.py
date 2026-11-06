@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal
-from urllib.parse import urlsplit
+from typing import Final, Literal
+
+from xtr_dependency_injection.config.env_placeholder import env_placeholders_in
 
 # The response type a deployment may put in place of the bearer document is
 # named as a class the container builds, so this annotation is read at runtime.
@@ -16,6 +18,8 @@ from xtr_security_oauth2_server_core.response_types.response_type_interface impo
 from xtr_security_oauth2_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
+
+from ._required_settings import refuse_unless_an_origin
 
 __all__ = ["AuthorizationServerConfig"]
 
@@ -34,6 +38,9 @@ DEFAULT_AUTH_CODE_TTL = timedelta(minutes=10)
 #: Ten minutes, as the authorization code: long enough for somebody to walk to
 #: another device and type a user code.
 DEFAULT_DEVICE_CODE_TTL = timedelta(minutes=10)
+
+#: A ``%name%`` parameter reference, once the ``%%`` escapes are taken out.
+_PARAMETER_REFERENCE: Final = re.compile(r"%[^%\s]+%")
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +61,12 @@ class AuthorizationServerConfig:
     Presence is reported where a setting is used, so the bundle still builds
     and boots without one — and the console still runs to mint what is
     missing.
+
+    An issuer read from the environment (``env("OAUTH2_SERVER_ISSUER")``) or
+    from a parameter (``"%app.issuer%"``) has no value to check yet. A
+    parameter is resolved before the bundle loads, and an environment variable
+    when the first service needing the issuer is built; that is where it is
+    checked, with the same refusal as one written as it stands.
 
     Attributes:
         private_key: The key access tokens are signed with, as PEM text or the
@@ -152,8 +165,8 @@ class AuthorizationServerConfig:
                 any lifetime is not positive, when the polling interval is
                 negative, or when the signature algorithm is empty.
         """
-        if self.issuer is not None:
-            _refuse_unless_an_origin(self.issuer)
+        if self.issuer is not None and not _unresolved(self.issuer):
+            refuse_unless_an_origin(self.issuer)
         for name, lifetime in (
             ("access_token_ttl", self.access_token_ttl),
             ("refresh_token_ttl", self.refresh_token_ttl),
@@ -179,27 +192,13 @@ class AuthorizationServerConfig:
             )
 
 
-def _refuse_unless_an_origin(issuer: str) -> None:
-    """Refuse ``issuer`` unless it is a scheme and a host and nothing more.
+def _unresolved(value: str) -> bool:
+    """Tell whether ``value`` still waits on an environment variable or a parameter.
 
-    The discovery document lives at a fixed path under the issuer, so an issuer
-    carrying a path of its own would put that document somewhere no client
-    would look — and the ``iss`` every token claims has to be exactly this
-    string.
-
-    Raises:
-        InvalidConfigurationError: When the issuer is not an origin.
+    Either may stand for the whole value or sit inside it
+    (``f"https://{env('HOST')}"``, ``"https://%app.host%"``).
     """
-    split = urlsplit(issuer)
-    if (
-        split.scheme == ""
-        or split.netloc == ""
-        or split.path != ""
-        or split.query != ""
-        or split.fragment != ""
-    ):
-        raise InvalidConfigurationError(
-            f"The setting authorization_server.issuer is {issuer!r}, which is not an origin; "
-            "name it as a scheme and a host with no path, query or fragment, such as "
-            "'https://authorization.example.com'.",
-        )
+    if env_placeholders_in(value):
+        return True
+
+    return _PARAMETER_REFERENCE.search(value.replace("%%", "")) is not None

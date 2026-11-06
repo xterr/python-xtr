@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
+from xtr_dependency_injection import env
 
 from xtr_security_oauth2_server.bundle.authorization_server_config import (
     AuthorizationServerConfig,
@@ -21,7 +22,7 @@ from xtr_security_oauth2_server.exception import InvalidConfigurationError
 def test_an_issuer_carrying_a_path_is_refused() -> None:
     # The discovery document lives at a fixed path under the issuer.
     with pytest.raises(InvalidConfigurationError, match=r"not an origin"):
-        _ = AuthorizationServerConfig(issuer="https://auth.test/oauth")
+        _ = AuthorizationServerConfig(issuer="https://x.example/path")
 
 
 def test_an_issuer_that_is_only_a_host_is_refused() -> None:
@@ -31,6 +32,31 @@ def test_an_issuer_that_is_only_a_host_is_refused() -> None:
 
 def test_an_origin_is_accepted_as_an_issuer() -> None:
     assert AuthorizationServerConfig(issuer="https://auth.test").issuer == "https://auth.test"
+
+
+def test_an_issuer_read_from_the_environment_is_left_to_be_checked_where_it_is_used() -> None:
+    issuer = env("OAUTH2_SERVER_ISSUER")
+
+    assert AuthorizationServerConfig(issuer=issuer).issuer is issuer
+
+
+def test_an_issuer_embedding_an_environment_variable_is_left_to_be_checked_too() -> None:
+    issuer = f"https://{env('OAUTH2_SERVER_HOST')}"
+
+    assert AuthorizationServerConfig(issuer=issuer).issuer == issuer
+
+
+def test_an_issuer_naming_a_parameter_is_left_to_be_checked_once_it_resolves() -> None:
+    assert AuthorizationServerConfig(issuer="%app.issuer%").issuer == "%app.issuer%"
+
+
+def test_an_issuer_embedding_a_parameter_is_left_to_be_checked_too() -> None:
+    assert AuthorizationServerConfig(issuer="https://%app.host%").issuer == "https://%app.host%"
+
+
+def test_an_escaped_percent_sign_is_no_parameter() -> None:
+    with pytest.raises(InvalidConfigurationError, match=r"not an origin"):
+        _ = AuthorizationServerConfig(issuer="https://auth.test/%%x%%")
 
 
 def test_an_access_token_lifetime_that_is_not_positive_is_refused() -> None:

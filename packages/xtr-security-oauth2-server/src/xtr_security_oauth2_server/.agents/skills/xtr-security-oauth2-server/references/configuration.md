@@ -15,6 +15,13 @@ service that needs it, naming the setting and `<app>/config/packages/oauth2_serv
 | `persistence` | any store is asked for |
 | `authorization_server.device_code_verification_uri` | the device grant is built — on by default |
 
+An issuer may come from the environment, `issuer=env("OAUTH2_SERVER_ISSUER")`, or from a
+parameter, `issuer="%app.issuer%"`. A parameter is resolved before the bundle loads, so one
+written as a value is checked when the configuration resolves. A variable, directly or through a
+parameter (`"%env(OAUTH2_SERVER_ISSUER)%"`), is read and checked when it is first used, in the
+same places a missing issuer is reported. A value that is not an origin raises
+`InvalidConfigurationError` naming `authorization_server.issuer` and the value it holds.
+
 ## `OAuth2ServerConfig`
 
 | Field | Default | What it is |
@@ -30,7 +37,7 @@ service that needs it, naming the setting and `<app>/config/packages/oauth2_serv
 
 | Field | Default | What it is |
 | --- | --- | --- |
-| `issuer` | `None` | An origin — scheme and host, no path, query or fragment |
+| `issuer` | `None` | An origin — scheme and host, no path, query or fragment; `env("OAUTH2_SERVER_ISSUER")` |
 | `private_key` | `None` | PEM text or a file path; `env("resolve:OAUTH2_SERVER_PRIVATE_KEY_PATH")` |
 | `private_key_passphrase` | `""` | Its pass phrase |
 | `encryption_key` | `None` | Seals codes and refresh tokens |

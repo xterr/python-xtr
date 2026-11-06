@@ -37,7 +37,7 @@ from xtr_security_oauth2_server.manager.client_manager_interface import ClientMa
 from xtr_security_oauth2_server.manager.in_memory.scope_manager import ScopeManager
 from xtr_security_oauth2_server.repository.client_repository import ClientRepository
 
-from ._required_settings import supplied, supplied_scopes
+from ._required_settings import supplied_issuer, supplied_scopes
 from ._signing_factories import QUALIFIER
 
 if TYPE_CHECKING:
@@ -117,7 +117,7 @@ def bearer_token_validator_factory(
         return BearerTokenValidator(
             access_token_repository,
             jws_provider,
-            supplied(issuer, "authorization_server.issuer", _NAMELESS),
+            supplied_issuer(issuer, _NAMELESS),
             clock,
             audience,
             leeway,
