@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
-from xtr_http_foundation import Session, SessionStorageInterface
+from xtr_http_foundation import Session, SessionCookieConfig, SessionStorageInterface
 from xtr_logging_contracts import NullLogger
 from xtr_security_core.authentication.authentication_trust_resolver import (
     AuthenticationTrustResolver,
@@ -48,6 +48,11 @@ __all__ = ["ContextListener"]
 # spelling keeps working.
 _SESSION_KEY_PREFIX: Final = "_security."
 
+# The cookie a session's ID travels in when the firewall configures none: the
+# session's own default, so a listener built without one writes what a
+# session built anywhere else does.
+_DEFAULT_COOKIE: Final = SessionCookieConfig()
+
 
 @final
 class ContextListener(AbstractListener):
@@ -77,7 +82,10 @@ class ContextListener(AbstractListener):
     The session is built from the request through the storage the application
     pointed the session at — the one request-to-session path — and parked on
     the request's security state, so both halves of one request reach the
-    same session and nothing one request set reaches another.
+    same session and nothing one request set reaches another. This is the
+    only place a firewall's session is built, so the cookie it is given is
+    the one every later step stages: the login's rotation, the logout's
+    invalidation, the save that writes the session back.
 
     The user a token carries is a plain object here: the lazy-initialisation
     guard the upstream listener opens its response half with — a user
@@ -89,6 +97,7 @@ class ContextListener(AbstractListener):
 
     __slots__ = (
         "_context_key",
+        "_cookie",
         "_dispatcher",
         "_logger",
         "_session_key",
@@ -108,6 +117,7 @@ class ContextListener(AbstractListener):
         logger: LoggerInterface | None = None,
         dispatcher: EventDispatcherInterface | None = None,
         trust_resolver: AuthenticationTrustResolverInterface | None = None,
+        cookie: SessionCookieConfig = _DEFAULT_COOKIE,
     ) -> None:
         """Build the listener over one firewall's session key and providers.
 
@@ -126,6 +136,8 @@ class ContextListener(AbstractListener):
                 deauthentication are announced, when given.
             trust_resolver: Reads whether the response half's token is
                 authenticated; the base resolver when none is given.
+            cookie: The cookie the session's ID is read from and written
+                to; the session's default when none is given.
 
         Raises:
             InvalidArgumentError: When ``context_key`` is empty — the session
@@ -142,6 +154,7 @@ class ContextListener(AbstractListener):
         self._logger = logger or NullLogger()
         self._dispatcher = dispatcher
         self._trust_resolver = trust_resolver or AuthenticationTrustResolver()
+        self._cookie = cookie
 
     @override
     async def supports(self, request: ServerRequestInterface) -> bool | None:
@@ -183,7 +196,7 @@ class ContextListener(AbstractListener):
         """
         request = request_event.request
         state = security_state_of(request_event.state)
-        session = Session.from_request(request, self._session_storage)
+        session = Session.from_request(request, self._session_storage, cookie=self._cookie)
         state.attributes[SecurityRequestAttributes.SESSION] = session
         state.attributes[SecurityRequestAttributes.FIREWALL_RUN] = self._session_key
 

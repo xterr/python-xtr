@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, final
 import pytest
 from starlette.datastructures import MutableHeaders
 from xtr_event_dispatcher import EventDispatcher
-from xtr_http_foundation import MemorySessionStorage, Session
+from xtr_http_foundation import MemorySessionStorage, Session, SessionCookieConfig
 from xtr_http_kernel import RequestEvent, ResponseEvent
 from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
@@ -195,6 +195,60 @@ async def test_the_request_marks_the_firewall_run_and_parks_the_session() -> Non
     assert state.attributes[SecurityRequestAttributes.FIREWALL_RUN] == _MAIN_KEY
     parked = state.attributes[SecurityRequestAttributes.SESSION]
     assert isinstance(parked, Session)
+
+
+async def test_the_session_is_reattached_by_the_cookie_the_firewall_configured() -> None:
+    session_storage = MemorySessionStorage()
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(InMemoryUser("ada")))
+    storage = TokenStorage()
+    listener = ContextListener(
+        storage,
+        (_FakeProvider(refreshed=InMemoryUser("ada")),),
+        "main",
+        session_storage,
+        cookie=SessionCookieConfig(name="sid"),
+    )
+    request = make_message(path="/account").with_cookie_params({"sid": session_id})
+
+    await listener.authenticate(RequestEvent(request, {}))
+
+    stored = storage.get_token()
+    assert stored is not None
+    assert stored.get_user_identifier() == "ada"
+
+
+async def test_the_parked_session_stages_the_cookie_the_firewall_configured() -> None:
+    listener = ContextListener(
+        TokenStorage(),
+        (),
+        "main",
+        MemorySessionStorage(),
+        cookie=SessionCookieConfig(name="sid", secure=True, domain="app.test"),
+    )
+    event = _request_event()
+
+    await listener.authenticate(event)
+
+    parked = security_state_of(event.state).attributes[SecurityRequestAttributes.SESSION]
+    assert isinstance(parked, Session)
+    assert parked.staged_set_cookie() == (
+        f"sid={parked.get_id()}; path=/; domain=app.test; secure; httponly; samesite=lax"
+    )
+
+
+async def test_a_listener_given_no_cookie_stages_the_sessions_default() -> None:
+    event = _request_event()
+
+    await _listener().authenticate(event)
+
+    parked = security_state_of(event.state).attributes[SecurityRequestAttributes.SESSION]
+    assert isinstance(parked, Session)
+    staged = parked.staged_set_cookie()
+    default = Session(MemorySessionStorage())
+    expected = default.staged_set_cookie()
+    assert staged is not None
+    assert expected is not None
+    assert staged.replace(parked.get_id(), "") == expected.replace(default.get_id(), "")
 
 
 async def test_a_session_without_a_token_leaves_the_storage_empty() -> None:

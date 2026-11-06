@@ -606,7 +606,8 @@ callable `(message) -> bool`, for a rule none of the matchers above express.
 ### The context listener: a session's token, restored and written back
 
 **`ContextListener(token_storage, user_providers, context_key, session_storage, *, logger=None,
-dispatcher=None, trust_resolver=None)`** is the chain step a *stateful* firewall runs: it reads
+dispatcher=None, trust_resolver=None, cookie=SessionCookieConfig())`** is the chain step a
+*stateful* firewall runs: it reads
 the token the request's session carries — under the key `_security.<context>`, the firewall's
 own name composed onto the prefix every user-facing key of the flow carries — and restores it
 into the token storage, after refreshing the user it carries through the firewall's user
@@ -629,6 +630,11 @@ the impersonator's — is refreshed first, and a reload that deauthenticates it 
 the switch with it, because a switch whose origin is gone has nothing to return to. A session
 holding no token, or something that is not one — a corrupt
 payload, a foreign class — leaves the storage empty the same way, without failing the request.
+
+The session is built from the request here and nowhere else, reading its ID from the cookie
+`cookie` describes — its name, path, domain, `Secure`, `HttpOnly`, `SameSite` and lifetime.
+Every later step of the request reaches that same session, so the cookie a login's rotation, a
+logout's invalidation and the save stage is always this one.
 
 The response half, **`on_response(response_event)`** — registered beside the chain on the
 kernel's response event — writes the token back: what the request authenticated is stored under

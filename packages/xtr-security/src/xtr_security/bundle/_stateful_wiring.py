@@ -21,7 +21,7 @@ from xtr_dependency_injection import Target
 from xtr_dependency_injection.decorator.remove_if_missing import REMOVE_IF_MISSING_TAG
 from xtr_event_dispatcher.bundle import SUBSCRIBER_TAG
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
-from xtr_http_foundation import SessionStorageInterface
+from xtr_http_foundation import SessionCookieConfig, SessionStorageInterface
 from xtr_http_kernel import ResponseEvent
 from xtr_security_core import (
     AuthenticationTrustResolverInterface,
@@ -90,6 +90,11 @@ def register_context_listener(
     provider; a firewall naming none gets the same placeholder the
     authenticators get, which fails naming the firewall the first time it is
     asked for.
+
+    The session is read from and written to the cookie the firewall
+    configured, the session's default when it configured none. The listener
+    is the only place the firewall's session is built, so every later step
+    stages that same cookie.
     """
     from xtr_security_http import (  # noqa: PLC0415 -- the family's chain-step import
         ContextListener,
@@ -97,6 +102,9 @@ def register_context_listener(
     )
 
     context_key = firewall.context_key if firewall.context_key is not None else name
+    cookie = (
+        firewall.session_cookie if firewall.session_cookie is not None else SessionCookieConfig()
+    )
     provider_key: ServiceKey = (
         (UserProviderInterface, provider_qualifier)
         if provider_qualifier is not None
@@ -118,6 +126,7 @@ def register_context_listener(
             session_storage,
             dispatcher=dispatcher,
             trust_resolver=trust_resolver,
+            cookie=cookie,
         )
 
     context_listener.__annotations__ = {

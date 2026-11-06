@@ -44,6 +44,7 @@ A firewall naming a `provider` that is not declared fails the build with
 | `stateless` | `True` | `False` keeps a session: the token it carries is restored on every request, through the `SessionStorageInterface` service the application registers; with none registered the build fails naming it |
 | `context_key` | `None` | The name the firewall's context is stored under in the session — the part after `_security.` — or `None` for the firewall's own name |
 | `session_strategy` | `"migrate"` | What a successful login does to the session it reattached: `migrate` rotates its ID keeping its attributes, `invalidate` empties it, `none` leaves it alone. Meaningful on a stateful firewall only |
+| `session_cookie` | `None` | The `SessionCookieConfig` (from `xtr_http_foundation`) the session ID travels in — `name`, `path`, `domain`, `secure`, `httponly`, `samesite`, `lifetime` — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, not `Secure`. Meaningful on a stateful firewall only |
 | `provider` | `None` | The name of the user provider the firewall loads users from; with none here and none configured, an authenticator needing one gets a `MissingUserProvider` that fails, naming the firewall, when first used |
 | `user_checker` | `None` | A user-checker service type, or the default in-memory checker |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
@@ -92,6 +93,25 @@ stages the cookie that carries its ID — a fresh session, or one a login rotate
 below every other response listener, so the token is in the session before the session is
 written, and a storage that fails fails the request loudly rather than losing the session
 quietly.
+
+The cookie is the firewall's `session_cookie`. The default is not `Secure`, so an application
+served only over HTTPS sets it:
+
+```python
+from xtr_http_foundation import SessionCookieConfig
+
+FirewallConfig(
+    pattern=r"^/",
+    stateless=False,
+    session_cookie=SessionCookieConfig(name="sid", secure=True),
+    authenticators=(FormLoginConfig(),),
+)
+```
+
+The context step is the only place the firewall's session is built, so every cookie the request
+stages has that shape: the fresh session's, the login's rotation, the logout's invalidation,
+which re-issues the cookie under a new ID with the same path and domain so the browser replaces
+it. Firewalls sharing a `context_key` share one session, so give them the same cookie.
 
 ## The authenticator family
 

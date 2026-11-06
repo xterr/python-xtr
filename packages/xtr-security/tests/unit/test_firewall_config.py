@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
+from xtr_http_foundation import SessionCookieConfig
+from xtr_http_foundation.exception import InvalidArgumentError
 
 from xtr_security.bundle import AccessTokenConfig, FirewallConfig, ServiceTokenHandlerConfig
 from xtr_security.exception import InvalidConfigurationError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.anyio
 
@@ -35,6 +42,34 @@ def test_a_firewall_keeps_its_listener_chain_qualifiers() -> None:
 def test_a_secured_firewall_needs_an_authenticator() -> None:
     with pytest.raises(InvalidConfigurationError):
         _ = FirewallConfig(pattern=r"^/api")
+
+
+def test_a_firewall_configures_no_session_cookie_by_default() -> None:
+    assert FirewallConfig(security=False).session_cookie is None
+
+
+def test_a_stateful_firewall_keeps_the_session_cookie_it_names() -> None:
+    cookie = SessionCookieConfig(name="sid", secure=True)
+
+    firewall = FirewallConfig(security=False, stateless=False, session_cookie=cookie)
+
+    assert firewall.session_cookie is cookie
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda: SessionCookieConfig(name=""),
+        lambda: SessionCookieConfig(samesite="sometimes"),
+        lambda: SessionCookieConfig(lifetime=-1),
+    ],
+    ids=["empty name", "unknown samesite", "negative lifetime"],
+)
+def test_a_session_cookie_no_browser_would_keep_is_refused(
+    build: Callable[[], SessionCookieConfig],
+) -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = build()
 
 
 def test_a_stateful_firewall_is_accepted() -> None:

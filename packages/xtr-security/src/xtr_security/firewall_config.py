@@ -17,6 +17,7 @@ from xtr_http_foundation import (
     HostRequestMatcher,
     MethodRequestMatcher,
     PathRequestMatcher,
+    SessionCookieConfig,
 )
 from xtr_security_core.exception import InvalidArgumentError
 
@@ -66,6 +67,14 @@ class FirewallConfig:
         session_strategy: What a successful login does to the session it
             reattached — ``migrate`` (the default) rotates its ID keeping its
             attributes, ``invalidate`` empties it, ``none`` leaves it alone.
+            Meaningful on a stateful firewall only.
+        session_cookie: The cookie the firewall's session ID travels in — its
+            name, path, domain, ``Secure``, ``HttpOnly``, ``SameSite`` and
+            lifetime — or ``None`` for the session's default, an
+            ``xtr_session`` cookie on ``/`` that is ``HttpOnly`` and
+            ``SameSite=Lax`` but not ``Secure``. An application served only
+            over HTTPS sets ``secure=True``. Firewalls sharing a
+            ``context_key`` share one session, so they name the same cookie.
             Meaningful on a stateful firewall only.
         provider: The name of the user provider the firewall loads users from,
             or ``None`` to leave it to the authenticator.
@@ -120,6 +129,7 @@ class FirewallConfig:
     stateless: bool = True
     context_key: str | None = None
     session_strategy: str = "migrate"
+    session_cookie: SessionCookieConfig | None = None
     provider: str | None = None
     user_checker: type | None = None
     entry_point: str | None = None

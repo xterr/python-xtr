@@ -195,6 +195,7 @@ else registers unconfigured: no firewall, no rule, no voter beyond the built-ins
 | `stateless` | `True` | Whether the firewall keeps no session. A stateful firewall (`stateless=False`) restores the token its session carries on every request, through the `SessionStorageInterface` service the application registers; with none registered the build fails naming it |
 | `context_key` | `None` | The name the firewall's context is stored under in the session — the part after `_security.` — or `None` for the firewall's own name |
 | `session_strategy` | `migrate` | What a successful login does to the session it reattached: `migrate` rotates its ID keeping its attributes, `invalidate` empties it, `none` leaves it alone. Meaningful on a stateful firewall only |
+| `session_cookie` | `None` | The `SessionCookieConfig` the session ID travels in — name, path, domain, `secure`, `httponly`, `samesite`, lifetime — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, not `Secure`. Meaningful on a stateful firewall only |
 | `provider` | `None` | The user provider the firewall loads users from; with none here and none configured at all, an authenticator that needs one gets a `MissingUserProvider` that fails, naming the firewall, when first used — and with none here but others configured, one that needs one fails the build, naming the firewall |
 | `user_checker` | `None` | A user-checker service type, or the default in-memory checker |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
@@ -245,6 +246,12 @@ loudly rather than losing the session quietly; the finish event saves what a req
 that failed without producing a response still wrote. The listener is registered while
 any stateful firewall is configured and carries the same remove-if-missing marker over
 the application's session storage as the context step it serves.
+
+The session ID travels in the firewall's `session_cookie`,
+`SessionCookieConfig(name="sid", secure=True)` for an application served only over HTTPS; the
+default is `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax` and not `Secure`. The context step
+is the only place the firewall's session is built, so the login's rotation and the logout's
+invalidation stage the same cookie, under a new ID with the same path and domain.
 
 ### The authenticator family
 
