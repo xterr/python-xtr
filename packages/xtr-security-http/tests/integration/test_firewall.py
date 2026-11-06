@@ -28,7 +28,6 @@ from xtr_security_core.user import InMemoryUser
 
 from tests.support.contexts import FakeFirewallContext
 from tests.support.messages import make_message
-from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.access_map import AccessMap
 from xtr_security_http.authenticator.token import PostAuthenticationToken
@@ -39,6 +38,7 @@ from xtr_security_http.firewall.authenticator_manager_listener import (
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 from xtr_security_http.firewall.firewall import Firewall
 from xtr_security_http.firewall_map import FirewallMap
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:

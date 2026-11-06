@@ -635,6 +635,7 @@ The session is built from the request here and nowhere else, reading its ID from
 `cookie` describes — its name, path, domain, `Secure`, `HttpOnly`, `SameSite` and lifetime.
 Every later step of the request reaches that same session, so the cookie a login's rotation, a
 logout's invalidation and the save stage is always this one.
+Any step reads it with **`parked_session_of(request)`** — `None` for a request no stateful chain ran.
 
 The response half, **`on_response(response_event)`** — registered beside the chain on the
 kernel's response event — writes the token back: what the request authenticated is stored under

@@ -20,10 +20,8 @@ from xtr_security_csrf.token_storage.clearable_token_storage_interface import (
     ClearableTokenStorageInterface,
 )
 from xtr_security_csrf.token_storage.session_token_storage import SessionTokenStorage
-from xtr_security_http._parked_session import (
-    parked_session_of,
-)
 from xtr_security_http.exception import MissingSessionError
+from xtr_security_http.parked_session import parked_session_of
 
 from xtr_security.bundle.authenticator_configs import FormLoginConfig
 

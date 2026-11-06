@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, final
 from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
-from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http._request_parameters import payload_parameter, query_parameter
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 from xtr_security_http.util import get_target_path, save_target_path
 

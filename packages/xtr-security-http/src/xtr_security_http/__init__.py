@@ -172,6 +172,7 @@ from .login_link import (
     LoginLinkHandlerInterface,
 )
 from .logout import LogoutForm, LogoutUrlGenerator
+from .parked_session import parked_session_of
 from .rate_limiter import DefaultLoginRateLimiter
 from .remember_me import (
     AbstractRememberMeHandler,
@@ -350,6 +351,7 @@ __all__ = [
     "is_sensitive",
     "mask",
     "oauth2_scope",
+    "parked_session_of",
     "parse_oauth2_scope",
     "remove_target_path",
     "save_target_path",
