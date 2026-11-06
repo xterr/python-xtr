@@ -37,6 +37,12 @@ def public_key_set(key_loader: KeyLoaderInterface, algorithm: str) -> KeySetSeri
     signing one — the ``kid`` its material carries, else its RFC 7638
     thumbprint — and carries its public members alone.
 
+    Every key is marked ``"use": "sig"`` as well, replacing any ``use`` its
+    material carried: verifying this deployment's signatures is what each one
+    is published for. A verifier that checks what a key is for — as
+    xtr-security-http's OpenID Connect readers do unless told otherwise — keeps
+    only the keys marked for signatures, so an unmarked set would verify nothing.
+
     A verifier built on this library knows each key by that published name as
     well as by the id its own source gave it — the loader's id, an extra's file
     name — so a token whose ``kid`` carries either one finds the key in a single
@@ -62,7 +68,7 @@ def public_key_set(key_loader: KeyLoaderInterface, algorithm: str) -> KeySetSeri
     passphrase = key_loader.get_passphrase()
     for extra in key_loader.get_additional_public_keys():
         keys.extend(import_additional_keys(extra, algorithm, passphrase))
-    return KeySet(keys).as_dict(private=False)
+    return KeySet(keys).as_dict(private=False, use="sig")
 
 
 def signing_key_id(key_loader: KeyLoaderInterface, algorithm: str) -> str:

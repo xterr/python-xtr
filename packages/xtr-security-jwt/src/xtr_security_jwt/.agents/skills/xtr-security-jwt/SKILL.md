@@ -149,7 +149,7 @@ assert kid in [published["kid"] for published in document["keys"]]
 | Function | Returns |
 | --- | --- |
 | `generate_signing_key(algorithm, key_id=None)` | The private key `algorithm` signs with: `RS*`/`PS*` an RSA-2048 key, `ES*` the curve the algorithm names, `EdDSA` an Ed25519 key |
-| `public_key_set(key_loader, algorithm)` | `{"keys": [...]}` — the signing key's public half, then every additional public key |
+| `public_key_set(key_loader, algorithm)` | `{"keys": [...]}` — the signing key's public half, then every additional public key, each marked `"use": "sig"` |
 | `signing_key_id(key_loader, algorithm)` | The `kid` the signing key is published under |
 
 - A key is named by the `kid` its own material carries or, since a lone PEM carries none, by its

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from joserfc.jwk import RSAKey
@@ -50,7 +51,7 @@ def test_a_published_key_carries_its_public_members_alone() -> None:
 
     document = public_key_set(loader, "RS256")
 
-    assert set(document["keys"][0]) == {"kty", "kid", "n", "e"}
+    assert set(document["keys"][0]) == {"kty", "kid", "n", "e", "use"}
 
 
 def test_a_published_key_names_itself_by_its_rfc_7638_thumbprint() -> None:
@@ -86,6 +87,24 @@ def test_no_published_key_leaks_a_private_member(tmp_path: Path) -> None:
     document = public_key_set(loader, "RS256")
 
     assert [key for key in document["keys"] if _PRIVATE_RSA_MEMBERS & set(key)] == []
+
+
+def test_every_published_key_is_marked_for_signatures(tmp_path: Path) -> None:
+    loader = _loader_with_extras(tmp_path, SECOND_RSA_PUBLIC_PEM)
+
+    document = public_key_set(loader, "RS256")
+
+    assert [key.get("use") for key in document["keys"]] == ["sig", "sig"]
+
+
+def test_a_use_the_key_material_carries_is_replaced_by_sig(tmp_path: Path) -> None:
+    material = cast("dict[str, list[dict[str, object]]]", json.loads(SECOND_RSA_PUBLIC_JWKS))
+    material["keys"][0]["use"] = "enc"
+    loader = _loader_with_extras(tmp_path, json.dumps(material))
+
+    document = public_key_set(loader, "RS256")
+
+    assert document["keys"][1].get("use") == "sig"
 
 
 def test_a_shared_secret_is_never_published() -> None:
