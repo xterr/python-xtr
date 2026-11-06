@@ -149,7 +149,9 @@ class FormLoginConfig:
 
     def __post_init__(self) -> None:
         """Check the page the form lives on is named."""
-        if not self.login_path:
+        # Compared, never tested for truth: a path read from the environment is a
+        # placeholder until the service needing it is built, and refuses to decide.
+        if self.login_path == "":
             raise InvalidConfigurationError(
                 "A form login needs the path of the page its form lives on.",
             )

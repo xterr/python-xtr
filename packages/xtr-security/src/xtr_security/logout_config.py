@@ -74,9 +74,11 @@ class LogoutConfig:
             InvalidConfigurationError: When a path is empty, or the site-data
                 directives are.
         """
-        if not self.path:
+        # Compared, never tested for truth: a path read from the environment is a
+        # placeholder until the service needing it is built, and refuses to decide.
+        if self.path == "":
             raise InvalidConfigurationError("A logout needs the path it is asked for by.")
-        if not self.target_path:
+        if self.target_path == "":
             raise InvalidConfigurationError("A logout needs the path it redirects to.")
         if self.clear_site_data is not None and not self.clear_site_data:
             raise InvalidConfigurationError(
