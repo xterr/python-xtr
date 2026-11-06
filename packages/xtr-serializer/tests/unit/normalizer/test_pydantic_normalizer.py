@@ -38,7 +38,7 @@ from pydantic import (
 )
 from pydantic_core import to_json
 from typing_extensions import override
-from xtr_clock import DatePoint, MonotonicClock
+from xtr_clock import DatePoint
 
 from tests.fixtures.colliding_key import CollidingKey
 from tests.fixtures.containers import (
@@ -978,20 +978,6 @@ def _refused_list(size: int) -> object:
     return Values(["x"] * size)
 
 
-def _seconds_to_locate_every_refusal(data: object, type_: object, context: Context) -> float:
-    """Return the best of three timings of collecting every refused value of ``data``."""
-    clock = MonotonicClock()
-    best = math.inf
-    for _ in range(3):
-        started = clock.now()
-        with pytest.raises(PartialDenormalizationError):
-            _ = PydanticNormalizer().denormalize(
-                data, type_, context={**context, COLLECT_DENORMALIZATION_ERRORS: True}
-            )
-        best = min(best, (clock.now() - started).total_seconds())
-    return best
-
-
 @pytest.mark.parametrize(
     ("build", "type_", "context"),
     [
@@ -1001,24 +987,15 @@ def _seconds_to_locate_every_refusal(data: object, type_: object, context: Conte
     ],
     ids=["mapping-read-as-json", "mapping-read-from-attributes", "list-read-from-attributes"],
 )
-def test_it_locates_every_refused_value_of_a_large_container_in_linear_time(
+def test_it_locates_every_refused_value_of_a_large_container(
     build: Callable[[int], object], type_: object, context: Context
 ) -> None:
-    """Twice the values take about twice as long; locating each by scanning would take four.
-
-    Measured against itself rather than against a budget, so the answer is the same on a
-    slow runner and a fast one, and on every Python the package supports.
-    """
+    """Every one is reported; that each mapping is indexed once is tested with the walk."""
     with pytest.raises(PartialDenormalizationError) as raised:
         _ = PydanticNormalizer().denormalize(
             build(MANY), type_, context={**context, COLLECT_DENORMALIZATION_ERRORS: True}
         )
     assert len(raised.value.errors) == MANY
-
-    single = _seconds_to_locate_every_refusal(build(MANY), type_, context)
-    double = _seconds_to_locate_every_refusal(build(2 * MANY), type_, context)
-
-    assert double < 3 * single
 
 
 @pytest.mark.parametrize(

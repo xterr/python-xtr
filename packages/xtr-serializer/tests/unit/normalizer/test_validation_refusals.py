@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import ClassVar, NamedTuple, final
 
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic_core import ErrorDetails
 from typing_extensions import override
-from xtr_clock import MonotonicClock
 
 from xtr_serializer.exception import ExtraAttributesError, NotNormalizableValueError
-from xtr_serializer.normalizer._validation_refusals import refusals_of
+from xtr_serializer.normalizer._validation_refusals import _ABSENT, _KeyIndexes, refusals_of
 
 PLANTED_VALUE = "s3cr3t-t0ken-4f9a"
 
@@ -279,14 +277,22 @@ KEYS: list[str | int] = [f"k{index}" for index in range(MANY)]
     ],
     ids=["plain-mapping", "mapping", "list-subclass"],
 )
-def test_the_errors_of_a_large_container_are_located_in_linear_time(
+def test_the_errors_of_a_large_container_are_located(
     data: object, steps: list[str | int], plain: bool, last_path: str
 ) -> None:
     details = [string_error_at(step) for step in steps]
-    clock = MonotonicClock()
-    started = clock.now()
 
     refusals = refusals_of(details, data, plain=plain)
 
-    assert clock.now() - started < timedelta(seconds=0.5)
     assert (len(refusals), refusals[-1].path) == (MANY, last_path)
+
+
+def test_the_keys_of_a_mapping_are_indexed_on_the_first_lookup_only() -> None:
+    """Later lookups read the index, not the mapping: locating every error reads it once."""
+    mapping: dict[object, object] = {"a": 1}
+    indexes = _KeyIndexes()
+    assert indexes.item_at(mapping, "a") == 1
+    mapping["b"] = 2
+
+    assert indexes.item_at(mapping, "b") is _ABSENT
+    assert indexes.item_at(mapping, "a") == 1

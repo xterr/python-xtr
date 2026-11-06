@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import re
-import time
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -17,6 +16,7 @@ from tests.support.email_cases import (
     file_stream,
     image_stream,
 )
+from tests.support.growth import assert_linear_growth
 from tests.support.part_shape import shape
 from xtr_mime.exception import InvalidArgumentError
 from xtr_mime.part import AlternativePart, DataPart, MixedPart, RelatedPart, TextPart
@@ -240,12 +240,11 @@ def test_generate_body_refuses_an_html_body_in_an_unknown_charset() -> None:
 def test_a_long_html_body_is_searched_for_references_in_linear_time(run: str) -> None:
     # Each piece opens a tag, or an attribute, that never closes: a search that goes back
     # over the rest of the body from each one takes minutes on a megabyte.
-    email = addressed_email().html(run * (1_000_000 // len(run))).attach(b"x", "x.txt")
-    started = time.perf_counter()
+    def render(size: int) -> None:
+        email = addressed_email().html(run * (size // len(run))).attach(b"x", "x.txt")
+        _ = email.to_string()
 
-    _ = email.to_string()
-
-    assert time.perf_counter() - started < 1
+    _ = assert_linear_growth(render, 250_000)
 
 
 @pytest.mark.parametrize(

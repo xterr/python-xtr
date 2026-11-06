@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import time
-
 import pytest
 
+from tests.support.growth import assert_linear_growth
 from xtr_mime._html_references import referenced_names
 
 
@@ -85,9 +84,7 @@ def test_a_name_is_returned_once() -> None:
     "run", ["<a ", "<img src=", 'src="cid:', "<img src=cid:", "<a background=cid:", "<img src='"]
 )
 def test_a_megabyte_of_tags_left_open_is_searched_in_linear_time(run: str) -> None:
-    html = run * (1_000_000 // len(run))
-    started = time.perf_counter()
+    def search(size: int) -> None:
+        _ = referenced_names(run * (size // len(run)))
 
-    _ = referenced_names(html)
-
-    assert time.perf_counter() - started < 1
+    _ = assert_linear_growth(search, 250_000)
