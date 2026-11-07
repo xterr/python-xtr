@@ -7,11 +7,15 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
+from xtr_security_http.firewall import FirewallListenerInterface
 from xtr_security_oauth2_server.bundle import GRANT_TAG, OAuth2ServerConfig
 
 from xtr_security_openid_connect_server.controller.user_info_controller import UserInfoController
 from xtr_security_openid_connect_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
+)
+from xtr_security_openid_connect_server.firewall.open_id_prompt_listener import (
+    OpenIdPromptListener,
 )
 from xtr_security_openid_connect_server.grant.open_id_auth_code_grant import OpenIdAuthCodeGrant
 from xtr_security_openid_connect_server.repositories.identity_provider_interface import (
@@ -22,6 +26,7 @@ from xtr_security_openid_connect_server.response_types.id_token_response import 
 from ._service_factories import (
     claim_extractor_factory,
     id_token_settings_factory,
+    open_id_prompt_listener,
     unset_identity_provider_factory,
 )
 from .openid_connect_server_config import OpenIdConnectServerConfig
@@ -37,6 +42,10 @@ _OPENID_SCOPE: Final = "openid"
 
 #: Where the authorization server's settings are written, and so overridden.
 _SERVER_CONFIG_FILE: Final = "<app>/config/packages/oauth2_server.py"
+
+#: What an application lists in its login firewall's ``listeners`` to have
+#: ``prompt`` and ``max_age`` decided there.
+_PROMPT_LISTENER: Final = "openid_connect_server#prompt_listener"
 
 
 @final
@@ -92,6 +101,11 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
         The userinfo controller is per-request for the same reason: it reads
         the token the request's firewall settled on. Its route resource is
         scanned so the HTTP kernel hands it to the application's routes files.
+
+        The prompt step is per-request too, over the request's token storage,
+        and is only registered: the application lists its qualifier in the
+        login firewall's ``listeners``, since only it knows which firewall
+        signs end-users in.
         """
         server = builder.get_extension_config(OAuth2ServerConfig).authorization_server
         _ = services.set(claim_extractor_factory(config.claim_sets))
@@ -117,6 +131,18 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
         )
         services.load("xtr_security_openid_connect_server.event_listener.auth_time_listener")
         _ = services.set(UserInfoController, lifetime="scoped")
+        _ = (
+            services.set(open_id_prompt_listener, qualifier=_PROMPT_LISTENER, lifetime="scoped")
+            .set_argument("login_path", config.login_path)
+            .set_argument("login_firewall", config.login_firewall)
+            .set_argument("authorize_path", config.authorize_path)
+        )
+        services.alias(
+            FirewallListenerInterface,
+            OpenIdPromptListener,
+            alias_qualifier=_PROMPT_LISTENER,
+            target_qualifier=_PROMPT_LISTENER,
+        )
         services.load("xtr_security_openid_connect_server.routing")
 
     @override

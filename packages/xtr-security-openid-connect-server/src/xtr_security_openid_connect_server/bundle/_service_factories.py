@@ -3,20 +3,45 @@
 A factory rather than a plain registration for each service built from
 settings the container cannot hand over by itself: the claim sets the
 application named, the algorithm the authorization server signs with, and the
-identity provider the application may not have named yet.
+identity provider the application may not have named yet. Each of those is a
+closure over the settings it needs, returning the type it is registered under,
+so the definition is keyed by that type.
 
-Each factory is a closure over the settings it needs, returning the type it is
-registered under, so the definition is keyed by that type.
+The prompt step has a plain factory instead, its settings set on the
+definition: its clock is optional to the class, which the container would
+leave out, so the factory names it as a dependency.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, NoReturn
 
+# Read at runtime: the container evaluates the prompt step factory's
+# annotations to know what to inject.
+from xtr_clock import ClockInterface  # noqa: TC002 -- read by the container at runtime
+from xtr_http_kernel.bridge import (
+    StarletteHttpFactoryInterface,  # noqa: TC002 -- read by the container at runtime
+)
+from xtr_http_message_contracts.factory import (
+    ResponseFactoryInterface,  # noqa: TC002 -- read by the container at runtime
+)
+from xtr_security_core.authentication.token.storage.token_storage_interface import (
+    TokenStorageInterface,  # noqa: TC002 -- read by the container at runtime
+)
+from xtr_security_http.http_utils import (
+    HttpUtils,  # noqa: TC002 -- read by the container at runtime
+)
+from xtr_security_oauth2_server_core.authorization_server import (
+    AuthorizationServer,  # noqa: TC002 -- read by the container at runtime
+)
+
 from xtr_security_openid_connect_server.claim_extractor import ClaimExtractor
 from xtr_security_openid_connect_server.entities.claim_set_entity import ClaimSetEntity
 from xtr_security_openid_connect_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
+)
+from xtr_security_openid_connect_server.firewall.open_id_prompt_listener import (
+    OpenIdPromptListener,
 )
 from xtr_security_openid_connect_server.id_token_settings import IdTokenSettings
 
@@ -35,6 +60,7 @@ if TYPE_CHECKING:
 __all__ = [
     "claim_extractor_factory",
     "id_token_settings_factory",
+    "open_id_prompt_listener",
     "unset_identity_provider_factory",
 ]
 
@@ -82,6 +108,35 @@ def unset_identity_provider_factory() -> Callable[[], IdentityProviderInterface]
         return _refuse_without_identity_provider()
 
     return openid_connect_server_identity_provider
+
+
+def open_id_prompt_listener(  # noqa: PLR0913, PLR0917 -- the container fills the step's parts by name
+    token_storage: TokenStorageInterface,
+    authorization_server: AuthorizationServer,
+    http_utils: HttpUtils,
+    response_factory: ResponseFactoryInterface,
+    bridge: StarletteHttpFactoryInterface,
+    clock: ClockInterface,
+    *,
+    login_path: str,
+    login_firewall: str,
+    authorize_path: str,
+) -> OpenIdPromptListener:
+    """Build the prompt step, timing sign-ins against the application's clock.
+
+    The three settings are the bundle's to set on the definition.
+    """
+    return OpenIdPromptListener(
+        token_storage,
+        authorization_server,
+        http_utils,
+        response_factory,
+        bridge,
+        login_path=login_path,
+        login_firewall=login_firewall,
+        authorize_path=authorize_path,
+        clock=clock,
+    )
 
 
 def _refuse_without_identity_provider() -> NoReturn:

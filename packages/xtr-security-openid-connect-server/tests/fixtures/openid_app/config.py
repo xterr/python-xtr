@@ -16,6 +16,10 @@ instead, on a stateful firewall.
 The userinfo endpoint stands behind no firewall here, as it would in a
 deployment that forgot one; the environment that reads claims puts the access
 tokens' own firewall in front of it.
+
+The environments deciding ``prompt`` and ``max_age`` list the provider's
+prompt step in a firewall's chain: the form login's, which keeps a session to
+return to after a re-login, or the access tokens' own, which keeps none.
 """
 
 from __future__ import annotations
@@ -58,17 +62,23 @@ __all__ = [
     "NO_METADATA_ENV",
     "NO_SCOPES_ENV",
     "OPEN_PROOF_KEY_ENV",
+    "PROMPT_ENV",
+    "PROMPT_LISTENER",
     "SECOND_USER_IDENTIFIER",
     "SECOND_USER_PASSWORD",
     "SHORT_ID_TOKEN_ENV",
+    "STATELESS_PROMPT_ENV",
     "USERINFO_ENV",
     "USERINFO_SCOPES",
     "USER_IDENTIFIER",
     "USER_PASSWORD",
+    "deciding_the_prompt_at_the_form_login",
+    "deciding_the_prompt_without_a_session",
     "oauth2_server",
     "oauth2_server_without_scopes",
     "openid_connect_server_with_identity_provider",
     "openid_connect_server_with_short_id_tokens",
+    "openid_connect_server_with_the_stateless_login_firewall",
     "reading_claims_with_access_tokens",
     "security",
     "signing_in_with_a_form",
@@ -104,6 +114,11 @@ NO_METADATA_ENV: Final[str] = "no_metadata"
 NO_SCOPES_ENV: Final[str] = "no_scopes"
 FORM_LOGIN_ENV: Final[str] = "form_login"
 USERINFO_ENV: Final[str] = "userinfo"
+PROMPT_ENV: Final[str] = "prompt"
+STATELESS_PROMPT_ENV: Final[str] = "stateless_prompt"
+
+#: The provider's prompt step, as a firewall's ``listeners`` names it.
+PROMPT_LISTENER: Final[str] = "openid_connect_server#prompt_listener"
 
 #: The scopes of the protocol's own claim sets the userinfo environment knows.
 USERINFO_SCOPES: Final[tuple[str, ...]] = ("profile", "email")
@@ -258,7 +273,7 @@ def reading_claims_with_access_tokens(config: SecurityConfig) -> SecurityConfig:
 
 
 @configure
-@when(FORM_LOGIN_ENV)
+@when(FORM_LOGIN_ENV, PROMPT_ENV)
 def signing_in_with_a_form(config: SecurityConfig) -> SecurityConfig:
     """Have the end-user sign in with a form, which records when they proved a password.
 
@@ -290,3 +305,34 @@ def signing_in_with_a_form(config: SecurityConfig) -> SecurityConfig:
             ),
         },
     )
+
+
+@configure
+@when(PROMPT_ENV)
+def deciding_the_prompt_at_the_form_login(config: SecurityConfig) -> SecurityConfig:
+    """List the prompt step in the form login's firewall, which covers ``/login_check`` too."""
+    main = config.firewalls["main"]
+
+    return replace(
+        config,
+        firewalls={**config.firewalls, "main": replace(main, listeners=(PROMPT_LISTENER,))},
+    )
+
+
+@configure
+@when(STATELESS_PROMPT_ENV)
+def deciding_the_prompt_without_a_session(config: SecurityConfig) -> SecurityConfig:
+    """List the prompt step in the access tokens' firewall, which keeps no session."""
+    api = config.firewalls["api"]
+
+    return replace(
+        config,
+        firewalls={**config.firewalls, "api": replace(api, listeners=(PROMPT_LISTENER,))},
+    )
+
+
+@configure
+@when(STATELESS_PROMPT_ENV)
+def openid_connect_server_with_the_stateless_login_firewall() -> OpenIdConnectServerConfig:
+    """Name the access tokens' firewall as the one end-users sign in again on."""
+    return OpenIdConnectServerConfig(login_firewall="api")
