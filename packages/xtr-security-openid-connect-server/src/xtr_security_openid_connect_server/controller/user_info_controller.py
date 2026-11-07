@@ -56,9 +56,12 @@ class UserInfoController:
     Only a token a signed-in end-user granted is answered, and only when it was
     granted ``openid``: a token a client was issued for itself names nobody,
     and a token without ``openid`` was never meant to identify anyone. What is
-    answered is the subject, then the claims the token's scopes reveal — the
-    subject first and never replaced by a claim, since it is what a client ties
-    the answer to the ID token by.
+    answered is the subject, then the claims the token's scopes reveal. The
+    subject is the end-user the token was issued for, as the token names them:
+    the identifier the ID token carried, which a client compares the answer's
+    subject against (OpenID Connect Core 5.3.2). So it is answered first, and
+    no claim of the identity provider's replaces it — not even one the
+    provider calls ``sub``.
 
     Per-request: the token storage it reads is the request's own.
     """
@@ -112,12 +115,10 @@ class UserInfoController:
         client = await self._client_repository.get_client_entity(token.get_oauth_client_id())
         if client is None:
             return await _refused(response, 401, "invalid_token", _NO_END_USER)
-        user = await self._identity_provider.get_user_entity_by_identifier(
-            token.get_user_identifier(),
-            client,
-        )
+        subject = token.get_user_identifier()
+        user = await self._identity_provider.get_user_entity_by_identifier(subject, client)
         claims = self._claim_extractor.extract(scopes, await user.get_claims())
-        document = {"sub": user.get_identifier()} | {
+        document = {"sub": subject} | {
             name: value for name, value in claims.items() if name != "sub"
         }
 

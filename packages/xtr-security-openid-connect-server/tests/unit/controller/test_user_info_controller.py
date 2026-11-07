@@ -7,7 +7,7 @@ in the storage directly, and the answer is read back as a client would.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from xtr_http_kernel.bridge import Response
@@ -20,7 +20,7 @@ from xtr_security_http.authenticator.token.post_authentication_token import (
 from xtr_security_oauth2_server.entity import Client
 from xtr_security_oauth2_server.security.authentication.token.oauth2_token import OAuth2Token
 
-from tests.support.identity_provider import InMemoryIdentityProvider
+from tests.support.identity_provider import ClaimsUser, InMemoryIdentityProvider
 from tests.support.repositories import InMemoryClientRepository
 from xtr_security_openid_connect_server.claim_extractor import ClaimExtractor
 from xtr_security_openid_connect_server.controller.user_info_controller import UserInfoController
@@ -30,10 +30,43 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from xtr_security_core.authentication.token.token_interface import TokenInterface
+    from xtr_security_oauth2_server_core.entities.client_entity_interface import (
+        ClientEntityInterface,
+    )
+
+    from xtr_security_openid_connect_server.entities.user_claims_entity_interface import (
+        UserClaimsEntityInterface,
+    )
+    from xtr_security_openid_connect_server.repositories.identity_provider_interface import (
+        IdentityProviderInterface,
+    )
 
 pytestmark = pytest.mark.anyio
 
 _CLIENT_ID = "my-client"
+
+
+@final
+class _OneUserIdentityProvider:
+    """Answers every identifier with the one user it holds.
+
+    A deployment's own provider names a user whatever it keeps them under, and
+    holds whatever claims it was given; this holds one of each, so what the
+    answer's subject is read from shows.
+    """
+
+    __slots__ = ("_user",)
+
+    def __init__(self, user: ClaimsUser) -> None:
+        self._user = user
+
+    async def get_user_entity_by_identifier(
+        self,
+        identifier: str,
+        client: ClientEntityInterface,
+    ) -> UserClaimsEntityInterface:
+        del identifier, client  # The one user it holds answers for every token.
+        return self._user
 
 
 def _oauth2_token(scopes: tuple[str, ...], client_id: str = _CLIENT_ID) -> OAuth2Token:
@@ -50,6 +83,7 @@ def _oauth2_token(scopes: tuple[str, ...], client_id: str = _CLIENT_ID) -> OAuth
 def _controller(
     token: TokenInterface | None,
     claim_extractor: ClaimExtractor | None = None,
+    identity_provider: IdentityProviderInterface | None = None,
 ) -> UserInfoController:
     storage = TokenStorage()
     storage.set_token(token)
@@ -60,7 +94,7 @@ def _controller(
     return UserInfoController(
         storage,
         clients,
-        InMemoryIdentityProvider(),
+        identity_provider if identity_provider is not None else InMemoryIdentityProvider(),
         claim_extractor if claim_extractor is not None else ClaimExtractor(),
     )
 
@@ -88,7 +122,25 @@ async def test_no_claim_replaces_the_subject() -> None:
     # A deployment's own claim set may name a claim ``sub``; the subject the
     # token names still answers.
     extractor = ClaimExtractor((ClaimSetEntity("account", ("sub", "name")),))
-    controller = _controller(_oauth2_token(("openid", "account")), extractor)
+    provider = _OneUserIdentityProvider(
+        ClaimsUser("alice", {"sub": "not-alice", "name": "Alice"}),
+    )
+    controller = _controller(_oauth2_token(("openid", "account")), extractor, provider)
+
+    _, document = await _answer(controller)
+
+    assert document == {"sub": "alice", "name": "Alice"}
+
+
+async def test_the_subject_is_the_end_user_the_token_was_issued_for() -> None:
+    # The identity provider keeps the user under an identifier of its own; the
+    # answer's subject is the one the token was issued for, because that is
+    # what the ID token named and what a client compares it against.
+    extractor = ClaimExtractor((ClaimSetEntity("account", ("name",)),))
+    provider = _OneUserIdentityProvider(
+        ClaimsUser("alice@the-identity-provider", {"name": "Alice"}),
+    )
+    controller = _controller(_oauth2_token(("openid", "account")), extractor, provider)
 
     _, document = await _answer(controller)
 

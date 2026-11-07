@@ -26,6 +26,7 @@ from tests.support.served import (
     serving,
     text_field,
 )
+from xtr_security_openid_connect_server._endpoint_paths import ROUTE_NAMES, USERINFO_PATH
 from xtr_security_openid_connect_server.exception import InvalidConfigurationError
 
 if TYPE_CHECKING:
@@ -35,6 +36,11 @@ pytestmark = pytest.mark.anyio
 
 #: Where the endpoint is served by default.
 USERINFO: Final = "/userinfo"
+
+#: What the route is called, so an application can build a URL to it. A client
+#: never sees the name, so nothing it reads would notice a rename: this is what
+#: holds it.
+USERINFO_ROUTE: Final = "openid_connect_server_userinfo"
 
 #: What the fixture's identity provider says of alice, as a grant of ``profile``
 #: and ``email`` reveals it.
@@ -96,6 +102,15 @@ async def test_the_signed_in_users_claims_are_answered_as_the_scopes_reveal_them
 
     assert answered.status_code == 200, answered.text
     assert json_of(answered) == ALICES_CLAIMS
+
+
+def test_the_endpoint_is_served_at_its_default_path_under_its_published_name() -> None:
+    # Mounting is done by the time an application is served, so its routes say
+    # where the endpoint is and what it is called without starting it.
+    app = served_application(openid_kernel(USERINFO_ENV))
+
+    assert ROUTE_NAMES[USERINFO_PATH] == USERINFO_ROUTE
+    assert app.url_path_for(USERINFO_ROUTE) == USERINFO
 
 
 async def test_the_answer_is_a_document_no_cache_keeps() -> None:
