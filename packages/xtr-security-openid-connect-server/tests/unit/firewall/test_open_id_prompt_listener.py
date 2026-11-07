@@ -207,5 +207,37 @@ async def test_a_re_login_with_no_session_to_return_to_names_the_stateless_firew
     assert '"main"' in str(raised.value)
 
 
+def _posted(content_type: str, **fields: str) -> ServerRequestInterface:
+    request = ServerRequest("POST", "/authorize", {"Content-Type": content_type})
+    return request.with_parsed_body(fields)
+
+
+async def test_a_prompt_posted_in_a_form_is_decided_as_one_in_the_query_is() -> None:
+    posted = _posted(
+        "application/x-www-form-urlencoded",
+        response_type="code",
+        client_id="my-client",
+        redirect_uri=_REDIRECT_URI,
+        scope="openid",
+        state="xyz",
+        prompt="none",
+    )
+    event = RequestEvent(posted, {})
+
+    await _listener().authenticate(event)
+
+    assert _location_query(event)["error"] == "login_required"
+
+
+async def test_a_request_posted_as_no_form_is_refused_as_the_endpoint_refuses_it() -> None:
+    event = RequestEvent(_posted("application/json", prompt="none"), {})
+
+    await _listener().authenticate(event)
+
+    assert event.response is not None
+    assert event.response.status_code == 400
+    assert "location" not in event.response.headers
+
+
 def test_it_is_described_by_its_type_alone() -> None:
     assert repr(_listener()) == "OpenIdPromptListener()"

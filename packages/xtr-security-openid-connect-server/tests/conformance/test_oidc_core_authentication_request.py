@@ -157,10 +157,6 @@ async def test_the_authorization_endpoint_answers_a_get() -> None:
     assert "code" in redirected_with(answered)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the authorization endpoint reads its parameters from the query string only",
-)
 async def test_the_authorization_endpoint_answers_a_posted_form() -> None:
     # "If using the HTTP POST method, the request parameters are serialized
     # using Form Serialization."
@@ -243,6 +239,32 @@ async def test_prompt_login_has_a_signed_in_end_user_sign_in_again(
     signed_in_again_at = int(clock.now().timestamp())
     answered = await browser.get((await _log_in(browser)).headers["location"])
 
+    assert (await _id_token_claims(browser, answered))["auth_time"] == signed_in_again_at
+
+
+async def test_prompt_none_posted_as_a_form_is_decided_as_a_get_is(
+    browser: httpx.AsyncClient,
+) -> None:
+    answered = await browser.post("/authorize", data=authorization_query(prompt="none"))
+
+    assert _refused_with(answered) == ("login_required", STATE)
+
+
+async def test_prompt_login_posted_as_a_form_returns_to_the_request_after_sign_in(
+    browser: httpx.AsyncClient,
+    clock: MockClock,
+) -> None:
+    # The request waiting in the session is the one the form posted: the
+    # end-user comes back to it, without login, and goes on to the code.
+    _ = await _log_in(browser)
+    clock.sleep(_MINUTE)
+
+    sent = await browser.post("/authorize", data=authorization_query(prompt="login"))
+    assert (sent.status_code, sent.headers["location"]) == (302, _LOGIN_PATH)
+    signed_in_again_at = int(clock.now().timestamp())
+    answered = await browser.get((await _log_in(browser)).headers["location"])
+
+    assert redirected_with(answered)["state"] == STATE
     assert (await _id_token_claims(browser, answered))["auth_time"] == signed_in_again_at
 
 

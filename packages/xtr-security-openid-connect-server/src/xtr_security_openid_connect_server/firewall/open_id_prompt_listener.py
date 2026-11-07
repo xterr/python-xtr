@@ -26,6 +26,7 @@ from xtr_security_http.http_utils import (
     HttpUtils,  # noqa: TC002 -- read by the container at runtime
 )
 from xtr_security_http.util.target_path import save_target_path
+from xtr_security_oauth2_server.posted_form_as_query import posted_form_as_query
 from xtr_security_oauth2_server_core.authorization_server import (
     AuthorizationServer,  # noqa: TC002 -- read by the container at runtime
 )
@@ -84,6 +85,11 @@ class OpenIdPromptListener(AbstractListener):
     A request the authorization server refuses outright is answered as the
     endpoint answers it: at the redirect URI only when it was validated, as a
     plain document otherwise.
+
+    A request posted as a form is read as the endpoint reads it, its form as
+    its query, so ``prompt`` and ``max_age`` are decided whichever way the
+    request came, and the request kept to return to is the one the form
+    carried, as the ``GET`` the return trip makes.
 
     The request is kept in the session of the login firewall, so that firewall
     must keep one; a stateless one is refused, by name, when a re-login is
@@ -157,11 +163,11 @@ class OpenIdPromptListener(AbstractListener):
             InvalidConfigurationError: When a re-login is needed and the login
                 firewall keeps no session to return from it with.
         """
-        request = request_event.request
-        query = parse_qsl(request.get_uri().get_query(), keep_blank_values=True)
-        if not any(name in _DECIDED_BY for name, _ in query):
-            return
         try:
+            request = await posted_form_as_query(request_event.request)
+            query = parse_qsl(request.get_uri().get_query(), keep_blank_values=True)
+            if not any(name in _DECIDED_BY for name, _ in query):
+                return
             authorization_request = await self._authorization_server.validate_authorization_request(
                 request
             )
