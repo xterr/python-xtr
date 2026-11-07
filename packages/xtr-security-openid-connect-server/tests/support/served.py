@@ -83,8 +83,13 @@ _SEED_PATH: Final = "/seed-client"
 _APP_MODULE: Final = "tests.fixtures.openid_app"
 
 
-def openid_kernel(env: str = "test") -> Kernel:
-    """Return a kernel of the fixture deployment, served in ``env``."""
+def openid_kernel(env: str = "test", routes_module: str | None = None) -> Kernel:
+    """Return a kernel of the fixture deployment, served in ``env``.
+
+    ``routes_module`` names a routes file arranging the endpoints in place of
+    the deployment's own, which is then not scanned.
+    """
+    resources = (_APP_MODULE,) if routes_module is None else (_APP_MODULE, routes_module)
     return Kernel(
         _APP_MODULE,
         env=env,
@@ -93,7 +98,8 @@ def openid_kernel(env: str = "test") -> Kernel:
         debug=True,
         bundles={OAuth2ServerBundle: {"all": True}, OpenIdConnectServerBundle: {"all": True}},
         concurrent_scoped_access=True,
-        resources=(_APP_MODULE,),
+        resources=resources,
+        exclude=() if routes_module is None else (f"{_APP_MODULE}.routes",),
     )
 
 

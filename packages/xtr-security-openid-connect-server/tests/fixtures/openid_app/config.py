@@ -56,6 +56,8 @@ __all__ = [
     "ALGORITHM",
     "AUTH_CODE_BACK_ON_ENV",
     "BEARER_ANSWER_ENV",
+    "DISCOVERY_ALGORITHM",
+    "DISCOVERY_ENV",
     "FORM_LOGIN_ENV",
     "IDENTITY_PROVIDER_ENV",
     "ID_TOKEN_TTL",
@@ -82,6 +84,7 @@ __all__ = [
     "reading_claims_with_access_tokens",
     "security",
     "signing_in_with_a_form",
+    "signing_with_rsa",
     "with_the_bearer_answer_back",
     "with_the_claim_scopes",
     "with_the_redirect_flow_back_on",
@@ -116,9 +119,15 @@ FORM_LOGIN_ENV: Final[str] = "form_login"
 USERINFO_ENV: Final[str] = "userinfo"
 PROMPT_ENV: Final[str] = "prompt"
 STATELESS_PROMPT_ENV: Final[str] = "stateless_prompt"
+DISCOVERY_ENV: Final[str] = "discovery"
 
 #: The provider's prompt step, as a firewall's ``listeners`` names it.
 PROMPT_LISTENER: Final[str] = "openid_connect_server#prompt_listener"
+
+#: What the discovery environment signs with, named explicitly rather than
+#: left to the server's default, so the document it publishes says it because
+#: the deployment wrote it.
+DISCOVERY_ALGORITHM: Final[str] = "RS256"
 
 #: The scopes of the protocol's own claim sets the userinfo environment knows.
 USERINFO_SCOPES: Final[tuple[str, ...]] = ("profile", "email")
@@ -200,6 +209,20 @@ def without_metadata(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
     return replace(
         config,
         authorization_server=replace(config.authorization_server, enable_metadata_endpoint=False),
+    )
+
+
+@configure
+@when(DISCOVERY_ENV)
+def signing_with_rsa(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
+    """Sign with an RSA key, naming its algorithm, as a typical provider does."""
+    return replace(
+        config,
+        authorization_server=replace(
+            config.authorization_server,
+            private_key=signing_key(DISCOVERY_ALGORITHM).as_pem(private=True).decode("utf-8"),
+            signature_algorithm=DISCOVERY_ALGORITHM,
+        ),
     )
 
 

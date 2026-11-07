@@ -23,5 +23,6 @@ def oauth2_server(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
 
 @as_routes
 def openid_connect_server(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
-    """Serve the provider's userinfo endpoint at its default path."""
+    """Serve the provider's userinfo endpoint and its configuration document at their defaults."""
     app.include_router(resources["openid_connect_server"])
+    app.include_router(resources["openid_connect_server_well_known"])

@@ -26,8 +26,15 @@ from xtr_http_kernel.routing.decorator import as_route_resource
 from xtr_http_message_contracts import (  # noqa: TC002 -- the container reads these endpoint annotations at runtime
     ServerRequestInterface,
 )
+from xtr_security_oauth2_server.controller.metadata_controller import (  # noqa: TC002 -- the container reads these endpoint annotations at runtime
+    MetadataController,
+)
 
-from xtr_security_openid_connect_server._endpoint_paths import ROUTE_NAMES, USERINFO_PATH
+from xtr_security_openid_connect_server._endpoint_paths import (
+    CONFIGURATION_PATH,
+    ROUTE_NAMES,
+    USERINFO_PATH,
+)
 from xtr_security_openid_connect_server.controller.user_info_controller import (  # noqa: TC001 -- the container reads these endpoint annotations at runtime
     UserInfoController,
 )
@@ -35,7 +42,12 @@ from xtr_security_openid_connect_server.controller.user_info_controller import (
 if TYPE_CHECKING:
     from fastapi import APIRouter
 
-__all__ = ["openid_connect_server_routes", "userinfo"]
+__all__ = [
+    "openid_configuration",
+    "openid_connect_server_routes",
+    "userinfo",
+    "well_known_routes",
+]
 
 
 async def userinfo(
@@ -50,6 +62,20 @@ async def userinfo(
     return await controller.index_action(request, response)
 
 
+async def openid_configuration(
+    controller: Injected[MetadataController],
+    request: Injected[ServerRequestInterface],
+    response: Injected[Response],
+) -> Response:
+    """Describe the provider: the authorization server's own description.
+
+    It is one document, not two: the fields an OpenID Connect client needs
+    beyond the authorization server's own are contributed to that
+    description, so it is answered here as the server answers it.
+    """
+    return await controller.index_action(request, response)
+
+
 @as_route_resource("openid_connect_server")
 def openid_connect_server_routes(router: APIRouter) -> None:
     """Fill the router with the userinfo endpoint, under its published name."""
@@ -58,4 +84,20 @@ def openid_connect_server_routes(router: APIRouter) -> None:
         userinfo,
         methods=["GET", "POST"],
         name=ROUTE_NAMES[USERINFO_PATH],
+    )
+
+
+@as_route_resource("openid_connect_server_well_known")
+def well_known_routes(router: APIRouter) -> None:
+    """Fill the router with the configuration document, where discovery fixes it.
+
+    A resource of its own, apart from the movable one: a client finds the
+    document at a fixed path under the issuer, so a routes file moving the
+    userinfo endpoint leaves this one at the root.
+    """
+    router.add_api_route(
+        CONFIGURATION_PATH,
+        openid_configuration,
+        methods=["GET"],
+        name=ROUTE_NAMES[CONFIGURATION_PATH],
     )

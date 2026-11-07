@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Final, final
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 from xtr_security_http.firewall import FirewallListenerInterface
-from xtr_security_oauth2_server.bundle import GRANT_TAG, OAuth2ServerConfig
+from xtr_security_oauth2_server.bundle import GRANT_TAG, METADATA_TAG, OAuth2ServerConfig
 
 from xtr_security_openid_connect_server.controller.user_info_controller import UserInfoController
 from xtr_security_openid_connect_server.exception.invalid_configuration_error import (
@@ -18,6 +18,9 @@ from xtr_security_openid_connect_server.firewall.open_id_prompt_listener import 
     OpenIdPromptListener,
 )
 from xtr_security_openid_connect_server.grant.open_id_auth_code_grant import OpenIdAuthCodeGrant
+from xtr_security_openid_connect_server.open_id_metadata_contributor import (
+    OpenIdMetadataContributor,
+)
 from xtr_security_openid_connect_server.repositories.identity_provider_interface import (
     IdentityProviderInterface,
 )
@@ -131,6 +134,15 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
         )
         services.load("xtr_security_openid_connect_server.event_listener.auth_time_listener")
         _ = services.set(UserInfoController, lifetime="scoped")
+        # Shared by every request, as the description endpoint it contributes
+        # to is: it finds the userinfo endpoint's path in the application
+        # being served each time it is read.
+        _ = (
+            services.set(OpenIdMetadataContributor)
+            .set_argument("issuer", server.issuer)
+            .set_argument("signature_algorithm", server.signature_algorithm)
+            .add_tag(METADATA_TAG)
+        )
         _ = (
             services.set(open_id_prompt_listener, qualifier=_PROMPT_LISTENER, lifetime="scoped")
             .set_argument("login_path", config.login_path)
