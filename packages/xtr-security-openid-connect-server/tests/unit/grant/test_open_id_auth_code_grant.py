@@ -237,6 +237,48 @@ async def test_a_max_age_that_is_no_whole_number_of_seconds_is_an_invalid_reques
     assert "max_age" in str(raised.value.get_hint())
 
 
+def _naming_no_redirect_uri(**extra: str) -> ServerRequestInterface:
+    query = _authorize(**extra).get_query_params()
+    return ServerRequest("GET", "/authorize").with_query_params(
+        {name: value for name, value in query.items() if name != "redirect_uri"},
+    )
+
+
+async def test_a_sign_in_naming_no_redirect_uri_is_an_invalid_request() -> None:
+    server = _sign_in_server(make_clock())
+
+    with pytest.raises(OAuthServerError) as raised:
+        _ = await server.validate_authorization_request(_naming_no_redirect_uri())
+
+    assert raised.value.get_error_type() == "invalid_request"
+    assert "redirect_uri" in str(raised.value.get_hint())
+
+
+async def test_a_sign_in_naming_no_redirect_uri_is_answered_as_a_document() -> None:
+    server = _sign_in_server(make_clock())
+    with pytest.raises(OAuthServerError) as raised:
+        _ = await server.validate_authorization_request(_naming_no_redirect_uri())
+
+    answer = await raised.value.generate_http_response(Response())
+
+    assert answer.get_status_code() == 400
+    assert not answer.has_header("Location")
+
+
+async def test_a_request_without_openid_may_leave_the_redirect_uri_out() -> None:
+    server = _sign_in_server(make_clock())
+    request = _naming_no_redirect_uri(scope="profile")
+    authorization_request = await server.validate_authorization_request(request)
+    alice = User()
+    alice.set_identifier("alice")
+    authorization_request.set_user(alice)
+    authorization_request.set_authorization_approved(True)
+
+    answer = await server.complete_authorization_request(request, authorization_request, Response())
+
+    assert answer.get_header_line("Location").startswith(f"{_REDIRECT_URI}?")
+
+
 async def test_the_code_carries_the_nonce_and_the_auth_time() -> None:
     code = await _code(_sign_in_server(make_clock()), nonce=_NONCE)
 

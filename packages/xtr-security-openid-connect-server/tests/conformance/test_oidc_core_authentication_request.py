@@ -174,10 +174,6 @@ async def test_the_authorization_endpoint_answers_a_posted_form() -> None:
     assert "code" in redirected_with(answered)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a client registered with one redirect URI may leave it out, as OAuth 2.0 allows",
-)
 async def test_a_request_naming_no_redirect_uri_is_refused() -> None:
     # "redirect_uri REQUIRED."
     query = {name: value for name, value in authorization_query().items() if name != "redirect_uri"}

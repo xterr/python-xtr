@@ -31,7 +31,7 @@ are in `tests/unit/test_token_hash.py`.
 | Module | Standard | Tests | Gaps |
 |---|---|---|---|
 | `test_oidc_core_id_token.py` | Core 1.0 § 2, § 3.1.3.3, § 3.1.3.6, § 3.1.3.7, § 10.1, § 15.1 — the ID token | 19 | — |
-| `test_oidc_core_authentication_request.py` | Core 1.0 § 3.1, § 3.1.2, § 3.1.3.2, § 15.1 — the authentication request, `prompt`, `max_age` | 14 | 2 |
+| `test_oidc_core_authentication_request.py` | Core 1.0 § 3.1, § 3.1.2, § 3.1.3.2, § 15.1 — the authentication request, `prompt`, `max_age` | 14 | 1 |
 | `test_oidc_core_userinfo.py` | Core 1.0 § 5.3, § 5.4 — the userinfo endpoint | 11 | — |
 | `test_oidc_core_refresh.py` | Core 1.0 § 12 — refresh | 2 | — |
 | `test_oidc_discovery.py` | Discovery 1.0 § 3, § 4 — the configuration document | 15 | — |
@@ -56,7 +56,7 @@ a decision recorded for this provider, pinned by the test named.
 | 3.1 | The authorization code flow, end to end, against a client implementation | `test_a_client_application_signs_its_user_in_with_the_provider` |
 | 3.1.2.1 | The authorization endpoint MUST support `GET` | `test_the_authorization_endpoint_answers_a_get` |
 | 3.1.2.1 | The authorization endpoint MUST support `POST`, its parameters form-serialized | **gap** — `test_the_authorization_endpoint_answers_a_posted_form` |
-| 3.1.2.1 | `redirect_uri` is REQUIRED | **gap** — `test_a_request_naming_no_redirect_uri_is_refused` |
+| 3.1.2.1 | `redirect_uri` is REQUIRED | `test_a_request_naming_no_redirect_uri_is_refused` — as a document, the request having named nowhere to send the refusal; a request without `openid` may still leave it out, as OAuth 2.0 allows a client registered with one URI |
 | 3.1.2.1 | `prompt=none`: no page shown, an error when nobody is signed in | `test_prompt_none_with_nobody_signed_in_is_refused_at_the_redirect_uri`, `test_prompt_none_with_the_end_user_signed_in_goes_on_to_the_code` |
 | 3.1.2.1 | `none` with any other value is an error | `test_prompt_none_beside_another_value_is_refused` — answered as a document, see the deviations |
 | 3.1.2.1 | `prompt=login` re-authenticates (SHOULD) | `test_prompt_login_has_a_signed_in_end_user_sign_in_again` |
@@ -180,6 +180,6 @@ To run it against a deployment of this package:
 4. Run the modules one by one, signing in as the test user when the suite asks.
 
 Expect the modules for what this file records as gaps, deviations or out of
-scope to fail or be skipped: `POST` to the authorization endpoint, a missing
-`redirect_uri`, `prompt=none` beside another value, the form-body token at the
-userinfo endpoint, and anything needing the `claims` or `request` parameters.
+scope to fail or be skipped: `POST` to the authorization endpoint,
+`prompt=none` beside another value, the form-body token at the userinfo
+endpoint, and anything needing the `claims` or `request` parameters.

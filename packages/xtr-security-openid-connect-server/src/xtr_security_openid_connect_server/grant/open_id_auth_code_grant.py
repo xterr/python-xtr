@@ -47,12 +47,19 @@ __all__ = ["OpenIdAuthCodeGrant"]
 _NONCE: Final[str] = "nonce"
 _AUTH_TIME: Final[str] = "auth_time"
 
+#: The scope a client asks for to sign the end-user in, rather than only to act for them.
+_OPENID_SCOPE: Final[str] = "openid"
+
 #: What a ``max_age`` may look like: digits only, so no sign, no space and no
 #: fraction is ever read as an age.
 _WHOLE_SECONDS: Final[re.Pattern[str]] = re.compile(r"[0-9]+")
 
 _MAX_AGE_HINT: Final = (
     "Check the `max_age` parameter: it is a whole number of seconds, zero or more"
+)
+_REDIRECT_URI_HINT: Final = (
+    "Check the `redirect_uri` parameter: a request asking for the `openid` scope must name "
+    "where it is answered"
 )
 
 
@@ -126,13 +133,24 @@ class OpenIdAuthCodeGrant(AuthCodeGrant):
         for an unregistered redirect is refused as the flow always refused it,
         before anything of the sign-in is looked at.
 
+        A sign-in must name the redirect URI it is answered at, although the
+        shipped flow lets a client registered with a single URI leave it out,
+        as a request not asking for ``openid`` still may. A sign-in leaving it
+        out is refused as a document rather than a redirect: it named nowhere
+        to send the refusal.
+
         Raises:
             OAuthServerError: Whatever the shipped flow refuses with, and
-                ``invalid_request`` when ``prompt`` names a value this server
-                does not act on or ``none`` beside another, or ``max_age`` is
-                not a whole number of seconds.
+                ``invalid_request`` when a request asking for ``openid`` names
+                no ``redirect_uri``, ``prompt`` names a value this server does
+                not act on or ``none`` beside another, or ``max_age`` is not a
+                whole number of seconds.
         """
         authorization_request = await super().validate_authorization_request(request)
+        named = self.get_query_string_parameter("redirect_uri", request)
+        scopes = authorization_request.get_scopes()
+        if named is None and any(scope.get_identifier() == _OPENID_SCOPE for scope in scopes):
+            raise OAuthServerError.invalid_request("redirect_uri", _REDIRECT_URI_HINT)
         prompt = parse_prompt(self.get_query_string_parameter("prompt", request))
         max_age = _max_age(self.get_query_string_parameter("max_age", request))
         if isinstance(authorization_request, OpenIdAuthorizationRequest):
