@@ -73,7 +73,7 @@ def _grant(clock: MockClock, *, require_code_challenge: bool = True) -> OpenIdAu
         InMemoryAuthCodeRepository(),
         InMemoryRefreshTokenRepository(),
         _CODE_TTL,
-        timedelta(days=30),
+        timedelta(days=7),
         require_code_challenge,
     )
 
@@ -377,4 +377,13 @@ async def test_the_refresh_lifetime_it_was_built_with_is_the_one_it_issues() -> 
     body = await _redeem(server, _token_request(code))
 
     refresh = unseal(str(body["refresh_token"]))
-    assert refresh["expire_time"] == int((FROZEN_NOW + timedelta(days=30)).timestamp())
+    assert refresh["expire_time"] == int((FROZEN_NOW + timedelta(days=7)).timestamp())
+
+
+async def test_a_code_that_cannot_be_read_back_is_an_invalid_request() -> None:
+    server = _sign_in_server(make_clock())
+
+    with pytest.raises(OAuthServerError) as raised:
+        _ = await _redeem(server, _token_request("not-a-code"))
+
+    assert raised.value.get_error_type() == "invalid_request"
