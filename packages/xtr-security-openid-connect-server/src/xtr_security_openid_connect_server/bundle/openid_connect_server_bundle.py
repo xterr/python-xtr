@@ -9,6 +9,7 @@ from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 from xtr_security_oauth2_server.bundle import GRANT_TAG, OAuth2ServerConfig
 
+from xtr_security_openid_connect_server.controller.user_info_controller import UserInfoController
 from xtr_security_openid_connect_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
@@ -77,7 +78,7 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
         services: ServiceConfigurator,
         builder: ContainerBuilder,
     ) -> None:
-        """Register the claim sets, ID-token settings, identity provider, flow and sign-in time.
+        """Register the claim sets, ID-token settings, identity provider, flow and endpoints.
 
         The token answer itself is not registered here: the authorization
         server registers whichever class its ``response_type_class`` names,
@@ -87,6 +88,10 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
         listener service once fetched, so it would have to be a singleton, and
         the security facade it reads is scoped to the request. A function's
         injected parameters are filled on every call instead.
+
+        The userinfo controller is per-request for the same reason: it reads
+        the token the request's firewall settled on. Its route resource is
+        scanned so the HTTP kernel hands it to the application's routes files.
         """
         server = builder.get_extension_config(OAuth2ServerConfig).authorization_server
         _ = services.set(claim_extractor_factory(config.claim_sets))
@@ -111,6 +116,8 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
             .add_tag(GRANT_TAG)
         )
         services.load("xtr_security_openid_connect_server.event_listener.auth_time_listener")
+        _ = services.set(UserInfoController, lifetime="scoped")
+        services.load("xtr_security_openid_connect_server.routing")
 
     @override
     def process(self, builder: ContainerBuilder) -> None:

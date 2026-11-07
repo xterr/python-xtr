@@ -12,6 +12,10 @@ still has a real signed-in user reach the consent event.
 A token minted that way proves no credential of the end-user's, so the one
 environment that has to know when they signed in has them sign in with a form
 instead, on a stateful firewall.
+
+The userinfo endpoint stands behind no firewall here, as it would in a
+deployment that forgot one; the environment that reads claims puts the access
+tokens' own firewall in front of it.
 """
 
 from __future__ import annotations
@@ -57,15 +61,19 @@ __all__ = [
     "SECOND_USER_IDENTIFIER",
     "SECOND_USER_PASSWORD",
     "SHORT_ID_TOKEN_ENV",
+    "USERINFO_ENV",
+    "USERINFO_SCOPES",
     "USER_IDENTIFIER",
     "USER_PASSWORD",
     "oauth2_server",
     "oauth2_server_without_scopes",
     "openid_connect_server_with_identity_provider",
     "openid_connect_server_with_short_id_tokens",
+    "reading_claims_with_access_tokens",
     "security",
     "signing_in_with_a_form",
     "with_the_bearer_answer_back",
+    "with_the_claim_scopes",
     "with_the_redirect_flow_back_on",
     "without_metadata",
     "without_the_proof_key_requirement",
@@ -95,6 +103,10 @@ BEARER_ANSWER_ENV: Final[str] = "bearer_answer"
 NO_METADATA_ENV: Final[str] = "no_metadata"
 NO_SCOPES_ENV: Final[str] = "no_scopes"
 FORM_LOGIN_ENV: Final[str] = "form_login"
+USERINFO_ENV: Final[str] = "userinfo"
+
+#: The scopes of the protocol's own claim sets the userinfo environment knows.
+USERINFO_SCOPES: Final[tuple[str, ...]] = ("profile", "email")
 
 #: What the firewall claims: the authorization endpoint, where a person is.
 _PROTECTED: Final[str] = r"^/authorize"
@@ -184,7 +196,20 @@ def openid_connect_server_with_short_id_tokens() -> OpenIdConnectServerConfig:
 
 
 @configure
-@when(IDENTITY_PROVIDER_ENV)
+@when(USERINFO_ENV)
+def with_the_claim_scopes(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
+    """Know the scopes whose claims the userinfo endpoint reveals, beside the others."""
+    return replace(
+        config,
+        scopes=replace(
+            config.scopes,
+            available=(*config.scopes.available, *USERINFO_SCOPES),
+        ),
+    )
+
+
+@configure
+@when(IDENTITY_PROVIDER_ENV, USERINFO_ENV)
 def openid_connect_server_with_identity_provider() -> OpenIdConnectServerConfig:
     """Name where a signed-in user's claims come from, and a scope of the deployment's own."""
     return OpenIdConnectServerConfig(
@@ -208,6 +233,27 @@ def security() -> SecurityConfig:
             ),
         },
         access_control=(AccessControlConfig(path=_PROTECTED, attribute="IS_AUTHENTICATED"),),
+    )
+
+
+@configure
+@when(USERINFO_ENV)
+def reading_claims_with_access_tokens(config: SecurityConfig) -> SecurityConfig:
+    """Put this server's access tokens in front of the userinfo endpoint.
+
+    Nothing demands a token there: the endpoint itself refuses a request
+    carrying none, which is what a deployment without this firewall relies on.
+    """
+    return replace(
+        config,
+        firewalls={
+            **config.firewalls,
+            "userinfo": FirewallConfig(
+                pattern=r"^/userinfo",
+                provider="users",
+                authenticators=(OAuth2AuthenticatorConfig(),),
+            ),
+        },
     )
 
 

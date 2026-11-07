@@ -1,4 +1,4 @@
-"""The routes file of the deployment: the authorization server's endpoints at their defaults."""
+"""The deployment's routes file: the server's and the provider's endpoints at their defaults."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
     from fastapi import APIRouter, FastAPI
 
-__all__ = ["oauth2_server"]
+__all__ = ["oauth2_server", "openid_connect_server"]
 
 
 @as_routes
@@ -19,3 +19,9 @@ def oauth2_server(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
     """Serve every endpoint of the authorization server at its default path."""
     app.include_router(resources["oauth2_server"])
     app.include_router(resources["oauth2_server_well_known"])
+
+
+@as_routes
+def openid_connect_server(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
+    """Serve the provider's userinfo endpoint at its default path."""
+    app.include_router(resources["openid_connect_server"])

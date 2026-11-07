@@ -7,6 +7,8 @@ is what a client would receive.
 
 Every client this seeds is public — it holds no secret — so a sign-in proves
 itself with a proof key, as a browser or native application does.
+The one exception is a confidential client registered beside it, naming no
+grant, which mints whatever token a test of a reader needs.
 """
 
 from __future__ import annotations
@@ -15,13 +17,14 @@ import base64
 import hashlib
 import json
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, Annotated, Final, cast
 from urllib.parse import parse_qsl, urlsplit
 
 import httpx
 from fastapi import FastAPI
-from xtr_dependency_injection import Injected, Kernel
+from xtr_dependency_injection import Injected, Kernel, Target
 from xtr_http_kernel.setup import setup
+from xtr_password_hasher import PasswordHasherInterface
 from xtr_security_oauth2_server.bundle import OAuth2ServerBundle
 from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
 from xtr_security_oauth2_server.model.client import Client
@@ -37,6 +40,8 @@ __all__ = [
     "CLIENT_ID",
     "REDIRECT_URI",
     "SCOPE",
+    "SERVICE_CLIENT_ID",
+    "SERVICE_CLIENT_SECRET",
     "VERIFIER",
     "claims_of",
     "code_challenge_of",
@@ -60,6 +65,17 @@ SCOPE: Final = "openid read"
 
 #: A proof key within the length the standard allows.
 VERIFIER: Final = "a-code-verifier-long-enough-for-the-standard"
+
+#: The confidential client seeded beside it. It names no grant, so it may use
+#: any, and it is registered for every scope a test of a reader asks for.
+SERVICE_CLIENT_ID: Final = "my-service"
+
+#: Its secret, as it sends it; the seeding endpoint stores it hashed.
+SERVICE_CLIENT_SECRET: Final = "the-service-secret"
+
+#: The scopes it is registered for. Named, because a client registered for
+#: none is handed the deployment's defaults.
+_SERVICE_SCOPES: Final = "openid read profile email"
 
 #: Where the seeding endpoint lives, standing where an administration screen would.
 _SEED_PATH: Final = "/seed-client"
@@ -86,11 +102,17 @@ def served_application(kernel: Kernel) -> FastAPI:
     app = FastAPI()
 
     @app.post(_SEED_PATH)
-    async def seed_client(clients: Injected[ClientManagerInterface]) -> dict[str, str]:
+    async def seed_client(
+        clients: Injected[ClientManagerInterface],
+        hasher: Annotated[PasswordHasherInterface, Target("oauth2_server")],
+    ) -> dict[str, str]:
         client = Client("A client", CLIENT_ID, None)
         _ = client.set_redirect_uris(RedirectUri(REDIRECT_URI))
         _ = client.set_scopes(*(Scope(name) for name in SCOPE.split(" ")))
         await clients.save(client)
+        service = Client("A service", SERVICE_CLIENT_ID, hasher.hash(SERVICE_CLIENT_SECRET))
+        _ = service.set_scopes(*(Scope(name) for name in _SERVICE_SCOPES.split(" ")))
+        await clients.save(service)
 
         return {"client_id": CLIENT_ID}
 
