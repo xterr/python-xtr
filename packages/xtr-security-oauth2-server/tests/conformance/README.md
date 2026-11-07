@@ -50,6 +50,7 @@ standard leaves to the server.
 | 2.3.1 | The authorization server MUST support HTTP Basic for client credentials | `test_a_client_may_authenticate_with_the_basic_scheme` |
 | 2.3.1 | Credentials in the request body are accepted beside the header | `test_a_client_may_authenticate_in_the_request_body` |
 | 3.1 | The authorization endpoint MUST support `GET` | `test_the_authorization_endpoint_answers_a_get` |
+| 3.1 | The authorization endpoint MAY support `POST` — supported, the parameters in a form | `test_the_authorization_endpoint_answers_a_posted_form` |
 | 3.1 | The server MUST ignore unrecognized request parameters | `test_a_parameter_this_server_does_not_know_is_ignored` |
 | 3.1 | A parameter sent without a value MUST be treated as omitted | `test_a_parameter_sent_without_a_value_counts_as_omitted` |
 | 3.1.2.3 | The server MUST compare and match the redirect URI against the registered ones | `test_a_redirect_uri_the_client_never_registered_is_refused` |

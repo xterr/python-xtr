@@ -206,6 +206,30 @@ async def test_the_authorization_endpoint_answers_a_get() -> None:
     assert answered.status_code == 302
 
 
+async def test_the_authorization_endpoint_answers_a_posted_form() -> None:
+    # "The authorization server MAY support the use of the HTTP POST method
+    # as well" (section 3.1); the parameters travel as a form, the encoding
+    # every other request to this server uses (appendix B).
+    async with serving(_application()) as client:
+        await _seed(client)
+        answered = await client.post(
+            "/authorize",
+            data={
+                "response_type": "code",
+                "client_id": CLIENT_ID,
+                "redirect_uri": REDIRECT_URI,
+                "state": STATE,
+                "scope": SCOPE,
+                "code_challenge": CHALLENGE,
+                "code_challenge_method": "S256",
+            },
+            headers={"Authorization": f"Bearer {await _owner_token(client)}"},
+        )
+
+    assert answered.status_code == 302
+    assert "code" in _delivered(answered)
+
+
 async def test_a_parameter_this_server_does_not_know_is_ignored() -> None:
     # "The authorization server MUST ignore unrecognized request parameters"
     # (section 3.1).

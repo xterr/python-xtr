@@ -28,6 +28,7 @@ from xtr_security_oauth2_server.manager.client_manager_interface import (  # noq
     ClientManagerInterface,
 )
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
+from xtr_security_oauth2_server.posted_form_as_query import posted_form_as_query
 
 from ._served_response import served
 
@@ -80,6 +81,11 @@ class AuthorizationController:
     original query back, so the second pass reads the same request, reaches the
     same listener, and this time is approved. That is what lets the endpoint sit
     behind a firewall that keeps no session.
+
+    A request arrives as a ``GET`` carrying its parameters in the query, or as
+    a ``POST`` carrying them in a form; a posted form is read as the query it
+    stands for (see :func:`posted_form_as_query`), so the grants, the consent
+    question and the completed flow all see one request.
 
     A refusal is delivered the way the flow it belongs to delivers one: to the
     redirect URI when the request named a usable one, in the fragment when the
@@ -144,9 +150,10 @@ class AuthorizationController:
     ) -> Response:
         """Answer ``request`` with a redirect carrying what the flow issued, or a refusal."""
         try:
-            authorization_request = await self._server.validate_authorization_request(request)
+            asking = await posted_form_as_query(request)
+            authorization_request = await self._server.validate_authorization_request(asking)
             await self._refuse_plain_pkce_unless_allowed(authorization_request)
-            answered = await self._resolve(request, authorization_request, response)
+            answered = await self._resolve(asking, authorization_request, response)
         except OAuthServerError as error:
             # A flow answering in the fragment has to be refused in the
             # fragment too, or the refusal lands in a query the client never

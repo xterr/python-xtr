@@ -390,6 +390,14 @@ wherever it ends up, leaving out the ones excluded:
   original query back to `/authorize`, and the second pass is the one approved. Binding that form
   to the person it was shown to (a CSRF token) is the listener's. With nobody signed in the client
   is told only `access_denied`, and the cause is written on the `oauth2_server` log channel.
+- **`GET` or `POST` to `/authorize`**: a request comes as a `GET` with its parameters in the
+  query, or as a `POST` with them in an `application/x-www-form-urlencoded` body; any other body
+  is refused `invalid_request`. A posted form is read as the query it stands for
+  (`xtr_security_oauth2_server.posted_form_as_query`), so grants, listeners and firewall steps
+  read one request either way. A `POST` whose query names `response_type` — the consent form
+  posting the query back — is read from its query, its body left to the listener. Parameters are
+  never read from both: a form beside a query string, or `response_type` in both, is refused
+  `invalid_request`.
 - **`/token`, `/revoke`, `/introspect`** authenticate the client themselves — HTTP Basic or
   `client_id`/`client_secret` in the form — so no firewall claims them. A revoked refresh token
   takes its access token with it; a token that is unknown or another client's is answered as one
@@ -612,6 +620,7 @@ xtr_security_oauth2_server/
 ├── routing/                    the endpoints, and the two route resources routes files register
 ├── oauth2_events.py            OAuth2Events, the six names
 ├── authorization_server_metadata.py, metadata_contributor_interface.py
+├── posted_form_as_query.py     an authorization request posted as a form, read as its query
 ├── controller/                 one controller per endpoint
 ├── model/                      the stored client, tokens and codes, and their interfaces
 ├── value_object/               Grant, RedirectUri, Scope

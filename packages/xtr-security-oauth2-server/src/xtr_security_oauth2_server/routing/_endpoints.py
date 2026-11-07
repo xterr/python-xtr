@@ -89,9 +89,10 @@ async def authorize(
 ) -> Response:
     """Read an authorization request, and answer the resource owner's browser.
 
-    Answers ``POST`` as well as ``GET`` because consent is stateless: the form a
-    deployment shows posts the original query back here, and this second pass
-    is the one a listener approves.
+    Answers ``POST`` as well as ``GET``, for two reasons. A client may have the
+    browser post the request itself, its parameters in a form. And consent is
+    stateless: the form a deployment shows posts the original query back here,
+    and this second pass is the one a listener approves.
     """
     return await controller.index_action(request, response)
 
