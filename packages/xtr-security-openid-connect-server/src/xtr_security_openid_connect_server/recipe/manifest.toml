@@ -8,3 +8,29 @@
 # listed. It brings the OAuth 2.0 authorization server with it, and with that
 # the security family, the clock, the event dispatcher and the HTTP kernel.
 "xtr_security_openid_connect_server.bundle:OpenIdConnectServerBundle" = { all = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# The bundle builds and boots without it, but no signed-in user's claims can be
+# read until a deployment says where its users live: this module is where that
+# class is named, with the login page and firewall a re-login goes through.
+"config/packages/openid_connect_server.py" = "files/config/openid_connect_server.py.tmpl"
+# What registers the endpoints — routing is never imported automatically: the
+# userinfo endpoint at its default path and the configuration document at the
+# root, with the line that moves the first one written beside it.
+"config/routes/openid_connect_server.py" = "files/config/routes/openid_connect_server.py.tmpl"
+
+[notes]
+steps = [
+  "Write the class that finds a signed-in user and the claims they hold — one implementing IdentityProviderInterface, with an async get_user_entity_by_identifier(identifier, client) — and name it in identity_provider in config/packages/openid_connect_server.py. The bundle registers it, so the container builds it from its constructor; registering it again is not wanted. Until it is named the provider boots and the console runs, and the userinfo endpoint reports the setting by name.",
+  "List 'openid_connect_server#prompt_listener' in the listeners of the firewall that signs end-users in, the one named in login_firewall, and leave that firewall stateful: only it can decide prompt=none, prompt=login and max_age, and the authorization request waits in its session while an end-user signs in again. Without the step, those three parameters are read but nothing acts on them.",
+  "Put /userinfo behind a firewall carrying OAuth2AuthenticatorConfig(), so this server's own access tokens are read there. The endpoint reads no credential itself: with no firewall in front of it, every request is refused.",
+  "Add 'openid' to the scopes a client may be registered with, and the claim scopes this deployment answers — 'profile', 'email', 'address', 'phone' — to scopes.available in config/packages/oauth2_server.py. 'openid' joins the vocabulary by itself once that tuple names anything at all.",
+  "Name this deployment's issuer in config/packages/oauth2_server.py: every ID token claims it, and the configuration document is published under it.",
+  "Answer the consent question in a listener on OAuth2Events.AUTHORIZATION_REQUEST_RESOLVE at a priority below AUTH_TIME_LISTENER_PRIORITY — the default 0 is below it — and read what was asked for through OpenIdAuthorizationRequest.get_prompt(). A request carrying prompt=none that needs a consent not yet given is refused by raising consent_required(event).",
+]
+check = [
+  "<script> debug:bundles — openid_connect_server is listed and active, with oauth2_server among the bundles it requires",
+  "<script> debug:config openid_connect_server — the resolved identity provider, claim sets, ID-token lifetime, login page and firewall",
+  "GET /.well-known/openid-configuration — the document names this deployment's issuer, its userinfo endpoint, subject_types_supported and id_token_signing_alg_values_supported",
+]

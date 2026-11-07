@@ -56,6 +56,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-security](packages/xtr-security) | The security bundle: the family facade and the container wiring that configures it. |
 | [xtr-security-oauth2-server-core](packages/xtr-security-oauth2-server-core) | The OAuth 2.0 authorization-server library: grants, servers, entities, response types and the resource server. |
 | [xtr-security-oauth2-server](packages/xtr-security-oauth2-server) | An OAuth 2.0 authorization server and resource-server authenticator. |
+| [xtr-security-openid-connect-server](packages/xtr-security-openid-connect-server) | OpenID Connect on that authorization server: ID tokens, a userinfo endpoint and a configuration document for the authorization code flow. |
 | [xtr-serializer](packages/xtr-serializer) | Objects turned into JSON and back exactly — dataclasses, models, class hierarchies and dates arrive as they left, or are refused — through a chain of normalizers and encoders. |
 | [xtr-service-contracts](packages/xtr-service-contracts) | What a container drives on a service, not what the service does. No dependencies. |
 | [xtr-lock](packages/xtr-lock) | Exclusive and shared locks around resources, in memory, in files, in Redis, or across several stores. |
@@ -202,6 +203,18 @@ graph LR
     oauth2server --> httpkernel
     oauth2server -. optional .-> orm
     oauth2server -. optional .-> console
+    oidcserver[xtr-security-openid-connect-server] --> oauth2server
+    oidcserver --> oauth2core
+    oidcserver --> securitycore
+    oidcserver --> securityhttp
+    oidcserver --> security
+    oidcserver --> securityjwt
+    oidcserver --> clock
+    oidcserver --> eventcon
+    oidcserver --> events
+    oidcserver --> di
+    oidcserver --> httpmsgcon
+    oidcserver --> httpkernel
     storage[xtr-storage] -. optional .-> di
     dotenv[xtr-dotenv] -. optional .-> di
     dotenv -. optional .-> console

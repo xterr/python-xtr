@@ -34,7 +34,7 @@ are in `tests/unit/test_token_hash.py`.
 | `test_oidc_core_authentication_request.py` | Core 1.0 § 3.1, § 3.1.2, § 3.1.3.2, § 15.1 — the authentication request, `prompt`, `max_age` | 16 | — |
 | `test_oidc_core_userinfo.py` | Core 1.0 § 5.3, § 5.4 — the userinfo endpoint | 11 | — |
 | `test_oidc_core_refresh.py` | Core 1.0 § 12 — refresh | 2 | — |
-| `test_oidc_discovery.py` | Discovery 1.0 § 3, § 4 — the configuration document | 15 | — |
+| `test_oidc_discovery.py` | Discovery 1.0 § 3, § 4 — the configuration document | 15 | § 3's `RS256`, met by the deployment that signs with it (see the deviations) |
 
 A gap is a requirement this provider does not meet: its test is written as
 the standard reads and marked `xfail(strict=True)`, so meeting the requirement
@@ -47,7 +47,7 @@ a decision recorded for this provider, pinned by the test named.
 | § | Requirement | Covered by |
 |---|---|---|
 | 2 | `iss` is an `https` URL with no query or fragment | `test_the_issuer_is_an_https_url_with_no_query_and_no_fragment` (ID token) |
-| 2 | `sub` MUST NOT exceed 255 ASCII characters | `test_the_subject_is_ascii_and_at_most_255_characters` |
+| 2 | `sub` MUST NOT exceed 255 ASCII characters | `test_the_subject_is_ascii_and_at_most_255_characters` — observed of the fixture's own subject, not enforced: the identifier is the application's, and nothing here truncates or refuses one (see *Not covered*) |
 | 2 | `aud` MUST contain the client's `client_id` | `test_the_audience_is_the_client_that_asked` |
 | 2 | `exp` and `iat` are required, the token expiring after it was issued | `test_the_token_expires_after_it_was_issued`; the relying party's time checks in `test_the_relying_party_accepts_the_id_token` |
 | 2 | A `nonce` sent MUST be returned unmodified in the ID token | `test_the_nonce_the_request_sent_is_claimed_unmodified`, `test_no_nonce_is_claimed_when_the_request_sent_none`, `test_two_codes_redeemed_at_once_each_carry_their_own_nonce` |
@@ -97,7 +97,7 @@ The issuer is the deployment's own, never the request's `Host`:
 | 3 | `issuer`: `https`, no query or fragment | `test_the_issuer_is_an_https_url_with_no_query_and_no_fragment` (discovery) |
 | 3 | `issuer`, `authorization_endpoint`, `token_endpoint`, `jwks_uri`, `response_types_supported`, `subject_types_supported`, `id_token_signing_alg_values_supported` are REQUIRED | `test_every_required_field_is_published` |
 | 3 | `userinfo_endpoint` MUST use `https` | `test_the_endpoints_are_https_urls_under_the_issuer` |
-| 3 | `RS256` MUST be among `id_token_signing_alg_values_supported` | `test_rs256_is_among_the_id_token_signing_algorithms` — met by a deployment signing with `RS256`, see the deviations |
+| 3 | `RS256` MUST be among `id_token_signing_alg_values_supported` | `test_rs256_is_among_the_id_token_signing_algorithms` — conditional on the deployment: met where the authorization server signs with `RS256`, which is its default, and not met where it is configured for another algorithm. See the deviations |
 | 3 | The server MUST support the `openid` scope | `test_the_openid_scope_is_supported` |
 | 3 | `response_types_supported`, `subject_types_supported` | `test_the_code_flow_is_the_response_type_published`, `test_public_subject_identifiers_are_published` |
 | 3 | `claims_supported`, `claims_parameter_supported`, `request_parameter_supported`, `request_uri_parameter_supported` | `test_the_claims_published_include_every_claim_an_id_token_carries`, `test_the_parameters_the_provider_does_not_read_are_published_unsupported` |
@@ -142,6 +142,10 @@ plan's *Must NOT have* list — so there is no test of it.
   its own suite covers the methods it supports.
 - **`sub` locally unique and never reassigned** (Core § 2). The identity
   provider's, which the application writes.
+- **`sub` within 255 ASCII characters** (Core § 2). The identity provider's as
+  well: the subject is the resource owner identifier the application gave the
+  authorization server, and nothing in this package shortens or refuses one.
+  The row above records what the fixture's subject is, not a check on any.
 - **Transport security** (Core § 16.17, Discovery § 7.1). The deployment's: no
   test can assert TLS of an application served over ASGI.
 - **CSRF and clickjacking protection of the login page** (Core § 3.1.2.3). The

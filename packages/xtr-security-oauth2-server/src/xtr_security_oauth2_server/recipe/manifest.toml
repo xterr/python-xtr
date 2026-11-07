@@ -3,9 +3,9 @@
 
 [bundles]
 # "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
-# An add-on: no other bundle requires it, so it only ever arrives by being
-# listed. It brings the security family, the clock, the event dispatcher and
-# the HTTP kernel with it.
+# An add-on: only the OpenID Connect provider's bundle requires it, and nothing
+# else, so it otherwise arrives by being listed. It brings the security family,
+# the clock, the event dispatcher and the HTTP kernel with it.
 "xtr_security_oauth2_server.bundle:OAuth2ServerBundle" = { all = true }
 
 [files]

@@ -41,6 +41,7 @@ To use a package alone, install it with `uv add` and read its README.
 | [xtr-security-jwt](https://github.com/xterr/python-xtr/tree/main/packages/xtr-security-jwt) | JSON Web Tokens that the application signs: key sets, an encoder and a token manager. | [API](https://xterr.github.io/python-xtr/api/xtr_security_jwt/) |
 | [xtr-security-oauth2-server](https://github.com/xterr/python-xtr/tree/main/packages/xtr-security-oauth2-server) | An OAuth 2.0 authorization server, and an authenticator for a resource server. | [API](https://xterr.github.io/python-xtr/api/xtr_security_oauth2_server/) |
 | [xtr-security-oauth2-server-core](https://github.com/xterr/python-xtr/tree/main/packages/xtr-security-oauth2-server-core) | The library of the OAuth 2.0 server: grants, servers, entities and response types. | [API](https://xterr.github.io/python-xtr/api/xtr_security_oauth2_server_core/) |
+| [xtr-security-openid-connect-server](https://github.com/xterr/python-xtr/tree/main/packages/xtr-security-openid-connect-server) | OpenID Connect on the OAuth 2.0 server: ID tokens, a userinfo endpoint and a configuration document. | [API](https://xterr.github.io/python-xtr/api/xtr_security_openid_connect_server/) |
 
 ## Messages, events and workflows
 

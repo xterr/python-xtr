@@ -1,0 +1,46 @@
+"""The OpenID Connect provider this application hosts, on top of its authorization server.
+
+One setting has no default the provider can invent: ``identity_provider``, the
+application's class that finds a signed-in user and the claims they hold. Write
+that class over wherever this application keeps its users, name it here, and the
+bundle registers it — nothing registers it for you. Until it is named the
+provider still builds, boots and serves the console; the userinfo endpoint is
+what reports the setting, by name and with this file.
+
+``login_path`` is where an end-user asked to sign in again is sent, and
+``login_firewall`` the firewall that signs them in there — the one whose
+``listeners`` carries ``openid_connect_server#prompt_listener``. It must keep a
+session: the authorization request waits in it while the end-user signs in, and
+a stateless firewall is refused by name the first time a re-login is asked of
+it.
+
+``authorize_path`` is where this deployment serves the authorization endpoint,
+which is where the prompt step acts. Change it when a routes file moves that
+endpoint under a prefix.
+
+Everything else keeps its default: an ID token expires with the access token
+issued beside it (``id_token_ttl``), and the only claim sets are the four OpenID
+Connect Core defines. ``claim_sets`` adds the claims a scope of this
+application's own reveals — ``{"company": ("company_id",)}`` — and may not
+restate one of the protocol's four.
+
+The README's *Configure* section has the rest.
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure
+from xtr_security_openid_connect_server.bundle import OpenIdConnectServerConfig
+
+__all__ = ["openid_connect_server"]
+
+
+@configure
+def openid_connect_server() -> OpenIdConnectServerConfig:
+    """Sign end-users in at the login page of the firewall that keeps their session."""
+    return OpenIdConnectServerConfig(
+        # identity_provider=MyIdentityProvider,
+        login_path="/login",
+        login_firewall="main",
+        authorize_path="/authorize",
+    )

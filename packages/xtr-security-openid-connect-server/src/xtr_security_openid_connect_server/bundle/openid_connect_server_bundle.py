@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
     from xtr_security_oauth2_server.bundle import AuthorizationServerConfig
 
-__all__ = ["OpenIdConnectServerBundle"]
+__all__ = ["PROMPT_LISTENER", "OpenIdConnectServerBundle"]
 
 #: The scope a client asks for to sign the end-user in.
 _OPENID_SCOPE: Final = "openid"
@@ -47,8 +47,10 @@ _OPENID_SCOPE: Final = "openid"
 _SERVER_CONFIG_FILE: Final = "<app>/config/packages/oauth2_server.py"
 
 #: What an application lists in its login firewall's ``listeners`` to have
-#: ``prompt`` and ``max_age`` decided there.
-_PROMPT_LISTENER: Final = "openid_connect_server#prompt_listener"
+#: ``prompt`` and ``max_age`` decided there. Published, because only the
+#: application knows which firewall signs end-users in, so only it can list
+#: the step — and it needs the qualifier by name to do so.
+PROMPT_LISTENER: Final = "openid_connect_server#prompt_listener"
 
 
 @final
@@ -144,7 +146,7 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
             .add_tag(METADATA_TAG)
         )
         _ = (
-            services.set(open_id_prompt_listener, qualifier=_PROMPT_LISTENER, lifetime="scoped")
+            services.set(open_id_prompt_listener, qualifier=PROMPT_LISTENER, lifetime="scoped")
             .set_argument("login_path", config.login_path)
             .set_argument("login_firewall", config.login_firewall)
             .set_argument("authorize_path", config.authorize_path)
@@ -152,8 +154,8 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
         services.alias(
             FirewallListenerInterface,
             OpenIdPromptListener,
-            alias_qualifier=_PROMPT_LISTENER,
-            target_qualifier=_PROMPT_LISTENER,
+            alias_qualifier=PROMPT_LISTENER,
+            target_qualifier=PROMPT_LISTENER,
         )
         services.load("xtr_security_openid_connect_server.routing")
 
