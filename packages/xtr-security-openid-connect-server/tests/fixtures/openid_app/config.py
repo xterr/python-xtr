@@ -8,6 +8,10 @@ named for what it changes, so a test serves exactly the deployment it is about.
 The resource owner is established on ``/authorize`` by this deployment's own
 access tokens, minted with the password flow: the cheapest arrangement that
 still has a real signed-in user reach the consent event.
+
+A token minted that way proves no credential of the end-user's, so the one
+environment that has to know when they signed in has them sign in with a form
+instead, on a stateful firewall.
 """
 
 from __future__ import annotations
@@ -20,9 +24,12 @@ from xtr_dependency_injection import configure, when
 from xtr_security.bundle import (
     AccessControlConfig,
     FirewallConfig,
+    FormLoginConfig,
     InMemoryUserProviderConfig,
+    PlaintextHasherConfig,
     SecurityConfig,
 )
+from xtr_security_core.user.in_memory_user import InMemoryUser
 from xtr_security_oauth2_server.bundle import (
     AuthorizationServerConfig,
     InMemoryPersistenceConfig,
@@ -41,11 +48,14 @@ __all__ = [
     "ALGORITHM",
     "AUTH_CODE_BACK_ON_ENV",
     "BEARER_ANSWER_ENV",
+    "FORM_LOGIN_ENV",
     "IDENTITY_PROVIDER_ENV",
     "ID_TOKEN_TTL",
     "NO_METADATA_ENV",
     "NO_SCOPES_ENV",
     "OPEN_PROOF_KEY_ENV",
+    "SECOND_USER_IDENTIFIER",
+    "SECOND_USER_PASSWORD",
     "SHORT_ID_TOKEN_ENV",
     "USER_IDENTIFIER",
     "USER_PASSWORD",
@@ -54,6 +64,7 @@ __all__ = [
     "openid_connect_server_with_identity_provider",
     "openid_connect_server_with_short_id_tokens",
     "security",
+    "signing_in_with_a_form",
     "with_the_bearer_answer_back",
     "with_the_redirect_flow_back_on",
     "without_metadata",
@@ -71,6 +82,10 @@ ID_TOKEN_TTL: Final[timedelta] = timedelta(minutes=5)
 USER_IDENTIFIER: Final[str] = "alice"
 USER_PASSWORD: Final[str] = "alices-password"
 
+#: A second end-user, who signs in with the form after the first.
+SECOND_USER_IDENTIFIER: Final[str] = "bob"
+SECOND_USER_PASSWORD: Final[str] = "bobs-password"
+
 #: The environments, each named for the one setting it changes.
 OPEN_PROOF_KEY_ENV: Final[str] = "open_proof_key"
 SHORT_ID_TOKEN_ENV: Final[str] = "short_id_token"
@@ -79,6 +94,7 @@ AUTH_CODE_BACK_ON_ENV: Final[str] = "auth_code_back_on"
 BEARER_ANSWER_ENV: Final[str] = "bearer_answer"
 NO_METADATA_ENV: Final[str] = "no_metadata"
 NO_SCOPES_ENV: Final[str] = "no_scopes"
+FORM_LOGIN_ENV: Final[str] = "form_login"
 
 #: What the firewall claims: the authorization endpoint, where a person is.
 _PROTECTED: Final[str] = r"^/authorize"
@@ -192,4 +208,39 @@ def security() -> SecurityConfig:
             ),
         },
         access_control=(AccessControlConfig(path=_PROTECTED, attribute="IS_AUTHENTICATED"),),
+    )
+
+
+@configure
+@when(FORM_LOGIN_ENV)
+def signing_in_with_a_form(config: SecurityConfig) -> SecurityConfig:
+    """Have the end-user sign in with a form, which records when they proved a password.
+
+    The form login reads its fields from the query string too — ``post_only``
+    off — because the chain's request carries its body unparsed.
+    """
+    return replace(
+        config,
+        providers={
+            "users": InMemoryUserProviderConfig(
+                users={
+                    USER_IDENTIFIER: {"password": USER_PASSWORD, "roles": ["ROLE_USER"]},
+                    SECOND_USER_IDENTIFIER: {
+                        "password": SECOND_USER_PASSWORD,
+                        "roles": ["ROLE_USER"],
+                    },
+                },
+            ),
+        },
+        # The clear-storage hasher is for tests only: the login checks the
+        # password as written above.
+        password_hashers={InMemoryUser: PlaintextHasherConfig()},
+        firewalls={
+            "main": FirewallConfig(
+                pattern=r"^/",
+                stateless=False,
+                provider="users",
+                authenticators=(FormLoginConfig(login_path="/login", post_only=False),),
+            ),
+        },
     )

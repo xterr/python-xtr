@@ -144,6 +144,14 @@ async def test_the_id_token_hashes_the_access_token_issued_beside_it() -> None:
     assert at_hash == token_hash(text_field(issued, "access_token"), ALGORITHM)
 
 
+async def test_a_sign_in_proving_no_credential_states_no_sign_in_time() -> None:
+    # The resource owner is established by an access token, which proves no
+    # credential of theirs, so nothing says when they signed in.
+    issued = await _sign_in()
+
+    assert "auth_time" not in claims_of(text_field(issued, "id_token"))
+
+
 async def test_an_id_token_expires_with_its_access_token_by_default() -> None:
     issued = await _sign_in()
 

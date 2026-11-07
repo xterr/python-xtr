@@ -7,11 +7,13 @@ from typing import TypeVar
 
 import pytest
 from xtr_dependency_injection.exception import ServiceResolutionError
+from xtr_event_dispatcher_contracts import EventDispatcherInterface, ListenerIntrospectionInterface
 from xtr_security_oauth2_server.bundle import OAuth2ServerConfig
 from xtr_security_oauth2_server.exception import (
     InvalidConfigurationError as OAuth2InvalidConfigurationError,
 )
 from xtr_security_oauth2_server.manager.scope_manager_interface import ScopeManagerInterface
+from xtr_security_oauth2_server.oauth2_events import OAuth2Events
 from xtr_security_oauth2_server_core.response_types.response_type_interface import (
     ResponseTypeInterface,
 )
@@ -29,6 +31,7 @@ from tests.fixtures.openid_app.config import (
 from tests.support.identity_provider import InMemoryIdentityProvider
 from tests.support.served import openid_kernel
 from xtr_security_openid_connect_server.claim_extractor import ClaimExtractor
+from xtr_security_openid_connect_server.event_listener import AUTH_TIME_LISTENER_PRIORITY
 from xtr_security_openid_connect_server.exception import InvalidConfigurationError
 from xtr_security_openid_connect_server.id_token_settings import IdTokenSettings
 from xtr_security_openid_connect_server.repositories.identity_provider_interface import (
@@ -72,6 +75,22 @@ async def test_the_shipped_redirect_flow_is_turned_off() -> None:
     config = await _resolved(OAuth2ServerConfig)
 
     assert config.authorization_server.enable_auth_code_grant is False
+
+
+async def test_the_sign_in_time_is_recorded_ahead_of_the_deployments_consent_listener() -> None:
+    # The build refuses a listener service that is not a singleton; the one
+    # reading the request's facade is a function, so the kernel builds.
+    dispatcher = await _resolved(EventDispatcherInterface)
+    assert isinstance(dispatcher, ListenerIntrospectionInterface)
+
+    event = OAuth2Events.AUTHORIZATION_REQUEST_RESOLVE
+    priorities = [
+        dispatcher.get_listener_priority(event, listener)
+        for listener in dispatcher.get_listeners(event)
+    ]
+
+    # The fixture's consent listener runs at the default priority, after it.
+    assert priorities == [AUTH_TIME_LISTENER_PRIORITY, 0]
 
 
 async def test_the_token_endpoint_answers_with_an_id_token_response() -> None:

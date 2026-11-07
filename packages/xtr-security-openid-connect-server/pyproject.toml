@@ -79,6 +79,9 @@ dev = [
     "xtr-security-http[oidc]>=6.0,<7",
     "xtr-http-client>=6.0,<7",
     "xtr-cache>=6.0,<7",
+    # The deployment that signs the end-user in with a form keeps the login in
+    # a session, held in memory for the test.
+    "xtr-http-foundation>=6.0,<7",
 ]
 
 [build-system]
