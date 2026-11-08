@@ -115,7 +115,7 @@ class OidcTokenHandlerFactory(TokenHandlerFactoryInterface):
                 qualifier=f"{service_id}#http_client",
             ).key
             factory = _discovery_handler_factory(settings, self._closeables, client_key)
-        _ = named_factory(factory, f"oidc_token_handler_{service_id}")
+        factory = named_factory(factory, f"oidc_token_handler_{service_id}")
         return services.set(factory, qualifier=service_id).key
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from types import FunctionType
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
@@ -143,6 +144,23 @@ def test_a_static_key_set_registers_no_http_client() -> None:
     )
 
     assert list(recorder.by_qualifier) == ["api_oidc"]
+
+
+def test_the_handler_is_registered_under_a_name_of_its_own() -> None:
+    recorder = _Recorder()
+
+    # The recorder and the absent builder stand in for the container's, of
+    # which the factory reads nothing more than what they answer.
+    _ = OidcTokenHandlerFactory().create(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        "api_oidc",
+        _discovery_config(),
+    )
+
+    registered = recorder.by_qualifier["api_oidc"]
+    assert isinstance(registered, FunctionType)
+    assert registered.__name__ == "oidc_token_handler_api_oidc"
 
 
 def test_the_discovery_fetches_through_the_injected_http_client() -> None:
