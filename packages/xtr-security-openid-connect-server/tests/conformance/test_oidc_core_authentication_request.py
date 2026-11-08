@@ -2,8 +2,9 @@
 
 The first test is a whole sign-in as a client application makes it: the
 repository's own OpenID Connect login, on a second application with a kernel
-of its own, sends the browser to the served provider, and takes it back with
-a code it redeems, an ID token it verifies and a userinfo answer it reads.
+of its own, sends the browser from a page needing a signed-in user to the
+served provider, takes it back with a code it redeems, an ID token it verifies
+and a userinfo answer it reads, and returns it to that page.
 
 The rest drive the authorization endpoint the way a browser would, in the
 deployment each requirement is about: one signing the end-user in with a form,
@@ -26,9 +27,8 @@ from tests.fixtures.openid_app.config import (
     USER_PASSWORD,
     USERINFO_ENV,
 )
-from tests.fixtures.relying_party_app.config import CALLBACK_PATH, HOME_PATH
-from tests.fixtures.relying_party_app.sign_in_step import SIGN_IN_PATH
-from tests.support.relying_party_login import browsing
+from tests.fixtures.relying_party_app.config import ACCOUNT_PATH
+from tests.support.relying_party_login import CLIENT_ORIGIN, browsing
 from tests.support.served import (
     REDIRECT_URI,
     claims_of,
@@ -118,8 +118,9 @@ def _path_and_query(location: str) -> str:
 async def test_a_client_application_signs_its_user_in_with_the_provider() -> None:
     provider_app = served_application(openid_kernel(USERINFO_ENV))
     async with serving(provider_app) as provider, browsing(provider) as browser:
-        # The client sends the browser to the provider's authorization endpoint.
-        sent = await browser.get(SIGN_IN_PATH)
+        # A page of the client's needs a signed-in user, so the client sends
+        # the browser to the provider's authorization endpoint.
+        sent = await browser.get(ACCOUNT_PATH, params={"tab": "1"})
         assert sent.status_code == 302, sent.text
         authorization = sent.headers["location"]
         assert authorization.startswith(f"{ISSUER}/authorize?")
@@ -135,14 +136,15 @@ async def test_a_client_application_signs_its_user_in_with_the_provider() -> Non
         assert back.status_code == 302, back.text
         assert back.headers["location"].startswith(f"{REDIRECT_URI}?")
 
-        # The client redeems the code, verifies the ID token, reads userinfo.
+        # The client redeems the code, verifies the ID token, reads userinfo,
+        # and returns the browser to the page it asked for.
         landed = await browser.get(_path_and_query(back.headers["location"]))
         assert landed.status_code == 302, landed.text
-        assert urlsplit(landed.headers["location"]).path != CALLBACK_PATH
-        home = await browser.get(HOME_PATH)
+        assert landed.headers["location"] == f"{CLIENT_ORIGIN}{ACCOUNT_PATH}?tab=1"
+        page = await browser.get(_path_and_query(landed.headers["location"]))
 
-    assert home.status_code == 200, home.text
-    assert json_of(home) == {"user": USER_IDENTIFIER}
+    assert page.status_code == 200, page.text
+    assert json_of(page) == {"user": USER_IDENTIFIER}
 
 
 # Section 3.1.2.1 — Authentication Request

@@ -75,7 +75,12 @@ def register_refresh_listener(
 
 
 def register_success_handler(services: ServiceConfigurator, firewall_name: str) -> ServiceKey:
-    """Register the default success handler the login answers with."""
+    """Register the default success handler the login answers with.
+
+    The handler knows its firewall, so the page the firewall's entry point
+    saved before sending the caller to the provider is the one the callback
+    returns them to.
+    """
     from xtr_security_http import (  # noqa: PLC0415 -- bare of the oidc extra
         DefaultAuthenticationSuccessHandler,
     )
@@ -83,7 +88,9 @@ def register_success_handler(services: ServiceConfigurator, firewall_name: str) 
     def default_authentication_success_handler(
         http_utils: HttpUtils,
     ) -> DefaultAuthenticationSuccessHandler:
-        return DefaultAuthenticationSuccessHandler(http_utils)
+        handler = DefaultAuthenticationSuccessHandler(http_utils)
+        handler.set_firewall_name(firewall_name)
+        return handler
 
     default_authentication_success_handler.__annotations__ = {
         "http_utils": HttpUtils,

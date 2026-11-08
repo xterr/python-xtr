@@ -7,8 +7,10 @@ token's signature verified with the algorithm the provider signs with. The
 user is read from the provider's userinfo endpoint, so a sign-in crosses every
 endpoint the provider serves.
 
-The home page needs a signed-in user; the sign-in path starts the login, and
-the callback, where the provider sends the browser back, is the login's own.
+The account page needs a signed-in user, so a visit to it starts the login,
+through the firewall's entry point; the callback, where the provider sends the
+browser back, is the login's own, and returns the browser to the page it asked
+for.
 """
 
 from __future__ import annotations
@@ -29,20 +31,18 @@ from tests.fixtures.openid_app.config import ALGORITHM, USER_IDENTIFIER
 from tests.support.served import CLIENT_ID, REDIRECT_URI
 from tests.support.signing import ISSUER
 
-__all__ = ["CALLBACK_PATH", "FIREWALL", "HOME_PATH", "SIGN_IN_STEP", "security"]
+__all__ = ["ACCOUNT_PATH", "CALLBACK_PATH", "FIREWALL", "security"]
 
 #: The firewall the login runs on, which names its services.
 FIREWALL: Final = "main"
-
-#: The chain step starting the login, as the firewall's ``listeners`` names it.
-SIGN_IN_STEP: Final = "relying_party#sign_in"
 
 #: Where the provider sends the browser back: the redirect URI the provider
 #: has registered for the client, served by this application.
 CALLBACK_PATH: Final = urlsplit(REDIRECT_URI).path
 
-#: The page only a signed-in user reaches.
-HOME_PATH: Final = "/"
+#: The page only a signed-in user reaches. Not the root, where the login lands
+#: when no page asked for it, so a return here is the return to the page asked for.
+ACCOUNT_PATH: Final = "/account"
 
 
 @configure
@@ -57,7 +57,6 @@ def security() -> SecurityConfig:
                 pattern=r"^/",
                 stateless=False,
                 provider="users",
-                listeners=(SIGN_IN_STEP,),
                 authenticators=(
                     OidcLoginConfig(
                         issuer=ISSUER,
@@ -69,5 +68,5 @@ def security() -> SecurityConfig:
                 ),
             ),
         },
-        access_control=(AccessControlConfig(path=r"^/$", attribute="IS_AUTHENTICATED"),),
+        access_control=(AccessControlConfig(path=r"^/account", attribute="IS_AUTHENTICATED"),),
     )

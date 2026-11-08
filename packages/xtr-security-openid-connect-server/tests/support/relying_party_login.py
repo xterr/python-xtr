@@ -38,7 +38,7 @@ from xtr_security_http.oauth2.client_authentication import NoClientAuthenticatio
 from xtr_security_http.oidc import OidcClient, OidcDiscovery, OidcSignatureVerifier
 
 from tests.fixtures.openid_app.config import ALGORITHM
-from tests.fixtures.relying_party_app.config import FIREWALL, HOME_PATH
+from tests.fixtures.relying_party_app.config import ACCOUNT_PATH, FIREWALL
 from tests.support.served import CLIENT_ID
 from tests.support.signing import ISSUER
 
@@ -119,11 +119,11 @@ def login_services(
 
 
 def _client_application() -> FastAPI:
-    """Return the client application: a home page naming who signed in."""
+    """Return the client application: an account page naming who signed in."""
     app = FastAPI()
 
-    @app.get(HOME_PATH)
-    async def home(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
+    @app.get(ACCOUNT_PATH)
+    async def account(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
         return {"user": user.get_user_identifier()}
 
     kernel = Kernel(
