@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, Final, cast, final
+from urllib.parse import urlsplit
 
 from xtr_security_core.exception import InvalidArgumentError
 
@@ -80,19 +81,28 @@ class OidcLoginOptions:
     user_data_source: str = "userinfo"
     user_identifier_claim: str = "sub"
     max_age: int | None = None
+    redirect_uri: str | None = None
 
     def __post_init__(self) -> None:
-        """Refuse a PKCE method RFC 7636 does not define.
+        """Refuse a PKCE method RFC 7636 does not define, and a redirect URI that is no URL.
 
         Raises:
             InvalidArgumentError: When ``pkce_method`` names neither
-                ``"S256"`` nor ``"plain"``.
+                ``"S256"`` nor ``"plain"``, or when ``redirect_uri`` is not an
+                absolute ``http`` or ``https`` URL.
         """
         if self.pkce_method not in _PKCE_METHODS:
             raise InvalidArgumentError(
                 f'Invalid PKCE method "{self.pkce_method}": '
                 'RFC 7636 defines "S256" and "plain" only.',
             )
+        if self.redirect_uri is not None:
+            parsed = urlsplit(self.redirect_uri)
+            if parsed.scheme not in {"http", "https"} or parsed.netloc == "":
+                raise InvalidArgumentError(
+                    f'Invalid "redirect_uri" {self.redirect_uri!r}: the provider matches '
+                    "it against the URLs it registered, so it must be an absolute URL.",
+                )
 
     @classmethod
     def merge(cls, options: Mapping[str, object] | None) -> OidcLoginOptions:
@@ -111,6 +121,7 @@ class OidcLoginOptions:
         else:
             parts = ("openid",)
         max_age = given.get("max_age")
+        redirect_uri = given.get("redirect_uri")
         return cls(
             check_path=str(given.get("check_path", cls.CHECK_PATH)),
             firewall_name=str(given.get("firewall_name", cls.FIREWALL_NAME)),
@@ -120,6 +131,7 @@ class OidcLoginOptions:
             user_data_source=str(given.get("user_data_source", "userinfo")),
             user_identifier_claim=str(given.get("user_identifier_claim", "sub")),
             max_age=max_age if isinstance(max_age, int) and not isinstance(max_age, bool) else None,
+            redirect_uri=str(redirect_uri) if redirect_uri is not None else None,
         )
 
     def scopes(self) -> tuple[str, ...]:

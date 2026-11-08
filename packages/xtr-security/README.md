@@ -309,6 +309,14 @@ answers on `check_path` (`/oidc/callback` by default), `scope` adds to the alway
 carries extra parameters — the ones the flow manages, `response_type` through `dpop_jkt`,
 are guarded so no configuration can set them.
 
+The provider is sent an absolute `redirect_uri`, the URL it matches against the ones
+registered for the client. Set `redirect_uri` to that URL — an absolute URL of
+`check_path`, checked at build — and it is sent as it is; left `None`, `check_path` is
+anchored at the scheme and host the request reached the application on. Configure it
+behind a proxy that terminates TLS, or wherever the `Host` header is not to be trusted: a
+forged host only yields a URL the provider has not registered, which it refuses, but the
+configured URL never depends on the request at all.
+
 Three sub-blocks ride on the login. `token_generator` (`OidcTokenGeneratorConfig`) mints
 this application's own tokens through the `security:oidc:generate-token` command — see
 below. `backchannel_logout` and `end_session` wire the provider-pushed logout, documented

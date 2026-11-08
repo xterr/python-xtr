@@ -184,6 +184,7 @@ def _register_authenticator(  # noqa: PLR0913, PLR0917 -- one login from its fir
 
     options = {
         "check_path": settings.check_path,
+        "redirect_uri": settings.redirect_uri,
         "firewall_name": firewall_name,
         "scope": tuple(settings.scope.split()),
         "pkce_enabled": settings.pkce_enabled,

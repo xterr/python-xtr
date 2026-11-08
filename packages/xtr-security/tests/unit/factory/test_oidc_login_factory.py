@@ -274,6 +274,50 @@ async def test_the_registered_factories_build_the_real_services() -> None:
     assert isinstance(authenticator, OidcLoginAuthenticator)
 
 
+async def _built_login(config: OidcLoginConfig) -> object:
+    """Build the login authenticator ``config`` registers, over stand-in collaborators."""
+    from xtr_security_http import HttpUtils
+
+    services = _create(config)
+    stand_in = object()
+    return await _async(services.by_qualifier["api"])(
+        http_utils=HttpUtils(ResponseFactory()),
+        provider=stand_in,
+        client=stand_in,
+        discovery=stand_in,
+        id_token=stand_in,
+        success=stand_in,
+        failure=stand_in,
+        clock=None,
+        dispatcher=None,
+    )
+
+
+async def test_a_configured_redirect_uri_reaches_the_login() -> None:
+    from xtr_security_http.authenticator.oidc_login_authenticator import OidcLoginAuthenticator
+
+    configured = OidcLoginConfig(
+        issuer="https://issuer.example",
+        client_id="shop",
+        client_secret="secret",
+        redirect_uri="https://shop.example/oidc/callback",
+    )
+
+    authenticator = await _built_login(configured)
+
+    assert isinstance(authenticator, OidcLoginAuthenticator)
+    assert authenticator._options.redirect_uri == "https://shop.example/oidc/callback"
+
+
+async def test_without_a_redirect_uri_the_login_anchors_its_check_path() -> None:
+    from xtr_security_http.authenticator.oidc_login_authenticator import OidcLoginAuthenticator
+
+    authenticator = await _built_login(_login())
+
+    assert isinstance(authenticator, OidcLoginAuthenticator)
+    assert authenticator._options.redirect_uri is None
+
+
 async def test_the_client_authenticates_by_the_configured_method() -> None:
     """A secret-bearing method builds the client without touching the provider."""
     services = _create(_login(token_endpoint_auth_method="client_secret_post"))

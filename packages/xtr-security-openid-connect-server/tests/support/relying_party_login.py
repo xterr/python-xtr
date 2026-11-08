@@ -14,9 +14,6 @@ signed. Only the readers that would open a network connection — the discovery
 reader, the protocol client and the signature verifier — are swapped for ones
 built over that client; the authenticator, its session, its ``state``, its
 ``nonce`` and its checks are the application's own.
-
-The application writes its URIs absolute, as one that sends a redirect URI to
-another host has to: the redirect URI it registered at the provider is a URL.
 """
 
 from __future__ import annotations
@@ -32,13 +29,11 @@ from xtr_cache import ArrayAdapter
 from xtr_dependency_injection import Kernel
 from xtr_http_client import MockHttpClient
 from xtr_http_client.response import MockResponse
-from xtr_http_kernel.bridge import ResponseFactory
 from xtr_http_kernel.setup import setup
 from xtr_http_kernel.testing import override_services
 from xtr_security.bundle import SecurityBundle
 from xtr_security_core.user.user_interface import UserInterface
 from xtr_security_http import CurrentUser
-from xtr_security_http.http_utils import HttpUtils
 from xtr_security_http.oauth2.client_authentication import NoClientAuthentication
 from xtr_security_http.oidc import OidcClient, OidcDiscovery, OidcSignatureVerifier
 
@@ -93,11 +88,6 @@ def forwarding_client(provider: httpx.AsyncClient) -> MockHttpClient:
     return MockHttpClient(answer, base_uri=ISSUER)
 
 
-def _absolute(path: str) -> str:
-    """Return the URL ``path`` names on the client application's origin."""
-    return f"{CLIENT_ORIGIN}{path}"
-
-
 def login_services(
     provider: httpx.AsyncClient,
 ) -> Mapping[type | tuple[type, Hashable], object]:
@@ -107,13 +97,11 @@ def login_services(
     the firewall, so each replaces the reader that would otherwise open a
     connection to the issuer. The signature verifier keeps its default, strict
     key usage: only keys the provider marked for signatures verify anything.
-    The redirect helper writes absolute URIs.
     """
     client = forwarding_client(provider)
     discovery = OidcDiscovery(client, ArrayAdapter(), issuer=ISSUER)
 
     return {
-        HttpUtils: HttpUtils(ResponseFactory(), uri_builder=_absolute),
         (OidcDiscovery, f"{FIREWALL}#oidc_discovery"): discovery,
         (OidcClient, f"{FIREWALL}#oidc_client"): OidcClient(
             client,

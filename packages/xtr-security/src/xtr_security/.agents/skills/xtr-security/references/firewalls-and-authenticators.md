@@ -185,6 +185,11 @@ provider's keys, and `None` reads its claims without verifying. The callback ans
 `max_age` bounds how old an authentication may be, and `authorization_params` carries extra
 parameters — the ones the flow manages are guarded so no configuration can set them.
 
+The provider is sent an absolute `redirect_uri`. `redirect_uri=None` (the default) anchors
+`check_path` at the scheme and host the request reached; an absolute URL of `check_path`
+(`redirect_uri="https://shop.example/oidc/callback"`, checked at build) is sent as it is —
+the setting for a deployment behind a TLS-terminating proxy or with an untrusted `Host`.
+
 Three sub-blocks ride on the login:
 
 - `token_generator` (`OidcTokenGeneratorConfig(algorithms, keyset, audience, issuers, claim)`)

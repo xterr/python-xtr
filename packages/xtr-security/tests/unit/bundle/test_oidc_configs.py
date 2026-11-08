@@ -25,6 +25,51 @@ def test_a_login_needs_its_client_id() -> None:
         _ = OidcLoginConfig(issuer="https://issuer.example", client_id="")
 
 
+def test_a_login_refuses_a_redirect_uri_that_is_no_absolute_url() -> None:
+    with pytest.raises(InvalidConfigurationError, match="absolute URL"):
+        _ = OidcLoginConfig(
+            issuer="https://issuer.example",
+            client_id="shop",
+            client_secret="secret",
+            redirect_uri="/oidc/callback",
+        )
+
+
+def test_a_login_refuses_a_redirect_uri_off_its_check_path() -> None:
+    with pytest.raises(InvalidConfigurationError, match="check_path"):
+        _ = OidcLoginConfig(
+            issuer="https://issuer.example",
+            client_id="shop",
+            client_secret="secret",
+            redirect_uri="https://shop.example/elsewhere",
+        )
+
+
+def test_a_redirect_uri_on_the_check_path_is_kept() -> None:
+    config = OidcLoginConfig(
+        issuer="https://issuer.example",
+        client_id="shop",
+        client_secret="secret",
+        check_path="/callback",
+        redirect_uri="https://shop.example/callback",
+    )
+
+    assert config.redirect_uri == "https://shop.example/callback"
+
+
+def test_a_redirect_uri_may_be_read_from_the_environment() -> None:
+    config = OidcLoginConfig(
+        issuer="https://issuer.example",
+        client_id="shop",
+        client_secret="secret",
+        redirect_uri=env("OIDC_REDIRECT_URI"),
+    )
+
+    built = resolved(config, {"OIDC_REDIRECT_URI": "https://shop.example/oidc/callback"})
+
+    assert built.redirect_uri == "https://shop.example/oidc/callback"
+
+
 def test_a_login_refuses_an_unknown_endpoint_authentication_method() -> None:
     with pytest.raises(InvalidConfigurationError):
         _ = OidcLoginConfig(

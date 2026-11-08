@@ -19,6 +19,7 @@ from xtr_http_client import MockHttpClient
 from xtr_http_client.response import MockResponse
 from xtr_http_foundation import MemorySessionStorage, Session
 from xtr_http_kernel.bridge import ResponseFactory
+from xtr_http_message import ServerRequest
 from xtr_security_core.authentication.authentication_method import AuthenticationMethod
 from xtr_security_core.authentication.token.abstract_token import AbstractToken
 from xtr_security_core.authentication.token.null_token import NullToken
@@ -63,6 +64,7 @@ _FROZEN = datetime.fromtimestamp(_NOW, tz=UTC)
 _AUTHORIZATION_ENDPOINT = "https://issuer.example/authorize"
 _JWKS_URI = "https://issuer.example/jwks"
 _PREFIX = "_security.oidc_login.main."
+_CALLBACK_URI = "https://example.com/oidc/callback"
 
 pytestmark = pytest.mark.anyio
 
@@ -322,11 +324,12 @@ def _session() -> Session:
     return Session(MemorySessionStorage())
 
 
-def _request(
+def _request(  # noqa: PLR0913 -- a test builder, naming every part of a request it can shape
     session: Session,
     *,
     method: str = "GET",
     path: str = _CHECK_PATH,
+    host: str = "example.com",
     query: str = "",
     parsed_body: object | None = None,
 ) -> ServerRequestInterface:
@@ -335,6 +338,7 @@ def _request(
     message = make_message(
         method=method,
         path=path,
+        host=host,
         query=query,
         parsed_body=parsed_body,
     ).with_attribute(SecurityRequestAttributes.STATE_BAG, bag)
@@ -342,20 +346,21 @@ def _request(
     return message
 
 
-def _authenticator(
+def _authenticator(  # noqa: PLR0913 -- a test builder, naming every collaborator it can swap
     client: OidcClientInterface,
     *,
     options: Mapping[str, object] | None = None,
     authorization_params: Mapping[str, str] | None = None,
     signature_verifier: OidcSignatureVerifier | None = None,
     dispatcher: EventDispatcherInterface | None = None,
+    http_utils: HttpUtils | None = None,
 ) -> tuple[OidcLoginAuthenticator, _Provider, _Success, _Failure]:
     """An authenticator over the scripted client and the test discovery."""
     provider = _Provider()
     success = _Success()
     failure = _Failure()
     authenticator = OidcLoginAuthenticator(
-        HttpUtils(ResponseFactory()),
+        http_utils if http_utils is not None else HttpUtils(ResponseFactory()),
         provider,
         client,
         _discovery(),
@@ -448,6 +453,13 @@ def test_the_dpop_thumbprint_is_managed_though_no_proof_factory_exists() -> None
         _ = _authenticator(_ScriptedClient(), authorization_params={"dpop_jkt": "a-thumbprint"})
 
 
+def test_a_redirect_uri_that_is_no_absolute_url_is_refused() -> None:
+    with pytest.raises(InvalidArgumentError) as raised:
+        _ = _authenticator(_ScriptedClient(), options={"redirect_uri": "/oidc/callback"})
+
+    assert '"redirect_uri"' in str(raised.value)
+
+
 # ---- supports ----
 
 
@@ -517,7 +529,7 @@ async def test_start_sends_the_managed_parameters() -> None:
 
     assert params["response_type"] == "code"
     assert params["client_id"] == _CLIENT_ID
-    assert params["redirect_uri"] == _CHECK_PATH
+    assert params["redirect_uri"] == _CALLBACK_URI
     assert params["scope"] == "openid"
     assert len(params["state"]) == 64
     assert int(params["state"], 16) >= 0  # hex-encoded random bytes
@@ -533,9 +545,56 @@ async def test_start_stores_the_attempt_in_the_session() -> None:
     attempt = await session.get(f"{_PREFIX}attempt.{params['state']}")
     assert isinstance(attempt, dict)
     assert attempt["nonce"] == params["nonce"]
-    assert attempt["redirect_uri"] == _CHECK_PATH
+    assert attempt["redirect_uri"] == _CALLBACK_URI
     verifier = cast("str", attempt["code_verifier"])
     assert len(verifier) == 64
+
+
+async def test_the_redirect_uri_keeps_the_port_the_request_reached() -> None:
+    authenticator, *_rest = _authenticator(_ScriptedClient())
+
+    response = await authenticator.start(_request(_session(), path="/", host="example.com:8443"))
+
+    assert _params_of(response)["redirect_uri"] == "https://example.com:8443/oidc/callback"
+
+
+async def test_a_request_naming_no_host_leaves_the_redirect_uri_a_path() -> None:
+    authenticator, *_rest = _authenticator(_ScriptedClient())
+    bag: dict[str, object] = {}
+    request = ServerRequest("GET", "/").with_attribute(SecurityRequestAttributes.STATE_BAG, bag)
+    security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = _session()
+
+    response = await authenticator.start(request)
+
+    assert _params_of(response)["redirect_uri"] == _CHECK_PATH
+
+
+async def test_an_absolute_uri_the_uri_builder_writes_is_sent_as_it_is() -> None:
+    http_utils = HttpUtils(
+        ResponseFactory(),
+        uri_builder=lambda path: f"https://app.example{path}",
+    )
+    authenticator, *_rest = _authenticator(_ScriptedClient(), http_utils=http_utils)
+
+    params = _params_of(await _start(authenticator, _session()))
+
+    assert params["redirect_uri"] == "https://app.example/oidc/callback"
+
+
+async def test_a_configured_redirect_uri_is_sent_and_stored_as_it_is() -> None:
+    configured = "https://app.example/oidc/callback"
+    authenticator, *_rest = _authenticator(
+        _ScriptedClient(),
+        options={"redirect_uri": configured},
+    )
+    session = _session()
+
+    params = _params_of(await _start(authenticator, session))
+
+    assert params["redirect_uri"] == configured
+    attempt = await session.get(f"{_PREFIX}attempt.{params['state']}")
+    assert isinstance(attempt, dict)
+    assert attempt["redirect_uri"] == configured
 
 
 async def test_the_pkce_challenge_is_s256_of_the_verifier() -> None:
@@ -813,7 +872,7 @@ async def test_a_callback_is_consumed_end_to_end() -> None:
 
     passport, _state = await _login(authenticator, client, session)
 
-    assert client.exchanges[0][:2] == ("the-code", _CHECK_PATH)
+    assert client.exchanges[0][:2] == ("the-code", _CALLBACK_URI)
     assert client.exchanges[0][2] is not None
     assert client.user_info_calls == ["at-1"]
     token_data = passport.get_attribute("oidc_token_data")

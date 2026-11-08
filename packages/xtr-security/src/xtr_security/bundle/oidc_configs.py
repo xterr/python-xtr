@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence  # noqa: TC003 -- field types read at runtime
 from dataclasses import dataclass, field
 from typing import Literal
+from urllib.parse import urlsplit
 
 from xtr_dependency_injection.config.env_placeholder import env_placeholders_in
 
@@ -205,6 +206,12 @@ class OidcLoginConfig:
         scope: The scopes asked of the provider, space-separated; ``openid``
             is always asked beside them.
         check_path: The path the provider redirects the login back to.
+        redirect_uri: The absolute URL of ``check_path`` the provider is sent
+            as the redirect URI — the one registered for the client — or
+            ``None`` to anchor ``check_path`` at the origin each request
+            reached. Set it when the request does not carry the public
+            origin (behind a proxy terminating TLS) or its ``Host`` is not
+            trusted.
         pkce_enabled: Whether the login proves its code with a PKCE verifier.
         pkce_method: The PKCE challenge method, ``"S256"`` or ``"plain"``.
         user_data_source: Where the user is read from — the userinfo endpoint
@@ -233,7 +240,8 @@ class OidcLoginConfig:
     Raises:
         InvalidConfigurationError: When the issuer or client is missing, when
             a secret-bearing method has no secret or a public one does, or
-            when the PKCE method or the user-data source is unknown.
+            when the PKCE method or the user-data source is unknown, or the
+            redirect URI is no absolute URL of ``check_path``.
     """
 
     issuer: str
@@ -242,6 +250,7 @@ class OidcLoginConfig:
     token_endpoint_auth_method: TokenEndpointAuthMethod = "client_secret_basic"  # noqa: S105 -- a method name, not a secret
     scope: str = "openid"
     check_path: str = "/oidc/callback"
+    redirect_uri: str | None = None
     pkce_enabled: bool = True
     pkce_method: str = "S256"
     user_data_source: str = "userinfo"
@@ -296,4 +305,28 @@ class OidcLoginConfig:
             raise InvalidConfigurationError(
                 f"Unknown user data source {self.user_data_source!r}; "
                 f"known are {sorted(_KNOWN_USER_DATA_SOURCES)}.",
+            )
+        self._check_redirect_uri()
+
+    def _check_redirect_uri(self) -> None:
+        """Check the redirect URI is an absolute URL the login answers on.
+
+        The provider matches it against the URLs registered for the client,
+        and the callback it sends is matched against ``check_path``: a
+        relative one is refused by the first, another path never reaches the
+        second.
+        """
+        uri = self.redirect_uri
+        if uri is None or _waits_on_the_environment(uri):
+            return
+        parsed = urlsplit(uri)
+        if parsed.scheme not in {"http", "https"} or parsed.netloc == "":
+            raise InvalidConfigurationError(
+                f"The OIDC redirect URI {uri!r} is not an absolute URL; the provider "
+                "matches it against the URLs registered for the client.",
+            )
+        if not _waits_on_the_environment(self.check_path) and parsed.path != self.check_path:
+            raise InvalidConfigurationError(
+                f"The OIDC redirect URI {uri!r} does not name the check_path "
+                f"{self.check_path!r} the login answers the callback on.",
             )
