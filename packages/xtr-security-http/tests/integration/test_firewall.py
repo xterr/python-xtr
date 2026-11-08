@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 import pytest
+from typing_extensions import override
 from xtr_event_dispatcher import EventDispatcher
 from xtr_http_foundation import MemorySessionStorage, PathRequestMatcher, Session
 from xtr_http_kernel import ExceptionEvent, FinishRequestEvent, RequestEvent
@@ -23,14 +24,20 @@ from xtr_security_core.authentication.authentication_trust_resolver import (
 )
 from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
 from xtr_security_core.authorization import AccessDecisionManager, RoleVoter
-from xtr_security_core.exception import AccessDeniedError
+from xtr_security_core.authorization.access_decision import AccessDecision
+from xtr_security_core.authorization.voter.access import Access
+from xtr_security_core.authorization.voter.vote import Vote
+from xtr_security_core.exception import AccessDeniedError, AuthenticationError
 from xtr_security_core.user import InMemoryUser
 
 from tests.support.contexts import FakeFirewallContext
 from tests.support.messages import make_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.access_map import AccessMap
+from xtr_security_http.authenticator.form_login_authenticator import FormLoginAuthenticator
 from xtr_security_http.authenticator.token import PostAuthenticationToken
+from xtr_security_http.exception import MissingSessionError
+from xtr_security_http.firewall.abstract_listener import AbstractListener
 from xtr_security_http.firewall.access_listener import AccessListener
 from xtr_security_http.firewall.authenticator_manager_listener import (
     AuthenticatorManagerListener,
@@ -38,14 +45,19 @@ from xtr_security_http.firewall.authenticator_manager_listener import (
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 from xtr_security_http.firewall.firewall import Firewall
 from xtr_security_http.firewall_map import FirewallMap
+from xtr_security_http.http_utils import HttpUtils
 from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
+    from xtr_security_core.user.user_interface import UserInterface
 
     from xtr_security_http._security_state import SecurityState
+    from xtr_security_http.entry_point.authentication_entry_point_interface import (
+        AuthenticationEntryPointInterface,
+    )
 
 pytestmark = pytest.mark.anyio
 
@@ -341,3 +353,140 @@ async def test_a_response_from_the_manager_step_short_circuits_the_chain() -> No
         SecurityRequestAttributes.ACCESS_CONTROL_ATTRIBUTES not in security_state_of(bag).attributes
     )
     assert token_storage.get_token() is None
+
+
+class _UserProvider:
+    """Hands back a user for any identifier; the denial tests never load one."""
+
+    async def load_user_by_identifier(self, identifier: str) -> UserInterface:
+        return InMemoryUser(identifier)
+
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        return user
+
+    def supports_class(self, user_class: type) -> bool:
+        del user_class
+        return True
+
+
+class _UnusedHandler:
+    """A success and failure handler the denial tests never reach."""
+
+    async def on_authentication_success(
+        self, request: ServerRequestInterface, token: TokenInterface
+    ) -> ResponseInterface | None:
+        del request, token
+        raise AssertionError("no login happens in a denial")
+
+    async def on_authentication_failure(
+        self, request: ServerRequestInterface, error: AuthenticationError
+    ) -> ResponseInterface:
+        del request, error
+        raise AssertionError("no login happens in a denial")
+
+
+@final
+class _SessionRequiringEntryPoint:
+    """Starts a login only over a session, refusing a request without one, as OIDC does."""
+
+    async def start(
+        self,
+        request: ServerRequestInterface,
+        error: AuthenticationError | None = None,
+    ) -> ResponseInterface:
+        del error
+        if parked_session_of(request) is None:
+            raise MissingSessionError("The login keeps its state in the session.")
+        return ResponseFactory().create_response(302).with_header("location", "/provider")
+
+
+@final
+class _DenyingStep(AbstractListener):
+    """Parks the request's session and token, the way the context step does, then denies."""
+
+    def __init__(
+        self, session: Session, error: AccessDeniedError, token: TokenInterface | None
+    ) -> None:
+        self._session = session
+        self._error = error
+        self._token = token
+
+    @override
+    async def supports(self, request: ServerRequestInterface) -> bool | None:
+        return True
+
+    @override
+    async def authenticate(self, request_event: RequestEvent) -> None:
+        state = security_state_of(request_event.state)
+        state.attributes[SecurityRequestAttributes.SESSION] = self._session
+        state.token = self._token
+        raise self._error
+
+
+def _stateful_firewall(
+    entry_point: AuthenticationEntryPointInterface, step: _DenyingStep
+) -> FirewallMap:
+    """Return a map of one stateful firewall whose chain denies through ``step``."""
+    return FirewallMap(
+        [
+            (
+                PathRequestMatcher("^/"),
+                FakeFirewallContext(
+                    name="main",
+                    authenticator_manager=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                    access_listener=object(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                    listeners=(step,),
+                    exception_listener=ExceptionListener(
+                        TokenStorage(),
+                        AuthenticationTrustResolver(),
+                        ResponseFactory(),
+                        StarletteHttpFactory(),
+                        "main",
+                        entry_point=entry_point,
+                        stateless=False,
+                    ),
+                ),
+            ),
+        ],
+    )
+
+
+async def test_a_denied_anonymous_caller_is_started_over_the_requests_session() -> None:
+    """An entry point keeping its state in the session finds the one the chain parked."""
+    session = Session(MemorySessionStorage())
+    step = _DenyingStep(session, AccessDeniedError(attributes=("ROLE_USER",)), None)
+    dispatcher = _dispatcher(_stateful_firewall(_SessionRequiringEntryPoint(), step))
+    event = RequestEvent(make_message(path="/account"), {})
+
+    _ = await dispatcher.dispatch(event)
+
+    assert event.response is not None
+    assert event.response.status_code == 302
+    assert event.response.headers["location"] == "/provider"
+
+
+async def test_a_re_authentication_keeps_the_identifier_on_the_requests_session() -> None:
+    """The form login asked to re-authenticate keeps the identifier for the form."""
+    session = Session(MemorySessionStorage())
+    vote = Vote(result=Access.DENIED)
+    vote.request_re_authentication("IS_AUTHENTICATED_RECENTLY")
+    denial = AccessDeniedError(
+        attributes=("IS_AUTHENTICATED_RECENTLY",),
+        access_decision=AccessDecision(is_granted=False, votes=[vote]),
+    )
+    token = PostAuthenticationToken(InMemoryUser("alice"), "main", ["ROLE_USER"])
+    form_login = FormLoginAuthenticator(
+        HttpUtils(ResponseFactory()),
+        _UserProvider(),
+        _UnusedHandler(),
+        _UnusedHandler(),
+        {"login_path": "/login"},
+    )
+    dispatcher = _dispatcher(_stateful_firewall(form_login, _DenyingStep(session, denial, token)))
+    event = RequestEvent(make_message(path="/account"), {})
+
+    _ = await dispatcher.dispatch(event)
+
+    assert event.response is not None
+    assert event.response.headers["location"] == "/login"
+    assert await session.get(SecurityRequestAttributes.LAST_USERNAME) == "alice"

@@ -37,6 +37,7 @@ from xtr_security_http.entry_point.fallback_authentication_entry_point_interface
 )
 from xtr_security_http.exception import InvalidAccessTokenError, LogoutError
 from xtr_security_http.firewall.exception_listener import ExceptionListener
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 from xtr_security_http.util.target_path import get_target_path
 
@@ -144,6 +145,33 @@ class _DualEntryPoint:
     ) -> ResponseInterface:
         self.started = (request, token)
         return ResponseFactory().create_response(401)
+
+
+@final
+class _SessionReadingEntryPoint:
+    """Records the session it finds parked on the requests it is started with."""
+
+    def __init__(self) -> None:
+        self.started_with: list[Session | None] = []
+        self.re_authenticated_with: list[Session | None] = []
+
+    async def start(
+        self,
+        request: ServerRequestInterface,
+        error: AuthenticationError | None = None,
+    ) -> ResponseInterface:
+        del error
+        self.started_with.append(parked_session_of(request))
+        return ResponseFactory().create_response(302)
+
+    async def start_re_authentication(
+        self,
+        request: ServerRequestInterface,
+        token: TokenInterface,
+    ) -> ResponseInterface:
+        del token
+        self.re_authenticated_with.append(parked_session_of(request))
+        return ResponseFactory().create_response(302)
 
 
 @final
@@ -357,6 +385,41 @@ async def test_a_fallback_entry_point_gets_no_target_path_saved() -> None:
     await _listener(stateless=False, entry_point=_FallbackEntryPoint()).on_exception(event)
 
     assert await get_target_path(session, "api") is None
+
+
+async def test_the_entry_point_reads_the_session_the_request_carries() -> None:
+    session = Session(MemorySessionStorage())
+    entry_point = _SessionReadingEntryPoint()
+    event, state = _state(BadCredentialsError())
+    state.attributes[SecurityRequestAttributes.SESSION] = session
+
+    await _listener(stateless=False, entry_point=entry_point).on_exception(event)
+
+    assert entry_point.started_with == [session]
+
+
+async def test_a_denial_starts_the_entry_point_over_the_session_the_request_carries() -> None:
+    session = Session(MemorySessionStorage())
+    entry_point = _SessionReadingEntryPoint()
+    event, state = _state(AccessDeniedError(attributes=("ROLE_ADMIN",)))
+    state.attributes[SecurityRequestAttributes.SESSION] = session
+
+    await _listener(stateless=False, entry_point=entry_point).on_exception(event)
+
+    assert entry_point.started_with == [session]
+
+
+async def test_a_re_authentication_reads_the_session_the_request_carries() -> None:
+    session = Session(MemorySessionStorage())
+    entry_point = _SessionReadingEntryPoint()
+    bag: dict[str, object] = {}
+    _full_fledged(bag)
+    security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = session
+    event = _event(_recency_denial(), bag)
+
+    await _listener(stateless=False, entry_point=entry_point).on_exception(event)
+
+    assert entry_point.re_authenticated_with == [session]
 
 
 async def test_an_account_status_error_clears_the_token() -> None:
