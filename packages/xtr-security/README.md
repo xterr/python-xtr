@@ -317,6 +317,11 @@ behind a proxy that terminates TLS, or wherever the `Host` header is not to be t
 forged host only yields a URL the provider has not registered, which it refuses, but the
 configured URL never depends on the request at all.
 
+A callback that fails — a refusal the provider sent back, a `state` matching no pending
+attempt, an ID token that does not check out — is redirected to `failure_path`, an absolute
+path checked at build. Left `None`, it goes to the failure handler's default login page,
+`/login`: an application that signs in with OIDC alone names a page of its own there.
+
 Every request the login sends the provider — the discovery, the code exchange, the
 userinfo and the key fetch — goes through one HTTP client, a service of its own:
 `HttpClientInterface` qualified `<firewall>#oidc_http_client`, an `HttpxHttpClient` with a

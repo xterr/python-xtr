@@ -365,6 +365,42 @@ async def test_without_a_redirect_uri_the_login_anchors_its_check_path() -> None
     assert authenticator._options.redirect_uri is None
 
 
+async def _failed_login_sent_to(config: OidcLoginConfig) -> str:
+    """Return where the failure handler ``config`` registers sends a failed callback."""
+    from xtr_security_core.exception import AuthenticationError
+    from xtr_security_http import DefaultAuthenticationFailureHandler, HttpUtils
+
+    from tests.support.messages import make_message
+
+    services = _create(config)
+    failure = services.by_qualifier["api#oidc_failure_handler"](
+        http_utils=HttpUtils(ResponseFactory()),
+    )
+    assert isinstance(failure, DefaultAuthenticationFailureHandler)
+
+    answered = await failure.on_authentication_failure(
+        make_message(path="/oidc/callback"),
+        AuthenticationError("Invalid OIDC state parameter."),
+    )
+
+    return answered.get_header_line("location")
+
+
+async def test_a_failed_login_is_sent_to_the_configured_failure_path() -> None:
+    configured = OidcLoginConfig(
+        issuer="https://issuer.example",
+        client_id="shop",
+        client_secret="secret",
+        failure_path="/sign-in-failed",
+    )
+
+    assert await _failed_login_sent_to(configured) == "/sign-in-failed"
+
+
+async def test_without_a_failure_path_a_failed_login_is_sent_to_the_login_page() -> None:
+    assert await _failed_login_sent_to(_login()) == "/login"
+
+
 async def test_the_client_authenticates_by_the_configured_method() -> None:
     """A secret-bearing method builds the client without touching the provider."""
     services = _create(_login(token_endpoint_auth_method="client_secret_post"))

@@ -70,6 +70,29 @@ def test_a_redirect_uri_may_be_read_from_the_environment() -> None:
     assert built.redirect_uri == "https://shop.example/oidc/callback"
 
 
+def test_a_login_refuses_a_failure_path_that_is_no_absolute_path() -> None:
+    with pytest.raises(InvalidConfigurationError, match="not an absolute path"):
+        _ = OidcLoginConfig(
+            issuer="https://issuer.example",
+            client_id="shop",
+            client_secret="secret",
+            failure_path="sign-in-failed",
+        )
+
+
+def test_a_failure_path_may_be_read_from_the_environment() -> None:
+    config = OidcLoginConfig(
+        issuer="https://issuer.example",
+        client_id="shop",
+        client_secret="secret",
+        failure_path=env("OIDC_FAILURE_PATH"),
+    )
+
+    built = resolved(config, {"OIDC_FAILURE_PATH": "/sign-in-failed"})
+
+    assert built.failure_path == "/sign-in-failed"
+
+
 def test_a_login_refuses_an_unknown_endpoint_authentication_method() -> None:
     with pytest.raises(InvalidConfigurationError):
         _ = OidcLoginConfig(
@@ -154,6 +177,7 @@ def test_a_login_keeps_its_fields() -> None:
         token_endpoint_auth_method="client_secret_post",
         scope="openid profile",
         check_path="/login/oidc/check",
+        failure_path="/login/oidc/failed",
         pkce_enabled=False,
         user_data_source="id_token",
         user_identifier_claim="preferred_username",
@@ -171,6 +195,7 @@ def test_a_login_keeps_its_fields() -> None:
     assert config.token_endpoint_auth_method == "client_secret_post"
     assert config.scope == "openid profile"
     assert config.check_path == "/login/oidc/check"
+    assert config.failure_path == "/login/oidc/failed"
     assert config.pkce_enabled is False
     assert config.user_data_source == "id_token"
     assert config.user_identifier_claim == "preferred_username"
@@ -192,6 +217,7 @@ def test_a_login_defaults_to_the_documented_choices() -> None:
     assert config.token_endpoint_auth_method == "client_secret_basic"
     assert config.scope == "openid"
     assert config.check_path == "/oidc/callback"
+    assert config.failure_path is None
     assert config.pkce_enabled is True
     assert config.pkce_method == "S256"
     assert config.user_data_source == "userinfo"

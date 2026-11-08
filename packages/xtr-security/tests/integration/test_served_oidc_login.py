@@ -27,7 +27,7 @@ from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_kernel.testing import override_services
 
 from tests.fixtures.oidc_login_app.app import app
-from tests.fixtures.oidc_login_app.config import CLIENT_ID, ISSUER
+from tests.fixtures.oidc_login_app.config import CLIENT_ID, FAILURE_PATH, ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -148,3 +148,18 @@ async def test_a_login_started_from_a_denied_page_returns_to_that_page(
 
     assert landed.status_code == 302, landed.text
     assert landed.headers["location"] == f"{_ORIGIN}/account/profile?tab=1"
+
+
+async def test_a_callback_failing_its_state_check_is_sent_to_the_failure_path(
+    browser: httpx.AsyncClient,
+    provider: _Provider,
+) -> None:
+    asked = _asked_of_the_provider(await browser.get("/account/profile"))
+
+    refused = await browser.get(
+        "/oidc/callback",
+        params={"code": provider.issue_code(asked["nonce"]), "state": f"{asked['state']}-tampered"},
+    )
+
+    assert refused.status_code == 302, refused.text
+    assert refused.headers["location"] == FAILURE_PATH

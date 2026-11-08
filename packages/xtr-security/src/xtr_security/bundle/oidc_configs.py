@@ -212,6 +212,11 @@ class OidcLoginConfig:
             reached. Set it when the request does not carry the public
             origin (behind a proxy terminating TLS) or its ``Host`` is not
             trusted.
+        failure_path: The path a callback that fails is redirected to — a
+            refusal the provider sent back, or a callback failing the
+            login's checks — or ``None`` for the failure handler's default
+            login page, ``/login``. Name a page of the application's own
+            when it signs in with nothing else.
         pkce_enabled: Whether the login proves its code with a PKCE verifier.
         pkce_method: The PKCE challenge method, ``"S256"`` or ``"plain"``.
         user_data_source: Where the user is read from — the userinfo endpoint
@@ -240,8 +245,9 @@ class OidcLoginConfig:
     Raises:
         InvalidConfigurationError: When the issuer or client is missing, when
             a secret-bearing method has no secret or a public one does, or
-            when the PKCE method or the user-data source is unknown, or the
-            redirect URI is no absolute URL of ``check_path``.
+            when the PKCE method or the user-data source is unknown, the
+            redirect URI is no absolute URL of ``check_path``, or the failure
+            path is not an absolute path.
     """
 
     issuer: str
@@ -251,6 +257,7 @@ class OidcLoginConfig:
     scope: str = "openid"
     check_path: str = "/oidc/callback"
     redirect_uri: str | None = None
+    failure_path: str | None = None
     pkce_enabled: bool = True
     pkce_method: str = "S256"
     user_data_source: str = "userinfo"
@@ -307,6 +314,7 @@ class OidcLoginConfig:
                 f"known are {sorted(_KNOWN_USER_DATA_SOURCES)}.",
             )
         self._check_redirect_uri()
+        self._check_failure_path()
 
     def _check_redirect_uri(self) -> None:
         """Check the redirect URI is an absolute URL the login answers on.
@@ -329,4 +337,13 @@ class OidcLoginConfig:
             raise InvalidConfigurationError(
                 f"The OIDC redirect URI {uri!r} does not name the check_path "
                 f"{self.check_path!r} the login answers the callback on.",
+            )
+
+    def _check_failure_path(self) -> None:
+        """Refuse a failure path that is not an absolute path: no routing resolves a name here."""
+        path = self.failure_path
+        if path is not None and not _waits_on_the_environment(path) and not path.startswith("/"):
+            raise InvalidConfigurationError(
+                f"The OIDC failure path {path!r} is not an absolute path; route names "
+                "are not supported, only literal paths.",
             )

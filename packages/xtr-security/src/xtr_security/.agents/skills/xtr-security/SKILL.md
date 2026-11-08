@@ -173,7 +173,9 @@ The provider is discovered from `issuer`, PKCE is on (`S256`) by default, and th
 from the `userinfo` endpoint or the `id_token` claims by `user_data_source`. The callback
 answers on `check_path` (`/oidc/callback`); the provider is sent it as an absolute
 `redirect_uri`, anchored at the request's scheme and host unless `redirect_uri` names the
-registered URL outright — set it behind a TLS-terminating proxy or an untrusted `Host`. On a
+registered URL outright — set it behind a TLS-terminating proxy or an untrusted `Host`. A
+callback that fails is sent to `failure_path` — `/login` when it is `None`, so an application
+signing in with OIDC alone names a page of its own. On a
 stateless firewall the login fails at use with `MissingSessionError`, not at build — its
 pending attempts live in the session. A
 `token_generator` block makes this application's own tokens mintable through

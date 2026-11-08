@@ -190,6 +190,12 @@ The provider is sent an absolute `redirect_uri`. `redirect_uri=None` (the defaul
 (`redirect_uri="https://shop.example/oidc/callback"`, checked at build) is sent as it is —
 the setting for a deployment behind a TLS-terminating proxy or with an untrusted `Host`.
 
+A callback that fails — the provider's refusal, a `state` matching no pending attempt, an ID
+token that does not check out — is redirected to `failure_path` (an absolute path, checked at
+build); `failure_path=None` (the default) sends it to the failure handler's login page,
+`/login`. An application signing in with OIDC alone sets `failure_path="/sign-in-failed"`, or
+any page of its own.
+
 The provider is reached through one HTTP client, the service `HttpClientInterface` qualified
 `<firewall>#oidc_http_client` (an `HttpxHttpClient`, 10-second timeout, built on first use):
 override it — `overrides={(HttpClientInterface, "main#oidc_http_client"): client}` — and the

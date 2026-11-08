@@ -4,7 +4,8 @@ A stateful ``main`` firewall on ``^/`` signs its users in with an OIDC login,
 its callback on the login's default path. The account pages need a signed-in
 user, so an anonymous visit to one is sent to the provider. The provider is
 the test's to stand up, behind the HTTP client the bundle registers for the
-firewall.
+firewall. The application signs in with nothing else, so a callback that fails
+is sent to a page of its own rather than to a login page it does not have.
 
 The client is confidential and its ID token comes straight from the token
 endpoint, so the login reads the token's claims without verifying its
@@ -25,13 +26,16 @@ from xtr_security.bundle import (
 )
 from xtr_security.firewall_config import FirewallConfig
 
-__all__ = ["CLIENT_ID", "ISSUER", "security"]
+__all__ = ["CLIENT_ID", "FAILURE_PATH", "ISSUER", "security"]
 
 #: The provider the login signs in with.
 ISSUER: Final = "https://issuer.example"
 
 #: The client the provider knows the fixture by.
 CLIENT_ID: Final = "shop"
+
+#: Where a callback that fails is sent.
+FAILURE_PATH: Final = "/sign-in-failed"
 
 
 @configure
@@ -52,6 +56,7 @@ def security() -> SecurityConfig:
                         client_id=CLIENT_ID,
                         client_secret="secret",
                         user_data_source="id_token",
+                        failure_path=FAILURE_PATH,
                     ),
                 ),
             ),
