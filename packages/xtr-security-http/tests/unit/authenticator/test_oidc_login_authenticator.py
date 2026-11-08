@@ -569,6 +569,19 @@ async def test_a_request_naming_no_host_leaves_the_redirect_uri_a_path() -> None
     assert _params_of(response)["redirect_uri"] == _CHECK_PATH
 
 
+async def test_a_request_naming_a_host_but_no_scheme_leaves_the_redirect_uri_a_path() -> None:
+    authenticator, *_rest = _authenticator(_ScriptedClient())
+    bag: dict[str, object] = {}
+    request = ServerRequest("GET", "//example.com/").with_attribute(
+        SecurityRequestAttributes.STATE_BAG, bag
+    )
+    security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = _session()
+
+    response = await authenticator.start(request)
+
+    assert _params_of(response)["redirect_uri"] == _CHECK_PATH
+
+
 async def test_an_absolute_uri_the_uri_builder_writes_is_sent_as_it_is() -> None:
     http_utils = HttpUtils(
         ResponseFactory(),

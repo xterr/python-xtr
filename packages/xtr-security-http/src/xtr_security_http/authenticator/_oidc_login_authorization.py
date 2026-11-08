@@ -146,15 +146,21 @@ class OidcLoginAuthorization:
         not carry, behind a proxy terminating TLS, or whose ``Host`` it does
         not trust. Otherwise the check path goes through the URI helper, and
         a path it leaves relative is anchored at the origin the request
-        reached: a forged ``Host`` only yields a URL the provider has not
-        registered, and refuses.
+        reached, when the request names a whole one — a scheme and a host: a
+        host alone would anchor it as a protocol-relative reference, so the
+        path is sent as it is then. A forged ``Host`` only yields a URL the
+        provider has not registered, and refuses.
         """
         if self._options.redirect_uri is not None:
             return self._options.redirect_uri
         uri = self._http_utils.generate_uri(self._options.check_path)
         parsed = urlsplit(uri)
         origin = request.get_uri()
-        if (parsed.scheme != "" and parsed.netloc != "") or origin.get_host() == "":
+        if (
+            (parsed.scheme != "" and parsed.netloc != "")
+            or origin.get_scheme() == ""
+            or origin.get_host() == ""
+        ):
             return uri
         anchor = origin.with_user_info("").with_path("").with_query("").with_fragment("")
         return f"{anchor}{uri}"
