@@ -8,6 +8,7 @@ from typing_extensions import override
 from xtr_http_kernel.bridge import Response as FrameworkResponse
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 
+from xtr_security_http._form_content_type import is_form_content_type
 from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
@@ -25,9 +26,6 @@ __all__ = ["AuthenticatorManagerListener"]
 
 #: The method a submitted form travels as, spelt as it is on the wire.
 _FORM_METHOD = "POST"
-
-#: The media types a submitted form is encoded in.
-_FORM_MEDIA_TYPES = ("application/x-www-form-urlencoded", "multipart/form-data")
 
 
 @final
@@ -116,5 +114,4 @@ def _is_unread_form(request: ServerRequestInterface) -> bool:
     """Tell whether ``request`` submitted a form whose fields it does not answer yet."""
     if request.get_method() != _FORM_METHOD or request.get_parsed_body() is not None:
         return False
-    media_type = request.get_header_line("Content-Type").partition(";")[0].strip().lower()
-    return media_type in _FORM_MEDIA_TYPES
+    return is_form_content_type(request.get_header_line("Content-Type"))

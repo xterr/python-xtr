@@ -203,6 +203,16 @@ async def test_authenticate_reads_no_body_of_a_request_that_is_no_posted_form() 
     assert channel.reads == 0
 
 
+async def test_authenticate_reads_no_body_of_a_content_type_only_starting_like_a_form() -> None:
+    request, channel = served_message(
+        "POST", "/login_check", _CREDENTIALS, content_type="application/x-www-form-urlencodedX"
+    )
+
+    await _listener(_Manager()).authenticate(RequestEvent(request, {}))
+
+    assert channel.reads == 0
+
+
 async def test_authenticate_reads_no_body_of_a_get() -> None:
     request, channel = served_message("GET", "/login_check", content_type=_FORM)
 

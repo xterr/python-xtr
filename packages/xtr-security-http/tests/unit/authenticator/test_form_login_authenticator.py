@@ -232,6 +232,20 @@ def test_a_non_form_content_type_is_refused_while_form_only_stands() -> None:
     assert authenticator.supports(asked) is False
 
 
+def test_a_content_type_only_starting_like_a_form_is_refused_while_form_only_stands() -> None:
+    authenticator, _success, _failure = _authenticator(options={"form_only": True})
+    message = _request_with_session(content_type="application/x-www-form-urlencodedX")
+
+    assert authenticator.supports(message) is False
+
+
+def test_a_form_content_type_with_parameters_is_supported_while_form_only_stands() -> None:
+    authenticator, _success, _failure = _authenticator(options={"form_only": True})
+    message = _request_with_session(content_type="Multipart/Form-Data; boundary=b")
+
+    assert authenticator.supports(message) is True
+
+
 async def test_the_form_reads_into_a_passport() -> None:
     authenticator, _success, _failure = _authenticator()
     message = _request_with_session(parsed_body={"_username": " alice ", "_password": "secret"})
