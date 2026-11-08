@@ -81,6 +81,8 @@ async def test_a_parameter_the_form_repeats_stays_visible_as_repeated() -> None:
     query = read.get_query_params()
     assert isinstance(query, MultiValuedForm)
     assert query.getlist("response_type") == ("code", "token")
+    uri_query = parse_qsl(read.get_uri().get_query())
+    assert [value for name, value in uri_query if name == "response_type"] == ["code", "token"]
 
 
 async def test_a_form_parsed_into_a_plain_mapping_is_read_too() -> None:

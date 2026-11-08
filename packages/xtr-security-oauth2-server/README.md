@@ -396,8 +396,10 @@ wherever it ends up, leaving out the ones excluded:
   (`xtr_security_oauth2_server.posted_form_as_query`), so grants, listeners and firewall steps
   read one request either way. A `POST` whose query names `response_type` — the consent form
   posting the query back — is read from its query, its body left to the listener. Parameters are
-  never read from both: a form beside a query string, or `response_type` in both, is refused
-  `invalid_request`.
+  never read from both: a `POST` carrying the request in its form is refused if its query string
+  is non-empty, and a `POST` whose query names `response_type` is refused if its body names it too,
+  both as `invalid_request`. The consent form's own fields are not the request, so they may travel
+  beside the query it posts back.
 - **`/token`, `/revoke`, `/introspect`** authenticate the client themselves — HTTP Basic or
   `client_id`/`client_secret` in the form — so no firewall claims them. A revoked refresh token
   takes its access token with it; a token that is unknown or another client's is answered as one
