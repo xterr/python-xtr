@@ -55,9 +55,12 @@ async def posted_form_as_query(request: ServerRequestInterface) -> ServerRequest
     - any other ``POST`` is read from its body, which must be a form; the
       form becomes the request's query parameters and its query string.
 
-    One request is never read from two places: a form beside a query string
-    is refused rather than merged, since the server would otherwise have to
-    pick which of two values sent under one name it was asked for.
+    One request is never read from two places: a ``POST`` carrying the request
+    in its form is refused if its query string is non-empty, and a ``POST``
+    whose query names ``response_type`` is refused if its body names it too,
+    since the server would otherwise have to pick which of two values sent
+    under one name it was asked for. The consent form's own fields are not the
+    request, so they may travel beside the query it posts back.
 
     The body is read before the form is asked for, which is the order a
     request still connected to the wire needs.
