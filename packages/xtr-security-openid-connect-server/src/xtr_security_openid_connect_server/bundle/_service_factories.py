@@ -70,9 +70,11 @@ __all__ = [
 #: The one signature algorithm whose name says no digest: the curve of its key does.
 _EDWARDS_ALGORITHM: Final = "EdDSA"
 
-#: What the authorization server keeps its own key loader under — the
-#: qualifier it publishes for asking for that server's keys.
-_SERVER_KEYS: Final = "oauth2_server"
+#: What the authorization server registers its own key loader under: that
+#: server's ``SERVICE_QUALIFIER``, spelled out rather than imported, because the
+#: constant lives in a private module of that package, which publishes only the
+#: string itself — ``Target("oauth2_server")`` is how it says to ask for its keys.
+_AUTHORIZATION_SERVER_QUALIFIER: Final = "oauth2_server"
 
 
 def claim_extractor_factory(
@@ -112,7 +114,7 @@ def id_token_settings_factory(
         return IdTokenSettings(algorithm=algorithm, ttl=ttl, curve=curve)
 
     openid_connect_server_id_token_settings.__annotations__ = {
-        "key_loader": Annotated[KeyLoaderInterface, Target(_SERVER_KEYS)],
+        "key_loader": Annotated[KeyLoaderInterface, Target(_AUTHORIZATION_SERVER_QUALIFIER)],
         "return": IdTokenSettings,
     }
 
