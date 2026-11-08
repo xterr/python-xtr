@@ -5,6 +5,10 @@ lists the prompt step, so a request asking for a fresh sign-in is sent to the
 login page and comes back to the authorization endpoint once it is made. One
 more deployment lists the step on a firewall that keeps no session, which has
 nowhere to keep the request while the end-user signs in.
+
+What is left of ``prompt`` once the step is done with it is the application's:
+the deployment's consent listener reads it, and answers the one client its
+consent was never given for either with a refusal or with its consent page.
 """
 
 from __future__ import annotations
@@ -22,8 +26,10 @@ from tests.fixtures.openid_app.config import (
     USER_IDENTIFIER,
     USER_PASSWORD,
 )
+from tests.fixtures.openid_app.listeners import CONSENT_PAGE
 from tests.support.served import (
     CLIENT_ID,
+    CONSENT_CLIENT_ID,
     REDIRECT_URI,
     SCOPE,
     VERIFIER,
@@ -161,6 +167,32 @@ async def test_prompt_none_with_the_end_user_signed_in_goes_on_to_the_code(
     answered = await _authorize(client, prompt="none")
 
     assert "code" in redirected_with(answered)
+
+
+async def test_prompt_none_needing_a_consent_never_given_is_refused_at_the_redirect_uri(
+    client: httpx.AsyncClient,
+) -> None:
+    # The sign-in forbids showing a page, and the deployment's listener has no
+    # consent to go on: it raises ``consent_required``, which the endpoint
+    # delivers to the client like any other refusal.
+    _ = await _log_in(client)
+
+    answered = await _authorize(client, client_id=CONSENT_CLIENT_ID, prompt="none")
+
+    assert _refused_with(answered) == ("consent_required", _STATE)
+
+
+async def test_prompt_consent_reaches_the_listener_as_the_value_it_named(
+    client: httpx.AsyncClient,
+) -> None:
+    # The listener reads it through the request's own ``get_prompt()`` and
+    # names it back on the page it answers with.
+    _ = await _log_in(client)
+
+    answered = await _authorize(client, client_id=CONSENT_CLIENT_ID, prompt="consent")
+
+    assert answered.status_code == 200
+    assert answered.text == f"{CONSENT_PAGE} prompt=consent"
 
 
 async def test_prompt_login_sends_a_signed_in_end_user_to_sign_in_again(

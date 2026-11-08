@@ -6,8 +6,10 @@ on a real application, and a client drives it over ASGI. What a test asserts on
 is what a client would receive.
 
 Every client this seeds is public — it holds no secret — so a sign-in proves
-itself with a proof key, as a browser or native application does.
-The one exception is a confidential client registered beside it, naming no
+itself with a proof key, as a browser or native application does. Two are
+registered identically, and only the deployment's consent listener tells them
+apart: its consent was given for one and never for the other.
+The one exception is a confidential client registered beside them, naming no
 grant, which mints whatever token a test of a reader needs.
 """
 
@@ -38,6 +40,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CLIENT_ID",
+    "CONSENT_CLIENT_ID",
     "REDIRECT_URI",
     "SCOPE",
     "SERVICE_CLIENT_ID",
@@ -57,7 +60,11 @@ __all__ = [
 #: The client every served sign-in is driven as.
 CLIENT_ID: Final = "my-client"
 
-#: Where it is sent back to.
+#: The client registered beside it that this deployment's consent was never
+#: given for, which is how a test reaches the consent listener's own answers.
+CONSENT_CLIENT_ID: Final = "my-consent-client"
+
+#: Where both are sent back to.
 REDIRECT_URI: Final = "https://client.test/callback"
 
 #: What a sign-in asks for: to sign the user in, and the deployment's own scope.
@@ -66,7 +73,7 @@ SCOPE: Final = "openid read"
 #: A proof key within the length the standard allows.
 VERIFIER: Final = "a-code-verifier-long-enough-for-the-standard"
 
-#: The confidential client seeded beside it. It names no grant, so it may use
+#: The confidential client seeded beside them. It names no grant, so it may use
 #: any, and it is registered for every scope a test of a reader asks for.
 SERVICE_CLIENT_ID: Final = "my-service"
 
@@ -76,6 +83,11 @@ SERVICE_CLIENT_SECRET: Final = "the-service-secret"
 #: The scopes it is registered for. Named, because a client registered for
 #: none is handed the deployment's defaults.
 _SERVICE_SCOPES: Final = "openid read profile email"
+
+#: The public clients, by the name shown when consent is asked for. Both are
+#: registered the same way: a sign-in is driven as either, and only the
+#: deployment's consent listener tells them apart.
+_PUBLIC_CLIENTS: Final = {CLIENT_ID: "A client", CONSENT_CLIENT_ID: "A client to consent to"}
 
 #: Where the seeding endpoint lives, standing where an administration screen would.
 _SEED_PATH: Final = "/seed-client"
@@ -112,10 +124,11 @@ def served_application(kernel: Kernel) -> FastAPI:
         clients: Injected[ClientManagerInterface],
         hasher: Annotated[PasswordHasherInterface, Target("oauth2_server")],
     ) -> dict[str, str]:
-        client = Client("A client", CLIENT_ID, None)
-        _ = client.set_redirect_uris(RedirectUri(REDIRECT_URI))
-        _ = client.set_scopes(*(Scope(name) for name in SCOPE.split(" ")))
-        await clients.save(client)
+        for identifier, name in _PUBLIC_CLIENTS.items():
+            client = Client(name, identifier, None)
+            _ = client.set_redirect_uris(RedirectUri(REDIRECT_URI))
+            _ = client.set_scopes(*(Scope(scope) for scope in SCOPE.split(" ")))
+            await clients.save(client)
         service = Client("A service", SERVICE_CLIENT_ID, hasher.hash(SERVICE_CLIENT_SECRET))
         _ = service.set_scopes(*(Scope(name) for name in _SERVICE_SCOPES.split(" ")))
         await clients.save(service)
