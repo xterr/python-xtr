@@ -6420,9 +6420,7 @@ name = "xtr-security-openid-connect-server"
 version = "6.2.1"
 source = { editable = "packages/xtr-security-openid-connect-server" }
 dependencies = [
-    { name = "anyio" },
     { name = "fastapi" },
-    { name = "joserfc" },
     { name = "python-multipart" },
     { name = "typing-extensions" },
     { name = "xtr-clock" },
@@ -6442,8 +6440,10 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "aiosqlite" },
+    { name = "anyio" },
     { name = "basedpyright" },
     { name = "httpx" },
+    { name = "joserfc" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -6459,9 +6459,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anyio", specifier = ">=4.0" },
     { name = "fastapi", specifier = ">=0.123" },
-    { name = "joserfc", specifier = ">=1.7" },
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
@@ -6481,8 +6479,10 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "aiosqlite", specifier = ">=0.20" },
+    { name = "anyio", specifier = ">=4.0" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "httpx", specifier = ">=0.27" },
+    { name = "joserfc", specifier = ">=1.7" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.8" },
