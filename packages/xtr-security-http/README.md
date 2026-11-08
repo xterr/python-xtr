@@ -915,15 +915,20 @@ ever makes it: documentation.
 - **The chain's request carries its body unparsed.** The firewall runs at
   the request event, where the served message is born with its body lazy:
   `get_parsed_body()` answers what has been materialised so far, and nothing
-  in the chain materialises it — that happens where the route's own request
-  service is built. A reader that awaits the body (the form-encoded
-  access-token extractor) materialises it itself; the plain parameter
-  readers see nothing of the body at chain time, so a submission's fields
-  ride the query string, the fallback the landed readers document — a form
-  login with `post_only` off reads the query first, and the logout's, the
-  switch's and the login link's proofs all read the query string beside the
-  body. A login page's own route, running after the materialisation, reads
-  the body as ever.
+  in the chain materialises it but the authentication step — otherwise that
+  happens where the route's own request service is built. The authentication
+  step reads a submitted form — a `POST` encoded `application/x-www-form-urlencoded`
+  or `multipart/form-data` — before it hands the request to the manager, so
+  the authenticators, their success and failure handlers and the login's
+  listeners read the form's fields: a form login reads its username and
+  password from the posted body (the body alone while `post_only` stands,
+  the query first when it is off) and its forgery token from the query
+  first, then the body; `_target_path`, `_failure_path` and `_remember_me`
+  are read from it too. The body stays
+  readable for the route behind the firewall. The other chain steps see
+  nothing of the body, so the logout's and the switch's proofs ride the
+  query string beside it. A login page's own route, running after the
+  materialisation, reads the body as ever.
 - **A route cannot read the chain's parked state through its own request
   message.** What the chain parks — the session the context listener
   reattached, the error a failed login left, the last username — lives on
