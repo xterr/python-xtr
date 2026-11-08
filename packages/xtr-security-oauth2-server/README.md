@@ -570,9 +570,8 @@ BUNDLES = {OAuth2ServerBundle: {"all": True}}
 `OAuth2ServerBundle` (name `oauth2_server`, config `OAuth2ServerConfig`) requires the
 [security](../xtr-security), [clock](../xtr-clock), [event dispatcher](../xtr-event-dispatcher)
 and [HTTP kernel](../xtr-http-kernel) bundles, and the [logging](../xtr-logging) and
-[console](../xtr-console) bundles when they are installed. The
-[OpenID Connect provider](../xtr-security-openid-connect-server) requires it, and nothing else
-does, so it otherwise arrives by being listed. It:
+[console](../xtr-console) bundles when they are installed. It arrives by being listed, or with a
+bundle built on it that requires it: add-ons build on it, and it requires none of them. It:
 
 - prepends onto the security configuration an authenticator factory keyed `oauth2`, which a
   firewall's `OAuth2AuthenticatorConfig()` builds — one authenticator per firewall, over that
