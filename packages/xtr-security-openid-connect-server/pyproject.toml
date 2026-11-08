@@ -27,8 +27,9 @@ dependencies = [
     "xtr-security-core>=6.0,<7",
     "xtr-security-http>=6.0,<7",
     "xtr-security>=6.0,<7",
-    # The ID token is signed with the authorization server's own key, through
-    # the same JOSE layer its access tokens are signed with.
+    # The ID token is signed with the authorization server's own key; the curve
+    # an EdDSA one is on, which decides the at_hash, is read through the key
+    # layer that loads it.
     "xtr-security-jwt>=6.0,<7",
     "xtr-clock>=6.0,<7",
     "xtr-event-dispatcher-contracts>=6.0,<7",

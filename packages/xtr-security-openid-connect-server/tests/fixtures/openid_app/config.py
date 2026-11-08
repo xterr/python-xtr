@@ -49,7 +49,7 @@ from xtr_security_oauth2_server_core.response_types.bearer_token_response import
 
 from tests.support.encryption import ENCRYPTION_KEY
 from tests.support.identity_provider import InMemoryIdentityProvider
-from tests.support.signing import ISSUER, signing_key
+from tests.support.signing import ISSUER, edwards_key, signing_key
 from xtr_security_openid_connect_server.bundle import OpenIdConnectServerConfig
 
 __all__ = [
@@ -58,6 +58,8 @@ __all__ = [
     "BEARER_ANSWER_ENV",
     "DISCOVERY_ALGORITHM",
     "DISCOVERY_ENV",
+    "ED448_ENV",
+    "ED25519_ENV",
     "FORM_LOGIN_ENV",
     "IDENTITY_PROVIDER_ENV",
     "ID_TOKEN_TTL",
@@ -84,6 +86,8 @@ __all__ = [
     "reading_claims_with_access_tokens",
     "security",
     "signing_in_with_a_form",
+    "signing_over_ed448",
+    "signing_over_ed25519",
     "signing_with_rsa",
     "with_the_bearer_answer_back",
     "with_the_claim_scopes",
@@ -120,6 +124,8 @@ USERINFO_ENV: Final[str] = "userinfo"
 PROMPT_ENV: Final[str] = "prompt"
 STATELESS_PROMPT_ENV: Final[str] = "stateless_prompt"
 DISCOVERY_ENV: Final[str] = "discovery"
+ED25519_ENV: Final[str] = "ed25519"
+ED448_ENV: Final[str] = "ed448"
 
 #: The provider's prompt step, as a firewall's ``listeners`` names it.
 PROMPT_LISTENER: Final[str] = "openid_connect_server#prompt_listener"
@@ -224,6 +230,32 @@ def signing_with_rsa(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
             signature_algorithm=DISCOVERY_ALGORITHM,
         ),
     )
+
+
+def _signing_with_eddsa(config: OAuth2ServerConfig, curve: str) -> OAuth2ServerConfig:
+    """Return ``config`` signing with ``EdDSA``, over the key minted on ``curve``."""
+    return replace(
+        config,
+        authorization_server=replace(
+            config.authorization_server,
+            private_key=edwards_key(curve).as_pem(private=True).decode("utf-8"),
+            signature_algorithm="EdDSA",
+        ),
+    )
+
+
+@configure
+@when(ED25519_ENV)
+def signing_over_ed25519(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
+    """Sign with ``EdDSA`` over an Ed25519 key, the curve the server mints a key on."""
+    return _signing_with_eddsa(config, "Ed25519")
+
+
+@configure
+@when(ED448_ENV)
+def signing_over_ed448(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
+    """Sign with ``EdDSA`` over an Ed448 key, which only a deployment brings for itself."""
+    return _signing_with_eddsa(config, "Ed448")
 
 
 @configure

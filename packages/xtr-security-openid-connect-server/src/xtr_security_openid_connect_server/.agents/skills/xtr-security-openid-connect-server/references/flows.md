@@ -35,7 +35,7 @@ What a sign-in does end to end, and what each request parameter changes.
 | `exp` | `iat + id_token_ttl`, or the access token's own expiry when that setting is unset |
 | `auth_time` | The newest authentication proof on the firewall's token at the authorization endpoint. Omitted when unknown |
 | `nonce` | The `nonce` the authorization request carried. Omitted when it carried none |
-| `at_hash` | The left half of the digest of the access token string answered beside it, base64url without padding, under the digest the `alg` signs with |
+| `at_hash` | The left half of the digest of the access token string answered beside it, base64url without padding, under the digest the `alg` signs with — for `EdDSA`, the one its key's curve signs with: SHA-512 over Ed25519, 114 octets of SHAKE256 over Ed448 |
 
 Nothing else. `name`, `email`, `address` and `phone_number` are `/userinfo`'s, never the ID token's.
 

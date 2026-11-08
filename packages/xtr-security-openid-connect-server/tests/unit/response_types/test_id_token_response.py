@@ -19,9 +19,12 @@ from xtr_security_oauth2_server_core.response_types.bearer_token_response import
 from tests.support.entities import AccessToken, make_client, make_scope
 from tests.support.signing import (
     ALGORITHMS,
+    EDDSA_DEPRECATION,
     FROZEN_NOW,
     ISSUER,
+    edwards_key,
     make_clock,
+    make_edwards_signer,
     make_signer,
     signing_key,
 )
@@ -145,6 +148,23 @@ async def test_at_hash_is_the_hash_of_the_access_token_the_client_receives(
     body, id_token = await _signed_in(algorithm)
 
     assert id_token.claims["at_hash"] == token_hash(str(body["access_token"]), algorithm)
+
+
+@pytest.mark.filterwarnings(EDDSA_DEPRECATION)
+async def test_at_hash_over_an_ed448_key_is_the_hash_its_curve_names() -> None:
+    signer = make_edwards_signer("Ed448")
+    response_type = IdTokenResponse(
+        make_clock(),
+        signer,
+        IdTokenSettings(algorithm="EdDSA", curve="Ed448"),
+    )
+    response_type.set_access_token(_access_token(signer))
+    response_type.set_identity("alice", "my-client", None, None)
+
+    body = await _body(response_type)
+    claims = jwt.decode(str(body["id_token"]), edwards_key("Ed448"), algorithms=["EdDSA"]).claims
+
+    assert claims["at_hash"] == token_hash(str(body["access_token"]), "EdDSA", "Ed448")
 
 
 @pytest.mark.parametrize("algorithm", ALGORITHMS)

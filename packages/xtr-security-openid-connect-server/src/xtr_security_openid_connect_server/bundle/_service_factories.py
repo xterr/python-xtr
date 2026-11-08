@@ -2,10 +2,11 @@
 
 A factory rather than a plain registration for each service built from
 settings the container cannot hand over by itself: the claim sets the
-application named, the algorithm the authorization server signs with, and the
-identity provider the application may not have named yet. Each of those is a
-closure over the settings it needs, returning the type it is registered under,
-so the definition is keyed by that type.
+application named, the algorithm the authorization server signs with (and,
+for ``EdDSA``, the curve of its key), and the identity provider the
+application may not have named yet. Each of those is a closure over the
+settings it needs, returning the type it is registered under, so the
+definition is keyed by that type.
 
 The prompt step has a plain factory instead, its settings set on the
 definition: its clock is optional to the class, which the container would
@@ -14,11 +15,12 @@ leave out, so the factory names it as a dependency.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Annotated, Final, NoReturn
 
 # Read at runtime: the container evaluates the prompt step factory's
 # annotations to know what to inject.
 from xtr_clock import ClockInterface  # noqa: TC002 -- read by the container at runtime
+from xtr_dependency_injection import Target
 from xtr_http_kernel.bridge import (
     StarletteHttpFactoryInterface,  # noqa: TC002 -- read by the container at runtime
 )
@@ -31,6 +33,7 @@ from xtr_security_core.authentication.token.storage.token_storage_interface impo
 from xtr_security_http.http_utils import (
     HttpUtils,  # noqa: TC002 -- read by the container at runtime
 )
+from xtr_security_jwt.services.key_loader import KeyLoaderInterface, public_key_set
 from xtr_security_oauth2_server_core.authorization_server import (
     AuthorizationServer,  # noqa: TC002 -- read by the container at runtime
 )
@@ -64,6 +67,13 @@ __all__ = [
     "unset_identity_provider_factory",
 ]
 
+#: The one signature algorithm whose name says no digest: the curve of its key does.
+_EDWARDS_ALGORITHM: Final = "EdDSA"
+
+#: What the authorization server keeps its own key loader under — the
+#: qualifier it publishes for asking for that server's keys.
+_SERVER_KEYS: Final = "oauth2_server"
+
 
 def claim_extractor_factory(
     claim_sets: Mapping[str, tuple[str, ...]],
@@ -80,8 +90,15 @@ def claim_extractor_factory(
 def id_token_settings_factory(
     algorithm: str,
     ttl: timedelta | None,
-) -> Callable[[], IdTokenSettings]:
+) -> Callable[..., IdTokenSettings]:
     """Return a factory building what ID tokens are minted with.
+
+    An ``EdDSA`` key may be on either Edwards curve, and an ``at_hash`` is
+    hashed differently over each, so for that algorithm the curve is read off
+    the authorization server's own key — the one an ID token is signed with —
+    when the settings are first built, never while the container is. The key
+    loader is that server's own: a deployment with no key yet still builds,
+    and that server names the setting to write when the key is first needed.
 
     Args:
         algorithm: The algorithm the authorization server signs with, which
@@ -90,10 +107,27 @@ def id_token_settings_factory(
             its access token.
     """
 
-    def openid_connect_server_id_token_settings() -> IdTokenSettings:
-        return IdTokenSettings(algorithm=algorithm, ttl=ttl)
+    def openid_connect_server_id_token_settings(key_loader: KeyLoaderInterface) -> IdTokenSettings:
+        curve = _signing_curve(key_loader) if algorithm == _EDWARDS_ALGORITHM else None
+        return IdTokenSettings(algorithm=algorithm, ttl=ttl, curve=curve)
+
+    openid_connect_server_id_token_settings.__annotations__ = {
+        "key_loader": Annotated[KeyLoaderInterface, Target(_SERVER_KEYS)],
+        "return": IdTokenSettings,
+    }
 
     return openid_connect_server_id_token_settings
+
+
+def _signing_curve(key_loader: KeyLoaderInterface) -> str | None:
+    """Return the curve the authorization server's ``EdDSA`` key is on.
+
+    Read off the key set that server publishes, whose first key is its
+    signing key's public half: the ``crv`` there is the one a client reads to
+    check the ``at_hash``, so the two cannot hash differently.
+    """
+    curve = public_key_set(key_loader, _EDWARDS_ALGORITHM)["keys"][0].get("crv")
+    return curve if isinstance(curve, str) else None
 
 
 def unset_identity_provider_factory() -> Callable[[], IdentityProviderInterface]:

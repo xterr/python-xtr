@@ -22,6 +22,8 @@ from tests.fixtures.openid_app.config import (
     ALGORITHM,
     AUTH_CODE_BACK_ON_ENV,
     BEARER_ANSWER_ENV,
+    ED448_ENV,
+    ED25519_ENV,
     ID_TOKEN_TTL,
     IDENTITY_PROVIDER_ENV,
     NO_METADATA_ENV,
@@ -110,6 +112,13 @@ async def test_id_tokens_last_as_long_as_the_deployment_set() -> None:
 
     assert settings.ttl == ID_TOKEN_TTL
     assert settings.ttl == timedelta(minutes=5)
+
+
+@pytest.mark.parametrize(("env", "curve"), [(ED25519_ENV, "Ed25519"), (ED448_ENV, "Ed448")])
+async def test_eddsa_id_tokens_take_the_curve_of_the_servers_key(env: str, curve: str) -> None:
+    settings = await _resolved(IdTokenSettings, env)
+
+    assert settings.curve == curve
 
 
 async def test_the_claim_extractor_holds_the_claim_sets_the_deployment_configured() -> None:

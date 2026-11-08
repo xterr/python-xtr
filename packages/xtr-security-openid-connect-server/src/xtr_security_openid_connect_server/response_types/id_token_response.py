@@ -144,7 +144,11 @@ class IdTokenResponse(BearerTokenResponse):
             claims["auth_time"] = self._auth_time
         if self._nonce is not None:
             claims["nonce"] = self._nonce
-        claims["at_hash"] = token_hash(access_token.to_string(), self._settings.algorithm)
+        claims["at_hash"] = token_hash(
+            access_token.to_string(),
+            self._settings.algorithm,
+            self._settings.curve,
+        )
         created = self._signer.jws_provider.create(
             claims,
             {"typ": _TYPE_HEADER, "kid": self._signer.key_id},

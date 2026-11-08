@@ -41,7 +41,7 @@ Written in `<app>/config/packages/oauth2_server.py`, on `AuthorizationServerConf
 | Setting | Read for |
 |---|---|
 | `issuer` | The `iss` every ID token claims, and the origin the document's `userinfo_endpoint` is built on. Never the request's `Host`. Unconfigured, `userinfo_endpoint` is left out |
-| `signature_algorithm` | The ID token's `alg`, the digest `at_hash` is taken with, and the one entry in `id_token_signing_alg_values_supported` |
+| `signature_algorithm` | The ID token's `alg`, the digest `at_hash` is taken with (for `EdDSA`, the one the server key's curve signs with: SHA-512 over Ed25519, SHAKE256 over Ed448), and the one entry in `id_token_signing_alg_values_supported` |
 | `auth_code_ttl`, `refresh_token_ttl`, `require_code_challenge_for_public_clients` | Handed to this package's flow, which the server hands no settings of its own |
 | `scopes.available` | `openid` is appended when the tuple names anything and lacks it. An empty tuple stays empty, so the authorization server's own error about it still fires |
 

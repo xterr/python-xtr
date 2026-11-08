@@ -302,7 +302,7 @@ All derive from `OpenIdConnectServerError`, itself an `OAuth2Error`.
 | --- | --- |
 | `InvalidConfigurationError` | A setting the provider cannot run with, or one missing where a service needs it — `identity_provider` unset, a stateless `login_firewall`, an authorization server whose flow or answer was changed back — named, with the file to write it in |
 | `InvalidArgumentError` | One of this package's objects used wrongly: a claim set naming no scope or one the protocol defines, a negative `max_age`, an unsigned ID token back from the signature provider |
-| `UnsupportedAlgorithmError` | A signature algorithm whose digest its name does not say, so no `at_hash` can be taken for it |
+| `UnsupportedAlgorithmError` | A signature algorithm whose digest its name does not say, or an `EdDSA` key on neither Ed25519 nor Ed448, so no `at_hash` can be taken for it |
 
 A refusal a client is owed is the authorization server's `OAuthServerError`, which the endpoints
 deliver: `invalid_request` from `parse_prompt` and a malformed `max_age` or missing `redirect_uri`,

@@ -24,6 +24,10 @@ def test_with_no_lifetime_the_access_token_decides() -> None:
     assert IdTokenSettings(algorithm="RS256").ttl is None
 
 
+def test_it_keeps_the_curve_an_eddsa_key_is_on() -> None:
+    assert IdTokenSettings(algorithm="EdDSA", curve="Ed448").curve == "Ed448"
+
+
 def test_an_empty_algorithm_is_refused_by_name() -> None:
     with pytest.raises(InvalidArgumentError, match="algorithm"):
         _ = IdTokenSettings(algorithm="")

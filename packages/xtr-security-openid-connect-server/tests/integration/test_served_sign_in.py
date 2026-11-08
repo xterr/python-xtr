@@ -14,6 +14,8 @@ from joserfc import jwt
 
 from tests.fixtures.openid_app.config import (
     ALGORITHM,
+    ED448_ENV,
+    ED25519_ENV,
     ID_TOKEN_TTL,
     OPEN_PROOF_KEY_ENV,
     SHORT_ID_TOKEN_ENV,
@@ -35,7 +37,7 @@ from tests.support.served import (
     serving,
     text_field,
 )
-from tests.support.signing import ISSUER, signing_key
+from tests.support.signing import EDDSA_DEPRECATION, ISSUER, signing_key
 from xtr_security_openid_connect_server.token_hash import token_hash
 
 if TYPE_CHECKING:
@@ -142,6 +144,18 @@ async def test_the_id_token_hashes_the_access_token_issued_beside_it() -> None:
 
     at_hash = claims_of(text_field(issued, "id_token"))["at_hash"]
     assert at_hash == token_hash(text_field(issued, "access_token"), ALGORITHM)
+
+
+@pytest.mark.filterwarnings(EDDSA_DEPRECATION)
+@pytest.mark.parametrize(("env", "curve"), [(ED25519_ENV, "Ed25519"), (ED448_ENV, "Ed448")])
+async def test_an_eddsa_id_token_hashes_the_access_token_as_its_keys_curve_says(
+    env: str,
+    curve: str,
+) -> None:
+    issued = await _sign_in(env)
+
+    at_hash = claims_of(text_field(issued, "id_token"))["at_hash"]
+    assert at_hash == token_hash(text_field(issued, "access_token"), "EdDSA", curve)
 
 
 async def test_a_sign_in_proving_no_credential_states_no_sign_in_time() -> None:

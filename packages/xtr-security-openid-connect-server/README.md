@@ -238,7 +238,9 @@ field has a default, so the bundle builds and boots with no configuration at all
 The authorization server's own settings decide the rest, in
 `<app>/config/packages/oauth2_server.py`: `authorization_server.issuer` is the `iss` every ID token
 claims (never the request's `Host`), and `authorization_server.signature_algorithm` is what the ID
-token is signed with — the same key, signer and `kid` as an access token.
+token is signed with — the same key, signer and `kid` as an access token. `EdDSA` names no digest
+for the `at_hash`, so the curve of that key decides it — SHA-512 over Ed25519, SHAKE256 over Ed448
+— read off the key the first time it is needed, never while the application builds.
 
 Three settings of that server this bundle puts in place itself, and refuses to be undone:
 `enable_auth_code_grant=False` (this package registers the flow answering that grant type),
@@ -297,7 +299,7 @@ the ID token is signed with the authorization server's key, and there is one of 
 | Service | Lifetime | What it does |
 |---|---|---|
 | `ClaimExtractor` | shared | Holds every claim set — the protocol's four, then the application's — and picks the claims a token's scopes reveal out of a user's |
-| `IdTokenSettings` | shared | What an ID token is signed with and how long it lasts, read off the authorization server's settings |
+| `IdTokenSettings` | shared | What an ID token is signed with and how long it lasts, read off the authorization server's settings — and, for `EdDSA`, the curve of its key |
 | `IdentityProviderInterface` | shared | The class `identity_provider` names. Unset, a stand-in raises `InvalidConfigurationError` naming the setting the first time a user is needed |
 | `OpenIdAuthCodeGrant` | shared, tagged `GRANT_TAG` | The code flow carrying the sign-in: it seals the `nonce` and the sign-in time into the code, and hands them to the token answer when it is redeemed |
 | `UserInfoController` | per request | Answers `/userinfo`, over the request's own token storage |
@@ -445,7 +447,7 @@ authorization server and its identity layer together:
 | `OpenIdConnectServerError` | `OAuth2Error` | The base of them all; nothing raises it directly |
 | `InvalidConfigurationError` | `OpenIdConnectServerError`, `ValueError` | A setting the provider cannot run with, or one missing where a service needs it — `identity_provider` unset, a login firewall that keeps no session — naming it and `<app>/config/packages/openid_connect_server.py` |
 | `InvalidArgumentError` | `OpenIdConnectServerError`, `ValueError` | One of this package's objects used wrongly: a claim set naming no scope, a negative `max_age`, a claim set for a scope the protocol defines, an unsigned ID token back from the signature provider |
-| `UnsupportedAlgorithmError` | `OpenIdConnectServerError` | A signature algorithm whose digest its name does not say, so no `at_hash` can be taken for it |
+| `UnsupportedAlgorithmError` | `OpenIdConnectServerError` | A signature algorithm whose digest its name does not say, or an `EdDSA` key on neither Ed25519 nor Ed448, so no `at_hash` can be taken for it |
 
 A refusal a client is owed is never one of these: it is the authorization server's `OAuthServerError`,
 which the endpoints deliver. `parse_prompt` raises it as `invalid_request`, `login_required` and
