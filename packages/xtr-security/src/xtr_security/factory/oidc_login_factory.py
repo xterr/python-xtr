@@ -33,6 +33,7 @@ from ._oidc_login_services import (
 from ._oidc_provider_services import (
     register_client,
     register_discovery,
+    register_http_client,
     register_id_token,
     register_refresher,
     register_verifier,
@@ -119,10 +120,15 @@ class OidcLoginFactory(AuthenticatorFactoryInterface):
                 f'An OIDC login on the firewall "{firewall_name}" needs a user provider; '
                 f"name one on the firewall.",
             )
-        discovery_key = register_discovery(services, firewall_name, settings)
+        http_client_key = register_http_client(services, firewall_name)
+        discovery_key = register_discovery(services, firewall_name, settings, http_client_key)
         id_token_key = register_id_token(services, firewall_name)
-        verifier_key = register_verifier(services, firewall_name, settings, discovery_key)
-        client_key = register_client(services, firewall_name, settings, discovery_key)
+        verifier_key = register_verifier(
+            services, firewall_name, settings, discovery_key, http_client_key
+        )
+        client_key = register_client(
+            services, firewall_name, settings, discovery_key, http_client_key
+        )
         refresher_key = register_refresher(
             services,
             firewall_name,

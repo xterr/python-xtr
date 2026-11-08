@@ -329,6 +329,11 @@ async with await boot_for_test(kernel) as booted, unit_of_work(booted.container)
     security = await unit.get(Security)
 ```
 
+An OIDC login reaches its provider through one service, `HttpClientInterface` qualified
+`<firewall>#oidc_http_client`: hand `boot_for_test` an
+`overrides={(HttpClientInterface, "main#oidc_http_client"): MockHttpClient(answer)}` and every
+discovery, code-exchange, userinfo and key fetch goes through the fake — no network.
+
 End to end, sign a request the way a client does — call your own token route, send the credential
 back — rather than writing a token into storage by hand.
 

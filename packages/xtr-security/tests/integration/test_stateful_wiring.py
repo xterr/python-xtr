@@ -11,6 +11,7 @@ route maps.
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -18,6 +19,9 @@ from xtr_dependency_injection import Kernel, unit_of_work
 from xtr_dependency_injection.testing import boot_for_test
 from xtr_event_dispatcher import EventDispatcher, LazyListener
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
+from xtr_http_client import MockHttpClient
+from xtr_http_client.response import MockResponse
+from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_foundation import MemorySessionStorage, SessionStorageInterface
 from xtr_http_kernel import FinishRequestEvent, RequestEvent, ResponseEvent
 from xtr_security_http import (
@@ -46,29 +50,34 @@ from xtr_security_http.firewall.authenticator_manager_listener import (
     AuthenticatorManagerListener,
 )
 from xtr_security_http.firewall.logout_listener import LogoutListener
+from xtr_security_http.oidc import OidcDiscovery
 
 from xtr_security.bundle import SecurityBundle, firewall_dispatcher_name
 from xtr_security.bundle.firewall_context import FirewallContext
 from xtr_security.oidc_back_channel_logout_handler import OidcBackChannelLogoutHandler
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Hashable
 
     from xtr_service_contracts import ContainerInterface
 
 pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture
-async def container() -> AsyncIterator[ContainerInterface]:
-    """Boot the stateful fixture the way the kernel boots an application."""
-    kernel = Kernel(
+def _kernel() -> Kernel:
+    """Return the stateful fixture's kernel, as an application would declare it."""
+    return Kernel(
         "tests.fixtures.stateful_app",
         env="test",
         bundles={SecurityBundle: {"all": True}},
         concurrent_scoped_access=True,
     )
-    async with await boot_for_test(kernel) as booted:
+
+
+@pytest.fixture
+async def container() -> AsyncIterator[ContainerInterface]:
+    """Boot the stateful fixture the way the kernel boots an application."""
+    async with await boot_for_test(_kernel()) as booted:
         yield booted.container
 
 
@@ -272,3 +281,35 @@ async def test_the_proofs_listener_joins_every_firewalls_logins(
     assert len(proofs) == 1
     assert len(strategies) == 1
     assert listeners.index(proofs[0]) < listeners.index(strategies[0])
+
+
+async def test_the_login_fetches_through_the_http_client_the_application_overrides() -> None:
+    """One override of the firewall's client reaches every provider fetch, no network."""
+    document = {
+        "issuer": "https://issuer.example",
+        "authorization_endpoint": "https://issuer.example/authorize",
+        "token_endpoint": "https://issuer.example/token",
+        "jwks_uri": "https://issuer.example/jwks",
+    }
+    fetched: list[str] = []
+
+    def answer(method: str, url: str, options: object) -> MockResponse:
+        del method, options
+        fetched.append(url)
+        return MockResponse(
+            json.dumps(document).encode(),
+            {"http_code": 200, "response_headers": {"Content-Type": "application/json"}},
+        )
+
+    overrides: dict[type | tuple[type, Hashable], object] = {
+        (HttpClientInterface, "main#oidc_http_client"): MockHttpClient(answer),
+    }
+    async with (
+        await boot_for_test(_kernel(), overrides=overrides) as booted,
+        unit_of_work(booted.container) as unit,
+    ):
+        discovery = await unit.get(OidcDiscovery, "main#oidc_discovery")
+        issuer = await discovery.get_issuer()
+
+    assert issuer == "https://issuer.example"
+    assert fetched == ["https://issuer.example/.well-known/openid-configuration"]

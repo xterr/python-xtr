@@ -168,6 +168,7 @@ def test_it_registers_every_provider_service_the_login_needs() -> None:
     services = _create(_login(signature_verifier_algorithms=("RS256",)))
 
     assert "api#oidc_discovery" in services.by_qualifier
+    assert "api#oidc_http_client" in services.by_qualifier
     assert "api#oidc_id_token" in services.by_qualifier
     assert "api#oidc_signature_verifier" in services.by_qualifier
     assert "api#oidc_client" in services.by_qualifier
@@ -230,11 +231,17 @@ async def test_the_registered_factories_build_the_real_services() -> None:
     services = _create(_login(signature_verifier_algorithms=("RS256",)))
     http_utils = HttpUtils(ResponseFactory())
     provider = cast("UserProviderInterface", object())
-    discovery = services.by_qualifier["api#oidc_discovery"]()
+    http_client = services.by_qualifier["api#oidc_http_client"]()
+    discovery = services.by_qualifier["api#oidc_discovery"](http_client=http_client)
     id_token = services.by_qualifier["api#oidc_id_token"](clock=None)
-    verifier = services.by_qualifier["api#oidc_signature_verifier"](discovery=discovery, clock=None)
+    verifier = services.by_qualifier["api#oidc_signature_verifier"](
+        discovery=discovery,
+        http_client=http_client,
+        clock=None,
+    )
     client = await _async(services.by_qualifier["api#oidc_client"])(
         discovery=discovery,
+        http_client=http_client,
         clock=None,
     )
     refresher = services.by_qualifier["api#oidc_token_refresher"](
@@ -272,6 +279,46 @@ async def test_the_registered_factories_build_the_real_services() -> None:
     assert isinstance(success, DefaultAuthenticationSuccessHandler)
     assert isinstance(failure, DefaultAuthenticationFailureHandler)
     assert isinstance(authenticator, OidcLoginAuthenticator)
+
+
+def test_the_provider_client_carries_an_explicit_timeout_and_connection_limit() -> None:
+    from xtr_http_client import HttpxHttpClient
+
+    from xtr_security.factory._oidc_provider_services import (
+        _DISCOVERY_MAX_CONNECTIONS,
+        _DISCOVERY_TIMEOUT,
+    )
+
+    services = _create(_login())
+
+    client = services.by_qualifier["api#oidc_http_client"]()
+
+    assert isinstance(client, HttpxHttpClient)
+    assert client._default_options["timeout"] == _DISCOVERY_TIMEOUT
+    assert client._clients._max_connections == _DISCOVERY_MAX_CONNECTIONS
+
+
+async def test_every_provider_reader_fetches_through_the_firewalls_client() -> None:
+    services = _create(_login(signature_verifier_algorithms=("RS256",)))
+    http_client = object()
+
+    discovery = services.by_qualifier["api#oidc_discovery"](http_client=http_client)
+    verifier = services.by_qualifier["api#oidc_signature_verifier"](
+        discovery=discovery,
+        http_client=http_client,
+        clock=None,
+    )
+    client = await _async(services.by_qualifier["api#oidc_client"])(
+        discovery=discovery,
+        http_client=http_client,
+        clock=None,
+    )
+
+    assert [reader._http_client for reader in (discovery, verifier, client)] == [  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]  # ty: ignore[unresolved-attribute]
+        http_client,
+        http_client,
+        http_client,
+    ]
 
 
 async def _built_login(config: OidcLoginConfig) -> object:
@@ -324,6 +371,7 @@ async def test_the_client_authenticates_by_the_configured_method() -> None:
 
     client = await _async(services.by_qualifier["api#oidc_client"])(
         discovery=cast("OidcDiscovery", object()),
+        http_client=object(),
         clock=None,
     )
 
@@ -355,6 +403,7 @@ async def test_the_assertion_methods_sign_for_the_announced_issuer() -> None:
 
     client = await _async(services.by_qualifier["api#oidc_client"])(
         discovery=_AnnouncingDiscovery(),
+        http_client=object(),
         clock=None,
     )
 
@@ -382,6 +431,7 @@ async def test_private_key_jwt_signs_with_the_configured_key() -> None:
 
     client = await _async(services.by_qualifier["api#oidc_client"])(
         discovery=_AnnouncingDiscovery(),
+        http_client=object(),
         clock=None,
     )
 
@@ -412,10 +462,12 @@ async def test_the_tls_methods_carry_their_certificate_on_the_client() -> None:
 
     tls_client = await _async(tls.by_qualifier["api#oidc_client"])(
         discovery=_AnnouncingDiscovery(),
+        http_client=object(),
         clock=None,
     )
     self_signed_client = await _async(self_signed.by_qualifier["api#oidc_client"])(
         discovery=_AnnouncingDiscovery(),
+        http_client=object(),
         clock=None,
     )
 
@@ -437,6 +489,7 @@ async def test_a_public_client_authenticates_with_nothing() -> None:
 
     client = await _async(services.by_qualifier["api#oidc_client"])(
         discovery=_AnnouncingDiscovery(),
+        http_client=object(),
         clock=None,
     )
 
