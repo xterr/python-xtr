@@ -96,7 +96,8 @@ class UserInfoController:
                 response,
                 400,
                 "invalid_request",
-                "A request posted here carries a form-encoded body, or none.",
+                "A request posted here carries the application/x-www-form-urlencoded content "
+                "type, even with an empty body.",
             )
         token = self._token_storage.get_token()
         if not isinstance(token, OAuth2Token) or isinstance(

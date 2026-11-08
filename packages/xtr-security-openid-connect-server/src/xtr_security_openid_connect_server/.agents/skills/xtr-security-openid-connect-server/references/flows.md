@@ -92,7 +92,7 @@ naming `stateless`, the firewall and `login_firewall`.
 | No token, or a token this server did not issue | `401` `invalid_token`, with a `Bearer` challenge |
 | A client-credentials token, whose caller names no end-user | `401` `invalid_token` |
 | A token not granted `openid` | `403` `insufficient_scope` |
-| A `POST` whose body is not form-encoded | `400` `invalid_request` |
+| A `POST` whose `Content-Type` is not `application/x-www-form-urlencoded`, or that names none — even with no body | `400` `invalid_request` |
 
 `sub` is answered first and is the identifier the ID token named, so a client can compare them; no
 claim of the identity provider's replaces it, not even one called `sub`. The token is read from the

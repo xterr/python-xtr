@@ -269,7 +269,8 @@ Two route resources, registered by `<app>/config/routes/openid_connect_server.py
   for itself, is `401 invalid_token`; one not granted `openid` is `403 insufficient_scope`; each
   carries an RFC 6750 `Bearer` challenge. A success is `200`, `application/json`,
   `cache-control: no-store`, `{"sub": …, **claims}` — `sub` first and never replaced by a claim of
-  the identity provider's. A `POST` carries a form-encoded body or none; anything else is
+  the identity provider's. A `POST` carries `Content-Type: application/x-www-form-urlencoded`
+  (parameters allowed), even with an empty body; any other content type, or none, is
   `400 invalid_request`. The access token is read from the `Authorization` header only.
 - **`/.well-known/openid-configuration`** answers the authorization server's description with the
   provider's fields contributed to it: `userinfo_endpoint` (the issuer plus the path this

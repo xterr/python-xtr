@@ -333,7 +333,7 @@ def signing_in_with_a_form(config: SecurityConfig) -> SecurityConfig:
     """Have the end-user sign in with a form, which records when they proved a password.
 
     The form login reads its fields from the query string too — ``post_only``
-    off — because the chain's request carries its body unparsed.
+    off — the way the tests here send them; a posted form is read either way.
     """
     return replace(
         config,
