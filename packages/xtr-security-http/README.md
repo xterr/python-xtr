@@ -242,9 +242,11 @@ user exists), checked after authentication, and settled on a `SwitchUserToken` t
 token the switch started from. The switch is announced as `SwitchUserEvent` under
 `SecurityEvents.SWITCH_USER` before the token is stored — a listener may replace it — and the
 request is answered with a redirect to the page it was asked at, the switch's own parameters
-stripped from the address. The exit is the same parameter carrying `SwitchUserListener.EXIT_VALUE`
-(`_exit`): the original token is restored, its user reloaded first, and the exit announced the
-same way. A `stateless` step switches without answering the request.
+stripped from the address — on a dedicated path, to the submitted `_target_path` when it leads back
+to the request's own origin, the same rule a login's target is held to, and to `/` otherwise. The
+exit is the same parameter carrying `SwitchUserListener.EXIT_VALUE` (`_exit`): the original token
+is restored, its user reloaded first, and the exit announced the same way. A `stateless` step
+switches without answering the request.
 
 ### Logout
 
@@ -383,6 +385,14 @@ and **`DefaultAuthenticationFailureHandler(http_utils, options=None, logger=None
 firewall_name=None)`** keeps the error on the session for the form that renders again and redirects
 by its own ladder (`failure_path_parameter`, `failure_path`, then `login_path`), keeping the
 `Referer` as the return trip's target when `use_referer` is set and the handler knows its firewall.
+A target the client names — the `target_path_parameter` (`_target_path`) or the
+`failure_path_parameter` (`_failure_path`) a form or a query string carries, and the `Referer` the
+success handler weighs — is honoured only when it leads back to the request's own origin: a path
+opening with a single `/`, or an absolute `http(s)` URL with the request's scheme, host and port (a
+port left out read as the scheme's). A protocol-relative `//host`, a target carrying a backslash or
+a control character, a relative path and an address on any other origin all fall to the next rung,
+so a link written elsewhere cannot send a caller who has just signed in off the site; the domain
+regexps of `HttpUtils`, when configured, still weigh whichever target wins.
 **`CustomAuthenticationSuccessHandler(handler, options, firewall_name)`** and
 **`CustomAuthenticationFailureHandler(handler, options)`** are the seams for an application's own
 handlers, handing them the wiring's options — and the firewall's name, for a success handler that
@@ -1023,9 +1033,9 @@ ever makes it: documentation.
   kernel's event accepts, so both are constructor parameters.
 - **The switch's target route is not ported.** Upstream can redirect a completed switch to
   a configured `target_route` through a routing component; no routing component exists here,
-  so the redirect falls to the request's own stripped URI — or the submitted `_target_path`
-  and then `/` on a dedicated path — and the generator refuses a dedicated path configured
-  as a route name.
+  so the redirect falls to the request's own stripped URI — or, on a dedicated path, the
+  submitted `_target_path` when it is on the request's own origin, and then `/` — and the
+  generator refuses a dedicated path configured as a route name.
 - **The query strip is written on the URI's text.** Upstream removes the switch's parameters
   from the request's query bag and rebuilds the query string; a request message is immutable
   here, so the strip removes each parameter's pattern from the URI text and mends the join,

@@ -198,6 +198,19 @@ async def test_a_login_form_posted_as_its_body_logs_the_user_in() -> None:
     assert headers["location"] == "/after"
 
 
+async def test_a_posted_target_on_another_origin_lands_on_the_default_target() -> None:
+    status, headers, _content = await _send(
+        _application(_redirecting()),
+        "POST",
+        "/login_check",
+        b"_username=alice&_password=secret&_target_path=https%3A%2F%2Fevil.example%2F",
+        content_type=_FORM,
+    )
+
+    assert status == 302
+    assert headers["location"] == "/home"
+
+
 async def test_a_wrong_password_posted_as_the_body_returns_to_the_login_page() -> None:
     status, headers, _content = await _send(
         _application(_redirecting()),

@@ -29,6 +29,7 @@ from xtr_security_core.exception import (
 from xtr_security_core.user.user_interface import UserInterface
 from xtr_security_csrf.csrf_token import CsrfToken
 
+from xtr_security_http._same_origin import is_same_origin
 from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.decorator.firewall_listener_order import FirewallListenerOrder
 from xtr_security_http.event.switch_user_event import SwitchUserEvent
@@ -353,15 +354,16 @@ class SwitchUserListener(AbstractListener):
         """Answer the request with a redirect to the page the switch returns to.
 
         On a dedicated path there is no current page to return to, so the
-        submitted target path is honoured, or the root; elsewhere the
-        request's own URI is, the switch's parameters stripped from it.
+        submitted target path is honoured — only on the request's own origin,
+        the client having written it — or the root; elsewhere the request's
+        own URI is, the switch's parameters stripped from it.
         The upstream stack can also redirect to a configured target route;
         no routing component exists here, so that fallback is not taken,
         the recorded deviation.
         """
         if self._path is not None:
             target = request_parameter_of(request, "_target_path")
-            if not isinstance(target, str) or not target.startswith("/"):
+            if not isinstance(target, str) or not is_same_origin(request, target):
                 target = "/"
         else:
             parameters = (self._username_parameter,)
