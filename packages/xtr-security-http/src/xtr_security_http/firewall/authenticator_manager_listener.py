@@ -8,6 +8,7 @@ from typing_extensions import override
 from xtr_http_kernel.bridge import Response as FrameworkResponse
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 
+from xtr_security_http._form_content_type import is_form_content_type
 from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
@@ -22,6 +23,9 @@ if TYPE_CHECKING:
     )
 
 __all__ = ["AuthenticatorManagerListener"]
+
+#: The method a submitted form travels as, spelt as it is on the wire.
+_FORM_METHOD = "POST"
 
 
 @final
@@ -39,6 +43,13 @@ class AuthenticatorManagerListener(AbstractListener):
     reads it off the event; ``supports`` is asked about the request alone,
     so the caller running the chain parks that bag on the request it asks
     about — the one place both hooks reach the same carrier.
+
+    A submitted form — a ``POST`` encoded as one — is read before the
+    manager is handed the request: the request the lifecycle serves is born
+    with its body unread, and the copy that carries the bag answers only
+    what had been parsed when it was made. Reading it first hands the
+    authenticator, its handlers and the listeners of the login the form's
+    fields; the body stays readable for the route behind the firewall.
 
     A response the manager produced is a message; the event answers with
     what the framework sends, so a pure message is converted through the
@@ -80,9 +91,10 @@ class AuthenticatorManagerListener(AbstractListener):
         the success and failure hooks all reach the same carrier — a hook
         reading the bag off the request finds it in the live chain too.
         """
-        asked = request_event.request.with_attribute(
-            SecurityRequestAttributes.STATE_BAG, request_event.state
-        )
+        request = request_event.request
+        if _is_unread_form(request):
+            _ = await request.get_body().get_contents()
+        asked = request.with_attribute(SecurityRequestAttributes.STATE_BAG, request_event.state)
         response = await self._authenticator_manager.authenticate_request(
             asked, security_state_of(request_event.state)
         )
@@ -96,3 +108,10 @@ class AuthenticatorManagerListener(AbstractListener):
             request_event.set_response(response)
             return
         request_event.set_response(await self._bridge.create_response(response))
+
+
+def _is_unread_form(request: ServerRequestInterface) -> bool:
+    """Tell whether ``request`` submitted a form whose fields it does not answer yet."""
+    if request.get_method() != _FORM_METHOD or request.get_parsed_body() is not None:
+        return False
+    return is_form_content_type(request.get_header_line("Content-Type"))

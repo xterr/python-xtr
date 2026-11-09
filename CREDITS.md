@@ -17,6 +17,7 @@ contributors.
 | [LexikJWTAuthenticationBundle](https://github.com/lexik/LexikJWTAuthenticationBundle) | xtr-security-jwt |
 | [thephpleague/oauth2-server](https://github.com/thephpleague/oauth2-server) (Alex Bilbie) and its token revocation and introspection [pull request #1473](https://github.com/thephpleague/oauth2-server/pull/1473) (Hafez Divandari) | xtr-security-oauth2-server, xtr-security-oauth2-server-core |
 | [thephpleague/oauth2-server-bundle](https://github.com/thephpleague/oauth2-server-bundle) (Robin Chalas, Trikoder) | xtr-security-oauth2-server |
+| [steverhoades/oauth2-openid-connect-server](https://github.com/steverhoades/oauth2-openid-connect-server) (Steve Rhoades) | xtr-security-openid-connect-server |
 
 All of them are released under the MIT license. Each package's `LICENSE` carries the copyright
 lines of the projects it was translated from.

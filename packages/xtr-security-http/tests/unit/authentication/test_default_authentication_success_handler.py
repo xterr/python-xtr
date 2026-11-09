@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 import pytest
 from xtr_http_foundation import MemorySessionStorage, Session
@@ -34,11 +35,17 @@ def _request_with_session(
     path: str = "/",
     query: str = "",
     referer: str | None = None,
+    parsed_body: object | None = None,
 ) -> tuple[ServerRequestInterface, Session]:
     """Build a request whose security state carries a parked session."""
     bag: dict[str, object] = {}
     headers = {} if referer is None else {"Referer": referer}
-    message = make_message(path=path, query=query, headers=headers).with_attribute(
+    message = make_message(
+        path=path,
+        query=query,
+        headers=headers,
+        parsed_body=parsed_body,
+    ).with_attribute(
         SecurityRequestAttributes.STATE_BAG,
         bag,
     )
@@ -87,6 +94,52 @@ async def test_a_carried_path_that_is_no_path_is_ignored() -> None:
 
     assert response is not None
     assert response.get_header_line("Location") == "/"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "https://evil.example/after",
+        "//evil.example/after",
+        "/\\evil.example/after",
+        "https://evil.example\\@example.com/after",
+    ],
+)
+async def test_a_carried_target_on_another_origin_is_ignored(target: str) -> None:
+    message, _session = _request_with_session(query=urlencode({"_target_path": target}))
+
+    response = await _handler(default_target_path="/home").on_authentication_success(
+        message,
+        NullToken(),
+    )
+
+    assert response is not None
+    assert response.get_header_line("Location") == "/home"
+
+
+async def test_a_posted_target_on_another_origin_is_ignored() -> None:
+    message, _session = _request_with_session(
+        parsed_body={"_target_path": "https://evil.example/after"},
+    )
+
+    response = await _handler(default_target_path="/home").on_authentication_success(
+        message,
+        NullToken(),
+    )
+
+    assert response is not None
+    assert response.get_header_line("Location") == "/home"
+
+
+async def test_a_carried_absolute_url_on_the_requests_own_origin_wins() -> None:
+    message, _session = _request_with_session(
+        query=urlencode({"_target_path": "https://example.com/carried"}),
+    )
+
+    response = await _handler().on_authentication_success(message, NullToken())
+
+    assert response is not None
+    assert response.get_header_line("Location") == "https://example.com/carried"
 
 
 async def test_the_target_the_interrupted_request_saved_wins_and_is_removed() -> None:
@@ -138,6 +191,18 @@ async def test_a_referer_naming_the_requested_page_is_ignored() -> None:
 
     assert response is not None
     assert response.get_header_line("Location") == "/"
+
+
+async def test_a_referer_of_another_origin_is_ignored() -> None:
+    message, _session = _request_with_session(referer="https://evil.example/where")
+
+    response = await _handler(
+        use_referer=True,
+        default_target_path="/home",
+    ).on_authentication_success(message, NullToken())
+
+    assert response is not None
+    assert response.get_header_line("Location") == "/home"
 
 
 def test_the_options_and_the_firewalls_name_are_set_and_read() -> None:

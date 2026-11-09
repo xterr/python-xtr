@@ -86,6 +86,19 @@ async def _owner_token(client: httpx.AsyncClient) -> str:
     return text_field(issued, "access_token")
 
 
+def _asking(state: str, challenge: str, method: str) -> dict[str, str]:
+    """Return the parameters of an authorization request for a code."""
+    return {
+        "response_type": "code",
+        "client_id": CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "state": state,
+        "scope": SCOPE,
+        "code_challenge": challenge,
+        "code_challenge_method": method,
+    }
+
+
 async def _authorize(
     client: httpx.AsyncClient,
     state: str,
@@ -95,15 +108,7 @@ async def _authorize(
     """Ask for a code as the established resource owner."""
     return await client.get(
         "/authorize",
-        params={
-            "response_type": "code",
-            "client_id": CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "state": state,
-            "scope": SCOPE,
-            "code_challenge": challenge,
-            "code_challenge_method": method,
-        },
+        params=_asking(state, challenge, method),
         headers={"Authorization": f"Bearer {await _owner_token(client)}"},
     )
 
@@ -131,6 +136,35 @@ async def test_the_second_pass_is_approved_and_redirects_with_a_code() -> None:
     delivered = _delivered(answered)
     assert delivered["code"]
     assert delivered["state"] == GRANTED
+
+
+async def test_the_consent_form_posting_the_query_back_with_its_answer_is_approved() -> None:
+    # The page's form posts to the URL it was shown at: the request is in the
+    # query, the owner's answer in the body, and the query is what is read.
+    async with serving(_application()) as client:
+        await _seed(client)
+        answered = await client.post(
+            "/authorize",
+            params=_asking(GRANTED, code_challenge_of(VERIFIER), "S256"),
+            data={"allow": "yes"},
+            headers={"Authorization": f"Bearer {await _owner_token(client)}"},
+        )
+
+    assert answered.status_code == 302, answered.text
+    assert _delivered(answered)["state"] == GRANTED
+
+
+async def test_a_request_posted_as_a_form_reaches_the_consent_page() -> None:
+    async with serving(_application()) as client:
+        await _seed(client)
+        answered = await client.post(
+            "/authorize",
+            data=_asking(ASKING, code_challenge_of(VERIFIER), "S256"),
+            headers={"Authorization": f"Bearer {await _owner_token(client)}"},
+        )
+
+    assert answered.status_code == 200
+    assert answered.text == CONSENT_PAGE
 
 
 async def test_an_unhashed_proof_key_is_refused_unless_the_client_may_send_one() -> None:

@@ -6,7 +6,7 @@ import secrets
 from base64 import urlsafe_b64encode
 from hashlib import sha256
 from typing import TYPE_CHECKING, Final, final
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
 from xtr_security_http.event.oidc_authorization_request_event import (
     OidcAuthorizationRequestEvent,
@@ -98,7 +98,7 @@ class OidcLoginAuthorization:
         # provider announcing no usable authorization endpoint does not leave
         # any attempt behind.
         authorization_endpoint = await self._discovery.get_secure_endpoint("authorization_endpoint")
-        redirect_uri = self._http_utils.generate_uri(self._options.check_path)
+        redirect_uri = self._redirect_uri(request)
 
         state = secrets.token_hex(_STATE_ENTROPY)
         nonce = urlsafe_b64encode(secrets.token_bytes(_NONCE_ENTROPY)).rstrip(b"=").decode()
@@ -136,6 +136,34 @@ class OidcLoginAuthorization:
         separator = "&" if "?" in authorization_endpoint else "?"
         authorization_url = authorization_endpoint + separator + urlencode(params, quote_via=quote)
         return self._http_utils.create_redirect_response(request, authorization_url)
+
+    def _redirect_uri(self, request: ServerRequestInterface) -> str:
+        """Return the callback URL the provider is to send the authorization response to.
+
+        The provider matches it against the URLs registered for the client,
+        so it has to be absolute. A configured ``redirect_uri`` is sent as it
+        is — the choice for a deployment whose public origin the request does
+        not carry, behind a proxy terminating TLS, or whose ``Host`` it does
+        not trust. Otherwise the check path goes through the URI helper, and
+        a path it leaves relative is anchored at the origin the request
+        reached, when the request names a whole one — a scheme and a host: a
+        host alone would anchor it as a protocol-relative reference, so the
+        path is sent as it is then. A forged ``Host`` only yields a URL the
+        provider has not registered, and refuses.
+        """
+        if self._options.redirect_uri is not None:
+            return self._options.redirect_uri
+        uri = self._http_utils.generate_uri(self._options.check_path)
+        parsed = urlsplit(uri)
+        origin = request.get_uri()
+        if (
+            (parsed.scheme != "" and parsed.netloc != "")
+            or origin.get_scheme() == ""
+            or origin.get_host() == ""
+        ):
+            return uri
+        anchor = origin.with_user_info("").with_path("").with_query("").with_fragment("")
+        return f"{anchor}{uri}"
 
     def _derive_code_challenge(self, code_verifier: str) -> str:
         """Derive the PKCE code challenge from the verifier, per the configured method.

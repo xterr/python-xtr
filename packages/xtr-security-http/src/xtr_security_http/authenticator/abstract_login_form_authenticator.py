@@ -14,10 +14,10 @@ from urllib.parse import unquote
 
 from typing_extensions import override
 
-from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http.entry_point.authentication_entry_point_interface import (
     AuthenticationEntryPointInterface,
 )
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from .abstract_authenticator import AbstractAuthenticator

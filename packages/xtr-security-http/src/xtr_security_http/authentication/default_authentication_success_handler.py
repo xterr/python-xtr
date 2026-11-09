@@ -4,7 +4,9 @@ A login that succeeds has one thing left to do — return the caller to what
 they were doing — and where that is, is a ladder: the path the request
 itself asked for under the configured parameter, then the path the
 interrupted request saved on the session, then the page the caller came
-from, then the configured default.
+from, then the configured default. What the request asked for and where it
+came from are the client's word, so each is honoured only on the request's
+own origin.
 """
 
 from __future__ import annotations
@@ -13,8 +15,9 @@ from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 
-from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http._request_parameters import payload_parameter, query_parameter
+from xtr_security_http._same_origin import is_same_origin
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.util import get_target_path, remove_target_path
 
 from ._referer import names_login_or_current, referer_of
@@ -46,10 +49,11 @@ class DefaultAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface)
     """Answers a successful login with a redirect, by the target ladder.
 
     The target is a ladder: the configured default, when the options say it
-    always wins; a path the request carried under the configured parameter;
-    the path the interrupted request saved on the session — read and removed,
-    a return trip happens once; the page the caller came from, when the
-    options ask for it; then the configured default.
+    always wins; a target on the request's own origin the request carried
+    under the configured parameter; the path the interrupted request saved on
+    the session — read and removed, a return trip happens once; the page of
+    the request's own origin the caller came from, when the options ask for
+    it; then the configured default.
     """
 
     __slots__ = ("_firewall_name", "_http_utils", "_logger", "_options")
@@ -120,20 +124,22 @@ class DefaultAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface)
         return str(self._options["default_target_path"])
 
     async def _asked_target_of(self, request: ServerRequestInterface) -> str | None:
-        """Return the path the request carried under the configured parameter.
+        """Return the target the request carried under the configured parameter.
 
-        A path that is not a path at all — not an absolute path, not an
-        absolute URL — is ignored with a note, and the ladder goes on.
+        The client wrote it, and a link of another site's may have, so only a
+        target on the request's own origin is honoured — a path of the
+        application's, or an absolute URL with the request's scheme, host
+        and port. Any other is ignored with a note, and the ladder goes on.
         """
         parameter = str(self._options["target_path_parameter"])
         asked = query_parameter(request, parameter)
         if asked is None:
             asked = payload_parameter(request, parameter)
-        if isinstance(asked, str) and asked.startswith(("/", "http")):
+        if isinstance(asked, str) and is_same_origin(request, asked):
             return asked
         if self._logger is not None and asked:
             self._logger.debug(
-                "Ignoring query parameter {parameter!r}: not a valid URL.",
+                "Ignoring query parameter {parameter!r}: not a URL of the request's own origin.",
                 {"parameter": parameter},
             )
         return None
@@ -159,14 +165,15 @@ class DefaultAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface)
     async def _referer_target_of(self, request: ServerRequestInterface) -> str | None:
         """Return the page the caller came from, when the options ask for it.
 
-        The two pages that must never win are set aside: the login page —
-        the caller is coming *from* it — and the page the request asked for,
-        which is not a return trip but a repetition.
+        The header is the client's word too, so only a page of the request's
+        own origin is honoured. The two pages that must never win are set
+        aside: the login page — the caller is coming *from* it — and the page
+        the request asked for, which is not a return trip but a repetition.
         """
         if not self._options["use_referer"]:
             return None
         referer = referer_of(request)
-        if referer is None:
+        if referer is None or not is_same_origin(request, referer):
             return None
         if names_login_or_current(request, referer, str(self._options["login_path"])):
             return None

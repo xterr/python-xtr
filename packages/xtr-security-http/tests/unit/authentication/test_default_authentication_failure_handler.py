@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 import pytest
 from xtr_http_foundation import MemorySessionStorage, Session
@@ -43,6 +44,7 @@ def _request_with_session(
     path: str = "/login_check",
     query: str = "",
     referer: str | None = None,
+    parsed_body: object | None = None,
 ) -> tuple[ServerRequestInterface, Session]:
     """Build a request whose security state carries a parked session."""
     bag: dict[str, object] = {}
@@ -52,6 +54,7 @@ def _request_with_session(
         path=path,
         query=query,
         headers=headers,
+        parsed_body=parsed_body,
     ).with_attribute(SecurityRequestAttributes.STATE_BAG, bag)
     session = Session(MemorySessionStorage())
     security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = session
@@ -101,6 +104,52 @@ async def test_a_carried_path_that_is_no_path_is_ignored() -> None:
     )
 
     assert response.get_header_line("Location") == "/failed"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "https://evil.example/after",
+        "//evil.example/after",
+        "/\\evil.example/after",
+        "https://evil.example\\@example.com/after",
+    ],
+)
+async def test_a_carried_path_on_another_origin_is_ignored(target: str) -> None:
+    message, _session = _request_with_session(query=urlencode({"_failure_path": target}))
+
+    response = await _handler({"failure_path": "/failed"}).on_authentication_failure(
+        message,
+        BadCredentialsError("failed"),
+    )
+
+    assert response.get_header_line("Location") == "/failed"
+
+
+async def test_a_posted_path_on_another_origin_is_ignored() -> None:
+    message, _session = _request_with_session(
+        parsed_body={"_failure_path": "https://evil.example/after"},
+    )
+
+    response = await _handler({"failure_path": "/failed"}).on_authentication_failure(
+        message,
+        BadCredentialsError("failed"),
+    )
+
+    assert response.get_header_line("Location") == "/failed"
+
+
+async def test_a_carried_absolute_url_on_the_requests_own_origin_wins() -> None:
+    message, _session = _request_with_session(
+        query=urlencode({"_failure_path": "https://example.com/carried"}),
+    )
+
+    response = await _handler({"failure_path": "/failed"}).on_authentication_failure(
+        message,
+        BadCredentialsError("failed"),
+    )
+
+    assert response.get_header_line("Location") == "https://example.com/carried"
 
 
 async def test_a_request_without_a_session_redirects_without_keeping_the_error() -> None:

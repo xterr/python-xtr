@@ -33,6 +33,7 @@ from ._oidc_login_services import (
 from ._oidc_provider_services import (
     register_client,
     register_discovery,
+    register_http_client,
     register_id_token,
     register_refresher,
     register_verifier,
@@ -66,10 +67,11 @@ class OidcLoginFactory(AuthenticatorFactoryInterface):
     The provider is discovered from the configured issuer — its endpoints read
     off the well-known document — and the client authenticates at its token
     endpoint by the configured method. The login answers on its check path
-    with the default success and failure handlers, and a token-refresh listener
-    joins the firewall's chain so a stored login renews its access token. A
-    configured token generator registers under the firewall's own name, where
-    the token-generate command finds it.
+    with the default success and failure handlers — a failure sent to the
+    configured failure path — and a token-refresh listener joins the
+    firewall's chain so a stored login renews its access token. A configured
+    token generator registers under the firewall's own name, where the
+    token-generate command finds it.
 
     The discovery, client, verifier, ID-token reader and refresher live in
     xtr-security-http's ``oidc`` extra (joserfc); this factory imports them
@@ -119,10 +121,15 @@ class OidcLoginFactory(AuthenticatorFactoryInterface):
                 f'An OIDC login on the firewall "{firewall_name}" needs a user provider; '
                 f"name one on the firewall.",
             )
-        discovery_key = register_discovery(services, firewall_name, settings)
+        http_client_key = register_http_client(services, firewall_name)
+        discovery_key = register_discovery(services, firewall_name, settings, http_client_key)
         id_token_key = register_id_token(services, firewall_name)
-        verifier_key = register_verifier(services, firewall_name, settings, discovery_key)
-        client_key = register_client(services, firewall_name, settings, discovery_key)
+        verifier_key = register_verifier(
+            services, firewall_name, settings, discovery_key, http_client_key
+        )
+        client_key = register_client(
+            services, firewall_name, settings, discovery_key, http_client_key
+        )
         refresher_key = register_refresher(
             services,
             firewall_name,
@@ -136,7 +143,7 @@ class OidcLoginFactory(AuthenticatorFactoryInterface):
         register_back_channel_logout(services, firewall_name, settings, discovery_key, verifier_key)
         register_end_session_listener(services, firewall_name, settings, discovery_key)
         success_key = register_success_handler(services, firewall_name)
-        failure_key = register_failure_handler(services, firewall_name)
+        failure_key = register_failure_handler(services, firewall_name, settings)
         if settings.token_generator is not None:
             register_generator(services, firewall_name, settings.token_generator)
         return (
@@ -184,6 +191,7 @@ def _register_authenticator(  # noqa: PLR0913, PLR0917 -- one login from its fir
 
     options = {
         "check_path": settings.check_path,
+        "redirect_uri": settings.redirect_uri,
         "firewall_name": firewall_name,
         "scope": tuple(settings.scope.split()),
         "pkce_enabled": settings.pkce_enabled,

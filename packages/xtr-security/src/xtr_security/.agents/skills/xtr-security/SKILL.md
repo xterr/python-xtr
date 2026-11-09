@@ -171,8 +171,13 @@ authorization-code login, on a stateful firewall with a user provider:
 
 The provider is discovered from `issuer`, PKCE is on (`S256`) by default, and the user is read
 from the `userinfo` endpoint or the `id_token` claims by `user_data_source`. The callback
-answers on `check_path` (`/oidc/callback`). On a stateless firewall the login fails at use
-with `MissingSessionError`, not at build — its pending attempts live in the session. A
+answers on `check_path` (`/oidc/callback`); the provider is sent it as an absolute
+`redirect_uri`, anchored at the request's scheme and host unless `redirect_uri` names the
+registered URL outright — set it behind a TLS-terminating proxy or an untrusted `Host`. A
+callback that fails is sent to `failure_path` — `/login` when it is `None`, so an application
+signing in with OIDC alone names a page of its own. On a
+stateless firewall the login fails at use with `MissingSessionError`, not at build — its
+pending attempts live in the session. A
 `token_generator` block makes this application's own tokens mintable through
 `security:oidc:generate-token`; `backchannel_logout` and `end_session` wire the
 provider-pushed logout, whose route is the application's to map. The fields and the back
@@ -325,6 +330,11 @@ from xtr_dependency_injection.testing import boot_for_test
 async with await boot_for_test(kernel) as booted, unit_of_work(booted.container) as unit:
     security = await unit.get(Security)
 ```
+
+An OIDC login reaches its provider through one service, `HttpClientInterface` qualified
+`<firewall>#oidc_http_client`: hand `boot_for_test` an
+`overrides={(HttpClientInterface, "main#oidc_http_client"): MockHttpClient(answer)}` and every
+discovery, code-exchange, userinfo and key fetch goes through the fake — no network.
 
 End to end, sign a request the way a client does — call your own token route, send the credential
 back — rather than writing a token into storage by hand.

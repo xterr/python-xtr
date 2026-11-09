@@ -239,7 +239,7 @@ functions, for a package or an endpoint that mints and publishes keys without a 
 | Function | Returns |
 |---|---|
 | `generate_signing_key(algorithm, key_id=None)` | The private key `algorithm` signs with — `RS*`/`PS*` an RSA-2048 key, `ES*` the curve the algorithm names, `EdDSA` an Ed25519 key. What `jwt:generate-keypair` mints |
-| `public_key_set(key_loader, algorithm)` | `{"keys": [...]}` — the signing key's public half, then every additional public key, each with its public members alone |
+| `public_key_set(key_loader, algorithm)` | `{"keys": [...]}` — the signing key's public half, then every additional public key, each with its public members alone and marked `"use": "sig"` |
 | `signing_key_id(key_loader, algorithm)` | The id the signing key is published under, for a token's `kid` header |
 
 A key is named by the `kid` its own material carries or, since a lone PEM carries none, by its

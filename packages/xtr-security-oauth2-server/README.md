@@ -390,6 +390,16 @@ wherever it ends up, leaving out the ones excluded:
   original query back to `/authorize`, and the second pass is the one approved. Binding that form
   to the person it was shown to (a CSRF token) is the listener's. With nobody signed in the client
   is told only `access_denied`, and the cause is written on the `oauth2_server` log channel.
+- **`GET` or `POST` to `/authorize`**: a request comes as a `GET` with its parameters in the
+  query, or as a `POST` with them in an `application/x-www-form-urlencoded` body; any other body
+  is refused `invalid_request`. A posted form is read as the query it stands for
+  (`xtr_security_oauth2_server.posted_form_as_query`), so grants, listeners and firewall steps
+  read one request either way. A `POST` whose query names `response_type` — the consent form
+  posting the query back — is read from its query, its body left to the listener. Parameters are
+  never read from both: a `POST` carrying the request in its form is refused if its query string
+  is non-empty, and a `POST` whose query names `response_type` is refused if its body names it too,
+  both as `invalid_request`. The consent form's own fields are not the request, so they may travel
+  beside the query it posts back.
 - **`/token`, `/revoke`, `/introspect`** authenticate the client themselves — HTTP Basic or
   `client_id`/`client_secret` in the form — so no firewall claims them. A revoked refresh token
   takes its access token with it; a token that is unknown or another client's is answered as one
@@ -403,6 +413,12 @@ wherever it ends up, leaving out the ones excluded:
   server runs — one the application or an add-on registered among them — the scopes and the
   proof-key methods; **the key set** publishes the signing key's public half and every additional
   public key, each under the `kid` a token's header names.
+
+The description finds each route with `paths_by_endpoint(routes)`, from
+`xtr_security_oauth2_server.routing`: it maps the endpoint function every route of an application
+calls to the path that route is served at, prefixes applied. An endpoint mounted twice keeps its
+first path, and a route calling no endpoint — a mount, say — is left out. An add-on serving a
+route of its own looks it up the same way, so it is published wherever a routes file puts it.
 
 ## Services
 
@@ -438,6 +454,11 @@ name the code dispatches under — `@as_event_listener(OAuth2Events.X)`:
 | `OAuth2Events.ACCESS_TOKEN_EXTRA_CLAIMS_RESOLVE` | `AccessTokenExtraClaimsResolveEvent` | Adds claims to an access token before it is signed; the token's own names are refused |
 | `OAuth2Events.TOKEN_REQUEST_RESOLVE` | `TokenRequestResolveEvent` | Replaces the token answer, refusals included |
 | `OAuth2Events.PRE_SAVE_CLIENT` | `PreSaveClientEvent` | Changes a client before it is stored; the shipped listener hands a scope-less client `scopes.default` |
+
+`AuthorizationRequestResolveEvent` reads what every flow's request carries — `get_redirect_uri()`,
+`get_state()`, `get_code_challenge()` — and `get_authorization_request()` hands out the request
+itself, the very object the grant built: a listener reads there the parameters an add-on's own
+request subclass carries, which the event knows nothing of.
 
 The protocol library announces five more, under `RequestEvent`'s names:
 `ACCESS_TOKEN_ISSUED` and `REFRESH_TOKEN_ISSUED` (with `RequestAccessTokenEvent` and
@@ -549,8 +570,8 @@ BUNDLES = {OAuth2ServerBundle: {"all": True}}
 `OAuth2ServerBundle` (name `oauth2_server`, config `OAuth2ServerConfig`) requires the
 [security](../xtr-security), [clock](../xtr-clock), [event dispatcher](../xtr-event-dispatcher)
 and [HTTP kernel](../xtr-http-kernel) bundles, and the [logging](../xtr-logging) and
-[console](../xtr-console) bundles when they are installed. No other bundle requires it, so it only
-arrives by being listed. It:
+[console](../xtr-console) bundles when they are installed. It arrives by being listed, or with a
+bundle built on it that requires it: add-ons build on it, and it requires none of them. It:
 
 - prepends onto the security configuration an authenticator factory keyed `oauth2`, which a
   firewall's `OAuth2AuthenticatorConfig()` builds — one authenticator per firewall, over that
@@ -601,6 +622,7 @@ xtr_security_oauth2_server/
 ├── routing/                    the endpoints, and the two route resources routes files register
 ├── oauth2_events.py            OAuth2Events, the six names
 ├── authorization_server_metadata.py, metadata_contributor_interface.py
+├── posted_form_as_query.py     an authorization request posted as a form, read as its query
 ├── controller/                 one controller per endpoint
 ├── model/                      the stored client, tokens and codes, and their interfaces
 ├── value_object/               Grant, RedirectUri, Scope

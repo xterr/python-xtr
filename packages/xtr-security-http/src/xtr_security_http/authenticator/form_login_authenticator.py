@@ -10,10 +10,11 @@ from xtr_security_core.authentication.token.username_password_token import Usern
 from xtr_security_core.exception import BadCredentialsError, InvalidArgumentError
 from xtr_security_core.user.password_upgrader_interface import PasswordUpgraderInterface
 
-from xtr_security_http._parked_session import parked_session_of
+from xtr_security_http._form_content_type import is_form_content_type
 from xtr_security_http.entry_point.re_authentication_entry_point_interface import (
     ReAuthenticationEntryPointInterface,
 )
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from ._form_login_credentials import form_login_credentials_of
@@ -153,7 +154,7 @@ class FormLoginAuthenticator(
                     f'the "check_path" option "{check_path}"',
                 )
             return False
-        if self._options["form_only"] and not _is_form_content_type(
+        if self._options["form_only"] and not is_form_content_type(
             request.get_header_line("Content-Type"),
         ):
             content_type = request.get_header_line("Content-Type")
@@ -256,9 +257,3 @@ class FormLoginAuthenticator(
                 request.get_attribute(SecurityRequestAttributes.RE_AUTHENTICATION_ATTRIBUTE),
             )
         return await self.start(request)
-
-
-def _is_form_content_type(content_type: str) -> bool:
-    """Tell whether a ``Content-Type`` header names one of the form encodings."""
-    media = content_type.partition(";")[0].strip().lower()
-    return media.startswith(("application/x-www-form-urlencoded", "multipart/form-data"))

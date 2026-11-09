@@ -127,6 +127,11 @@ Subclass `AuthCodeGrant` (the one shipped grant that is not final) and use its s
 | `get_auth_code_payload(auth_code, authorization_request)` | Call `super()` and add to the dictionary; the caller seals it into the code |
 | `respond_to_access_token_request(request, response_type, ttl)` | Call `super()`, then read the code back with `self.decrypt(self.get_request_parameter("code", request))` and hand what it carried to the response type |
 
+A listener on `OAuth2Events.AUTHORIZATION_REQUEST_RESOLVE` reads the parameter back while consent
+is asked: `event.get_authorization_request()` returns the very request
+`create_authorization_request()` built, so `isinstance(request, NonceAuthorizationRequest)`
+narrows it to the subclass and its `get_nonce()` is there.
+
 The constructor is `AuthCodeGrant(dispatcher, clock, auth_code_repository,
 refresh_token_repository, auth_code_ttl)`; call `set_refresh_token_ttl(...)` and
 `disable_require_code_challenge_for_public_clients()` as the deployment's settings say.
@@ -189,6 +194,30 @@ add-on's bundle with `services.load(...)`. The application's routes files regist
 `app.include_router(resources["my_addon"])`; routing is never imported automatically — and the
 application's firewall decides who reaches it: `OAuth2AuthenticatorConfig()` on that path
 accepts this server's access tokens.
+
+To name it in the description, a contributor looks its path up by its endpoint function with
+`paths_by_endpoint`, from `xtr_security_oauth2_server.routing` — the lookup the server's own fields
+are built with, so the route is published wherever the routes file put it:
+
+```python
+from fastapi import APIRouter, FastAPI
+from xtr_security_oauth2_server.routing import paths_by_endpoint
+
+
+async def status() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+router = APIRouter()
+router.add_api_route("/status", status, methods=["GET"])
+app = FastAPI()
+app.include_router(router, prefix="/my-addon")  # what the application's routes file does
+
+assert paths_by_endpoint(app.routes)[status] == "/my-addon/status"
+```
+
+Prefixes are applied, an endpoint mounted twice keeps its first path, and a route calling no
+endpoint — a mount — is left out.
 
 ## The core by hand
 

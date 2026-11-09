@@ -16,7 +16,7 @@ from xtr_security_oauth2_server_core.request_types.authorization_request import 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entity_builders import client_entity
 from tests.support.grants import Storage
-from tests.support.messages import server_request
+from tests.support.messages import MultiValuedForm, document_of, server_request
 from tests.support.recording_logger import RecordingLogger
 from tests.support.servers import make_server
 from xtr_security_oauth2_server.controller.authorization_controller import (
@@ -48,6 +48,14 @@ _REDIRECT_URI: Final = "https://client.test/callback"
 _STATE: Final = "the-opaque-state"
 _CLIENT_ID: Final = "client-1"
 _FLOW: Final = "authorization_code"
+
+#: What a browser asking for a code sends, in the order it sends it.
+_ASKING: Final = (
+    ("response_type", "code"),
+    ("client_id", _CLIENT_ID),
+    ("redirect_uri", _REDIRECT_URI),
+    ("state", _STATE),
+)
 
 
 def _request(
@@ -133,12 +141,7 @@ def _asking_for_a_code() -> ServerRequestInterface:
     return server_request(
         "GET",
         "/authorize",
-        query_params={
-            "response_type": "code",
-            "client_id": _CLIENT_ID,
-            "redirect_uri": _REDIRECT_URI,
-            "state": _STATE,
-        },
+        query_params=dict(_ASKING),
     )
 
 
@@ -195,6 +198,31 @@ async def test_a_deployment_logging_nothing_answers_the_client_just_the_same() -
     answered = await _controller().index_action(_asking_for_a_code(), Response(200))
 
     assert answered.get_status_code() == 302
+
+
+async def test_a_request_posted_as_a_form_is_read_as_its_query_would_be() -> None:
+    posted = server_request(
+        "POST",
+        "/authorize",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        parsed_body=MultiValuedForm(_ASKING),
+    )
+
+    answered = await _controller().index_action(posted, Response(200))
+
+    assert "error=access_denied" in answered.get_header_line("location")
+
+
+async def test_a_request_posted_as_no_form_is_refused_as_a_document() -> None:
+    posted = server_request("POST", "/authorize", headers={"Content-Type": "application/json"})
+
+    answered = await _controller().index_action(posted, Response(200))
+
+    assert answered.get_status_code() == 400
+    assert answered.get_header_line("location") == ""
+    document = await document_of(answered)
+    assert isinstance(document, dict)
+    assert document["error"] == "invalid_request"
 
 
 def test_it_names_the_type_and_nothing_it_holds() -> None:

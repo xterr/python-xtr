@@ -1,4 +1,4 @@
-"""The OIDC provider services a login wires: discovery, client, tokens, refresher."""
+"""The OIDC provider services a login wires: HTTP client, discovery, client, tokens, refresher."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 __all__ = [
     "register_client",
     "register_discovery",
+    "register_http_client",
     "register_id_token",
     "register_refresher",
     "register_verifier",
@@ -42,36 +43,58 @@ def _qualified(key: ServiceKey) -> object:
     return Annotated[key[0], Target(key[1])]  # ty: ignore[invalid-type-form] -- runtime marker
 
 
-def _provider_http_client() -> object:
-    """Build the HTTP client every provider fetch runs through."""
-    from xtr_http_client import HttpxHttpClient  # noqa: PLC0415 -- guarded behind the oidc extra
+def register_http_client(services: ServiceConfigurator, firewall_name: str) -> ServiceKey:
+    """Register the HTTP client every provider fetch of the login runs through.
 
-    return HttpxHttpClient(
-        {"timeout": _DISCOVERY_TIMEOUT},
-        max_host_connections=_DISCOVERY_MAX_CONNECTIONS,
+    A service of its own, under the firewall's qualifier, so one override
+    reaches the discovery, the code exchange and the key fetch alike — the
+    seam a test serves the provider through, or an application tunes the
+    client at. Built on first use, so the wiring opens no connection.
+    """
+    from xtr_http_client_contracts import (  # noqa: PLC0415 -- guarded behind the oidc extra
+        HttpClientInterface,
     )
+
+    def oidc_http_client() -> HttpClientInterface:
+        from xtr_http_client import (  # noqa: PLC0415 -- guarded behind the oidc extra
+            HttpxHttpClient,
+        )
+
+        return HttpxHttpClient(
+            {"timeout": _DISCOVERY_TIMEOUT},
+            max_host_connections=_DISCOVERY_MAX_CONNECTIONS,
+        )
+
+    oidc_http_client.__annotations__ = {"return": HttpClientInterface}
+    oidc_http_client.__name__ = f"oidc_http_client_{firewall_name}"
+    oidc_http_client.__qualname__ = oidc_http_client.__name__
+    return services.set(oidc_http_client, qualifier=f"{firewall_name}#oidc_http_client").key
 
 
 def register_discovery(
     services: ServiceConfigurator,
     firewall_name: str,
     settings: OidcLoginConfig,
+    http_client_key: ServiceKey,
 ) -> ServiceKey:
     """Register the provider's discovery reader, keyed by the issuer."""
     from xtr_security_http.oidc import (  # noqa: PLC0415 -- guarded behind the oidc extra
         OidcDiscovery,
     )
 
-    def oidc_discovery() -> OidcDiscovery:
+    def oidc_discovery(http_client: object) -> OidcDiscovery:
         from xtr_cache import ArrayAdapter  # noqa: PLC0415 -- guarded behind the oidc extra
 
         return OidcDiscovery(
-            cast("HttpClientInterface", _provider_http_client()),
+            cast("HttpClientInterface", http_client),
             ArrayAdapter(),
             issuer=settings.issuer,
         )
 
-    oidc_discovery.__annotations__ = {"return": OidcDiscovery}
+    oidc_discovery.__annotations__ = {
+        "http_client": _qualified(http_client_key),
+        "return": OidcDiscovery,
+    }
     oidc_discovery.__name__ = f"oidc_discovery_{firewall_name}"
     oidc_discovery.__qualname__ = oidc_discovery.__name__
     return services.set(oidc_discovery, qualifier=f"{firewall_name}#oidc_discovery").key
@@ -95,6 +118,7 @@ def register_verifier(
     firewall_name: str,
     settings: OidcLoginConfig,
     discovery_key: ServiceKey,
+    http_client_key: ServiceKey,
 ) -> ServiceKey | None:
     """Register the ID-token signature verifier, when algorithms name any."""
     if settings.signature_verifier_algorithms is None:
@@ -105,6 +129,7 @@ def register_verifier(
 
     def oidc_signature_verifier(
         discovery: object,
+        http_client: object,
         clock: ClockInterface | None = None,
     ) -> OidcSignatureVerifier:
         from xtr_cache import ArrayAdapter  # noqa: PLC0415 -- guarded behind the oidc extra
@@ -112,13 +137,14 @@ def register_verifier(
         return OidcSignatureVerifier(
             cast("OidcDiscovery", discovery),
             ArrayAdapter(),
-            cast("HttpClientInterface", _provider_http_client()),
+            cast("HttpClientInterface", http_client),
             algorithms=tuple(settings.signature_verifier_algorithms or ()),
             clock=clock,
         )
 
     oidc_signature_verifier.__annotations__ = {
         "discovery": _qualified(discovery_key),
+        "http_client": _qualified(http_client_key),
         "clock": ClockInterface | None,
         "return": OidcSignatureVerifier,
     }
@@ -204,16 +230,18 @@ def register_client(
     firewall_name: str,
     settings: OidcLoginConfig,
     discovery_key: ServiceKey,
+    http_client_key: ServiceKey,
 ) -> ServiceKey:
     """Register the OIDC client the login exchanges its code through."""
     from xtr_security_http.oidc import OidcClient  # noqa: PLC0415 -- guarded behind the oidc extra
 
     async def oidc_client(
         discovery: object,
+        http_client: object,
         clock: ClockInterface | None = None,
     ) -> OidcClient:
         return OidcClient(
-            cast("HttpClientInterface", _provider_http_client()),
+            cast("HttpClientInterface", http_client),
             cast("OidcDiscovery", discovery),
             settings.client_id,
             cast(
@@ -229,6 +257,7 @@ def register_client(
 
     oidc_client.__annotations__ = {
         "discovery": _qualified(discovery_key),
+        "http_client": _qualified(http_client_key),
         "clock": ClockInterface | None,
         "return": OidcClient,
     }

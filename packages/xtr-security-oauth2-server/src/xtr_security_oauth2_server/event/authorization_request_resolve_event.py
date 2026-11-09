@@ -90,6 +90,16 @@ class AuthorizationRequestResolveEvent(Event):
 
         return self
 
+    def get_authorization_request(self) -> AuthorizationRequestInterface:
+        """Return the authorization request this event was raised for.
+
+        The getters below read what every flow's request carries. A flow whose
+        request carries more — an add-on's request subclass, with parameters of
+        its own — is read through the request itself, so a listener reaches
+        those parameters without this event having to know they exist.
+        """
+        return self._authorization_request
+
     def get_grant_type_id(self) -> str:
         """Return the grant the request is for."""
         return self._authorization_request.get_grant_type_id()

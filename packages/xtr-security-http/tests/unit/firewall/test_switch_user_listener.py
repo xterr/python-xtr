@@ -589,6 +589,44 @@ async def test_the_switch_path_falls_back_to_the_root_without_a_target() -> None
     assert event.response.headers["location"] == "/"
 
 
+@pytest.mark.parametrize(
+    "target",
+    ["https://evil.example/back", "//evil.example/back", "/\\evil.example/back"],
+)
+async def test_the_switch_path_refuses_a_submitted_target_on_another_origin(target: str) -> None:
+    storage = TokenStorage()
+    storage.set_token(_admin_token())
+    provider = _RecordingProvider({"ada": InMemoryUser("ada")})
+    listener = _listener(storage, provider, path="/switch")
+    request = make_message(
+        method="POST",
+        path="/switch",
+        parsed_body={"_switch_user": "ada", "_target_path": target},
+    )
+
+    event = await _switch(listener, request, {})
+
+    assert event.response is not None
+    assert event.response.headers["location"] == "/"
+
+
+async def test_the_switch_path_honours_a_submitted_target_on_the_requests_own_origin() -> None:
+    storage = TokenStorage()
+    storage.set_token(_admin_token())
+    provider = _RecordingProvider({"ada": InMemoryUser("ada")})
+    listener = _listener(storage, provider, path="/switch")
+    request = make_message(
+        method="POST",
+        path="/switch",
+        parsed_body={"_switch_user": "ada", "_target_path": "https://example.com/back"},
+    )
+
+    event = await _switch(listener, request, {})
+
+    assert event.response is not None
+    assert event.response.headers["location"] == "https://example.com/back"
+
+
 async def test_the_exit_value_restores_the_original_token() -> None:
     storage = TokenStorage()
     original = _admin_token()

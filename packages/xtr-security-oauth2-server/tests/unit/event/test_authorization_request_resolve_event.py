@@ -98,6 +98,12 @@ def test_resolving_the_request_drops_a_response_set_earlier() -> None:
     assert event.get_response() is None
 
 
+def test_the_event_hands_out_the_request_it_was_raised_for() -> None:
+    request = _authorization_request()
+
+    assert _event(request).get_authorization_request() is request
+
+
 def test_it_names_the_grant_the_request_is_for() -> None:
     assert _event().get_grant_type_id() == "authorization_code"
 

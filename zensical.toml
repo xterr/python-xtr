@@ -200,6 +200,7 @@ modules = [
   "packages/xtr-security-jwt/src/xtr_security_jwt",
   "packages/xtr-security-oauth2-server-core/src/xtr_security_oauth2_server_core",
   "packages/xtr-security-oauth2-server/src/xtr_security_oauth2_server",
+  "packages/xtr-security-openid-connect-server/src/xtr_security_openid_connect_server",
   "packages/xtr-security/src/xtr_security",
   "packages/xtr-serializer/src/xtr_serializer",
   "packages/xtr-service-contracts/src/xtr_service_contracts",

@@ -2,11 +2,11 @@
 
 A login that fails has one honest thing to say — "try again" — and one
 place to say it: the login page. Where exactly that is, is a ladder: the
-path the request itself asked for under the configured parameter, then the
-configured failure path, then the login page. Before the redirect, the
-error is kept for the page that renders the form again, and — when the
-caller came from a page of the application's own — that page is kept as
-the return trip's target.
+path the request itself asked for under the configured parameter — honoured
+only on the request's own origin — then the configured failure path, then
+the login page. Before the redirect, the error is kept for the page that
+renders the form again, and — when the caller came from a page of the
+application's own — that page is kept as the return trip's target.
 """
 
 from __future__ import annotations
@@ -16,8 +16,9 @@ from typing import TYPE_CHECKING, final
 from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
-from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http._request_parameters import payload_parameter, query_parameter
+from xtr_security_http._same_origin import is_same_origin
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 from xtr_security_http.util import get_target_path, save_target_path
 
@@ -51,12 +52,12 @@ _DEFAULT_OPTIONS: dict[str, object] = {
 class DefaultAuthenticationFailureHandler(AuthenticationFailureHandlerInterface):
     """Answers a failed login with a redirect, keeping the error for the form.
 
-    The redirect target is a ladder: a path the request carried under the
-    configured parameter — a query parameter a page with a login form of its
-    own sets — then the configured failure path, then the login page. The
-    error is kept on the request's session for the page that renders the
-    form again, and the page the caller came from is kept as the return
-    trip's target when the options ask for it.
+    The redirect target is a ladder: a target on the request's own origin the
+    request carried under the configured parameter — a query parameter a page
+    with a login form of its own sets — then the configured failure path,
+    then the login page. The error is kept on the request's session for the
+    page that renders the form again, and the page the caller came from is
+    kept as the return trip's target when the options ask for it.
 
     The ``failure_forward`` option is refused: this stack has no sub-request
     to hand the login page to, so the redirect is the only path an answer
@@ -153,20 +154,22 @@ class DefaultAuthenticationFailureHandler(AuthenticationFailureHandlerInterface)
     def _failure_path_of(self, request: ServerRequestInterface) -> str:
         """Return the path the failure redirect answers with, by the ladder.
 
-        A path the request carried under the configured parameter wins when
-        it is a path at all — an absolute path or an absolute URL — and is
-        ignored with a note when it is not; then the configured failure
-        path, then the login page.
+        A target the request carried under the configured parameter wins when
+        it is on the request's own origin — a path of the application's, or
+        an absolute URL with the request's scheme, host and port: the client
+        wrote it, and a link of another site's may have — and is ignored with
+        a note when it is not; then the configured failure path, then the
+        login page.
         """
         parameter = str(self._options["failure_path_parameter"])
         asked = query_parameter(request, parameter)
         if asked is None:
             asked = payload_parameter(request, parameter)
-        if isinstance(asked, str) and asked.startswith(("/", "http")):
+        if isinstance(asked, str) and is_same_origin(request, asked):
             return asked
         if self._logger is not None and asked:
             self._logger.debug(
-                "Ignoring query parameter {parameter!r}: not a valid URL.",
+                "Ignoring query parameter {parameter!r}: not a URL of the request's own origin.",
                 {"parameter": parameter},
             )
         failure_path = self._options["failure_path"]

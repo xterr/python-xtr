@@ -14,7 +14,7 @@ from xtr_security_http import HttpUtils
 if TYPE_CHECKING:
     from xtr_dependency_injection import ServiceConfigurator, ServiceKey
 
-    from xtr_security.bundle.oidc_configs import OidcTokenGeneratorConfig
+    from xtr_security.bundle.oidc_configs import OidcLoginConfig, OidcTokenGeneratorConfig
 
 __all__ = [
     "oidc_token_refresh_listener_name",
@@ -75,7 +75,12 @@ def register_refresh_listener(
 
 
 def register_success_handler(services: ServiceConfigurator, firewall_name: str) -> ServiceKey:
-    """Register the default success handler the login answers with."""
+    """Register the default success handler the login answers with.
+
+    The handler knows its firewall, so the page the firewall's entry point
+    saved before sending the caller to the provider is the one the callback
+    returns them to.
+    """
     from xtr_security_http import (  # noqa: PLC0415 -- bare of the oidc extra
         DefaultAuthenticationSuccessHandler,
     )
@@ -83,7 +88,9 @@ def register_success_handler(services: ServiceConfigurator, firewall_name: str) 
     def default_authentication_success_handler(
         http_utils: HttpUtils,
     ) -> DefaultAuthenticationSuccessHandler:
-        return DefaultAuthenticationSuccessHandler(http_utils)
+        handler = DefaultAuthenticationSuccessHandler(http_utils)
+        handler.set_firewall_name(firewall_name)
+        return handler
 
     default_authentication_success_handler.__annotations__ = {
         "http_utils": HttpUtils,
@@ -98,16 +105,26 @@ def register_success_handler(services: ServiceConfigurator, firewall_name: str) 
     ).key
 
 
-def register_failure_handler(services: ServiceConfigurator, firewall_name: str) -> ServiceKey:
-    """Register the default failure handler the login answers with."""
+def register_failure_handler(
+    services: ServiceConfigurator,
+    firewall_name: str,
+    settings: OidcLoginConfig,
+) -> ServiceKey:
+    """Register the default failure handler the login answers with.
+
+    A failed callback is redirected to the configured failure path, or to
+    the handler's own default login page when none is configured.
+    """
     from xtr_security_http import (  # noqa: PLC0415 -- bare of the oidc extra
         DefaultAuthenticationFailureHandler,
     )
 
+    options = {"failure_path": settings.failure_path}
+
     def default_authentication_failure_handler(
         http_utils: HttpUtils,
     ) -> DefaultAuthenticationFailureHandler:
-        return DefaultAuthenticationFailureHandler(http_utils, firewall_name=firewall_name)
+        return DefaultAuthenticationFailureHandler(http_utils, options, firewall_name=firewall_name)
 
     default_authentication_failure_handler.__annotations__ = {
         "http_utils": HttpUtils,

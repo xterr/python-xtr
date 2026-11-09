@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, cast, final, runtime_checkable
+from typing import TYPE_CHECKING, Annotated, Protocol, cast, final, runtime_checkable
 
 from typing_extensions import override
-from xtr_dependency_injection import named_factory
+from xtr_dependency_injection import Target, named_factory
 
 # The container keys the handler service by this factory's evaluated return type,
 # so the interface stays importable at runtime — it pulls in no joserfc.
-from xtr_security_http.access_token.access_token_handler_interface import (  # noqa: TC002
+from xtr_security_http.access_token.access_token_handler_interface import (
     AccessTokenHandlerInterface,
 )
 
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator, ServiceKey
+    from xtr_http_client_contracts import HttpClientInterface
     from xtr_security_http.access_token.oidc import OidcKeySetProviderInterface
 
 __all__ = ["OidcTokenHandlerFactory"]
@@ -96,70 +97,113 @@ class OidcTokenHandlerFactory(TokenHandlerFactoryInterface):
         service_id: str,
         config: object,
     ) -> ServiceKey:
-        """Register the OIDC handler service and return its key."""
+        """Register the OIDC handler service and return its key.
+
+        A discovery-backed handler fetches through an HTTP client registered
+        beside it, qualified ``<service_id>#http_client``, so one override
+        replaces every fetch it makes; a static key set fetches nothing and
+        registers none.
+        """
         del builder
         settings = cast("OidcTokenHandlerConfig", config)
-        factory = named_factory(
-            _oidc_handler_factory(settings, self._closeables),
-            f"oidc_token_handler_{service_id}",
-        )
+        factory: Callable[..., AccessTokenHandlerInterface]
+        if settings.keyset is not None:
+            factory = _static_handler_factory(settings)
+        else:
+            client_key = services.set(
+                named_factory(_http_client_factory(), f"oidc_http_client_{service_id}"),
+                qualifier=f"{service_id}#http_client",
+            ).key
+            factory = _discovery_handler_factory(settings, self._closeables, client_key)
+        factory = named_factory(factory, f"oidc_token_handler_{service_id}")
         return services.set(factory, qualifier=service_id).key
 
 
-def _oidc_handler_factory(
+def _http_client_factory() -> Callable[[], HttpClientInterface]:
+    """Return a factory building the client a discovery-backed handler fetches through."""
+    from xtr_http_client_contracts import (  # noqa: PLC0415 -- guarded behind the oidc extra
+        HttpClientInterface,
+    )
+
+    def oidc_http_client() -> HttpClientInterface:
+        from xtr_http_client import (  # noqa: PLC0415 -- guarded behind the oidc extra
+            HttpxHttpClient,
+        )
+
+        return HttpxHttpClient(
+            {"timeout": _DISCOVERY_TIMEOUT},
+            max_host_connections=_DISCOVERY_MAX_CONNECTIONS,
+        )
+
+    oidc_http_client.__annotations__ = {"return": HttpClientInterface}
+    return oidc_http_client
+
+
+def _static_handler_factory(
     settings: OidcTokenHandlerConfig,
-    closeables: list[_AsyncCloseable] | None,
 ) -> Callable[[], AccessTokenHandlerInterface]:
-    """Return a factory building the OIDC handler from ``settings``."""
+    """Return a factory building the handler over the configured key set."""
 
     def oidc_token_handler() -> AccessTokenHandlerInterface:
         from xtr_security_http.access_token.oidc import (  # noqa: PLC0415 -- guarded behind the oidc extra
-            OidcTokenHandler,
+            StaticOidcKeySetProvider,
         )
 
-        return OidcTokenHandler(
-            _build_provider(settings, closeables),
-            issuers=tuple(settings.issuers),
-            audience=settings.audience,
-            algorithms=tuple(settings.algorithms),
-            claim=settings.claim,
-            leeway=settings.leeway,
-            enforce_at_jwt_type=settings.enforce_at_jwt_type,
-        )
+        return _build_handler(settings, StaticOidcKeySetProvider(cast("str", settings.keyset)))
 
     return oidc_token_handler
 
 
-def _build_provider(
+def _discovery_handler_factory(
     settings: OidcTokenHandlerConfig,
     closeables: list[_AsyncCloseable] | None,
-) -> OidcKeySetProviderInterface:
-    """Build the key-set provider the configuration's single source describes.
+    client_key: ServiceKey,
+) -> Callable[..., AccessTokenHandlerInterface]:
+    """Return a factory building the handler over keys discovered through the client.
 
-    The provider fetches through the HTTP client contract, so the client is
-    the bundle's own scoped one and the cache is an in-memory pool: neither
-    outlives the provider the application configured.
+    The cache is an in-memory pool, so it does not outlive the provider the
+    application configured.
     """
-    from xtr_cache import ArrayAdapter  # noqa: PLC0415 -- guarded behind the oidc extra
-    from xtr_http_client import HttpxHttpClient  # noqa: PLC0415 -- guarded behind the oidc extra
+
+    def oidc_token_handler(http_client: object) -> AccessTokenHandlerInterface:
+        from xtr_cache import ArrayAdapter  # noqa: PLC0415 -- guarded behind the oidc extra
+        from xtr_security_http.access_token.oidc import (  # noqa: PLC0415 -- guarded behind the oidc extra
+            DiscoveryOidcKeySetProvider,
+        )
+
+        provider = DiscoveryOidcKeySetProvider(
+            cast("HttpClientInterface", http_client),
+            ArrayAdapter(),
+            base_uri=settings.discovery_uri,
+            jwks_uri=settings.jwks_uri,
+            allow_insecure_http=settings.allow_insecure_http,
+        )
+        if closeables is not None:
+            closeables.append(provider)
+        return _build_handler(settings, provider)
+
+    oidc_token_handler.__annotations__ = {
+        "http_client": Annotated[client_key[0], Target(client_key[1])],  # ty: ignore[invalid-type-form] -- runtime marker
+        "return": AccessTokenHandlerInterface,
+    }
+    return oidc_token_handler
+
+
+def _build_handler(
+    settings: OidcTokenHandlerConfig,
+    provider: OidcKeySetProviderInterface,
+) -> AccessTokenHandlerInterface:
+    """Build the handler verifying tokens against ``provider``'s keys."""
     from xtr_security_http.access_token.oidc import (  # noqa: PLC0415 -- guarded behind the oidc extra
-        DiscoveryOidcKeySetProvider,
-        StaticOidcKeySetProvider,
+        OidcTokenHandler,
     )
 
-    if settings.keyset is not None:
-        return StaticOidcKeySetProvider(settings.keyset)
-
-    provider = DiscoveryOidcKeySetProvider(
-        HttpxHttpClient(
-            {"timeout": _DISCOVERY_TIMEOUT},
-            max_host_connections=_DISCOVERY_MAX_CONNECTIONS,
-        ),
-        ArrayAdapter(),
-        base_uri=settings.discovery_uri,
-        jwks_uri=settings.jwks_uri,
-        allow_insecure_http=settings.allow_insecure_http,
+    return OidcTokenHandler(
+        provider,
+        issuers=tuple(settings.issuers),
+        audience=settings.audience,
+        algorithms=tuple(settings.algorithms),
+        claim=settings.claim,
+        leeway=settings.leeway,
+        enforce_at_jwt_type=settings.enforce_at_jwt_type,
     )
-    if closeables is not None:
-        closeables.append(provider)
-    return provider

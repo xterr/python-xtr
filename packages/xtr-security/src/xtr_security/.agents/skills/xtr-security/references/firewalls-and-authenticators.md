@@ -185,6 +185,22 @@ provider's keys, and `None` reads its claims without verifying. The callback ans
 `max_age` bounds how old an authentication may be, and `authorization_params` carries extra
 parameters — the ones the flow manages are guarded so no configuration can set them.
 
+The provider is sent an absolute `redirect_uri`. `redirect_uri=None` (the default) anchors
+`check_path` at the scheme and host the request reached; an absolute URL of `check_path`
+(`redirect_uri="https://shop.example/oidc/callback"`, checked at build) is sent as it is —
+the setting for a deployment behind a TLS-terminating proxy or with an untrusted `Host`.
+
+A callback that fails — the provider's refusal, a `state` matching no pending attempt, an ID
+token that does not check out — is redirected to `failure_path` (an absolute path, checked at
+build); `failure_path=None` (the default) sends it to the failure handler's login page,
+`/login`. An application signing in with OIDC alone sets `failure_path="/sign-in-failed"`, or
+any page of its own.
+
+The provider is reached through one HTTP client, the service `HttpClientInterface` qualified
+`<firewall>#oidc_http_client` (an `HttpxHttpClient`, 10-second timeout, built on first use):
+override it — `overrides={(HttpClientInterface, "main#oidc_http_client"): client}` — and the
+discovery, the code exchange, the userinfo and the key fetch all go through `client`.
+
 Three sub-blocks ride on the login:
 
 - `token_generator` (`OidcTokenGeneratorConfig(algorithms, keyset, audience, issuers, claim)`)
@@ -252,6 +268,8 @@ challenge answers with.
 audience; `algorithms` default to `("RS256",)`, `claim` to `"sub"`, plus `leeway` (0 to 300
 seconds), `enforce_at_jwt_type` and `allow_insecure_http`. `exp` is required on a token: one that
 never expires is refused.
+A discovered key set is fetched through `HttpClientInterface` qualified
+`<firewall>_oidc#http_client`, overridable the same way.
 
 `Oauth2TokenHandlerConfig` reaches the introspection endpoint through a scoped client over
 `introspection_base_uri` with this resource server's `credentials`, or through the `client`

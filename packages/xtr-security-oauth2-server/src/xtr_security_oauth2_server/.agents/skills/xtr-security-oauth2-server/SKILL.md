@@ -183,6 +183,16 @@ on the post) — nothing in this package does. `event.get_user()`, `get_scopes()
 and `get_redirect_uri()` describe what is asked. More events, with a listener for each:
 [references/events.md](references/events.md).
 
+`/authorize` answers a `GET` (parameters in the query) and a `POST` (parameters in an
+`application/x-www-form-urlencoded` body, any other body refused `invalid_request`). A `POST`
+whose query names `response_type` — the consent form above — is read from its query. Parameters
+are never taken from both: a `POST` carrying the request in its form is refused if its query
+string is non-empty, and a `POST` whose query names `response_type` is refused if its body names
+it too. The consent form's own fields are not the request, so they may travel beside the query it
+posts back. A firewall step reading the
+request before the endpoint calls `await posted_form_as_query(request)`
+(`xtr_security_oauth2_server.posted_form_as_query`) to see what the grants see.
+
 ## Register and administer clients
 
 ```python

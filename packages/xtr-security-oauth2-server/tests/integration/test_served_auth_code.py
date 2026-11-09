@@ -131,6 +131,15 @@ async def _authorize(
     client_id: str = CLIENT_ID,
 ) -> httpx.Response:
     """Ask for an authorization code as the established resource owner."""
+    return await client.get(
+        "/authorize",
+        params=_asking(challenge, client_id),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+
+def _asking(challenge: str | None = CHALLENGE, client_id: str = CLIENT_ID) -> dict[str, str]:
+    """Return the parameters of an authorization request for a code."""
     query = {
         "response_type": "code",
         "client_id": client_id,
@@ -142,11 +151,7 @@ async def _authorize(
         query["code_challenge"] = challenge
         query["code_challenge_method"] = "S256"
 
-    return await client.get(
-        "/authorize",
-        params=query,
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    return query
 
 
 async def _seed(client: httpx.AsyncClient) -> None:
@@ -205,6 +210,76 @@ async def test_an_approved_request_redirects_with_a_code_and_the_state() -> None
     # What ties the redirect back to the browser that started the flow.
     assert delivered["state"] == STATE
     assert answered.headers["location"].startswith(REDIRECT_URI)
+
+
+async def test_a_request_posted_as_a_form_redirects_with_a_code_and_the_state() -> None:
+    async with serving(_application()) as client:
+        await _seed(client)
+        answered = await client.post(
+            "/authorize",
+            data=_asking(),
+            headers={"Authorization": f"Bearer {await _owner_token(client)}"},
+        )
+
+    assert answered.status_code == 302, answered.text
+    delivered = _redirect_params(answered)
+    assert delivered["code"]
+    assert delivered["state"] == STATE
+
+
+async def test_a_code_asked_for_in_a_posted_form_is_redeemed() -> None:
+    async with serving(_application()) as client:
+        await _seed(client)
+        authorized = await client.post(
+            "/authorize",
+            data=_asking(),
+            headers={"Authorization": f"Bearer {await _owner_token(client)}"},
+        )
+        answered = await client.post(
+            "/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "redirect_uri": REDIRECT_URI,
+                "code": _redirect_params(authorized)["code"],
+                "code_verifier": VERIFIER,
+            },
+        )
+
+    assert answered.status_code == 200, answered.text
+    assert text_field(json_of(answered), "access_token")
+
+
+async def test_a_request_posted_as_anything_but_a_form_is_refused() -> None:
+    # Refused as a document: nothing of the request was read, so there is no
+    # redirect URI worth trusting to deliver it to.
+    async with serving(_application()) as client:
+        await _seed(client)
+        answered = await client.post(
+            "/authorize",
+            json=_asking(),
+            headers={"Authorization": f"Bearer {await _owner_token(client)}"},
+        )
+
+    assert answered.status_code == 400
+    assert "location" not in answered.headers
+    assert text_field(json_of(answered), "error") == "invalid_request"
+
+
+async def test_a_posted_form_beside_a_query_string_is_refused() -> None:
+    async with serving(_application()) as client:
+        await _seed(client)
+        answered = await client.post(
+            "/authorize",
+            params={"state": "from-the-query"},
+            data=_asking(),
+            headers={"Authorization": f"Bearer {await _owner_token(client)}"},
+        )
+
+    assert answered.status_code == 400
+    assert "location" not in answered.headers
+    assert text_field(json_of(answered), "error") == "invalid_request"
 
 
 async def test_the_deployment_is_the_one_asked_to_approve() -> None:

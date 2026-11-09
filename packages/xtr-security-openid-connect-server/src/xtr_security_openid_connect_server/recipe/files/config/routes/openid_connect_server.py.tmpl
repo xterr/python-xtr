@@ -1,0 +1,37 @@
+"""Where this application serves the OpenID Connect provider's endpoints.
+
+This file is what registers them: routing is never imported automatically, and
+deleting it takes both down. The configuration document publishes the userinfo
+endpoint wherever this file puts it.
+
+The two resources are apart on purpose. `openid_connect_server` holds the
+userinfo endpoint and moves under a prefix like any other. The well-known
+resource holds the configuration document, which OpenID Connect Discovery 1.0
+fixes at `/.well-known/openid-configuration` under the issuer, so it is
+included at the root and stays there.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from xtr_http_kernel.routing.decorator import as_routes
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from fastapi import APIRouter, FastAPI
+
+__all__ = ["openid_connect_server"]
+
+
+@as_routes
+def openid_connect_server(app: FastAPI, resources: Mapping[str, APIRouter]) -> None:
+    """Serve the userinfo endpoint at its default path, the document at the root."""
+    app.include_router(resources["openid_connect_server"])
+    # To serve the userinfo endpoint elsewhere, include it with a prefix instead:
+    # app.include_router(resources["openid_connect_server"], prefix="/oidc")
+    # The firewall in front of it is matched on the path it ends up at, and
+    # authorize_path in config/packages/openid_connect_server.py names the
+    # authorization endpoint's own path.
+    app.include_router(resources["openid_connect_server_well_known"])

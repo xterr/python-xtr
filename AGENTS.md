@@ -49,6 +49,10 @@ say so before falling back to anything else.
       the other way round: `xtr-security-jwt`'s `JwtBundle` requires the security bundle and
       registers its authenticator into it through the bundle's extension points. The family's
       bundle does not know the add-on exists.
+      An add-on built on a standalone library does the same: `xtr-security-openid-connect-server`'s
+      `OpenIdConnectServerBundle` requires `xtr-security-oauth2-server`'s `OAuth2ServerBundle` and
+      plugs into the seams it publishes — a prepended configuration, a tagged grant, a tagged
+      metadata contributor, a firewall listener — and that bundle does not know the add-on exists.
     - A bridge that plugs one library into another, and needs services only the second
       library's bundle holds, ships no bundle: that bundle wires it when the bridge is installed,
       checking with `importlib.util.find_spec` and keeping the bridge in its dev group only.

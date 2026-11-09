@@ -189,16 +189,23 @@ class ExceptionListener:
         error in the chain is the one that decided the request's fate, so it
         is the one answered. A failure that is none of this listener's — and
         whose causes are none either — is left to whatever else handles it.
+
+        The request every answer is built from carries the event's state bag,
+        parked the way the chain's steps hand their request on, so an entry
+        point or a handler reading the request's session — a login keeping
+        its state there, a re-authentication keeping the identifier for the
+        form — finds the one the chain parked.
         """
         state = security_state_of(event.state)
+        request = event.request.with_attribute(SecurityRequestAttributes.STATE_BAG, event.state)
         error: BaseException | None = event.exception
         while error is not None:
             if isinstance(error, AuthenticationError):
-                answered = await self._handle_authentication_error(state, event.request, error)
+                answered = await self._handle_authentication_error(state, request, error)
                 await self._answers.set_on(event, answered)
                 return
             if isinstance(error, AccessDeniedError):
-                answered = await self._handle_access_denied(state, event.request, error)
+                answered = await self._handle_access_denied(state, request, error)
                 await self._answers.set_on(event, answered)
                 return
             if isinstance(error, LogoutError):

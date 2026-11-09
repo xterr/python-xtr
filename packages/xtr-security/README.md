@@ -309,6 +309,25 @@ answers on `check_path` (`/oidc/callback` by default), `scope` adds to the alway
 carries extra parameters — the ones the flow manages, `response_type` through `dpop_jkt`,
 are guarded so no configuration can set them.
 
+The provider is sent an absolute `redirect_uri`, the URL it matches against the ones
+registered for the client. Set `redirect_uri` to that URL — an absolute URL of
+`check_path`, checked at build — and it is sent as it is; left `None`, `check_path` is
+anchored at the scheme and host the request reached the application on. Configure it
+behind a proxy that terminates TLS, or wherever the `Host` header is not to be trusted: a
+forged host only yields a URL the provider has not registered, which it refuses, but the
+configured URL never depends on the request at all.
+
+A callback that fails — a refusal the provider sent back, a `state` matching no pending
+attempt, an ID token that does not check out — is redirected to `failure_path`, an absolute
+path checked at build. Left `None`, it goes to the failure handler's default login page,
+`/login`: an application that signs in with OIDC alone names a page of its own there.
+
+Every request the login sends the provider — the discovery, the code exchange, the
+userinfo and the key fetch — goes through one HTTP client, a service of its own:
+`HttpClientInterface` qualified `<firewall>#oidc_http_client`, an `HttpxHttpClient` with a
+10-second timeout by default, built on first use. Override that one service to serve the
+provider from a test, or to tune the client.
+
 Three sub-blocks ride on the login. `token_generator` (`OidcTokenGeneratorConfig`) mints
 this application's own tokens through the `security:oidc:generate-token` command — see
 below. `backchannel_logout` and `end_session` wire the provider-pushed logout, documented
@@ -527,6 +546,8 @@ through a factory matched by its type:
 `OidcTokenHandlerConfig` takes exactly one key source — `keyset` (a JWKS document), `discovery_uri`
 (an issuer base URI the `jwks_uri` is discovered from) or `jwks_uri` — plus the `issuers` and
 `audience` a valid token must carry; `algorithms` default to `("RS256",)`, `claim` to `"sub"`.
+A `discovery_uri` or `jwks_uri` handler fetches through an `HttpClientInterface` registered
+beside it, qualified `<firewall>_oidc#http_client`; override it as the login's client is.
 
 `Oauth2TokenHandlerConfig` reaches the introspection endpoint through a scoped client over
 `introspection_base_uri` with this resource server's `credentials`, or through the `client`

@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, cast, final
 
 from xtr_security_core.exception import AuthenticationError
 
-from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http._security_state import security_state_of
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:

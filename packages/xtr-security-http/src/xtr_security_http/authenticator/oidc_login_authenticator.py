@@ -8,7 +8,6 @@ from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_security_core.exception import AuthenticationError
 
-from xtr_security_http._parked_session import parked_session_of
 from xtr_security_http.entry_point.authentication_entry_point_interface import (
     AuthenticationEntryPointInterface,
 )
@@ -16,6 +15,7 @@ from xtr_security_http.entry_point.re_authentication_entry_point_interface impor
     ReAuthenticationEntryPointInterface,
 )
 from xtr_security_http.exception import MissingSessionError
+from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 from ._oidc_login_attempts import OidcLoginAttempts

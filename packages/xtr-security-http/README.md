@@ -242,9 +242,11 @@ user exists), checked after authentication, and settled on a `SwitchUserToken` t
 token the switch started from. The switch is announced as `SwitchUserEvent` under
 `SecurityEvents.SWITCH_USER` before the token is stored — a listener may replace it — and the
 request is answered with a redirect to the page it was asked at, the switch's own parameters
-stripped from the address. The exit is the same parameter carrying `SwitchUserListener.EXIT_VALUE`
-(`_exit`): the original token is restored, its user reloaded first, and the exit announced the
-same way. A `stateless` step switches without answering the request.
+stripped from the address — on a dedicated path, to the submitted `_target_path` when it leads back
+to the request's own origin, the same rule a login's target is held to, and to `/` otherwise. The
+exit is the same parameter carrying `SwitchUserListener.EXIT_VALUE` (`_exit`): the original token
+is restored, its user reloaded first, and the exit announced the same way. A `stateless` step
+switches without answering the request.
 
 ### Logout
 
@@ -383,6 +385,14 @@ and **`DefaultAuthenticationFailureHandler(http_utils, options=None, logger=None
 firewall_name=None)`** keeps the error on the session for the form that renders again and redirects
 by its own ladder (`failure_path_parameter`, `failure_path`, then `login_path`), keeping the
 `Referer` as the return trip's target when `use_referer` is set and the handler knows its firewall.
+A target the client names — the `target_path_parameter` (`_target_path`) or the
+`failure_path_parameter` (`_failure_path`) a form or a query string carries, and the `Referer` the
+success handler weighs — is honoured only when it leads back to the request's own origin: a path
+opening with a single `/`, or an absolute `http(s)` URL with the request's scheme, host and port (a
+port left out read as the scheme's). A protocol-relative `//host`, a target carrying a backslash or
+a control character, a relative path and an address on any other origin all fall to the next rung,
+so a link written elsewhere cannot send a caller who has just signed in off the site; the domain
+regexps of `HttpUtils`, when configured, still weigh whichever target wins.
 **`CustomAuthenticationSuccessHandler(handler, options, firewall_name)`** and
 **`CustomAuthenticationFailureHandler(handler, options)`** are the seams for an application's own
 handlers, handing them the wiring's options — and the firewall's name, for a success handler that
@@ -635,6 +645,7 @@ The session is built from the request here and nowhere else, reading its ID from
 `cookie` describes — its name, path, domain, `Secure`, `HttpOnly`, `SameSite` and lifetime.
 Every later step of the request reaches that same session, so the cookie a login's rotation, a
 logout's invalidation and the save stage is always this one.
+Any step reads it with **`parked_session_of(request)`** — `None` for a request no stateful chain ran.
 
 The response half, **`on_response(response_event)`** — registered beside the chain on the
 kernel's response event — writes the token back: what the request authenticated is stored under
@@ -914,15 +925,20 @@ ever makes it: documentation.
 - **The chain's request carries its body unparsed.** The firewall runs at
   the request event, where the served message is born with its body lazy:
   `get_parsed_body()` answers what has been materialised so far, and nothing
-  in the chain materialises it — that happens where the route's own request
-  service is built. A reader that awaits the body (the form-encoded
-  access-token extractor) materialises it itself; the plain parameter
-  readers see nothing of the body at chain time, so a submission's fields
-  ride the query string, the fallback the landed readers document — a form
-  login with `post_only` off reads the query first, and the logout's, the
-  switch's and the login link's proofs all read the query string beside the
-  body. A login page's own route, running after the materialisation, reads
-  the body as ever.
+  in the chain materialises it but the authentication step — otherwise that
+  happens where the route's own request service is built. The authentication
+  step reads a submitted form — a `POST` encoded `application/x-www-form-urlencoded`
+  or `multipart/form-data` — before it hands the request to the manager, so
+  the authenticators, their success and failure handlers and the login's
+  listeners read the form's fields: a form login reads its username and
+  password from the posted body (the body alone while `post_only` stands,
+  the query first when it is off) and its forgery token from the query
+  first, then the body; `_target_path`, `_failure_path` and `_remember_me`
+  are read from it too. The body stays
+  readable for the route behind the firewall. The other chain steps see
+  nothing of the body, so the logout's and the switch's proofs ride the
+  query string beside it. A login page's own route, running after the
+  materialisation, reads the body as ever.
 - **A route cannot read the chain's parked state through its own request
   message.** What the chain parks — the session the context listener
   reattached, the error a failed login left, the last username — lives on
@@ -1017,9 +1033,9 @@ ever makes it: documentation.
   kernel's event accepts, so both are constructor parameters.
 - **The switch's target route is not ported.** Upstream can redirect a completed switch to
   a configured `target_route` through a routing component; no routing component exists here,
-  so the redirect falls to the request's own stripped URI — or the submitted `_target_path`
-  and then `/` on a dedicated path — and the generator refuses a dedicated path configured
-  as a route name.
+  so the redirect falls to the request's own stripped URI — or, on a dedicated path, the
+  submitted `_target_path` when it is on the request's own origin, and then `/` — and the
+  generator refuses a dedicated path configured as a route name.
 - **The query strip is written on the URI's text.** Upstream removes the switch's parameters
   from the request's query bag and rebuilds the query string; a request message is immutable
   here, so the strip removes each parameter's pattern from the URI text and mends the join,
