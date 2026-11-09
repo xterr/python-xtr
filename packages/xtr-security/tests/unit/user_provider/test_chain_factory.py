@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from typing_extensions import override
-from xtr_dependency_injection import Bundle, Kernel, as_bundle
+from xtr_dependency_injection import Bundle, Kernel, as_bundle, unit_of_work
 from xtr_dependency_injection.testing import boot_for_test
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 
@@ -88,16 +88,28 @@ def _kernel() -> Kernel:
 
 
 async def test_it_builds_a_chain_that_loads_through_the_named_provider() -> None:
-    async with await boot_for_test(_kernel()) as booted:
-        provider = await booted.container.get(UserProviderInterface, "chain")
+    async with await boot_for_test(_kernel()) as booted, unit_of_work(booted.container) as unit:
+        provider = await unit.get(UserProviderInterface, "chain")
         user = await provider.load_user_by_identifier("bob")
 
     assert user.get_user_identifier() == "bob"
 
 
 async def test_a_chain_naming_another_chain_loads_through_the_inner_chains_members() -> None:
-    async with await boot_for_test(_kernel()) as booted:
-        provider = await booted.container.get(UserProviderInterface, "outer")
+    async with await boot_for_test(_kernel()) as booted, unit_of_work(booted.container) as unit:
+        provider = await unit.get(UserProviderInterface, "outer")
         user = await provider.load_user_by_identifier("bob")
 
     assert user.get_user_identifier() == "bob"
+
+
+async def test_the_chain_is_built_per_request() -> None:
+    async with await boot_for_test(_kernel()) as booted:
+        async with unit_of_work(booted.container) as first:
+            one = await first.get(UserProviderInterface, "chain")
+            same = await first.get(UserProviderInterface, "chain")
+        async with unit_of_work(booted.container) as second:
+            other = await second.get(UserProviderInterface, "chain")
+
+    assert one is same
+    assert one is not other

@@ -196,8 +196,8 @@ else registers unconfigured: no firewall, no rule, no voter beyond the built-ins
 | `context_key` | `None` | The name the firewall's context is stored under in the session — the part after `_security.` — or `None` for the firewall's own name |
 | `session_strategy` | `migrate` | What a successful login does to the session it reattached: `migrate` rotates its ID keeping its attributes, `invalidate` empties it, `none` leaves it alone. Meaningful on a stateful firewall only |
 | `session_cookie` | `None` | The `SessionCookieConfig` the session ID travels in — name, path, domain, `secure`, `httponly`, `samesite`, lifetime — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, not `Secure`. Meaningful on a stateful firewall only |
-| `provider` | `None` | The user provider the firewall loads users from; with none here and none configured at all, an authenticator that needs one gets a `MissingUserProvider` that fails, naming the firewall, when first used — and with none here but others configured, one that needs one fails the build, naming the firewall |
-| `user_checker` | `None` | A user-checker service type, or the default in-memory checker |
+| `provider` | `None` | The user provider the firewall loads users from; with none here and none configured at all, an authenticator that needs one gets a `MissingUserProvider` that fails, naming the firewall, when first used — and with none here but others configured, one that needs one fails the build, naming the firewall. The provider may be a service of the request (`lifetime="scoped"`), such as a repository over the session of the request's unit of work: everything the firewall builds over it is built per request too, so one request's services all use that request's instance |
+| `user_checker` | `None` | A user-checker service type, or the default in-memory checker; it may be a service of the request too, and one no service provides fails the build, naming the firewall |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
 | `access_denied_handler` | `None` | A handler for a denied, fully-authenticated caller |
 | `scope_denied_handler` | `None` | A handler service type answering a caller whose token lacks a scope a rule asks for — wrapped by the bundle's `WWW-Authenticate` answer |
@@ -434,13 +434,15 @@ shape — `name` (`REMEMBERME`), `lifetime` (a year), `path`, `domain`, `secure`
 (`_remember_me`) — are the configuration's own fields; `signature_properties` names the
 user properties whose digest a persisted value carries (the password by default). The
 `secret` the signature rides on is a configuration field, read from the environment the
-way [Secrets](#secrets) shows — never generated. Two subscribers on the firewall's
-dispatcher ask a successful login whether it asked to be
-remembered (at `-32`) and set or clear the cookie (at `-64`); one response listener on the
-main dispatcher moves the staged cookie onto the response. The handler itself is a service
-— `SignatureRememberMeHandler` or `PersistentRememberMeHandler`, qualified
-`<firewall>#remember_me_handler` — addressed with `Target` wherever a cookie is minted or
-cleared by hand.
+way [Secrets](#secrets) shows — never generated. On the firewall's dispatcher, a
+subscriber asks a successful login whether it asked to be remembered (at `-32`), and the
+cookie is set behind it (at `-64`) and cleared on a failed login, a logout or a
+deauthentication (at `0`) by listeners resolved per call, since the handler they go through
+holds the firewall's provider; one response listener on the main dispatcher moves the
+staged cookie onto the response. The handler itself is a service of the request —
+`SignatureRememberMeHandler` or `PersistentRememberMeHandler`, qualified
+`<firewall>#remember_me_handler` — addressed with `Target` from a route, or any callable the
+container fills, wherever a cookie is minted or cleared by hand.
 
 ### Login links
 

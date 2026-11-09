@@ -113,7 +113,11 @@ class AccessTokenFactory(StatelessAuthenticatorFactoryInterface):
         config: object,
         user_provider: ServiceKey | None,
     ) -> Sequence[ServiceKey]:
-        """Register the token handler, the extractor and the authenticator."""
+        """Register the token handler, the extractor and the authenticator.
+
+        The authenticator is built per request: the firewall's user provider
+        it may hold may be one of the request's services.
+        """
         settings = cast("AccessTokenConfig", config)
         handler_key = self._build_handler(services, builder, firewall_name, settings)
         extractor_key = self._build_extractor(services, firewall_name, settings)
@@ -126,7 +130,7 @@ class AccessTokenFactory(StatelessAuthenticatorFactoryInterface):
             settings.resource_metadata_uri,
             settings.sender_constraint,
         )
-        key = services.set(authenticator, qualifier=firewall_name).key
+        key = services.set(authenticator, qualifier=firewall_name, lifetime="scoped").key
         return (key,)
 
     def _build_handler(

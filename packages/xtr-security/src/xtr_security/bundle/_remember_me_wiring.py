@@ -8,25 +8,29 @@ the one that sets the cookie — and the endings that must drop the cookie
 handler staged reaches the response only through the response listener on
 the main dispatcher: the kernel's response event is a lifecycle event, one
 per application, and the listener itself holds nothing of the request.
+
+The handler holds the firewall's user provider, which may be one of the
+request's services, so the listeners that reach it — the one setting the
+cookie and the one clearing it — are per-call functions
+:class:`~xtr_security.bundle.RegisterPerCallListenersPass` places, not
+services the dispatcher keeps.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
 
-from xtr_dependency_injection import Target, named_factory
+from xtr_dependency_injection import named_factory
 from xtr_event_dispatcher.bundle import SUBSCRIBER_TAG
 from xtr_security_http import (
     CheckRememberMeConditionsListener,
     PersistentRememberMeHandler,
-    RememberMeListener,
     ResponseListener,
     SignatureRememberMeHandler,
 )
 
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
 from xtr_security.bundle.remember_me_config import RememberMeConfig
-from xtr_security.factory.remember_me_factory import remember_me_handler_name
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -36,6 +40,7 @@ if TYPE_CHECKING:
 __all__ = [
     "register_remember_me_listeners",
     "register_remember_me_response_listener",
+    "remember_me_handler_type",
 ]
 
 
@@ -44,22 +49,17 @@ def register_remember_me_listeners(
     name: str,
     settings: RememberMeConfig,
 ) -> None:
-    """Register the two login-success listeners on the firewall's own dispatcher.
+    """Register the conditions listener on the firewall's own dispatcher.
 
     The conditions listener runs first, at ``-32``: it reads the request's
     ask and enables the passport's badge when there is one, so the listener
     that sets the cookie — at ``-64``, behind it — only ever sets it for a
-    login that asked. Both are subscribers of the firewall's dispatcher,
-    where the manager announces the login; the endings that clear the cookie
-    are the set listener's own subscriptions.
+    login that asked. It holds nothing of the request, so it is a subscriber
+    of the firewall's dispatcher, where the manager announces the login; the
+    listeners that set and clear the cookie are placed per call.
     """
     dispatcher = firewall_dispatcher_name(name)
     options = settings.to_options()
-    handler_type = (
-        SignatureRememberMeHandler
-        if settings.handler == "signature"
-        else PersistentRememberMeHandler
-    )
 
     def conditions_listener() -> CheckRememberMeConditionsListener:
         """Build the listener reading the request's ask to be remembered."""
@@ -71,23 +71,12 @@ def register_remember_me_listeners(
         qualifier=dispatcher,
     ).add_tag(SUBSCRIBER_TAG, dispatcher=dispatcher)
 
-    def remember_me_listener(
-        handler: Annotated[
-            SignatureRememberMeHandler | PersistentRememberMeHandler,
-            Target(remember_me_handler_name(name)),
-        ],
-    ) -> RememberMeListener:
-        """Build the listener setting and clearing cookies through the handler."""
-        return RememberMeListener(handler)
 
-    remember_me_listener.__annotations__ = {
-        "handler": Annotated[handler_type, Target(remember_me_handler_name(name))],
-        "return": RememberMeListener,
-    }
-    _ = services.set(
-        named_factory(remember_me_listener, f"remember_me_listener_{name}"),
-        qualifier=dispatcher,
-    ).add_tag(SUBSCRIBER_TAG, dispatcher=dispatcher)
+def remember_me_handler_type(settings: RememberMeConfig) -> type:
+    """Return the class of the handler the configuration asks the cookies be held by."""
+    if settings.handler == "signature":
+        return SignatureRememberMeHandler
+    return PersistentRememberMeHandler
 
 
 def register_remember_me_response_listener(services: ServiceConfigurator) -> None:

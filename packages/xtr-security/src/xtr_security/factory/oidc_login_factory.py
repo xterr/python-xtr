@@ -184,7 +184,11 @@ def _register_authenticator(  # noqa: PLR0913, PLR0917 -- one login from its fir
     success_key: ServiceKey,
     failure_key: ServiceKey,
 ) -> ServiceKey:
-    """Register the login authenticator over the provider services."""
+    """Register the login authenticator over the provider services.
+
+    Built per request: the firewall's user provider it holds may be one of
+    the request's services.
+    """
     from xtr_security_http.authenticator.oidc_login_authenticator import (  # noqa: PLC0415 -- guarded behind the oidc extra
         OidcLoginAuthenticator,
     )
@@ -248,4 +252,4 @@ def _register_authenticator(  # noqa: PLR0913, PLR0917 -- one login from its fir
     oidc_login_authenticator.__annotations__ = annotations
     oidc_login_authenticator.__name__ = f"oidc_login_authenticator_{firewall_name}"
     oidc_login_authenticator.__qualname__ = oidc_login_authenticator.__name__
-    return services.set(oidc_login_authenticator, qualifier=firewall_name).key
+    return services.set(oidc_login_authenticator, qualifier=firewall_name, lifetime="scoped").key

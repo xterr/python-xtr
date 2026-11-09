@@ -36,6 +36,9 @@ class ChainUserProviderFactory(UserProviderFactoryInterface):
     for the ones it names, in order. Because the locator builds nothing until
     asked, the chain's own name being one of those keys carries no build cycle,
     so a chain may name another chain.
+
+    The chain is built per request: the locator covers every provider, and
+    one of them being a service of the request makes the locator one too.
     """
 
     __slots__ = ()
@@ -60,11 +63,13 @@ class ChainUserProviderFactory(UserProviderFactoryInterface):
         provider_name: str,
         config: object,
     ) -> ServiceKey:
-        """Register the factory chaining the providers the configuration names."""
+        """Register the factory chaining the providers the configuration names, per request."""
         del builder
         settings = cast("ChainUserProviderConfig", config)
         return services.set(
-            _chain_factory(provider_name, settings.providers), qualifier=provider_name
+            _chain_factory(provider_name, settings.providers),
+            qualifier=provider_name,
+            lifetime="scoped",
         ).key
 
 

@@ -152,7 +152,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
         refuse_a_form_login_on_a_stateless_firewall(name, firewall)
         refuse_csrf_route_markers_on_a_stateless_firewall(name, firewall)
         provider_qualifier = firewall.provider
-        register_dispatcher(services, name, firewall, provider_qualifier)
+        register_dispatcher(services, name)
         auth_qualifiers, entry_point_qualifier = register_authenticators(
             services, config, name, firewall, provider_qualifier
         )

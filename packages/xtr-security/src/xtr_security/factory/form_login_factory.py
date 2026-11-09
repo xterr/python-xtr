@@ -209,7 +209,11 @@ def _register_authenticator(  # noqa: PLR0913, PLR0917 -- one login from its fir
     success_key: ServiceKey,
     failure_key: ServiceKey,
 ) -> ServiceKey:
-    """Register the authenticator over the firewall's provider and handlers."""
+    """Register the authenticator over the firewall's provider and handlers.
+
+    Built per request: the provider it holds may be one of the request's
+    services, a repository over the session of the request's unit of work.
+    """
     from xtr_security_http import (  # noqa: PLC0415 -- the family's login import
         FormLoginAuthenticator,
     )
@@ -249,4 +253,4 @@ def _register_authenticator(  # noqa: PLR0913, PLR0917 -- one login from its fir
     }
     form_login_authenticator.__name__ = f"form_login_authenticator_{firewall_name}"
     form_login_authenticator.__qualname__ = form_login_authenticator.__name__
-    return services.set(form_login_authenticator, qualifier=firewall_name).key
+    return services.set(form_login_authenticator, qualifier=firewall_name, lifetime="scoped").key

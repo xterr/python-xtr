@@ -65,6 +65,8 @@ class _ProbeBundle(Bundle):
             None,
         )
         assert keys[0][0] is AccessTokenAuthenticator
+        # Built per request: the firewall's provider it may hold may be the request's.
+        assert builder.get_definition(*keys[0]).lifetime == "scoped"
 
 
 async def test_it_builds_an_access_token_authenticator() -> None:

@@ -101,6 +101,7 @@ class _RecordingConfigurator:
         self.aliases: list[tuple[type, Hashable]] = []
         self.registered: list[tuple[Hashable, Callable[..., object]]] = []
         self.tags: dict[Hashable | None, list[tuple[str, dict[str, object]]]] = {}
+        self.lifetimes: dict[Hashable | None, object | None] = {}
 
     def set(
         self,
@@ -110,8 +111,8 @@ class _RecordingConfigurator:
         qualifier: Hashable | None = None,
         lifetime: object | None = None,
     ) -> _RecordingDefinition:
-        del lifetime
         self.by_qualifier[qualifier] = target
+        self.lifetimes[qualifier] = lifetime
         self.registered.append((qualifier, target))
         tags: list[tuple[str, dict[str, object]]] = []
         self.tags[qualifier] = tags
@@ -181,6 +182,12 @@ def test_it_registers_every_provider_service_the_login_needs() -> None:
     from xtr_security_http import FirewallListenerInterface
 
     assert (FirewallListenerInterface, oidc_token_refresh_listener_name("api")) in services.aliases
+
+
+def test_the_authenticator_is_built_per_request() -> None:
+    services = _create(_login(signature_verifier_algorithms=("RS256",)))
+
+    assert services.lifetimes["api"] == "scoped"
 
 
 def test_no_verifier_is_registered_without_algorithms() -> None:

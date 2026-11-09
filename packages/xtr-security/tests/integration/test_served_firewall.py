@@ -168,13 +168,11 @@ async def test_the_firewall_dispatcher_orders_its_listeners_and_merges_the_globa
             for listener in dispatcher.get_listeners(CheckPassportEvent)
         ]
 
-    assert names.index("UserProviderListener.check_passport") < names.index(
-        "CheckCredentialsListener.resolve_user"
-    )
+    assert names.index("load_the_user") < names.index("CheckCredentialsListener.resolve_user")
     assert names.index("CheckCredentialsListener.resolve_user") < names.index(
-        "UserCheckerListener.pre_check_credentials"
+        "check_the_account_before_credentials"
     )
-    assert names.index("UserCheckerListener.pre_check_credentials") < names.index(
+    assert names.index("check_the_account_before_credentials") < names.index(
         "CheckCredentialsListener.check_passport"
     )
     assert "record_check_passport" in names

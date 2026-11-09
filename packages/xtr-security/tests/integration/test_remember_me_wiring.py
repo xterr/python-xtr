@@ -32,7 +32,6 @@ from xtr_security_http import (
     LoginLinkAuthenticator,
     LoginThrottlingListener,
     RememberMeAuthenticator,
-    RememberMeListener,
     RemoteUserAuthenticator,
     ResponseListener,
     SwitchUserListener,
@@ -119,12 +118,18 @@ async def test_the_login_success_listeners_answer_a_remembered_login(
     async with unit_of_work(container) as unit:
         listeners = await _listeners_of(unit, "main", LoginSuccessEvent)
 
-    types = [type(listener) for listener in listeners]
-    assert CheckRememberMeConditionsListener in types
-    assert RememberMeListener in types
+    # A subscriber resolves to its owner; the cookie listener is a per-call
+    # function, read by its name.
+    names = [
+        cast("str", getattr(listener, "__name__", type(listener).__name__))
+        for listener in listeners
+    ]
+    conditions = CheckRememberMeConditionsListener.__name__
+    assert conditions in names
+    assert "remember_the_login" in names
     # The conditions listener runs first: it enables the badge the set
     # listener reads, so its priority sits above the listener that sets.
-    assert types.index(CheckRememberMeConditionsListener) < types.index(RememberMeListener)
+    assert names.index(conditions) < names.index("remember_the_login")
 
 
 async def test_the_throttling_listener_refuses_ahead_of_every_passport_check(

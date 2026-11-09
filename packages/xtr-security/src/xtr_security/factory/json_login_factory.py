@@ -84,7 +84,11 @@ class JsonLoginFactory(AuthenticatorFactoryInterface):
         config: object,
         user_provider: ServiceKey | None,
     ) -> Sequence[ServiceKey]:
-        """Register the authenticator over the firewall's provider."""
+        """Register the authenticator over the firewall's provider.
+
+        Built per request: the provider it holds may be one of the request's
+        services.
+        """
         del builder
         settings = cast("JsonLoginConfig", config)
         if user_provider is None:
@@ -128,4 +132,6 @@ class JsonLoginFactory(AuthenticatorFactoryInterface):
         json_login_authenticator.__annotations__ = annotations
         json_login_authenticator.__name__ = f"json_login_authenticator_{firewall_name}"
         json_login_authenticator.__qualname__ = json_login_authenticator.__name__
-        return (services.set(json_login_authenticator, qualifier=firewall_name).key,)
+        return (
+            services.set(json_login_authenticator, qualifier=firewall_name, lifetime="scoped").key,
+        )

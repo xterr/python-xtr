@@ -93,7 +93,12 @@ class LoginLinkFactory(AuthenticatorFactoryInterface):
         config: object,
         user_provider: ServiceKey | None,
     ) -> Sequence[ServiceKey]:
-        """Register the handler, the answer handlers and the authenticator over them."""
+        """Register the handler, the answer handlers and the authenticator over them.
+
+        The handler and the authenticator are built per request: the handler
+        holds the firewall's provider, which may be one of the request's
+        services.
+        """
         del builder
         settings = cast("LoginLinkConfig", config)
         if user_provider is None:
@@ -134,7 +139,9 @@ class LoginLinkFactory(AuthenticatorFactoryInterface):
         }
         login_link_authenticator.__name__ = f"login_link_authenticator_{firewall_name}"
         login_link_authenticator.__qualname__ = login_link_authenticator.__name__
-        return (services.set(login_link_authenticator, qualifier=firewall_name).key,)
+        return (
+            services.set(login_link_authenticator, qualifier=firewall_name, lifetime="scoped").key,
+        )
 
 
 def _register_handler(
@@ -170,7 +177,9 @@ def _register_handler(
     }
     login_link_handler.__name__ = f"login_link_handler_{firewall_name}"
     login_link_handler.__qualname__ = login_link_handler.__name__
-    return services.set(login_link_handler, qualifier=login_link_handler_name(firewall_name)).key
+    return services.set(
+        login_link_handler, qualifier=login_link_handler_name(firewall_name), lifetime="scoped"
+    ).key
 
 
 def _register_success_handler(

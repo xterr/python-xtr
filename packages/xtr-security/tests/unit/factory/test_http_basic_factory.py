@@ -34,6 +34,7 @@ class _Recorder:
     def __init__(self) -> None:
         self.factory: Callable[..., object] | None = None
         self.qualifier: Hashable | None = None
+        self.lifetime: object | None = None
 
     def set(
         self,
@@ -43,9 +44,9 @@ class _Recorder:
         qualifier: Hashable | None = None,
         lifetime: object | None = None,
     ) -> _RecordingDefinition:
-        del lifetime
         self.factory = target
         self.qualifier = qualifier
+        self.lifetime = lifetime
         return _RecordingDefinition(cast("ServiceKey", (object, qualifier)))
 
 
@@ -83,6 +84,7 @@ def test_it_builds_an_http_basic_authenticator() -> None:
 
     assert keys[0] == (object, "api")
     assert recorder.qualifier == "api"
+    assert recorder.lifetime == "scoped"
     assert recorder.factory is not None
     authenticator = recorder.factory(
         provider=cast("UserProviderInterface", object()),

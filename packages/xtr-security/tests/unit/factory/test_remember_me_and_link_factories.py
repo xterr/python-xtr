@@ -54,6 +54,7 @@ class _Recorder:
     def __init__(self) -> None:
         self.factories: list[Callable[..., object]] = []
         self.qualifiers: list[Hashable | None] = []
+        self.lifetimes: dict[Hashable | None, object | None] = {}
 
     def set(
         self,
@@ -63,9 +64,9 @@ class _Recorder:
         qualifier: Hashable | None = None,
         lifetime: object | None = None,
     ) -> _RecordingDefinition:
-        del lifetime
         self.factories.append(target)
         self.qualifiers.append(qualifier)
+        self.lifetimes[qualifier] = lifetime
         return _RecordingDefinition(cast("ServiceKey", (object, qualifier)))
 
 
@@ -95,6 +96,7 @@ def test_the_remember_me_factory_registers_handler_and_authenticator() -> None:
 
     assert len(keys) == 1
     assert recorder.qualifiers == [remember_me_handler_name("main"), "main"]
+    assert recorder.lifetimes == {remember_me_handler_name("main"): "scoped", "main": "scoped"}
     handler = recorder.factories[0]
     provider = _Provider()
     built_handler = handler(provider, clock=None)
@@ -219,6 +221,8 @@ def test_the_login_link_factory_registers_handler_and_authenticator() -> None:
 
     assert len(keys) == 1
     handler = recorder.factories[0]
+    assert recorder.lifetimes["main#login_link_handler"] == "scoped"
+    assert recorder.lifetimes["main"] == "scoped"
     assert isinstance(handler(_Provider(), clock=None), LoginLinkHandler)
     authenticator = recorder.factories[3](
         handler(_Provider(), clock=None), _Utils(), _Success(), _Failure()

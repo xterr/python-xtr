@@ -402,6 +402,9 @@ into the right status and challenge.
 - Do not call a hasher on the event loop; wrap it in `anyio.to_thread.run_sync`.
 - Do not store a plaintext password, and do not use `PlaintextHasherConfig()` outside a test.
 - Do not depend on a scoped security service from a singleton; take it as an argument.
+- Do not make a user provider or a user checker a singleton to satisfy the container: one of the
+  request (`@as_service(lifetime="scoped")`) is supported, and is what a provider reading through
+  the request's session must be.
 - Do not write a voter whose `supports` is broadly `True`: under the affirmative strategy one
   careless grant decides everything.
 - Do not set `security=False` on a firewall to make a `401` go away: that opens every request it

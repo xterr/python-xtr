@@ -74,7 +74,11 @@ class HttpBasicFactory(AuthenticatorFactoryInterface):
         config: object,
         user_provider: ServiceKey | None,
     ) -> Sequence[ServiceKey]:
-        """Register the authenticator over the firewall's user provider."""
+        """Register the authenticator over the firewall's user provider.
+
+        Built per request: the provider it holds may be one of the request's
+        services.
+        """
         del builder
         settings = cast("HttpBasicConfig", config)
         if user_provider is None:
@@ -96,4 +100,6 @@ class HttpBasicFactory(AuthenticatorFactoryInterface):
         }
         http_basic_authenticator.__name__ = f"http_basic_authenticator_{firewall_name}"
         http_basic_authenticator.__qualname__ = http_basic_authenticator.__name__
-        return (services.set(http_basic_authenticator, qualifier=firewall_name).key,)
+        return (
+            services.set(http_basic_authenticator, qualifier=firewall_name, lifetime="scoped").key,
+        )

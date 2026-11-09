@@ -42,6 +42,7 @@ class _Recorder:
     def __init__(self) -> None:
         self.factories: list[Callable[..., object]] = []
         self.qualifiers: list[Hashable | None] = []
+        self.lifetimes: dict[Hashable | None, object | None] = {}
 
     def set(
         self,
@@ -51,9 +52,9 @@ class _Recorder:
         qualifier: Hashable | None = None,
         lifetime: object | None = None,
     ) -> _RecordingDefinition:
-        del lifetime
         self.factories.append(target)
         self.qualifiers.append(qualifier)
+        self.lifetimes[qualifier] = lifetime
         return _RecordingDefinition(cast("ServiceKey", (object, qualifier)))
 
 
@@ -143,3 +144,21 @@ def test_the_configured_handlers_are_wrapped_in_the_custom_pair() -> None:
     assert recorder.factories[1].__annotations__["handler"] is _UserFailureHandler
     failure_handler = recorder.factories[1](handler=object())
     assert isinstance(failure_handler, CustomAuthenticationFailureHandler)
+
+
+def test_the_authenticator_is_built_per_request() -> None:
+    recorder = _Recorder()
+
+    _ = FormLoginFactory().create_authenticator(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        "main",
+        FormLoginConfig(login_path="/login"),
+        (UserProviderInterface, "users"),
+    )
+
+    assert recorder.lifetimes == {
+        "main#form_login_success_handler": None,
+        "main#form_login_failure_handler": None,
+        "main": "scoped",
+    }

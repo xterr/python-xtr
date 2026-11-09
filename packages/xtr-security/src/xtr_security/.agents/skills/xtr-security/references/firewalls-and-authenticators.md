@@ -562,6 +562,77 @@ does not load) and `supports_class(user_class)`. Register it `@as_service` and n
 `ServiceUserProviderConfig`. Implement `PasswordUpgraderInterface` as well and the password
 migrating listener re-stores a rehashed password for you after a successful sign-in.
 
+A provider may be a service of the request. A repository that reads users through the session
+of the request's unit of work is registered `lifetime="scoped"`, and the firewall's
+authenticators, handlers and listeners all use the request's instance — so the user the
+firewall loads belongs to the same session the route writes through:
+
+```python
+from typing import final
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing_extensions import override
+from xtr_dependency_injection import as_service
+from xtr_password_hasher import PasswordAuthenticatedUserInterface
+from xtr_security_core.exception import UnsupportedUserError, UserNotFoundError
+from xtr_security_core.user.password_upgrader_interface import PasswordUpgraderInterface
+from xtr_security_core.user.user_interface import UserInterface
+from xtr_security_core.user.user_provider_interface import UserProviderInterface
+
+from app.entity.user import User
+from xtr_security.bundle import (
+    FirewallConfig,
+    FormLoginConfig,
+    SecurityConfig,
+    ServiceUserProviderConfig,
+)
+
+
+@final
+@as_service(lifetime="scoped")
+class UserRepository(UserProviderInterface, PasswordUpgraderInterface):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    @override
+    async def load_user_by_identifier(self, identifier: str) -> UserInterface:
+        user = await self._session.get(User, identifier)
+        if user is None:
+            raise UserNotFoundError(user_identifier=identifier)
+        return user
+
+    @override
+    async def refresh_user(self, user: UserInterface) -> UserInterface:
+        if not isinstance(user, User):
+            raise UnsupportedUserError(type(user).__name__)
+        return await self.load_user_by_identifier(user.get_user_identifier())
+
+    @override
+    def supports_class(self, user_class: type) -> bool:
+        return issubclass(user_class, User)
+
+    @override
+    async def upgrade_password(
+        self, user: PasswordAuthenticatedUserInterface, new_hashed_password: str
+    ) -> None:
+        if isinstance(user, User):
+            user.password = new_hashed_password
+
+
+SecurityConfig(
+    providers={"users": ServiceUserProviderConfig(service=UserRepository)},
+    firewalls={
+        "main": FirewallConfig(
+            stateless=False,
+            provider="users",
+            authenticators=(FormLoginConfig(login_path="/login"),),
+        ),
+    },
+)
+```
+
+A firewall's `user_checker` may be a service of the request the same way.
+
 A configured provider is also injectable by name:
 
 ```python
@@ -641,5 +712,10 @@ security configuration from the bundle's `prepend_extension` hook with `add_auth
 A factory whose authenticator can do without a user provider inherits
 `StatelessAuthenticatorFactoryInterface`: it is handed no provider, rather than a
 `MissingUserProvider`, when the application configures none.
+A service the factory registers over the provider it is handed — the authenticator, a
+handler — is registered `lifetime="scoped"`: the provider may be a service of the request,
+and a singleton cannot hold one. A listener that needs it is a function whose injected
+parameters are filled per call, never a listener service, which the dispatcher keeps for the
+application's life.
 `add_token_handler_factory` and `add_user_provider_factory` are the same seam for the other two
 registries. An application configures what those factories accept; it does not write factories.

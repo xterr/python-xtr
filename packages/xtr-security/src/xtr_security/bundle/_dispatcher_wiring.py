@@ -5,19 +5,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Annotated, cast
 
 from xtr_clock import ClockInterface
-from xtr_dependency_injection import Target, named_factory
+from xtr_dependency_injection import Target
 from xtr_event_dispatcher.bundle import DISPATCHER_TAG, SUBSCRIBER_TAG, event_dispatcher_factory
 from xtr_password_hasher import (  # noqa: TC002 -- factory signatures the container reads
     PasswordHasherInterface,
     UserPasswordHasherInterface,
 )
-from xtr_security_core.user.user_provider_interface import UserProviderInterface
 from xtr_security_http import (
     AuthenticationProofsListener,
     CheckCredentialsListener,
     PasswordMigratingListener,
 )
-from xtr_security_http.event_listener import UserCheckerListener, UserProviderListener
 
 from xtr_security.bundle._hasher_wiring import DUMMY_PASSWORD_HASHER_QUALIFIER
 from xtr_security.bundle.firewall_dispatcher_name import firewall_dispatcher_name
@@ -26,80 +24,26 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from xtr_dependency_injection import ServiceConfigurator
-    from xtr_security_core.user.user_checker_interface import UserCheckerInterface
-
-    from xtr_security.firewall_config import FirewallConfig
 
 __all__ = ["register_dispatcher", "register_shared_listeners"]
 
 
-def register_dispatcher(
-    services: ServiceConfigurator,
-    name: str,
-    firewall: FirewallConfig,
-    provider_qualifier: str | None,
-) -> None:
-    """Register the firewall's own dispatcher, and the listeners only it runs.
+def register_dispatcher(services: ServiceConfigurator, name: str) -> None:
+    """Register the firewall's own dispatcher.
 
-    The event dispatcher bundle hands the dispatcher every listener naming it:
-    the user provider and user checker listeners of this firewall, registered
-    here. The listeners every firewall shares are on the main dispatcher, and
+    The event dispatcher bundle hands the dispatcher every listener naming
+    it. The listeners every firewall shares are on the main dispatcher, and
     reach this one through
     :class:`~xtr_security.bundle.RegisterGlobalSecurityEventListenersPass`.
+    The firewall's listeners over its user — the loading of the user through
+    the firewall's provider and the account checks — reach the request's own
+    services, so they are per-call functions
+    :class:`~xtr_security.bundle.RegisterPerCallListenersPass` places.
     """
     dispatcher = firewall_dispatcher_name(name)
     _ = services.set(event_dispatcher_factory(dispatcher), qualifier=dispatcher).add_tag(
         DISPATCHER_TAG
     )
-    if provider_qualifier is not None:
-        _ = services.set(
-            named_factory(
-                user_provider_listener_factory(provider_qualifier), f"user_provider_listener_{name}"
-            ),
-            qualifier=dispatcher,
-        ).add_tag(SUBSCRIBER_TAG, dispatcher=dispatcher)
-    _ = services.set(
-        named_factory(
-            user_checker_listener_factory(firewall.user_checker), f"user_checker_listener_{name}"
-        ),
-        qualifier=dispatcher,
-    ).add_tag(SUBSCRIBER_TAG, dispatcher=dispatcher)
-
-
-def user_provider_listener_factory(
-    provider_qualifier: str,
-) -> Callable[..., UserProviderListener]:
-    """Return the factory of the listener loading users from the firewall's provider."""
-
-    def user_provider_listener(provider: UserProviderInterface) -> UserProviderListener:
-        return UserProviderListener(provider)
-
-    user_provider_listener.__annotations__ = {
-        "provider": Annotated[UserProviderInterface, Target(provider_qualifier)],
-        "return": UserProviderListener,
-    }
-    return user_provider_listener
-
-
-def user_checker_listener_factory(
-    user_checker: type | None,
-) -> Callable[..., UserCheckerListener]:
-    """Return the factory of the listener checking the account with the firewall's checker.
-
-    Without one configured, the in-memory checker the security core ships.
-    """
-
-    def user_checker_listener(checker: object | None = None) -> UserCheckerListener:
-        from xtr_security_core import InMemoryUserChecker  # noqa: PLC0415 -- default checker
-
-        resolved = checker if checker is not None else InMemoryUserChecker()
-        return UserCheckerListener(cast("UserCheckerInterface", resolved))
-
-    annotations: dict[str, object] = {"return": UserCheckerListener}
-    if user_checker is not None:
-        annotations["checker"] = user_checker
-    user_checker_listener.__annotations__ = annotations
-    return user_checker_listener
 
 
 def register_shared_listeners(services: ServiceConfigurator, *, clock_active: bool) -> None:

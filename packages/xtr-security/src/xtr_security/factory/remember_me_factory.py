@@ -135,7 +135,11 @@ def _register_handler(
     settings: RememberMeConfig,
     user_provider: ServiceKey,
 ) -> ServiceKey:
-    """Register the handler a firewall's remember-me cookies live in."""
+    """Register the handler a firewall's remember-me cookies live in.
+
+    Built per request: it holds the firewall's user provider, which may be
+    one of the request's services.
+    """
     options = settings.to_options()
     signature_properties = (
         tuple(settings.signature_properties)
@@ -175,7 +179,7 @@ def _register_handler(
         signature_handler.__name__ = f"remember_me_handler_{firewall_name}"
         signature_handler.__qualname__ = signature_handler.__name__
         return services.set(
-            signature_handler, qualifier=remember_me_handler_name(firewall_name)
+            signature_handler, qualifier=remember_me_handler_name(firewall_name), lifetime="scoped"
         ).key
 
     if settings.token_provider is None:
@@ -208,4 +212,6 @@ def _register_handler(
     }
     persistent_handler.__name__ = f"remember_me_handler_{firewall_name}"
     persistent_handler.__qualname__ = persistent_handler.__name__
-    return services.set(persistent_handler, qualifier=remember_me_handler_name(firewall_name)).key
+    return services.set(
+        persistent_handler, qualifier=remember_me_handler_name(firewall_name), lifetime="scoped"
+    ).key
