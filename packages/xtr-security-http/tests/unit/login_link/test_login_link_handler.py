@@ -13,6 +13,7 @@ from xtr_security_core.user.in_memory_user import InMemoryUser
 
 from tests.support.messages import make_message
 from tests.support.remember_me import RecordingUserProvider
+from tests.support.served import served_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.exception import (
     ExpiredLoginLinkError,
@@ -33,6 +34,8 @@ if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
     from xtr_security_core.user.user_interface import UserInterface
 
+    from tests.support.served import BodyChannel
+
 pytestmark = pytest.mark.anyio
 
 #: Where every test freezes: a moment the expiry arithmetic can be read at.
@@ -46,6 +49,8 @@ _HASHED = "hashed"
 
 #: The password the same user changes to; still a fixture, still no secret.
 _REHASHED = "rehashed"
+
+_FORM = "application/x-www-form-urlencoded"
 
 
 def _frozen() -> MockClock:
@@ -102,6 +107,15 @@ def _presenting(url: str, **overrides: str) -> ServerRequestInterface:
     parameters = _query_of(url)
     parameters.update(overrides)
     return _request(urlencode(parameters))
+
+
+def _posting(url: str, content_type: str) -> tuple[ServerRequestInterface, BodyChannel]:
+    """Serve a POST carrying the link ``url`` names as its body, the kernel's way."""
+    served, channel = served_message(
+        "POST", "/login-link", urlsplit(url).query.encode(), content_type=content_type
+    )
+    bag: dict[str, object] = {}
+    return served.with_attribute(SecurityRequestAttributes.STATE_BAG, bag), channel
 
 
 def _parked_of(request: ServerRequestInterface) -> dict[str, object]:
@@ -489,6 +503,26 @@ async def test_consume_reads_the_link_from_the_body_of_a_post() -> None:
     request = _request(method="POST", parsed_body=_query_of(link.get_url()))
 
     assert await handler.consume_login_link(request) is user
+
+
+async def test_consume_reads_the_link_out_of_a_served_form() -> None:
+    user = InMemoryUser("ada", password=_HASHED)
+    handler, _provider = _handler(_frozen(), user)
+    link = await _link_of(handler, user)
+    request, _channel = _posting(link.get_url(), _FORM)
+
+    assert await handler.consume_login_link(request) is user
+
+
+async def test_consume_leaves_a_served_body_that_is_no_form_unread() -> None:
+    user = InMemoryUser("ada", password=_HASHED)
+    handler, _provider = _handler(_frozen(), user)
+    link = await _link_of(handler, user)
+    request, channel = _posting(link.get_url(), "application/octet-stream")
+
+    with pytest.raises(InvalidLoginLinkError, match='Missing "user" parameter'):
+        _ = await handler.consume_login_link(request)
+    assert channel.reads == 0
 
 
 async def test_consume_requires_a_state_bag_to_park_the_parameters_on() -> None:

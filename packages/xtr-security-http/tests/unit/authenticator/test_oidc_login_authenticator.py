@@ -28,6 +28,7 @@ from xtr_security_core.user.in_memory_user import InMemoryUser
 
 from tests.support.dispatchers import RecordingDispatcher
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authenticator.debug.unsupported_reasons import UnsupportedReasons
 from xtr_security_http.authenticator.oidc_login_authenticator import OidcLoginAuthenticator
@@ -54,6 +55,7 @@ if TYPE_CHECKING:
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.user.user_interface import UserInterface
 
+    from tests.support.served import BodyChannel
     from xtr_security_http.authenticator.passport.passport import Passport
 
 _ISSUER = "https://issuer.example"
@@ -65,6 +67,7 @@ _AUTHORIZATION_ENDPOINT = "https://issuer.example/authorize"
 _JWKS_URI = "https://issuer.example/jwks"
 _PREFIX = "_security.oidc_login.main."
 _CALLBACK_URI = "https://example.com/oidc/callback"
+_FORM = "application/x-www-form-urlencoded"
 
 pytestmark = pytest.mark.anyio
 
@@ -344,6 +347,18 @@ def _request(  # noqa: PLR0913 -- a test builder, naming every part of a request
     ).with_attribute(SecurityRequestAttributes.STATE_BAG, bag)
     security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = session
     return message
+
+
+def _served_callback(
+    session: Session,
+    body: bytes,
+    content_type: str,
+) -> tuple[ServerRequestInterface, BodyChannel]:
+    """Serve a callback POSTed to the check path the kernel's way, carrying ``session``."""
+    served, channel = served_message("POST", _CHECK_PATH, body, content_type=content_type)
+    bag: dict[str, object] = {}
+    security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = session
+    return served.with_attribute(SecurityRequestAttributes.STATE_BAG, bag), channel
 
 
 def _authenticator(  # noqa: PLR0913 -- a test builder, naming every collaborator it can swap
@@ -916,6 +931,35 @@ async def test_a_posted_callback_is_read_from_the_body() -> None:
 
     user = await passport.get_user()
     assert user.get_user_identifier() == "alice"
+
+
+async def test_a_callback_posted_as_a_served_form_is_read_from_its_body() -> None:
+    key = _key()
+    client = _ScriptedClient(key)
+    authenticator, *_rest = _authenticator(client)
+    session = _session()
+
+    response = await _start(authenticator, session)
+    state = _params_of(response)["state"]
+    attempt = await session.get(f"{_PREFIX}attempt.{state}")
+    assert isinstance(attempt, dict)
+    client.remember_nonce(cast("str", attempt["nonce"]))
+    callback, _channel = _served_callback(session, f"state={state}&code=the-code".encode(), _FORM)
+    passport = await authenticator.authenticate(callback)
+
+    user = await passport.get_user()
+    assert user.get_user_identifier() == "alice"
+
+
+async def test_a_posted_callback_that_is_no_form_is_left_unread() -> None:
+    authenticator, *_rest = _authenticator(_ScriptedClient())
+    callback, channel = _served_callback(
+        _session(), b"state=unknown&code=the-code", "application/octet-stream"
+    )
+
+    with pytest.raises(AuthenticationError, match="Invalid OIDC state parameter"):
+        _ = await authenticator.authenticate(callback)
+    assert channel.reads == 0
 
 
 async def test_an_empty_state_is_refused() -> None:

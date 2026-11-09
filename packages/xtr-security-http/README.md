@@ -370,8 +370,10 @@ identifier and the denied attribute on the session for the page.
 **`JsonLoginAuthenticator(http_utils, user_provider, responses, success_handler=None,
 failure_handler=None, options=None)`** is the stateless sibling: a JSON body read by its configured
 paths (`username_path`, `password_path` — a dotted path walks a nested document), answered — when
-no failure handler is given — with a `401` carrying the error's message as JSON. The password is
-erased from the document before its fields ride along as remember-me parameters.
+no failure handler is given — with a `401` carrying the error's message as JSON. A served request's
+JSON body is read before the document is asked for, and the password is erased from a copy of the
+document before its fields ride along as remember-me parameters — the request's own parsed body,
+the one the route behind the firewall reads, is left as it arrived.
 
 **`HttpBasicAuthenticator(realm_name, user_provider, responses, logger=None)`** authenticates the
 `Authorization: Basic` header's credentials and is its own entry point: a `401` carrying
@@ -922,23 +924,26 @@ ever makes it: documentation.
   back to the token the storage holds. Without the fallback a switch's
   denial on a restored session would be read as an anonymous caller and
   answered with the entry point's redirect instead of the `403` it earned.
-- **The chain's request carries its body unparsed.** The firewall runs at
-  the request event, where the served message is born with its body lazy:
-  `get_parsed_body()` answers what has been materialised so far, and nothing
-  in the chain materialises it but the authentication step — otherwise that
-  happens where the route's own request service is built. The authentication
-  step reads a submitted form — a `POST` encoded `application/x-www-form-urlencoded`
-  or `multipart/form-data` — before it hands the request to the manager, so
-  the authenticators, their success and failure handlers and the login's
-  listeners read the form's fields: a form login reads its username and
-  password from the posted body (the body alone while `post_only` stands,
-  the query first when it is off) and its forgery token from the query
-  first, then the body; `_target_path`, `_failure_path` and `_remember_me`
-  are read from it too. The body stays
-  readable for the route behind the firewall. The other chain steps see
-  nothing of the body, so the logout's and the switch's proofs ride the
-  query string beside it. A login page's own route, running after the
-  materialisation, reads the body as ever.
+- **The chain reads a posted form before asking for its fields.** The
+  firewall runs at the request event, where the served message is born with
+  its body lazy: `get_parsed_body()` answers what a read of the body has
+  materialised so far — on the message and on every copy of it a step is
+  handed. So every reader of a posted parameter reads the body first, and
+  only a form's: a body encoded `application/x-www-form-urlencoded` or
+  `multipart/form-data` is read before its fields are asked for, and a body
+  of any other media type is left unread — no step buffers an upload for a
+  parameter it cannot carry. A form login reads its username and password
+  from the posted body (the body alone while `post_only` stands, the query
+  first when it is off) and its forgery token from the query first, then the
+  body; `_target_path`, `_failure_path` and `_remember_me` are read from it
+  too, and so are the logout's forgery token, the switch's username and its
+  proof, a followed login link's parameters and an OIDC `form_post`
+  callback. The JSON login reads a JSON body before its document. The
+  authentication step reads a submitted form — a `POST` encoded as one —
+  before it hands the request to the manager, too, so an authenticator of
+  the application's own that asks for the parsed body directly finds the
+  form's fields. The body stays readable for the route behind the firewall,
+  which reads it as ever.
 - **A route cannot read the chain's parked state through its own request
   message.** What the chain parks — the session the context listener
   reattached, the error a failed login left, the last username — lives on

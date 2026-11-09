@@ -159,7 +159,7 @@ class LogoutListener(AbstractListener):
         manager = self._csrf_token_manager
         if manager is None:
             return
-        value = payload_parameter(request, self._csrf_parameter)
+        value = await payload_parameter(request, self._csrf_parameter)
         if value is None:
             value = query_parameter(request, self._csrf_parameter)
         if not isinstance(value, str) or not await manager.is_token_valid(

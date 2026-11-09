@@ -163,7 +163,7 @@ class LoginLinkAuthenticator(
         """
         username = query_parameter(request, "user")
         if username is None and request.get_method() not in ("GET", "HEAD"):
-            username = payload_parameter(request, "user")
+            username = await payload_parameter(request, "user")
         if not isinstance(username, str) or not username:
             raise InvalidLoginLinkAuthenticationError("Missing user from link.")
 

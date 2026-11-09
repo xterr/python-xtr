@@ -86,7 +86,7 @@ class CheckRememberMeConditionsListener(EventSubscriberInterface):
         if badge is None:
             return
         if self._options["always_remember_me"] is not True:
-            parameter = _remember_me_parameter(
+            parameter = await _remember_me_parameter(
                 event.get_request(),
                 str(self._options["remember_me_parameter"]),
                 badge.get_parameters(),
@@ -102,7 +102,7 @@ class CheckRememberMeConditionsListener(EventSubscriberInterface):
         _ = badge.enable()
 
 
-def _remember_me_parameter(
+async def _remember_me_parameter(
     request: ServerRequestInterface,
     name: str,
     badge_parameters: Mapping[str, object],
@@ -126,7 +126,7 @@ def _remember_me_parameter(
         return value
     if request.get_method() in ("GET", "HEAD"):
         return None
-    return payload_parameter(request, name)
+    return await payload_parameter(request, name)
 
 
 def _asks_to_be_remembered(value: object | None) -> bool:

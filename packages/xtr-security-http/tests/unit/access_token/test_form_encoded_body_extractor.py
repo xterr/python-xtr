@@ -85,6 +85,30 @@ async def test_a_content_type_with_parameters_or_case_is_read() -> None:
     assert await extractor.extract_access_token(mixed_case) == "f"
 
 
+async def test_a_content_type_only_starting_like_the_form_encoding_is_not_read() -> None:
+    extractor = FormEncodedBodyExtractor()
+    request = make_message(
+        method="POST",
+        headers={"content-type": "application/x-www-form-urlencodedX"},
+        body=b"access_token=f",
+        parsed_body={"access_token": "f"},
+    )
+
+    assert await extractor.extract_access_token(request) is None
+
+
+async def test_a_multipart_form_is_not_read() -> None:
+    extractor = FormEncodedBodyExtractor()
+    request = make_message(
+        method="POST",
+        headers={"content-type": "multipart/form-data; boundary=b"},
+        body=b'--b\r\nContent-Disposition: form-data; name="access_token"\r\n\r\nf\r\n--b--\r\n',
+        parsed_body={"access_token": "f"},
+    )
+
+    assert await extractor.extract_access_token(request) is None
+
+
 async def test_a_body_over_the_cap_yields_no_token_whatever_the_header_says() -> None:
     extractor = FormEncodedBodyExtractor()
     oversize = b"access_token=" + b"a" * (64 * 1024 + 1)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING, TypeGuard, final
 from urllib.parse import unquote
 
@@ -60,8 +61,8 @@ class JsonLoginAuthenticator(AbstractAuthenticator, InteractiveAuthenticatorInte
     machine reads it: no redirect to a form, a ``401`` carrying the error's
     message when no failure handler is given. The passport carries a
     password credential with badges for the method and the remember-me
-    conditions — the document's own fields, the password erased from them
-    first — and the token the login earns is a username-password one.
+    conditions — a copy of the document's own fields, the password erased
+    from it — and the token the login earns is a username-password one.
     """
 
     __slots__ = (
@@ -138,13 +139,20 @@ class JsonLoginAuthenticator(AbstractAuthenticator, InteractiveAuthenticatorInte
     async def authenticate(self, request: ServerRequestInterface) -> Passport:
         """Read the document into a passport.
 
-        The two fields are read by their configured paths — a dotted path
-        walks into a nested document — and the password is erased from the
-        document before any of it rides along as remember-me parameters:
-        the conditions a listener reads are the document's own fields, never
-        the password. A field that is missing, empty or not a string at all
-        fails the login as a bad credential.
+        A served request is born with its body unread, and its parsed body
+        answers only what a read has yielded, so a JSON body — by the rule
+        :meth:`supports` weighs the content type by — is read before the
+        document is asked for. The two fields are read by their configured
+        paths — a dotted path walks into a nested document — and the
+        remember-me parameters are a copy of the document, the password
+        erased from it: the conditions a listener reads are the document's
+        own fields, never the password, and the document the request carries
+        — the very one the route behind the firewall reads — is left as it
+        arrived. A field that is missing, empty or not a string at all fails
+        the login as a bad credential.
         """
+        if "json" in request.get_header_line("Content-Type"):
+            _ = await request.get_body().get_contents()
         document = request.get_parsed_body()
         if not _is_json_object(document):
             raise BadCredentialsError("Invalid JSON.")
@@ -160,12 +168,13 @@ class JsonLoginAuthenticator(AbstractAuthenticator, InteractiveAuthenticatorInte
             raise BadCredentialsError(f'The key "{password_path}" must be a string.')
         if password == "":
             raise BadCredentialsError(f'The key "{password_path}" must not be empty.')
-        _erase_at(document, password_path)
+        remembered = copy.deepcopy(document)
+        _erase_at(remembered, password_path)
         passport = Passport(
             UserBadge(username, user_loader=self._user_provider.load_user_by_identifier),
             PasswordCredentials(password),
             [
-                RememberMeBadge(dict(document)),
+                RememberMeBadge(remembered),
                 AuthenticationMethodBadge(AuthenticationMethod.PASSWORD),
             ],
         )

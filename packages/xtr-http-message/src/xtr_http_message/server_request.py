@@ -96,13 +96,22 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
     :meth:`over`. Its head is passed eagerly; its body is one lazy stream
     that materialises on first read; its parsed body, uploaded files and
     attributes answer what the source has yielded so far, the attributes
-    live. The ``with_*`` members of such a request detach: plain eager
-    copies, so a change a handler makes never reaches the connection.
+    live. The ``with_*`` members of such a request detach: the copy is
+    eager in everything a handler can change — the head as it was passed,
+    the attributes a snapshot — so a change a handler makes never reaches
+    the connection. Its parsed body and uploaded files stay linked to the
+    source until :meth:`with_parsed_body` or :meth:`with_uploaded_files`
+    gives the copy its own: a listener is handed a copy before anything has
+    read the body, and a read made after the copy — through it, through the
+    request or through any other copy — is answered by the copy too.
     """
 
     __slots__ = (
         "_attributes",
+        "_body_source",
         "_cookie_params",
+        "_own_parsed_body",
+        "_own_uploaded_files",
         "_parsed_body",
         "_query_params",
         "_server_params",
@@ -144,6 +153,9 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
         self._cookie_params: Mapping[str, str] = {}
         self._parsed_body: object | None = None
         self._uploaded_files: Mapping[str, object] = {}
+        self._body_source: RequestSource | None = None
+        self._own_parsed_body = False
+        self._own_uploaded_files = False
 
         self._method = method
         self._uri = Uri(uri) if isinstance(uri, str) else uri
@@ -308,10 +320,13 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
             where nothing can change it, otherwise a fresh one. Empty when no
             file came with the request. A request built over a connection
             answers what its body's materialisation has gathered so far:
-            empty until the body has been read.
+            empty until the body has been read — and so does a copy of one,
+            until it is given files of its own.
         """
         if self._source is not None:
             return self._source.uploaded_files()
+        if self._body_source is not None and not self._own_uploaded_files:
+            return self._body_source.uploaded_files()
 
         return _held(self._uploaded_files)
 
@@ -324,10 +339,13 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
                 :meth:`get_uploaded_files` describes.
 
         Returns:
-            A new instance; this one is left as it was.
+            A new instance answering ``uploaded_files`` from now on, however
+            late the body of the connection it was copied from is read; this
+            one is left as it was.
         """
         new = self._copy()
         new._uploaded_files = _held(uploaded_files)  # noqa: SLF001 — a copy of this class.
+        new._own_uploaded_files = True  # noqa: SLF001 — a copy of this very class.
 
         return new
 
@@ -339,10 +357,13 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
             Whatever parsing the body yielded, or ``None`` when nothing has
             been parsed into the request. A request built over a connection
             answers what its body's materialisation has yielded so far:
-            ``None`` until the body has been read.
+            ``None`` until the body has been read — and so does a copy of
+            one, until it is given a parsed body of its own.
         """
         if self._source is not None:
             return self._source.parsed_body()
+        if self._body_source is not None and not self._own_parsed_body:
+            return self._body_source.parsed_body()
 
         return self._parsed_body
 
@@ -356,7 +377,9 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
                 there was nothing to parse.
 
         Returns:
-            A new instance; this one is left as it was.
+            A new instance answering ``data`` from now on, however late the
+            body of the connection it was copied from is read; this one is
+            left as it was.
 
         Raises:
             InvalidArgumentError: When the data is a scalar: parsing a body
@@ -370,6 +393,7 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
 
         new = self._copy()
         new._parsed_body = data  # noqa: SLF001 — a copy of this very class.
+        new._own_parsed_body = True  # noqa: SLF001 — a copy of this very class.
 
         return new
 
@@ -466,13 +490,15 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
     def _copy(self) -> Self:
         """Return a copy to change, leaving this instance as it is.
 
-        A connected request's copy detaches: it is a plain eager request,
-        carrying the head as it was passed and the live parts frozen to
-        what they answer at this moment — the attributes as a snapshot,
-        the parsed body and the uploaded files as the source's peeks. The
-        body is the one lazy stream, shared: one materialisation serves
-        the request and every copy of it, and the copy never reads the
-        source again.
+        A connected request's copy detaches: it is a plain request, carrying
+        the head as it was passed and the attributes frozen to a snapshot of
+        what they answer at this moment. The body is the one lazy stream,
+        shared: one materialisation serves the request and every copy of it.
+        The parsed body and the uploaded files stay linked to the source,
+        which is where that materialisation lands them — so a copy made
+        before the body was read answers the read all the same — until
+        :meth:`with_parsed_body` or :meth:`with_uploaded_files` gives the
+        copy its own. A copy of the copy carries the link along.
         """
         source = self._source
         if source is None:
@@ -481,8 +507,7 @@ class ServerRequest(ConnectedTrait, ServerRequestInterface):
         new = super()._copy()
         new._stream = self.get_body()  # noqa: SLF001 — a copy of this very class.
         new._attributes = dict(source.attributes())  # noqa: SLF001 — a copy of this class.
-        new._parsed_body = source.parsed_body()  # noqa: SLF001 — a copy of this class.
-        new._uploaded_files = source.uploaded_files()  # noqa: SLF001 — a copy of this class.
         new._source = None  # noqa: SLF001 — a copy of this very class.
+        new._body_source = source  # noqa: SLF001 — a copy of this very class.
 
         return new

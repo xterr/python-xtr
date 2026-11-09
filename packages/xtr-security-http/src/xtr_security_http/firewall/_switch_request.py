@@ -18,20 +18,20 @@ __all__ = ["request_parameter_of", "switch_username_of"]
 _SAFE_METHODS = ("GET", "HEAD")
 
 
-def request_parameter_of(request: ServerRequestInterface, name: str) -> object | None:
+async def request_parameter_of(request: ServerRequestInterface, name: str) -> object | None:
     """Read ``name`` where a switch request carries it: the query string, then the body.
 
     The body is read only for a request that is not safe — one that may
-    carry a submitted form — and the value comes back as it arrived, for
-    the caller to narrow.
+    carry a submitted form — and only when it is one; the value comes back
+    as it arrived, for the caller to narrow.
     """
     value = query_parameter(request, name)
     if value is None and request.get_method() not in _SAFE_METHODS:
-        value = payload_parameter(request, name)
+        value = await payload_parameter(request, name)
     return value
 
 
-def switch_username_of(request: ServerRequestInterface, name: str) -> str | None:
+async def switch_username_of(request: ServerRequestInterface, name: str) -> str | None:
     """Read the username a request asks to switch to, under ``name``.
 
     The query string first, then the body of a request that is not safe,
@@ -40,7 +40,7 @@ def switch_username_of(request: ServerRequestInterface, name: str) -> str | None
     local readers hand back what arrived, and a switch asked by anything
     but a name is not a switch this flow can carry out.
     """
-    value = request_parameter_of(request, name)
+    value = await request_parameter_of(request, name)
     if value is None or value == "":
         value = header_parameter(request, name)
     if not isinstance(value, str):

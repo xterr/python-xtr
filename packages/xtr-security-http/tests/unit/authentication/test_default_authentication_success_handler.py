@@ -11,6 +11,7 @@ from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.authentication.token.null_token import NullToken
 
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authentication.default_authentication_success_handler import (
     DefaultAuthenticationSuccessHandler,
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
 
 pytestmark = pytest.mark.anyio
+
+_FORM = "application/x-www-form-urlencoded"
 
 
 def _handler(**options: object) -> DefaultAuthenticationSuccessHandler:
@@ -85,6 +88,29 @@ async def test_a_path_the_request_carried_under_the_configured_parameter_wins() 
 
     assert response is not None
     assert response.get_header_line("Location") == "/carried"
+
+
+async def test_a_path_posted_in_a_served_form_wins() -> None:
+    message, _channel = served_message(
+        "POST", "/login_check", b"_target_path=%2Fcarried", content_type=_FORM
+    )
+
+    response = await _handler().on_authentication_success(message, NullToken())
+
+    assert response is not None
+    assert response.get_header_line("Location") == "/carried"
+
+
+async def test_a_served_body_that_is_no_form_is_not_read_for_the_target() -> None:
+    message, channel = served_message(
+        "POST", "/login_check", b"_target_path=%2Fcarried", content_type="application/octet-stream"
+    )
+
+    response = await _handler().on_authentication_success(message, NullToken())
+
+    assert response is not None
+    assert response.get_header_line("Location") == "/"
+    assert channel.reads == 0
 
 
 async def test_a_carried_path_that_is_no_path_is_ignored() -> None:

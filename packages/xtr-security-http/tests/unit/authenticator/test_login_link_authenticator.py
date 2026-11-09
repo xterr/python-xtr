@@ -12,6 +12,7 @@ from xtr_security_core.user.in_memory_user import InMemoryUser
 
 from tests.support.login_link import RecordingLoginLinkHandler
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http.authenticator.debug.unsupported_reasons import UnsupportedReasons
 from xtr_security_http.authenticator.fallback_user_loader import FallbackUserLoader
 from xtr_security_http.authenticator.login_link_authenticator import LoginLinkAuthenticator
@@ -34,6 +35,8 @@ if TYPE_CHECKING:
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
 
 pytestmark = pytest.mark.anyio
+
+_FORM = "application/x-www-form-urlencoded"
 
 
 @final
@@ -201,6 +204,29 @@ async def test_authenticate_does_not_read_the_body_of_a_get() -> None:
         _ = await authenticator.authenticate(
             _request(method="GET", parsed_body={"user": "ada"}),
         )
+
+
+async def test_authenticate_reads_the_user_out_of_a_served_form() -> None:
+    handler = RecordingLoginLinkHandler(InMemoryUser("ada"))
+    authenticator, _success, _failure = _authenticator(handler)
+    request, _channel = served_message("POST", "/login-link", b"user=ada", content_type=_FORM)
+
+    passport = await authenticator.authenticate(request)
+
+    badge = passport.get_badge(UserBadge)
+    assert badge is not None
+    assert badge.get_user_identifier() == "ada"
+
+
+async def test_authenticate_leaves_a_served_body_that_is_no_form_unread() -> None:
+    authenticator, _success, _failure = _authenticator(RecordingLoginLinkHandler())
+    request, channel = served_message(
+        "POST", "/login-link", b"user=ada", content_type="application/octet-stream"
+    )
+
+    with pytest.raises(InvalidLoginLinkAuthenticationError, match="Missing user from link"):
+        _ = await authenticator.authenticate(request)
+    assert channel.reads == 0
 
 
 async def test_the_passport_validates_itself_around_the_spent_link() -> None:

@@ -190,10 +190,12 @@ side comes from the source:
   materialises it at the one seam that can still await, before the message is handed on.
 - **The attributes are live**, read off the source each time: the named parameters a matched
   route fills in are there as soon as routing has filled them.
-- **The `with_*` members detach.** The copy is a plain eager request — the attributes frozen to
-  the current snapshot, the parsed body and files to the current peek, the body the one shared
-  lazy stream — so a change a handler makes never reaches the connection, and the copy never
-  reads the source again.
+- **The `with_*` members detach.** The copy is a plain request — the head as it was passed, the
+  attributes frozen to the current snapshot, the body the one shared lazy stream — so a change a
+  handler makes never reaches the connection. Its parsed body and uploaded files stay linked to
+  the source until `with_parsed_body()` or `with_uploaded_files()` gives the copy its own: a read
+  of the body made after the copy — through it, the request or any other copy — is answered by
+  the copy too, and `await copy.ensure_parsed()` materialises the body through the copy.
 
 `body=` is refused alongside `source=` — one owner of the body. A header the message grammar
 refuses is left out rather than refusing the request: a connection let it through.

@@ -8,7 +8,7 @@ checked by the real credentials listener.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, final
 
 import pytest
 from starlette.applications import Starlette
@@ -24,7 +24,7 @@ from xtr_security_core.authentication.token.storage.token_storage import TokenSt
 from xtr_security_core.user import InMemoryUser
 
 from tests.support.contexts import FakeFirewallContext
-from tests.support.served import BodyChannel, http_scope, message_factory
+from tests.support.served import message_factory, send
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authentication.authenticator_manager import AuthenticatorManager
 from xtr_security_http.authentication.default_authentication_failure_handler import (
@@ -46,7 +46,7 @@ from xtr_security_http.security_request_attributes import SecurityRequestAttribu
 
 if TYPE_CHECKING:
     from starlette.requests import Request
-    from starlette.types import ASGIApp, Message
+    from starlette.types import ASGIApp
     from xtr_http_kernel import RequestEvent
     from xtr_http_message_contracts import ResponseInterface, ServerRequestInterface
     from xtr_security_core.authentication.token.token_interface import TokenInterface
@@ -149,36 +149,6 @@ def _application(
     )
 
 
-async def _send(  # noqa: PLR0913 -- a test client, naming every part of the request it sends
-    app: ASGIApp,
-    method: str,
-    path: str,
-    body: bytes = b"",
-    *,
-    query: str = "",
-    content_type: str | None = None,
-) -> tuple[int, dict[str, str], bytes]:
-    """Send one request straight at ``app``, answering its status, headers and body."""
-    sent: list[Message] = []
-
-    async def send(message: Message) -> None:
-        sent.append(message)
-
-    scope = http_scope(method, path, query=query, content_type=content_type)
-    await app(scope, BodyChannel(body), send)
-    start = sent[0]
-    headers = {
-        name.decode(): value.decode()
-        for name, value in cast("list[tuple[bytes, bytes]]", start["headers"])
-    }
-    content = b"".join(
-        cast("bytes", message.get("body", b""))
-        for message in sent
-        if message["type"] == "http.response.body"
-    )
-    return cast("int", start["status"]), headers, content
-
-
 def _redirecting() -> DefaultAuthenticationSuccessHandler:
     return DefaultAuthenticationSuccessHandler(
         HttpUtils(ResponseFactory()), {"default_target_path": "/home"}
@@ -186,7 +156,7 @@ def _redirecting() -> DefaultAuthenticationSuccessHandler:
 
 
 async def test_a_login_form_posted_as_its_body_logs_the_user_in() -> None:
-    status, headers, _content = await _send(
+    status, headers, _content = await send(
         _application(_redirecting()),
         "POST",
         "/login_check",
@@ -199,7 +169,7 @@ async def test_a_login_form_posted_as_its_body_logs_the_user_in() -> None:
 
 
 async def test_a_posted_target_on_another_origin_lands_on_the_default_target() -> None:
-    status, headers, _content = await _send(
+    status, headers, _content = await send(
         _application(_redirecting()),
         "POST",
         "/login_check",
@@ -212,7 +182,7 @@ async def test_a_posted_target_on_another_origin_lands_on_the_default_target() -
 
 
 async def test_a_wrong_password_posted_as_the_body_returns_to_the_login_page() -> None:
-    status, headers, _content = await _send(
+    status, headers, _content = await send(
         _application(_redirecting()),
         "POST",
         "/login_check",
@@ -225,7 +195,7 @@ async def test_a_wrong_password_posted_as_the_body_returns_to_the_login_page() -
 
 
 async def test_the_route_still_reads_the_posted_form_after_the_login() -> None:
-    status, _headers, content = await _send(
+    status, _headers, content = await send(
         _application(_ContinuingSuccess()),
         "POST",
         "/login_check",
@@ -238,7 +208,7 @@ async def test_the_route_still_reads_the_posted_form_after_the_login() -> None:
 
 
 async def test_a_login_in_the_query_string_still_logs_in_once_post_only_is_off() -> None:
-    status, headers, _content = await _send(
+    status, headers, _content = await send(
         _application(_redirecting(), {"post_only": False}),
         "GET",
         "/login_check",

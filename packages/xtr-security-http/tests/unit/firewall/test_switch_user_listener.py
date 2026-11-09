@@ -19,6 +19,7 @@ from xtr_security_core.user.in_memory_user import InMemoryUser
 from xtr_security_csrf.csrf_token import CsrfToken
 
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authenticator.token.post_authentication_token import (
     PostAuthenticationToken,
@@ -47,6 +48,8 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.anyio
 
 _EventT = TypeVar("_EventT")
+
+_FORM = "application/x-www-form-urlencoded"
 
 
 @final
@@ -300,6 +303,23 @@ async def test_supports_reads_the_body_of_an_unsafe_request() -> None:
     request = make_message(method="POST", parsed_body={"_switch_user": "ada"})
 
     assert await listener.supports(_asked(request, {})) is True
+
+
+async def test_supports_reads_the_parameter_out_of_a_served_form() -> None:
+    listener = _listener(TokenStorage(), _RecordingProvider({}))
+    request, _channel = served_message("POST", "/", b"_switch_user=ada", content_type=_FORM)
+
+    assert await listener.supports(_asked(request, {})) is True
+
+
+async def test_supports_leaves_a_served_body_that_is_no_form_unread() -> None:
+    listener = _listener(TokenStorage(), _RecordingProvider({}))
+    request, channel = served_message(
+        "POST", "/", b"_switch_user=ada", content_type="application/octet-stream"
+    )
+
+    assert await listener.supports(_asked(request, {})) is False
+    assert channel.reads == 0
 
 
 async def test_supports_falls_back_to_the_header_of_the_same_name() -> None:

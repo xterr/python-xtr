@@ -185,8 +185,8 @@ async def test_the_with_members_detach_to_plain_eager_copies() -> None:
     assert copy.get_attribute("user") == "ada"
     assert copy.get_attribute("trace") == "1"
     assert copy.get_header_line("x-trace") == "1"
-    # The parsed side is the peek at the moment of the copy: nothing has been
-    # read, so nothing has been parsed.
+    # The parsed side follows the source, and nothing has read the body yet:
+    # nothing has been parsed.
     assert copy.get_parsed_body() is None
     # The view is left as it was: no attribute, no header, nothing read.
     assert served.get_attribute("user") == "ada"
@@ -227,6 +227,76 @@ async def test_a_detached_copy_freezes_the_attributes_as_they_are() -> None:
 
     assert copy.get_attributes() == {}
     assert served.get_attributes() == {"isbn": "978-0141439518"}
+
+
+async def test_a_copy_answers_the_parsed_body_of_a_read_made_after_it() -> None:
+    source = _Source(body=b'{"title": "dune"}', parsed={"title": "dune"})
+    served = _over(source)
+    copy = served.with_attribute("trace", "1")
+
+    assert await served.get_body().get_contents() == b'{"title": "dune"}'
+
+    assert copy.get_parsed_body() == {"title": "dune"}
+
+
+async def test_ensure_parsed_on_a_copy_materialises_the_body_it_shares() -> None:
+    source = _Source(body=b'{"title": "dune"}', parsed={"title": "dune"})
+    copy = _over(source).with_attribute("trace", "1")
+
+    await copy.ensure_parsed()
+
+    assert (source.calls, copy.get_parsed_body()) == (1, {"title": "dune"})
+
+
+async def test_a_copy_answers_the_uploaded_files_of_a_read_made_after_it() -> None:
+    upload = object()
+    source = _Source(body=b"--b--", files={"doc": upload})
+    copy = _over(source).with_attribute("trace", "1")
+
+    await copy.ensure_parsed()
+
+    assert copy.get_uploaded_files() == {"doc": upload}
+
+
+async def test_a_parsed_body_given_to_a_copy_is_its_own() -> None:
+    source = _Source(body=b'{"title": "dune"}', parsed={"title": "dune"})
+    served = _over(source)
+    given = served.with_attribute("trace", "1").with_parsed_body({"title": "emma"})
+
+    await given.ensure_parsed()
+
+    assert given.get_parsed_body() == {"title": "emma"}
+    assert served.get_parsed_body() == {"title": "dune"}
+    assert source.parsed == {"title": "dune"}
+
+
+async def test_uploaded_files_given_to_a_copy_are_their_own() -> None:
+    source = _Source(body=b"--b--", files={"doc": object()})
+    served = _over(source)
+    given = served.with_attribute("trace", "1").with_uploaded_files({})
+
+    await given.ensure_parsed()
+
+    assert given.get_uploaded_files() == {}
+    assert set(served.get_uploaded_files()) == {"doc"}
+
+
+async def test_a_copy_of_a_copy_stays_linked() -> None:
+    source = _Source(body=b'{"title": "dune"}', parsed={"title": "dune"})
+    copy = _over(source).with_attribute("trace", "1").with_header("x-trace", "1")
+
+    await copy.ensure_parsed()
+
+    assert copy.get_parsed_body() == {"title": "dune"}
+
+
+async def test_a_copy_of_a_copy_keeps_the_parsed_body_it_was_given() -> None:
+    source = _Source(body=b'{"title": "dune"}', parsed={"title": "dune"})
+    given = _over(source).with_parsed_body({"title": "emma"}).with_attribute("trace", "1")
+
+    await given.ensure_parsed()
+
+    assert given.get_parsed_body() == {"title": "emma"}
 
 
 def test_without_attribute_removes_a_live_attribute_and_detaches() -> None:

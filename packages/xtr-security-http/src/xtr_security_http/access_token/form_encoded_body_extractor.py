@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 from typing_extensions import override
+
+from xtr_security_http._form_content_type import is_form_content_type
 
 from .access_token_extractor_interface import AccessTokenExtractorInterface
 
@@ -14,7 +16,9 @@ if TYPE_CHECKING:
 
 __all__ = ["FormEncodedBodyExtractor"]
 
-_FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
+#: The one form encoding a bearer token is posted in: RFC 6750, Section 2.2,
+#: names the urlencoded one, so a multipart form carries no token here.
+_URLENCODED_FORM: Final = frozenset({"application/x-www-form-urlencoded"})
 
 #: The method whose body may carry a form, exactly as it travels on the wire.
 #: RFC 9110 spells method names in upper case and matching them is
@@ -50,19 +54,22 @@ class FormEncodedBodyExtractor(AccessTokenExtractorInterface):
     async def extract_access_token(self, request: ServerRequestInterface) -> str | None:
         """Return the token in the form body, or ``None`` when it is absent.
 
-        Only a ``POST`` whose content type names the form encoding is read —
-        the one request a submitted form travels as. The body is read before
-        the parsed form is asked for, the order a served request needs: the
-        reading materialises both, and the parsed side answers behind it. A
-        body that turns out larger than the 64 KiB cap yields no token — the
-        cap weighs the bytes that actually arrived, never what a header
-        promised — and so does a form whose field carries anything other than
-        one text value; an endpoint behind the firewall then challenges rather
-        than failing on the oversize or malformed body.
+        Only a ``POST`` whose content type names the urlencoded form encoding
+        is read — the one request a submitted form travels as, its media type
+        weighed whole, so one that only starts like it is no form. The body is
+        read before the parsed form is asked for, the order a served request
+        needs: the reading materialises both, and the parsed side answers
+        behind it. A body that turns out larger than the 64 KiB cap yields no
+        token — the cap weighs the bytes that actually arrived, never what a
+        header promised — and so does a form whose field carries anything
+        other than one text value; an endpoint behind the firewall then
+        challenges rather than failing on the oversize or malformed body.
         """
         if request.get_method() != _FORM_METHOD:
             return None
-        if not _is_form_content_type(request.get_header_line("Content-Type")):
+        if not is_form_content_type(
+            request.get_header_line("Content-Type"), media_types=_URLENCODED_FORM
+        ):
             return None
         body = request.get_body()
         if len(await body.get_contents()) > _MAX_BODY_SIZE:
@@ -72,14 +79,3 @@ class FormEncodedBodyExtractor(AccessTokenExtractorInterface):
             return None
         value = cast("Mapping[str, object]", parsed).get(self._field_name)
         return value if isinstance(value, str) else None
-
-
-def _is_form_content_type(content_type: str) -> bool:
-    """Tell whether a ``Content-Type`` header names the form encoding.
-
-    The media type is read without its parameters and without regard to case,
-    the same rules the kernel reads a content type by when it decides what a
-    body parses into — so a body this check lets through is a body whose
-    parsed side is the submitted form.
-    """
-    return content_type.partition(";")[0].strip().lower().startswith(_FORM_CONTENT_TYPE)

@@ -10,9 +10,9 @@ second proves, the token the login stores — survives each response through
 the bundle's save listener, and the third request reattaches it by the
 cookie that save staged.
 
-The logout's proof is carried in the query string — the readers' own
-fallback — because the chain's request carries its body unparsed until the
-route materialises it.
+The logout's proof is carried both ways a request can carry it: in the query
+string, and posted in the form the logout submits — the chain reads a posted
+form before it asks for the proof.
 """
 
 from __future__ import annotations
@@ -96,6 +96,17 @@ async def test_a_logout_with_a_minted_token_logs_the_request_out(
     response = await client.post(
         "/logout", params={"_csrf_token": _token_of(page, "_logout_token")}
     )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/"
+
+
+async def test_a_logout_whose_minted_token_is_posted_in_its_form_logs_the_request_out(
+    client: httpx.AsyncClient,
+) -> None:
+    page = await client.get("/login")
+
+    response = await client.post("/logout", data={"_csrf_token": _token_of(page, "_logout_token")})
 
     assert response.status_code == 302
     assert response.headers["location"] == "/"

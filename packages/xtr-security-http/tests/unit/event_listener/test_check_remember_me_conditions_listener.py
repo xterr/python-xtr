@@ -10,6 +10,7 @@ from xtr_security_core.exception import AuthenticationError
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http.authenticator.passport.badge.remember_me_badge import RememberMeBadge
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.authenticator.passport.self_validating_passport import (
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
     from xtr_security_http.authenticator.passport.passport import Passport
 
 pytestmark = pytest.mark.anyio
+
+_FORM = "application/x-www-form-urlencoded"
 
 
 @final
@@ -112,6 +115,29 @@ async def test_the_requests_form_field_asks_to_be_remembered() -> None:
     await _dispatch(listener, _success_event(request, badge=badge))
 
     assert badge.is_enabled() is True
+
+
+async def test_a_served_forms_field_asks_to_be_remembered() -> None:
+    badge = RememberMeBadge()
+    request, _channel = served_message(
+        "POST", "/login_check", b"_remember_me=on", content_type=_FORM
+    )
+
+    await _dispatch(CheckRememberMeConditionsListener(), _success_event(request, badge=badge))
+
+    assert badge.is_enabled() is True
+
+
+async def test_a_served_body_that_is_no_form_is_not_read_for_the_ask() -> None:
+    badge = RememberMeBadge()
+    request, channel = served_message(
+        "POST", "/login_check", b"_remember_me=on", content_type="application/octet-stream"
+    )
+
+    await _dispatch(CheckRememberMeConditionsListener(), _success_event(request, badge=badge))
+
+    assert badge.is_enabled() is False
+    assert channel.reads == 0
 
 
 async def test_the_requests_query_asks_to_be_remembered() -> None:

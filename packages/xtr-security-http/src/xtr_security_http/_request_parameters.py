@@ -7,6 +7,12 @@ so the answer starts by narrowing: only a mapping carries named parameters,
 and anything else reads as carrying none. Each reader hands back the value
 as it arrived — narrowing it to text is the caller's, who knows what a
 parameter means to it.
+
+A request the server is still serving is born with its body unread, and its
+parsed side answers only what a read of the body has yielded — so the body of
+a submitted form is read before its fields are asked for. Only a form's: a
+body of any other media type carries no named parameter to find, and reading
+it would buffer an upload for nothing.
 """
 
 from __future__ import annotations
@@ -14,13 +20,36 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, cast
 
+from xtr_security_http._form_content_type import is_form_content_type
+
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
 
-__all__ = ["header_parameter", "payload_parameter", "query_parameter"]
+__all__ = ["header_parameter", "payload_parameter", "query_parameter", "read_payload"]
 
 
-def payload_parameter(
+async def read_payload(request: ServerRequestInterface) -> object | None:
+    """Return what the request's body parsed into, reading a submitted form first.
+
+    A served request fills its parsed side as its body is read, so a form's
+    fields are there only once something has read it: the read comes first,
+    and once the body is in the buffer it is a read of the buffer, the wire
+    left alone. A body of any other media type is not read here, and what it
+    parsed into — if anything has parsed it — is answered as it is.
+
+    Args:
+        request: The request whose body is read.
+
+    Returns:
+        Whatever parsing the body yielded, or ``None`` when nothing has been
+        parsed into the request.
+    """
+    if is_form_content_type(request.get_header_line("Content-Type")):
+        _ = await request.get_body().get_contents()
+    return request.get_parsed_body()
+
+
+async def payload_parameter(
     request: ServerRequestInterface,
     name: str,
     default: object | None = None,
@@ -30,7 +59,9 @@ def payload_parameter(
     A body is parsed into whatever its content type says it carries, so what
     comes back need not be named parameters at all — a JSON array, or
     nothing for a request with no body. Either reads as carrying no
-    parameter, which is what a request that is not a form amounts to.
+    parameter, which is what a request that is not a form amounts to. The
+    body is read first when it is a submitted form, the way
+    :func:`read_payload` reads it.
 
     Args:
         request: The request whose body is read.
@@ -40,7 +71,7 @@ def payload_parameter(
     Returns:
         The value under ``name``, or ``default``.
     """
-    body = request.get_parsed_body()
+    body = await read_payload(request)
     if not isinstance(body, Mapping):
         return default
 

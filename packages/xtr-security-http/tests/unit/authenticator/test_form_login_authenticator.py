@@ -17,6 +17,7 @@ from xtr_security_core.exception import (
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authenticator.debug.unsupported_reasons import UnsupportedReasons
 from xtr_security_http.authenticator.form_login_authenticator import FormLoginAuthenticator
@@ -35,8 +36,12 @@ if TYPE_CHECKING:
     )
     from xtr_security_core.user.user_interface import UserInterface
 
+    from tests.support.served import BodyChannel
+
 #: A password a test user carries; a fixture, not a secret.
 _HASHED = "hashed"
+
+_FORM = "application/x-www-form-urlencoded"
 
 pytestmark = pytest.mark.anyio
 
@@ -157,6 +162,19 @@ def _request_with_session(
     return message
 
 
+def _served_with_session(
+    body: bytes,
+    content_type: str,
+) -> tuple[ServerRequestInterface, BodyChannel]:
+    """Serve a form submission the kernel's way, its security state carrying a parked session."""
+    served, channel = served_message("POST", "/login_check", body, content_type=content_type)
+    bag: dict[str, object] = {}
+    security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = Session(
+        MemorySessionStorage(),
+    )
+    return served.with_attribute(SecurityRequestAttributes.STATE_BAG, bag), channel
+
+
 def _session_of(message: ServerRequestInterface) -> Session:
     """Return the session the request's security state carries."""
     bag = message.get_attribute(SecurityRequestAttributes.STATE_BAG)
@@ -256,6 +274,26 @@ async def test_the_form_reads_into_a_passport() -> None:
     assert passport.has_badge(RememberMeBadge)
     assert passport.get_badge(PasswordUpgradeBadge) is None
     assert await _session_of(message).get(SecurityRequestAttributes.LAST_USERNAME) == "alice"
+
+
+async def test_a_served_form_reads_into_a_passport() -> None:
+    authenticator, _success, _failure = _authenticator()
+    message, _channel = _served_with_session(b"_username=alice&_password=secret", _FORM)
+
+    passport = await authenticator.authenticate(message)
+
+    assert passport.get_user_badge().get_user_identifier() == "alice"
+
+
+async def test_a_served_body_that_is_no_form_is_left_unread() -> None:
+    authenticator, _success, _failure = _authenticator()
+    message, channel = _served_with_session(
+        b"_username=alice&_password=secret", "application/octet-stream"
+    )
+
+    with pytest.raises(BadCredentialsError):
+        _ = await authenticator.authenticate(message)
+    assert channel.reads == 0
 
 
 async def test_a_provider_that_upgrades_passwords_earns_the_upgrade_badge() -> None:

@@ -113,7 +113,7 @@ class DefaultAuthenticationFailureHandler(AuthenticationFailureHandlerInterface)
                 "forward the login page to, so the redirect is the only answer.",
             )
         await self._keep_referer_target(request)
-        failure_path = self._failure_path_of(request)
+        failure_path = await self._failure_path_of(request)
         if self._logger is not None:
             self._logger.debug(
                 "Authentication failure, redirect triggered.",
@@ -151,7 +151,7 @@ class DefaultAuthenticationFailureHandler(AuthenticationFailureHandlerInterface)
             return
         await save_target_path(session, self._firewall_name, referer)
 
-    def _failure_path_of(self, request: ServerRequestInterface) -> str:
+    async def _failure_path_of(self, request: ServerRequestInterface) -> str:
         """Return the path the failure redirect answers with, by the ladder.
 
         A target the request carried under the configured parameter wins when
@@ -164,7 +164,7 @@ class DefaultAuthenticationFailureHandler(AuthenticationFailureHandlerInterface)
         parameter = str(self._options["failure_path_parameter"])
         asked = query_parameter(request, parameter)
         if asked is None:
-            asked = payload_parameter(request, parameter)
+            asked = await payload_parameter(request, parameter)
         if isinstance(asked, str) and is_same_origin(request, asked):
             return asked
         if self._logger is not None and asked:

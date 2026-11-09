@@ -3,22 +3,23 @@
 The lifecycle hands the chain a request born connected to its wire: the head
 read at once, the body left lazy until something reads it. A test of what the
 chain reads out of a body builds the request here, over a channel that counts
-how often the wire was read, so it can tell what was read and what was not.
+how often the wire was read, so it can tell what was read and what was not —
+or sends one straight at an application, the way a server would.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
 
 from starlette.requests import Request
 from xtr_http_kernel.bridge import HttpMessageFactory, ResponseFactory
 from xtr_http_message import HttpFactory
 
 if TYPE_CHECKING:
-    from starlette.types import Message, Scope
+    from starlette.types import ASGIApp, Message, Scope
     from xtr_http_message_contracts import ServerRequestInterface
 
-__all__ = ["BodyChannel", "http_scope", "message_factory", "served_message"]
+__all__ = ["BodyChannel", "http_scope", "message_factory", "send", "served_message"]
 
 
 def message_factory() -> HttpMessageFactory:
@@ -82,3 +83,33 @@ def served_message(
     channel = BodyChannel(body)
     request = Request(http_scope(method, path, content_type=content_type), channel)
     return message_factory().serve(request), channel
+
+
+async def send(  # noqa: PLR0913 -- a test client, naming every part of the request it sends
+    app: ASGIApp,
+    method: str,
+    path: str,
+    body: bytes = b"",
+    *,
+    query: str = "",
+    content_type: str | None = None,
+) -> tuple[int, dict[str, str], bytes]:
+    """Send one request straight at ``app``, answering its status, headers and body."""
+    sent: list[Message] = []
+
+    async def collect(message: Message) -> None:
+        sent.append(message)
+
+    scope = http_scope(method, path, query=query, content_type=content_type)
+    await app(scope, BodyChannel(body), collect)
+    start = sent[0]
+    headers = {
+        name.decode(): value.decode()
+        for name, value in cast("list[tuple[bytes, bytes]]", start["headers"])
+    }
+    content = b"".join(
+        cast("bytes", message.get("body", b""))
+        for message in sent
+        if message["type"] == "http.response.body"
+    )
+    return cast("int", start["status"]), headers, content

@@ -12,6 +12,7 @@ from xtr_security_core.exception import AuthenticationError, BadCredentialsError
 from xtr_security_core.user.in_memory_user import InMemoryUser
 
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http.authenticator.debug.unsupported_reasons import UnsupportedReasons
 from xtr_security_http.authenticator.interactive_authenticator_interface import (
     InteractiveAuthenticatorInterface,
@@ -179,6 +180,42 @@ async def test_the_password_is_erased_from_the_remember_me_parameters() -> None:
     badge = passport.get_badge(RememberMeBadge)
     assert badge is not None
     assert badge.get_parameters() == {"username": "alice", "password": None, "keep": "yes"}
+
+
+async def test_the_requests_own_document_keeps_its_password() -> None:
+    document: dict[str, object] = {"user": {"name": "alice", "pass": "secret"}}
+
+    _ = await _authenticator(
+        options={"username_path": "user.name", "password_path": "user.pass"},
+    ).authenticate(_json_request(parsed_body=document))
+
+    assert document == {"user": {"name": "alice", "pass": "secret"}}
+
+
+async def test_a_served_json_body_is_read_into_the_passport() -> None:
+    request, _channel = served_message(
+        "POST",
+        "/login",
+        b'{"username": "alice", "password": "secret"}',
+        content_type="application/json",
+    )
+
+    passport = await _authenticator().authenticate(request)
+
+    assert passport.get_user_badge().get_user_identifier() == "alice"
+
+
+async def test_a_served_body_that_is_no_json_is_left_unread() -> None:
+    request, channel = served_message(
+        "POST",
+        "/login",
+        b'{"username": "alice", "password": "secret"}',
+        content_type="application/octet-stream",
+    )
+
+    with pytest.raises(BadCredentialsError, match="Invalid JSON"):
+        _ = await _authenticator().authenticate(request)
+    assert channel.reads == 0
 
 
 async def test_the_token_is_a_username_password_one() -> None:

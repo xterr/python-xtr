@@ -16,6 +16,7 @@ from xtr_security_csrf import CsrfTokenManagerInterface
 from xtr_security_csrf.csrf_token import CsrfToken
 
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authenticator.token.post_authentication_token import (
     PostAuthenticationToken,
@@ -37,6 +38,8 @@ if TYPE_CHECKING:
     from xtr_security_core.authentication.token.token_interface import TokenInterface
 
 pytestmark = pytest.mark.anyio
+
+_FORM = "application/x-www-form-urlencoded"
 
 
 @final
@@ -312,6 +315,33 @@ async def test_a_forgery_token_in_the_query_string_passes_the_proof() -> None:
 
     (asked,) = manager.asked
     assert asked.get_value() == "carried"
+
+
+async def test_a_forgery_token_posted_in_a_served_form_passes_the_proof() -> None:
+    manager = _RecordingManager(valid=True)
+    request, _channel = served_message(
+        "POST", "/logout", b"_csrf_token=carried", content_type=_FORM
+    )
+
+    await _listener(_RecordingTokenStorage(), EventDispatcher(), manager).authenticate(
+        RequestEvent(request, {})
+    )
+
+    (asked,) = manager.asked
+    assert asked.get_value() == "carried"
+
+
+async def test_a_served_body_that_is_no_form_is_not_read_for_the_forgery_token() -> None:
+    manager = _RecordingManager(valid=True)
+    request, channel = served_message(
+        "POST", "/logout", b"_csrf_token=carried", content_type="application/octet-stream"
+    )
+
+    with pytest.raises(LogoutError):
+        await _listener(_RecordingTokenStorage(), EventDispatcher(), manager).authenticate(
+            RequestEvent(request, {})
+        )
+    assert channel.reads == 0
 
 
 async def test_an_invalid_forgery_token_refuses_the_logout() -> None:

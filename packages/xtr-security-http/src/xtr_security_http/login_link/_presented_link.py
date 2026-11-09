@@ -30,24 +30,24 @@ __all__ = [
 PARAMETER_NAME: Final = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
-def request_parameter_of(request: ServerRequestInterface, name: str) -> object | None:
+async def request_parameter_of(request: ServerRequestInterface, name: str) -> object | None:
     """Read ``name`` out of the request the way a presented link is read.
 
     The query string first — a link is a URL, and its parameters travel
     there — then the body of a request that is not a ``GET`` or ``HEAD``,
-    where a form posting the link carries them. A name the request
-    repeats answers with the structure it arrived as, for the caller to
-    narrow.
+    where a form posting the link carries them, read first when it is one.
+    A name the request repeats answers with the structure it arrived as,
+    for the caller to narrow.
     """
     value = query_parameter(request, name)
     if value is not None:
         return value
     if request.get_method() not in ("GET", "HEAD"):
-        return payload_parameter(request, name)
+        return await payload_parameter(request, name)
     return None
 
 
-def required_parameter_of(
+async def required_parameter_of(
     request: ServerRequestInterface,
     name: str,
     *,
@@ -64,7 +64,7 @@ def required_parameter_of(
         InvalidLoginLinkError: When the parameter is missing, empty, not
             a string, or — for one that must be — not a number.
     """
-    value = request_parameter_of(request, name)
+    value = await request_parameter_of(request, name)
     if value is None or value == "":
         raise InvalidLoginLinkError(f'Missing "{name}" parameter.')
     if not isinstance(value, str) or (digits and not value.isdigit()):
@@ -72,7 +72,7 @@ def required_parameter_of(
     return value
 
 
-def extra_parameters_of(request: ServerRequestInterface) -> dict[str, str]:
+async def extra_parameters_of(request: ServerRequestInterface) -> dict[str, str]:
     """Read the extra parameters a presented link's hash covers.
 
     Walks the names the link's ``hash_parameters`` lists, reading each
@@ -85,7 +85,7 @@ def extra_parameters_of(request: ServerRequestInterface) -> dict[str, str]:
             lists is malformed, or a value is missing or not a string.
     """
     parameters: dict[str, str] = {}
-    names = request_parameter_of(request, "hash_parameters")
+    names = await request_parameter_of(request, "hash_parameters")
     if names is None:
         return parameters
     if not isinstance(names, str):
@@ -93,7 +93,7 @@ def extra_parameters_of(request: ServerRequestInterface) -> dict[str, str]:
     for name in names.split(","):
         if not PARAMETER_NAME.match(name):
             raise InvalidLoginLinkError(f'Invalid "{name}" parameter.')
-        value = request_parameter_of(request, name)
+        value = await request_parameter_of(request, name)
         if value is None:
             raise InvalidLoginLinkError(f'Missing "{name}" parameter.')
         if not isinstance(value, str):

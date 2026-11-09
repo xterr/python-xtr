@@ -34,7 +34,7 @@ class OidcCallback:
     error_description: str
 
 
-def read_callback(request: ServerRequestInterface) -> OidcCallback:
+async def read_callback(request: ServerRequestInterface) -> OidcCallback:
     """Read the authorization response out of the callback request.
 
     A provider on another site makes a "form_post" response a cross-site
@@ -42,13 +42,12 @@ def read_callback(request: ServerRequestInterface) -> OidcCallback:
     parameters are read from the body only when the request is a POST, and
     from the query string otherwise.
     """
-    reader = payload_parameter if request.get_method() == "POST" else query_parameter
     return OidcCallback(
-        state=_text(reader(request, "state")),
-        code=_text(reader(request, "code")),
-        iss=_text(reader(request, "iss")),
-        error=_text(reader(request, "error")),
-        error_description=_text(reader(request, "error_description")),
+        state=_text(await _callback_parameter(request, "state")),
+        code=_text(await _callback_parameter(request, "code")),
+        iss=_text(await _callback_parameter(request, "iss")),
+        error=_text(await _callback_parameter(request, "error")),
+        error_description=_text(await _callback_parameter(request, "error_description")),
     )
 
 
@@ -95,6 +94,13 @@ def check_provider_error(error: str, error_description: str) -> None:
     if error != "":
         description = error_description if error_description != "" else error
         raise AuthenticationError(f'OIDC provider returned an error: "{description}"')
+
+
+async def _callback_parameter(request: ServerRequestInterface, name: str) -> object | None:
+    """Read ``name`` from the form a POST submitted, from the query string otherwise."""
+    if request.get_method() == "POST":
+        return await payload_parameter(request, name)
+    return query_parameter(request, name)
 
 
 def _text(value: object) -> str:

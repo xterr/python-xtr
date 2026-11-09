@@ -130,9 +130,11 @@ served = ServerRequest.over(
 - `get_parsed_body()` and `get_uploaded_files()` answer what materialisation has yielded so
   far; `await served.ensure_parsed()` materialises it at the one seam that can still await.
 - `get_attributes()` reads the source live, each time.
-- The `with_*` members detach: plain eager copies — attributes frozen to the snapshot, parsed
-  body and files to the peek, body the one shared lazy stream — that never read the source
-  again.
+- The `with_*` members detach: plain copies — attributes frozen to the snapshot, body the one
+  shared lazy stream — whose parsed body and files stay linked to the source until
+  `with_parsed_body()` / `with_uploaded_files()` gives the copy its own, so a body read after the
+  copy was made is answered by the copy too; `await copy.ensure_parsed()` reads it through the
+  copy.
 - `body=` is refused alongside `source=`: one owner of the body.
 
 ## Take a URI apart and put one together
@@ -322,9 +324,10 @@ implementation can catch `HttpMessageError` and get only its failures.
 - Do not expect a `with_*` method to change the message it was called on: it returns a new one,
   and returns the same one when nothing would change. `request.with_header(...)` on its own does
   nothing — keep the result.
-- Do not expect `get_parsed_body()` or `get_uploaded_files()` on a connected request to answer
-  before its body has been read: they answer what materialisation has yielded, and
-  `await served.ensure_parsed()` is the seam that materialises it.
+- Do not expect `get_parsed_body()` or `get_uploaded_files()` on a connected request — or on a
+  copy of one — to answer before its body has been read: they answer what materialisation has
+  yielded, and `await served.ensure_parsed()`, on the request or on any copy of it, is the seam
+  that materialises it.
 - Do not change a mapping or list one of the getters handed you and expect the message to follow:
   every one of them hands back a fresh copy.
 - Do not import these classes in a library that only handles messages — depend on

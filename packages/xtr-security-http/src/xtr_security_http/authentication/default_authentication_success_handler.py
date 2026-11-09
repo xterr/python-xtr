@@ -134,7 +134,7 @@ class DefaultAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface)
         parameter = str(self._options["target_path_parameter"])
         asked = query_parameter(request, parameter)
         if asked is None:
-            asked = payload_parameter(request, parameter)
+            asked = await payload_parameter(request, parameter)
         if isinstance(asked, str) and is_same_origin(request, asked):
             return asked
         if self._logger is not None and asked:

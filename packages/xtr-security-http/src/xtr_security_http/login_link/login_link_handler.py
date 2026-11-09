@@ -226,10 +226,10 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
                 provider knows no such user.
             ExpiredLoginLinkError: When the link's moment has passed.
         """
-        user_identifier = required_parameter_of(request, "user", digits=False)
-        hash_value = required_parameter_of(request, "hash", digits=False)
-        expires = required_parameter_of(request, "expires", digits=True)
-        parameters = extra_parameters_of(request)
+        user_identifier = await required_parameter_of(request, "user", digits=False)
+        hash_value = await required_parameter_of(request, "hash", digits=False)
+        expires = await required_parameter_of(request, "expires", digits=True)
+        parameters = await extra_parameters_of(request)
         try:
             self._signature_hasher.accept_signature_hash(
                 user_identifier,

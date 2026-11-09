@@ -31,10 +31,14 @@ class ConnectedTrait(RequestTrait):
     """The body side of a server request that arrives late, over a source.
 
     The ``with_*`` members a connected request answers detach: the copy
-    is a plain eager request — the live parts frozen to what they answer
-    at that moment — so a change a listener makes never reaches the
-    connection. Because the copy is the same class, the ``Self`` the
-    ``with_*`` members promise is finally the whole truth.
+    is a plain request — the head and the attributes frozen to what they
+    answer at that moment — so a change a listener makes never reaches the
+    connection. The copy shares the one lazy body, and its parsed body and
+    uploaded files stay linked to the source until it is given its own, so
+    the body may be read before the copy is made or after it, through the
+    copy or through the request, and the copy answers the read either way.
+    Because the copy is the same class, the ``Self`` the ``with_*`` members
+    promise is finally the whole truth.
     """
 
     __slots__: ClassVar[tuple[str, ...]] = ("_source",)
@@ -62,18 +66,18 @@ class ConnectedTrait(RequestTrait):
         return super().get_body()
 
     async def ensure_parsed(self) -> None:
-        """Materialise the body side, when connected and nothing has read it yet.
+        """Materialise the body side, when it is a lazy body nothing has read yet.
 
         The seam that can still await calls this before the message is
         handed on: a consumer written against the contract reads
         :meth:`~xtr_http_message.server_request.ServerRequest.get_parsed_body`
         without reading the stream first, and only a body that has been
-        read can answer it. A no-op for an eager request, and for one
-        whose body has already been read.
+        read can answer it. A copy of a connected request shares its lazy
+        body, so materialising through the copy materialises the request's,
+        and the copy — its parsed side linked to the source — answers what
+        that yields. A no-op for a body that has already been read, and for
+        an eager request, which holds no lazy body.
         """
-        if self._source is None:
-            return
-
         body = self.get_body()
         if isinstance(body, LazyStream) and not body.materialised:
             _ = await body.get_contents()

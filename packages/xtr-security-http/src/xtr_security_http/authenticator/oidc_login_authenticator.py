@@ -246,7 +246,7 @@ class OidcLoginAuthenticator(
         check_public_client(self._oidc_client, self._options, self._signature_verifier)
         session = self._session_of(request)
         attempts = OidcLoginAttempts(session, self._options.firewall_name)
-        response = read_callback(request)
+        response = await read_callback(request)
 
         if response.state == "":
             raise AuthenticationError("Invalid OIDC state parameter.")

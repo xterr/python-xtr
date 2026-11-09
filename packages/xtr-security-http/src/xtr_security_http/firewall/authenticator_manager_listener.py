@@ -46,10 +46,11 @@ class AuthenticatorManagerListener(AbstractListener):
 
     A submitted form — a ``POST`` encoded as one — is read before the
     manager is handed the request: the request the lifecycle serves is born
-    with its body unread, and the copy that carries the bag answers only
-    what had been parsed when it was made. Reading it first hands the
-    authenticator, its handlers and the listeners of the login the form's
-    fields; the body stays readable for the route behind the firewall.
+    with its body unread, and its parsed side answers only what a read has
+    yielded. Reading it first hands the form's fields to whatever asks for
+    the parsed body without reading the stream — an authenticator, a handler
+    or a listener of the login written against the message contract alone;
+    the body stays readable for the route behind the firewall.
 
     A response the manager produced is a message; the event answers with
     what the framework sends, so a pure message is converted through the

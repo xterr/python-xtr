@@ -11,6 +11,7 @@ from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.exception import BadCredentialsError, InvalidArgumentError
 
 from tests.support.messages import make_message
+from tests.support.served import served_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authentication.default_authentication_failure_handler import (
     DefaultAuthenticationFailureHandler,
@@ -22,7 +23,11 @@ from xtr_security_http.util import get_target_path
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
 
+    from tests.support.served import BodyChannel
+
 pytestmark = pytest.mark.anyio
+
+_FORM = "application/x-www-form-urlencoded"
 
 
 def _handler(
@@ -59,6 +64,19 @@ def _request_with_session(
     session = Session(MemorySessionStorage())
     security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = session
     return message, session
+
+
+def _served_with_session(
+    body: bytes,
+    content_type: str,
+) -> tuple[ServerRequestInterface, BodyChannel]:
+    """Serve a login POST the kernel's way, its security state carrying a parked session."""
+    served, channel = served_message("POST", "/login_check", body, content_type=content_type)
+    bag: dict[str, object] = {}
+    security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = Session(
+        MemorySessionStorage()
+    )
+    return served.with_attribute(SecurityRequestAttributes.STATE_BAG, bag), channel
 
 
 async def test_a_failure_redirects_to_the_login_page_and_keeps_the_error() -> None:
@@ -137,6 +155,29 @@ async def test_a_posted_path_on_another_origin_is_ignored() -> None:
     )
 
     assert response.get_header_line("Location") == "/failed"
+
+
+async def test_a_path_posted_in_a_served_form_wins() -> None:
+    message, _channel = _served_with_session(b"_failure_path=%2Fcarried", _FORM)
+
+    response = await _handler({"failure_path": "/failed"}).on_authentication_failure(
+        message,
+        BadCredentialsError("failed"),
+    )
+
+    assert response.get_header_line("Location") == "/carried"
+
+
+async def test_a_served_body_that_is_no_form_is_not_read_for_the_failure_path() -> None:
+    message, channel = _served_with_session(b"_failure_path=%2Fcarried", "application/octet-stream")
+
+    response = await _handler({"failure_path": "/failed"}).on_authentication_failure(
+        message,
+        BadCredentialsError("failed"),
+    )
+
+    assert response.get_header_line("Location") == "/failed"
+    assert channel.reads == 0
 
 
 async def test_a_carried_absolute_url_on_the_requests_own_origin_wins() -> None:

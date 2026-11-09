@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 __all__ = ["form_login_credentials_of"]
 
 
-def form_login_credentials_of(
+async def form_login_credentials_of(
     request: ServerRequestInterface,
     options: Mapping[str, object],
 ) -> tuple[str, str, str | None]:
@@ -32,7 +32,9 @@ def form_login_credentials_of(
     first, then the body; the username and the password from the body alone
     while the ``post_only`` option stands, from either place when it does
     not. The username is trimmed; every field must be a string, and the
-    username and the password a non-empty one.
+    username and the password a non-empty one. A body is read before its
+    fields are asked for when it is a submitted form, so a served request's
+    form answers however late it was read.
 
     Args:
         request: The request the form was submitted by.
@@ -44,17 +46,17 @@ def form_login_credentials_of(
             at all — the form is answered, not the request rejected.
     """
     csrf_parameter = str(options["csrf_parameter"])
-    csrf_token = _parameter_of(request, csrf_parameter)
+    csrf_token = await _parameter_of(request, csrf_parameter)
     if csrf_token is not None and not isinstance(csrf_token, str):
         raise BadCredentialsError(f'The key "{csrf_parameter}" must be a string.')
     username_parameter = str(options["username_parameter"])
     password_parameter = str(options["password_parameter"])
     if options["post_only"]:
-        username = payload_parameter(request, username_parameter)
-        password = payload_parameter(request, password_parameter)
+        username = await payload_parameter(request, username_parameter)
+        password = await payload_parameter(request, password_parameter)
     else:
-        username = _parameter_of(request, username_parameter)
-        password = _parameter_of(request, password_parameter)
+        username = await _parameter_of(request, username_parameter)
+        password = await _parameter_of(request, password_parameter)
     if not isinstance(username, str):
         raise BadCredentialsError(f'The key "{username_parameter}" must be a string.')
     username = username.strip()
@@ -67,9 +69,9 @@ def form_login_credentials_of(
     return username, password, csrf_token if isinstance(csrf_token, str) else None
 
 
-def _parameter_of(request: ServerRequestInterface, name: str) -> object | None:
+async def _parameter_of(request: ServerRequestInterface, name: str) -> object | None:
     """Read ``name`` out of the query string first, then the body."""
     asked = query_parameter(request, name)
     if asked is None:
-        asked = payload_parameter(request, name)
+        asked = await payload_parameter(request, name)
     return asked

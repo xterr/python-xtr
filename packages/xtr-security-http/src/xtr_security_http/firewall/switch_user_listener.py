@@ -194,17 +194,19 @@ class SwitchUserListener(AbstractListener):
 
         Scoped to a dedicated path, only a request both at that path and
         carrying the parameter asks; on any page, the parameter alone
-        asks, wherever the request carries it. The username it names is
-        parked on the request's security state for ``authenticate``.
+        asks, wherever the request carries it — a request that is not safe
+        has the form it posted read for it, so a switch posted in a form
+        asks too. The username it names is parked on the request's
+        security state for ``authenticate``.
         """
         if self._path is not None:
             if not self._http_utils.check_request_path(request, self._path):
                 return False
-            username = request_parameter_of(request, self._username_parameter)
+            username = await request_parameter_of(request, self._username_parameter)
             if not isinstance(username, str):
                 username = None
         else:
-            username = switch_username_of(request, self._username_parameter)
+            username = await switch_username_of(request, self._username_parameter)
         if username is None or username == "":
             return False
         security_state_of(state_bag_of(request)).attributes[
@@ -340,7 +342,7 @@ class SwitchUserListener(AbstractListener):
         manager = self._csrf_token_manager
         if manager is None:
             return
-        value = request_parameter_of(request, self._csrf_parameter)
+        value = await request_parameter_of(request, self._csrf_parameter)
         if not isinstance(value, str) or not await manager.is_token_valid(
             CsrfToken(self._csrf_token_id, value),
         ):
@@ -362,7 +364,7 @@ class SwitchUserListener(AbstractListener):
         the recorded deviation.
         """
         if self._path is not None:
-            target = request_parameter_of(request, "_target_path")
+            target = await request_parameter_of(request, "_target_path")
             if not isinstance(target, str) or not is_same_origin(request, target):
                 target = "/"
         else:

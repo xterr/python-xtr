@@ -176,7 +176,7 @@ class FormLoginAuthenticator(
         string at all fails the login as a bad credential — the form is
         answered, not the request rejected.
         """
-        username, password, csrf_token = form_login_credentials_of(request, self._options)
+        username, password, csrf_token = await form_login_credentials_of(request, self._options)
         session = parked_session_of(request)
         if session is None:
             raise BadCredentialsError(

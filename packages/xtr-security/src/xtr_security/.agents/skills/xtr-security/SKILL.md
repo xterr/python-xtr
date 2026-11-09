@@ -408,6 +408,7 @@ into the right status and challenge.
 - Do not expect the bundle to serve the back-channel logout route: it registers the
   `OidcBackChannelLogoutHandler`; mapping the path the provider pushes to is the
   application's.
-- Do not read a submission's fields off the parsed body in a firewall listener: the chain runs
-  before the body is materialised, so they ride the query string there. A route reads the body
-  as ever.
+- Do not read a submission's fields off the parsed body in a firewall listener of your own
+  without reading the body first: the chain runs before the body is materialised, so read a
+  form's body (`await request.get_body().get_contents()`), then ask `get_parsed_body()` — the
+  order the bundle's own steps read a posted form in. A route reads the body as ever.
