@@ -143,7 +143,9 @@ def openid_connect_server() -> OpenIdConnectServerConfig:
 ```
 
 The bundle registers the class named here, so the container builds it from its constructor. Do not
-register it a second time.
+register it a second time. It is built per request, like the userinfo endpoint that asks it, so its
+constructor may take the request's services — a repository over the session of the request's unit
+of work.
 
 ### 3. Serve the endpoints and guard them
 
@@ -228,7 +230,7 @@ field has a default, so the bundle builds and boots with no configuration at all
 
 | Field | Default | What it does |
 |---|---|---|
-| `identity_provider` | `None` | The application's class implementing `IdentityProviderInterface`. The bundle registers it. Unset, the provider still boots; `/userinfo` reports the setting by name |
+| `identity_provider` | `None` | The application's class implementing `IdentityProviderInterface`. The bundle registers it, built per request, so its constructor may take the request's services. Unset, the provider still boots; `/userinfo` reports the setting by name |
 | `claim_sets` | `{}` | The claims a scope of the application's own reveals, by scope — `{"company": ("company_id",)}`. One of the protocol's four scopes is refused |
 | `id_token_ttl` | `None` | How long an ID token lasts. `None` has it expire with the access token answered beside it |
 | `login_path` | `"/login"` | Where an end-user asked to sign in again is sent |

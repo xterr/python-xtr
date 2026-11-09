@@ -106,6 +106,9 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
         The userinfo controller is per-request for the same reason: it reads
         the token the request's firewall settled on. Its route resource is
         scanned so the HTTP kernel hands it to the application's routes files.
+        The identity provider it asks is per-request too, so an application's
+        provider may read users through the session of the request's unit of
+        work.
 
         The prompt step is per-request too, over the request's token storage,
         and is only registered: the application lists its qualifier in the
@@ -119,8 +122,10 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
             _ = services.set(unset_identity_provider_factory())
         else:
             # The application's class is built by the container, from its
-            # constructor; the application does not register it itself.
-            _ = services.set(config.identity_provider)
+            # constructor; the application does not register it itself. Built
+            # per request, like the userinfo controller that asks it, so its
+            # constructor may take the request's services.
+            _ = services.set(config.identity_provider, lifetime="scoped")
             services.alias(IdentityProviderInterface, config.identity_provider)
         # A tagged grant is handed none of the settings the authorization
         # server hands the grants it builds, so the three it applies to its own

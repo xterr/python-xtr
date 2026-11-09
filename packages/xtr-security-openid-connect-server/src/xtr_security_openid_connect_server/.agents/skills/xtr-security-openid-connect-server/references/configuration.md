@@ -9,7 +9,7 @@ function. Frozen, and buildable with no arguments: the bundle builds and boots o
 
 | Field | Type | Default | What it does |
 |---|---|---|---|
-| `identity_provider` | `type[IdentityProviderInterface] \| None` | `None` | The application's class that finds a signed-in end-user and the claims they hold. The bundle registers it and aliases it under `IdentityProviderInterface` |
+| `identity_provider` | `type[IdentityProviderInterface] \| None` | `None` | The application's class that finds a signed-in end-user and the claims they hold. The bundle registers it, built per request, and aliases it under `IdentityProviderInterface`, so its constructor may take the request's services |
 | `claim_sets` | `Mapping[str, tuple[str, ...]]` | `{}` | The claims a scope of the application's own reveals, by scope |
 | `id_token_ttl` | `timedelta \| None` | `None` | How long an ID token lasts. `None` has it expire with the access token answered beside it |
 | `login_path` | `str` | `"/login"` | Where an end-user asked to sign in again is sent |

@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import TypeVar
 
 import pytest
+from xtr_dependency_injection import unit_of_work
 from xtr_dependency_injection.exception import ServiceResolutionError
 from xtr_event_dispatcher_contracts import EventDispatcherInterface, ListenerIntrospectionInterface
 from xtr_security_oauth2_server.bundle import OAuth2ServerConfig
@@ -28,8 +29,10 @@ from tests.fixtures.openid_app.config import (
     IDENTITY_PROVIDER_ENV,
     NO_METADATA_ENV,
     NO_SCOPES_ENV,
+    SCOPED_IDENTITY_PROVIDER_ENV,
     SHORT_ID_TOKEN_ENV,
 )
+from tests.fixtures.openid_app.services import ScopedIdentityProvider
 from tests.support.identity_provider import InMemoryIdentityProvider
 from tests.support.served import openid_kernel
 from xtr_security_openid_connect_server.claim_extractor import ClaimExtractor
@@ -137,9 +140,26 @@ async def test_the_claim_extractor_holds_only_the_protocols_sets_by_default() ->
 
 
 async def test_the_configured_identity_provider_is_built_by_the_container() -> None:
-    provider = await _resolved(IdentityProviderInterface, IDENTITY_PROVIDER_ENV)
+    async with (
+        await openid_kernel(IDENTITY_PROVIDER_ENV).boot() as booted,
+        unit_of_work(booted.container) as unit,
+    ):
+        provider = await unit.get(IdentityProviderInterface)
 
     assert isinstance(provider, InMemoryIdentityProvider)
+
+
+async def test_the_identity_provider_is_built_per_request() -> None:
+    async with await openid_kernel(SCOPED_IDENTITY_PROVIDER_ENV).boot() as booted:
+        async with unit_of_work(booted.container) as first:
+            one = await first.get(IdentityProviderInterface)
+            same = await first.get(IdentityProviderInterface)
+        async with unit_of_work(booted.container) as second:
+            other = await second.get(IdentityProviderInterface)
+
+    assert isinstance(one, ScopedIdentityProvider)
+    assert one is same
+    assert one is not other
 
 
 async def test_asking_for_an_unconfigured_identity_provider_names_the_setting() -> None:

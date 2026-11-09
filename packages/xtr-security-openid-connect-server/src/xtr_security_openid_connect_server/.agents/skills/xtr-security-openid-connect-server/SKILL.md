@@ -26,7 +26,8 @@ objects, no dynamic client registration, no `id_token` on a refresh.
   that tuple names anything.
 - Write a class implementing `IdentityProviderInterface` (async
   `get_user_entity_by_identifier(identifier, client)`) and name it in `identity_provider`. The
-  bundle registers it; never register it again.
+  bundle registers it, built per request, so its constructor may take the request's services;
+  never register it again.
 - List `PROMPT_LISTENER` (`"openid_connect_server#prompt_listener"`, from
   `xtr_security_openid_connect_server.bundle`) in the `listeners` of the firewall that signs
   end-users in, and leave that firewall stateful.

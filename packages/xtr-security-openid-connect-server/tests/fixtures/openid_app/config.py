@@ -47,6 +47,7 @@ from xtr_security_oauth2_server.bundle import (
 )
 from xtr_security_oauth2_server_core.response_types.bearer_token_response import BearerTokenResponse
 
+from tests.fixtures.openid_app.services import ScopedIdentityProvider
 from tests.support.encryption import ENCRYPTION_KEY
 from tests.support.identity_provider import InMemoryIdentityProvider
 from tests.support.signing import ISSUER, edwards_key, signing_key
@@ -68,6 +69,7 @@ __all__ = [
     "OPEN_PROOF_KEY_ENV",
     "PROMPT_ENV",
     "PROMPT_LISTENER",
+    "SCOPED_IDENTITY_PROVIDER_ENV",
     "SECOND_USER_IDENTIFIER",
     "SECOND_USER_PASSWORD",
     "SHORT_ID_TOKEN_ENV",
@@ -80,6 +82,7 @@ __all__ = [
     "deciding_the_prompt_without_a_session",
     "oauth2_server",
     "oauth2_server_without_scopes",
+    "openid_connect_server_with_a_scoped_identity_provider",
     "openid_connect_server_with_identity_provider",
     "openid_connect_server_with_short_id_tokens",
     "openid_connect_server_with_the_stateless_login_firewall",
@@ -121,6 +124,7 @@ NO_METADATA_ENV: Final[str] = "no_metadata"
 NO_SCOPES_ENV: Final[str] = "no_scopes"
 FORM_LOGIN_ENV: Final[str] = "form_login"
 USERINFO_ENV: Final[str] = "userinfo"
+SCOPED_IDENTITY_PROVIDER_ENV: Final[str] = "scoped_identity_provider"
 PROMPT_ENV: Final[str] = "prompt"
 STATELESS_PROMPT_ENV: Final[str] = "stateless_prompt"
 DISCOVERY_ENV: Final[str] = "discovery"
@@ -266,7 +270,7 @@ def openid_connect_server_with_short_id_tokens() -> OpenIdConnectServerConfig:
 
 
 @configure
-@when(USERINFO_ENV)
+@when(USERINFO_ENV, SCOPED_IDENTITY_PROVIDER_ENV)
 def with_the_claim_scopes(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
     """Know the scopes whose claims the userinfo endpoint reveals, beside the others."""
     return replace(
@@ -279,13 +283,22 @@ def with_the_claim_scopes(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
 
 
 @configure
-@when(IDENTITY_PROVIDER_ENV, USERINFO_ENV)
+@when(IDENTITY_PROVIDER_ENV, USERINFO_ENV, SCOPED_IDENTITY_PROVIDER_ENV)
 def openid_connect_server_with_identity_provider() -> OpenIdConnectServerConfig:
     """Name where a signed-in user's claims come from, and a scope of the deployment's own."""
     return OpenIdConnectServerConfig(
         identity_provider=InMemoryIdentityProvider,
         claim_sets={"company": ("company_id",)},
     )
+
+
+@configure
+@when(SCOPED_IDENTITY_PROVIDER_ENV)
+def openid_connect_server_with_a_scoped_identity_provider(
+    config: OpenIdConnectServerConfig,
+) -> OpenIdConnectServerConfig:
+    """Find a signed-in user's claims through a provider over the request's unit of work."""
+    return replace(config, identity_provider=ScopedIdentityProvider)
 
 
 @configure
@@ -307,7 +320,7 @@ def security() -> SecurityConfig:
 
 
 @configure
-@when(USERINFO_ENV)
+@when(USERINFO_ENV, SCOPED_IDENTITY_PROVIDER_ENV)
 def reading_claims_with_access_tokens(config: SecurityConfig) -> SecurityConfig:
     """Put this server's access tokens in front of the userinfo endpoint.
 

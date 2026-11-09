@@ -13,10 +13,12 @@ import pytest
 
 from tests.fixtures.openid_app.config import (
     IDENTITY_PROVIDER_ENV,
+    SCOPED_IDENTITY_PROVIDER_ENV,
     USER_IDENTIFIER,
     USER_PASSWORD,
     USERINFO_ENV,
 )
+from tests.fixtures.openid_app.services import REQUEST_UNITS
 from tests.support.served import (
     SERVICE_CLIENT_ID,
     SERVICE_CLIENT_SECRET,
@@ -102,6 +104,19 @@ async def test_the_signed_in_users_claims_are_answered_as_the_scopes_reveal_them
 
     assert answered.status_code == 200, answered.text
     assert json_of(answered) == ALICES_CLAIMS
+
+
+async def test_the_claims_are_answered_through_an_identity_provider_of_the_request() -> None:
+    REQUEST_UNITS.clear()
+    app = served_application(openid_kernel(SCOPED_IDENTITY_PROVIDER_ENV))
+    async with serving(app) as client:
+        token = await _owner_token(client, "openid profile email")
+        first = await client.get(USERINFO, headers=_bearer(token))
+        second = await client.get(USERINFO, headers=_bearer(token))
+
+    assert first.status_code == 200, first.text
+    assert json_of(first) == json_of(second) == ALICES_CLAIMS
+    assert len(REQUEST_UNITS) == len(set(REQUEST_UNITS)) == 2
 
 
 def test_the_endpoint_is_served_at_its_default_path_under_its_published_name() -> None:
