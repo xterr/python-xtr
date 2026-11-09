@@ -119,6 +119,7 @@ class JsonLoginFactory(AuthenticatorFactoryInterface):
             "http_utils": HttpUtils,
             "provider": Annotated[UserProviderInterface, Target(user_provider[1])],
             "responses": ResponseFactoryInterface,
+            "return": JsonLoginAuthenticator,
         }
         if settings.success_handler is not None:
             annotations["success_handler"] = settings.success_handler

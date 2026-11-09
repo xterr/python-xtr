@@ -118,3 +118,18 @@ def test_the_configured_handlers_reach_the_authenticator() -> None:
 
     assert recorder.factory.__annotations__["success_handler"] is _UserSuccessHandler
     assert recorder.factory.__annotations__["failure_handler"] is _UserFailureHandler
+
+
+def test_the_registered_factory_names_the_authenticator_it_provides() -> None:
+    recorder = _Recorder()
+
+    _ = JsonLoginFactory().create_authenticator(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        "api",
+        JsonLoginConfig(),
+        (UserProviderInterface, "users"),
+    )
+
+    assert recorder.factory is not None
+    assert recorder.factory.__annotations__["return"] is JsonLoginAuthenticator
