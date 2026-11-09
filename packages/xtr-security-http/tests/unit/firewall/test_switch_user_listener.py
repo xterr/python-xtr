@@ -312,6 +312,19 @@ async def test_supports_reads_the_parameter_out_of_a_served_form() -> None:
     assert await listener.supports(_asked(request, {})) is True
 
 
+async def test_supports_leaves_a_served_multipart_upload_unread() -> None:
+    listener = _listener(TokenStorage(), _RecordingProvider({}))
+    request, channel = served_message(
+        "POST",
+        "/upload",
+        b'--b\r\nContent-Disposition: form-data; name="_switch_user"\r\n\r\nada\r\n--b--\r\n',
+        content_type="multipart/form-data; boundary=b",
+    )
+
+    assert await listener.supports(_asked(request, {})) is False
+    assert channel.reads == 0
+
+
 async def test_supports_leaves_a_served_body_that_is_no_form_unread() -> None:
     listener = _listener(TokenStorage(), _RecordingProvider({}))
     request, channel = served_message(
