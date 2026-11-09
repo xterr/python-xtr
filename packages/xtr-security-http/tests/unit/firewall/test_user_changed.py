@@ -5,13 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final
 
 from xtr_security_core.user.in_memory_user import InMemoryUser
+from xtr_security_core.user.password_digest import password_digest
 
 from xtr_security_http.authenticator.token.post_authentication_token import PostAuthenticationToken
 
 if TYPE_CHECKING:
     from xtr_security_core.user.user_interface import UserInterface
 
-from xtr_security_http.firewall.user_changed import _crc32c, has_user_changed
+from xtr_security_http.firewall.user_changed import has_user_changed
 
 
 @final
@@ -59,10 +60,6 @@ def _token(user: UserInterface, roles: tuple[str, ...] = ()) -> PostAuthenticati
     return PostAuthenticationToken(user, "main", roles)
 
 
-def test_the_checksum_matches_the_catalogue_vector() -> None:
-    assert _crc32c("123456789") == "e3069283"
-
-
 def test_an_unchanged_user_has_not_changed() -> None:
     user = _PlainPasswordUser("ada", "hashed", ("ROLE_USER",))
     token = _token(user, ("ROLE_USER",))
@@ -81,7 +78,7 @@ def test_a_changed_password_has_changed() -> None:
 
 def test_a_password_abbreviated_as_its_checksum_has_not_changed() -> None:
     """The legacy carve-out: eight characters that spell the crc32c of the reloaded password."""
-    user = _PlainPasswordUser("ada", _crc32c("new-password"))
+    user = _PlainPasswordUser("ada", password_digest("new-password"))
     token = _token(user)
 
     changed = has_user_changed(token, user, _PlainPasswordUser("ada", "new-password"))

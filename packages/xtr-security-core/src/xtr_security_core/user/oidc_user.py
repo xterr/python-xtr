@@ -10,9 +10,17 @@ from typing import TYPE_CHECKING, Final, Self, cast
 
 from typing_extensions import override
 
+from xtr_security_core._session_state import (
+    mapping_field,
+    optional_boolean_field,
+    optional_mapping_field,
+    optional_string_field,
+    string_field,
+    strings_field,
+)
 from xtr_security_core.exception import InvalidArgumentError
 
-from .user_interface import UserInterface
+from .session_serializable_user_interface import SessionSerializableUserInterface
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -50,7 +58,7 @@ _TRUE_VALUES: Final = frozenset({"1", "true", "on", "yes"})
 _FALSE_VALUES: Final = frozenset({"0", "false", "off", "no", ""})
 
 
-class OidcUser(UserInterface):
+class OidcUser(SessionSerializableUserInterface):
     """The user the security workflows with an OpenID Connect server settle on.
 
     It carries the standard claims
@@ -62,6 +70,9 @@ class OidcUser(UserInterface):
     Neither OIDC nor OAuth has a notion of role: the user holds ``ROLE_USER``
     unless built with other roles — by a provider mapping claims onto roles,
     say.
+
+    A session keeps it whole — every claim and the roles — and rebuilds it as
+    the user it was, since its provider has nothing to reload it from.
     """
 
     __slots__: tuple[str, ...] = (
@@ -232,6 +243,77 @@ class OidcUser(UserInterface):
         )
 
     @override
+    def to_session(self) -> Mapping[str, object]:
+        """Return every claim and the roles, each read back through its getter.
+
+        ``updated_at`` is kept as its ISO 8601 spelling, the one form of a
+        moment JSON carries without losing its offset.
+        """
+        address = self.get_address()
+        updated_at = self.get_updated_at()
+        return {
+            "user_identifier": self.get_user_identifier(),
+            "roles": list(self.get_roles()),
+            "sub": self.get_sub(),
+            "name": self.get_name(),
+            "given_name": self.get_given_name(),
+            "family_name": self.get_family_name(),
+            "middle_name": self.get_middle_name(),
+            "nickname": self.get_nickname(),
+            "preferred_username": self.get_preferred_username(),
+            "profile": self.get_profile(),
+            "picture": self.get_picture(),
+            "website": self.get_website(),
+            "email": self.get_email(),
+            "email_verified": self.get_email_verified(),
+            "gender": self.get_gender(),
+            "birthdate": self.get_birthdate(),
+            "zoneinfo": self.get_zoneinfo(),
+            "locale": self.get_locale(),
+            "phone_number": self.get_phone_number(),
+            "phone_number_verified": self.get_phone_number_verified(),
+            "address": None if address is None else dict(address),
+            "updated_at": None if updated_at is None else updated_at.isoformat(),
+            "additional_claims": dict(self.get_additional_claims()),
+        }
+
+    @classmethod
+    @override
+    def from_session(cls, state: Mapping[str, object]) -> Self:
+        """Rebuild the user a session kept, through the constructor, every claim checked.
+
+        Raises:
+            InvalidArgumentError: When a field of ``state`` is missing or of the
+                wrong type, ``updated_at`` spells no moment, or the ``sub`` is
+                empty.
+        """
+        return cls(
+            user_identifier=optional_string_field(state, "user_identifier"),
+            roles=strings_field(state, "roles"),
+            sub=string_field(state, "sub"),
+            name=optional_string_field(state, "name"),
+            given_name=optional_string_field(state, "given_name"),
+            family_name=optional_string_field(state, "family_name"),
+            middle_name=optional_string_field(state, "middle_name"),
+            nickname=optional_string_field(state, "nickname"),
+            preferred_username=optional_string_field(state, "preferred_username"),
+            profile=optional_string_field(state, "profile"),
+            picture=optional_string_field(state, "picture"),
+            website=optional_string_field(state, "website"),
+            email=optional_string_field(state, "email"),
+            email_verified=optional_boolean_field(state, "email_verified"),
+            gender=optional_string_field(state, "gender"),
+            birthdate=optional_string_field(state, "birthdate"),
+            zoneinfo=optional_string_field(state, "zoneinfo"),
+            locale=optional_string_field(state, "locale"),
+            phone_number=optional_string_field(state, "phone_number"),
+            phone_number_verified=optional_boolean_field(state, "phone_number_verified"),
+            address=optional_mapping_field(state, "address"),
+            updated_at=_moment_of(optional_string_field(state, "updated_at")),
+            additional_claims=mapping_field(state, "additional_claims"),
+        )
+
+    @override
     def get_roles(self) -> Sequence[str]:
         """Return the roles granted to this user; ``ROLE_USER`` unless built otherwise."""
         return self._roles
@@ -340,6 +422,22 @@ def _pop_bool(mapped: dict[str, object], name: str) -> bool | None:
     """Take the fitted boolean claim ``name`` out of ``mapped``, if there is one."""
     value = mapped.pop(name, None)
     return value if isinstance(value, bool) else None
+
+
+def _moment_of(spelling: str | None) -> datetime | None:
+    """Read the ISO 8601 moment a session kept ``updated_at`` as; ``None`` for none.
+
+    Raises:
+        InvalidArgumentError: When ``spelling`` spells no moment.
+    """
+    if spelling is None:
+        return None
+    try:
+        return datetime.fromisoformat(spelling)
+    except ValueError as error:
+        raise InvalidArgumentError(
+            'The session state\'s "updated_at" must spell a moment in ISO 8601.',
+        ) from error
 
 
 def _snake_case(claim: str) -> str:

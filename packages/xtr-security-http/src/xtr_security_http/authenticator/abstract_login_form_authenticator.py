@@ -19,6 +19,9 @@ from xtr_security_http.entry_point.authentication_entry_point_interface import (
 )
 from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
+from xtr_security_http.session.authentication_error_serializer import (
+    authentication_error_to_session,
+)
 
 from .abstract_authenticator import AbstractAuthenticator
 from .debug.unsupported_reasons import UnsupportedReasons
@@ -110,11 +113,16 @@ class AbstractLoginFormAuthenticator(  # pyright: ignore[reportImplicitAbstractC
         The error is kept on the request's session — the one place the
         redirect's target and the page that renders it share — under the
         key a login page reads through
-        :class:`~xtr_security_http.authentication.authentication_utils.AuthenticationUtils`.
+        :class:`~xtr_security_http.authentication.authentication_utils.AuthenticationUtils`,
+        as the JSON envelope of its public half: a session holds JSON, and
+        the internal message has no place outside the process.
         """
         session = parked_session_of(request)
         if session is not None:
-            await session.set(SecurityRequestAttributes.AUTHENTICATION_ERROR, error)
+            await session.set(
+                SecurityRequestAttributes.AUTHENTICATION_ERROR,
+                authentication_error_to_session(error),
+            )
         return self._http_utils.create_redirect_response(request, self.get_login_url(request))
 
     @override

@@ -6,11 +6,23 @@ import pytest
 from xtr_password_hasher import PasswordAuthenticatedUserInterface
 
 from xtr_security_core.exception import InvalidArgumentError
-from xtr_security_core.user import EquatableInterface, InMemoryUser, OidcUser, UserInterface
+from xtr_security_core.user import (
+    EquatableInterface,
+    InMemoryUser,
+    OidcUser,
+    SessionSerializableUserInterface,
+    UserInterface,
+    password_digest,
+)
 
 
 def test_it_inherits_its_interfaces() -> None:
-    for interface in (UserInterface, PasswordAuthenticatedUserInterface, EquatableInterface):
+    for interface in (
+        UserInterface,
+        PasswordAuthenticatedUserInterface,
+        EquatableInterface,
+        SessionSerializableUserInterface,
+    ):
         assert interface in InMemoryUser.__mro__
 
 
@@ -106,3 +118,69 @@ def test_a_non_ascii_password_compares_safely() -> None:
     other = InMemoryUser("alice", password="pässwörd")  # noqa: S106 — a dummy hash fixture, not a secret
 
     assert one.is_equal_to(other) is True
+
+
+def test_a_session_keeps_its_fields_with_the_password_as_its_digest() -> None:
+    user = InMemoryUser("alice", password="$argon2id$hash", roles=["ROLE_USER"], enabled=False)  # noqa: S106 — a dummy hash fixture, not a secret
+
+    assert user.to_session() == {
+        "identifier": "alice",
+        "password": password_digest("$argon2id$hash"),
+        "roles": ["ROLE_USER"],
+        "enabled": False,
+    }
+
+
+def test_a_session_keeps_no_password_for_a_user_without_one() -> None:
+    assert InMemoryUser("alice").to_session()["password"] is None
+
+
+def test_it_is_rebuilt_from_a_session_with_the_digest_as_its_password() -> None:
+    user = InMemoryUser("alice", password="$argon2id$hash", roles=["ROLE_USER"], enabled=False)  # noqa: S106 — a dummy hash fixture, not a secret
+
+    rebuilt = InMemoryUser.from_session(user.to_session())
+
+    assert rebuilt == InMemoryUser(
+        "alice",
+        password=password_digest("$argon2id$hash"),
+        roles=("ROLE_USER",),
+        enabled=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        {"password": None, "roles": [], "enabled": True},
+        {"identifier": "alice", "password": 1, "roles": [], "enabled": True},
+        {"identifier": "alice", "password": None, "roles": "ROLE_USER", "enabled": True},
+        {"identifier": "alice", "password": None, "roles": [], "enabled": "yes"},
+    ],
+)
+def test_a_malformed_session_state_is_refused(state: dict[str, object]) -> None:
+    with pytest.raises(InvalidArgumentError):
+        _ = InMemoryUser.from_session(state)
+
+
+def test_a_rebuilt_user_equals_the_reload_of_the_same_password() -> None:
+    rebuilt = InMemoryUser.from_session(InMemoryUser("alice", password="hash-1").to_session())  # noqa: S106 — a dummy hash fixture, not a secret
+
+    assert rebuilt.is_equal_to(InMemoryUser("alice", password="hash-1")) is True  # noqa: S106 — a dummy hash fixture, not a secret
+
+
+def test_a_rebuilt_user_differs_from_the_reload_of_a_changed_password() -> None:
+    rebuilt = InMemoryUser.from_session(InMemoryUser("alice", password="hash-1").to_session())  # noqa: S106 — a dummy hash fixture, not a secret
+
+    assert rebuilt.is_equal_to(InMemoryUser("alice", password="hash-2")) is False  # noqa: S106 — a dummy hash fixture, not a secret
+
+
+def test_a_rebuilt_user_differs_from_the_reload_of_a_disabled_account() -> None:
+    rebuilt = InMemoryUser.from_session(InMemoryUser("alice", password="hash-1").to_session())  # noqa: S106 — a dummy hash fixture, not a secret
+
+    assert rebuilt.is_equal_to(InMemoryUser("alice", password="hash-1", enabled=False)) is False  # noqa: S106 — a dummy hash fixture, not a secret
+
+
+def test_a_rebuilt_user_differs_from_a_reload_that_lost_its_password() -> None:
+    rebuilt = InMemoryUser.from_session(InMemoryUser("alice", password="hash-1").to_session())  # noqa: S106 — a dummy hash fixture, not a secret
+
+    assert rebuilt.is_equal_to(InMemoryUser("alice")) is False

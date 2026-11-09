@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
+
+from typing_extensions import override
 
 from .authentication_error import AuthenticationError
 
@@ -22,6 +24,9 @@ class AccountStatusError(AuthenticationError):
     real reason or only that its credentials failed is decided by the exposure
     level (see :func:`~xtr_security_http.authentication.is_sensitive`).
 
+    A session keeps none of the user: rebuilt from one, the error names no
+    user.
+
     Attributes:
         user: The user whose account state refused authentication.
     """
@@ -39,3 +44,11 @@ class AccountStatusError(AuthenticationError):
         """Record the user whose account state refused authentication."""
         self.user = user
         super().__init__(message, message_key=message_key, message_data=message_data)
+
+    @classmethod
+    @override
+    def from_session(cls, message_key: str, message_data: Mapping[str, object]) -> Self:
+        """Rebuild the error a session kept, naming no user — the session kept none."""
+        error = super().from_session(message_key, message_data)
+        error.user = None
+        return error

@@ -20,6 +20,9 @@ from xtr_security_http._request_parameters import payload_parameter, query_param
 from xtr_security_http._same_origin import is_same_origin
 from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
+from xtr_security_http.session.authentication_error_serializer import (
+    authentication_error_to_session,
+)
 from xtr_security_http.util import get_target_path, save_target_path
 
 from ._referer import names_login_or_current, names_request_host, referer_of
@@ -56,7 +59,8 @@ class DefaultAuthenticationFailureHandler(AuthenticationFailureHandlerInterface)
     request carried under the configured parameter — a query parameter a page
     with a login form of its own sets — then the configured failure path,
     then the login page. The error is kept on the request's session for the
-    page that renders the form again, and the page the caller came from is
+    page that renders the form again — as the JSON envelope of its public
+    half, never its internal message — and the page the caller came from is
     kept as the return trip's target when the options ask for it.
 
     The ``failure_forward`` option is refused: this stack has no sub-request
@@ -121,7 +125,10 @@ class DefaultAuthenticationFailureHandler(AuthenticationFailureHandlerInterface)
             )
         session = parked_session_of(request)
         if session is not None:
-            await session.set(SecurityRequestAttributes.AUTHENTICATION_ERROR, error)
+            await session.set(
+                SecurityRequestAttributes.AUTHENTICATION_ERROR,
+                authentication_error_to_session(error),
+            )
         return self._http_utils.create_redirect_response(request, failure_path)
 
     async def _keep_referer_target(self, request: ServerRequestInterface) -> None:

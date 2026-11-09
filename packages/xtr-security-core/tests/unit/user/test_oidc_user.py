@@ -199,3 +199,99 @@ def test_from_claims_turns_a_number_into_a_string_claim() -> None:
 def test_from_claims_needs_a_sub() -> None:
     with pytest.raises(InvalidArgumentError):
         _ = OidcUser.from_claims({"email": "alice@example.test"})
+
+
+def _every_claim() -> OidcUser:
+    return OidcUser(
+        user_identifier="alice@example.test",
+        roles=("ROLE_USER", "ROLE_EDITOR"),
+        sub="alice",
+        name="Alice Liddell",
+        given_name="Alice",
+        family_name="Liddell",
+        middle_name="Pleasance",
+        nickname="Al",
+        preferred_username="alice",
+        profile="https://example.test/alice",
+        picture="https://example.test/alice.png",
+        website="https://alice.example.test",
+        email="alice@example.test",
+        email_verified=True,
+        gender="female",
+        birthdate="1852-05-04",
+        zoneinfo="Europe/London",
+        locale="en-GB",
+        phone_number="+44 1",
+        phone_number_verified=False,
+        address={"country": "UK", "lines": ["1 Wonderland"]},
+        updated_at=datetime(2026, 1, 1, 12, 30, tzinfo=UTC),
+        additional_claims={"tenant": "acme", "groups": ["readers"]},
+    )
+
+
+def _claims_of(user: OidcUser) -> tuple[object, ...]:
+    return (
+        user.get_user_identifier(),
+        tuple(user.get_roles()),
+        user.get_sub(),
+        user.get_name(),
+        user.get_given_name(),
+        user.get_family_name(),
+        user.get_middle_name(),
+        user.get_nickname(),
+        user.get_preferred_username(),
+        user.get_profile(),
+        user.get_picture(),
+        user.get_website(),
+        user.get_email(),
+        user.get_email_verified(),
+        user.get_gender(),
+        user.get_birthdate(),
+        user.get_zoneinfo(),
+        user.get_locale(),
+        user.get_phone_number(),
+        user.get_phone_number_verified(),
+        user.get_address(),
+        user.get_updated_at(),
+        dict(user.get_additional_claims()),
+    )
+
+
+def test_it_is_rebuilt_from_a_session_with_every_claim_and_its_roles() -> None:
+    user = _every_claim()
+
+    rebuilt = OidcUser.from_session(user.to_session())
+
+    assert _claims_of(rebuilt) == _claims_of(user)
+
+
+def test_a_session_keeps_the_moment_it_was_updated_as_iso_8601() -> None:
+    assert _every_claim().to_session()["updated_at"] == "2026-01-01T12:30:00+00:00"
+
+
+def test_a_user_with_no_optional_claim_is_rebuilt_from_a_session() -> None:
+    user = OidcUser(sub="alice")
+
+    rebuilt = OidcUser.from_session(user.to_session())
+
+    assert _claims_of(rebuilt) == _claims_of(user)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("sub", ""),
+        ("sub", None),
+        ("roles", "ROLE_USER"),
+        ("email", 1),
+        ("email_verified", "yes"),
+        ("address", "somewhere"),
+        ("updated_at", "yesterday"),
+        ("additional_claims", None),
+    ],
+)
+def test_a_malformed_session_state_is_refused(field: str, value: object) -> None:
+    state = {**_every_claim().to_session(), field: value}
+
+    with pytest.raises(InvalidArgumentError):
+        _ = OidcUser.from_session(state)

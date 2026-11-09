@@ -278,6 +278,11 @@ set, an object, a tuple — is refused at `save()`, loudly, rather than stored a
 changed. Reaching for the module by name is what turns the extra on: importing
 `xtr_http_foundation` itself pulls in no caching contract.
 
+A stateful firewall of [xtr-security](../xtr-security) keeps what it stores in a session — the
+security token and the last authentication error — as JSON envelopes on every storage, the
+memory one included, so it answers alike on either: switching an application from
+`MemorySessionStorage` to this one changes where its sessions live, not what they hold.
+
 ## Limiting a request
 
 A matcher says whether a request is one of yours; a request rate limiter says whether one more

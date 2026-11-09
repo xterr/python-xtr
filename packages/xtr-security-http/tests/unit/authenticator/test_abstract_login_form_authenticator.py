@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, final
 
 import pytest
@@ -20,6 +21,9 @@ from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.authenticator.passport.self_validating_passport import SelfValidatingPassport
 from xtr_security_http.http_utils import HttpUtils
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
+from xtr_security_http.session.authentication_error_serializer import (
+    authentication_error_to_session,
+)
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
@@ -102,7 +106,21 @@ async def test_a_failed_login_keeps_the_error_and_redirects_to_the_login_page() 
     assert response.get_status_code() == 302
     assert response.get_header_line("Location") == "/login"
     kept = await session.get(SecurityRequestAttributes.AUTHENTICATION_ERROR)
-    assert kept is error
+    assert kept == authentication_error_to_session(error)
+
+
+async def test_the_kept_error_is_json_without_its_internal_message() -> None:
+    message, session = _request_with_session()
+
+    _ = await _authenticator().on_authentication_failure(
+        message,
+        BadCredentialsError("the password of alice did not match"),
+    )
+
+    kept = await session.get(SecurityRequestAttributes.AUTHENTICATION_ERROR)
+    assert isinstance(kept, dict)
+    assert json.loads(json.dumps(kept)) == kept
+    assert "the password of alice" not in json.dumps(kept)
 
 
 async def test_a_failed_login_without_a_session_redirects_without_keeping_the_error() -> None:

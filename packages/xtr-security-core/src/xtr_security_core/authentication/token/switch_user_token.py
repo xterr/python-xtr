@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Self, final
+
+from typing_extensions import override
+
+from xtr_security_core._session_state import optional_string_field
+from xtr_security_core.exception import InvalidArgumentError
 
 from .username_password_token import UsernamePasswordToken
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from xtr_security_core.user.user_interface import UserInterface
 
@@ -26,6 +31,9 @@ class SwitchUserToken(UsernamePasswordToken):
     for the target user — the switch itself is the proof — plus the
     original token and, when the switch came from a request, where that
     request was.
+
+    A session keeps the original token nested in this one's state, the same
+    way it keeps any token, so the way back survives the request too.
 
     Attributes:
         originated_from_uri: The URI the switch was made at, when it was
@@ -68,3 +76,40 @@ class SwitchUserToken(UsernamePasswordToken):
     def get_originated_from_uri(self) -> str | None:
         """Return the URI the switch was made at, or ``None`` when it was not."""
         return self._originated_from_uri
+
+    @override
+    def to_session(
+        self,
+        encode_token: Callable[[TokenInterface], dict[str, object]],
+    ) -> dict[str, object]:
+        """Return the switched token's state, the original kept nested as any token is."""
+        return {
+            **super().to_session(encode_token),
+            "original": encode_token(self._original_token),
+            "originated_from_uri": self._originated_from_uri,
+        }
+
+    @classmethod
+    @override
+    def from_session(
+        cls,
+        state: Mapping[str, object],
+        user: UserInterface | None,
+        decode_token: Callable[[object], TokenInterface | None],
+    ) -> Self:
+        """Rebuild the switch a session kept, the original rebuilt as any token is.
+
+        Raises:
+            InvalidArgumentError: When a field of ``state`` is missing or of
+                the wrong type, or the original is no token the session can
+                rebuild.
+        """
+        token = super().from_session(state, user, decode_token)
+        original = decode_token(state.get("original"))
+        if original is None:
+            raise InvalidArgumentError(
+                'The session state\'s "original" must be a token the session can rebuild.',
+            )
+        token._original_token = original  # noqa: SLF001 -- the token this very class rebuilds
+        token._originated_from_uri = optional_string_field(state, "originated_from_uri")  # noqa: SLF001 -- the token this very class rebuilds
+        return token

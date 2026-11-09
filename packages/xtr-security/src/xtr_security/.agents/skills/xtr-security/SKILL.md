@@ -139,6 +139,13 @@ def session_storage() -> SessionStorageInterface:
 - On the response side a `SaveSessionListener` writes the session through the storage and
   stages the cookie carrying its ID — a storage that fails fails the request loudly rather
   than losing the session quietly.
+- The session holds JSON only, on every storage: the token is kept as an envelope of its class,
+  its state and its user — kept whole when it implements `SessionSerializableUserInterface`,
+  else as a snapshot of its identifier, roles and `password_digest` — and the last login error
+  as its public half. A snapshot is reloaded through `load_user_by_identifier`, never handed to
+  `refresh_user`. The store is the trust boundary: token attributes, the OIDC tokens included,
+  sit in it as plaintext JSON. What it keeps and how a user of your own opts in:
+  [references/firewalls-and-authenticators.md](references/firewalls-and-authenticators.md).
 - The cross-site request forgery machinery is opt-in, wired by one of four triggers: a form
   login with `enable_csrf`, a logout with `enable_csrf` or `clear_csrf_tokens`, a
   `switch_user` block with `enable_csrf`, or the firewall's `csrf_route_markers`. The tokens
@@ -405,6 +412,9 @@ into the right status and challenge.
   setting.
 - Do not reach for `MemorySessionStorage` where several servers answer: the storage a stateful
   firewall reattaches must be shared, or one server's login is the next server's stranger.
+- Do not keep a password hash, or anything that is not JSON, in a user's `to_session`: keep
+  `password_digest(...)` of a password, and lists, never tuples. Do not persist or merge a user
+  a session rebuilt — it is a snapshot; reload it.
 - Do not expect the bundle to serve the back-channel logout route: it registers the
   `OidcBackChannelLogoutHandler`; mapping the path the provider pushes to is the
   application's.

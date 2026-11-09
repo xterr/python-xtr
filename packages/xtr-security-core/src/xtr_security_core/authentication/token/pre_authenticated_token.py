@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Self, final
 
+from typing_extensions import override
+
+from xtr_security_core._session_state import string_field
 from xtr_security_core.exception import InvalidArgumentError
 
 from .abstract_token import AbstractToken
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from xtr_security_core.user.user_interface import UserInterface
+
+    from .token_interface import TokenInterface
 
 __all__ = ["PreAuthenticatedToken"]
 
@@ -53,3 +58,29 @@ class PreAuthenticatedToken(AbstractToken):
     def get_firewall_name(self) -> str:
         """Return the firewall (or unit of work) that read the user's identity."""
         return self._firewall_name
+
+    @override
+    def to_session(
+        self,
+        encode_token: Callable[[TokenInterface], dict[str, object]],
+    ) -> dict[str, object]:
+        """Return the roles, the attributes and the firewall, for a session to keep."""
+        return {**super().to_session(encode_token), "firewall": self._firewall_name}
+
+    @classmethod
+    @override
+    def from_session(
+        cls,
+        state: Mapping[str, object],
+        user: UserInterface | None,
+        decode_token: Callable[[object], TokenInterface | None],
+    ) -> Self:
+        """Rebuild the token a session kept, its firewall included.
+
+        Raises:
+            InvalidArgumentError: When a field of ``state`` is missing or of
+                the wrong type, or the firewall is empty.
+        """
+        token = super().from_session(state, user, decode_token)
+        token._firewall_name = string_field(state, "firewall")  # noqa: SLF001 -- the token this very class rebuilds
+        return token

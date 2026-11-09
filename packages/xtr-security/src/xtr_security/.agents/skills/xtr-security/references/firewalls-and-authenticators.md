@@ -113,6 +113,76 @@ stages has that shape: the fresh session's, the login's rotation, the logout's i
 which re-issues the cookie under a new ID with the same path and domain so the browser replaces
 it. Firewalls sharing a `context_key` share one session, so give them the same cookie.
 
+### What the session keeps
+
+A session holds JSON only, on every storage, so the firewall keeps envelopes, never objects:
+
+- **The token**: `{"v": 1, "kind": "module:QualifiedName", "state": …, "user": …}` — the state
+  the token's own `to_session` answers (roles fixed at the login, attributes, firewall, a
+  switch's original nested the same way) and the user. A user implementing
+  `SessionSerializableUserInterface` (from `xtr_security_core`; `InMemoryUser` and `OidcUser`
+  do) is kept whole; any other user as a snapshot of its identifier, roles and the
+  `password_digest` of its password — never the hash.
+- **The last authentication error**: its class, message key and the message data JSON keeps.
+  Never the internal message: after the redirect `str(error)` is the key.
+
+Who the provider is handed on the next request:
+
+- a user kept whole is rebuilt as its own class and handed to `refresh_user(user)`;
+- a snapshot is rebuilt as a `SessionUser` stand-in (`PasswordSessionUser` when the user carried
+  a password, both from `xtr_security_http`) and reloaded through
+  `load_user_by_identifier(identifier)` — the stand-in never reaches `refresh_user`;
+- either way the rebuilt user is a snapshot: reload it, never persist it.
+
+Most users need nothing — the snapshot reloads by identifier, as a login does. Implement
+`SessionSerializableUserInterface` only for a user its provider cannot load by identifier
+alone, the way `OidcUser` is rebuilt from the claims it kept:
+
+```python
+from collections.abc import Mapping
+from typing import Self
+
+from xtr_security_core import InvalidArgumentError, SessionSerializableUserInterface
+
+
+class Member(SessionSerializableUserInterface):  # inherit it: a session finds it by inheritance
+    def __init__(self, email: str, roles: tuple[str, ...]) -> None:
+        self.email = email
+        self.roles = roles
+
+    def get_user_identifier(self) -> str:
+        return self.email
+
+    def get_roles(self) -> tuple[str, ...]:
+        return self.roles
+
+    def to_session(self) -> Mapping[str, object]:  # JSON only; password_digest(), never a hash
+        return {"email": self.email, "roles": list(self.roles)}
+
+    @classmethod
+    def from_session(cls, state: Mapping[str, object]) -> Self:  # pure, every field checked
+        email, roles = state.get("email"), state.get("roles")
+        if not isinstance(email, str) or not isinstance(roles, list):
+            raise InvalidArgumentError("A member kept in a session is malformed.")
+        return cls(email, tuple(str(role) for role in roles))
+```
+
+A token class of your own is kept only when it defines `from_session` in its own class body;
+the response storing a token the session cannot keep — no `from_session` of its own, an
+attribute JSON does not give back as it was (a tuple, a set, an object), a user state that
+does not either — fails loudly, naming the class or the attribute. A bearer token, presented on
+every request, defines none and is never stored.
+
+Reading never trusts the session: a kind is looked up only among the classes already loaded,
+never imported. A value that is no envelope of a known class — an object, a corrupt value,
+another version, a malformed state — reads as no token: anonymous, with a warning. An envelope
+keeping no user raises `InvalidArgumentError`; a rebuilt user no provider supports,
+`UnsupportedUserError`.
+
+The store is the trust boundary: nothing in it is signed or encrypted, so token attributes — the
+OIDC login's ID, access and refresh tokens among them — a self-issued token's compact form and
+the user's state sit in it as plaintext JSON. Keep it where only the application reaches it.
+
 ## The authenticator family
 
 A firewall's `authenticators` tuple lists what proves its callers, each entry matched to a

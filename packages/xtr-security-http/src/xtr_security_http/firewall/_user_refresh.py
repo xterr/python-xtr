@@ -9,6 +9,7 @@ from xtr_security_core.authentication.token.switch_user_token import SwitchUserT
 from xtr_security_core.exception import UnsupportedUserError, UserNotFoundError
 
 from xtr_security_http.event.check_refreshed_user_event import CheckRefreshedUserEvent
+from xtr_security_http.session.session_user import SessionUser
 
 from .refresh_user_result import RefreshUserResult
 from .user_changed import has_user_changed
@@ -41,6 +42,15 @@ class UserRefresher:
     the user hands it to the next; one that cannot find the user contributes
     its class to the deauthentication, because a session whose user no
     provider can find is a session about nobody.
+
+    A user the session could keep only as a snapshot arrives as a
+    :class:`~xtr_security_http.session.session_user.SessionUser` stand-in,
+    and a stand-in is never handed to ``refresh_user`` — a provider may merge
+    what it is handed into what it stores, and a stand-in is no user of its
+    class. Each provider is asked to load the user by the stand-in's
+    identifier instead, one whose answer is of a class it does not support
+    is skipped, and the answer is weighed against the stand-in exactly as a
+    reload is weighed against the user it reloads.
 
     A switch token refreshes from the inside out: the original token —
     the impersonator's — is refreshed first, and a reload that
@@ -83,23 +93,19 @@ class UserRefresher:
 
         Raises:
             UnsupportedUserError: When no provider supports the class of
-                ``user``.
+                ``user`` — for a stand-in, when no provider loads it as a
+                class it supports.
         """
         deauthenticated = await self._switch_original_result(token)
         if deauthenticated is not None:
             return deauthenticated
-        user_class = type(user)
         user_changed_by: list[type] = []
         user_not_found_by: list[type] = []
         user_changed_because: AuthenticationError | None = None
 
         for provider in self._user_providers:
-            if not provider.supports_class(user_class):
-                continue
             try:
-                refreshed_user = await provider.refresh_user(user)
-            except UnsupportedUserError:
-                continue
+                refreshed_user = await self._reloaded_by(provider, user)
             except UserNotFoundError:
                 self._logger.info(
                     "The user could not be found by the user provider that supports it.",
@@ -109,6 +115,8 @@ class UserRefresher:
                     },
                 )
                 user_not_found_by.append(type(provider))
+                continue
+            if refreshed_user is None:
                 continue
 
             user_changed, listener_exception = await self._weigh(token, user, refreshed_user)
@@ -145,11 +153,45 @@ class UserRefresher:
                 "the user could not be found by any user provider",
                 tuple(user_not_found_by),
             )
+        if isinstance(user, SessionUser):
+            raise UnsupportedUserError(
+                "There is no user provider for the user the session token carries: no "
+                "provider loads it by its identifier as a class its supports_class() answers "
+                "for, so the session token's user cannot be reloaded.",
+            )
         raise UnsupportedUserError(
-            f"There is no user provider for a user of the class {user_class.__name__}: no "
+            f"There is no user provider for a user of the class {type(user).__name__}: no "
             "provider's supports_class() answers for it, so the session token's user cannot "
             "be reloaded.",
         )
+
+    @staticmethod
+    async def _reloaded_by(
+        provider: UserProviderInterface,
+        user: UserInterface,
+    ) -> UserInterface | None:
+        """Return ``provider``'s reload of ``user``, or ``None`` when it passes on it.
+
+        A user the session rebuilt as its own class is refreshed by a
+        provider that supports the class. A stand-in is loaded by its
+        identifier instead, and the answer kept only when its class is one
+        the provider supports.
+
+        Raises:
+            UserNotFoundError: When the provider cannot find the user.
+        """
+        if isinstance(user, SessionUser):
+            try:
+                loaded = await provider.load_user_by_identifier(user.get_user_identifier())
+            except UnsupportedUserError:
+                return None
+            return loaded if provider.supports_class(type(loaded)) else None
+        if not provider.supports_class(type(user)):
+            return None
+        try:
+            return await provider.refresh_user(user)
+        except UnsupportedUserError:
+            return None
 
     async def _switch_original_result(
         self,

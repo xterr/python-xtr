@@ -192,8 +192,11 @@ from .resolver import (
 from .security_events import SecurityEvents
 from .security_request_attributes import SecurityRequestAttributes
 from .session import (
+    PasswordSessionUser,
     SessionAuthenticationStrategy,
     SessionAuthenticationStrategyInterface,
+    SessionTokenSerializer,
+    SessionUser,
 )
 from .util import get_target_path, remove_target_path, save_target_path
 
@@ -304,6 +307,7 @@ __all__ = [
     "Passport",
     "PasswordCredentials",
     "PasswordMigratingListener",
+    "PasswordSessionUser",
     "PasswordUpgradeBadge",
     "PersistentRememberMeHandler",
     "PostAuthenticationToken",
@@ -329,6 +333,8 @@ __all__ = [
     "SessionAuthenticationStrategyInterface",
     "SessionLogoutListener",
     "SessionStrategyListener",
+    "SessionTokenSerializer",
+    "SessionUser",
     "SignatureRememberMeHandler",
     "SwitchUserConfig",
     "SwitchUserConfigLookupInterface",

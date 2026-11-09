@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Final
+from http import HTTPStatus
+from typing import TYPE_CHECKING, ClassVar, Final, Self
 
+from typing_extensions import override
 from xtr_security_core.exception import AuthenticationError
 from xtr_security_oauth2_server_core.bearer_challenge import bearer_challenge
 from xtr_security_oauth2_server_core.exception.oauth2_error import OAuth2Error
@@ -39,6 +41,10 @@ class OAuth2AuthenticationError(  # pyright: ignore[reportUnsafeMultipleInherita
     caller is owed both: the status says the request was refused, and the
     challenge says what would have worked.
 
+    A session keeps only the public half of an error, so one rebuilt from a
+    session answers ``401`` — the refusal this server raises for every token
+    it will not accept.
+
     Attributes:
         status_code: The status the refusal is answered with.
     """
@@ -65,6 +71,14 @@ class OAuth2AuthenticationError(  # pyright: ignore[reportUnsafeMultipleInherita
         """
         super().__init__(message, message_key=message_key)
         self.status_code = status_code
+
+    @classmethod
+    @override
+    def from_session(cls, message_key: str, message_data: Mapping[str, object]) -> Self:
+        """Rebuild the error a session kept, answered with ``401``: the session kept no status."""
+        error = super().from_session(message_key, message_data)
+        error.status_code = HTTPStatus.UNAUTHORIZED
+        return error
 
     def get_status_code(self) -> int:
         """Return the status this refusal is answered with."""

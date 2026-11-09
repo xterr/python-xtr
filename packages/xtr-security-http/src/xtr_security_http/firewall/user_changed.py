@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Final
 
 from xtr_password_hasher import PasswordAuthenticatedUserInterface
 from xtr_security_core.user.equatable_interface import EquatableInterface
+from xtr_security_core.user.password_digest import password_digest
 
 if TYPE_CHECKING:
     from xtr_security_core.authentication.token.token_interface import TokenInterface
@@ -23,36 +24,9 @@ if TYPE_CHECKING:
 __all__ = ["has_user_changed"]
 
 # The length a password abbreviated as a crc32c checksum spells — the legacy
-# format the carve-out below is written for.
+# format the carve-out below is written for, and the digest a session keeps of
+# a password in place of the password.
 _LEGACY_PASSWORD_LENGTH: Final = 8
-
-# The Castagnoli polynomial, reflected: the one the crc32c checksum is built
-# from. A row of the lookup table is the remainder of one byte's every
-# possible value under it, built here once rather than per call.
-_CRC32C_POLYNOMIAL: Final = 0x82F63B78
-
-
-def _build_row(index: int) -> int:
-    """Return one row of the crc32c table: the remainder of ``index``."""
-    crc = index
-    for _ in range(8):
-        crc = (crc >> 1) ^ (_CRC32C_POLYNOMIAL if crc & 1 else 0)
-    return crc
-
-
-_CRC32C_TABLE: Final = tuple(_build_row(index) for index in range(256))
-
-
-def _crc32c(text: str) -> str:
-    """Return the crc32c checksum of ``text``, as eight lowercase hex characters.
-
-    The checksum of ``"123456789"`` is ``e3069283`` — the one test vector the
-    CRC-32C catalogue carries, and what a test pins this implementation to.
-    """
-    crc = 0xFFFFFFFF
-    for byte in text.encode("utf-8"):
-        crc = _CRC32C_TABLE[(crc ^ byte) & 0xFF] ^ (crc >> 8)
-    return f"{crc ^ 0xFFFFFFFF:08x}"
 
 
 def has_user_changed(
@@ -73,7 +47,10 @@ def has_user_changed(
     crc32c checksum of the reloaded one is the *same* password, because that
     is how a password was once abbreviated — so a rehash that changed the
     hash's spelling does not log the user out. A stored password of any other
-    length that differs is a changed password.
+    length that differs is a changed password. It is also how a session keeps
+    a password: the stand-in of a user kept as a snapshot carries the
+    :func:`~xtr_security_core.user.password_digest.password_digest` of it, so
+    a reload of the same password compares equal.
 
     The roles are the *token's*, not the original user's: the roles fixed on a
     token describe the authentication the user proved, and a reload that
@@ -110,7 +87,7 @@ def has_user_changed(
             and refreshed_password != original_password
             and (
                 len(original_password) != _LEGACY_PASSWORD_LENGTH
-                or _crc32c(refreshed_password or "") != original_password
+                or password_digest(refreshed_password or "") != original_password
             )
         ):
             return True

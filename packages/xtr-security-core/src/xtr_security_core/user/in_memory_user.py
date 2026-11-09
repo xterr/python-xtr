@@ -4,25 +4,41 @@ from __future__ import annotations
 
 import hmac
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Final, Self, final
 
 from typing_extensions import override
 from xtr_password_hasher import PasswordAuthenticatedUserInterface
 
+from xtr_security_core._session_state import (
+    boolean_field,
+    optional_string_field,
+    string_field,
+    strings_field,
+)
 from xtr_security_core.exception import InvalidArgumentError
 
 from .equatable_interface import EquatableInterface
-from .user_interface import UserInterface
+from .password_digest import password_digest
+from .session_serializable_user_interface import SessionSerializableUserInterface
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
+
+    from .user_interface import UserInterface
 
 __all__ = ["InMemoryUser"]
+
+# The length of a password a session kept as its digest, eight hex characters.
+_DIGEST_LENGTH: Final = 8
 
 
 @final
 @dataclass(frozen=True, slots=True)
-class InMemoryUser(UserInterface, PasswordAuthenticatedUserInterface, EquatableInterface):
+class InMemoryUser(
+    SessionSerializableUserInterface,
+    PasswordAuthenticatedUserInterface,
+    EquatableInterface,
+):
     """A user defined by its own fields rather than loaded from a store.
 
     Enough of a user for tests, small fixed sets of accounts, and the anonymous
@@ -31,6 +47,11 @@ class InMemoryUser(UserInterface, PasswordAuthenticatedUserInterface, EquatableI
 
     Implements the password-carrying user contract: its
     :meth:`get_password` is what a hasher verifies against.
+
+    A session keeps it whole — its identifier, roles and ``enabled`` flag —
+    with the digest of its password in place of the password, and rebuilds it
+    as an in-memory user carrying that digest, which :meth:`is_equal_to`
+    recognises as the password it stands for.
     """
 
     identifier: str
@@ -69,15 +90,64 @@ class InMemoryUser(UserInterface, PasswordAuthenticatedUserInterface, EquatableI
         return self.enabled
 
     @override
+    def to_session(self) -> Mapping[str, object]:
+        """Return the fields a session keeps, the password as its digest.
+
+        The hash itself never reaches the session store: the digest says
+        whether the password changed, and nothing a stolen store could crack.
+        """
+        return {
+            "identifier": self.identifier,
+            "password": None if self.password is None else password_digest(self.password),
+            "roles": list(self.roles),
+            "enabled": self.enabled,
+        }
+
+    @classmethod
+    @override
+    def from_session(cls, state: Mapping[str, object]) -> Self:
+        """Rebuild the user a session kept, the digest standing as its password.
+
+        Raises:
+            InvalidArgumentError: When a field of ``state`` is missing or of the
+                wrong type.
+        """
+        return cls(
+            identifier=string_field(state, "identifier"),
+            password=optional_string_field(state, "password"),
+            roles=strings_field(state, "roles"),
+            enabled=boolean_field(state, "enabled"),
+        )
+
+    @override
     def is_equal_to(self, user: UserInterface) -> bool:
-        """Tell whether ``user`` is the same in-memory user, field for field."""
+        """Tell whether ``user`` is the same in-memory user, field for field.
+
+        The password carries the carve-out a session needs: a password of
+        exactly eight characters that is the digest of ``user``'s is the same
+        password — the spelling this user is rebuilt with from a session, so a
+        reload of the account it stands for compares equal while the password
+        has not changed.
+        """
         return (
             isinstance(user, InMemoryUser)
             and user.identifier == self.identifier
-            and _passwords_equal(user.password, self.password)
+            and _passwords_match(self.password, user.password)
             and user.enabled == self.enabled
             and set(user.get_roles()) == set(self.get_roles())
         )
+
+
+def _passwords_match(kept: str | None, reloaded: str | None) -> bool:
+    """Tell whether ``reloaded`` is the password ``kept`` is, or the digest stands for."""
+    if _passwords_equal(reloaded, kept):
+        return True
+    return (
+        kept is not None
+        and reloaded is not None
+        and len(kept) == _DIGEST_LENGTH
+        and _passwords_equal(password_digest(reloaded), kept)
+    )
 
 
 def _passwords_equal(left: str | None, right: str | None) -> bool:

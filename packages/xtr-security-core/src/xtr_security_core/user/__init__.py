@@ -22,7 +22,9 @@ from .oauth2_user import OAuth2User
 from .oidc_user import OidcUser
 from .oidc_user_provider import OidcUserProvider
 from .password_authenticated_user_interface import PasswordAuthenticatedUserInterface
+from .password_digest import password_digest
 from .password_upgrader_interface import PasswordUpgraderInterface
+from .session_serializable_user_interface import SessionSerializableUserInterface
 from .user_checker_interface import UserCheckerInterface
 from .user_interface import UserInterface
 from .user_provider_interface import UserProviderInterface
@@ -43,7 +45,9 @@ __all__ = [
     "OidcUserProvider",
     "PasswordAuthenticatedUserInterface",
     "PasswordUpgraderInterface",
+    "SessionSerializableUserInterface",
     "UserCheckerInterface",
     "UserInterface",
     "UserProviderInterface",
+    "password_digest",
 ]

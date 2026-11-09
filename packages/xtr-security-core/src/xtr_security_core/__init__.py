@@ -98,9 +98,11 @@ from .user import (
     OidcUser,
     OidcUserProvider,
     PasswordUpgraderInterface,
+    SessionSerializableUserInterface,
     UserCheckerInterface,
     UserInterface,
     UserProviderInterface,
+    password_digest,
 )
 
 __all__ = [
@@ -167,6 +169,7 @@ __all__ = [
     "RoleHierarchyVoter",
     "RoleVoter",
     "SecurityError",
+    "SessionSerializableUserInterface",
     "SignatureHasher",
     "SwitchUserToken",
     "TokenInterface",
@@ -190,6 +193,7 @@ __all__ = [
     "Voter",
     "VoterInterface",
     "__version__",
+    "password_digest",
 ]
 
 try:

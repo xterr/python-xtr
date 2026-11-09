@@ -253,6 +253,90 @@ default is `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax` and not `Secure`. Th
 is the only place the firewall's session is built, so the login's rotation and the logout's
 invalidation stage the same cookie, under a new ID with the same path and domain.
 
+#### What the session keeps
+
+A session holds JSON and nothing else, whatever storage keeps it — the memory one as much as a
+cache pool — so the firewall stores what it keeps there as envelopes, never as objects:
+
+- **The token** is `{"v": 1, "kind": …, "state": …, "user": …}`: the token's class as
+  `module:QualifiedName`, the state its own `to_session` answers — the roles fixed at the login,
+  the attributes, the firewall, a switch's original nested the same way — and the user. A user
+  implementing `SessionSerializableUserInterface` (from `xtr_security_core`) — `InMemoryUser`
+  and `OidcUser` do — is kept whole, as its own state; any other user is kept as a snapshot of
+  its identifier, its roles and the `password_digest` of its password — a crc32c checksum,
+  never the hash.
+- **The last authentication error** a failed login redirects with is its public half: the class,
+  the message key and the message data that survive JSON. The internal message never reaches
+  the store, so on the page that renders the form again `str(error)` is the key.
+
+On the next request the token is rebuilt and its user reloaded through the firewall's
+provider, and who is handed what is fixed:
+
+- A user kept whole is rebuilt as its own class and handed to `refresh_user(user)`, as before.
+- A snapshot is rebuilt as a `SessionUser` stand-in — a `PasswordSessionUser` when the user
+  carried a password — and reloaded through `load_user_by_identifier(identifier)`. The stand-in
+  never reaches `refresh_user`, so a provider that merges what it is handed into an identity
+  map is never handed one. The reload is weighed against the snapshot as ever: a changed
+  password digest, a role granted or withdrawn, another identifier logs the user out.
+- A rebuilt user is a snapshot of what the session held — a digest where the hash was — so a
+  provider reloads it, never persists it.
+
+Most users need nothing for this: the snapshot is reloaded by the identifier, the way a
+provider loads a user at login. Implement `SessionSerializableUserInterface` for a user its
+provider cannot load by identifier alone, the way `OidcUser` is rebuilt from the claims it
+kept. Inherit it explicitly — the class a session names is found again among the subclasses of
+the contract, by inheritance — keep `password_digest(...)` of a password, never the hash, and
+make `from_session` pure: no I/O, every field's type checked, `InvalidArgumentError` for a
+malformed state.
+
+```python
+from collections.abc import Mapping
+from typing import Self
+
+from xtr_security_core import InvalidArgumentError, SessionSerializableUserInterface
+
+
+class Member(SessionSerializableUserInterface):
+    def __init__(self, email: str, roles: tuple[str, ...]) -> None:
+        self.email = email
+        self.roles = roles
+
+    def get_user_identifier(self) -> str:
+        return self.email
+
+    def get_roles(self) -> tuple[str, ...]:
+        return self.roles
+
+    def to_session(self) -> Mapping[str, object]:
+        return {"email": self.email, "roles": list(self.roles)}
+
+    @classmethod
+    def from_session(cls, state: Mapping[str, object]) -> Self:
+        email, roles = state.get("email"), state.get("roles")
+        if not isinstance(email, str) or not isinstance(roles, list):
+            raise InvalidArgumentError("A member kept in a session is malformed.")
+        return cls(email, tuple(str(role) for role in roles))
+```
+
+A token class of your own is kept only when it defines `from_session` in its own class body —
+the rebuild must know every field the class adds — and the response that would store a token
+the session cannot keep fails loudly, naming the class: a token class without its own
+`from_session`, an attribute that does not come back from JSON as it went in (a tuple, a set,
+an object), or a user whose `to_session` answers one. A bearer token presented on every request
+is never stored, and defines none.
+
+Reading never trusts the session. A kind is looked up only among the classes the process has
+already loaded — never imported — and a value that is no envelope of a class it knows (an
+object a session held before, a corrupt value, another version, a malformed state) reads as no
+token: the request goes on anonymous, with a warning. An envelope keeping no user fails the
+request with `InvalidArgumentError`, and a rebuilt user no provider supports with
+`UnsupportedUserError`.
+
+The session store is the trust boundary: nothing in it is signed or encrypted, so the token's
+attributes — the OIDC login's ID, access and refresh tokens among them — a self-issued token's
+compact form and the user's state sit in it as plaintext JSON. Keep the store where only the
+application reaches it.
+
 ### The authenticator family
 
 A firewall's `authenticators` tuple lists what proves its callers, each entry matched to a

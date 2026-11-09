@@ -654,9 +654,54 @@ kernel's response event — writes the token back: what the request authenticate
 the same session key, and an anonymous request's key is removed, so a logout does not linger in
 the session. It runs only for the requests the request half marked with its own session key —
 the firewall-run mark — so a response of a request another firewall ran is left to that
-firewall's listener. The token is stored as the object it is: the session storage's own contract
-owns the wire format, and the lazy-object initialisation guard the upstream listener opens with
-has no lazy user to guard on this stack.
+firewall's listener.
+
+A session holds JSON and nothing else, whatever storage keeps it, so the token is stored as the
+envelope a **`SessionTokenSerializer`** (`xtr_security_http.session`) writes —
+`{"v": 1, "kind": …, "state": …, "user": …}` — and rebuilt from it on the next request. The kind
+names the token's class as `module:QualifiedName`; the state is what the token's own
+`to_session(encode_token)` answers — the roles, the attributes, the firewall, a switch's original
+nested through the same serializer — and a token class is kept only when it defines
+`from_session(state, user, decode_token)` in its own class body. The user part is the user's own
+state when it implements `SessionSerializableUserInterface` (from `xtr_security_core`), named by
+its kind, and otherwise a snapshot: its identifier, its roles and the `password_digest` of its
+password, never the hash. `encode(token)` refuses, with `InvalidArgumentError` naming the
+culprit, a token class without its own `from_session`, an attribute that does not come back from
+JSON exactly as it went in — a tuple, a set, an object — and a user state that does not; the
+response half raises it, so a token that cannot be kept fails the response rather than vanishing.
+
+Reading never trusts the session. `decode(value)` looks a kind up only among the classes already
+loaded — the subclasses of the token, user and error contracts, walked as they are — and never
+imports anything a session names. What it cannot rebuild reads as no token, and the request half
+answers that the way it answers a corrupt payload: a warning naming the value's type, and the
+request goes on anonymous. That is anything that is no envelope — an object a session held
+before, another version — a kind no loaded class answers to, and a state its class's
+`from_session` refuses as malformed. An envelope keeping no user rebuilds a token carrying none,
+which the request half refuses with `InvalidArgumentError`; a user no provider supports is
+`UnsupportedUserError`, raised by the refresh as ever.
+
+What the providers are handed follows from what the session kept. A user kept whole is rebuilt
+as its own class and refreshed through `refresh_user(user)`, the providers' contract unchanged. A
+snapshot is rebuilt as a **`SessionUser`** stand-in — a **`PasswordSessionUser`** carrying the
+digest as its password when the user carried one, so the comparison still sees which side
+stopped carrying a password — and the refresh asks each provider for
+`load_user_by_identifier(identifier)` instead, skipping one whose answer is of a class it does
+not support: the stand-in never reaches `refresh_user`, where a provider might merge it into what
+it stores. The answer is weighed against the stand-in exactly as a reload is weighed against the
+user it reloads — the digest of an unchanged password reads as the same password — so a changed
+password, a role granted or withdrawn, or another identifier still logs the user out.
+
+The last authentication error a failed login redirects with is kept the same way:
+`authentication_error_to_session(error)` (`xtr_security_http.session.authentication_error_serializer`)
+stores its class, its message key and the entries of its message data that survive JSON — never
+the internal message — and `AuthenticationUtils.get_last_authentication_error()` rebuilds it
+through `authentication_error_from_session(value)`, as the class it was when that class is
+loaded and as a plain `AuthenticationError` otherwise, its `str()` the key. The error a request
+parks on its own security state stays the live error.
+
+The session store is the trust boundary: nothing in an envelope is signed or encrypted, so token
+attributes — the OIDC login's ID, access and refresh tokens among them — and the user's state sit
+in it as plaintext JSON.
 
 The session itself reaches the storage through **`SaveSessionListener`** — the last word on
 the kernel's response event, at priority `-1000`, below every other listener, so the token
@@ -1705,7 +1750,8 @@ xtr_security_http/
 ├── logout/                     LogoutUrlGenerator, LogoutForm — the logout addresses
 ├── remember_me/                the handlers, details, staged cookie and response pass of a
 │                              login the user asked to outlive its session
-├── session/                    what a login does to the session it reattached
+├── session/                    the JSON a session keeps of the token and the last error,
+│                              and what a login does to the session it reattached
 ├── command/                    the console command: security:oidc:generate-token
 └── exception/                  the errors this package adds
 ```

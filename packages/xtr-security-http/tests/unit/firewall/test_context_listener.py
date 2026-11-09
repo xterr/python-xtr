@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+import json
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from starlette.datastructures import MutableHeaders
+from xtr_cache import ArrayAdapter
 from xtr_event_dispatcher import EventDispatcher
 from xtr_http_foundation import MemorySessionStorage, Session, SessionCookieConfig
+from xtr_http_foundation.session.storage.cache_pool_session_storage import (
+    CachePoolSessionStorage,
+)
 from xtr_http_kernel import RequestEvent, ResponseEvent
-from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
 from xtr_security_core.authentication.token.switch_user_token import SwitchUserToken
 from xtr_security_core.exception import (
@@ -19,21 +23,24 @@ from xtr_security_core.exception import (
     UserNotFoundError,
 )
 from xtr_security_core.user.in_memory_user import InMemoryUser
+from xtr_security_core.user.in_memory_user_provider import InMemoryUserProvider
 
 from tests.support.dispatchers import RecordingDispatcher
 from tests.support.messages import make_message
+from tests.support.recording_logger import RecordingLogger
 from xtr_security_http._security_state import SecurityState, security_state_of
 from xtr_security_http.authenticator.token.post_authentication_token import PostAuthenticationToken
 from xtr_security_http.event.check_refreshed_user_event import CheckRefreshedUserEvent
 from xtr_security_http.event.token_deauthenticated_event import TokenDeauthenticatedEvent
 from xtr_security_http.firewall.context_listener import ContextListener
-from xtr_security_http.firewall.user_changed import _crc32c
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
+from xtr_security_http.session.session_token_serializer import SessionTokenSerializer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from xtr_http_foundation import SessionStorageInterface
+    from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.user.user_interface import UserInterface
     from xtr_security_core.user.user_provider_interface import UserProviderInterface
 
@@ -49,7 +56,8 @@ class _PlainPasswordUser:
 
     The in-memory user implements the equatable contract, so it answers the
     refresh comparison itself and the field-by-field rules never run; this
-    user leaves them to do the comparing.
+    user leaves them to do the comparing. It keeps no state of its own in a
+    session either, so a session keeps it as a snapshot.
     """
 
     def __init__(self, identifier: str, password: str | None = None) -> None:
@@ -68,7 +76,7 @@ class _PlainPasswordUser:
 
 @final
 class _FakeProvider:
-    """A user provider answering what it was built with."""
+    """A user provider answering what it was built with, refreshed or loaded."""
 
     def __init__(
         self,
@@ -82,7 +90,9 @@ class _FakeProvider:
         self._error = error
 
     async def load_user_by_identifier(self, identifier: str) -> UserInterface:
-        return InMemoryUser(identifier)
+        if self._error is not None:
+            raise self._error
+        return self._refreshed if self._refreshed is not None else InMemoryUser(identifier)
 
     async def refresh_user(self, user: UserInterface) -> UserInterface:
         del user  # the provider answers from what it was built with, not from the user
@@ -102,12 +112,14 @@ def _listener(
     storage: TokenStorage | None = None,
     session_storage: SessionStorageInterface | None = None,
     context_key: str = "main",
+    logger: RecordingLogger | None = None,
 ) -> ContextListener:
     return ContextListener(
         storage if storage is not None else TokenStorage(),
         providers,
         context_key,
         session_storage if session_storage is not None else MemorySessionStorage(),
+        logger=logger,
     )
 
 
@@ -141,6 +153,11 @@ async def _session_holding(
     return session.get_id()
 
 
+def _kept(token: TokenInterface) -> dict[str, object]:
+    """Return the envelope a session keeps ``token`` in."""
+    return SessionTokenSerializer().encode(token)
+
+
 def _token(user: UserInterface, roles: tuple[str, ...] = ()) -> PostAuthenticationToken:
     return PostAuthenticationToken(user, "main", roles)
 
@@ -165,24 +182,31 @@ async def test_a_session_token_is_restored_refreshed_and_stored() -> None:
     """The provider's fresh copy of the user is what the storage ends up holding."""
     session_storage = MemorySessionStorage()
     user = InMemoryUser("ada", password="hashed", roles=("ROLE_USER",))  # noqa: S106 -- a test fixture password, not a secret
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(user, ("ROLE_USER",)))
-    storage = TokenStorage()
-    provider = _FakeProvider(
-        refreshed=InMemoryUser("ada", password="hashed", roles=("ROLE_USER",)),  # noqa: S106 -- a test fixture password, not a secret
+    session_id = await _session_holding(
+        session_storage,
+        _MAIN_KEY,
+        _kept(_token(user, ("ROLE_USER",))),
     )
-    listener = _listener((provider,), storage=storage, session_storage=session_storage)
+    storage = TokenStorage()
+    refreshed = InMemoryUser("ada", password="hashed", roles=("ROLE_USER",))  # noqa: S106 -- a test fixture password, not a secret
+    listener = _listener(
+        (_FakeProvider(refreshed=refreshed),), storage=storage, session_storage=session_storage
+    )
 
     await listener.authenticate(_request_event(session_id))
 
     stored = storage.get_token()
-    assert stored is not None
-    assert stored.get_user() is not user  # the provider's fresh copy, not the stored one
-    assert stored.get_user_identifier() == "ada"
+    assert isinstance(stored, PostAuthenticationToken)
+    assert stored.get_user() is refreshed  # the provider's fresh copy, not the rebuilt one
+    assert stored.get_firewall_name() == "main"
+    assert stored.get_role_names() == ("ROLE_USER",)
 
 
 async def test_the_request_marks_the_firewall_run_and_parks_the_session() -> None:
     session_storage = MemorySessionStorage()
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(InMemoryUser("ada")))
+    session_id = await _session_holding(
+        session_storage, _MAIN_KEY, _kept(_token(InMemoryUser("ada")))
+    )
     listener = _listener(
         (_FakeProvider(refreshed=InMemoryUser("ada")),),
         session_storage=session_storage,
@@ -199,7 +223,9 @@ async def test_the_request_marks_the_firewall_run_and_parks_the_session() -> Non
 
 async def test_the_session_is_reattached_by_the_cookie_the_firewall_configured() -> None:
     session_storage = MemorySessionStorage()
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(InMemoryUser("ada")))
+    session_id = await _session_holding(
+        session_storage, _MAIN_KEY, _kept(_token(InMemoryUser("ada")))
+    )
     storage = TokenStorage()
     listener = ContextListener(
         storage,
@@ -296,11 +322,50 @@ async def test_a_foreign_object_payload_leaves_the_storage_empty() -> None:
     assert storage.get_token() is None
 
 
-async def test_a_token_without_a_user_is_refused() -> None:
+async def test_a_value_that_is_no_envelope_goes_on_anonymous_with_a_warning() -> None:
+    """A live token object — what a session held before it held JSON — is no envelope."""
     session_storage = MemorySessionStorage()
-    session_id = await _session_holding(session_storage, _MAIN_KEY, NullToken())
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(InMemoryUser("ada")))
+    storage = TokenStorage()
+    logger = RecordingLogger()
+    provider = _FakeProvider(refreshed=InMemoryUser("ada"))
+    listener = _listener(
+        (provider,), storage=storage, session_storage=session_storage, logger=logger
+    )
 
-    with pytest.raises(InvalidArgumentError):
+    await listener.authenticate(_request_event(session_id))
+
+    assert storage.get_token() is None
+    assert logger.messages("warning") == [
+        "Expected a security token from the session, got something else.",
+    ]
+    assert logger.contexts("warning") == [
+        {"key": _MAIN_KEY, "received": "PostAuthenticationToken"},
+    ]
+
+
+async def test_an_envelope_of_another_version_goes_on_anonymous() -> None:
+    session_storage = MemorySessionStorage()
+    envelope = {**_kept(_token(InMemoryUser("ada"))), "v": 2}
+    session_id = await _session_holding(session_storage, _MAIN_KEY, envelope)
+    storage = TokenStorage()
+    listener = _listener(
+        (_FakeProvider(refreshed=InMemoryUser("ada")),),
+        storage=storage,
+        session_storage=session_storage,
+    )
+
+    await listener.authenticate(_request_event(session_id))
+
+    assert storage.get_token() is None
+
+
+async def test_an_envelope_keeping_no_user_is_refused() -> None:
+    session_storage = MemorySessionStorage()
+    envelope = {**_kept(_token(InMemoryUser("ada"))), "user": None}
+    session_id = await _session_holding(session_storage, _MAIN_KEY, envelope)
+
+    with pytest.raises(InvalidArgumentError, match="stores no user"):
         await _listener(session_storage=session_storage).authenticate(_request_event(session_id))
 
 
@@ -308,7 +373,7 @@ async def test_a_provider_not_supporting_the_class_is_skipped() -> None:
     """The refresh runs through the providers in order, past the ones that pass."""
     session_storage = MemorySessionStorage()
     user = InMemoryUser("ada")
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(user))
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(_token(user)))
     storage = TokenStorage()
     refusing = _FakeProvider(supports=False, refreshed=InMemoryUser("refused"))
     answering = _FakeProvider(refreshed=InMemoryUser("ada"))
@@ -326,7 +391,7 @@ async def test_a_provider_refusing_the_user_hands_it_to_the_next() -> None:
     session_id = await _session_holding(
         session_storage,
         _MAIN_KEY,
-        _token(InMemoryUser("ada")),
+        _kept(_token(InMemoryUser("ada"))),
     )
     storage = TokenStorage()
     refusing = _FakeProvider(error=UnsupportedUserError("Not mine."))
@@ -341,8 +406,7 @@ async def test_a_provider_refusing_the_user_hands_it_to_the_next() -> None:
 async def test_a_changed_user_deauthenticates_and_announces_the_event() -> None:
     session_storage = MemorySessionStorage()
     user = InMemoryUser("ada", password="hashed")  # noqa: S106 -- a test fixture password, not a secret
-    original = _token(user)
-    session_id = await _session_holding(session_storage, _MAIN_KEY, original)
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(_token(user)))
     storage = TokenStorage()
     provider = _FakeProvider(refreshed=InMemoryUser("ada", password="rehashed"))  # noqa: S106 -- a test fixture password, not a secret
     dispatcher = EventDispatcher()
@@ -364,7 +428,9 @@ async def test_a_changed_user_deauthenticates_and_announces_the_event() -> None:
     assert storage.get_token() is None
     assert len(announced) == 1
     event = announced[0]
-    assert event.get_original_token() is original
+    original = event.get_original_token()
+    assert isinstance(original, PostAuthenticationToken)  # the token the session held
+    assert original.get_user_identifier() == "ada"
     assert event.get_reason() == "the user has changed"
     assert event.get_provider_classes() == (_FakeProvider,)
     assert event.get_exception() is None
@@ -386,7 +452,7 @@ async def test_a_user_no_provider_finds_deauthenticates_with_its_own_reason() ->
     session_id = await _session_holding(
         session_storage,
         _MAIN_KEY,
-        _token(InMemoryUser("ada")),
+        _kept(_token(InMemoryUser("ada"))),
     )
     storage = TokenStorage()
     provider = _FakeProvider(error=UserNotFoundError("ada"))
@@ -409,12 +475,12 @@ async def test_a_user_no_provider_finds_deauthenticates_with_its_own_reason() ->
     assert announced[0].get_provider_classes() == (_FakeProvider,)
 
 
-async def test_no_provider_for_the_class_is_refused() -> None:
+async def test_a_user_kept_whole_that_no_provider_supports_is_refused() -> None:
     session_storage = MemorySessionStorage()
     session_id = await _session_holding(
         session_storage,
         _MAIN_KEY,
-        _token(InMemoryUser("ada")),
+        _kept(_token(InMemoryUser("ada"))),
     )
     listener = _listener((_FakeProvider(supports=False),), session_storage=session_storage)
 
@@ -426,7 +492,7 @@ async def test_a_listener_may_deauthenticate_with_its_own_reason() -> None:
     """The refreshed-user check lets a listener add a reason the built-in comparison missed."""
     session_storage = MemorySessionStorage()
     user = InMemoryUser("ada", password="hashed")  # noqa: S106 -- a test fixture password, not a secret
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(user))
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(_token(user)))
     storage = TokenStorage()
     provider = _FakeProvider(refreshed=InMemoryUser("ada", password="hashed"))  # noqa: S106 -- a test fixture password, not a secret
     dispatcher = EventDispatcher()
@@ -457,7 +523,7 @@ async def test_a_listener_may_deauthenticate_with_its_own_reason() -> None:
 async def test_a_listener_may_clear_the_builtin_verdict() -> None:
     session_storage = MemorySessionStorage()
     user = InMemoryUser("ada", password="hashed")  # noqa: S106 -- a test fixture password, not a secret
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(user))
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(_token(user)))
     storage = TokenStorage()
     provider = _FakeProvider(refreshed=InMemoryUser("ada", password="rehashed"))  # noqa: S106 -- a test fixture password, not a secret
     dispatcher = EventDispatcher()
@@ -479,13 +545,13 @@ async def test_a_listener_may_clear_the_builtin_verdict() -> None:
     assert storage.get_token() is not None
 
 
-async def test_a_password_abbreviated_as_its_checksum_does_not_log_out() -> None:
-    """The legacy carve-out, through the listener: the checksum is the same password."""
+async def test_a_snapshot_whose_password_did_not_change_does_not_log_out() -> None:
+    """The snapshot keeps the password's digest, and the same password reloads as equal."""
     session_storage = MemorySessionStorage()
-    user = _PlainPasswordUser("ada", _crc32c("new-password"))
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(user))
+    user = _PlainPasswordUser("ada", "hashed")
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(_token(user)))
     storage = TokenStorage()
-    provider = _FakeProvider(refreshed=_PlainPasswordUser("ada", "new-password"))
+    provider = _FakeProvider(refreshed=_PlainPasswordUser("ada", "hashed"))
     listener = _listener((provider,), storage=storage, session_storage=session_storage)
 
     await listener.authenticate(_request_event(session_id))
@@ -493,7 +559,50 @@ async def test_a_password_abbreviated_as_its_checksum_does_not_log_out() -> None
     assert storage.get_token() is not None
 
 
-async def test_the_response_half_stores_the_authenticated_token() -> None:
+async def test_a_snapshot_whose_password_changed_logs_out() -> None:
+    session_storage = MemorySessionStorage()
+    user = _PlainPasswordUser("ada", "hashed")
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(_token(user)))
+    storage = TokenStorage()
+    provider = _FakeProvider(refreshed=_PlainPasswordUser("ada", "rehashed"))
+    listener = _listener((provider,), storage=storage, session_storage=session_storage)
+
+    await listener.authenticate(_request_event(session_id))
+
+    assert storage.get_token() is None
+
+
+async def test_an_account_disabled_since_the_login_is_logged_out_on_the_next_request() -> None:
+    """The ``enabled`` flag the in-memory user compares survives the session."""
+    users = InMemoryUserProvider({"ada": {"password": "hashed", "roles": ["ROLE_USER"]}})
+    session_storage = MemorySessionStorage()
+    login = _token(await users.load_user_by_identifier("ada"), ("ROLE_USER",))
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(login))
+    users.add_user(InMemoryUser("ada", password="hashed", roles=("ROLE_USER",), enabled=False))  # noqa: S106 -- a test fixture password, not a secret
+    storage = TokenStorage()
+    listener = _listener((users,), storage=storage, session_storage=session_storage)
+
+    await listener.authenticate(_request_event(session_id))
+
+    assert storage.get_token() is None
+
+
+async def test_an_account_unchanged_since_the_login_stays_signed_in() -> None:
+    users = InMemoryUserProvider({"ada": {"password": "hashed", "roles": ["ROLE_USER"]}})
+    session_storage = MemorySessionStorage()
+    login = _token(await users.load_user_by_identifier("ada"), ("ROLE_USER",))
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(login))
+    storage = TokenStorage()
+    listener = _listener((users,), storage=storage, session_storage=session_storage)
+
+    await listener.authenticate(_request_event(session_id))
+
+    stored = storage.get_token()
+    assert stored is not None
+    assert stored.get_user() == await users.load_user_by_identifier("ada")
+
+
+async def test_the_response_half_stores_the_authenticated_token_as_its_envelope() -> None:
     session_storage = MemorySessionStorage()
     session_id = await _session_holding(session_storage, "unrelated", None)
     storage = TokenStorage()
@@ -504,19 +613,74 @@ async def test_the_response_half_stores_the_authenticated_token() -> None:
     # The request half parks the session and the mark on the same bag the
     # response event carries.
     state.update(request_event.state)
-    token = _token(InMemoryUser("ada"), ("ROLE_USER",))
+    token = _token(InMemoryUser("ada", password="hashed"), ("ROLE_USER",))  # noqa: S106 -- a test fixture password, not a secret
     storage.set_token(token)
 
     await listener.on_response(_response_event(state))
 
     parked = security_state_of(state).attributes[SecurityRequestAttributes.SESSION]
     assert isinstance(parked, Session)
-    assert await parked.get(_MAIN_KEY) is token
+    kept = await parked.get(_MAIN_KEY)
+    assert isinstance(kept, dict)
+    assert kept == _kept(token)
+    assert json.loads(json.dumps(kept)) == kept
+    assert "hashed" not in json.dumps(kept)
+
+
+async def test_the_response_half_refuses_a_token_a_session_cannot_keep() -> None:
+    """A token whose attribute does not come back from JSON fails the response loudly."""
+    session_storage = MemorySessionStorage()
+    storage = TokenStorage()
+    listener = _listener(session_storage=session_storage, storage=storage)
+    request_event = _request_event()
+    await listener.authenticate(request_event)
+    state: dict[str, object] = dict(request_event.state)
+    token = _token(InMemoryUser("ada"))
+    token.set_attribute("scopes", ("read", "write"))
+    storage.set_token(token)
+
+    with pytest.raises(InvalidArgumentError, match='"scopes"'):
+        await listener.on_response(_response_event(state))
+
+
+@pytest.mark.parametrize(
+    "storage_of",
+    [MemorySessionStorage, lambda: CachePoolSessionStorage(ArrayAdapter())],
+    ids=["memory", "cache_pool"],
+)
+async def test_a_token_written_back_is_restored_on_the_next_request(
+    storage_of: Callable[[], SessionStorageInterface],
+) -> None:
+    """Both storages hand the next request the same token: the envelope is JSON either way."""
+    users = InMemoryUserProvider({"ada": {"password": "hashed", "roles": ["ROLE_USER"]}})
+    storage = TokenStorage()
+    listener = _listener((users,), storage=storage, session_storage=storage_of())
+    first = _request_event()
+    await listener.authenticate(first)
+    state: dict[str, object] = dict(first.state)
+    login = _token(await users.load_user_by_identifier("ada"), ("ROLE_USER",))
+    login.set_authentication_proofs({"pwd": 1_700_000_000})
+    storage.set_token(login)
+    await listener.on_response(_response_event(state))
+    parked = security_state_of(state).attributes[SecurityRequestAttributes.SESSION]
+    assert isinstance(parked, Session)
+    await parked.save()
+    storage.set_token(None)
+
+    await listener.authenticate(_request_event(parked.get_id()))
+
+    restored = storage.get_token()
+    assert isinstance(restored, PostAuthenticationToken)
+    assert restored.get_user() == await users.load_user_by_identifier("ada")
+    assert restored.get_role_names() == ("ROLE_USER",)
+    assert dict(restored.get_authentication_proofs()) == {"pwd": 1_700_000_000}
 
 
 async def test_the_response_half_removes_the_key_of_an_anonymous_request() -> None:
     session_storage = MemorySessionStorage()
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(InMemoryUser("ada")))
+    session_id = await _session_holding(
+        session_storage, _MAIN_KEY, _kept(_token(InMemoryUser("ada")))
+    )
     storage = TokenStorage()
     provider = _FakeProvider(refreshed=InMemoryUser("ada"))
     listener = _listener((provider,), session_storage=session_storage, storage=storage)
@@ -639,19 +803,19 @@ async def test_a_switch_token_refreshes_the_original_user_first() -> None:
     """The impersonator's token is reloaded before the switched one, both holding fresh users."""
     provider = _PerUserProvider()
     original = _token(InMemoryUser("admin"))
-    switched = SwitchUserToken(InMemoryUser("ada"), "main", ("ROLE_USER",), original)
+    switched = SwitchUserToken(InMemoryUser("ada"), "main", ("ROLE_USER",), original, "/admin")
     session_storage = MemorySessionStorage()
-    session_id = await _session_holding(session_storage, _MAIN_KEY, switched)
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(switched))
     storage = TokenStorage()
     listener = _listener((provider,), session_storage=session_storage, storage=storage)
 
     await listener.authenticate(_request_event(session_id))
 
     stored = storage.get_token()
-    assert stored is switched
     assert isinstance(stored, SwitchUserToken)
     assert stored.get_original_token().get_user() is provider.refreshed_users["admin"]
     assert stored.get_user() is provider.refreshed_users["ada"]
+    assert stored.get_originated_from_uri() == "/admin"
 
 
 async def test_a_deauthenticated_original_deauthenticates_the_switch_with_its_result() -> None:
@@ -660,7 +824,7 @@ async def test_a_deauthenticated_original_deauthenticates_the_switch_with_its_re
     original = _token(InMemoryUser("admin"))
     switched = SwitchUserToken(InMemoryUser("ada"), "main", ("ROLE_USER",), original)
     session_storage = MemorySessionStorage()
-    session_id = await _session_holding(session_storage, _MAIN_KEY, switched)
+    session_id = await _session_holding(session_storage, _MAIN_KEY, _kept(switched))
     storage = TokenStorage()
     dispatcher = RecordingDispatcher()
     listener = ContextListener(
@@ -678,21 +842,27 @@ async def test_a_deauthenticated_original_deauthenticates_the_switch_with_its_re
         event for event in dispatcher.events if isinstance(event, TokenDeauthenticatedEvent)
     ]
     (event,) = deauthenticated
-    assert event.get_original_token() is switched
+    restored = event.get_original_token()
+    assert isinstance(restored, SwitchUserToken)  # the switch the session held
+    assert restored.get_user_identifier() == "ada"
     assert event.get_reason() == "the user has changed"
 
 
 async def test_a_switch_token_whose_original_carries_no_user_refreshes_only_its_own() -> None:
     """A switch standing on a token about nobody skips the recursion and reloads its own user."""
     provider = _PerUserProvider()
-    switched = SwitchUserToken(InMemoryUser("ada"), "main", ("ROLE_USER",), NullToken())
+    envelope = _kept(
+        SwitchUserToken(InMemoryUser("ada"), "main", ("ROLE_USER",), _token(InMemoryUser("admin")))
+    )
+    state = cast("dict[str, object]", envelope["state"])
+    cast("dict[str, object]", state["original"])["user"] = None
     session_storage = MemorySessionStorage()
-    session_id = await _session_holding(session_storage, _MAIN_KEY, switched)
+    session_id = await _session_holding(session_storage, _MAIN_KEY, envelope)
     storage = TokenStorage()
     listener = _listener((provider,), session_storage=session_storage, storage=storage)
 
     await listener.authenticate(_request_event(session_id))
 
     stored = storage.get_token()
-    assert stored is switched
+    assert isinstance(stored, SwitchUserToken)
     assert list(provider.refreshed_users) == ["ada"]

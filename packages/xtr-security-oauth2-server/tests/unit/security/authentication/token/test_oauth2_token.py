@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user.in_memory_user import InMemoryUser
+from xtr_security_http.session import SessionTokenSerializer
 
 from xtr_security_oauth2_server.security.authentication.token.oauth2_token import (
     ACCESS_TOKEN_ID_ATTRIBUTE,
@@ -93,3 +96,10 @@ def test_the_reading_names_the_caller_and_the_client_but_never_the_token() -> No
     assert "ada" in shown
     assert CLIENT_ID in shown
     assert ACCESS_TOKEN_ID not in shown
+
+
+def test_a_session_refuses_to_keep_it() -> None:
+    # A bearer token is presented on every request, never restored from a
+    # session, so it defines no way to be rebuilt from one.
+    with pytest.raises(InvalidArgumentError, match="OAuth2Token cannot be kept in a session"):
+        _ = SessionTokenSerializer().encode(_token())

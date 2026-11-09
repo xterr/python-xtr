@@ -10,12 +10,12 @@ from xtr_logging_contracts import NullLogger
 from xtr_security_core.authentication.authentication_trust_resolver import (
     AuthenticationTrustResolver,
 )
-from xtr_security_core.authentication.token.token_interface import TokenInterface
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.event.token_deauthenticated_event import TokenDeauthenticatedEvent
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
+from xtr_security_http.session.session_token_serializer import SessionTokenSerializer
 
 from ._user_refresh import UserRefresher
 from .abstract_listener import AbstractListener
@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from xtr_security_core.authentication.token.storage.token_storage_interface import (
         TokenStorageInterface,
     )
+    from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.user.user_interface import UserInterface
     from xtr_security_core.user.user_provider_interface import UserProviderInterface
 
@@ -87,12 +88,14 @@ class ContextListener(AbstractListener):
     the one every later step stages: the login's rotation, the logout's
     invalidation, the save that writes the session back.
 
-    The user a token carries is a plain object here: the lazy-initialisation
-    guard the upstream listener opens its response half with — a user
-    materialised on first touch, initialized before it is stored — has no
-    lazy user to guard on this stack, so it guards nothing; the token is
-    stored as the object it is, and the session storage's own contract owns
-    the wire format.
+    A session holds JSON and nothing else, whatever storage keeps it, so the
+    token is stored as the envelope a
+    :class:`~xtr_security_http.session.session_token_serializer.SessionTokenSerializer`
+    writes — its class, its own state, and its user's: a user that keeps
+    itself whole, or a snapshot of its identifier, its roles and the digest of
+    its password — and rebuilt from it on the next request. A token whose
+    class cannot be kept, or whose attributes do not come back from JSON as
+    they went in, fails the response loudly rather than being lost quietly.
     """
 
     __slots__ = (
@@ -100,6 +103,7 @@ class ContextListener(AbstractListener):
         "_cookie",
         "_dispatcher",
         "_logger",
+        "_serializer",
         "_session_key",
         "_session_storage",
         "_token_storage",
@@ -155,6 +159,7 @@ class ContextListener(AbstractListener):
         self._dispatcher = dispatcher
         self._trust_resolver = trust_resolver or AuthenticationTrustResolver()
         self._cookie = cookie
+        self._serializer = SessionTokenSerializer()
 
     @override
     async def supports(self, request: ServerRequestInterface) -> bool | None:
@@ -176,10 +181,12 @@ class ContextListener(AbstractListener):
         The session is built from the request and parked on its security
         state, beside the firewall-run mark that gates the response half —
         both under this listener's own key, so a second firewall's listener
-        answers for its requests alone. A session holding no token, or one
-        holding something else — a corrupt payload, a foreign class —
-        leaves the storage empty: the request goes on anonymous, and the
-        access decision is what turns it away.
+        answers for its requests alone. A session holding no token leaves
+        the storage empty; so does one holding something that is no token
+        envelope — a corrupt payload, an object, an envelope of another
+        version, a token or user class no class loaded now answers to, a
+        state its class refuses — with a warning. Either way the request goes
+        on anonymous, and the access decision is what turns it away.
 
         A token the session holds is refreshed before it is stored: its user
         is reloaded through the providers, and a reload that changed the
@@ -188,8 +195,8 @@ class ContextListener(AbstractListener):
         contributed to it.
 
         Raises:
-            InvalidArgumentError: When a session token carries no user — the
-                session was written by something that stored a token no
+            InvalidArgumentError: When a session token envelope keeps no user
+                — the session was written by something that stored a token no
                 authentication could have produced.
             UnsupportedUserError: When no user provider supports the class
                 of the user the session token carries.
@@ -200,14 +207,15 @@ class ContextListener(AbstractListener):
         state.attributes[SecurityRequestAttributes.SESSION] = session
         state.attributes[SecurityRequestAttributes.FIREWALL_RUN] = self._session_key
 
-        token = await session.get(self._session_key)
-        if token is None:
+        kept = await session.get(self._session_key)
+        if kept is None:
             self._token_storage.set_token(None)
             return
-        if not isinstance(token, TokenInterface):
+        token = self._serializer.decode(kept)
+        if token is None:
             self._logger.warning(
                 "Expected a security token from the session, got something else.",
-                {"key": self._session_key, "received": type(token).__name__},
+                {"key": self._session_key, "received": type(kept).__name__},
             )
             self._token_storage.set_token(None)
             return
@@ -241,9 +249,15 @@ class ContextListener(AbstractListener):
         Runs only for the requests this listener's request half marked with
         its own session key: a response of a request another firewall ran —
         or none at all — is left alone. An authenticated token is stored
-        under the session key; an anonymous request's key is removed, so a
-        logout does not linger in the session and answer for the next
-        request.
+        under the session key, as its envelope; an anonymous request's key
+        is removed, so a logout does not linger in the session and answer for
+        the next request.
+
+        Raises:
+            InvalidArgumentError: When the token cannot be kept in a session —
+                its class defines no ``from_session`` of its own, or an
+                attribute or its user's state does not come back from JSON as
+                it went in.
         """
         state = security_state_of(response_event.state)
         if state.attributes.get(SecurityRequestAttributes.FIREWALL_RUN) != self._session_key:
@@ -252,10 +266,10 @@ class ContextListener(AbstractListener):
         if not isinstance(session, Session):
             return
         token = self._token_storage.get_token()
-        if not self._trust_resolver.is_authenticated(token):
+        if token is None or not self._trust_resolver.is_authenticated(token):
             _ = await session.remove(self._session_key)
             return
-        await session.set(self._session_key, token)
+        await session.set(self._session_key, self._serializer.encode(token))
 
     async def _refresh_user(self, token: TokenInterface, user: UserInterface) -> RefreshUserResult:
         """Reload ``token``'s ``user`` through the providers, deauthenticating on a change.

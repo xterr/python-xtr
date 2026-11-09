@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, Final, Self, cast
 
 from typing_extensions import override
 
+from xtr_security_core._session_state import mapping_field, strings_field
 from xtr_security_core.exception import InvalidArgumentError
 
 from .token_interface import TokenInterface
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from xtr_security_core.user.user_interface import UserInterface
 
@@ -31,6 +32,13 @@ class AbstractToken(TokenInterface):
     assignment. That is why :meth:`set_user` only updates the user reference
     and leaves the role names untouched. Concrete tokens derive from this and
     add whatever their own kind needs.
+
+    A session keeps a token as JSON, through :meth:`to_session` and
+    :meth:`from_session`: the roles and the attributes here, and whatever a
+    concrete token adds in its own overrides. A token class is kept in a
+    session only when it defines :meth:`from_session` in its own body — the
+    rebuild must know every field the class adds, and an inherited one does
+    not.
     """
 
     __slots__: tuple[str, ...] = ("_attributes", "_role_names", "_user")
@@ -112,6 +120,58 @@ class AbstractToken(TokenInterface):
     def set_authentication_proofs(self, proofs: Mapping[str, int]) -> None:
         """Record the authentication methods the user proved, each mapped to its last proof."""
         self._attributes[_AUTH_PROOFS_ATTRIBUTE] = dict(proofs)
+
+    def to_session(
+        self,
+        encode_token: Callable[[TokenInterface], dict[str, object]],
+    ) -> dict[str, object]:
+        """Return the state a session keeps this token as: its roles and attributes.
+
+        The user is not part of it — the code writing the session keeps the
+        user beside the state, and hands it back to :meth:`from_session`.
+        Every attribute must come back from JSON exactly as it went in, or
+        the token is refused when the session is written.
+
+        Args:
+            encode_token: How the session keeps a token, handed down for a
+                token nesting another to keep that one the same way; a token
+                nesting none leaves it unused.
+        """
+        del encode_token
+        return {"roles": list(self._role_names), "attributes": dict(self._attributes)}
+
+    @classmethod
+    def from_session(
+        cls,
+        state: Mapping[str, object],
+        user: UserInterface | None,
+        decode_token: Callable[[object], TokenInterface | None],
+    ) -> Self:
+        """Rebuild the token a session kept as ``state``, carrying ``user``.
+
+        Built without the class's constructor, which asks for what the
+        session hands back separately: the roles come from ``state``, so a
+        token restores the roles fixed when it was created, not the user's
+        current ones. Pure — no I/O — and every field is type-checked.
+
+        Args:
+            state: What :meth:`to_session` returned.
+            user: The user the session kept beside the state, rebuilt; ``None``
+                when it kept none, which a session token never should.
+            decode_token: How the session rebuilds a token, handed down for a
+                token nesting another; a token nesting none leaves it unused.
+
+        Raises:
+            InvalidArgumentError: When a field of ``state`` is missing or of
+                the wrong type.
+        """
+        del decode_token
+        token = cls.__new__(cls)
+        AbstractToken.__init__(token, strings_field(state, "roles"))
+        token.set_attributes(mapping_field(state, "attributes"))
+        if user is not None:
+            token.set_user(user)
+        return token
 
     @override
     def __str__(self) -> str:

@@ -5,10 +5,17 @@ from __future__ import annotations
 from http import HTTPStatus
 
 from xtr_security_core.exception import AuthenticationError
+from xtr_security_http.session.authentication_error_serializer import (
+    authentication_error_from_session,
+    authentication_error_to_session,
+)
 from xtr_security_oauth2_server_core.exception.oauth2_error import OAuth2Error
 
 from xtr_security_oauth2_server.security.exception.oauth2_authentication_error import (
     OAuth2AuthenticationError,
+)
+from xtr_security_oauth2_server.security.exception.oauth2_authentication_failed_error import (
+    OAuth2AuthenticationFailedError,
 )
 
 INTERNAL = "the token named a client that no longer exists"
@@ -62,3 +69,24 @@ def test_a_deployment_may_name_the_public_text_itself() -> None:
     refused = OAuth2AuthenticationError(INTERNAL, 401, message_key="Nope.")
 
     assert refused.get_message_key() == "Nope."
+
+
+def test_it_is_rebuilt_from_a_session_answered_with_401() -> None:
+    rebuilt = OAuth2AuthenticationError.from_session("Nope.", {})
+
+    assert type(rebuilt) is OAuth2AuthenticationError
+    assert rebuilt.get_status_code() == HTTPStatus.UNAUTHORIZED
+    assert rebuilt.get_message_key() == "Nope."
+    assert isinstance(rebuilt, OAuth2Error)
+
+
+def test_a_session_keeps_neither_the_internal_message_nor_the_status() -> None:
+    refused = OAuth2AuthenticationFailedError.create(INTERNAL)
+
+    kept = authentication_error_to_session(refused)
+    rebuilt = authentication_error_from_session(kept)
+
+    assert INTERNAL not in str(kept)
+    assert type(rebuilt) is OAuth2AuthenticationFailedError
+    assert rebuilt.get_status_code() == HTTPStatus.UNAUTHORIZED
+    assert str(rebuilt) == OAuth2AuthenticationFailedError.MESSAGE_KEY

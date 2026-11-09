@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Self
+
+from typing_extensions import override
 
 from .authentication_error import AuthenticationError
 
@@ -22,6 +24,9 @@ class UserNotFoundError(AuthenticationError, LookupError):  # pyright: ignore[re
     identifier: a distinct key would tell a client that a user does not exist,
     a way to enumerate accounts, so the identifier stays on
     :attr:`user_identifier` for logs alone.
+
+    A session keeps none of the identifier, for the same reason: rebuilt from
+    one, the error names no identifier.
 
     Attributes:
         user_identifier: The identifier that matched no user.
@@ -44,3 +49,11 @@ class UserNotFoundError(AuthenticationError, LookupError):  # pyright: ignore[re
             message if message is not None else f'User "{user_identifier}" not found.',
             message_data=message_data,
         )
+
+    @classmethod
+    @override
+    def from_session(cls, message_key: str, message_data: Mapping[str, object]) -> Self:
+        """Rebuild the error a session kept, naming no identifier — the session kept none."""
+        error = super().from_session(message_key, message_data)
+        error.user_identifier = None
+        return error

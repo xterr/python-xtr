@@ -6,12 +6,15 @@ from typing import TYPE_CHECKING, final
 
 import pytest
 from xtr_http_foundation import MemorySessionStorage, Session
-from xtr_security_core.exception import BadCredentialsError
+from xtr_security_core.exception import BadCredentialsError, TooManyLoginAttemptsAuthenticationError
 
 from tests.support.messages import make_message
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.authentication.authentication_utils import AuthenticationUtils
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
+from xtr_security_http.session.authentication_error_serializer import (
+    authentication_error_to_session,
+)
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
@@ -34,30 +37,55 @@ async def test_the_error_is_read_off_the_request_state_first() -> None:
     session = Session(MemorySessionStorage())
     security_state_of(bag).attributes[SecurityRequestAttributes.SESSION] = session
     parked = BadCredentialsError("The request state's own error.")
-    await session.set(SecurityRequestAttributes.AUTHENTICATION_ERROR, BadCredentialsError("kept"))
+    await session.set(
+        SecurityRequestAttributes.AUTHENTICATION_ERROR,
+        authentication_error_to_session(BadCredentialsError("kept")),
+    )
     security_state_of(bag).attributes[SecurityRequestAttributes.AUTHENTICATION_ERROR] = parked
 
     assert await AuthenticationUtils(message).get_last_authentication_error() is parked
 
 
-async def test_the_error_is_read_off_the_session_and_removed_with_it() -> None:
+async def test_the_error_is_rebuilt_off_the_session_and_removed_with_it() -> None:
     message, session = _request_with_session()
-    kept = BadCredentialsError("kept")
-    await session.set(SecurityRequestAttributes.AUTHENTICATION_ERROR, kept)
+    kept = BadCredentialsError("the password of alice did not match")
+    await session.set(
+        SecurityRequestAttributes.AUTHENTICATION_ERROR,
+        authentication_error_to_session(kept),
+    )
 
-    assert await AuthenticationUtils(message).get_last_authentication_error() is kept
+    rebuilt = await AuthenticationUtils(message).get_last_authentication_error()
+
+    assert type(rebuilt) is BadCredentialsError
+    assert rebuilt.get_message_key() == "Invalid credentials."
+    assert str(rebuilt) == "Invalid credentials."
     assert await session.has(SecurityRequestAttributes.AUTHENTICATION_ERROR) is False
+
+
+async def test_the_error_is_rebuilt_with_the_data_the_session_kept() -> None:
+    message, session = _request_with_session()
+    await session.set(
+        SecurityRequestAttributes.AUTHENTICATION_ERROR,
+        authentication_error_to_session(TooManyLoginAttemptsAuthenticationError(5)),
+    )
+
+    rebuilt = await AuthenticationUtils(message).get_last_authentication_error()
+
+    assert isinstance(rebuilt, TooManyLoginAttemptsAuthenticationError)
+    assert rebuilt.threshold == 5
+    assert rebuilt.get_message_data() == {"%minutes%": 5, "%count%": 5}
 
 
 async def test_the_error_stays_on_the_session_when_clearing_is_refused() -> None:
     message, session = _request_with_session()
-    kept = BadCredentialsError("kept")
-    await session.set(SecurityRequestAttributes.AUTHENTICATION_ERROR, kept)
-
-    assert (
-        await AuthenticationUtils(message).get_last_authentication_error(clear_session=False)
-        is kept
+    await session.set(
+        SecurityRequestAttributes.AUTHENTICATION_ERROR,
+        authentication_error_to_session(BadCredentialsError("kept")),
     )
+
+    rebuilt = await AuthenticationUtils(message).get_last_authentication_error(clear_session=False)
+
+    assert type(rebuilt) is BadCredentialsError
     assert await session.has(SecurityRequestAttributes.AUTHENTICATION_ERROR) is True
 
 
@@ -70,6 +98,13 @@ async def test_no_kept_error_answers_none() -> None:
 async def test_a_kept_value_that_is_no_error_answers_none() -> None:
     message, session = _request_with_session()
     await session.set(SecurityRequestAttributes.AUTHENTICATION_ERROR, "not an error")
+
+    assert await AuthenticationUtils(message).get_last_authentication_error() is None
+
+
+async def test_a_live_error_a_session_kept_is_no_envelope_and_answers_none() -> None:
+    message, session = _request_with_session()
+    await session.set(SecurityRequestAttributes.AUTHENTICATION_ERROR, BadCredentialsError("live"))
 
     assert await AuthenticationUtils(message).get_last_authentication_error() is None
 

@@ -5,6 +5,9 @@ the page that renders the form a second time can explain the failure and
 re-fill the identifier field. Where each is read from follows one rule: the
 request's own security state first — what the flow parked on it — then the
 session, which is where a login that answered with a redirect leaves them.
+The session keeps the error as the JSON envelope of its public half, so the
+error read off it is rebuilt: of the class it was, with its key and its data,
+its internal message the key.
 """
 
 from __future__ import annotations
@@ -17,6 +20,9 @@ from xtr_security_core.exception import AuthenticationError
 from xtr_security_http._security_state import security_state_of
 from xtr_security_http.parked_session import parked_session_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
+from xtr_security_http.session.authentication_error_serializer import (
+    authentication_error_from_session,
+)
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import ServerRequestInterface
@@ -49,9 +55,10 @@ class AuthenticationUtils:
         The request's own state is read first — a failure the flow is still
         answering is parked there — and the session second, which is where a
         login that redirected back to its form leaves the error for the page
-        that renders it. Reading it off the session takes it away again
-        unless ``clear_session`` is ``False``: an error page shows an error
-        once, not on every reload.
+        that renders it, rebuilt from the envelope the session keeps; a
+        session value that is no such envelope answers ``None``. Reading it
+        off the session takes it away again unless ``clear_session`` is
+        ``False``: an error page shows an error once, not on every reload.
 
         Args:
             clear_session: Whether the error read off the session is removed
@@ -66,7 +73,7 @@ class AuthenticationUtils:
         kept = await session.get(SecurityRequestAttributes.AUTHENTICATION_ERROR)
         if clear_session:
             _ = await session.remove(SecurityRequestAttributes.AUTHENTICATION_ERROR)
-        return kept if isinstance(kept, AuthenticationError) else None
+        return authentication_error_from_session(kept)
 
     async def get_last_username(self) -> str:
         """Return the username the last login attempt carried, for the form to re-fill.

@@ -19,6 +19,18 @@ class UserProviderInterface(Protocol):
     the library reasons about. A provider works with one class of user;
     :meth:`supports_class` says which, and :meth:`refresh_user` reloads a user
     of that class held from an earlier unit of work.
+
+    A stateful firewall reloads the user its session kept on every request,
+    and what a provider is handed for it depends on what the session could
+    keep. A user implementing
+    :class:`~xtr_security_core.user.session_serializable_user_interface.SessionSerializableUserInterface`
+    is rebuilt as its own class and handed to :meth:`refresh_user`. Any other
+    user was kept as a snapshot — its identifier, its roles and a digest of
+    its password — and is reloaded through :meth:`load_user_by_identifier`
+    instead: the snapshot never reaches :meth:`refresh_user`. Either way the
+    user a session rebuilt is a snapshot of what the session held, not the
+    stored record, so it is reloaded — never persisted, and never merged into
+    what the provider stores as it is.
     """
 
     async def refresh_user(self, user: UserInterface) -> UserInterface:
@@ -26,7 +38,10 @@ class UserProviderInterface(Protocol):
 
         It is up to the implementation to decide whether the user data is
         reloaded entirely — from the database, say — or whether the user
-        object can just be merged into an identity map it keeps.
+        object can just be merged into an identity map it keeps. A user a
+        session rebuilt is the exception: it carries what the session kept —
+        a password digest where the hash was — so it is reloaded, never
+        merged or persisted as it is.
 
         Raises:
             UnsupportedUserError: When the user is not of a class this provider

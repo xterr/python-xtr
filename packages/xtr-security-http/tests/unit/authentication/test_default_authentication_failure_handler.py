@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
@@ -18,6 +19,9 @@ from xtr_security_http.authentication.default_authentication_failure_handler imp
 )
 from xtr_security_http.http_utils import HttpUtils
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
+from xtr_security_http.session.authentication_error_serializer import (
+    authentication_error_to_session,
+)
 from xtr_security_http.util import get_target_path
 
 if TYPE_CHECKING:
@@ -88,7 +92,19 @@ async def test_a_failure_redirects_to_the_login_page_and_keeps_the_error() -> No
     assert response.get_status_code() == 302
     assert response.get_header_line("Location") == "/login"
     kept = await session.get(SecurityRequestAttributes.AUTHENTICATION_ERROR)
-    assert kept is error
+    assert kept == authentication_error_to_session(error)
+
+
+async def test_the_kept_error_is_json_without_its_internal_message() -> None:
+    message, session = _request_with_session()
+    error = BadCredentialsError("the password of ada did not match")
+
+    _ = await _handler().on_authentication_failure(message, error)
+
+    kept = await session.get(SecurityRequestAttributes.AUTHENTICATION_ERROR)
+    assert isinstance(kept, dict)
+    assert json.loads(json.dumps(kept)) == kept
+    assert "the password of ada" not in json.dumps(kept)
 
 
 async def test_a_configured_failure_path_wins_over_the_login_page() -> None:

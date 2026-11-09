@@ -174,6 +174,17 @@ that reads a verified token's claims. `PasswordUpgraderInterface` is the one met
 implements to store a freshly rehashed password, and `EquatableInterface.is_equal_to` lets two
 users be compared field for field.
 
+A **`SessionSerializableUserInterface`** is a user a session keeps whole, as JSON: `to_session()`
+answers its state — a password as `password_digest(password)`, the eight-character crc32c
+checksum, never the hash — and the class method `from_session(state)` rebuilds it, pure, every
+field's type checked, a malformed state refused with `InvalidArgumentError`. `InMemoryUser` and
+`OidcUser` implement it, and `InMemoryUser.is_equal_to` reads a stored password that is the
+digest of the other's as the same password. Inherit it explicitly: a stateful firewall finds the
+class a session names among the contract's subclasses, hands a user rebuilt that way to the
+provider's `refresh_user`, and keeps any other user as a snapshot it reloads through
+`load_user_by_identifier` instead. Either way the rebuilt user is a snapshot of the session, not
+the stored record: a provider reloads it, and never persists or merges it as it is.
+
 A **`UserCheckerInterface`** gates an account around authentication: `check_pre_auth(user)`
 before the credentials are verified, `check_post_auth(user, token)` after. `InMemoryUserChecker`
 refuses a disabled account with `DisabledError`; `ChainUserChecker` runs several in order.
@@ -192,6 +203,16 @@ no user, no roles, no attributes — and refuses a user, an attribute or a proof
 (or unit of work) that authenticated the user, read back with `get_firewall_name()`.
 `OfflineTokenInterface` marks the token `is_granted_for_user` decides with; it is read from a
 token's class hierarchy, not structurally.
+
+A session keeps a token as JSON through two hooks: `to_session(encode_token)` answers its state —
+`AbstractToken` the roles and the attributes, each concrete token adding its own fields, the
+firewall, a switch's original passed through `encode_token` — and the class method
+`from_session(state, user, decode_token)` rebuilds it without running the constructor, the roles
+restored as they were fixed (a remembered token's too, not read from the user again). A token
+class is kept in a session only when it defines `from_session` in its own body; `NullToken`
+defines none. `AuthenticationError.to_session()` answers an error's public half — the key and the
+data JSON gives back as it was, never the internal message — and the class method
+`from_session(message_key, message_data)` rebuilds one whose `str()` is the key.
 
 **`TokenStorage`** holds the current token for one unit of work — `get_token()` /
 `set_token(token)` — and `await reset()` forgets it so the next one starts clean.
@@ -320,7 +341,8 @@ typed attributes rather than only a message.
 ```
 xtr_security_core/
 ├── authentication_events.py  AuthenticationEvents, the authentication event names
-├── user/                     UserInterface, InMemoryUser(Provider/Checker), chains, OidcUser(Provider), OAuth2User
+├── user/                     UserInterface, InMemoryUser(Provider/Checker), chains, OidcUser(Provider), OAuth2User,
+│                             SessionSerializableUserInterface, password_digest
 ├── authentication/
 │   ├── authentication_method.py  AuthenticationMethod, the methods a proof names
 │   ├── token/                TokenInterface, AbstractToken, NullToken, OfflineTokenInterface, UsernamePasswordToken
