@@ -327,5 +327,7 @@ async def test_a_key_is_never_written_through_a_symbolic_link(
     code = await console.execute(["--overwrite"], interactive=False)
 
     assert code == ExitCode.FAILURE
-    assert "never written through a symbolic link" in console.display
+    # The refusal names the path twice; a long temporary directory wraps it
+    # across lines, so the words are compared with the wrapping undone.
+    assert "never written through a symbolic link" in " ".join(console.display.split())
     assert not (tmp_path / "planted.pem").exists()
