@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from xtr_dependency_injection import Injected
 
 from tests.fixtures.oauth2_orm_app.config import USER_IDENTIFIER, USER_PASSWORD
+from tests.support.bound_instants import assert_naive_utc
 from tests.support.orm_app import orm_kernel, stored_tables
 from tests.support.served import (
     CLIENT_ID,
@@ -210,6 +211,50 @@ async def test_a_stored_refresh_token_is_spent_exactly_once(tmp_path: Path) -> N
         assert text_field(json_of(refreshed), "access_token")
         assert spent_again.status_code == 400
         assert text_field(json_of(spent_again), "error") == "invalid_grant"
+
+
+async def test_every_instant_a_code_and_its_tokens_store_is_naive_utc(
+    tmp_path: Path,
+    bound_instants: list[object],
+) -> None:
+    # The code, its exchange for a pair, the refresh and the revocation: every write and every
+    # lookup on an expiry goes through the column, east of UTC.
+    async with stored_tables(tmp_path), serving(_application(tmp_path)) as client:
+        await _seed(client)
+        pair = json_of(
+            await client.post(
+                "/token",
+                data={
+                    "grant_type": "authorization_code",
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "redirect_uri": REDIRECT_URI,
+                    "code": await _code(client),
+                    "code_verifier": VERIFIER,
+                },
+            ),
+        )
+        refreshed = await client.post(
+            "/token",
+            data={
+                "grant_type": "refresh_token",
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "refresh_token": text_field(pair, "refresh_token"),
+            },
+        )
+        withdrawn = await client.post(
+            "/revoke",
+            data={
+                "token": text_field(json_of(refreshed), "access_token"),
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+            },
+        )
+
+    assert refreshed.status_code == 200, refreshed.text
+    assert withdrawn.status_code == 200, withdrawn.text
+    assert_naive_utc(bound_instants)
 
 
 async def test_a_stored_token_is_withdrawn_by_the_revocation_endpoint(tmp_path: Path) -> None:

@@ -16,11 +16,13 @@ what a request has too, since the client is read through the same session.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import pytest
 from xtr_clock import MockClock
 
+from tests.support.bound_instants import assert_naive_utc
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.models import (
     EARLIER,
@@ -40,7 +42,7 @@ from xtr_security_oauth2_server.value_object.grant import Grant
 from xtr_security_oauth2_server.value_object.scope import Scope
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Callable
+    from collections.abc import AsyncGenerator, Awaitable, Callable
     from contextlib import AbstractAsyncContextManager
     from pathlib import Path
     from typing import TypeAlias
@@ -324,6 +326,48 @@ async def test_the_expired_access_tokens_are_swept_and_counted(
         assert cleared == 1
         assert await manager.find("expired") is None
         assert await manager.find("alive") is not None
+
+
+async def _sweep_access_tokens(tmp_path: Path) -> None:
+    async with _stored_access_tokens(tmp_path) as (manager, client):
+        await manager.save(access_token_model("expired", EARLIER, client))
+        _ = await manager.clear_expired()
+
+
+async def _sweep_authorization_codes(tmp_path: Path) -> None:
+    async with _stored_authorization_codes(tmp_path) as (manager, client):
+        await manager.save(authorization_code_model("expired", EARLIER, client))
+        _ = await manager.clear_expired()
+
+
+async def _sweep_refresh_tokens(tmp_path: Path) -> None:
+    async with _stored_refresh_tokens(tmp_path) as manager:
+        await manager.save(refresh_token_model("expired", EARLIER))
+        _ = await manager.clear_expired()
+
+
+async def _sweep_device_codes(tmp_path: Path) -> None:
+    async with _stored_device_codes(tmp_path) as (manager, client):
+        await manager.save(device_code_model("expired", EARLIER, "AAAAAAAA", client))
+        _ = await manager.clear_expired()
+
+
+@pytest.mark.parametrize(
+    "sweep",
+    [_sweep_access_tokens, _sweep_authorization_codes, _sweep_refresh_tokens, _sweep_device_codes],
+)
+async def test_a_sweep_compares_with_a_naive_utc_instant(
+    tmp_path: Path,
+    bound_instants: list[object],
+    sweep: Callable[[Path], Awaitable[None]],
+) -> None:
+    # The stored expiry, and the clock's reading the sweep compares it with: the comparison is
+    # bound through the column as the writes are.
+    await sweep(tmp_path)
+
+    assert_naive_utc(bound_instants)
+    assert datetime(2026, 3, 4, 4, 6, 7) in bound_instants  # noqa: DTZ001 -- EARLIER, as stored
+    assert datetime(2026, 3, 4, 5, 6, 7) in bound_instants  # noqa: DTZ001 -- NOW, the clock's reading
 
 
 @pytest.mark.parametrize("open_access_tokens", _ACCESS_TOKENS)

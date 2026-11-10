@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from xtr_security_oauth2_server_core.oauth2_grants import OAuth2Grants
 
+from tests.support.bound_instants import assert_naive_utc
 from tests.support.orm_app import orm_kernel, stored_tables, stored_url
 from tests.support.served import (
     CLIENT_ID,
@@ -120,3 +121,19 @@ async def test_a_poll_told_to_slow_down_stores_its_own_time_as_well(tmp_path: Pa
     assert first is not None
     assert second is not None
     assert second > first
+
+
+async def test_every_instant_a_polled_device_code_stores_is_naive_utc(
+    tmp_path: Path,
+    bound_instants: list[object],
+) -> None:
+    # The device code's expiry, then each poll's time: east of UTC, a value labelled with the
+    # local zone would read as an expired code and the device would be told so.
+    async with stored_tables(tmp_path), serving(_application(tmp_path)) as client:
+        device_code = await _device_code(client)
+        pending = await _poll(client, device_code)
+        refused = await _poll(client, device_code)
+
+    assert text_field(json_of(pending), "error") == "authorization_pending"
+    assert text_field(json_of(refused), "error") == "slow_down"
+    assert_naive_utc(bound_instants)

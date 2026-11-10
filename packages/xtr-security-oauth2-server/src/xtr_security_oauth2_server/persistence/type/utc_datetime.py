@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, final
 from sqlalchemy import DateTime
 from sqlalchemy.types import TypeDecorator
 from typing_extensions import override
+from xtr_clock import DatePoint
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 if TYPE_CHECKING:
@@ -24,9 +25,16 @@ class UtcDateTime(TypeDecorator[datetime]):
     timezone-aware instant, and comparing one of those with a naive instant
     raises rather than guessing. Databases do not agree on time zones —
     PostgreSQL keeps one, SQLite and MySQL drop it — so the zone is settled
-    here instead: what goes in is moved to UTC and stored without a zone, and
-    what comes back is handed over as UTC. Every backend then behaves the same,
-    and a row read by something that is not this package reads as UTC too.
+    here instead: what goes in is moved to UTC and handed to the driver as
+    exactly a plain naive ``datetime``, and what comes back is handed over as
+    UTC. Every backend then behaves the same, and a row read by something that
+    is not this package reads as UTC too.
+
+    Exactly a plain ``datetime``, because the drivers do not agree on anything
+    else either: asyncpg refuses an aware value for a column without a zone,
+    psycopg and MySQL convert the offset they are handed — storing another
+    instant — and PyMySQL does not recognise a ``datetime`` subclass, so a
+    clock's ``DatePoint`` would reach it as text, offset and all.
 
     A naive instant is refused rather than assumed to be UTC: it would be the
     machine's local time about half the time, and a credential whose expiry is
@@ -41,6 +49,9 @@ class UtcDateTime(TypeDecorator[datetime]):
     def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
         """Move ``value`` to UTC and drop the zone, which is now implied.
 
+        The clock hands over a ``DatePoint``, which ``replace(tzinfo=None)``
+        cannot make naive; its own naive UTC reading is what the driver gets.
+
         Raises:
             InvalidArgumentError: When ``value`` carries no time zone.
         """
@@ -53,11 +64,16 @@ class UtcDateTime(TypeDecorator[datetime]):
                 "guess at one; read it off a clock, which always reports the zone.",
             )
 
-        return value.astimezone(UTC).replace(tzinfo=None)
+        return DatePoint.from_datetime(value).to_naive_utc()
 
     @override
     def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
-        """Hand back what was stored as the UTC instant it is."""
+        """Hand back what was stored as the UTC instant it is.
+
+        A plain aware ``datetime`` in UTC, deliberately not a ``DatePoint``:
+        the entities and grants compare instants, and every reader of the row
+        gets the standard library's type.
+        """
         del dialect
         if value is None:
             return None
