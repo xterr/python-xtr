@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-oauth2-server-core"
-version = "6.4.0"
+version = "6.5.0"
 description = "The OAuth 2.0 authorization-server library: grants, servers, entities, response types and the resource server."
 readme = "README.md"
 requires-python = ">=3.11"
