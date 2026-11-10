@@ -10,6 +10,15 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
+# Loaded always: the factory and provider packages build from the
+# configuration classes that live in ``xtr_security.bundle``, whose own module
+# re-exports those packages' factories. Entered from the bundle the two load
+# in order; entered from a factory package first, the bundle would ask that
+# half-loaded package for a class it has not defined yet. Loading the bundle
+# here makes the bundle the entry, whichever of them is imported first.
+from . import (
+    bundle,  # noqa: F401  # pyright: ignore[reportUnusedImport] -- loaded for its import order, not its name
+)
 from .oidc_back_channel_logout_handler import OidcBackChannelLogoutHandler
 from .security import Security
 
