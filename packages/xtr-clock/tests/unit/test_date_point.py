@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import pickle
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from typing import TYPE_CHECKING, cast
 from zoneinfo import ZoneInfo
 
@@ -255,3 +255,116 @@ def test_two_readings_of_a_repeated_hour_compare_equal_until_read_in_utc() -> No
     assert first == second
     assert first.astimezone(UTC) < second.astimezone(UTC)
     assert second.timestamp() - first.timestamp() == 3600
+
+
+BUCHAREST = ZoneInfo("Europe/Bucharest")
+
+
+def _assert_naive_utc(result: datetime, point: datetime, expected: datetime) -> None:
+    """Assert ``result`` is exactly a plain naive ``datetime``, the UTC wall clock of ``point``.
+
+    Exactly ``datetime``, not a subclass: a driver that dispatches on the type does not
+    recognise a subclass. The instant is compared by timestamp, because two aware datetimes in
+    different zones compare unequal when either falls in a repeated or skipped hour.
+    """
+    assert type(result) is datetime
+    assert result.tzinfo is None
+    assert result.fold == 0
+    assert result == expected
+    assert result.replace(tzinfo=UTC).timestamp() == point.timestamp()
+
+
+def test_a_utc_point_reads_as_the_same_wall_clock_without_a_zone() -> None:
+    point = DatePoint(2026, 11, 10, 10, 8, 54, 123456, tzinfo=UTC)
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2026, 11, 10, 10, 8, 54, 123456))
+
+
+@pytest.mark.parametrize(
+    ("offset", "wall_clock"),
+    [(timedelta(hours=5), (15, 8)), (timedelta(hours=5, minutes=30), (15, 38))],
+)
+def test_a_point_east_of_utc_is_moved_back_to_utc(
+    offset: timedelta,
+    wall_clock: tuple[int, int],
+) -> None:
+    point = DatePoint(2026, 11, 10, *wall_clock, 54, tzinfo=timezone(offset))
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2026, 11, 10, 10, 8, 54))
+
+
+def test_a_point_west_of_utc_is_moved_forward_across_midnight_and_the_year() -> None:
+    point = DatePoint(2026, 12, 31, 23, 30, tzinfo=timezone(timedelta(hours=-5)))
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2027, 1, 1, 4, 30))
+
+
+@pytest.mark.parametrize(
+    ("month", "utc_hour"),
+    [(1, 10), (7, 9)],
+    ids=["winter", "summer"],
+)
+def test_a_point_built_in_the_local_zone_is_read_in_it(
+    monkeypatch: pytest.MonkeyPatch,
+    month: int,
+    utc_hour: int,
+) -> None:
+    monkeypatch.setenv("TZ", "Europe/Bucharest")
+    point = DatePoint(2026, month, 10, 12, 0)
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2026, month, 10, utc_hour, 0))
+
+
+def test_it_is_a_plain_datetime_whatever_the_local_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TZ", "Europe/Bucharest")
+    point = DatePoint(2026, 11, 10, 10, 8, 54, tzinfo=UTC)
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2026, 11, 10, 10, 8, 54))
+
+
+def test_a_subclass_reads_as_a_plain_datetime_too() -> None:
+    point = Stamp(2026, 11, 10, 10, 8, 54, tzinfo=UTC)
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2026, 11, 10, 10, 8, 54))
+
+
+@pytest.mark.parametrize(("fold", "utc_hour"), [(0, 0), (1, 1)])
+def test_the_two_readings_of_a_repeated_hour_are_an_hour_apart(fold: int, utc_hour: int) -> None:
+    point = DatePoint(2026, 10, 25, 3, 30, tzinfo=BUCHAREST, fold=fold)
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2026, 10, 25, utc_hour, 30))
+
+
+def test_a_wall_clock_skipped_by_daylight_saving_reads_with_the_offset_before_it() -> None:
+    point = DatePoint(2026, 3, 29, 3, 30, tzinfo=BUCHAREST)
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2026, 3, 29, 1, 30))
+
+
+def test_a_naive_point_is_read_as_local_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TZ", "Europe/Bucharest")
+    # Around the constructor, which would attach the local zone: the only way to a naive
+    # DatePoint on every Python version.
+    point = datetime.__new__(DatePoint, 2026, 11, 10, 12, 8, 54)
+
+    assert point.to_naive_utc() == datetime(2026, 11, 10, 10, 8, 54)
+    assert type(point.to_naive_utc()) is datetime
+
+
+def test_the_last_representable_instant_survives() -> None:
+    point = DatePoint(9999, 12, 31, 23, 59, 59, 999999, tzinfo=UTC)
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(9999, 12, 31, 23, 59, 59, 999999))
+
+
+def test_an_instant_utc_cannot_hold_raises_overflow() -> None:
+    point = DatePoint(1, 1, 1, tzinfo=timezone(timedelta(hours=5)))
+
+    with pytest.raises(OverflowError):
+        _ = point.to_naive_utc()
+
+
+def test_a_frozen_clock_reading_converts_to_its_utc_wall_clock() -> None:
+    point = MockClock(DatePoint(2026, 11, 10, 10, 8, 54, tzinfo=BUCHAREST)).now()
+
+    _assert_naive_utc(point.to_naive_utc(), point, datetime(2026, 11, 10, 8, 8, 54))

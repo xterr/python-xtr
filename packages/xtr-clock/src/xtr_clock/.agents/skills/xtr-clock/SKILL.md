@@ -16,6 +16,7 @@ anywhere a `datetime` goes.
 - Production: `SystemClock()`. Durations and timeouts: `MonotonicClock()`. Tests: `MockClock(...)`.
 - Code that cannot be handed a clock (module helpers, validators): `from xtr_clock import now`.
 - Relative times: `clock.now().modify("+1 hour")`, `now("tomorrow")`, `DatePoint.parse("+1 day UTC")`.
+- A column without a zone (naive UTC): `clock.now().to_naive_utc()` — a plain `datetime`.
 - Freeze for a block: `from xtr_clock.testing import mock_time`.
 - In an application, with xtr-dependency-injection installed beside the package (it is not a
   dependency): activate `ClockBundle`, inject `ClockInterface`. Without the container, build the
@@ -158,6 +159,8 @@ Both derive from `ClockError` and from `ValueError`:
 ## Do not
 
 - Do not use naive datetimes; a `DatePoint` is always aware, and comparing aware with naive fails.
+- Do not call `replace(tzinfo=None)` on a `DatePoint` to get a naive value: it stays a `DatePoint`
+  and gets the local zone back; use `to_naive_utc()`.
 - Do not call `Clock.set()` in tests — it never ends; use `mock_time` or `Clock.using`.
 - Do not use `MonotonicClock` for timestamps you store or show.
 - Do not patch `datetime` or the interpreter to freeze time.

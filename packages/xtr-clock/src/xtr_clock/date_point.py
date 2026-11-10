@@ -2,7 +2,8 @@
 
 ``DatePoint`` is a :class:`~datetime.datetime`, so everything already
 written against one keeps working: comparison, subtraction, formatting,
-``strftime``, ``isoformat``, sorting, a database driver. It adds two
+``strftime``, ``isoformat``, sorting, a database column that keeps a zone.
+A column that keeps none takes :meth:`DatePoint.to_naive_utc`. It adds two
 guarantees the standard library leaves to the caller.
 
 **It is always timezone-aware.** A naive reading is taken as local time, the
@@ -18,7 +19,9 @@ apart. Compare instants that may fall in such an hour in UTC —
 **It stays a ``DatePoint``.** ``replace``, ``astimezone``, adding a
 :class:`~datetime.timedelta`, ``fromisoformat``, ``strptime`` — each answers
 with a ``DatePoint``, so the type survives a chain of operations and the
-guarantee above survives with it.
+guarantee above survives with it. That includes ``replace(tzinfo=None)``,
+which therefore never yields the plain naive value such a column wants: use
+:meth:`DatePoint.to_naive_utc`.
 
 ``now()`` reads the clock in force rather than the operating system, so a
 frozen clock in a test reaches code that never heard of this library's
@@ -27,7 +30,7 @@ interfaces.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, Self, TypeVar
 
 from .modifier import apply_modifier
@@ -202,6 +205,35 @@ class DatePoint(datetime):
             InvalidTimezoneError: When ``timezone`` names no known zone.
         """
         return self.astimezone(resolve_timezone(timezone))
+
+    def to_naive_utc(self) -> datetime:
+        """Return this instant's UTC wall clock, as a plain naive ``datetime``.
+
+        Some storage keeps an instant without a zone — a ``TIMESTAMP WITHOUT
+        TIME ZONE`` column holding UTC — and its driver wants exactly a naive
+        :class:`~datetime.datetime`: one refuses an aware value, another
+        converts the offset it is handed, a third does not recognise a
+        subclass at all. ``replace(tzinfo=None)`` does not give that value: on
+        Python 3.12 and later it answers with a ``DatePoint`` the local zone
+        was attached to again, and on 3.11 with a naive ``DatePoint``, still
+        not a plain ``datetime``. This is the one reading that does.
+
+        A naive ``DatePoint`` — one built around this class's constructor —
+        is read as local time, as this class reads every naive reading.
+
+        Returns:
+            A plain ``datetime``, with no zone, holding the UTC wall clock of
+            this instant; ``fold`` is ``0``, since UTC repeats no hour.
+
+        Raises:
+            OverflowError: When the instant lies outside what ``datetime``
+                can hold in UTC — year 1 east of UTC, year 9999 west of it.
+        """
+        zoned = self if self.tzinfo is not None else self.replace(tzinfo=local_timezone())
+        utc = zoned.astimezone(UTC)
+        # The base class's combine: this class's own would attach the local
+        # zone to the result, which is exactly what must not happen here.
+        return datetime.combine(utc.date(), utc.time())
 
     def __reduce_ex__(
         self, protocol: SupportsIndex

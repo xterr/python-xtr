@@ -166,7 +166,7 @@ point.isoformat()  # a string, as always
 point < other_datetime  # compares fine
 ```
 
-It adds two guarantees and three methods.
+It adds two guarantees and four methods.
 
 **It is always timezone-aware.** A naive reading is taken as local time — the reading the
 standard library itself picks whenever it has to convert one. So `DatePoint(2024, 4, 9)` carries
@@ -183,6 +183,17 @@ point.with_timezone("Asia/Tokyo")  # the same instant, another wall clock
 ```
 
 `DatePoint.from_datetime(value)` adopts any `datetime` you already have.
+
+A column that keeps an instant without a zone — `TIMESTAMP WITHOUT TIME ZONE` holding UTC — wants
+a plain naive `datetime`, which a `DatePoint` never is. `to_naive_utc()` gives it:
+
+```python
+point.to_naive_utc()  # a plain datetime, no zone, holding the UTC wall clock
+```
+
+`replace(tzinfo=None)` does not: it answers with a `DatePoint` like every other operation, the
+local zone attached again on Python 3.12 and later, and a database driver handed one either
+refuses it or stores it shifted by the machine's UTC offset.
 
 > A `DatePoint` is built the way a `datetime` is — `DatePoint(2024, 4, 9)`. The string grammar
 > lives on `parse()` and `now()` rather than on the constructor, because `replace`, arithmetic
