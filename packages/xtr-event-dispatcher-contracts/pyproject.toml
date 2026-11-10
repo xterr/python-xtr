@@ -1,6 +1,6 @@
 [project]
 name = "xtr-event-dispatcher-contracts"
-version = "6.3.0"
+version = "6.3.1"
 description = "The event dispatching contract alone: an event, a dispatcher and listener introspection, for code that emits events without choosing who hears them."
 readme = "README.md"
 authors = [

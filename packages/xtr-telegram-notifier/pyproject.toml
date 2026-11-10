@@ -1,6 +1,6 @@
 [project]
 name = "xtr-telegram-notifier"
-version = "6.3.0"
+version = "6.3.1"
 description = "Telegram for xtr-notifier — chat messages posted, edited and answered through a bot, with keyboards, media and file uploads, configured by DSN."
 readme = "README.md"
 authors = [
