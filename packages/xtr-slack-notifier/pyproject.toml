@@ -1,6 +1,6 @@
 [project]
 name = "xtr-slack-notifier"
-version = "6.3.1"
+version = "6.4.0"
 description = "Slack for xtr-notifier — chat messages posted, scheduled and updated in a channel, with Block Kit blocks, configured by DSN."
 readme = "README.md"
 authors = [
