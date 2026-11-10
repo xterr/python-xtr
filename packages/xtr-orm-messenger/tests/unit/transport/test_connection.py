@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from xtr_clock import DatePoint, MockClock
 from xtr_orm.exception import SessionUnavailableError
 
 from tests.support.connections import connection_on
@@ -14,7 +16,6 @@ from xtr_orm_messenger.transport import LISTING_PAGE_SIZE, OrmOptions
 
 if TYPE_CHECKING:
     from sqlalchemy import Connection as SyncConnection
-    from xtr_clock import MockClock
 
 pytestmark = pytest.mark.anyio
 
@@ -51,6 +52,26 @@ async def test_a_sent_message_is_claimed_once_and_marked_handed_out(
     assert claimed.created_at == claimed.available_at == _naive("2026-01-01T00:00:00")
     assert claimed.delivered_at == _naive("2026-01-01T00:00:00")
     assert await connection.get() is None
+
+
+async def test_the_instants_stored_are_plain_naive_utc_whatever_the_clock_zone(
+    engine: AsyncEngine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # East of UTC, on a clock reading in the machine's own zone: what the table keeps is still
+    # the UTC wall clock, as a plain datetime a driver can take.
+    monkeypatch.setenv("TZ", "Europe/Bucharest")
+    clock = MockClock(DatePoint(2026, 1, 1, 2, 0, 0, tzinfo=ZoneInfo("Europe/Bucharest")))
+    connection = connection_on(engine, clock)
+    _ = await connection.send("{}", HEADERS)
+
+    claimed = await connection.get()
+
+    assert claimed is not None
+    for stored in (claimed.created_at, claimed.available_at, claimed.delivered_at):
+        assert type(stored) is datetime
+        assert stored.tzinfo is None
+        assert stored == _naive("2026-01-01T00:00:00")
 
 
 async def test_messages_are_claimed_oldest_due_first(engine: AsyncEngine, clock: MockClock) -> None:

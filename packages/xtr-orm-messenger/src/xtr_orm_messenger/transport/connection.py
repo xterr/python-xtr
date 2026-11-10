@@ -18,7 +18,7 @@ which the receiver treats as a conflict worth trying again.
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, TypeVar, cast, final
 
 import msgspec
@@ -409,8 +409,7 @@ class Connection:
 
     def _now(self) -> datetime:
         """Return the current instant as the naive UTC datetime the table keeps."""
-        point = self._clock.now().astimezone(UTC)
-        return datetime.combine(point.date(), point.time())
+        return self._clock.now().to_naive_utc()
 
 
 def _identifier(result: CursorResult[tuple[object, ...]]) -> str:
