@@ -36,7 +36,7 @@ class CachingBookCatalog(BookCatalogInterface, ResetInterface):
 
     It inherits ``ResetInterface`` explicitly, so the kernel bundle's nominal
     autoconfiguration tags it ``kernel.reset`` with ``method="reset"``: the worker, the web
-    server and ``cache:clear`` call ``ServicesResetter.reset()`` and the cache empties.
+    server and ``di:reset`` call ``ServicesResetter.reset()`` and the cache empties.
     """
 
     __slots__ = ("_hits", "_inner", "_lookups")

@@ -42,7 +42,8 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 | `bookshop orders:list` | the orders in the database, newest first, with their receipts — two per order, one written by each transport `SendReceipt` fans out to |
 | `bookshop orders:reindex [REASON] [--via outbox]` | a pydantic message, `TransportNamesStamp` |
 | `bookshop search:query WORDS [-s]` · `search:stats` | commands a library's bundle contributes, loaded late |
-| `bookshop cache:clear` · `logs:recent` | `ServicesResetter`; a configured handler reached by name |
+| `bookshop di:reset` · `logs:recent` | `ServicesResetter`; a configured handler reached by name |
+| `bookshop catalog:snapshot` · `cache:warmup` · `cache:clear [--no-warmup]` | cache warmers: the first start with a cold `var/cache/<env>` writes `catalog.json` (not optional), every later start skips it; `cache:warmup` and `cache:clear` add the optional `genres.json`; `cache:clear --no-warmup` removes both, and the next start writes the snapshot again |
 | `bookshop cache:pool:list` · `cache:pool:clear quotes` · `cache:pool:prune` | the cache bundle's commands: `app`, `quotes`, and the `scheduler` pool the scheduler bundle adds |
 | `bookshop debug:scheduler [--sort] [--all] [--date D]` | the schedule and its tasks with their next runs — from the saved checkpoint once it has run |
 | `bookshop messenger:consume scheduler_default --time-limit 7 -vv` | the schedule, run: a heartbeat every two seconds in dev, each run's result; start it again and it resumes; start two and only one sends |
@@ -274,6 +275,7 @@ own, keep every secret out of the repository too.
 | `Injected[T]`, `Autowire(param=)`, `Autowire(env=)`, `Target(q)`, `AutowireDecorated` | throughout; `env/env_showcase.py` for `env=` |
 | `EnvVarProcessorInterface` · `EnvVarLoaderInterface` | `env/rot13_processor.py` · `env/secrets_directory_loader.py` |
 | `ContainerInterface`, `ContainerBagInterface`, `KernelInterface`, `ServicesResetter`, `bind_callable` | `command/container_showcase_command.py`, `command/clear_caches_command.py`, `service/run_startup_checks.py` |
+| `CacheWarmer` (not optional · optional), `kernel.cache_dir` / `kernel.build_dir` | `service/catalog_snapshot_warmer.py` · `service/genre_index_warmer.py`, `command/catalog_snapshot_command.py` |
 | The markers as the web framework's own dependencies, in a route signature | `web/routes.py` |
 
 ### The other packages

@@ -1,4 +1,4 @@
-"""``cache:clear`` — reset every resettable service that was built."""
+"""``di:reset`` — reset every resettable service that was built."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fulltext import QueryLog, SearchEngineInterface
 __all__ = ["clear_caches"]
 
 
-@as_command("cache:clear")
+@as_command("di:reset")
 async def clear_caches(
     io: ConsoleStyle,
     resetter: Injected[ServicesResetter],
