@@ -100,6 +100,52 @@ async def test_a_record_pointing_at_a_missing_entry_conflicts(store: OrmConversa
     assert await store.read_record("c1") is None
 
 
+async def test_writing_over_a_revision_another_writer_replaced_conflicts(
+    store: OrmConversationStore,
+) -> None:
+    await _turn(store, "c1", "one")
+    record = await store.read_record("c1")
+    assert record is not None
+
+    # What a concurrent writer meets when it read the record before another one saved it.
+    with pytest.raises(ConversationConflict):
+        await store.write_record(record, expected_revision="a-revision-already-replaced")
+
+
+async def test_deleting_a_revision_another_writer_replaced_conflicts(
+    store: OrmConversationStore,
+) -> None:
+    await _turn(store, "c1", "one")
+
+    with pytest.raises(ConversationConflict):
+        await store.delete_record("c1", expected_revision="a-revision-already-replaced")
+
+    assert await store.load("c1") is not None
+
+
+async def test_an_entry_is_read_by_its_id(store: OrmConversationStore) -> None:
+    await _turn(store, "c1", "one")
+    record = await store.read_record("c1")
+    assert record is not None
+    assert record.head_id is not None
+
+    entry = await store.read_entry(record.head_id)
+
+    assert entry.id == record.head_id
+
+
+async def test_an_empty_history_reads_nothing(store: OrmConversationStore) -> None:
+    assert await store.read_history(None) == []
+    assert await store.read_history("any", limit=0) == []
+
+
+async def test_a_history_whose_head_is_missing_is_a_lookup_error(
+    store: OrmConversationStore,
+) -> None:
+    with pytest.raises(KeyError):
+        _ = await store.read_history("no-such-entry")
+
+
 async def test_a_branch_keeps_the_history_it_leaves(store: OrmConversationStore) -> None:
     await _turn(store, "c1", "one")
     await _turn(store, "c1", "two")
