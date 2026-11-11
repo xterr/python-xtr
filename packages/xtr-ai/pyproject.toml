@@ -1,7 +1,7 @@
 [project]
 name = "xtr-ai"
 version = "6.5.0"
-description = "Named language-model platforms and agents built on pydantic-ai, with conversation stores and cross-process run control."
+description = "Named language-model platforms and agents built on pydantic-ai, configured once and injected by name, with conversation stores."
 readme = "README.md"
 authors = [
     { name = "Xterr", email = "me@xterr.dev" }
@@ -39,11 +39,10 @@ groq = ["pydantic-ai-slim[groq]>=2.66,<3"]
 openrouter = ["pydantic-ai-slim[openrouter]>=2.66,<3"]
 mcp = ["pydantic-ai-slim[mcp]>=2.66,<3"]
 ag-ui = ["pydantic-ai-slim[ag-ui]>=2.66,<3"]
-# Conversations and run control kept on an xtr-orm connection: the two bridges, which the
-# bundle wires when they are installed.
+# Conversations kept on an xtr-orm connection: the bridge, which the bundle wires when it is
+# installed.
 orm = [
     "xtr-ai-orm-conversation-store>=6.0,<7",
-    "xtr-ai-orm-run-control>=6.0,<7",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -69,7 +68,6 @@ dev = [
     "xtr-logging>=6.0,<7",
     "xtr-orm>=6.0,<7",
     "xtr-ai-orm-conversation-store>=6.0,<7",
-    "xtr-ai-orm-run-control>=6.0,<7",
     "aiosqlite>=0.20",
 ]
 
@@ -151,14 +149,6 @@ unfixable = []
 "src/xtr_ai/bundle/*.py" = ["TC001", "TC002", "TC003"]
 # A command's parameters are read by the console at runtime.
 "src/xtr_ai/command/*.py" = ["TC001", "TC002", "TC003"]
-# The run-control contract is a test suite shipped for backends to run.
-"src/xtr_ai/testing/run_control_contract.py" = [
-    "S101",     # assert is the point of pytest
-    "D102",     # test names are the docs
-    "PLR2004",  # magic numbers in test data
-    "SLF001",   # the checks drive a backend's storage primitives, as another process would
-    "ASYNC110", # a cancellation token offers no event to wait on
-]
 "tests/**/*.py" = [
     "S101",    # assert is the point of pytest
     "S603",    # a child interpreter is how a second process is checked

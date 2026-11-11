@@ -1,4 +1,4 @@
-"""The bundle wiring platforms, agents, conversation stores and run control into the container."""
+"""The bundle wiring platforms, agents and conversation stores into the container."""
 
 from __future__ import annotations
 
@@ -27,16 +27,10 @@ from xtr_ai.platform_registry_interface import PlatformRegistryInterface
 from ._agent_factories import AI_CHANNEL, agent_factory
 from ._platform_factories import platform_factory, registry_factory
 from ._references import check_references, require_bridge
-from ._store_factories import (
-    CONVERSATION_STORE_BRIDGE,
-    RUN_CONTROL_BRIDGE,
-    conversation_store_factory,
-    run_control_factory,
-)
+from ._store_factories import CONVERSATION_STORE_BRIDGE, conversation_store_factory
 from ._tool_wiring import TOOL_TAG, classes_declaring_tools, tools_registrar
 from .ai_config import AiConfig
 from .conversation_store_configs import OrmConversationStoreConfig
-from .run_control_configs import OrmRunControlConfig, ServiceRunControlConfig
 from .toolset_configs import ToolsetRef
 
 if TYPE_CHECKING:
@@ -51,8 +45,6 @@ DEFAULT_STORE: Final = "default"
 
 _STORE_CONNECTION: Final = "ai.conversation_store.orm_connection"
 _STORE_ENABLED: Final = "ai.conversation_store.orm_enabled"
-_RUN_CONNECTION: Final = "ai.run_control.orm_connection"
-_RUN_ENABLED: Final = "ai.run_control.orm_enabled"
 
 
 @final
@@ -61,7 +53,7 @@ _RUN_ENABLED: Final = "ai.run_control.orm_enabled"
 @required_bundle("xtr_console.bundle:ConsoleBundle", ignore_on_invalid=True)
 @as_bundle("ai", config=AiConfig)
 class AiBundle(Bundle[AiConfig]):
-    """Registers each configured platform, agent, conversation store and run control.
+    """Registers each configured platform, agent and conversation store.
 
     Nothing is built, imported from a provider's SDK or read from the
     environment while the container builds or boots: an agent is built the
@@ -73,14 +65,13 @@ class AiBundle(Bundle[AiConfig]):
     def __init__(self) -> None:
         """Hold no mapping passes and no agents yet."""
         self._store_mappings: OrmMappingsPass | None = None
-        self._run_mappings: OrmMappingsPass | None = None
         self._agents: tuple[str, ...] = ()
         self._service_types: dict[type, tuple[type, str]] = {}
         self._tool_classes: set[type] = set()
 
     @override
     def build(self, builder: ContainerBuilder) -> None:
-        """Collect ``@as_tool`` methods, and ready the orm bridges' tables when both are there."""
+        """Collect ``@as_tool`` methods, and ready the conversation tables when the orm is there."""
         builder.register_attribute_for_autoconfiguration(
             classes_declaring_tools, tools_registrar(self._tool_classes)
         )
@@ -91,9 +82,6 @@ class AiBundle(Bundle[AiConfig]):
         if find_spec(CONVERSATION_STORE_BRIDGE) is not None:
             self._store_mappings = OrmMappingsPass(_STORE_CONNECTION, _STORE_ENABLED)
             builder.add_compiler_pass(self._store_mappings)
-        if find_spec(RUN_CONTROL_BRIDGE) is not None:
-            self._run_mappings = OrmMappingsPass(_RUN_CONNECTION, _RUN_ENABLED)
-            builder.add_compiler_pass(self._run_mappings)
 
     @override
     def prepend_extension(self, builder: ContainerBuilder) -> None:
@@ -144,15 +132,12 @@ class AiBundle(Bundle[AiConfig]):
             if not has_logging:
                 _ = definition.set_argument("logger", None)
         self._register_conversation_stores(config, services, builder)
-        self._register_run_control(config, services, builder, has_clock=has_clock)
         if bundle_active(builder, "console"):
             services.load(
                 "xtr_ai.command.debug_ai_command",
                 "xtr_ai.command.platform_invoke_command",
                 "xtr_ai.command.agent_call_command",
             )
-            if config.runs is not None:
-                services.load("xtr_ai.command.run_cancel_command")
 
     @override
     def process(self, builder: ContainerBuilder) -> None:
@@ -263,29 +248,3 @@ class AiBundle(Bundle[AiConfig]):
         builder.set_parameter(_STORE_ENABLED, True)  # noqa: FBT003 — a parameter's value
         if self._store_mappings is not None:
             self._store_mappings.set_driver(ConversationMappingDriver(table_prefix))
-
-    def _register_run_control(
-        self,
-        config: AiConfig,
-        services: ServiceConfigurator,
-        builder: ContainerBuilder,
-        *,
-        has_clock: bool,
-    ) -> None:
-        entry = config.runs
-        if entry is None:
-            return
-        if isinstance(entry, OrmRunControlConfig):
-            require_bridge(
-                "Run control", RUN_CONTROL_BRIDGE, orm_active=bundle_active(builder, "orm")
-            )
-            # The bridge is optional; it was just checked to be installed.
-            from xtr_ai_orm_run_control import RunMappingDriver  # noqa: PLC0415
-
-            builder.set_parameter(_RUN_CONNECTION, entry.connection)
-            builder.set_parameter(_RUN_ENABLED, True)  # noqa: FBT003 — a parameter's value
-            if self._run_mappings is not None:
-                self._run_mappings.set_driver(RunMappingDriver(entry.table_prefix))
-        definition = services.set(run_control_factory(entry))
-        if not has_clock and not isinstance(entry, ServiceRunControlConfig):
-            _ = definition.set_argument("clock", None)

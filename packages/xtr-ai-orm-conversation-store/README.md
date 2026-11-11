@@ -9,7 +9,7 @@ Agent conversations kept in two tables on an [xtr-orm](../xtr-orm) connection, f
 uv add "xtr-ai[orm]"
 ```
 
-The `orm` extra installs this package and [xtr-ai-orm-run-control](../xtr-ai-orm-run-control).
+The `orm` extra installs this package.
 
 ## Use
 

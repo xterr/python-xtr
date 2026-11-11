@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from advanced_alchemy.base import metadata_registry
-from pydantic_ai import Agent, CancellationToken
+from pydantic_ai import Agent
 from pydantic_ai.conversation import Conversation
 from pydantic_ai.conversation_store import ConversationStore
 from pydantic_ai.models.test import TestModel
@@ -13,9 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from xtr_dependency_injection import Kernel
 
 from tests.fixtures.app_ai_orm.config import BIND_KEY, URL_VARIABLE
-from xtr_ai import RunState
 from xtr_ai.exception import InvalidConfigurationError
-from xtr_ai.run_control_interface import RunControlInterface
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,31 +33,22 @@ async def test_the_bridges_tables_join_the_connections_definitions(tmp_path: Pat
     async with await _kernel(tmp_path).boot():
         tables = set(metadata_registry.get(BIND_KEY).tables)
 
-    assert {"ai_conversation", "ai_conversation_entry", "ai_run"} <= tables
+    assert {"ai_conversation", "ai_conversation_entry"} <= tables
+    assert "ai_run" not in tables
 
 
-async def test_conversations_and_runs_are_kept_in_the_database(tmp_path: Path) -> None:
+async def test_conversations_are_kept_in_the_database(tmp_path: Path) -> None:
     async with await _kernel(tmp_path).boot() as booted:
         engine = await booted.container.get(AsyncEngine)
         async with engine.begin() as connection:
             await connection.run_sync(metadata_registry.get(BIND_KEY).create_all)
         store = await booted.container.get(ConversationStore)
-        control = await booted.container.get(RunControlInterface)
-
-        _ = await control.start("r1", agent="chat", conversation_id="c1")
-        async with control.watch("r1", CancellationToken()):
-            result = await Agent(TestModel()).run(
-                "hi", conversation=Conversation(conversation_id="c1")
-            )
-            _ = await store.save(result)
-
+        result = await Agent(TestModel()).run("hi", conversation=Conversation(conversation_id="c1"))
+        _ = await store.save(result)
         loaded = await store.load("c1")
-        status = await control.get("r1")
 
     assert loaded is not None
     assert len(loaded.messages) == 2
-    assert status is not None
-    assert status.state is RunState.FINISHED
 
 
 async def test_an_orm_adapter_without_its_bridge_names_the_package(

@@ -11,7 +11,7 @@ __all__ = ["InvalidConfigurationError"]
 
 @final
 class InvalidConfigurationError(AiError, ValueError):
-    """A platform, agent, store or run-control configuration that cannot be used.
+    """A platform, agent or conversation store configuration that cannot be used.
 
     Raised while the container builds, or when a class is built by hand with a
     value it cannot use. The message names the entry at fault.

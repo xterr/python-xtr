@@ -1,8 +1,4 @@
-"""Console commands, registered when the console bundle is active.
-
-``ai:run:cancel`` lives in its own module, scanned only when run control is
-configured.
-"""
+"""Console commands, registered when the console bundle is active."""
 
 from __future__ import annotations
 

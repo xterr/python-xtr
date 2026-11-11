@@ -3,11 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from pydantic_ai import CancellationToken
 from xtr_console import Application, ApplicationTester, ExitCode
 from xtr_dependency_injection import Kernel
-
-from xtr_ai.run_control_interface import RunControlInterface
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -77,17 +74,3 @@ async def test_an_agent_holds_a_conversation_until_an_empty_line(
 
 async def test_calling_an_unknown_agent_is_refused(tester: ApplicationTester) -> None:
     assert await tester.execute(["ai:agent:call", "ghost"], inputs=[""]) == ExitCode.INVALID
-
-
-async def test_a_running_run_is_flagged_for_cancellation(
-    tester: ApplicationTester, booted: BootedKernel
-) -> None:
-    control = await booted.container.get(RunControlInterface)
-    _ = await control.start("r1", agent="chat")
-    token = CancellationToken()
-
-    async with control.watch("r1", token):
-        assert await tester.execute(["ai:run:cancel", "r1"]) == ExitCode.SUCCESS
-        assert token.cancelled
-
-    assert await tester.execute(["ai:run:cancel", "r1"]) == ExitCode.FAILURE

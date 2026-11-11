@@ -1,4 +1,4 @@
-"""Offline platforms, two agents calling each other one way, a store and run control."""
+"""Offline platforms, two agents calling each other one way, and a store."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from xtr_ai.bundle import (
     AgentToolRef,
     AiConfig,
     InMemoryConversationStoreConfig,
-    InMemoryRunControlConfig,
     ModelRef,
     PlatformConfig,
 )
@@ -51,5 +50,4 @@ def ai() -> AiConfig:
             ),
         },
         conversation_stores={"default": InMemoryConversationStoreConfig()},
-        runs=InMemoryRunControlConfig(),
     )

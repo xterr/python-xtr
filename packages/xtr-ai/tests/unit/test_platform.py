@@ -143,11 +143,12 @@ async def test_closing_a_platform_that_built_nothing_does_nothing() -> None:
 
 @pytest.mark.anyio
 async def test_closing_a_platform_closes_its_providers_client() -> None:
-    _ = pytest.importorskip("openai")
+    openai = pytest.importorskip("openai")
     platform = Platform("o", "openai", api_key="sk")
-    provider = platform.provider_instance()
+    client = platform.provider_instance().client
+    assert isinstance(client, openai.AsyncOpenAI)
+    assert not client.is_closed()
 
     await platform.aclose()
 
-    own_client = provider._own_http_client
-    assert own_client is None or own_client.is_closed
+    assert client.is_closed()

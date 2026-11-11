@@ -14,7 +14,6 @@ members = [
     "xtr",
     "xtr-ai",
     "xtr-ai-orm-conversation-store",
-    "xtr-ai-orm-run-control",
     "xtr-amqp-messenger",
     "xtr-cache",
     "xtr-cache-contracts",
@@ -5366,7 +5365,6 @@ openrouter = [
 ]
 orm = [
     { name = "xtr-ai-orm-conversation-store" },
-    { name = "xtr-ai-orm-run-control" },
 ]
 
 [package.dev-dependencies]
@@ -5379,7 +5377,6 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
     { name = "xtr-ai-orm-conversation-store" },
-    { name = "xtr-ai-orm-run-control" },
     { name = "xtr-console" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-logging" },
@@ -5401,7 +5398,6 @@ requires-dist = [
     { name = "pydantic-ai-slim", extras = ["openrouter"], marker = "extra == 'openrouter'", specifier = ">=2.66,<3" },
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-ai-orm-conversation-store", marker = "extra == 'orm'", editable = "packages/xtr-ai-orm-conversation-store" },
-    { name = "xtr-ai-orm-run-control", marker = "extra == 'orm'", editable = "packages/xtr-ai-orm-run-control" },
     { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
 ]
@@ -5417,7 +5413,6 @@ dev = [
     { name = "ruff", specifier = ">=0.8" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-ai-orm-conversation-store", editable = "packages/xtr-ai-orm-conversation-store" },
-    { name = "xtr-ai-orm-run-control", editable = "packages/xtr-ai-orm-run-control" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
@@ -5453,51 +5448,6 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.41" },
     { name = "typing-extensions", specifier = ">=4.12" },
     { name = "xtr-ai", editable = "packages/xtr-ai" },
-    { name = "xtr-orm", editable = "packages/xtr-orm" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "aiosqlite", specifier = ">=0.20" },
-    { name = "anyio", specifier = ">=4.0" },
-    { name = "basedpyright", specifier = ">=1.21" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "pytest-cov", specifier = ">=5" },
-    { name = "ruff", specifier = ">=0.8" },
-    { name = "ty", specifier = ">=0.0.83" },
-]
-
-[[package]]
-name = "xtr-ai-orm-run-control"
-version = "6.5.0"
-source = { editable = "packages/xtr-ai-orm-run-control" }
-dependencies = [
-    { name = "pydantic-ai-slim" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "typing-extensions" },
-    { name = "xtr-ai" },
-    { name = "xtr-clock" },
-    { name = "xtr-orm" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "aiosqlite" },
-    { name = "anyio" },
-    { name = "basedpyright" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic-ai-slim", specifier = ">=2.66,<3" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.41" },
-    { name = "typing-extensions", specifier = ">=4.12" },
-    { name = "xtr-ai", editable = "packages/xtr-ai" },
-    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-orm", editable = "packages/xtr-orm" },
 ]
 

@@ -31,7 +31,7 @@ __all__ = ["ai"]
 @configure
 def ai() -> AiConfig:
     """No platform and no agent yet."""
-    # Conversations and run control are opt-in too: conversation_stores={"default":
-    # OrmConversationStoreConfig()} and runs=OrmRunControlConfig() keep them in the
-    # database, with "xtr-ai[orm]" installed.
+    # Conversations are opt-in too: conversation_stores={"default":
+    # OrmConversationStoreConfig()} keeps them in the database, with "xtr-ai[orm]" installed
+    # and OrmBundle listed.
     return AiConfig()

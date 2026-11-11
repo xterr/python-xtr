@@ -13,7 +13,6 @@ def test_the_default_configuration_declares_nothing() -> None:
     assert config.platforms == {}
     assert config.agents == {}
     assert config.conversation_stores == {}
-    assert config.runs is None
 
 
 def test_a_platform_needs_a_provider() -> None:

@@ -1,16 +1,16 @@
 # xtr-ai
 
 Named language-model platforms and agents, built on
-[pydantic-ai](https://ai.pydantic.dev), with conversation stores and run control an application
-already has the infrastructure for.
+[pydantic-ai](https://ai.pydantic.dev), with conversation stores on the infrastructure an
+application already runs.
 
 ## Why?
 
 pydantic-ai already does what an agent needs: providers and models, tools and toolsets,
 capabilities, MCP, conversations and their stores. What every application still writes on top of
 it is the same layer: where the keys come from, which model an agent uses in which environment,
-how an agent reaches the application's services, where conversations are kept, and how a run in
-one process is stopped from another. This package is that layer, and nothing more.
+how an agent reaches the application's services, and where conversations are kept. This package
+is that layer, and nothing more.
 
 - **Named platforms.** A platform is a provider with its key and endpoint. An agent's model id is
   `<platform>:<model>`, so moving an agent to another provider, region or a local server is a
@@ -19,15 +19,13 @@ one process is stopped from another. This package is that layer, and nothing mor
   starts, so the console runs without any key.
 - **pydantic-ai's own types.** An application gets an `AbstractAgent` and a `ConversationStore`
   and can still use every part of pydantic-ai directly.
-- **Run control.** What pydantic-ai has no answer for: a run's status, and cancelling it, from
-  another process.
 
 ## Install
 
 ```sh
 uv add xtr-ai                # the core
 uv add "xtr-ai[openai]"      # with a provider: openai, anthropic, google, bedrock, mistral, groq, openrouter
-uv add "xtr-ai[orm]"         # conversations and run control kept in the database
+uv add "xtr-ai[orm]"         # conversations kept in the database
 ```
 
 The provider extras are pydantic-ai's own, under the same names, plus `mcp` and `ag-ui`.
@@ -141,54 +139,25 @@ await store.save(result)
 Every store but the in-memory one writes in transactions of its own, never as part of the
 caller's. A conversation cannot be saved atomically with the application's own rows.
 
-## Run control
+## Stopping a run
 
-`RunControlInterface` covers what a run is doing now:
+Nothing here tracks runs, because stopping one is either free or the application's own concern:
 
-```python
-from pydantic_ai import CancellationToken
-
-await run_control.start(
-    run_id, agent="chat", conversation_id=conversation_id, metadata={"user": user_id}
-)
-token = CancellationToken()
-async with run_control.watch(run_id, token) as watched:
-    result = await agent.run(
-        prompt, run_id=run_id, conversation=conversation, cancellation_token=token
-    )
-    watched.record_usage(result.usage)
-
-# from any process
-await run_control.request_cancel(run_id)
-status = await run_control.get(run_id)  # state, usage, metadata
-```
-
-- **One run per conversation.** A conversation has one top-level run in progress at a time;
-  `start` raises `RunInProgressError` for a second. A run given a `parent_run_id` is exempt.
-- **Cancelling.** `watch` reads the cancel flag every `cancel_poll_interval` and cancels the
-  token. In the same process, `request_cancel` cancels it at once.
-- **Ending.** On the way out, `watch` writes how the run ended: finished, cancelled
-  (`RunCancelled` or task cancellation) or failed (any other error). The write is shielded from
-  cancellation, and the first state written wins.
-- **Crashes.** A watched run reports itself alive every `heartbeat_interval`. Once one has been
-  silent for `stale_after` (its process died), the next run of its conversation marks it failed
-  and starts.
-
-| Run control | Package | Reach |
-|---|---|---|
-| `InMemoryRunControl` | here | one process |
-| `OrmRunControl` | [xtr-ai-orm-run-control](../xtr-ai-orm-run-control) | every process on the database |
-| any `RunControlInterface` | the application's | its own |
-
-A backend of its own subclasses `AbstractRunControl`, implements five storage methods, and runs
-`xtr_ai.testing.run_control_contract.RunControlContract` in its tests.
+- **A run streamed in its own request** stops when the client goes away. The web framework
+  cancels the request's task, and pydantic-ai cancels the run and closes the model's stream.
+- **A run in a background job** belongs to the job that runs it: its status, what cancelling it
+  means for partial results, and how the request asking for it reaches the worker. Keep a job
+  entity with a cancel flag, and check the flag at the run's steps with a capability calling
+  `ctx.cancel()`. Hand child agents the same `CancellationToken` so they stop together.
+- **Two runs of one conversation** cannot both save: the second save raises pydantic-ai's
+  `ConversationConflict`, because a conversation's revision changes on every save.
 
 ## Testing
 
 - `override_agent_model(container, "chat", FunctionModel(...))` runs a configured agent on a
   scripted model inside an `async with` block, through pydantic-ai's `agent.override`.
 - `test` and `function` platforms run with no key and no network.
-- `InMemoryConversationStore` and `InMemoryRunControl` keep everything in the test's process.
+- `InMemoryConversationStore` keeps conversations in the test's process.
 
 ## Use in an application
 
@@ -203,13 +172,13 @@ undoes.
   it lists `AiBundle` and writes `<app>/config/packages/ai.py` with an empty `AiConfig`. There
   is no environment to write and nothing to ignore.
 - **Activate** — `AiBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
-  from `xtr_ai.bundle`. To keep conversations or runs in the database, list `OrmBundle` too: it
-  is never activated for you.
+  from `xtr_ai.bundle`. To keep conversations in the database, list `OrmBundle` too: it is never
+  activated for you.
 - **Brings along** — the clock, logging and console bundles, each when its package is installed:
   the clock measures run timeouts, logging adds the `ai` channel, and the console adds the
   commands.
 - **Configure** — the recipe writes `<app>/config/packages/ai.py` declaring nothing. Platforms,
-  agents, stores and run control go in that `@configure` function returning `AiConfig`. See
+  agents and stores go in that `@configure` function returning `AiConfig`. See
   [Kernel / bundle](#kernel--bundle).
 - **Environment** — nothing required: the keys are the application's to name. A platform reads
   its key with `env(...)`, the first time an agent of it runs.
@@ -239,7 +208,6 @@ from xtr_ai.bundle import (
     AiConfig,
     ModelRef,
     OrmConversationStoreConfig,
-    OrmRunControlConfig,
     PlatformConfig,
 )
 
@@ -277,7 +245,6 @@ def ai() -> AiConfig:
             ),
         },
         conversation_stores={"default": OrmConversationStoreConfig(connection="default")},
-        runs=OrmRunControlConfig(connection="default"),
     )
 ```
 
@@ -312,27 +279,21 @@ def ai() -> AiConfig:
 - **Peer bundles.** With the clock bundle, every agent measures its timeout against
   `ClockInterface`. With the logging bundle, every agent logs on the `ai` channel.
 
-### Conversation stores and run control
+### Conversation stores
 
 | Config | Registers |
 |---|---|
 | `InMemoryConversationStoreConfig()` | pydantic-ai's in-memory store |
 | `OrmConversationStoreConfig(connection=, table_prefix=)` | `OrmConversationStore` on that connection's primary; needs `xtr-ai[orm]` |
 | `ServiceConversationStoreConfig(service=)` | the application's own store, registered under that class |
-| `InMemoryRunControlConfig(...)` | `InMemoryRunControl` |
-| `OrmRunControlConfig(connection=, table_prefix=, ...)` | `OrmRunControl` on that connection's primary; needs `xtr-ai[orm]` |
-| `ServiceRunControlConfig(service=)` | the application's own run control |
 
 - **Injection.** A store is injected by name, `Annotated[ConversationStore, Target("archive")]`;
-  `"default"` is also injected without one. Run control is `RunControlInterface`.
-- **Off by default.** With `runs=None`, nothing is registered.
-- **Timings.** Run control configs take `cancel_poll_interval`, `heartbeat_interval` and
-  `stale_after`.
-- **Migrations.** The orm adapters' tables join the connection's definitions, so
+  `"default"` is also injected without one.
+- **Migrations.** The orm store's tables join the connection's definitions, so
   `orm:migrations:diff` writes them.
-- **A missing bridge.** An orm adapter whose bridge is not installed fails the build, naming
+- **A missing bridge.** An orm store whose bridge is not installed fails the build, naming
   `uv add "xtr-ai[orm]"`.
-- **The orm bundle.** An orm adapter also fails the build when `OrmBundle` is not listed, naming
+- **The orm bundle.** An orm store also fails the build when `OrmBundle` is not listed, naming
   it. Installing xtr-orm does not activate it.
 
 ### Commands
@@ -344,7 +305,6 @@ With the console bundle:
 | `debug:ai` | Lists platforms (provider, whether a key is configured, never its value) and agents (model, fallbacks, capabilities, toolsets) |
 | `ai:platform:invoke <platform> <model> <message>` | Sends one message and prints the answer and the usage |
 | `ai:agent:call <agent>` | Talks to an agent; an empty line ends the conversation, held in memory |
-| `ai:run:cancel <run_id>` | Asks a run to stop; registered only with run control |
 
 ## Errors
 
@@ -352,15 +312,13 @@ Every error derives from `AiError`. pydantic-ai's own are raised as pydantic-ai 
 
 | Error | Raised when |
 |---|---|
-| `InvalidConfigurationError` | A configuration cannot be used: an unknown platform or agent named literally, a cycle of agents, an orm adapter without its bridge or without `OrmBundle` listed, a tool for an unknown agent, a capability or tool service that is not a singleton, run-control timings that would make a live run look dead. Also a `ValueError` |
+| `InvalidConfigurationError` | A configuration cannot be used: an unknown platform or agent named literally, a cycle of agents, an orm store without its bridge or without `OrmBundle` listed, a tool for an unknown agent, a capability or tool service that is not a singleton. Also a `ValueError` |
 | `PlatformUnavailableError` | A platform cannot be built: unknown, its extra missing, its key unset, a keyword refused. Names the platform and the variable, never a value |
-| `RunInProgressError` | A second top-level run of a conversation is started |
-| `UnknownRunError` | A run is watched without being started. Also a `LookupError` |
 
 ## Known limitations
 
 - **Message timestamps** come from the system clock: pydantic-ai stamps them itself. The clock
-  bundle reaches run timeouts and run control only.
+  bundle reaches run timeouts only.
 - **Agents are singletons.** Capabilities, toolsets and tool services they are built from must be
   too.
 - **`isinstance(agent, Agent)`** is false for an agent with run defaults: it is a

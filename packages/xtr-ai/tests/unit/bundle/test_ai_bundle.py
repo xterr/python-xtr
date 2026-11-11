@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from pydantic_ai import CancellationToken
 from pydantic_ai.agent import AbstractAgent
 from pydantic_ai.conversation_store import ConversationStore, InMemoryConversationStore
 from xtr_dependency_injection import ContainerBuilder, Kernel, bundle_active
@@ -22,10 +21,8 @@ from xtr_ai import (
     RunClock,
     RunDefaultsAgent,
     RunLogging,
-    RunState,
 )
 from xtr_ai.bundle import AI_CHANNEL, AiBundle
-from xtr_ai.run_control_interface import RunControlInterface
 
 if TYPE_CHECKING:
     from xtr_dependency_injection import BootedKernel
@@ -141,18 +138,6 @@ async def test_the_default_store_is_injected_with_and_without_its_name() -> None
     assert isinstance(named, InMemoryConversationStore)
 
 
-async def test_run_control_is_registered() -> None:
-    async with await _kernel().boot() as booted:
-        control = await booted.container.get(RunControlInterface)
-        _ = await control.start("r1", agent="chat", conversation_id="c1")
-        async with control.watch("r1", CancellationToken()):
-            pass
-        status = await control.get("r1")
-
-    assert status is not None
-    assert status.state is RunState.FINISHED
-
-
 async def test_the_clock_and_the_ai_channel_are_wired_in_when_their_bundles_are_active() -> None:
     async with await _kernel().boot() as booted:
         research = await _agent(booted, "research")
@@ -163,7 +148,7 @@ async def test_the_clock_and_the_ai_channel_are_wired_in_when_their_bundles_are_
     assert channel is not None
 
 
-async def test_agents_and_run_control_build_without_the_clock_and_logging_bundles(
+async def test_agents_build_without_the_clock_and_logging_bundles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def without_peers(builder: ContainerBuilder, name: str) -> bool:
@@ -174,8 +159,6 @@ async def test_agents_and_run_control_build_without_the_clock_and_logging_bundle
     async with await _kernel().boot() as booted:
         research = await _agent(booted, "research")
         result = await research.run("hi")
-        control = await booted.container.get(RunControlInterface)
-        _ = await control.start("r1", agent="research")
 
     kinds = {type(capability) for capability in research.root_capability.capabilities}
     assert result.output == "offline answer"

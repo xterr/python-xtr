@@ -1,6 +1,6 @@
 ---
 name: xtr-ai
-description: How to configure language-model platforms and pydantic-ai agents with xtr-ai, inject them by name, give them service tools, keep their conversations and cancel their runs from another process. Use when application code needs an LLM, an agent, an OpenAI, Anthropic, Azure, Bedrock, Ollama or other provider key, a model chosen per environment, fallback models, tools on a service, an agent calling another agent, a conversation store, run status or cancellation across processes, an offline test model, the debug:ai or ai:* commands, or when adding AiBundle to an application on xtr-dependency-injection.
+description: How to configure language-model platforms and pydantic-ai agents with xtr-ai, inject them by name, give them service tools and keep their conversations. Use when application code needs an LLM, an agent, an OpenAI, Anthropic, Azure, Bedrock, Ollama or other provider key, a model chosen per environment, fallback models, tools on a service, an agent calling another agent, a conversation store, stopping an agent run or a background agent job, an offline test model, the debug:ai or ai:* commands, or when adding AiBundle to an application on xtr-dependency-injection.
 ---
 
 # xtr-ai
@@ -20,8 +20,8 @@ name. Everything an application touches is pydantic-ai's own type: an `AbstractA
 - Switch a single run: `await agent.run(prompt, model="local:llama-3.3-70b")`.
 - Tools: `@as_tool(agents=("chat",))` on a method of a service. The service must be a singleton.
 - Conversations: `store.load` → `agent.run(..., conversation=...)` → `store.save(result)`.
-- Cancel from another process: `run_control.request_cancel(run_id)`, with the run inside
-  `run_control.watch(run_id, token)`.
+- Stopping a run: a streamed run stops when its client goes away; a background job checks its
+  own cancel flag at the run's steps. See [conversations](references/conversations.md).
 - Tests: `test` and `function` platforms run offline; `override_agent_model` scripts one agent.
 - Without the container: `PlatformRegistry.of(Platform(...))` plus pydantic-ai's
   `ResolveModelId(registry.resolve)`.
@@ -111,28 +111,20 @@ The class is found by the application scan and registered as a singleton. Per-ru
 the user, belongs in the run's `deps` (`deps_type=` on the agent, a first `RunContext`
 parameter on the tool).
 
-## Keep conversations and control runs
+## Keep conversations
 
 ```python
-from pydantic_ai import CancellationToken
 from pydantic_ai.conversation import Conversation
 
 conversation = await store.load(conversation_id) or Conversation(conversation_id=conversation_id)
-await run_control.start(
-    run_id, agent="chat", conversation_id=conversation_id, metadata={"user": user_id}
-)
-token = CancellationToken()
-async with run_control.watch(run_id, token) as watched:
-    result = await agent.run(
-        prompt, run_id=run_id, conversation=conversation, cancellation_token=token
-    )
-    watched.record_usage(result.usage)
+result = await agent.run(prompt, conversation=conversation)
 await store.save(result)
 ```
 
-Configure them with `conversation_stores={"default": OrmConversationStoreConfig()}` and
-`runs=OrmRunControlConfig()` (with `xtr-ai[orm]` installed), or the in-memory and service
-configs. See [conversations and runs](references/conversations-and-runs.md).
+Configure them with `conversation_stores={"default": OrmConversationStoreConfig()}` (with
+`xtr-ai[orm]` installed and `OrmBundle` listed), or the in-memory and service configs. See
+[conversations](references/conversations.md), which also shows how a background job stops its
+agents.
 
 ## Testing
 
@@ -148,19 +140,17 @@ async with override_agent_model(
 
 - Configure test platforms offline: `PlatformConfig(provider="test", options={"custom_output_text":
   "..."})` or `PlatformConfig(provider="function", options={"function": reply})`.
-- A run-control backend of your own runs
-  `xtr_ai.testing.run_control_contract.RunControlContract`.
 
 ## Use in an application
 
 1. `uv add xtr-ai xtr-dependency-injection`, plus a provider extra (`"xtr-ai[openai]"`) and
-   `"xtr-ai[orm]"` to keep conversations and runs in the database.
+   `"xtr-ai[orm]"` to keep conversations in the database.
 2. `uv run xtr-recipes recipes:sync`: it lists `AiBundle` and writes
    `<app>/config/packages/ai.py` with an empty `AiConfig`.
 3. Or by hand: `AiBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
    from `xtr_ai.bundle`.
 4. The clock, logging and console bundles come along when their packages are installed. To keep
-   conversations or runs in the database, list `OrmBundle` too; it is never activated for you.
+   conversations in the database, list `OrmBundle` too; it is never activated for you.
 5. Add platforms and agents to `<app>/config/packages/ai.py`.
 6. Set the variables your platforms read with `env(...)`; nothing else is required.
 7. Nothing to ignore.
@@ -172,8 +162,6 @@ async with override_agent_model(
 |---|---|
 | `InvalidConfigurationError` | A literal unknown platform or agent, an agent cycle, an orm adapter without `xtr-ai[orm]` or without `OrmBundle` listed, a tool for an unknown agent, a non-singleton capability or tool service |
 | `PlatformUnavailableError` | A platform cannot be built on first use: unknown, its extra missing, its key unset |
-| `RunInProgressError` | A second top-level run of a conversation is started |
-| `UnknownRunError` | `watch` on a run never started |
 
 ## Do not
 

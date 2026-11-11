@@ -79,13 +79,13 @@ async def test_a_run_switches_platform_with_its_model_argument() -> None:
 
 
 async def test_closing_the_registry_closes_what_it_built() -> None:
-    _ = pytest.importorskip("openai")
+    openai = pytest.importorskip("openai")
     platform = Platform("a", "openai", api_key="sk")
     registry = PlatformRegistry.of(platform)
     _ = await registry.get("a")
-    provider = platform.provider_instance()
+    client = platform.provider_instance().client
+    assert isinstance(client, openai.AsyncOpenAI)
 
     await registry.aclose()
 
-    own_client = provider._own_http_client
-    assert own_client is None or own_client.is_closed
+    assert client.is_closed()
