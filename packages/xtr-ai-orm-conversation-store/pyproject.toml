@@ -1,6 +1,6 @@
 [project]
 name = "xtr-ai-orm-conversation-store"
-version = "6.5.0"
+version = "6.6.0"
 description = "Agent conversations stored in a relational database through xtr-orm, for xtr-ai."
 readme = "README.md"
 authors = [

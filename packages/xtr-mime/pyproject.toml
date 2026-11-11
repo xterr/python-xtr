@@ -1,6 +1,6 @@
 [project]
 name = "xtr-mime"
-version = "6.5.0"
+version = "6.6.0"
 description = "Build email messages — addresses, headers, text and HTML bodies, attachments and inline images — rendered to standard MIME by Python's own email package, signed with DKIM or S/MIME when asked."
 readme = "README.md"
 authors = [
