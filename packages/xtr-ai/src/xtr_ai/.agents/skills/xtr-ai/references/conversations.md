@@ -71,19 +71,22 @@ class StopWhen(AbstractCapability[Any]):
 In the message handler:
 
 ```python
-token = CancellationToken()  # one token for the run and every agent it calls
 stop = StopWhen(lambda: jobs.cancel_requested(job_id))
 try:
-    result = await agent.run(prompt, capabilities=[stop], cancellation_token=token)
+    result = await agent.run(prompt, capabilities=[stop])
 except RunCancelled:
     ...  # mark the job cancelled; keep or drop its partial findings
 ```
 
+- **Read the flag in a session of its own**, never on the handler's: that session is one
+  transaction for the whole message, and on MySQL it never sees a flag another server writes.
 - **Latency.** A cancel takes effect at the next step, so a model response already streaming
   finishes first. Push the signal instead (PostgreSQL `LISTEN/NOTIFY`, Redis) only if that is too
   slow.
-- **Child agents.** Pass them the same `CancellationToken`: cancelling it stops every run
-  registered with it.
+- **Child agents.** `StopWhen` stops only the run it is given to: give it to every run of the
+  job.
+- **A run that answers in one piece in a web request** is not cancelled when the client goes
+  away. Give it `StopWhen(request.is_disconnected)`. A streamed run needs nothing.
 - **Redelivery.** After a worker crash the bus delivers the job again. The handler reads the
   job's status and resumes from the stored conversation, or starts over.
 - **One job at a time.** A unique constraint or a workflow guard on the job entity.

@@ -148,7 +148,10 @@ Nothing here tracks runs, because stopping one is either free or the application
 - **A run in a background job** belongs to the job that runs it: its status, what cancelling it
   means for partial results, and how the request asking for it reaches the worker. Keep a job
   entity with a cancel flag, and check the flag at the run's steps with a capability calling
-  `ctx.cancel()`. Hand child agents the same `CancellationToken` so they stop together.
+  `ctx.cancel()`. Give that capability to every run of the job, child agents included: it stops
+  only the run it is given to. The guide
+  [Stop an agent run](https://github.com/xterr/python-xtr/tree/main/docs/guides/agent-runs.md)
+  builds both cases.
 - **Two runs of one conversation** cannot both save: the second save raises pydantic-ai's
   `ConversationConflict`, because a conversation's revision changes on every save.
 

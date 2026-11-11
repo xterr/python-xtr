@@ -37,6 +37,7 @@ nav = [
     "guides/agent-skills.md",
     "guides/web-application.md",
     "guides/messages.md",
+    "guides/agent-runs.md",
     "guides/security.md",
     "guides/testing.md",
   ] },
