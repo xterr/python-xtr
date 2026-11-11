@@ -5326,7 +5326,7 @@ docs = [
 
 [[package]]
 name = "xtr-ai"
-version = "6.4.0"
+version = "6.5.0"
 source = { editable = "packages/xtr-ai" }
 dependencies = [
     { name = "anyio" },
@@ -5426,7 +5426,7 @@ dev = [
 
 [[package]]
 name = "xtr-ai-orm-conversation-store"
-version = "6.4.0"
+version = "6.5.0"
 source = { editable = "packages/xtr-ai-orm-conversation-store" }
 dependencies = [
     { name = "pydantic-ai-slim" },
@@ -5469,7 +5469,7 @@ dev = [
 
 [[package]]
 name = "xtr-ai-orm-run-control"
-version = "6.4.0"
+version = "6.5.0"
 source = { editable = "packages/xtr-ai-orm-run-control" }
 dependencies = [
     { name = "pydantic-ai-slim" },

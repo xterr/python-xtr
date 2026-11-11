@@ -1,6 +1,6 @@
 [project]
 name = "xtr-ai-orm-run-control"
-version = "6.4.0"
+version = "6.5.0"
 description = "Cross-process status and cancellation of agent runs in a relational database through xtr-orm, for xtr-ai."
 readme = "README.md"
 authors = [
