@@ -37,6 +37,7 @@ nav = [
     "guides/agent-skills.md",
     "guides/web-application.md",
     "guides/messages.md",
+    "guides/agent-runs.md",
     "guides/security.md",
     "guides/testing.md",
   ] },
@@ -163,6 +164,8 @@ nav_section_title = "API reference"
 api_root_uri = "api"
 exclude = ["re:^xtr_[a-z0-9_]+\\.(?!(bundle|command|decorator|exception|testing)$)"]
 modules = [
+  "packages/xtr-ai-orm-conversation-store/src/xtr_ai_orm_conversation_store",
+  "packages/xtr-ai/src/xtr_ai",
   "packages/xtr-amqp-messenger/src/xtr_amqp_messenger",
   "packages/xtr-cache-contracts/src/xtr_cache_contracts",
   "packages/xtr-cache/src/xtr_cache",

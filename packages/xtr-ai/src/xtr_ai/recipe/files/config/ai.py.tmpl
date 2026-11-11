@@ -1,0 +1,37 @@
+"""The language-model platforms and the agents built on them.
+
+Nothing is configured, so nothing is registered. A platform is a provider with
+its key; an agent runs a model of a platform and is injected by its name::
+
+    AiConfig(
+        platforms={
+            "openai": PlatformConfig(provider="openai", api_key=env("OPENAI_API_KEY")),
+        },
+        agents={
+            "chat": AgentConfig(
+                platform="openai",
+                model="gpt-5-mini",
+                instructions="Answer briefly.",
+            ),
+        },
+    )
+
+Install the provider's extra beside it — ``uv add "xtr-ai[openai]"`` — and set
+the variable; nothing reads it before an agent first runs.
+"""
+
+from __future__ import annotations
+
+from xtr_dependency_injection import configure
+from xtr_ai.bundle import AiConfig
+
+__all__ = ["ai"]
+
+
+@configure
+def ai() -> AiConfig:
+    """No platform and no agent yet."""
+    # Conversations are opt-in too: conversation_stores={"default":
+    # OrmConversationStoreConfig()} keeps them in the database, with "xtr-ai[orm]" installed
+    # and OrmBundle listed.
+    return AiConfig()

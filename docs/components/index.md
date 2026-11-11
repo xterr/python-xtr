@@ -67,6 +67,13 @@ To use a package alone, install it with `uv add` and read its README.
 | [xtr-rate-limiter](https://github.com/xterr/python-xtr/tree/main/packages/xtr-rate-limiter) | Limits on how often an action can occur, by fixed window, sliding window or token bucket. | [API](https://xterr.github.io/python-xtr/api/xtr_rate_limiter/) |
 | [xtr-serializer](https://github.com/xterr/python-xtr/tree/main/packages/xtr-serializer) | Changes objects to JSON and JSON to objects. It refuses each value that it cannot change back to an equal value. | [API](https://xterr.github.io/python-xtr/api/xtr_serializer/) |
 
+## Language models
+
+| Package | What it does | API |
+|---|---|---|
+| [xtr-ai](https://github.com/xterr/python-xtr/tree/main/packages/xtr-ai) | Language-model platforms and agents on pydantic-ai. You configure them once, and the container gives each agent by its name. | [API](https://xterr.github.io/python-xtr/api/xtr_ai/) |
+| [xtr-ai-orm-conversation-store](https://github.com/xterr/python-xtr/tree/main/packages/xtr-ai-orm-conversation-store) | Keeps the conversations of agents in database tables. | [API](https://xterr.github.io/python-xtr/api/xtr_ai_orm_conversation_store/) |
+
 ## Notifications
 
 | Package | What it does | API |

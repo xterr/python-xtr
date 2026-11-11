@@ -12,6 +12,7 @@ application with the name `shop`. To make this application, do the steps in
 | [Agent skills](agent-skills.md) | Register the skills of the installed packages for a coding agent. |
 | [Build a web application](web-application.md) | Add routes and use services from the container in a route. |
 | [Send and handle messages](messages.md) | Send a message to a handler now, or later through a transport. |
+| [Stop an agent run](agent-runs.md) | Stop an agent run in a web request, or in a background job on a worker. |
 | [Protect a web application](security.md) | Add a firewall, users and access rules. |
 | [Test an application](testing.md) | Test the kernel, the web application and your services. |
 
