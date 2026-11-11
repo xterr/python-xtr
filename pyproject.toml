@@ -13,6 +13,9 @@ package = false
 
 [tool.uv.sources]
 xtr-cache                = { workspace = true }
+xtr-ai                   = { workspace = true }
+xtr-ai-orm-conversation-store = { workspace = true }
+xtr-ai-orm-run-control   = { workspace = true }
 xtr-amqp-messenger       = { workspace = true }
 xtr-cache-contracts      = { workspace = true }
 xtr-clock                = { workspace = true }

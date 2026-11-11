@@ -21,6 +21,9 @@ packages is one commit, and released separately so an application installs only 
 
 | Package | What it is |
 |---|---|
+| [xtr-ai](packages/xtr-ai) | Named language-model platforms and agents on pydantic-ai, configured once and injected by name, with conversation stores and cross-process run control. |
+| [xtr-ai-orm-conversation-store](packages/xtr-ai-orm-conversation-store) | Agent conversations kept in two tables on an xtr-orm connection, for xtr-ai. |
+| [xtr-ai-orm-run-control](packages/xtr-ai-orm-run-control) | Agent runs tracked in a table on an xtr-orm connection, so any process reads and cancels them, for xtr-ai. |
 | [xtr-cache](packages/xtr-cache) | Cache pools in memory, in files, in Redis, chained or tag-aware, with stampede protection. |
 | [xtr-cache-contracts](packages/xtr-cache-contracts) | The caching interfaces alone: fetch-or-compute, item pools, tags and namespaces. |
 | [xtr-cli](packages/xtr-cli) | `uvx xtr-cli new`: a new console or web application, its packages installed and their recipes applied, in one command; `uvx xtr-cli serve` runs it. |
@@ -133,6 +136,18 @@ graph LR
     messenger -. optional .-> ormmessenger
     amqpmessenger[xtr-amqp-messenger] --> messenger
     messenger -. optional .-> amqpmessenger
+    ai[xtr-ai] --> clock
+    ai --> logcon
+    ai -. optional .-> di
+    ai -. optional .-> orm
+    ai -. optional .-> console
+    ai -. optional .-> aiconversations
+    ai -. optional .-> airuns
+    aiconversations[xtr-ai-orm-conversation-store] --> ai
+    aiconversations --> orm
+    airuns[xtr-ai-orm-run-control] --> ai
+    airuns --> orm
+    airuns --> clock
     ratelimiter[xtr-rate-limiter] --> clock
     ratelimiter --> eventcon
     ratelimiter -. optional .-> cachecon

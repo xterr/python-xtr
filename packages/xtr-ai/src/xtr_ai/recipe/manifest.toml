@@ -1,0 +1,17 @@
+# The recipe for xtr-ai: what *Use in an application* in the README takes, as
+# data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+"xtr_ai.bundle:AiBundle" = { all = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# An empty AiConfig, with a platform and an agent shown in comments.
+"config/packages/ai.py" = "files/config/ai.py.tmpl"
+
+# No [env]: the keys are the application's to name, read with env(...) where a
+# platform is configured.
+
+[notes]
+check = ["<script> debug:bundles — ai is listed and active", "<script> debug:ai"]
