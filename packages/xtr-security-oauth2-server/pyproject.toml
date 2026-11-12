@@ -41,7 +41,9 @@ dependencies = [
     # served into a message through the kernel's bridge.
     "xtr-http-kernel>=6.0,<7",
     # The endpoints are framework routes, contributed to the application's table.
-    "fastapi>=0.123",
+    # The floor is xtr-http-kernel's: the published endpoint paths are read from
+    # the same effective view of the routes.
+    "fastapi>=0.143.1",
     "joserfc>=1.7",
     "typing-extensions>=4.12",
     "anyio>=4.0",

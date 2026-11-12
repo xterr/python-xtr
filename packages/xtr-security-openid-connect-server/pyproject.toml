@@ -39,7 +39,7 @@ dependencies = [
     "xtr-http-kernel>=6.0,<7",
     # The userinfo and discovery endpoints are framework routes, contributed to
     # the application's table.
-    "fastapi>=0.123",
+    "fastapi>=0.143.1",
     "typing-extensions>=4.12",
     # The userinfo endpoint reads a form body when it is posted to, which the
     # web framework parses only when this is installed.
