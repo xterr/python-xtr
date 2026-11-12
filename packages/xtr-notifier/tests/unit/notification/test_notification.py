@@ -13,6 +13,12 @@ class _DiskFullError(Exception):
     pass
 
 
+class _UnprintableError(Exception):
+    @override
+    def __str__(self) -> str:
+        raise TypeError("sequence item 0: expected str instance, NoneType found")
+
+
 def _fail() -> None:
     raise _DiskFullError("disk almost full")
 
@@ -89,6 +95,12 @@ def test_an_exception_given_at_build_names_an_empty_subject() -> None:
     notification = Notification(exception=_raise_and_catch())
 
     assert notification.subject == "_DiskFullError: disk almost full"
+
+
+def test_an_exception_that_cannot_print_itself_is_named_by_its_class() -> None:
+    notification = Notification.from_exception(_UnprintableError())
+
+    assert notification.subject == f"_UnprintableError: [unprintable {__name__}._UnprintableError]"
 
 
 def test_a_subject_given_with_an_exception_is_kept() -> None:

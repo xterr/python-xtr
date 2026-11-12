@@ -84,7 +84,7 @@ class Notification:
         self._exception = exception
         self._exception_as_string = ""
         if exception is not None:
-            self._subject = subject or f"{type(exception).__name__}: {exception}"
+            self._subject = subject or f"{type(exception).__name__}: {_safe_str(exception)}"
             self._exception_as_string = "".join(traceback.format_exception(exception)).rstrip()
 
     @classmethod
@@ -169,3 +169,17 @@ class Notification:
             case _:
                 # An importance added without an emoji fails here, not on a send.
                 assert_never(self._importance)
+
+
+def _safe_str(exception: BaseException) -> str:
+    """Return ``str(exception)``, or a stand-in naming its class when ``__str__`` raises.
+
+    An exception is what a notification reports, never a reason for building
+    it to fail: raised while a worker announces a failed message, that would
+    stop the worker.
+    """
+    try:
+        return str(exception)
+    except Exception:  # noqa: BLE001 -- whatever it raises, the exception is still reported
+        kind = type(exception)
+        return f"[unprintable {kind.__module__}.{kind.__qualname__}]"
