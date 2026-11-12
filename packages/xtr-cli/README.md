@@ -141,7 +141,13 @@ The web entry point is found by reading the project's files, never by importing 
 2. **An ASGI application** — only when there is no such script: a module-level
    `FastAPI()`, `Starlette()` or `Litestar()`, handed to `uv run uvicorn module:attribute`, on
    `127.0.0.1:8000` unless told otherwise. `uvicorn` must be installed in the project, and
-   nothing the application does at startup outside that module runs.
+   nothing the application does at startup outside that module runs. It is served with
+   `UVICORN_RESET_CONTEXTVARS=1`, so each request starts in a context of its own rather than
+   with the context variables of an earlier one on the same connection; a `uvicorn` older than
+   0.45 does not know the setting and ignores it.
+
+The `webapp` template's `<name>-web` asks its server for the same thing itself
+(`reset_contextvars=True`), which is why the template installs `uvicorn>=0.45`.
 
 Several candidates are offered to choose from; with `-n` the command fails and lists them for
 `--entrypoint`. Ctrl-C stops the server and waits for it to finish shutting down, so the

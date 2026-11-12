@@ -20,7 +20,16 @@ def test_an_asgi_object_is_handed_to_uvicorn_with_defaults() -> None:
     assert argv == (
         "uv", "run", "uvicorn", "shop.app:app", "--host", "127.0.0.1", "--port", "8000",
     )  # fmt: skip
-    assert environment == {}
+    assert "WEB_HOST" not in environment
+
+
+def test_an_asgi_object_is_served_with_each_request_in_a_context_of_its_own() -> None:
+    argv, environment = WebEntryPoint("asgi", "shop.app:app").command(None, None, reload=False)
+
+    # The server's own variable rather than its flag: a server too old to know
+    # the setting ignores a variable, and would refuse the flag.
+    assert environment == {"UVICORN_RESET_CONTEXTVARS": "1"}
+    assert "--reset-contextvars" not in argv
 
 
 def test_an_asgi_object_reloads_where_asked() -> None:

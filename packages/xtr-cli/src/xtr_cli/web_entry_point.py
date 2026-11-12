@@ -13,6 +13,15 @@ DEFAULT_HOST: Final = "127.0.0.1"
 DEFAULT_PORT: Final = 8000
 """The port an application found as an ASGI object is served on when none is given."""
 
+_RESET_CONTEXTVARS: Final = "UVICORN_RESET_CONTEXTVARS"
+"""The server's variable for starting each request in a context of its own.
+
+On a kept-alive connection the server may otherwise start a request with the
+context variables of an earlier one. Set as a variable rather than passed as
+the flag it stands for: a server too old to know the setting ignores the
+variable, where it would refuse the flag and serve nothing.
+"""
+
 
 @final
 @dataclass(frozen=True, slots=True)
@@ -29,7 +38,9 @@ class WebEntryPoint:
     An **ASGI object** — a module-level ``FastAPI()``, ``Starlette()`` or
     ``Litestar()`` — is handed to ``uvicorn`` directly, which then has to be
     installed in the project. Nothing runs before it is imported, so the
-    application's own environment loading does not either.
+    application's own environment loading does not either. It is served with
+    each request started in a context of its own, where the installed server
+    knows how; a script decides that for itself.
 
     Attributes:
         kind: ``"script"`` or ``"asgi"``.
@@ -73,4 +84,4 @@ class WebEntryPoint:
             "--port",
             str(port if port is not None else DEFAULT_PORT),
         )
-        return ((*argv, "--reload") if reload else argv), {}
+        return ((*argv, "--reload") if reload else argv), {_RESET_CONTEXTVARS: "1"}

@@ -19,7 +19,9 @@ packages = [
     "xtr-notifier",
     "xtr-security",
     "fastapi",
-    "uvicorn",
+    # The first release that can start each request in a context of its own, which
+    # the web entry point asks for.
+    "uvicorn>=0.45",
 ]
 dev = ["xtr-recipes", "pytest", "httpx", "ruff", "basedpyright", "ty"]
 
