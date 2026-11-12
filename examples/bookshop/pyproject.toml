@@ -7,8 +7,10 @@ requires-python = ">=3.11"
 license = "MIT"
 dependencies = [
     # The web entry point. Only an application takes a server; no library here does.
-    "fastapi>=0.121.3",
-    "uvicorn>=0.30",
+    "fastapi>=0.143.1",
+    # 0.45 is the first release that can start each request in a context of its own,
+    # which the web entry point asks for.
+    "uvicorn>=0.45",
     "xtr-cache",
     "xtr-cache-contracts",
     "xtr-clock",

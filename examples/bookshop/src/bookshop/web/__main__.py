@@ -28,6 +28,9 @@ def main() -> None:
         app,
         host=os.environ.get("WEB_HOST", _HOST),
         port=int(os.environ.get("WEB_PORT", str(_PORT))),
+        # Each request starts in a context of its own. Left off, a request on a kept-alive
+        # connection can start with the context variables an earlier one set.
+        reset_contextvars=True,
     )
 
 
