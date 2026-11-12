@@ -18,11 +18,18 @@ same unit, whereas a :meth:`~contextvars.ContextVar.set` there would be lost.
 whatever opens it (a request lifecycle, a message worker) — never from a handler,
 processor or endpoint. Those mutate their share of the unit through
 :func:`unit_state` and leave the boundary to the caller.
+
+A unit belongs to the context that began it, and ends there. A copy of that
+context only carries the unit — a task started inside it, or a request a
+server began from an earlier request's context — and beginning or ending a
+unit there does not end one still open where it began: whoever began it is
+still filling it, and ends it. A carried unit that is already over is flushed
+once more as it is let go of, so what was logged into it late is not stranded.
 """
 
 from __future__ import annotations
 
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from functools import partial
 from typing import TYPE_CHECKING, TypeVar, cast, final
 
@@ -36,23 +43,36 @@ _T = TypeVar("_T")
 
 @final
 class _Unit:
-    """The state of one unit of work: per-owner state plus its end callbacks."""
+    """The state of one unit of work: per-owner state plus its end callbacks.
 
-    __slots__ = ("callbacks", "state")
+    Built in the context that begins the unit: ``begun`` is that context's
+    mark on it, and ``ended`` turns true once that context has ended it.
+    """
+
+    __slots__ = ("begun", "callbacks", "ended", "state")
 
     def __init__(self) -> None:
         self.state: dict[int, object] = {}
         self.callbacks: list[Callable[[], object]] = []
+        self.begun: Token[None] = _BEGUN.set(None)
+        self.ended = False
 
 
 _CURRENT: ContextVar[_Unit | None] = ContextVar("xtr_logging_unit", default=None)
+
+# Set only for the token it returns. A token resets in the very context that
+# made it and in no copy of it, and only once — which is what tells the context
+# that began a unit apart from one that merely carries it.
+_BEGUN: ContextVar[None] = ContextVar("xtr_logging_unit_begun", default=None)
 
 
 def begin_unit() -> None:
     """Open a fresh unit of work in the current context.
 
-    Any unit still open is ended first, so a caller that forgot :func:`end_unit`
-    cannot leak one unit's state into the next.
+    A unit this context began and never ended is ended first, so a caller that
+    forgot :func:`end_unit` cannot leak one unit's state into the next. A unit
+    the context only carries is let go of the way :func:`end_unit` lets go of
+    one.
     """
     end_unit()
     _ = _CURRENT.set(_Unit())
@@ -64,17 +84,28 @@ def in_unit() -> bool:
 
 
 def end_unit() -> None:
-    """Close the open unit, running every end callback, then clear the context.
+    """Close the unit this context began, running every end callback, then clear the context.
 
     Callbacks run in registration order. Every one runs even if an earlier one
     raised; the failures are then raised together as an :class:`ExceptionGroup`.
     Does nothing when no unit is open.
+
+    A unit the context only carries — begun in the context this one was copied
+    from — is let go of rather than ended. While it is still open where it
+    began, the context is cleared and nothing else: its callbacks are for
+    whoever began it. Once it is over there, its callbacks run again first, so
+    what this context logged into it since is flushed rather than stranded.
 
     Raises:
         ExceptionGroup: If one or more end callbacks raised.
     """
     unit = _CURRENT.get()
     if unit is None:
+        return
+    if _began_here(unit):
+        unit.ended = True
+    elif not unit.ended:
+        _ = _CURRENT.set(None)
         return
     failures: list[Exception] = []
     for callback in unit.callbacks:
@@ -85,6 +116,16 @@ def end_unit() -> None:
     _ = _CURRENT.set(None)
     if failures:
         raise ExceptionGroup("errors ending a unit of work", failures)
+
+
+def _began_here(unit: _Unit) -> bool:
+    """Tell whether the current context began ``unit``, the one time it ends it."""
+    try:
+        _BEGUN.reset(unit.begun)
+    except (ValueError, RuntimeError):
+        # The mark was made in another context, or this one already spent it.
+        return False
+    return True
 
 
 def unit_state(

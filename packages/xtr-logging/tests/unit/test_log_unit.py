@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 from typing import TYPE_CHECKING
 
 import anyio
@@ -126,6 +127,67 @@ def test_begin_unit_ends_an_open_unit_first() -> None:
     begin_unit()
 
     assert ended == ["first"]
+
+
+def test_beginning_a_unit_does_not_end_one_another_context_began() -> None:
+    begin_unit()
+    ended: list[str] = []
+    _ = unit_state(object(), lambda: 1, lambda _s: ended.append("first"))
+
+    # A copy of this context — what a task started inside the unit runs in —
+    # carries the unit without having begun it.
+    contextvars.copy_context().run(begin_unit)
+
+    assert ended == []
+    assert in_unit()
+
+
+def test_ending_in_a_context_that_only_carries_a_unit_lets_go_of_it() -> None:
+    begin_unit()
+    ended: list[str] = []
+    _ = unit_state(object(), lambda: 1, lambda _s: ended.append("first"))
+
+    def end_then_ask() -> bool:
+        end_unit()
+        return in_unit()
+
+    assert contextvars.copy_context().run(end_then_ask) is False
+    assert ended == []
+
+    end_unit()
+
+    assert ended == ["first"]
+
+
+def test_what_is_logged_into_a_unit_after_it_ended_is_flushed_when_its_carrier_lets_go() -> None:
+    begin_unit()
+    owner = object()
+    flushed: list[list[str]] = []
+
+    def buffer() -> list[str]:
+        return []
+
+    def flush(held: list[str]) -> None:
+        flushed.append(list(held))
+        held.clear()
+
+    held = unit_state(owner, buffer, flush)
+    assert held is not None
+    held.append("in time")
+    kept = contextvars.copy_context()
+    end_unit()
+
+    def log_late_then_begin() -> None:
+        # The copy still carries the unit that is over: what is logged there
+        # lands in it, and beginning the next unit must not strand it.
+        late = unit_state(owner, buffer, flush)
+        assert late is not None
+        late.append("late")
+        begin_unit()
+
+    kept.run(log_late_then_begin)
+
+    assert flushed == [["in time"], ["late"]]
 
 
 @pytest.mark.anyio

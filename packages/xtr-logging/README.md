@@ -425,8 +425,14 @@ span is a **unit of work**.
 `begin_unit()` opens one; `end_unit()` closes it, running every end callback in the order they
 were registered and clearing the state. They are called at the edges of a unit — by whatever
 owns it, a request lifecycle or a message worker — never from a handler, a processor or an
-endpoint. `begin_unit()` ends any unit still open first, so a caller that forgot `end_unit()`
-cannot leak one unit's state into the next.
+endpoint. `begin_unit()` first ends a unit its caller began and never ended, so a caller that
+forgot `end_unit()` cannot leak one unit's state into the next.
+
+A unit belongs to the context that began it and ends there. A copy of that context only
+carries it — a task started inside the unit, or a request a server started from an earlier
+request's context — and beginning or ending a unit there does not end one still open where it
+began: whoever began it is still filling it, and ends it. A carried unit that is already over
+is flushed once more as it is let go of, so what was logged into it late is not stranded.
 
 ```python
 from xtr_logging import begin_unit, end_unit
