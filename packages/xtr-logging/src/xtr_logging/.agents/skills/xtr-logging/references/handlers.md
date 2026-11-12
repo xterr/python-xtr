@@ -63,7 +63,9 @@ A processor is any callable `(LogRecord) -> LogRecord`. `ProcessorInterface` is 
 
 Ambient context: `bind_context(values)`, `unbind_context(*keys)`, `clear_context()`,
 `current_context()`, and `bound_context(values)` as a context manager. It lives in a context
-variable, so it is separate per thread and per asyncio or anyio task.
+variable, so it is separate per thread and per asyncio or anyio task. What is bound during a
+unit of work is bound for that unit — gone when it ends or when another unit begins in a
+context still carrying it; what is bound outside any unit lasts.
 
 `as_processor` declares one into `default_processor_registry()`, or into a `ProcessorRegistry`
 passed as `registry=`. A `LoggerFactory` attaches every declaration it finds; a kernel also

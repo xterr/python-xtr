@@ -223,6 +223,12 @@ with bound_context({"request_id": request.id, "user": user.id}):
     handle(request)  # every record logged in here carries both
 ```
 
+`bind_context()` binds without a block. What it binds during a [unit of work](#units-of-work)
+is bound for that unit: it is gone when the unit ends, and when another unit begins in a
+context that still carries it — a server may start a request from a copy of an earlier
+request's context, and the earlier request's values must not follow. Work that still carries
+the unit, a task it started, keeps them. What is bound outside any unit lasts.
+
 Declare a processor where it is written, and a factory attaches it:
 
 ```python
