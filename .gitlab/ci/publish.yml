@@ -1,0 +1,38 @@
+# Pushing a tag X.Y.Z publishes every package at X.Y.Z to this project's package registry,
+# once the tests of each one pass on the tagged commit.
+
+build:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
+  script:
+    - uv run scripts/release.py check "$CI_COMMIT_TAG"
+    # --exact installs only what the package declares, so an undeclared import of a
+    # sibling fails here; the runs share one environment and go one after another.
+    - |
+      packages=$(uv run scripts/release.py packages | python3 -c 'import json, sys; print(*json.load(sys.stdin))')
+      for package in $packages; do
+        uv run --locked --package "$package" --exact pytest "packages/$package" -q
+        uv build --package "$package" --out-dir dist
+      done
+  artifacts:
+    paths:
+      - dist/
+
+publish:
+  stage: publish
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
+  variables:
+    UV_PUBLISH_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi
+    UV_PUBLISH_CHECK_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi/simple
+    UV_PUBLISH_USERNAME: gitlab-ci-token
+    UV_PUBLISH_PASSWORD: $CI_JOB_TOKEN
+  script:
+    # The lookup of what the registry already has takes its credentials from a netrc file,
+    # not from the pair the upload uses. With both, a job that is run again skips the
+    # files a first run uploaded instead of being refused for them.
+    - |
+      export NETRC="$(mktemp)"
+      echo "machine $CI_SERVER_HOST login gitlab-ci-token password $CI_JOB_TOKEN" > "$NETRC"
+    - uv publish dist/*
