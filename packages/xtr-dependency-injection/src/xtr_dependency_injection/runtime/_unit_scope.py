@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, final
 
 from wireup.errors import UnknownServiceRequestedError
 
+from ._detached_variables import register_detached_variable
+
 if TYPE_CHECKING:
     from collections.abc import Generator, Sequence
 
@@ -62,6 +64,8 @@ class Unit:
 _current: ContextVar[tuple[Unit, ...]] = ContextVar(
     "xtr_dependency_injection_unit_of_work", default=()
 )
+# A new connection carries no unit of work, whatever context its task was copied from.
+register_detached_variable(_current, ())
 
 
 def current_unit_record() -> Unit | None:

@@ -19,6 +19,7 @@ from starlette.requests import HTTPConnection  # noqa: TC002 — read at runtime
 from wireup import AsyncContainer
 
 from xtr_dependency_injection.exception import FastapiIntegrationError
+from xtr_dependency_injection.runtime._detached_variables import register_detached_variable
 from xtr_dependency_injection.runtime._scope_exit import closing_scope
 from xtr_dependency_injection.runtime._unit_scope import entered, participants_of, participating
 
@@ -99,6 +100,8 @@ Only for what has no connection in hand — a factory the container runs. It is
 bound when the scope opens and set nowhere else, so what it answers is the
 request whose scope is open here, not whatever the context held before.
 """
+# A new connection serves no request yet, whatever context its task was copied from.
+register_detached_variable(_SERVED, None)
 
 _PROVIDERS: Final[dict[tuple[str, object, object], Callable[..., Awaitable[object]]]] = {}
 
