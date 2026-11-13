@@ -437,8 +437,11 @@ forgot `end_unit()` cannot leak one unit's state into the next.
 A unit belongs to the context that began it and ends there. A copy of that context only
 carries it — a task started inside the unit, or a request a server started from an earlier
 request's context — and beginning or ending a unit there does not end one still open where it
-began: whoever began it is still filling it, and ends it. A carried unit that is already over
-is flushed once more as it is let go of, so what was logged into it late is not stranded.
+began: whoever began it is still filling it, and ends it. Once a unit is over, a context still
+carrying it finds no unit: `unit_state` hands out nothing for it and the values bound in it are
+no longer read, so what is logged there late is handled at once — a fingers-crossed handler
+passes it on if it activates or the passthru floor keeps it, a buffer forwards it — rather
+than kept in a unit nobody ends again.
 
 ```python
 from xtr_logging import begin_unit, end_unit
@@ -467,10 +470,23 @@ variable itself.
 
 `QueueHandler` writes on a background thread, and carries each record's logged context across
 with it, so a record buffered under one unit is formatted and written as though still inside it,
-whichever thread does the writing. Awaiting `reset()` on a `LoggerFactory`, a
-`FingersCrossedHandler` or a `DeduplicationHandler` ends the current unit's accumulation, so one
-unit does not bleed into the next; the kernel awaits it between messages through
-`ServicesResetter`.
+whichever thread does the writing. Each queued record holds its unit open until it is written: a
+unit ending while its records are still queued closes once the last of them is written, on the
+worker, so an error still queued when the unit ends brings the unit's records with it.
+
+Under a container, every unit of work it opens — a request, a message, a command — is a log
+unit of its own: the logging bundle registers `LogUnitParticipant`, which opens one as the
+container's unit begins and closes it once that unit has ended. A unit opened inside another —
+a message handled inside a request — is a log unit of its own, and the one around it is open
+again once it ends. Two orderings follow from that:
+
+- The container closes a unit's scoped services before the log unit closes, so what a service's
+  teardown logs — the code after `yield` in its factory — lands in that unit, never in another
+  one handled at the same time.
+- A worker awaits `ServicesResetter.reset()` between messages from the command hosting it, so
+  `reset()` on a `LoggerFactory`, a `FingersCrossedHandler` or a `DeduplicationHandler` acts on
+  the host's state — the command's log unit, or the handler's own outside any unit — and never
+  on a message's, which its own unit's end flushes.
 
 ## Use in an application
 

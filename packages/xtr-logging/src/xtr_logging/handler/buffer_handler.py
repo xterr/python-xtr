@@ -9,7 +9,7 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 from xtr_service_contracts import ResetInterface
 
-from xtr_logging.log_unit import unit_state
+from xtr_logging.log_unit import in_closed_unit, unit_state
 
 from ._processor_stack import ProcessorStack
 from .abstract_handler import AbstractHandler
@@ -87,10 +87,15 @@ class BufferHandler(AbstractHandler, ProcessorStack):
 
         Returns ``True`` only when ``bubble`` is off, exactly as any handler
         that has taken a record does — the record is buffered, not yet written.
+        A record arriving in a unit of work that is over — replayed by a queue
+        once it ended — is forwarded at once, as the unit's end would have.
         """
         if not self.is_handling(record):
             return False
         processed = self._process(record)
+        if in_closed_unit():
+            self._forward([processed])
+            return not self._bubble
         state = self._state()
         overflow: list[LogRecord] = []
         with self._buffer_lock:

@@ -14,14 +14,14 @@ that unit; what is bound outside any unit lasts. A context does not always
 end with the work it was made for — a server may start a request from a copy
 of an earlier request's — so the values a request bound are tied to its unit
 rather than left to whoever inherits the context: once another unit begins
-there, or the unit ends where it began, they are gone. Work that still
-carries the unit — a task it started, running on after it — keeps reading
-them.
+there, or the unit ends, they are gone — for work that still carries the
+unit too, a task it started running on after it: they stop being read the
+moment the unit is over.
 """
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -96,8 +96,8 @@ def clear_context() -> None:
 def current_context() -> Context:
     """The values bound in this thread or task, as a read-only mapping.
 
-    What was bound in a unit of work other than the one open here is left
-    out: it was bound for that unit.
+    What was bound in a unit of work other than the one open here — or in
+    one that is over — is left out: it was bound for that unit.
     """
     bound = _CONTEXT.get()
     return bound.values if bound.unit is None or bound.unit is _unit() else bound.lasting
@@ -110,12 +110,15 @@ def bound_context(values: Context) -> Generator[None]:
     Nesting merges: inside the block the ambient context is what was bound
     before plus ``values``, with ``values`` winning a clash. The previous state
     is put back on the way out whether the block returns or raises.
+    A block exited in another context than it was entered in puts nothing
+    back there: that context never held what the block bound.
     """
     token = _CONTEXT.set(_holding({**current_context(), **values}))
     try:
         yield
     finally:
-        _CONTEXT.reset(token)
+        with suppress(ValueError):
+            _CONTEXT.reset(token)
 
 
 def _unit() -> object | None:

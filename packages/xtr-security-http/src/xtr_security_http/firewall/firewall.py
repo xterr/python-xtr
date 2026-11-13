@@ -33,10 +33,10 @@ if TYPE_CHECKING:
 __all__ = ["Firewall"]
 
 # The request phase runs after the framework's own request listeners have
-# settled what the request is known by — the unit of work opens at 8192 and
-# the request id at 4096, on the same higher-first scale — and ahead of the
-# default-priority listeners. The exception phase routes to the request's
-# stored listener ahead of the listeners that only observe the failure.
+# settled what the request is known by — the request id at 4096, on the same
+# higher-first scale — and ahead of the default-priority listeners. The
+# exception phase routes to the request's stored listener ahead of the
+# listeners that only observe the failure.
 _REQUEST_PRIORITY: Final = 8
 _EXCEPTION_PRIORITY: Final = 1
 

@@ -50,6 +50,7 @@ from xtr_logging.handler.fingers_crossed.activation_strategy_interface import (
     ActivationStrategyInterface,
 )
 from xtr_logging.handler.handler_interface import HandlerInterface
+from xtr_logging.log_unit_participant import LogUnitParticipant
 from xtr_logging.logger_factory import LoggerFactory
 from xtr_logging.processor.processor_descriptor import ProcessorDescriptor
 from xtr_logging.processor.processor_interface import ProcessorInterface
@@ -113,7 +114,11 @@ class LoggingBundle(Bundle[LoggingConfig]):
         services: ServiceConfigurator,
         builder: ContainerBuilder,
     ) -> None:
-        """Register the :class:`LoggerFactory`, a :class:`Services`, and every logger."""
+        """Register the :class:`LoggerFactory`, a :class:`Services`, every logger, and the log unit.
+
+        :class:`LogUnitParticipant` makes every unit of work the container
+        opens a log unit of its own.
+        """
         has_clock = bundle_active(builder, "clock")
         registry = self._registry
         declared_classes = self._declared_classes
@@ -164,6 +169,8 @@ class LoggingBundle(Bundle[LoggingConfig]):
 
         for channel in config.all_channels:
             _ = services.set(_channel_logger_factory(channel), qualifier=channel)
+
+        _ = services.set(LogUnitParticipant).add_tag("kernel.unit_participant")
 
     @override
     def process(self, builder: ContainerBuilder) -> None:

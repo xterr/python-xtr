@@ -74,6 +74,7 @@ from .handler import (
 from .log_context import bind_context, bound_context, clear_context, current_context, unbind_context
 from .log_record import LogRecord
 from .log_unit import begin_unit, end_unit, in_unit, unit_state
+from .log_unit_participant import LogUnitParticipant
 from .logger import Logger
 from .logger_factory import LoggerFactory
 from .processor import (
@@ -128,6 +129,7 @@ __all__ = [
     "JsonFormatter",
     "LineFormatter",
     "LogRecord",
+    "LogUnitParticipant",
     "Logger",
     "LoggerFactory",
     "LoggingConfig",

@@ -10,7 +10,7 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record
-from xtr_logging import AbstractHandler, LogRecord, TestHandler
+from xtr_logging import AbstractHandler, HandlerInterface, LogRecord, TestHandler
 from xtr_logging.handler.fingers_crossed_handler import FingersCrossedHandler
 from xtr_logging.handler.queue_handler import QueueHandler
 from xtr_logging.log_unit import begin_unit, end_unit
@@ -264,6 +264,63 @@ def test_queued_records_are_handled_in_the_unit_they_were_logged_from() -> None:
     assert spy.batches == [["a-debug", "a-error"], ["b-debug", "b-error"]]
 
 
+@final
+class Stalling(AbstractHandler):
+    """Hands records on, stalling the worker on the one named ``stall`` until let go."""
+
+    def __init__(self, inner: HandlerInterface) -> None:
+        super().__init__()
+        self.inner = inner
+        self.stalled = threading.Event()
+        self.release = threading.Event()
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        if record.message == "stall":
+            self.stalled.set()
+            _ = self.release.wait(_TIMEOUT)
+        return self.inner.handle(record)
+
+
+def test_a_unit_ended_while_its_records_are_queued_still_flushes_every_one() -> None:
+    spy = BatchSpy()
+    stalling = Stalling(FingersCrossedHandler(spy, activation_strategy=Level.ERROR))
+    handler = QueueHandler(stalling)
+    begin_unit()
+    _ = handler.handle(make_record(Level.DEBUG, "d0"))
+    handler.flush()
+    _ = handler.handle(make_record(Level.DEBUG, "stall"))
+    assert stalling.stalled.wait(_TIMEOUT)
+    _ = handler.handle(make_record(Level.DEBUG, "d1"))
+    _ = handler.handle(make_record(Level.ERROR, "boom"))
+
+    end_unit()
+    stalling.release.set()
+    handler.flush()
+    handler.close()
+
+    assert spy.batches == [["d0", "stall", "d1", "boom"]]
+
+
+def test_the_passthru_floor_of_a_unit_ended_while_queued_is_flushed_on_the_worker() -> None:
+    spy = BatchSpy()
+    stalling = Stalling(
+        FingersCrossedHandler(spy, activation_strategy=Level.ERROR, passthru_level=Level.WARNING)
+    )
+    handler = QueueHandler(stalling)
+    begin_unit()
+    _ = handler.handle(make_record(Level.DEBUG, "stall"))
+    assert stalling.stalled.wait(_TIMEOUT)
+    _ = handler.handle(make_record(Level.WARNING, "warning"))
+
+    end_unit()
+    stalling.release.set()
+    handler.flush()
+    handler.close()
+
+    assert spy.batches == [["warning"]]
+
+
 def test_outside_a_unit_queued_records_share_the_wrapped_handlers_buffer() -> None:
     spy = BatchSpy()
     handler = QueueHandler(FingersCrossedHandler(spy, activation_strategy=Level.ERROR))
@@ -403,7 +460,7 @@ def test_a_record_the_worker_logs_while_stopping_is_written_before_the_wrapped_h
     handler = QueueHandler(inner)
     inner.owner = handler
     monkeypatch.setattr(handler, "_queue", gated)
-    gated.ahead_of_stop = (make_record(message="trigger"), None)
+    gated.ahead_of_stop = (make_record(message="trigger"), None, None)
     gated.gate.set()
 
     _ = handler.handle(make_record(message="first"))

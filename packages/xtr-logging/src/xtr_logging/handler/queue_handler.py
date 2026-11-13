@@ -6,13 +6,13 @@ import queue
 import threading
 import traceback
 from contextvars import copy_context
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, TypeAlias, final
 
 from typing_extensions import override
 from xtr_service_contracts import ResetInterface
 
 from xtr_logging.log_context import current_context
-from xtr_logging.log_unit import in_unit
+from xtr_logging.log_unit import hold_unit, in_closed_unit
 
 from .handler_interface import HandlerInterface
 
@@ -36,6 +36,9 @@ _STOP: Final = _Stop()
 
 _WORKER_CHECK_INTERVAL: Final = 0.1
 """Seconds a flush waits between checks that the worker it waits on is still alive."""
+
+_Queued: TypeAlias = "tuple[LogRecord, Context | None, Callable[[], None] | None]"
+"""A record, the context it was logged in, and the release of the unit it holds open."""
 
 
 @final
@@ -83,9 +86,7 @@ class QueueHandler(HandlerInterface, ResetInterface):
         """
         self._handler: HandlerInterface = handler
         self._on_error: Callable[[Exception, LogRecord], None] | None = on_error
-        self._queue: queue.Queue[tuple[LogRecord, Context | None] | _Stop] = queue.Queue(
-            maxsize=max_size
-        )
+        self._queue: queue.Queue[_Queued | _Stop] = queue.Queue(maxsize=max_size)
         self._state: threading.Condition = threading.Condition(threading.Lock())
         self._close_lock: threading.Lock = threading.Lock()
         self._worker: threading.Thread | None = None
@@ -109,6 +110,12 @@ class QueueHandler(HandlerInterface, ResetInterface):
         happens to drain next. With nothing bound there is nothing to copy, and
         the capture is skipped.
 
+        The record holds its unit open until the worker has written it, so a
+        unit ending while its records are still queued closes once the last
+        of them is written — on the worker, whose writing is then what the
+        unit's end flushes: an error queued behind its unit's end still
+        brings the unit's records with it, and nothing is stranded.
+
         Always returns ``False``: the record is only queued, so it must still
         reach the handlers after this one.
         """
@@ -120,8 +127,14 @@ class QueueHandler(HandlerInterface, ResetInterface):
             self._start_worker()
             self._putting += 1
         try:
-            context = copy_context() if in_unit() or current_context() else None
-            self._queue.put((record, context))
+            release = hold_unit()
+            try:
+                carried = release is not None or in_closed_unit() or current_context()
+                self._queue.put((record, copy_context() if carried else None, release))
+            except BaseException:
+                if release is not None:
+                    release()
+                raise
         finally:
             with self._state:
                 self._putting -= 1
@@ -234,13 +247,22 @@ class QueueHandler(HandlerInterface, ResetInterface):
             traceback.print_exception(error)
             traceback.print_exception(failure)
 
-    def _write(self, record: LogRecord, context: Context | None) -> None:
+    def _write(
+        self, record: LogRecord, context: Context | None, release: Callable[[], None] | None
+    ) -> None:
         try:
             if context is None:
                 _ = self._handler.handle(record)
             else:
                 _ = context.run(self._handler.handle, record)
         except Exception as error:  # noqa: BLE001 — one broken record must not kill the worker
+            self._report(error, record)
+        if release is None or context is None:
+            return
+        try:
+            # The unit's end, when this was the last record holding it, runs here.
+            context.run(release)
+        except Exception as error:  # noqa: BLE001 — a failing end must not kill the worker either
             self._report(error, record)
 
     def _work(self) -> None:

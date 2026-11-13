@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 from typing import TYPE_CHECKING, final
 
 import anyio
@@ -330,6 +331,39 @@ def test_end_unit_flushes_the_units_passthru_floor() -> None:
     end_unit()
 
     assert [record.message for record in spy.handled] == ["warning"]
+
+
+def test_a_record_arriving_after_the_unit_ended_is_not_stranded() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(
+        spy, activation_strategy=Level.ERROR, passthru_level=Level.WARNING
+    )
+    begin_unit()
+    _ = handler.handle(make_record(Level.INFO, "in time"))
+    # What a queue worker replays for the unit once it is over.
+    late = contextvars.copy_context()
+    end_unit()
+
+    def log_late() -> None:
+        _ = handler.handle(make_record(Level.INFO, "late info"))
+        _ = handler.handle(make_record(Level.WARNING, "late warning"))
+
+    late.run(log_late)
+    handler.activate()
+
+    assert [record.message for record in spy.handled] == ["late warning"]
+
+
+def test_an_activating_record_arriving_after_the_unit_ended_is_forwarded() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(spy, activation_strategy=Level.ERROR)
+    begin_unit()
+    late = contextvars.copy_context()
+    end_unit()
+
+    _ = late.run(handler.handle, make_record(Level.ERROR, "late error"))
+
+    assert [record.message for record in spy.handled] == ["late error"]
 
 
 def test_a_quiet_unit_never_builds_the_lazy_wrapped_handler() -> None:
