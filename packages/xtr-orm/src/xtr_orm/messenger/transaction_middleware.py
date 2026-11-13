@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Final, final
+from weakref import WeakSet
 
 from typing_extensions import override
 from xtr_messenger import (
@@ -18,13 +19,52 @@ from xtr_messenger import (
 from xtr_orm.connection_registry import ConnectionRegistry
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
-__all__ = ["TransactionMiddleware"]
+__all__ = ["DETACHED_VARIABLE", "TransactionMiddleware", "in_begun_transaction"]
 
-# The sessions a transaction middleware has begun in this context: a message
-# dispatched while another is handled runs inside the outer one's transaction.
-_begun: ContextVar[frozenset[int]] = ContextVar("xtr_orm_transaction_begun", default=frozenset())
+
+@final
+class _Begun:
+    """The sessions transaction middleware began in this context, open until its message is done.
+
+    The sessions themselves, held weakly — never their ids, which a session
+    built after one was freed may take over.
+    """
+
+    __slots__ = ("open", "sessions")
+
+    def __init__(self, sessions: Iterable[AsyncSession]) -> None:
+        self.sessions: WeakSet[AsyncSession] = WeakSet(sessions)
+        self.open = True
+
+
+# The transactions under way in this context: a message dispatched while
+# another is handled runs inside the outer one's. Each message sets a record of
+# its own and closes it once done, so work outliving the message — a task its
+# handler started — begins a transaction of its own.
+_begun: ContextVar[_Begun | None] = ContextVar("xtr_orm_transaction_begun", default=None)
+
+DETACHED_VARIABLE: Final = (_begun, None)
+"""What a new connection starts without: the transactions an earlier request's messages began.
+
+The orm bundle registers it with the container when the messenger bundle is
+active.
+"""
+
+
+def in_begun_transaction(session: AsyncSession) -> bool:
+    """Tell whether ``session`` is in a transaction a message handled here began.
+
+    For what must not commit a transaction that is not its own: inside one,
+    work joins it — in a savepoint — and leaves committing to whoever began it.
+    """
+    begun = _begun.get()
+    if begun is None or not begun.open:
+        return False
+    return session in begun.sessions and session.in_transaction()
 
 
 @final
@@ -59,12 +99,14 @@ class TransactionMiddleware(MiddlewareInterface):
     async def handle(self, envelope: Envelope, stack: StackInterface, /) -> Envelope:
         """Run the rest of the chain inside a transaction, committed once it all succeeded."""
         session = await self._connections.session(self._connection_name)
-        begun = _begun.get()
-        if id(session) in begun:
+        if in_begun_transaction(session):
             return await _in_savepoint(session, envelope, stack)
         if not session.in_transaction():
             _ = await session.begin()
-        token = _begun.set(begun | {id(session)})
+        inherited = _begun.get()
+        held = inherited.sessions if inherited is not None and inherited.open else ()
+        begun = _Begun([*held, session])
+        token = _begun.set(begun)
         try:
             handled = await stack.next().handle(envelope, stack)
             await session.commit()
@@ -75,6 +117,7 @@ class TransactionMiddleware(MiddlewareInterface):
             await session.rollback()
             raise
         finally:
+            begun.open = False
             _begun.reset(token)
         return handled
 

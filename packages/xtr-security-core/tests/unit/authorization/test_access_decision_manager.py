@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
@@ -189,6 +190,38 @@ async def test_a_nested_decision_does_not_overwrite_the_outer_outcome() -> None:
     assert observed == [(True, False)]
     assert granted is False
     assert decision.is_granted is False
+
+
+@pytest.mark.anyio
+async def test_a_task_outliving_the_decision_does_not_join_its_record() -> None:
+    inner = AccessDecisionManager([RoleVoter()])
+    gate = asyncio.Event()
+    outliving: list[asyncio.Task[bool]] = []
+
+    async def later_on(token: TokenInterface) -> bool:
+        _ = await gate.wait()
+        return await inner.decide(token, ["ROLE_USER"])
+
+    class _Spawning:
+        async def vote(
+            self,
+            token: TokenInterface,
+            subject: object,
+            attributes: Sequence[object],
+            vote: Vote | None = None,
+        ) -> Access:
+            del subject, attributes, vote
+            outliving.append(asyncio.create_task(later_on(token)))
+            return Access.ABSTAIN
+
+    outer = AccessDecision()
+    _ = await AccessDecisionManager([_Spawning()]).decide(
+        _token("ROLE_USER"), ["ANY"], access_decision=outer
+    )
+    gate.set()
+    _ = await outliving[0]
+
+    assert len(outer.votes) == 1
 
 
 @pytest.mark.anyio

@@ -7,15 +7,22 @@ Code that runs before the connection's own scope opens — middleware outside
 the kernel's, a server's error handling — would then read and write that
 request's scoped services. A server or an entry point serving each connection
 in the context this returns hands every connection a clean start.
+
+:func:`register_detached_variable` is how a library's bundle adds the context
+variable it keeps per-request state in — held messages, a begun transaction,
+a log unit — to what a new connection starts without.
 """
 
 from __future__ import annotations
 
 from contextvars import Context, copy_context
 
-from xtr_dependency_injection.runtime._detached_variables import detach_variables
+from xtr_dependency_injection.runtime._detached_variables import (
+    detach_variables,
+    register_detached_variable,
+)
 
-__all__ = ["detached_context"]
+__all__ = ["detached_context", "register_detached_variable"]
 
 
 def detached_context() -> Context:

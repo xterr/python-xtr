@@ -47,12 +47,13 @@ import threading
 from contextlib import suppress
 from contextvars import ContextVar, Token
 from functools import partial
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, Final, TypeVar, cast, final
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 __all__ = [
+    "DETACHED_VARIABLE",
     "begin_unit",
     "end_unit",
     "enter_nested_unit",
@@ -102,6 +103,13 @@ class _Nested:
 
 
 _CURRENT: ContextVar[_Unit | None] = ContextVar("xtr_logging_unit", default=None)
+
+DETACHED_VARIABLE: Final = (_CURRENT, None)
+"""What a new connection starts without: the log unit of the request its context was copied from.
+
+The logging bundle registers it with the container, so a request a server
+starts from a copy of an earlier one's context logs into no unit of that one.
+"""
 
 # Set only for the token it returns. A token resets in the very context that
 # made it and in no copy of it, and only once — which is what tells the context

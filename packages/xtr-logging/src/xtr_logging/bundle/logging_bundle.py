@@ -28,9 +28,11 @@ from xtr_dependency_injection import (
     named_factory,
     required_bundle,
 )
+from xtr_dependency_injection.integration import register_detached_variable
 from xtr_logging_contracts import LoggerInterface
 from xtr_service_contracts import ContainerInterface
 
+from xtr_logging import log_context, log_unit
 from xtr_logging.config.handler_configs import (
     ConsoleHandlerConfig,
     FormattedHandlerConfig,
@@ -117,8 +119,11 @@ class LoggingBundle(Bundle[LoggingConfig]):
         """Register the :class:`LoggerFactory`, a :class:`Services`, every logger, and the log unit.
 
         :class:`LogUnitParticipant` makes every unit of work the container
-        opens a log unit of its own.
+        opens a log unit of its own; the log unit and the log context are
+        registered as what a new connection starts without.
         """
+        register_detached_variable(*log_unit.DETACHED_VARIABLE)
+        register_detached_variable(*log_context.DETACHED_VARIABLE)
         has_clock = bundle_active(builder, "clock")
         registry = self._registry
         declared_classes = self._declared_classes

@@ -42,10 +42,23 @@ _MAX_ATTRIBUTE_CACHE: Final = 4096
 #: it is reached.
 _MAX_TYPE_CACHE: Final = 4096
 
+
+@final
+class _Deciding:
+    """A decision record in progress, open until the decision returns."""
+
+    __slots__ = ("decision", "open")
+
+    def __init__(self, decision: AccessDecision) -> None:
+        self.decision = decision
+        self.open = True
+
+
 #: The decisions in progress on the current task, innermost last. A voter that
-#: asks a nested question reuses the decision on top, so its votes are gathered
-#: into the one already being made rather than a fresh one.
-_decision_stack: ContextVar[tuple[AccessDecision, ...]] = ContextVar(
+#: asks a nested question reuses the innermost one still open, so its votes are
+#: gathered into the one already being made rather than a fresh one; a task a
+#: voter started, outliving the decision, makes one of its own.
+_decision_stack: ContextVar[tuple[_Deciding, ...]] = ContextVar(
     "xtr_security_access_decision_stack",
     default=(),
 )
@@ -105,13 +118,15 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
         stack = _decision_stack.get()
         owns_record = True
         if access_decision is None:
-            if stack:
-                access_decision = stack[-1]
+            in_progress = next((one.decision for one in reversed(stack) if one.open), None)
+            if in_progress is not None:
+                access_decision = in_progress
                 owns_record = False
             else:
                 access_decision = AccessDecision()
         access_decision.strategy = _strategy_name(self._strategy)
-        reset_token = _decision_stack.set((*stack, access_decision))
+        deciding = _Deciding(access_decision)
+        reset_token = _decision_stack.set((*stack, deciding))
         try:
             results = self._collect(token, attribute, attribute_list, subject, access_decision)
             try:
@@ -122,6 +137,7 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
                 access_decision.is_granted = granted
             return granted
         finally:
+            deciding.open = False
             _decision_stack.reset(reset_token)
 
     async def _collect(

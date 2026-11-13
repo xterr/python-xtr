@@ -11,8 +11,11 @@ from starlette.requests import HTTPConnection
 from tests.fixtures.app_kernel.services import Greeter
 from tests.support.bundles import ChorusBundle, EchoBundle
 from xtr_dependency_injection import Kernel, current_unit_of_work
-from xtr_dependency_injection.exception import FastapiIntegrationError
-from xtr_dependency_injection.integration import detached_context
+from xtr_dependency_injection.exception import (
+    DetachedVariableConflictError,
+    FastapiIntegrationError,
+)
+from xtr_dependency_injection.integration import detached_context, register_detached_variable
 from xtr_dependency_injection.integration.fastapi import (
     attach,
     current_connection,
@@ -23,6 +26,9 @@ from xtr_dependency_injection.integration.fastapi import (
 pytestmark = pytest.mark.anyio
 
 _TRACE: ContextVar[str] = ContextVar("test_detached_context_trace", default="none")
+_REQUEST: ContextVar[str | None] = ContextVar("test_detached_context_request", default=None)
+_TWICE: ContextVar[str | None] = ContextVar("test_detached_context_twice", default=None)
+_CONFLICTING: ContextVar[str | None] = ContextVar("test_detached_context_conflict", default=None)
 
 
 def _served_app() -> Starlette:
@@ -70,3 +76,28 @@ async def test_detaching_leaves_the_calling_context_as_it_was() -> None:
 
         assert current_unit_of_work() is not None
         assert current_connection() is connection
+
+
+async def test_registered_variables_are_reset_in_a_detached_context() -> None:
+    register_detached_variable(_REQUEST, None)
+    _ = _REQUEST.set("first request")
+
+    detached = detached_context()
+
+    assert detached.run(_REQUEST.get) is None
+    assert _REQUEST.get() == "first request"
+
+
+async def test_registering_the_same_variable_twice_is_a_no_op() -> None:
+    register_detached_variable(_TWICE, None)
+    register_detached_variable(_TWICE, None)
+    _ = _TWICE.set("first request")
+
+    assert detached_context().run(_TWICE.get) is None
+
+
+async def test_registering_a_variable_with_another_value_raises() -> None:
+    register_detached_variable(_CONFLICTING, None)
+
+    with pytest.raises(DetachedVariableConflictError, match="test_detached_context_conflict"):
+        register_detached_variable(_CONFLICTING, "other")

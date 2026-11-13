@@ -108,6 +108,29 @@ async def test_a_callback_reading_its_own_key_computes_without_waiting_on_itself
     assert (await pool.get_item("k")).get() == "outer(inner)"
 
 
+async def test_a_task_outliving_the_computation_does_not_see_it() -> None:
+    pool = ArrayAdapter()
+    gate = asyncio.Event()
+    outliving: list[asyncio.Task[str]] = []
+
+    async def later_on() -> str:
+        _ = await gate.wait()
+        return await pool.get("k", Computation("later"))
+
+    async def outer(item: ItemInterface) -> str:
+        del item
+        outliving.append(asyncio.create_task(later_on()))
+        return "first"
+
+    _ = await pool.get("k", outer)
+    _ = await pool.delete_item("k")
+    gate.set()
+
+    # A miss of its own, computed and saved: not a callback reading its own key.
+    assert await outliving[0] == "later"
+    assert (await pool.get_item("k")).get() == "later"
+
+
 async def test_an_infinite_beta_recomputes_a_hit() -> None:
     pool = ArrayAdapter()
     _ = await pool.get("k", Computation("old"))

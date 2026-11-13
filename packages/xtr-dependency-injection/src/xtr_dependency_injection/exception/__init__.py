@@ -18,6 +18,7 @@ from .conflicting_config_providers_error import ConflictingConfigProvidersError
 from .container_compilation_error import ContainerCompilationError
 from .decorator_signature_error import DecoratorSignatureError
 from .dependency_injection_error import DependencyInjectionError
+from .detached_variable_conflict_error import DetachedVariableConflictError
 from .duplicate_bundle_error import DuplicateBundleError
 from .duplicate_service_error import DuplicateServiceError
 from .env_placeholder_error import EnvPlaceholderError
@@ -57,6 +58,7 @@ __all__ = [
     "ContainerCompilationError",
     "DecoratorSignatureError",
     "DependencyInjectionError",
+    "DetachedVariableConflictError",
     "DuplicateBundleError",
     "DuplicateServiceError",
     "EnvPlaceholderError",

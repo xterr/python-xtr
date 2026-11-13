@@ -6,7 +6,7 @@ import asyncio
 import math
 from abc import ABC, abstractmethod
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Final, TypeVar, cast
+from typing import TYPE_CHECKING, Final, TypeVar, cast, final
 
 from typing_extensions import override
 from xtr_cache_contracts import CacheMixin
@@ -26,11 +26,28 @@ _T = TypeVar("_T")
 
 _CLOCK_IN_FORCE: Final = Clock()
 
-_COMPUTING: ContextVar[frozenset[tuple[int, str]]] = ContextVar(
+
+@final
+class _Computing:
+    """A computation the running task is inside of, open until its callback returns.
+
+    It holds its flight registry itself, never its id, which a registry built
+    after one was freed may take over.
+    """
+
+    __slots__ = ("flights", "open", "scoped")
+
+    def __init__(self, flights: dict[str, asyncio.Future[object]], scoped: str) -> None:
+        self.flights = flights
+        self.scoped = scoped
+        self.open = True
+
+
+_COMPUTING: ContextVar[tuple[_Computing, ...]] = ContextVar(
     "xtr_cache_computing",
-    default=frozenset(),
+    default=(),
 )
-"""The computations the running task is inside of: its flight registry, and the scoped key."""
+"""The computations the running task is inside of; a task outliving one carries it closed."""
 
 _FAILED: Final = object()
 """What a shared computation resolves to when its owner failed or was cancelled."""
@@ -98,7 +115,10 @@ class ContractsMixin(CacheMixin, LoggerAware, ABC):
         item = cast("CacheItem", item)
         flights = self._flights()
         scoped = self._scope() + item.key
-        if (id(flights), scoped) in _COMPUTING.get():
+        if any(
+            computing.open and computing.flights is flights and computing.scoped == scoped
+            for computing in _COMPUTING.get()
+        ):
             value = await callback(item)
             _ = item.set(value)
             return value
@@ -154,11 +174,13 @@ class ContractsMixin(CacheMixin, LoggerAware, ABC):
         scoped: str,
     ) -> _T:
         """Run ``callback``, record how long it took, save the value, and report it."""
-        token = _COMPUTING.set(_COMPUTING.get() | {(id(self._flights()), scoped)})
+        computing = _Computing(self._flights(), scoped)
+        token = _COMPUTING.set((*_COMPUTING.get(), computing))
         started = self._now()
         try:
             value = await callback(item)
         finally:
+            computing.open = False
             _COMPUTING.reset(token)
 
         ctime = math.ceil(1000 * (self._now() - started))

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
@@ -155,6 +156,32 @@ async def test_a_message_dispatched_during_another_is_checked_once(sessions: Ses
     _ = await middleware.handle(Envelope("message"), Then(outer))
 
     assert len(handler.records) == 1
+
+
+async def test_a_task_outliving_the_check_does_not_see_it(sessions: Sessions) -> None:
+    logger, handler = _logged()
+    middleware = OpenTransactionLoggerMiddleware(sessions.registry, logger)
+    gate = asyncio.Event()
+    outliving: list[asyncio.Task[Envelope]] = []
+
+    async def leave_open(envelope: Envelope) -> Envelope:
+        _ = await sessions.by_name["default"].begin()
+        return envelope
+
+    async def later_on() -> Envelope:
+        _ = await gate.wait()
+        return await middleware.handle(Envelope("later"), Then(leave_open))
+
+    async def spawn(envelope: Envelope) -> Envelope:
+        outliving.append(asyncio.create_task(later_on()))
+        return envelope
+
+    _ = await middleware.handle(Envelope("message"), Then(spawn))
+    gate.set()
+    _ = await outliving[0]
+
+    [record] = handler.records
+    assert record.context == {"connections": ["default"], "message": "later"}
 
 
 async def test_without_a_logger_findings_go_nowhere(sessions: Sessions) -> None:

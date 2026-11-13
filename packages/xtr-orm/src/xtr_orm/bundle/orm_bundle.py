@@ -58,14 +58,15 @@ from xtr_dependency_injection import (
     qualified_name,
     required_bundle,
 )
+from xtr_dependency_injection.integration import register_detached_variable
 from xtr_logging_contracts import LoggerInterface
 from xtr_service_contracts import ContainerInterface
 
+from xtr_orm import stickiness_participant
 from xtr_orm.connection_registry import ConnectionRegistry
 from xtr_orm.database import DatabaseManager
 from xtr_orm.exception import InvalidArgumentError, SessionUnavailableError
 from xtr_orm.migrations import MigrationsConfig, Migrator
-from xtr_orm.stickiness_participant import StickinessParticipant
 
 from .connection_config import ConnectionConfig
 from .orm_config import OrmConfig
@@ -168,14 +169,30 @@ class OrmBundle(Bundle[OrmConfig]):
         }
         _ = services.set(_connection_registry_factory(config.default_connection, routed))
         if any(routed.values()):
-            _ = services.set(StickinessParticipant).add_tag("kernel.unit_participant")
+            _ = services.set(stickiness_participant.StickinessParticipant).add_tag(
+                "kernel.unit_participant"
+            )
+            register_detached_variable(*stickiness_participant.DETACHED_VARIABLE)
 
         if bundle_active(builder, "console"):
             services.load("xtr_orm.command")
         if messenger:
             services.load("xtr_orm.messenger")
+            _detach_messenger_middleware()
         if transport:
             _register_orm_transport(services)
+
+
+def _detach_messenger_middleware() -> None:
+    """Register what the message bus middleware keeps per message as what a new connection lacks."""
+    # Optional peer: importable once the messenger bundle is active, which the caller checked.
+    from xtr_orm.messenger import (  # noqa: PLC0415 — needs the optional peer
+        open_transaction_logger_middleware,
+        transaction_middleware,
+    )
+
+    register_detached_variable(*transaction_middleware.DETACHED_VARIABLE)
+    register_detached_variable(*open_transaction_logger_middleware.DETACHED_VARIABLE)
 
 
 def _register_orm_transport(services: ServiceConfigurator) -> None:

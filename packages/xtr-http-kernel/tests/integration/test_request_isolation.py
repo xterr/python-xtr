@@ -21,7 +21,7 @@ from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket
 from xtr_dependency_injection import Injected, Kernel, current_unit_of_work
 from xtr_dependency_injection.exception import FastapiIntegrationError
 from xtr_dependency_injection.integration.fastapi import current_connection
-from xtr_logging import bind_context, current_context
+from xtr_logging import bind_context, current_context, in_unit
 from xtr_logging.bundle import LoggingBundle
 
 from tests.fixtures.isolation_app.listeners import CUSTOMERS, READ, Reading
@@ -35,11 +35,15 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
-OUTSIDE: list[tuple[str, bool, bool]] = []
-"""Per request, as middleware outside the kernel's saw it: its path, a unit open, a connection."""
+OUTSIDE: list[tuple[str, bool, bool, bool, object]] = []
+"""Per request, as middleware outside the kernel's saw it.
 
-SOCKETS: list[tuple[str, bool]] = []
-"""Per websocket, as its handler saw it: its tick's token, and the connection being itself."""
+Its path; whether a unit of work was open, a connection published, a log unit
+open; and the ``customer`` the log context held.
+"""
+
+SOCKETS: list[tuple[str, bool, object]] = []
+"""Per websocket, as its handler saw it: its tick's token, its own connection, the customer."""
 
 _OUTER: ContextVar[str] = ContextVar("test_request_isolation_outer", default="unset")
 
@@ -70,7 +74,13 @@ class _Watching:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if cast("str", scope["type"]) == "http":
             OUTSIDE.append(
-                (cast("str", scope["path"]), current_unit_of_work() is not None, _published())
+                (
+                    cast("str", scope["path"]),
+                    current_unit_of_work() is not None,
+                    _published(),
+                    in_unit(),
+                    current_context().get("customer"),
+                )
             )
         await self._app(scope, receive, send)
 
@@ -158,7 +168,9 @@ def _application(clients: list[httpx.AsyncClient]) -> FastAPI:
     @app.websocket("/ws")
     async def socket(websocket: WebSocket, tick: Injected[Tick]) -> None:
         await websocket.accept()
-        SOCKETS.append((tick.token, current_connection() is websocket))
+        SOCKETS.append(
+            (tick.token, current_connection() is websocket, current_context().get("customer"))
+        )
         await websocket.close()
 
     setup(
@@ -229,7 +241,25 @@ async def test_middleware_outside_the_kernel_sees_no_unit_of_an_earlier_request(
 
     # The inner request was started inside the outer one's open unit, with its
     # connection published: outside the kernel's middleware it sees neither.
-    assert OUTSIDE == [("/relay/plain", False, False), ("/plain", False, False)]
+    assert [(path, unit, connection) for path, unit, connection, _, _ in OUTSIDE] == [
+        ("/relay/plain", False, False),
+        ("/plain", False, False),
+    ]
+
+
+async def test_outer_middleware_of_a_pipelined_request_logs_nothing_into_the_earlier_unit() -> None:
+    clients: list[httpx.AsyncClient] = []
+
+    async with serving(_application(clients)) as client:
+        clients.append(client)
+        _ = await client.post("/relay/plain", data={"title": "outer"})
+
+    # The outer request's log unit was open, with a key bound in it, when the
+    # inner one began: outside the kernel's middleware it finds neither.
+    assert [(path, log_unit, customer) for path, _, _, log_unit, customer in OUTSIDE] == [
+        ("/relay/plain", False, None),
+        ("/plain", False, None),
+    ]
 
 
 async def test_a_websocket_starts_detached_from_an_earlier_request() -> None:
@@ -239,9 +269,20 @@ async def test_a_websocket_starts_detached_from_an_earlier_request() -> None:
         clients.append(client)
         response = await client.post("/relay/ws", data={"title": "outer"})
 
-    [(token, own_connection)] = SOCKETS
+    [(token, own_connection, _)] = SOCKETS
     assert own_connection
     assert token != response.json()["tick"]
+
+
+async def test_a_websocket_reads_no_log_value_of_an_earlier_request() -> None:
+    clients: list[httpx.AsyncClient] = []
+
+    async with serving(_application(clients)) as client:
+        clients.append(client)
+        _ = await client.post("/relay/ws", data={"title": "outer"})
+
+    [(_, _, customer)] = SOCKETS
+    assert customer is None
 
 
 async def test_context_set_by_an_outer_wrapper_reaches_the_request() -> None:

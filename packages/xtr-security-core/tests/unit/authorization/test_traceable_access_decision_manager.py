@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, final
 
 import pytest
@@ -116,6 +117,46 @@ def test_a_vote_outside_any_decision_is_ignored() -> None:
 
 def test_the_strategy_is_unknown_before_any_decision() -> None:
     assert TraceableAccessDecisionManager(AccessDecisionManager()).get_strategy() == "-"
+
+
+@final
+class _SpawningVoter:
+    """Starts a task that votes into the traceable manager once let go, then abstains."""
+
+    def __init__(self, gate: asyncio.Event) -> None:
+        self.traceable: TraceableAccessDecisionManager | None = None
+        self.gate = gate
+        self.outliving: list[asyncio.Task[None]] = []
+
+    async def vote(
+        self,
+        token: TokenInterface,
+        subject: object,
+        attributes: Sequence[object],
+        vote: Vote | None = None,
+    ) -> Access:
+        del token, subject, vote
+        self.outliving.append(asyncio.create_task(self._late(tuple(attributes))))
+        return Access.ABSTAIN
+
+    async def _late(self, attributes: tuple[object, ...]) -> None:
+        _ = await self.gate.wait()
+        if self.traceable is not None:
+            self.traceable.add_voter_vote(RoleVoter(), attributes, Access.GRANTED)
+
+
+@pytest.mark.anyio
+async def test_a_task_outliving_the_decision_does_not_vote_into_its_log() -> None:
+    voter = _SpawningVoter(asyncio.Event())
+    traceable = TraceableAccessDecisionManager(AccessDecisionManager([voter]))
+    voter.traceable = traceable
+
+    _ = await traceable.decide(_token(), ["ROLE_USER"])
+    voter.gate.set()
+    await voter.outliving[0]
+
+    (entry,) = traceable.get_decision_log()
+    assert entry["voter_details"] == []
 
 
 @pytest.mark.anyio

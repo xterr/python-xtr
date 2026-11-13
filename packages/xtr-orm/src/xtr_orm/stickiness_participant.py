@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 from advanced_alchemy.routing import stick_to_primary_var
 
 if TYPE_CHECKING:
     from contextvars import Token
 
-__all__ = ["StickinessParticipant"]
+__all__ = ["DETACHED_VARIABLE", "StickinessParticipant"]
+
+DETACHED_VARIABLE: Final = (stick_to_primary_var, False)
+"""What a new connection starts without: an earlier request's reads stuck to the primary.
+
+The orm bundle registers it with the container when a connection has replicas.
+"""
 
 
 @final

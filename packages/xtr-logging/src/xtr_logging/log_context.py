@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from xtr_logging_contracts import Context
 
 __all__ = [
+    "DETACHED_VARIABLE",
     "bind_context",
     "bound_context",
     "clear_context",
@@ -66,6 +67,13 @@ class _Bound:
 _NOTHING: Final = _Bound(_EMPTY, None, _EMPTY)
 
 _CONTEXT: ContextVar[_Bound] = ContextVar("xtr_logging_context", default=_NOTHING)
+
+DETACHED_VARIABLE: Final = (_CONTEXT, _NOTHING)
+"""What a new connection starts without: the values an earlier request bound.
+
+The logging bundle registers it with the container, so a request a server
+starts from a copy of an earlier one's context reads none of its values.
+"""
 
 _UNIT_MARK: Final = object()
 """The owner under which each unit of work keeps the one object that stands for it."""

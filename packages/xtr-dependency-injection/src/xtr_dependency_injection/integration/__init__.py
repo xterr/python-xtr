@@ -7,6 +7,6 @@ public API: everything else stays behind :class:`ContainerInterface`.
 
 from __future__ import annotations
 
-from .detached_context import detached_context
+from .detached_context import detached_context, register_detached_variable
 
-__all__ = ["detached_context"]
+__all__ = ["detached_context", "register_detached_variable"]
