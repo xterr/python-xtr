@@ -39,6 +39,7 @@ from .service_circular_reference_error import ServiceCircularReferenceError
 from .service_not_found_error import ServiceNotFoundError
 from .service_order_error import ServiceOrderError
 from .service_resolution_error import ServiceResolutionError
+from .unit_of_work_closed_error import UnitOfWorkClosedError
 from .unknown_config_type_error import UnknownConfigTypeError
 from .unknown_environment_folder_error import UnknownEnvironmentFolderError
 from .unknown_locator_key_error import UnknownLocatorKeyError
@@ -76,6 +77,7 @@ __all__ = [
     "ServiceNotFoundError",
     "ServiceOrderError",
     "ServiceResolutionError",
+    "UnitOfWorkClosedError",
     "UnknownConfigTypeError",
     "UnknownEnvironmentFolderError",
     "UnknownLocatorKeyError",

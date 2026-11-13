@@ -16,8 +16,14 @@ import wireup
 from typing_extensions import override
 from xtr_service_contracts import ContainerInterface
 
-from xtr_dependency_injection import Injected, bind_callable, current_unit_of_work, unit_of_work
-from xtr_dependency_injection.exception import InvalidArgumentTypeError
+from xtr_dependency_injection import (
+    Injected,
+    bind_callable,
+    current_unit_of_work,
+    open_unit_of,
+    unit_of_work,
+)
+from xtr_dependency_injection.exception import InvalidArgumentTypeError, UnitOfWorkClosedError
 from xtr_dependency_injection.runtime.wireup_container import WireupContainer
 
 if TYPE_CHECKING:
@@ -51,6 +57,24 @@ async def session_factory() -> AsyncIterator[Session]:
 def _container() -> WireupContainer:
     engine = wireup.create_async_container(
         injectables=[wireup.injectable(session_factory, lifetime="scoped")],
+    )
+    return WireupContainer(engine)
+
+
+@final
+class Counted:
+    """A scoped service counting how often it is built."""
+
+    built = 0
+
+    def __init__(self) -> None:
+        Counted.built += 1
+
+
+def _counting_container() -> WireupContainer:
+    Counted.built = 0
+    engine = wireup.create_async_container(
+        injectables=[wireup.injectable(Counted, lifetime="scoped")],
     )
     return WireupContainer(engine)
 
@@ -270,6 +294,78 @@ async def test_a_unit_exited_in_another_task_is_closed_for_every_context() -> No
 
     assert sessions[0].closed
     assert copies[0].run(current_unit_of_work) is None
+
+
+async def test_a_child_task_outliving_its_unit_cannot_resolve_from_it() -> None:
+    container = _counting_container()
+    exited = asyncio.Event()
+
+    async def later(unit: ContainerInterface) -> None:
+        _ = await exited.wait()
+        _ = await unit.get(Counted)
+
+    async with unit_of_work(container) as unit:
+        child = asyncio.create_task(later(unit))
+    exited.set()
+
+    with pytest.raises(UnitOfWorkClosedError):
+        await child
+    assert Counted.built == 0
+
+
+async def test_current_unit_of_work_refuses_once_the_unit_closed() -> None:
+    container = _counting_container()
+
+    async with unit_of_work(container):
+        kept = await _current()
+
+    with pytest.raises(UnitOfWorkClosedError):
+        _ = await kept.get(Counted)
+    assert Counted.built == 0
+
+
+async def test_a_joined_unit_refuses_once_the_unit_it_joined_closed() -> None:
+    container = _counting_container()
+
+    async with unit_of_work(container), unit_of_work(container) as joined:
+        pass
+
+    with pytest.raises(UnitOfWorkClosedError):
+        _ = await joined.get(Counted)
+    assert Counted.built == 0
+
+
+async def test_a_unit_still_open_hands_out_its_shared_instance() -> None:
+    container = _counting_container()
+
+    async with unit_of_work(container) as unit:
+        first = await unit.get(Counted)
+        kept = await _current()
+
+        assert await kept.get(Counted) is first
+
+
+async def test_open_unit_of_finds_the_unit_open_on_the_containers_services() -> None:
+    container = _counting_container()
+
+    async with unit_of_work(container) as unit:
+        opened = open_unit_of(container)
+        assert opened is not None
+        assert await opened.get(Counted) is await unit.get(Counted)
+
+    assert open_unit_of(container) is None
+
+
+async def test_open_unit_of_finds_no_unit_of_another_container() -> None:
+    first, second = _counting_container(), _counting_container()
+
+    async with unit_of_work(first):
+        assert open_unit_of(second) is None
+
+
+async def test_open_unit_of_refuses_a_container_no_kernel_built() -> None:
+    with pytest.raises(InvalidArgumentTypeError, match="kernel-provided container"):
+        _ = open_unit_of(_Foreign())
 
 
 async def test_work_that_outlives_the_unit_it_started_in_opens_one_of_its_own() -> None:

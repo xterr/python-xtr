@@ -24,6 +24,7 @@ from xtr_dependency_injection.exception import (
     ParameterNotFoundError,
     ServiceNotFoundError,
     ServiceResolutionError,
+    UnitOfWorkClosedError,
 )
 
 from .env_var_processors_locator import EnvVarProcessorsLocator
@@ -32,6 +33,8 @@ if TYPE_CHECKING:
     from collections.abc import Hashable
 
     from wireup import AsyncContainer, ScopedAsyncContainer
+
+    from ._unit_scope import Unit
 
 __all__ = ["WireupContainer"]
 
@@ -49,25 +52,38 @@ _SCOPE_ADVICE = (
 class WireupContainer(ContainerInterface):
     """Wraps a wireup ``AsyncContainer`` behind :class:`ContainerInterface`.
 
-    Given a ``scope`` of that container too, it is a unit of work's view: it
-    resolves scoped services — once each, for the scope's lifetime — as well
-    as singletons, and reads the same parameters.
+    Given a unit of work of that container too, it is the unit's view: it
+    resolves scoped services — once each, for the unit's lifetime — as well
+    as singletons, and reads the same parameters. Once the unit has exited
+    it resolves nothing, so a task that outlived the unit cannot reach the
+    services it released.
     """
 
-    __slots__ = ("_container", "_scope")
+    __slots__ = ("_container", "_unit")
 
-    def __init__(
-        self, container: AsyncContainer, scope: ScopedAsyncContainer | None = None
-    ) -> None:
-        """Wrap ``container``, resolving through ``scope`` when one is given."""
+    def __init__(self, container: AsyncContainer, unit: Unit | None = None) -> None:
+        """Wrap ``container``, resolving through ``unit``'s scope when one is given."""
         self._container = container
-        self._scope = scope
+        self._unit = unit
 
     @override
     async def get(self, service: type[T], /, qualifier: Hashable | None = None) -> T:
+        """Return the service registered under ``service`` and ``qualifier``.
+
+        Raises:
+            UnitOfWorkClosedError: If this is the view of a unit of work that
+                has exited.
+            ServiceNotFoundError: If nothing is registered under the key.
+            ServiceResolutionError: If building the service failed.
+        """
+        resolver: AsyncContainer | ScopedAsyncContainer = self._container
+        if self._unit is not None:
+            scope = self._unit.scope
+            if scope is None:
+                raise UnitOfWorkClosedError
+            resolver = scope
         if not is_registered(self._container, service, qualifier):
             raise ServiceNotFoundError((service, qualifier))
-        resolver = self._scope if self._scope is not None else self._container
         try:
             return await resolver.get(service, qualifier)
         except ServiceNotFoundError:

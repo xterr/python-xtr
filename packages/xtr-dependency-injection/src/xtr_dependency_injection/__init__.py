@@ -66,6 +66,7 @@ from .runtime import (
     ServicesResetter,
     bind_callable,
     current_unit_of_work,
+    open_unit_of,
     optional_service,
     unit_of_work,
 )
@@ -134,6 +135,7 @@ __all__ = [
     "on_boot",
     "on_shutdown",
     "one_or_many",
+    "open_unit_of",
     "optional_service",
     "parameters",
     "qualified_name",
