@@ -24,7 +24,12 @@ from xtr_dependency_injection.compiler._wireup_bridge import (
 from xtr_dependency_injection.exception import InvalidArgumentTypeError, UnitOfWorkClosedError
 from xtr_dependency_injection.exception._naming import qualified_name
 from xtr_dependency_injection.exception._signatures import evaluated_signature
-from xtr_dependency_injection.runtime._unit_scope import entered, open_unit
+from xtr_dependency_injection.runtime._unit_scope import (
+    entered,
+    open_unit,
+    participants_of,
+    participating,
+)
 from xtr_dependency_injection.runtime.wireup_container import WireupContainer
 
 if TYPE_CHECKING:
@@ -139,13 +144,15 @@ def bind_callable(
         )
 
         async def scoped(*args: object, **kwargs: object) -> object:
-            async with engine.enter_scope() as scope:
-                with entered(engine, scope) as unit:
-                    token = _bound_unit.set(unit)
-                    try:
-                        return await injected(*args, **kwargs)
-                    finally:
-                        _restore(token)
+            participants = await participants_of(engine)
+            with participating(participants):
+                async with engine.enter_scope() as scope:
+                    with entered(engine, scope) as unit:
+                        token = _bound_unit.set(unit)
+                        try:
+                            return await injected(*args, **kwargs)
+                        finally:
+                            _restore(token)
 
         bound = scoped
     else:

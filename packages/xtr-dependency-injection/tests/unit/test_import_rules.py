@@ -88,6 +88,7 @@ _PASS_MODULE_IMPORTS: dict[str, set[str]] = {
     "resettable_service_pass": {"exception"},
     "resolve_instanceof_conditionals_pass": {"exception"},
     "resolve_references_to_aliases_pass": {"exception"},
+    "unit_participant_pass": {"runtime._unit_scope"},
 }
 COMPILER_PASS_MODULES: dict[str, set[str]] = {
     f"{PACKAGE}.compiler.{name}": imports for name, imports in _PASS_MODULE_IMPORTS.items()

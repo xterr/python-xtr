@@ -17,6 +17,7 @@ from .container_interface import ContainerInterface
 from .reset_interface import ResetInterface
 from .service_collection_interface import ServiceCollectionInterface
 from .service_provider_interface import ServiceProviderInterface
+from .unit_participant_interface import UnitParticipantInterface
 
 try:
     __version__ = version("xtr-service-contracts")
@@ -30,5 +31,6 @@ __all__ = [
     "ResetInterface",
     "ServiceCollectionInterface",
     "ServiceProviderInterface",
+    "UnitParticipantInterface",
     "__version__",
 ]

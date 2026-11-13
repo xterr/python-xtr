@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 
 from xtr_dependency_injection.exception import InvalidArgumentTypeError
 
-from ._unit_scope import current_unit_record, entered, open_unit
+from ._unit_scope import current_unit_record, entered, open_unit, participants_of, participating
 from .wireup_container import WireupContainer
 
 if TYPE_CHECKING:
@@ -76,9 +76,11 @@ async def _unit_of_work(
     if opened is not None:
         yield WireupContainer(engine, opened)
         return
-    async with engine.enter_scope() as scope:
-        with entered(engine, scope) as unit:
-            yield WireupContainer(engine, unit)
+    participants = await participants_of(engine)
+    with participating(participants):
+        async with engine.enter_scope() as scope:
+            with entered(engine, scope) as unit:
+                yield WireupContainer(engine, unit)
 
 
 def current_unit_of_work() -> ContainerInterface | None:

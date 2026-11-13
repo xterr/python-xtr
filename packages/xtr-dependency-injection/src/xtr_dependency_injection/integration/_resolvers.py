@@ -19,7 +19,7 @@ from starlette.requests import HTTPConnection  # noqa: TC002 — read at runtime
 from wireup import AsyncContainer
 
 from xtr_dependency_injection.exception import FastapiIntegrationError
-from xtr_dependency_injection.runtime._unit_scope import entered
+from xtr_dependency_injection.runtime._unit_scope import entered, participants_of, participating
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable, Hashable
@@ -167,23 +167,25 @@ async def _request_scope(app: Starlette, connection_scope: Scope) -> AsyncGenera
     # Read off the connection, not the context: only a scope opened on this
     # connection encloses this one.
     enclosing = _served_of(connection_scope)
-    async with attached.engine.enter_scope() as scoped:
-        served = _Served(scoped, enclosing.connection if enclosing is not None else None)
-        connection_scope[SERVED_KEY] = served
-        bound = _SERVED.set(served)
-        try:
-            with entered(attached.engine, scoped):
-                yield
-        finally:
-            served.close()
-            if enclosing is None:
-                del connection_scope[SERVED_KEY]
-            else:
-                connection_scope[SERVED_KEY] = enclosing
-            # Refused when the exiting context is not the one that entered: it
-            # never held this request, so there is nothing of ours to restore there.
-            with suppress(ValueError):
-                _SERVED.reset(bound)
+    participants = await participants_of(attached.engine)
+    with participating(participants):
+        async with attached.engine.enter_scope() as scoped:
+            served = _Served(scoped, enclosing.connection if enclosing is not None else None)
+            connection_scope[SERVED_KEY] = served
+            bound = _SERVED.set(served)
+            try:
+                with entered(attached.engine, scoped):
+                    yield
+            finally:
+                served.close()
+                if enclosing is None:
+                    del connection_scope[SERVED_KEY]
+                else:
+                    connection_scope[SERVED_KEY] = enclosing
+                # Refused when the exiting context is not the one that entered: it
+                # never held this request, so there is nothing of ours to restore there.
+                with suppress(ValueError):
+                    _SERVED.reset(bound)
 
 
 def connection_of(connection_scope: Scope) -> HTTPConnection | None:
