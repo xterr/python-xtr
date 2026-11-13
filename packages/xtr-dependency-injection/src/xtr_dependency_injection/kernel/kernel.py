@@ -139,7 +139,7 @@ class Kernel:
         exclude: Sequence[str] = (),
         default_excludes: bool = True,
         allowed_envs: Sequence[str] | None = None,
-        concurrent_scoped_access: bool = False,
+        concurrent_scoped_access: bool = True,
         environ: Mapping[str, str] | None = None,
     ) -> None:
         """Store the kernel's recipe.
@@ -171,7 +171,10 @@ class Kernel:
             allowed_envs: The only environments the kernel accepts, and the
                 only names a folder under ``config/packages/`` or
                 ``config/routes/`` may take.
-            concurrent_scoped_access: Passed to wireup.
+            concurrent_scoped_access: Whether a scoped service is built under
+                a lock, so tasks of one unit of work asking for it together
+                get the one instance; ``False`` drops the lock, for a unit
+                only ever used by one task at a time.
             environ: Where ``APP_ENV``, ``APP_DEBUG`` and every ``env(...)``
                 placeholder are read; ``None`` reads the live process
                 environment. A test gives each kernel its own.

@@ -16,6 +16,7 @@ import wireup
 from typing_extensions import override
 from xtr_service_contracts import ContainerInterface
 
+from tests.fixtures import app_slow_scoped
 from xtr_dependency_injection import (
     Injected,
     bind_callable,
@@ -24,6 +25,7 @@ from xtr_dependency_injection import (
     unit_of_work,
 )
 from xtr_dependency_injection.exception import InvalidArgumentTypeError, UnitOfWorkClosedError
+from xtr_dependency_injection.integration.wireup import create_container
 from xtr_dependency_injection.runtime.wireup_container import WireupContainer
 
 if TYPE_CHECKING:
@@ -141,6 +143,34 @@ async def test_a_unit_of_another_container_is_not_joined() -> None:
         assert await (await _current()).get(Session) is own
 
     assert own.closed
+
+
+async def test_a_unit_of_kernel_a_rejoins_across_a_unit_of_kernel_b() -> None:
+    first, second = _container(), _container()
+
+    async with unit_of_work(first) as outer:
+        own = await outer.get(Session)
+        async with unit_of_work(second), unit_of_work(first) as again:
+            assert await again.get(Session) is own
+        assert not own.closed
+
+    assert own.closed
+
+
+async def test_concurrent_first_resolutions_in_one_unit_build_one_instance() -> None:
+    app_slow_scoped.GATE = app_slow_scoped.Gate()
+    gate = app_slow_scoped.GATE
+    container = WireupContainer(create_container([], scan=["tests.fixtures.app_slow_scoped"]))
+
+    async with unit_of_work(container) as unit:
+        first = asyncio.create_task(unit.get(app_slow_scoped.Slow))
+        second = asyncio.create_task(unit.get(app_slow_scoped.Slow))
+        _ = await gate.building.wait()
+        gate.release.set()
+        built = await asyncio.gather(first, second)
+
+    assert gate.built == 1
+    assert built[0] is built[1]
 
 
 async def test_a_call_bound_on_another_container_does_not_join_the_unit() -> None:

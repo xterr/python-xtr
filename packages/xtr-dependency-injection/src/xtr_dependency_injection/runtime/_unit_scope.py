@@ -43,25 +43,29 @@ class Unit:
         return self.scope is None
 
 
-# The unit of work this context was last handed; open for as long as it holds a scope.
-_current: ContextVar[Unit | None] = ContextVar(
-    "xtr_dependency_injection_unit_of_work", default=None
+# The units of work this context was handed, innermost last; each open for as
+# long as it holds a scope. A chain, not one slot, so the units of several
+# kernels nest: a unit of one kernel opened inside another kernel's still
+# finds the outer one of its own kernel.
+_current: ContextVar[tuple[Unit, ...]] = ContextVar(
+    "xtr_dependency_injection_unit_of_work", default=()
 )
 
 
 def current_unit_record() -> Unit | None:
-    """Return the unit of work open in this context, if any."""
-    unit = _current.get()
-    return None if unit is None or unit.closed else unit
+    """Return the innermost unit of work open in this context, if any."""
+    return next((unit for unit in reversed(_current.get()) if not unit.closed), None)
 
 
 def open_unit(engine: AsyncContainer) -> Unit | None:
-    """Return the unit of work open in this context on ``engine``, if any.
+    """Return the innermost unit of work open in this context on ``engine``, if any.
 
     A unit another engine opened — a second kernel's — is not ``engine``'s to join.
     """
-    unit = current_unit_record()
-    return unit if unit is not None and unit.engine is engine else None
+    return next(
+        (unit for unit in reversed(_current.get()) if unit.engine is engine and not unit.closed),
+        None,
+    )
 
 
 @contextmanager
@@ -73,7 +77,7 @@ def entered(engine: AsyncContainer, scope: ScopedAsyncContainer) -> Generator[Un
     manager handed to another task — still leaves no context finding it open.
     """
     unit = Unit(engine, scope)
-    token = _current.set(unit)
+    token = _current.set((*_current.get(), unit))
     try:
         yield unit
     finally:
