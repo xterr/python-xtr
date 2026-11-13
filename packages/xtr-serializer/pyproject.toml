@@ -1,6 +1,6 @@
 [project]
 name = "xtr-serializer"
-version = "6.7.0"
+version = "6.8.0"
 description = "Turn objects into JSON and back exactly — dataclasses, models, class hierarchies and dates arrive as they left, or are refused — through a chain of normalizers and encoders."
 readme = "README.md"
 authors = [

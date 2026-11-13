@@ -1,6 +1,6 @@
 [project]
 name = "xtr-webhook"
-version = "6.7.0"
+version = "6.8.0"
 description = "Receive webhooks — verified, replay-bounded, turned into events — and send them signed, in the legacy or the Standard Webhooks format."
 readme = "README.md"
 authors = [
