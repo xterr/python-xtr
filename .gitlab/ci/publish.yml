@@ -3,6 +3,10 @@
 
 build:
   stage: build
+  # Not the default image: that one is no longer published, and its uv installs a Python
+  # 3.14 whose email folding never returns for some subjects, so the tests of the mime
+  # package hang there. This one carries a current uv and a current Python 3.14.
+  image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
   rules:
     - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
   script:
@@ -21,6 +25,7 @@ build:
 
 publish:
   stage: publish
+  image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
   rules:
     - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
   variables:
