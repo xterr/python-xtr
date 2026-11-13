@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import types
+from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING
 
 import pytest
@@ -364,3 +366,28 @@ async def test_a_context_that_outlives_the_scope_reads_nothing_of_it() -> None:
             _ = current_connection()
 
     kept.run(read)
+
+
+@pytest.mark.anyio
+async def test_a_request_scope_exited_in_another_context_still_closes_its_connection() -> None:
+    app = _served_app()
+    connection = _connection(app)
+    resolve = provider("service", Greeter, None)
+    stack = AsyncExitStack()
+    kept: list[contextvars.Context] = []
+
+    async def open_it() -> None:
+        await stack.enter_async_context(request_scope(app, connection.scope))
+        _ = await resolve(connection)
+        kept.append(contextvars.copy_context())
+
+    await asyncio.create_task(open_it())
+    await asyncio.create_task(stack.aclose())
+
+    def read() -> None:
+        assert current_unit_of_work() is None
+        with pytest.raises(FastapiIntegrationError, match="can only be read"):
+            _ = current_connection()
+
+    assert connection_of(connection.scope) is None
+    kept[0].run(read)

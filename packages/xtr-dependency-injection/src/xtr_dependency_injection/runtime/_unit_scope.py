@@ -7,7 +7,7 @@ read it without importing the container wrapper the public API hands out.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, final
 
@@ -61,11 +61,19 @@ def open_unit(engine: AsyncContainer) -> ScopedAsyncContainer | None:
 
 @contextmanager
 def entered(engine: AsyncContainer, scope: ScopedAsyncContainer) -> Generator[None]:
-    """Make ``scope`` of ``engine`` this context's unit of work until the block exits."""
+    """Make ``scope`` of ``engine`` this context's unit of work until the block exits.
+
+    The unit is closed first, for every context that carries it, so a block
+    exited from another context than the one it was entered in — a context
+    manager handed to another task — still leaves no context finding it open.
+    """
     unit = _Unit(engine, scope)
     token = _current.set(unit)
     try:
         yield
     finally:
-        _current.reset(token)
         unit.scope = None
+        # Refused when the exiting context is not the one that entered: it
+        # never held this unit, so there is nothing of ours to restore there.
+        with suppress(ValueError):
+            _current.reset(token)

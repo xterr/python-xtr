@@ -8,7 +8,7 @@ application and what :func:`request_scope` parked on the connection.
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, Protocol, cast, final
@@ -175,12 +175,15 @@ async def _request_scope(app: Starlette, connection_scope: Scope) -> AsyncGenera
             with entered(attached.engine, scoped):
                 yield
         finally:
-            _SERVED.reset(bound)
             served.close()
             if enclosing is None:
                 del connection_scope[SERVED_KEY]
             else:
                 connection_scope[SERVED_KEY] = enclosing
+            # Refused when the exiting context is not the one that entered: it
+            # never held this request, so there is nothing of ours to restore there.
+            with suppress(ValueError):
+                _SERVED.reset(bound)
 
 
 def connection_of(connection_scope: Scope) -> HTTPConnection | None:

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 from collections.abc import (
     AsyncIterator,  # noqa: TC003 — the engine reads the factory's return annotation
 )
+from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, TypeVar, final
 
 import anyio
@@ -250,6 +252,24 @@ async def test_a_unit_that_has_exited_is_gone_from_a_context_copied_inside_it() 
         kept = contextvars.copy_context()
 
     assert kept.run(current_unit_of_work) is None
+
+
+async def test_a_unit_exited_in_another_task_is_closed_for_every_context() -> None:
+    container = _container()
+    stack = AsyncExitStack()
+    sessions: list[Session] = []
+    copies: list[contextvars.Context] = []
+
+    async def open_it() -> None:
+        unit = await stack.enter_async_context(unit_of_work(container))
+        sessions.append(await unit.get(Session))
+        copies.append(contextvars.copy_context())
+
+    await asyncio.create_task(open_it())
+    await asyncio.create_task(stack.aclose())
+
+    assert sessions[0].closed
+    assert copies[0].run(current_unit_of_work) is None
 
 
 async def test_work_that_outlives_the_unit_it_started_in_opens_one_of_its_own() -> None:

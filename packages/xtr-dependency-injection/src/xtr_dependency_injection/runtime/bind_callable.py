@@ -10,6 +10,7 @@ container, once, on first use, and its ``__call__`` is what gets filled.
 from __future__ import annotations
 
 import inspect
+from contextlib import suppress
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, cast
 
@@ -139,7 +140,10 @@ def bind_callable(
                     with entered(engine, scope):
                         return await injected(*args, **kwargs)
                 finally:
-                    _scope.reset(token)
+                    # Refused when the call finishes in another context than
+                    # it started in: that one never held this scope.
+                    with suppress(ValueError):
+                        _scope.reset(token)
 
         bound = scoped
     else:
