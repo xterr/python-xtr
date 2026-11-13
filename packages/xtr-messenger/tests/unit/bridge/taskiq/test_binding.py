@@ -454,6 +454,43 @@ async def test_services_are_reset_after_an_undecodable_message(broker: InMemoryB
     assert resetter.resets == 1
 
 
+@final
+class FailingResetter:
+    """Fails every reset, as a service of another message might."""
+
+    async def reset(self) -> None:
+        raise RuntimeError("a service failed to reset")
+
+
+async def test_a_failing_reset_does_not_change_a_handled_result(
+    broker: InMemoryBroker, caplog: pytest.LogCaptureFixture
+) -> None:
+    bus = RecordingBus()
+    _ = bind_bus(broker, bus, json_serializer(), resetter=FailingResetter())
+    body, headers = _body()
+
+    handle = await _kick(broker, _INGEST, body, **{RETRIES_LABEL: 0, HEADERS_LABEL: headers})
+    result = await handle.wait_result()
+
+    assert not result.is_err
+    assert len(bus.dispatched) == 1
+    assert [record.getMessage() for record in caplog.records if record.name == "messenger"] == [
+        "services failed to reset after a message"
+    ]
+
+
+async def test_a_failing_reset_keeps_the_failure_a_message_raised(broker: InMemoryBroker) -> None:
+    bus = RecordingBus(failure=RuntimeError("boom"))
+    _ = bind_bus(broker, bus, json_serializer(), resetter=FailingResetter())
+    body, headers = _body()
+
+    handle = await _kick(broker, _INGEST, body, **{RETRIES_LABEL: 0, HEADERS_LABEL: headers})
+    result = await handle.wait_result()
+
+    assert result.is_err
+    assert str(result.error) == "boom"
+
+
 async def test_an_undecodable_message_is_dead_lettered_instead_of_retried(
     broker: InMemoryBroker,
 ) -> None:

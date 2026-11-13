@@ -37,8 +37,9 @@ tracing span, say — in reach of its handlers.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, TypeAlias, cast, final
+from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
 
 from taskiq import Context, TaskiqDepends, TaskiqMessage
 
@@ -85,6 +86,11 @@ _CONTEXT: Context = TaskiqDepends()
 
 #: What a delivery is reported as received from when no transport name fits it.
 _UNNAMED = "taskiq"
+
+#: Log lines go through the messenger channel, so an application capturing
+#: the standard library's logging sees them beside the rest of the bus's
+#: output.
+_LOGGER: Final = logging.getLogger("messenger")
 
 
 @final
@@ -173,7 +179,8 @@ def bind_bus(  # noqa: PLR0913 — everything past `serializer` is keyword-only
             retried. Unknown when omitted, and then never reported as such.
         resetter: Has ``reset()`` awaited after each message, settled either
             way, so long-lived services are cleared between units of work —
-            the same contract the library's own worker honours.
+            the same contract the library's own worker honours. A reset that
+            fails is logged and changes nothing about the message's outcome.
         dead_letter: Where a delivery that cannot be decoded is quarantined
             instead of retried; the task then returns normally, so the
             delivery is acknowledged. Without it the decode failure is
@@ -240,7 +247,10 @@ async def _handle(binding: _Binding, task_name: str, body: str, delivered: Taski
             raise outcome.error
     finally:
         if binding.resetter is not None:
-            await binding.resetter.reset()
+            try:
+                await binding.resetter.reset()
+            except Exception:
+                _LOGGER.exception("services failed to reset after a message")
 
 
 async def _settled_by_raising(envelope: Envelope) -> None:

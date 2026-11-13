@@ -244,6 +244,26 @@ async def test_one_undeliverable_message_does_not_stop_the_worker() -> None:
     assert [envelope.message for envelope in receiver.rejected] == ["poison"]
 
 
+@final
+class FailingResetter:
+    """Fails every reset, as a service of another message might."""
+
+    async def reset(self) -> None:
+        raise RuntimeError("a service failed to reset")
+
+
+async def test_a_failing_reset_does_not_stop_the_worker(caplog: pytest.LogCaptureFixture) -> None:
+    receiver = StubReceiver([Envelope("first"), Envelope("second")])
+
+    await Worker(RecordingBus(), receiver, FailingResetter()).run()
+
+    assert [envelope.message for envelope in receiver.acked] == ["first", "second"]
+    assert [record.getMessage() for record in caplog.records if record.name == "messenger"] == [
+        "services failed to reset after a message",
+        "services failed to reset after a message",
+    ]
+
+
 async def test_the_collected_envelope_is_dispatched_as_it_arrived() -> None:
     """Its stamps — the ReceivedStamp especially — must reach the bus intact,
     because that stamp is what stops the bus routing the message back out."""

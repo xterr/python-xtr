@@ -28,14 +28,14 @@ class ResetInterface(Protocol):
     elsewhere awaits the trip, and the caller — a worker between messages —
     is already somewhere it can wait.
 
-    :meth:`reset` fits a unit of work that runs alone — one message, one
-    command — where the service is idle between units and clearing its state
-    is the whole story. When units overlap, as with concurrent requests
-    answered on one set of services, there is no single "between" to reset
-    into: each unit's state belongs to its own execution context, and it is
-    ended by whatever opened the unit, not by a container calling this method.
-    A service that must serve overlapping units keeps its per-unit state in
-    context, so :meth:`reset` stays meaningful for the standalone case.
+    A container resets singletons only. A service built for one unit of work
+    — scoped or transient — lives and dies with that unit, so it has nothing
+    to reset. Units overlap — a worker handling several messages at once,
+    requests answered together — so a singleton is reset while other units
+    are still running: its :meth:`reset` must be safe then, clearing only
+    what it can work out again, never state a running unit reads. A service
+    that holds state for one unit keeps it in that unit — a scoped service,
+    or state kept per unit of work — rather than waiting for a reset.
 
     Being ``@runtime_checkable`` costs precision: :func:`isinstance` confirms a
     ``reset`` attribute is present, not that it is callable, so an object whose

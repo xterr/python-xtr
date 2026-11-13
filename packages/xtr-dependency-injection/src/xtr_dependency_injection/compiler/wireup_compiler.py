@@ -9,7 +9,6 @@ priority, highest first, then in declaration order.
 from __future__ import annotations
 
 import re
-import weakref
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from itertools import count
@@ -33,7 +32,7 @@ from ._registration import (
 )
 from ._wireup_bridge import key_type
 from .before_after_sorter import sort_with_priorities
-from .resettable_service_pass import RESET_TAG, not_weak_referenceable
+from .resettable_service_pass import RESET_TAG
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -209,7 +208,7 @@ def _emit(
         definition.provider, instance=definition.kind == "instance", arguments=definition.arguments
     )
     if hook is not None:
-        tracked = _tracking(track, hook, definition)
+        tracked = _tracking(track, hook)
         factory = map_result(factory, tracked, provides=implementation)
     emitted: list[object] = []
     for decoration in decorations:
@@ -234,11 +233,17 @@ def _emit(
 
 
 def _reset_hook(definition: Definition) -> str | None:
-    """Return the ``method`` attribute of the first ``kernel.reset`` tag, else ``None``.
+    """Return the reset method of a singleton tagged ``kernel.reset``, else ``None``.
 
     The ``kernel.reset`` tag carries the method name the ``ServicesResetter``
     calls on a service; ``ResettableServicePass`` has checked it is a string.
+    Only a singleton is tracked: a scoped or transient instance lives and
+    dies with its unit of work, so it has nothing to reset — and resetting it
+    from whichever unit ends first would clear the state of another still
+    running.
     """
+    if definition.lifetime != "singleton":
+        return None
     tags = definition.get_tag(RESET_TAG)
     return cast("str", tags[0]["method"]) if tags else None
 
@@ -285,20 +290,10 @@ def _factory_for(
     return factory, implementation
 
 
-def _tracking(
-    track: Callable[[object, str], None], method: str, definition: Definition
-) -> Callable[[object], object]:
-    """Return what hands each instance ``definition`` builds to ``track``.
-
-    A factory may build what its return annotation does not tell, so a
-    short-lived instance refusing weak references is refused when it is
-    built — the build can only check a class.
-    """
-    short_lived = definition.lifetime != "singleton"
+def _tracking(track: Callable[[object, str], None], method: str) -> Callable[[object], object]:
+    """Return what hands each instance a factory builds to ``track``."""
 
     def tracked(value: object) -> object:
-        if short_lived and not _accepts_weak_references(value):
-            raise not_weak_referenceable(definition.key, definition.lifetime)
         track(value, method)
         return value
 
@@ -358,11 +353,3 @@ def _engine_readable(token: str) -> str:
     """Turn a ``repr(cls)`` such as ``<class 'a.B'>`` into its dotted path."""
     match = _ENGINE_CLASS.fullmatch(token)
     return match.group("path") if match else token
-
-
-def _accepts_weak_references(value: object) -> bool:
-    try:
-        _ = weakref.ref(value)
-    except TypeError:
-        return False
-    return True

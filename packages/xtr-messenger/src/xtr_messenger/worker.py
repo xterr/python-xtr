@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Protocol, final, runtime_checkable
+import logging
+from typing import TYPE_CHECKING, Final, Protocol, final, runtime_checkable
 
 from typing_extensions import override
 
@@ -24,6 +25,11 @@ if TYPE_CHECKING:
     from .transport.receiver.receiver_interface import ReceiverInterface
 
 __all__ = ["AsyncResetter", "Worker"]
+
+#: Log lines go through the messenger channel, so an application capturing
+#: the standard library's logging sees them beside the rest of the bus's
+#: output.
+_LOGGER: Final = logging.getLogger("messenger")
 
 
 @runtime_checkable
@@ -79,8 +85,9 @@ class Worker(WorkerInterface):
 
         ``resetter``, when given, has ``reset()`` awaited after each handled
         message — settled either way — so long-lived services (a logger's
-        fingers-crossed buffer, a request-scoped registry) are cleared between
-        units of work.
+        fingers-crossed buffer) are cleared between units of work. A reset
+        that fails is logged: it changes nothing about the message, already
+        settled, and does not stop the worker.
 
         ``event_dispatcher``, when given, hears about the worker and about
         every message — see :mod:`xtr_messenger.event`. ``receiver_name`` is
@@ -176,7 +183,10 @@ class Worker(WorkerInterface):
                     await announce_failure(failed, name, self._dispatcher, self._receiver.reject)
         finally:
             if self._resetter is not None:
-                await self._resetter.reset()
+                try:
+                    await self._resetter.reset()
+                except Exception:
+                    _LOGGER.exception("services failed to reset after a message")
 
     async def _announce(self, event: object) -> None:
         if self._dispatcher is not None:
