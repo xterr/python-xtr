@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-openid-connect-server"
-version = "6.6.0"
+version = "6.7.0"
 description = "OpenID Connect for the xtr OAuth 2.0 authorization server: ID tokens, userinfo and discovery."
 readme = "README.md"
 requires-python = ">=3.11"
