@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 
-from xtr_messenger._own_context import in_own_context
+from xtr_messenger._own_context import in_own_context, in_receive_loop
 from xtr_messenger.event import WorkerStartedEvent, WorkerStoppedEvent
 from xtr_messenger.worker_interface import WorkerInterface
 
@@ -25,6 +25,8 @@ __all__ = ["TaskiqWorker", "default_max_async_tasks"]
 
 _TASKS_PER_CPU: Final = 10
 _MAX_DEFAULT_TASKS: Final = 100
+#: How long a stopping worker waits for the messages it is handling, at most.
+_DRAIN_TIMEOUT: float = 30.0
 
 
 def default_max_async_tasks() -> int:
@@ -156,6 +158,11 @@ class TaskiqWorker(WorkerInterface):
         would otherwise be shared by every message in flight. What the
         broker's middleware sets for a message, in that message's task, is
         untouched.
+
+        The broker is started apart from the loop, so what its startup sets
+        reaches no message either. Stopped or cancelled, the worker waits up to
+        thirty seconds for the messages still in flight before it shuts the
+        broker down and says it stopped; a cancellation goes on after that.
         """
         claimed = self._broker.is_worker_process
         self._broker.is_worker_process = True
@@ -168,14 +175,16 @@ class TaskiqWorker(WorkerInterface):
             dead_letter=self._dead_letter,
             max_async_tasks=self._max_async_tasks,
             max_prefetch=self._max_prefetch,
-            run_startup=True,
+            run_startup=False,
         )
         try:
             if self._dispatcher is not None:
                 _ = await self._dispatcher.dispatch(WorkerStartedEvent(self))
-            await in_own_context(receiver.listen(self._finished))
+            await in_own_context(self._broker.startup())
+            await in_receive_loop(receiver.listen(self._finished))
         finally:
             try:
+                await _drain(receiver)
                 await self._broker.shutdown()
             finally:
                 if self._publishers is not None:
@@ -196,3 +205,16 @@ class TaskiqWorker(WorkerInterface):
             self._finished.set()
         else:
             self._stop_requested = True
+
+
+async def _drain(receiver: PoisonMessageReceiver) -> None:
+    """Wait up to :data:`_DRAIN_TIMEOUT` for the messages ``receiver`` is still handling.
+
+    A stop lets the loop finish them itself; a cancellation stops the loop at
+    once and leaves them running, still using the broker and what their
+    handlers opened. Waited for here, they end before the broker is shut down
+    and the worker says it stopped; the cancellation goes on once they have.
+    """
+    in_flight = receiver.in_flight
+    if in_flight:
+        _ = await asyncio.wait(in_flight, timeout=_DRAIN_TIMEOUT)

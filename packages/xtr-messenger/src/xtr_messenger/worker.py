@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextvars import copy_context
 from typing import TYPE_CHECKING, Final, Protocol, final, runtime_checkable
 
 from typing_extensions import override
@@ -17,6 +18,7 @@ from .worker_interface import WorkerInterface
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+    from contextvars import Context
 
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
 
@@ -128,7 +130,9 @@ class Worker(WorkerInterface):
         the messages it held back, a listener of its events — and shared by
         every message after it. Nor does a context variable one message left
         behind reach the next. Collecting stays where this runs: only a
-        message is new work.
+        message is new work. It runs in one context for the whole run,
+        copied from this one, so a receiver may set a context variable before
+        it yields and reset it once the worker comes back for the next.
 
         With an event dispatcher, a message a listener decides not to handle
         is acknowledged without being dispatched — skipping is not failing.
@@ -145,13 +149,18 @@ class Worker(WorkerInterface):
         self._stopped = stopped
         await self._announce(WorkerStartedEvent(self))
         collected = self._receiver.get()
+        collecting = copy_context()
         try:
-            while (envelope := await _next_unless_stopped(collected, stopped)) is not None:
+            while (
+                envelope := await _next_unless_stopped(collected, stopped, collecting)
+            ) is not None:
                 await in_own_context(self._settle(envelope))
                 await self._announce(WorkerRunningEvent(self))
         finally:
             self._stopped = None
-            await close_stream(collected)
+            await asyncio.get_running_loop().create_task(
+                close_stream(collected), context=collecting
+            )
             await self._announce(WorkerStoppedEvent(self))
 
     @override
@@ -196,19 +205,22 @@ class Worker(WorkerInterface):
 async def _next_unless_stopped(
     collected: AsyncIterator[Envelope],
     stopped: asyncio.Event,
+    collecting: Context,
 ) -> Envelope | None:
     """Return the next envelope, or ``None`` once exhausted or stopped.
 
     Waits on both at once, so a stop is honoured while the receiver is still
     waiting for a message. A message that arrives together with the stop is
     returned rather than dropped: it was collected, so it has to be settled.
+    Every step of ``collected`` runs in ``collecting``, the one context the
+    receiver's generator sees from its first step to its last.
 
     Raises:
         Exception: Whatever the receiver raised while collecting.
     """
     if stopped.is_set():
         return None
-    fetch = asyncio.ensure_future(anext(collected, None))
+    fetch = asyncio.get_running_loop().create_task(_next(collected), context=collecting)
     halt = asyncio.ensure_future(stopped.wait())
     try:
         _ = await asyncio.wait((fetch, halt), return_when=asyncio.FIRST_COMPLETED)
@@ -220,3 +232,8 @@ async def _next_unless_stopped(
             # message it delivered just as it was cancelled is still settled.
             _ = await asyncio.gather(fetch, return_exceptions=True)
     return None if fetch.cancelled() else fetch.result()
+
+
+async def _next(collected: AsyncIterator[Envelope]) -> Envelope | None:
+    """Return the next envelope ``collected`` yields, or ``None`` once it is exhausted."""
+    return await anext(collected, None)

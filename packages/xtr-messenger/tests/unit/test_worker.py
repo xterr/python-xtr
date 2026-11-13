@@ -277,6 +277,39 @@ async def test_the_collected_envelope_is_dispatched_as_it_arrived() -> None:
     assert bus.dispatched[0].last(ReceivedStamp) == ReceivedStamp("in-memory")
 
 
+@final
+class HoldingReceiver(ReceiverInterface):
+    """Sets the tenant around each envelope it yields, resetting it once the worker comes back."""
+
+    def __init__(self, backlog: Iterable[Envelope]) -> None:
+        self._backlog = tuple(backlog)
+        self.acked: list[Envelope] = []
+
+    @override
+    async def get(self) -> AsyncIterator[Envelope]:
+        for envelope in self._backlog:
+            token = _TENANT.set("receiving")
+            yield envelope
+            _TENANT.reset(token)
+
+    @override
+    async def ack(self, envelope: Envelope) -> None:
+        self.acked.append(envelope)
+
+    @override
+    async def reject(self, envelope: Envelope) -> None:
+        del envelope
+
+
+async def test_a_receiver_may_hold_a_context_variable_across_yield() -> None:
+    first, second = Envelope("first"), Envelope("second")
+    receiver = HoldingReceiver([first, second])
+
+    await Worker(RecordingBus(), receiver).run()
+
+    assert receiver.acked == [first, second]
+
+
 async def test_a_message_is_handled_apart_from_the_context_the_worker_runs_in() -> None:
     """What runs a worker — a command, say — is not its messages': a context
     variable set there, a unit of work open there, stays behind."""

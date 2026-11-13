@@ -44,7 +44,7 @@ from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
 from taskiq import Context, TaskiqDepends, TaskiqMessage
 
 from xtr_messenger._handling import Failed, announce_failure, handle
-from xtr_messenger._own_context import in_own_context, started_in_own_context
+from xtr_messenger._own_context import in_own_context, leave_receive_loop, started_in_receive_loop
 from xtr_messenger.exception import MessageDecodingFailedError
 from xtr_messenger.message_registry import declared_names, name_of
 from xtr_messenger.stamp import ReceivedStamp, RedeliveryStamp
@@ -209,8 +209,9 @@ def bind_bus(  # noqa: PLR0913 — everything past `serializer` is keyword-only
 def _task_for(binding: _Binding, task_name: str) -> Callable[..., Coroutine[None, None, None]]:
     async def run(body: str, context: Context = _CONTEXT) -> None:
         handling = _handle(binding, task_name, body, context.message)
-        if started_in_own_context():
-            # A worker started this task apart from its host already.
+        if started_in_receive_loop():
+            # A worker's receive loop started this task apart from its host already.
+            leave_receive_loop()
             await handling
         else:
             await in_own_context(handling)
