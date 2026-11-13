@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, final
 
 import pytest
@@ -58,6 +59,54 @@ async def test_the_factory_runs_once() -> None:
     _ = await lazy.resolve()
 
     assert factory.calls == 1
+
+
+@pytest.mark.anyio
+async def test_concurrent_resolution_builds_once() -> None:
+    recorder = DispatcherRecorder()
+    building = asyncio.Event()
+    release = asyncio.Event()
+    calls: list[None] = []
+
+    async def factory() -> object:
+        calls.append(None)
+        building.set()
+        _ = await release.wait()
+        return recorder
+
+    lazy = LazyListener(factory, "foo")
+    first = asyncio.create_task(lazy.resolve())
+    second = asyncio.create_task(lazy.resolve())
+    _ = await building.wait()
+
+    release.set()
+    listeners = await asyncio.gather(first, second)
+
+    assert len(calls) == 1
+    assert listeners == [recorder.foo, recorder.foo]
+
+
+def test_a_listener_left_unbuilt_on_one_event_loop_builds_on_another() -> None:
+    recorder = DispatcherRecorder()
+    failures = [RuntimeError("first build"), RuntimeError("second build")]
+
+    async def factory() -> object:
+        # Yield while building, so the other resolution waits for this one.
+        await asyncio.sleep(0)
+        if failures:
+            raise failures.pop(0)
+        return recorder
+
+    lazy = LazyListener(factory, "foo")
+
+    async def race() -> list[object]:
+        return list(await asyncio.gather(lazy.resolve(), lazy.resolve(), return_exceptions=True))
+
+    first_loop = asyncio.run(race())
+    second_loop = asyncio.run(race())
+
+    assert [str(outcome) for outcome in first_loop] == ["first build", "second build"]
+    assert second_loop == [recorder.foo, recorder.foo]
 
 
 @pytest.mark.anyio
