@@ -1,0 +1,259 @@
+"""Closing a unit's scope: every service torn down, however the unit is left."""
+
+from __future__ import annotations
+
+import asyncio
+import gc
+import weakref
+from collections.abc import (
+    AsyncIterator,  # noqa: TC003 — the engine reads the factories' return annotations
+)
+from contextvars import ContextVar
+from typing import TYPE_CHECKING, final
+
+import anyio
+import pytest
+import wireup
+
+from xtr_dependency_injection import unit_of_work
+from xtr_dependency_injection.exception import ScopeTeardownTimeoutError
+from xtr_dependency_injection.runtime import _scope_exit
+from xtr_dependency_injection.runtime.wireup_container import WireupContainer
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Iterator
+
+pytestmark = pytest.mark.anyio
+
+_VALUE: ContextVar[str] = ContextVar("test_scope_exit_value", default="caller")
+
+
+@final
+class First:
+    """Built first, so torn down last."""
+
+
+@final
+class Second:
+    """Built second, so torn down first."""
+
+
+def _container(*factories: Callable[..., object]) -> WireupContainer:
+    return WireupContainer(
+        wireup.create_async_container(
+            injectables=[wireup.injectable(factory, lifetime="scoped") for factory in factories],
+        )
+    )
+
+
+@final
+class _Gate:
+    """A teardown that says it started, then waits to be let go."""
+
+    def __init__(self) -> None:
+        self.tearing = asyncio.Event()
+        self.release = asyncio.Event()
+        self.closed: list[str] = []
+
+
+def _services(gate: _Gate) -> WireupContainer:
+    async def first() -> AsyncIterator[First]:
+        yield First()
+        gate.closed.append("First")
+
+    async def second() -> AsyncIterator[Second]:
+        yield Second()
+        gate.tearing.set()
+        _ = await gate.release.wait()
+        gate.closed.append("Second")
+
+    return _container(first, second)
+
+
+async def _use_both(container: WireupContainer) -> None:
+    async with unit_of_work(container) as unit:
+        _ = await unit.get(First)
+        _ = await unit.get(Second)
+
+
+async def test_task_cancel_during_teardown_still_closes_every_scoped_service() -> None:
+    gate = _Gate()
+    task = asyncio.create_task(_use_both(_services(gate)))
+    _ = await gate.tearing.wait()
+
+    _ = task.cancel()
+    await asyncio.sleep(0)
+    gate.release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert gate.closed == ["Second", "First"]
+
+
+async def test_cancellation_is_raised_again_after_teardown() -> None:
+    gate = _Gate()
+    task = asyncio.create_task(_use_both(_services(gate)))
+    _ = await gate.tearing.wait()
+
+    _ = task.cancel()
+    await asyncio.sleep(0)
+    gate.release.set()
+    _ = await asyncio.gather(task, return_exceptions=True)
+
+    assert task.cancelled()
+
+
+async def test_an_anyio_cancel_scope_does_not_skip_teardown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gate = _Gate()
+    wait = asyncio.wait
+    waits: list[None] = []
+
+    async def counting(
+        tasks: Iterable[asyncio.Future[object]],
+    ) -> tuple[set[asyncio.Future[object]], set[asyncio.Future[object]]]:
+        waits.append(None)
+        return await wait(tasks)
+
+    monkeypatch.setattr(asyncio, "wait", counting)
+    container = _services(gate)
+    scopes: list[anyio.CancelScope] = []
+
+    async def inside_a_cancel_scope() -> None:
+        with anyio.CancelScope() as scope:
+            scopes.append(scope)
+            await _use_both(container)
+
+    task = asyncio.create_task(inside_a_cancel_scope())
+    _ = await gate.tearing.wait()
+
+    scopes[0].cancel()
+    await asyncio.sleep(0)
+    gate.release.set()
+    await task
+
+    assert gate.closed == ["Second", "First"]
+    assert scopes[0].cancelled_caught
+    assert len(waits) < 10_000
+
+
+async def test_a_teardown_error_keeps_the_exception_being_unwound() -> None:
+    async def failing() -> AsyncIterator[First]:
+        try:
+            yield First()
+        finally:
+            raise RuntimeError("close failed")
+
+    container = _container(failing)
+
+    async def fail_inside() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+            raise LookupError
+
+    with pytest.raises(LookupError) as raised:
+        await fail_inside()
+
+    assert raised.value.__notes__ == [
+        "closing the unit's services also failed: RuntimeError('close failed')"
+    ]
+
+
+async def test_a_teardown_error_without_an_exception_being_unwound_is_raised() -> None:
+    async def failing() -> AsyncIterator[First]:
+        yield First()
+        raise RuntimeError("close failed")
+
+    container = _container(failing)
+
+    async def use() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+
+    with pytest.raises(ExceptionGroup) as raised:
+        await use()
+
+    assert [str(error) for error in raised.value.exceptions] == ["close failed"]
+
+
+async def test_cancellation_wins_over_a_teardown_error_and_keeps_it_as_a_note() -> None:
+    tearing, release = asyncio.Event(), asyncio.Event()
+
+    async def failing() -> AsyncIterator[First]:
+        yield First()
+        tearing.set()
+        _ = await release.wait()
+        raise RuntimeError("close failed")
+
+    container = _container(failing)
+
+    async def use() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+
+    task = asyncio.create_task(use())
+    _ = await tearing.wait()
+    _ = task.cancel()
+    await asyncio.sleep(0)
+    release.set()
+
+    with pytest.raises(asyncio.CancelledError) as raised:
+        await task
+    assert raised.value.__notes__ == ["raised while finishing: RuntimeError('close failed')"]
+
+
+async def test_a_hung_teardown_raises_scope_teardown_timeout_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_scope_exit, "_TEARDOWN_TIMEOUT", 0.05)
+
+    async def hung() -> AsyncIterator[First]:
+        yield First()
+        _ = await asyncio.Event().wait()
+
+    container = _container(hung)
+
+    async def use() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+
+    with pytest.raises(ScopeTeardownTimeoutError, match=r"0\.05 seconds"):
+        await use()
+
+
+@pytest.fixture
+def _no_cyclic_collection() -> Iterator[None]:
+    gc.disable()
+    try:
+        yield
+    finally:
+        gc.enable()
+
+
+@pytest.mark.usefixtures("_no_cyclic_collection")
+async def test_a_scoped_instance_is_released_when_its_unit_exits() -> None:
+    async def first() -> AsyncIterator[First]:
+        yield First()
+
+    container = _container(first)
+
+    async with unit_of_work(container) as unit:
+        kept = weakref.ref(await unit.get(First))
+        assert kept() is not None
+    del unit
+
+    assert kept() is None
+
+
+async def test_a_teardown_setting_a_context_variable_does_not_fail_the_scope() -> None:
+    async def first() -> AsyncIterator[First]:
+        yield First()
+        _ = _VALUE.set("teardown")
+
+    container = _container(first)
+
+    async with unit_of_work(container) as unit:
+        _ = await unit.get(First)
+
+    assert _VALUE.get() == "caller"

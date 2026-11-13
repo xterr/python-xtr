@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import gc
 import types
+import weakref
 from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING
 
@@ -391,3 +393,27 @@ async def test_a_request_scope_exited_in_another_context_still_closes_its_connec
 
     assert connection_of(connection.scope) is None
     kept[0].run(read)
+
+
+@pytest.mark.anyio
+async def test_a_request_scope_releases_its_scoped_services_when_it_exits() -> None:
+    app = Starlette()
+    kernel = Kernel(
+        "tests.fixtures.app_env",
+        bundles={MailBundle: {"all": True}},
+        env="test",
+        environ={"MAIL_PORT": "2525"},
+    )
+    attach(app, kernel.build())
+    connection = _connection(app)
+    resolve = provider("service", AsyncSession, None)
+
+    gc.disable()
+    try:
+        async with request_scope(app, connection.scope):
+            kept = weakref.ref(await resolve(connection))
+            assert kept() is not None
+
+        assert kept() is None
+    finally:
+        gc.enable()

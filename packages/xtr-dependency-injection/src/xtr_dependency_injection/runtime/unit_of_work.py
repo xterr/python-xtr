@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from xtr_dependency_injection.exception import InvalidArgumentTypeError
 
+from ._scope_exit import closing_scope
 from ._unit_scope import current_unit_record, entered, open_unit, participants_of, participating
 from .wireup_container import WireupContainer
 
@@ -78,7 +79,7 @@ async def _unit_of_work(
         return
     participants = await participants_of(engine)
     with participating(participants):
-        async with engine.enter_scope() as scope:
+        async with closing_scope(engine) as scope:
             with entered(engine, scope) as unit:
                 yield WireupContainer(engine, unit)
 

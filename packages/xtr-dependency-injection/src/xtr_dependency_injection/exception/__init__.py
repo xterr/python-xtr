@@ -35,6 +35,7 @@ from .parameter_circular_reference_error import ParameterCircularReferenceError
 from .parameter_conflict_error import ParameterConflictError
 from .parameter_not_found_error import ParameterNotFoundError
 from .resource_import_error import ResourceImportError
+from .scope_teardown_timeout_error import ScopeTeardownTimeoutError
 from .service_circular_reference_error import ServiceCircularReferenceError
 from .service_not_found_error import ServiceNotFoundError
 from .service_order_error import ServiceOrderError
@@ -73,6 +74,7 @@ __all__ = [
     "ParameterConflictError",
     "ParameterNotFoundError",
     "ResourceImportError",
+    "ScopeTeardownTimeoutError",
     "ServiceCircularReferenceError",
     "ServiceNotFoundError",
     "ServiceOrderError",

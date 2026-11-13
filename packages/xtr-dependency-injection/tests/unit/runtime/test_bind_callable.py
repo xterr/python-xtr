@@ -9,17 +9,19 @@ import types
 from collections.abc import (
     AsyncIterator,  # noqa: TC003 — the engine reads the factory's return annotation
 )
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
 import wireup
 
-from xtr_dependency_injection import Injected, bind_callable, unit_of_work
+from tests.fixtures.app_unit_participants import JOURNAL
+from xtr_dependency_injection import Injected, bind_callable, current_unit_of_work, unit_of_work
 from xtr_dependency_injection.exception import UnitOfWorkClosedError
+from xtr_dependency_injection.integration.wireup import create_container
 from xtr_dependency_injection.runtime.wireup_container import WireupContainer
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Coroutine, Generator
 
 pytestmark = pytest.mark.anyio
 
@@ -53,6 +55,18 @@ def _suspend() -> Generator[None]:
     yield
 
 
+async def _finish_in(context: contextvars.Context, call: Coroutine[object, object, object]) -> None:
+    """Step ``call`` to its end in ``context``, waiting on what it waits on, as a task would."""
+    while True:
+        try:
+            waited = context.run(call.send, None)
+        except StopIteration:
+            return
+        if isinstance(waited, asyncio.Future):
+            # What a coroutine yields to its task is a future of a result it never reads here.
+            _ = await asyncio.wait((cast("asyncio.Future[object]", waited),))
+
+
 @final
 class Slow:
     """A scoped service whose factory takes its time."""
@@ -83,8 +97,7 @@ async def test_a_per_call_scope_exited_in_another_context_does_not_raise() -> No
     # Started in one context and finished in another, as a coroutine handed
     # between tasks is.
     contextvars.copy_context().run(call.send, None)
-    with pytest.raises(StopIteration):
-        contextvars.copy_context().run(call.send, None)
+    await _finish_in(contextvars.copy_context(), call)
 
     assert received[0].closed
 
@@ -120,3 +133,59 @@ async def test_a_joined_call_whose_unit_closed_meanwhile_raises() -> None:
     with pytest.raises(UnitOfWorkClosedError):
         await call
     assert Handler.built == 0
+
+
+async def test_a_per_call_scope_finishes_its_teardown_when_cancelled() -> None:
+    tearing, release = asyncio.Event(), asyncio.Event()
+    closed: list[str] = []
+
+    async def session() -> AsyncIterator[Session]:
+        yield Session()
+        tearing.set()
+        _ = await release.wait()
+        closed.append("session")
+
+    async def slow() -> AsyncIterator[Slow]:
+        yield Slow()
+        closed.append("slow")
+
+    container = WireupContainer(
+        wireup.create_async_container(
+            injectables=[
+                wireup.injectable(slow, lifetime="scoped"),
+                wireup.injectable(session, lifetime="scoped"),
+            ],
+        )
+    )
+
+    async def command(first: Injected[Slow], second: Injected[Session]) -> None:
+        del first, second
+
+    bound = bind_callable(container, command, per_call_scope=True)
+
+    async def call_it() -> None:
+        _ = await bound()
+
+    task = asyncio.create_task(call_it())
+    _ = await tearing.wait()
+    _ = task.cancel()
+    await asyncio.sleep(0)
+    release.set()
+    _ = await asyncio.gather(task, return_exceptions=True)
+
+    assert task.cancelled()
+    assert closed == ["session", "slow"]
+
+
+async def test_a_call_outside_a_unit_runs_in_a_unit_of_its_own() -> None:
+    JOURNAL.clear()
+    container = WireupContainer(create_container([], scan=["tests.fixtures.app_unit_participants"]))
+    inside: list[bool] = []
+
+    async def handler() -> None:
+        inside.append(current_unit_of_work() is not None)
+
+    _ = await bind_callable(container, handler)()
+
+    assert inside == [True]
+    assert JOURNAL == ["began first-1", "began second-1", "ended second-1", "ended first-1"]

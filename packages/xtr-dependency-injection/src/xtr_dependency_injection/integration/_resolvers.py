@@ -19,6 +19,7 @@ from starlette.requests import HTTPConnection  # noqa: TC002 — read at runtime
 from wireup import AsyncContainer
 
 from xtr_dependency_injection.exception import FastapiIntegrationError
+from xtr_dependency_injection.runtime._scope_exit import closing_scope
 from xtr_dependency_injection.runtime._unit_scope import entered, participants_of, participating
 
 if TYPE_CHECKING:
@@ -169,7 +170,7 @@ async def _request_scope(app: Starlette, connection_scope: Scope) -> AsyncGenera
     enclosing = _served_of(connection_scope)
     participants = await participants_of(attached.engine)
     with participating(participants):
-        async with attached.engine.enter_scope() as scoped:
+        async with closing_scope(attached.engine) as scoped:
             served = _Served(scoped, enclosing.connection if enclosing is not None else None)
             connection_scope[SERVED_KEY] = served
             bound = _SERVED.set(served)

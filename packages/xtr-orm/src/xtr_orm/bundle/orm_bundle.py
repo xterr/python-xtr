@@ -42,7 +42,7 @@ from advanced_alchemy.base import metadata_registry
 from advanced_alchemy.config import AsyncSessionConfig, EngineConfig, SQLAlchemyAsyncConfig
 from advanced_alchemy.config.routing import EngineConfig as ReplicaEngine
 from advanced_alchemy.config.routing import RoutingConfig, RoutingStrategy
-from advanced_alchemy.routing import RoutingAsyncSessionMaker, stick_to_primary_var
+from advanced_alchemy.routing import RoutingAsyncSessionMaker
 from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from typing_extensions import override
@@ -65,6 +65,7 @@ from xtr_orm.connection_registry import ConnectionRegistry
 from xtr_orm.database import DatabaseManager
 from xtr_orm.exception import InvalidArgumentError, SessionUnavailableError
 from xtr_orm.migrations import MigrationsConfig, Migrator
+from xtr_orm.stickiness_participant import StickinessParticipant
 
 from .connection_config import ConnectionConfig
 from .orm_config import OrmConfig
@@ -166,6 +167,8 @@ class OrmBundle(Bundle[OrmConfig]):
             name: bool(connection.replicas) for name, connection in config.connections.items()
         }
         _ = services.set(_connection_registry_factory(config.default_connection, routed))
+        if any(routed.values()):
+            _ = services.set(StickinessParticipant).add_tag("kernel.unit_participant")
 
         if bundle_active(builder, "console"):
             services.load("xtr_orm.command")
@@ -321,21 +324,14 @@ def _session_factory(
     disposes — and an application that replaces that service is obeyed.
 
     Closing rolls back what was not committed: committing is the unit's job.
-    With replicas, a unit starts reading from them whatever the unit before it
-    wrote: sticking to the primary after a write is one unit's state, forgotten
-    when the unit ends — not when another of its sessions opens, which would
-    send the reads after a write to a replica.
+    With replicas, which the unit reads from — its own state, not the
+    session's — is kept by :class:`~xtr_orm.stickiness_participant.StickinessParticipant`.
     """
-    routed = maker_type is RoutingAsyncSessionMaker
 
     async def session(container: ContainerInterface) -> AsyncIterator[AsyncSession]:
         maker = await container.get(maker_type, name)
-        try:
-            async with maker() as opened:
-                yield opened
-        finally:
-            if routed:
-                _ = stick_to_primary_var.set(False)
+        async with maker() as opened:
+            yield opened
 
     return session
 
