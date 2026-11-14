@@ -251,7 +251,9 @@ make.
 
    `@as_event_listener(event=None, *, method=None, priority=None, dispatcher=None, before=None,
    after=None)` is repeatable, and goes on a class, a method (static and class methods included)
-   or a function. Every class implementing `EventSubscriberInterface` is registered too. See
+   or a function. Written bare, `@as_event_listener`, it works on a function or a method, never on
+   a class — a class given first is the event. Every class implementing `EventSubscriberInterface`
+   is registered too. See
    [references/bundle.md](references/bundle.md) for every argument, ordering with
    `before`/`after`, named dispatchers, tagging a service by hand, and which classes the scan
    picks up.

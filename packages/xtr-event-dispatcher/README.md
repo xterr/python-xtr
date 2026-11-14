@@ -251,7 +251,9 @@ class Audit(EventSubscriberInterface): ...  # every subscriber is registered
 
 `@as_event_listener(event=None, *, method=None, priority=None, dispatcher=None, before=None,
 after=None)`, repeatable, on a class, a method — static and class methods included, above or
-below their decorator — or a function:
+below their decorator — or a function. On a function or a method it may be written bare,
+`@as_event_listener`, the same as `@as_event_listener()`; on a class it takes the parentheses,
+since a class given first is the event:
 
 - **`event`** — a name or a class. Without it, the first parameter's annotation — each member
   of a union — is the event; the base `Event` does not count. Annotations must be importable
