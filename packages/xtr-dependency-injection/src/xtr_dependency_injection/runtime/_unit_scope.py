@@ -7,12 +7,16 @@ read it without importing the container wrapper the public API hands out.
 
 from __future__ import annotations
 
+import asyncio
+import threading
 import weakref
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, final
 
 from wireup.errors import UnknownServiceRequestedError
+
+from xtr_dependency_injection.exception import UnitReadDuringSingletonBuildError
 
 from ._detached_variables import register_detached_variable
 
@@ -25,11 +29,18 @@ if TYPE_CHECKING:
 __all__ = [
     "Unit",
     "UnitParticipants",
+    "building_singleton",
+    "counted",
     "current_unit_record",
     "entered",
+    "is_shut_down",
+    "mark_shut_down",
     "open_unit",
+    "open_units",
     "participants_of",
     "participating",
+    "refuse_during_singleton_build",
+    "units_drained",
 ]
 
 
@@ -102,6 +113,127 @@ def entered(engine: AsyncContainer, scope: ScopedAsyncContainer) -> Generator[Un
         # never held this unit, so there is nothing of ours to restore there.
         with suppress(ValueError):
             _current.reset(token)
+
+
+@final
+class _Units:
+    """How many units of one engine are open, who waits for none to be, and whether it shut down."""
+
+    __slots__ = ("open", "shut_down", "waiters")
+
+    def __init__(self) -> None:
+        self.open = 0
+        self.shut_down = False
+        self.waiters: list[tuple[asyncio.AbstractEventLoop, asyncio.Future[None]]] = []
+
+
+# Per engine. Units of one engine may run on several threads' loops, so it is
+# guarded by a lock, and a waiter is woken on its own loop.
+_UNITS: weakref.WeakKeyDictionary[AsyncContainer, _Units] = weakref.WeakKeyDictionary()
+_UNITS_LOCK = threading.Lock()
+
+
+def _units_of(engine: AsyncContainer) -> _Units:
+    units = _UNITS.get(engine)
+    if units is None:
+        units = _UNITS.setdefault(engine, _Units())
+    return units
+
+
+@contextmanager
+def counted(engine: AsyncContainer) -> Generator[None]:
+    """Count a unit of ``engine`` as open until the block exits — its teardown included.
+
+    Its scoped services still use the engine's singletons until they are
+    closed, so the unit is open until then; a shutdown waiting for none to be
+    is woken when the last one closes, from whichever context it closes in.
+    """
+    with _UNITS_LOCK:
+        units = _units_of(engine)
+        units.open += 1
+    try:
+        yield
+    finally:
+        with _UNITS_LOCK:
+            units.open -= 1
+            woken = units.waiters if units.open == 0 else []
+            if woken:
+                units.waiters = []
+        for loop, waiter in woken:
+            _ = loop.call_soon_threadsafe(_wake, waiter)
+
+
+def _wake(waiter: asyncio.Future[None]) -> None:
+    if not waiter.done():
+        waiter.set_result(None)
+
+
+def open_units(engine: AsyncContainer) -> int:
+    """Return how many units of ``engine`` are open, their teardown included."""
+    with _UNITS_LOCK:
+        units = _UNITS.get(engine)
+        return 0 if units is None else units.open
+
+
+async def units_drained(engine: AsyncContainer, within: float) -> int:
+    """Wait up to ``within`` seconds for every unit of ``engine`` to close.
+
+    Returns:
+        How many are still open once it stopped waiting.
+    """
+    loop = asyncio.get_running_loop()
+    waiter: asyncio.Future[None] = loop.create_future()
+    with _UNITS_LOCK:
+        units = _units_of(engine)
+        if units.open == 0:
+            return 0
+        units.waiters.append((loop, waiter))
+    try:
+        _ = await asyncio.wait((waiter,), timeout=within)
+    finally:
+        with _UNITS_LOCK, suppress(ValueError):
+            units.waiters.remove((loop, waiter))
+    return open_units(engine)
+
+
+def mark_shut_down(engine: AsyncContainer) -> None:
+    """Record that ``engine``'s kernel shut down, so nothing resolves from it any more."""
+    with _UNITS_LOCK:
+        _units_of(engine).shut_down = True
+
+
+def is_shut_down(engine: AsyncContainer) -> bool:
+    """Tell whether ``engine``'s kernel shut down."""
+    with _UNITS_LOCK:
+        units = _UNITS.get(engine)
+        return units is not None and units.shut_down
+
+
+# True while a singleton's factory runs, in a kernel built in debug mode only:
+# outside debug nothing sets it, so production never pays for or trips on it.
+_BUILDING_SINGLETON: ContextVar[bool] = ContextVar(
+    "xtr_dependency_injection_building_singleton", default=False
+)
+
+
+@contextmanager
+def building_singleton() -> Generator[None]:
+    """Say a singleton is being built in this context until the block exits."""
+    token = _BUILDING_SINGLETON.set(True)
+    try:
+        yield
+    finally:
+        _BUILDING_SINGLETON.reset(token)
+
+
+def refuse_during_singleton_build(read: str) -> None:
+    """Refuse to read ``read`` — something per unit of work — while a singleton is being built.
+
+    Raises:
+        UnitReadDuringSingletonBuildError: If a singleton is being built here.
+    """
+    if _BUILDING_SINGLETON.get():
+        raise UnitReadDuringSingletonBuildError(read)
 
 
 @final

@@ -26,6 +26,7 @@ from xtr_dependency_injection.exception._naming import qualified_name
 from xtr_dependency_injection.exception._signatures import evaluated_signature
 from xtr_dependency_injection.runtime._scope_exit import closing_scope
 from xtr_dependency_injection.runtime._unit_scope import (
+    counted,
     entered,
     open_unit,
     participants_of,
@@ -147,7 +148,7 @@ def bind_callable(
 
     async def scoped(*args: object, **kwargs: object) -> object:
         participants = await participants_of(engine)
-        with participating(participants):
+        with counted(engine), participating(participants):
             async with closing_scope(engine) as scope:
                 with entered(engine, scope) as unit:
                     return await in_unit(unit, *args, **kwargs)

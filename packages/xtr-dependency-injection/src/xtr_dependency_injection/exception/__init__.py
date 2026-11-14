@@ -30,6 +30,7 @@ from .invalid_environment_error import InvalidEnvironmentError
 from .invalid_environment_variable_error import InvalidEnvironmentVariableError
 from .invalid_parameter_type_error import InvalidParameterTypeError
 from .kernel_already_booted_error import KernelAlreadyBootedError
+from .kernel_shut_down_error import KernelShutDownError
 from .missing_bundle_error import MissingBundleError
 from .missing_environment_variable_error import MissingEnvironmentVariableError
 from .parameter_circular_reference_error import ParameterCircularReferenceError
@@ -42,6 +43,7 @@ from .service_not_found_error import ServiceNotFoundError
 from .service_order_error import ServiceOrderError
 from .service_resolution_error import ServiceResolutionError
 from .unit_of_work_closed_error import UnitOfWorkClosedError
+from .unit_read_during_singleton_build_error import UnitReadDuringSingletonBuildError
 from .unknown_config_type_error import UnknownConfigTypeError
 from .unknown_environment_folder_error import UnknownEnvironmentFolderError
 from .unknown_locator_key_error import UnknownLocatorKeyError
@@ -70,6 +72,7 @@ __all__ = [
     "InvalidEnvironmentVariableError",
     "InvalidParameterTypeError",
     "KernelAlreadyBootedError",
+    "KernelShutDownError",
     "MissingBundleError",
     "MissingEnvironmentVariableError",
     "ParameterCircularReferenceError",
@@ -82,6 +85,7 @@ __all__ = [
     "ServiceOrderError",
     "ServiceResolutionError",
     "UnitOfWorkClosedError",
+    "UnitReadDuringSingletonBuildError",
     "UnknownConfigTypeError",
     "UnknownEnvironmentFolderError",
     "UnknownLocatorKeyError",

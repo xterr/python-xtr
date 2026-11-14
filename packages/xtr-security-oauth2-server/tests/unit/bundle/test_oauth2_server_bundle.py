@@ -82,14 +82,14 @@ WIRED = (
     DeviceCodeController,
     RevocationController,
     IntrospectionController,
-    MetadataController,
     JwksController,
 )
 
-#: The one controller that is per-request rather than shared: it reads the
-#: resource owner off the request through the firewall's own scoped service, so
-#: it is built inside a unit of work and nowhere else.
-SCOPED = (AuthorizationController,)
+#: The controllers that are per-request rather than shared, so are built inside
+#: a unit of work and nowhere else: one reads the resource owner off the request
+#: through the firewall's own scoped service, the other names the paths the
+#: application being served has mounted.
+SCOPED = (AuthorizationController, MetadataController)
 
 
 def _service_id(service: type) -> str:
@@ -122,6 +122,16 @@ async def test_every_registered_service_resolves(service: type) -> None:
 async def test_every_per_request_service_resolves_inside_a_unit_of_work(service: type) -> None:
     async with await _configured().boot() as booted, unit_of_work(booted.container) as scoped:
         assert await scoped.get(service) is not None
+
+
+async def test_the_description_is_built_for_each_request_rather_than_kept() -> None:
+    async with await _configured().boot() as booted:
+        async with unit_of_work(booted.container) as first:
+            one = await first.get(MetadataController)
+        async with unit_of_work(booted.container) as second:
+            other = await second.get(MetadataController)
+
+    assert one is not other
 
 
 async def test_every_enabled_grant_is_run_by_the_authorization_server() -> None:

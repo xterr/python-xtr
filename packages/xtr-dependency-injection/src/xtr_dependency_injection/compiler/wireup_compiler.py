@@ -26,6 +26,7 @@ from ._registration import (
     clone_function,
     decorating_factory,
     env_resolving_factory,
+    guarded_factory,
     map_result,
     resolving_instance_factory,
     synthesize_class_factory,
@@ -36,6 +37,7 @@ from .resettable_service_pass import RESET_TAG
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
+    from contextlib import AbstractContextManager
 
     from wireup import AsyncContainer
 
@@ -138,6 +140,8 @@ def emit_injectables(
     definitions: Sequence[Definition],
     decorations: Mapping[ServiceKey, Sequence[Decoration]],
     track: Callable[[object, str], None],
+    *,
+    singleton_guard: Callable[[], AbstractContextManager[object]] | None = None,
 ) -> list[object]:
     """Return the wireup injectables realizing ``definitions``, already in emission order.
 
@@ -146,11 +150,17 @@ def emit_injectables(
         decorations: Per key, the decorations to apply, outermost last.
         track: Called with every built instance of a resettable service and
             its reset method.
+        singleton_guard: Entered around building every singleton, when
+            given — so a debug kernel can refuse reads of the unit of work a
+            singleton would keep whichever unit built it.
     """
     boxes = count(1)
     injectables: list[object] = []
     for definition in definitions:
-        injectables.extend(_emit(definition, decorations.get(definition.key, ()), track, boxes))
+        guard = singleton_guard if definition.lifetime == "singleton" else None
+        injectables.extend(
+            _emit(definition, decorations.get(definition.key, ()), track, boxes, guard=guard)
+        )
     return injectables
 
 
@@ -195,18 +205,23 @@ def _emit(
     decorations: Sequence[Decoration],
     track: Callable[[object, str], None],
     boxes: Iterator[int],
+    *,
+    guard: Callable[[], AbstractContextManager[object]] | None,
 ) -> list[object]:
     """Return the injectables realizing ``definition``: one, or a box per decoration plus one."""
     provided, qualifier = definition.key
     lifetime = definition.lifetime
     hook = _reset_hook(definition)
-    if not decorations and hook is None:
+    instance = definition.kind == "instance"
+    if not decorations and hook is None and (instance or guard is None):
         as_is = _as_is(definition)
         if as_is is not None:
             return [as_is]
     factory, implementation = _factory_for(
-        definition.provider, instance=definition.kind == "instance", arguments=definition.arguments
+        definition.provider, instance=instance, arguments=definition.arguments
     )
+    if guard is not None and not instance:
+        factory = guarded_factory(factory, guard, provides=implementation)
     if hook is not None:
         tracked = _tracking(track, hook)
         factory = map_result(factory, tracked, provides=implementation)
@@ -221,6 +236,8 @@ def _emit(
         factory = decorating_factory(
             decorator, decoration.inner_parameter, box, provides=implementation
         )
+        if guard is not None:
+            factory = guarded_factory(factory, guard, provides=implementation)
     emitted.append(
         wireup.injectable(
             factory,

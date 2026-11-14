@@ -36,9 +36,9 @@ class MetadataController:
     methods are accepted. This is the one document that says all of it, at the
     one place under the issuer a client knows to look.
 
-    The document itself is settled when the container is built — it is made of
-    the deployment's configuration and nothing a request can change — so it is
-    held ready and only the extension fields are gathered per request. An
+    The document is built with the controller, once per request: it is made of
+    the deployment's configuration and the paths the application being served
+    has mounted, and the extension fields are gathered as it answers. An
     extension contributing a field cannot take over one this server decides:
     the document merges contributions underneath its own answers.
 

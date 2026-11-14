@@ -21,7 +21,13 @@ from wireup import AsyncContainer
 from xtr_dependency_injection.exception import FastapiIntegrationError
 from xtr_dependency_injection.runtime._detached_variables import register_detached_variable
 from xtr_dependency_injection.runtime._scope_exit import closing_scope
-from xtr_dependency_injection.runtime._unit_scope import entered, participants_of, participating
+from xtr_dependency_injection.runtime._unit_scope import (
+    counted,
+    entered,
+    participants_of,
+    participating,
+    refuse_during_singleton_build,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable, Hashable
@@ -172,7 +178,7 @@ async def _request_scope(app: Starlette, connection_scope: Scope) -> AsyncGenera
     # connection encloses this one.
     enclosing = _served_of(connection_scope)
     participants = await participants_of(attached.engine)
-    with participating(participants):
+    with counted(attached.engine), participating(participants):
         async with closing_scope(attached.engine) as scoped:
             served = _Served(scoped, enclosing.connection if enclosing is not None else None)
             connection_scope[SERVED_KEY] = served
@@ -245,7 +251,10 @@ def current_connection() -> HTTPConnection:
     Raises:
         FastapiIntegrationError: If no marker of a served request has
             resolved, so there is no connection to read.
+        UnitReadDuringSingletonBuildError: If a singleton is being built
+            here, in a kernel built in debug mode.
     """
+    refuse_during_singleton_build("the connection being served")
     served = _SERVED.get()
     connection = served.connection if served is not None else None
     if connection is None:

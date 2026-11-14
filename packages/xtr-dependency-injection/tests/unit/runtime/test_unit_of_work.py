@@ -16,16 +16,22 @@ import wireup
 from typing_extensions import override
 from xtr_service_contracts import ContainerInterface
 
-from tests.fixtures import app_slow_scoped
+from tests.fixtures import app_hung_teardown, app_slow_scoped
 from xtr_dependency_injection import (
     Injected,
+    Kernel,
     bind_callable,
     current_unit_of_work,
     open_unit_of,
     unit_of_work,
 )
-from xtr_dependency_injection.exception import InvalidArgumentTypeError, UnitOfWorkClosedError
+from xtr_dependency_injection.exception import (
+    InvalidArgumentTypeError,
+    KernelShutDownError,
+    UnitOfWorkClosedError,
+)
 from xtr_dependency_injection.integration.wireup import create_container
+from xtr_dependency_injection.kernel import booted_kernel
 from xtr_dependency_injection.runtime.wireup_container import WireupContainer
 
 if TYPE_CHECKING:
@@ -34,6 +40,8 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 pytestmark = pytest.mark.anyio
+
+_TIMEOUT = 5.0
 
 
 @final
@@ -426,6 +434,82 @@ async def test_a_container_no_kernel_built_is_refused() -> None:
     with pytest.raises(InvalidArgumentTypeError, match="kernel-provided container"):
         async with unit_of_work(_Foreign()):
             pass
+
+
+def _hung_kernel() -> Kernel:
+    app_hung_teardown.GATE = app_hung_teardown.Gate()
+    return Kernel("tests.fixtures.app_hung_teardown", env="test", bundles={})
+
+
+async def test_shutdown_waits_for_an_open_unit() -> None:
+    booted = await _hung_kernel().boot()
+    gate = app_hung_teardown.GATE
+    held = asyncio.Event()
+    journal: list[str] = []
+
+    async def hold() -> None:
+        async with unit_of_work(booted.container) as unit:
+            _ = await unit.get(app_hung_teardown.Hung)
+            _ = await held.wait()
+        journal.append("unit closed")
+
+    unit = asyncio.create_task(hold())
+    await asyncio.sleep(0)
+    shutdown = asyncio.create_task(booted.shutdown())
+    for _turn in range(20):
+        await asyncio.sleep(0)
+    assert not shutdown.done()
+
+    held.set()
+    _ = await asyncio.wait_for(gate.closing.wait(), timeout=_TIMEOUT)
+    assert not shutdown.done()
+    gate.release.set()
+    await asyncio.wait_for(shutdown, timeout=_TIMEOUT)
+    journal.append("shut down")
+    await unit
+
+    assert gate.closed
+    assert journal == ["unit closed", "shut down"]
+
+
+async def test_shutdown_gives_up_after_the_drain_timeout(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(booted_kernel, "_SHUTDOWN_DRAIN_TIMEOUT", 0.05)
+    booted = await _hung_kernel().boot()
+    gate = app_hung_teardown.GATE
+
+    async def hold() -> None:
+        async with unit_of_work(booted.container) as unit:
+            _ = await unit.get(app_hung_teardown.Hung)
+
+    unit = asyncio.create_task(hold())
+    _ = await asyncio.wait_for(gate.closing.wait(), timeout=_TIMEOUT)
+
+    await asyncio.wait_for(booted.shutdown(), timeout=_TIMEOUT)
+
+    assert not gate.closed
+    assert [record.getMessage() for record in caplog.records] == [
+        "shutting the kernel down with units of work still open"
+    ]
+    assert caplog.records[0].__dict__["open_units"] == 1
+    gate.release.set()
+    await unit
+
+
+async def test_shutdown_with_no_unit_open_does_not_wait() -> None:
+    booted = await _hung_kernel().boot()
+
+    await asyncio.wait_for(booted.shutdown(), timeout=0.5)
+
+
+async def test_resolving_after_shutdown_raises() -> None:
+    booted = await _hung_kernel().boot()
+    container = booted.container
+    await booted.shutdown()
+
+    with pytest.raises(KernelShutDownError, match="has shut down"):
+        _ = await container.get(app_hung_teardown.Hung)
 
 
 @final

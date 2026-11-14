@@ -27,7 +27,15 @@ from typing import TYPE_CHECKING
 from xtr_dependency_injection.exception import InvalidArgumentTypeError
 
 from ._scope_exit import closing_scope
-from ._unit_scope import current_unit_record, entered, open_unit, participants_of, participating
+from ._unit_scope import (
+    counted,
+    current_unit_record,
+    entered,
+    open_unit,
+    participants_of,
+    participating,
+    refuse_during_singleton_build,
+)
 from .wireup_container import WireupContainer
 
 if TYPE_CHECKING:
@@ -78,14 +86,21 @@ async def _unit_of_work(
         yield WireupContainer(engine, opened)
         return
     participants = await participants_of(engine)
-    with participating(participants):
+    with counted(engine), participating(participants):
         async with closing_scope(engine) as scope:
             with entered(engine, scope) as unit:
                 yield WireupContainer(engine, unit)
 
 
 def current_unit_of_work() -> ContainerInterface | None:
-    """Return the unit of work open in this context, or ``None`` outside one."""
+    """Return the unit of work open in this context, or ``None`` outside one.
+
+    Raises:
+        UnitReadDuringSingletonBuildError: If a singleton is being built here,
+            in a kernel built in debug mode: it would keep whichever unit
+            happened to build it.
+    """
+    refuse_during_singleton_build("the unit of work open in this context")
     unit = current_unit_record()
     return None if unit is None else WireupContainer(unit.engine, unit)
 

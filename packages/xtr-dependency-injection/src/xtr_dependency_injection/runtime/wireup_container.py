@@ -21,12 +21,14 @@ from xtr_dependency_injection.config.env_placeholder import (
 )
 from xtr_dependency_injection.exception import (
     EnvPlaceholderError,
+    KernelShutDownError,
     ParameterNotFoundError,
     ServiceNotFoundError,
     ServiceResolutionError,
     UnitOfWorkClosedError,
 )
 
+from ._unit_scope import is_shut_down
 from .env_var_processors_locator import EnvVarProcessorsLocator
 
 if TYPE_CHECKING:
@@ -71,12 +73,16 @@ class WireupContainer(ContainerInterface):
         """Return the service registered under ``service`` and ``qualifier``.
 
         Raises:
+            KernelShutDownError: If the kernel this container belongs to has
+                shut down.
             UnitOfWorkClosedError: If this is the view of a unit of work that
                 has exited.
             ServiceNotFoundError: If nothing is registered under the key.
             ServiceResolutionError: If building the service failed.
         """
         resolver: AsyncContainer | ScopedAsyncContainer = self._container
+        if is_shut_down(self._container):
+            raise KernelShutDownError
         if self._unit is not None:
             scope = self._unit.scope
             if scope is None:

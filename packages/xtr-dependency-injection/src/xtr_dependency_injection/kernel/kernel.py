@@ -64,6 +64,7 @@ from xtr_dependency_injection.exception import (
 )
 from xtr_dependency_injection.exception._naming import key_name as _naming_key_name
 from xtr_dependency_injection.exception._naming import qualified_name
+from xtr_dependency_injection.runtime._unit_scope import building_singleton
 from xtr_dependency_injection.runtime.service_locator_injectables import (
     service_locator_injectables,
 )
@@ -524,7 +525,12 @@ def prepare(  # noqa: PLR0913 — each input is a separate build decision.
         environ=environ,
     )
     ordered = emission_order(assembly.state.store.entries(), assembly.state.forwards)
-    injectables = emit_injectables(ordered, assembly.decorations, core.resetter.track)
+    injectables = emit_injectables(
+        ordered,
+        assembly.decorations,
+        core.resetter.track,
+        singleton_guard=building_singleton if debug else None,
+    )
     injectables.extend(service_locator_injectables(ordered))
     return Prepared(
         core=core,
