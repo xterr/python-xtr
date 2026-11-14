@@ -68,9 +68,11 @@ class BootedKernel:
     async def shutdown(self) -> None:
         """Run the application's ``@on_shutdown`` hooks, then every bundle's, then close.
 
-        Every unit of work still open — a request in flight, a message being
-        handled — is waited for first, up to thirty seconds: its scoped
-        services use the singletons about to be closed. Past that the kernel
+        Once the hooks ran — they are what stops a worker or a scheduler the
+        application started, and with it whatever keeps opening units — every
+        unit of work still open, a request in flight, a message being handled,
+        is waited for, up to thirty seconds: its scoped services use what the
+        bundles and the container are about to close. Past that the kernel
         closes anyway, logging how many were left open. Once shut down, its
         container refuses to resolve.
 
@@ -87,15 +89,15 @@ class BootedKernel:
         if self._shut_down:
             return
         self._shut_down = True
+        failures: list[BaseException] = []
+        for hook in self._on_shutdown:
+            await _attempt(failures, lambda hook=hook: call_injected(self._engine, hook))
         left_open = await units_drained(self._engine, _SHUTDOWN_DRAIN_TIMEOUT)
         if left_open:
             _LOGGER.warning(
                 "shutting the kernel down with units of work still open",
                 extra={"open_units": left_open, "timeout": _SHUTDOWN_DRAIN_TIMEOUT},
             )
-        failures: list[BaseException] = []
-        for hook in self._on_shutdown:
-            await _attempt(failures, lambda hook=hook: call_injected(self._engine, hook))
         for bundle in reversed(self._bundles):
             await _attempt(failures, lambda bundle=bundle: bundle.shutdown())
             bundle.container = None

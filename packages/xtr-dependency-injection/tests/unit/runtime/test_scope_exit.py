@@ -222,6 +222,64 @@ async def test_a_hung_teardown_raises_scope_teardown_timeout_error(
         await use()
 
 
+async def test_a_cancelled_unit_whose_teardown_hangs_stays_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_scope_exit, "_TEARDOWN_TIMEOUT", 0.05)
+    entered = asyncio.Event()
+
+    async def hung() -> AsyncIterator[First]:
+        try:
+            yield First()
+        finally:
+            _ = await asyncio.Event().wait()
+
+    container = _container(hung)
+
+    async def use() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+            entered.set()
+            _ = await asyncio.Event().wait()
+
+    task = asyncio.create_task(use())
+    _ = await entered.wait()
+    _ = task.cancel()
+    with pytest.raises(asyncio.CancelledError) as raised:
+        await task
+
+    assert task.cancelled()
+    assert raised.value.__notes__ == [
+        "closing the unit's services did not finish within 0.05 seconds"
+    ]
+
+
+async def test_a_failing_unit_whose_teardown_hangs_keeps_its_own_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_scope_exit, "_TEARDOWN_TIMEOUT", 0.05)
+
+    async def hung() -> AsyncIterator[First]:
+        try:
+            yield First()
+        finally:
+            _ = await asyncio.Event().wait()
+
+    container = _container(hung)
+
+    async def use() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+            msg = "the unit's own failure"
+            raise LookupError(msg)
+
+    with pytest.raises(LookupError, match="the unit's own failure") as raised:
+        await use()
+    assert raised.value.__notes__ == [
+        "closing the unit's services did not finish within 0.05 seconds"
+    ]
+
+
 @pytest.fixture
 def _no_cyclic_collection() -> Iterator[None]:
     gc.disable()

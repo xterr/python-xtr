@@ -35,9 +35,10 @@ async def closing_scope(engine: AsyncContainer) -> AsyncGenerator[ScopedAsyncCon
     and again as a cancel scope delivers it — waits for every service's
     teardown, then is raised again; none is skipped. It is bounded: a
     teardown that never returns raises :class:`ScopeTeardownTimeoutError`.
-    A teardown that fails while the block raised leaves the block's
-    exception standing, with a note naming the failure; without one, the
-    failures are raised. The scope's instances are released as soon as it is
+    A teardown that fails or runs out of time while the block raised leaves
+    the block's exception standing — a cancellation stays a cancellation —
+    with a note naming what went wrong; without one, it is raised. The
+    scope's instances are released as soon as it is
     closed, rather than whenever the garbage collector finds the cycle the
     scope keeps with them.
 
@@ -50,7 +51,8 @@ async def closing_scope(engine: AsyncContainer) -> AsyncGenerator[ScopedAsyncCon
     participant — see ``UnitParticipantInterface`` — not to a teardown.
 
     Raises:
-        ScopeTeardownTimeoutError: If the teardown did not finish in time.
+        ScopeTeardownTimeoutError: If the teardown did not finish in time,
+            and the block raised nothing.
         asyncio.CancelledError: If the block was cancelled while closing;
             what the teardown raised meanwhile is a note on it.
     """
@@ -76,7 +78,11 @@ async def _close(scope: ScopedAsyncContainer, error: BaseException | None) -> No
             timeout=_TEARDOWN_TIMEOUT,
         )
     except TimeoutError as timeout:
-        raise ScopeTeardownTimeoutError(_TEARDOWN_TIMEOUT) from timeout
+        if error is None:
+            raise ScopeTeardownTimeoutError(_TEARDOWN_TIMEOUT) from timeout
+        error.add_note(
+            f"closing the unit's services did not finish within {_TEARDOWN_TIMEOUT} seconds"
+        )
     except ContainerCloseError as failed:
         if error is None:
             raise

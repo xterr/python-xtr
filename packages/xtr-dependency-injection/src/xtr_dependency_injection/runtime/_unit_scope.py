@@ -160,7 +160,10 @@ def counted(engine: AsyncContainer) -> Generator[None]:
             if woken:
                 units.waiters = []
         for loop, waiter in woken:
-            _ = loop.call_soon_threadsafe(_wake, waiter)
+            # Refused by a loop closed while it waited: nothing is left there to wake,
+            # and the unit's own outcome must not be replaced by that refusal.
+            with suppress(RuntimeError):
+                _ = loop.call_soon_threadsafe(_wake, waiter)
 
 
 def _wake(waiter: asyncio.Future[None]) -> None:

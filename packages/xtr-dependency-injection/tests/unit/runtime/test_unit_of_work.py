@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import threading
 from collections.abc import (
     AsyncIterator,  # noqa: TC003 — the engine reads the factory's return annotation
 )
@@ -16,7 +17,7 @@ import wireup
 from typing_extensions import override
 from xtr_service_contracts import ContainerInterface
 
-from tests.fixtures import app_hung_teardown, app_slow_scoped
+from tests.fixtures import app_hung_teardown, app_slow_scoped, app_unit_producer
 from xtr_dependency_injection import (
     Injected,
     Kernel,
@@ -32,6 +33,7 @@ from xtr_dependency_injection.exception import (
 )
 from xtr_dependency_injection.integration.wireup import create_container
 from xtr_dependency_injection.kernel import booted_kernel
+from xtr_dependency_injection.runtime._unit_scope import units_drained
 from xtr_dependency_injection.runtime.wireup_container import WireupContainer
 
 if TYPE_CHECKING:
@@ -503,6 +505,30 @@ async def test_shutdown_with_no_unit_open_does_not_wait() -> None:
     await asyncio.wait_for(booted.shutdown(), timeout=0.5)
 
 
+async def test_shutdown_waits_for_units_once_its_hooks_stopped_their_producer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app_unit_producer.PRODUCER = app_unit_producer.Producer()
+    producer = app_unit_producer.PRODUCER
+    kernel = Kernel("tests.fixtures.app_unit_producer", env="test", bundles={})
+    booted = await kernel.boot()
+
+    async def produce() -> None:
+        async with unit_of_work(booted.container):
+            _ = await producer.stop.wait()
+        producer.journal.append("unit closed")
+
+    running = asyncio.create_task(produce())
+    await asyncio.sleep(0)
+
+    await asyncio.wait_for(booted.shutdown(), timeout=1.0)
+    producer.journal.append("shut down")
+    await running
+
+    assert producer.journal == ["asked to stop", "unit closed", "shut down"]
+    assert caplog.records == []
+
+
 async def test_resolving_after_shutdown_raises() -> None:
     booted = await _hung_kernel().boot()
     container = booted.container
@@ -510,6 +536,33 @@ async def test_resolving_after_shutdown_raises() -> None:
 
     with pytest.raises(KernelShutDownError, match="has shut down"):
         _ = await container.get(app_hung_teardown.Hung)
+
+
+async def test_a_unit_closing_after_the_waiting_loop_closed_keeps_its_own_outcome() -> None:
+    """A shutdown waiting on another thread's loop that was closed meanwhile is not woken."""
+    container = _container()
+    engine = container._engine()
+    waiting = threading.Event()
+
+    def wait_in_a_loop_that_is_then_closed() -> None:
+        loop = asyncio.new_event_loop()
+        drained = loop.create_task(units_drained(engine, _TIMEOUT))
+        _ = loop.call_soon(waiting.set)
+        loop.run_until_complete(asyncio.sleep(0.01))
+        assert not drained.done()
+        loop.close()
+
+    async def use() -> None:
+        async with unit_of_work(container):
+            thread = threading.Thread(target=wait_in_a_loop_that_is_then_closed)
+            thread.start()
+            thread.join()
+            msg = "the unit's own"
+            raise LookupError(msg)
+
+    with pytest.raises(LookupError, match="the unit's own"):
+        await use()
+    assert waiting.is_set()
 
 
 @final
