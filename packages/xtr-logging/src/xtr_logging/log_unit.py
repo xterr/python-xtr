@@ -160,10 +160,9 @@ def end_unit() -> None:
     — and its callbacks run — once that work releases it; see :func:`hold_unit`.
 
     A unit the context only carries — begun in the context this one was copied
-    from — is let go of rather than ended. While it is not closed yet, the
-    context is cleared and nothing else: its callbacks are for whoever began
-    it. Once it is closed, its callbacks run again first, so what this context
-    put into it as it closed is flushed rather than stranded.
+    from — is let go of rather than ended: the context is cleared and nothing
+    else, its callbacks being for whoever began it. Once that unit is closed
+    it hands out no state, so nothing this context logs can be stranded in it.
 
     Raises:
         ExceptionGroup: If one or more end callbacks raised.
@@ -174,8 +173,6 @@ def end_unit() -> None:
     try:
         if _began_here(unit):
             _end(unit)
-        elif unit.closed:
-            _run_callbacks(unit)
     finally:
         _ = _CURRENT.set(None)
 

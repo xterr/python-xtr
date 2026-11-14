@@ -166,6 +166,18 @@ def test_ending_in_a_context_that_only_carries_a_unit_lets_go_of_it() -> None:
     assert ended == ["first"]
 
 
+def test_a_context_carrying_a_closed_unit_does_not_end_it_again() -> None:
+    begin_unit()
+    ended: list[str] = []
+    _ = unit_state(object(), lambda: 1, lambda _s: ended.append("end"))
+    kept = contextvars.copy_context()
+    end_unit()
+
+    kept.run(end_unit)
+
+    assert ended == ["end"]
+
+
 def test_an_ended_unit_hands_out_no_state() -> None:
     begin_unit()
     owner = object()
