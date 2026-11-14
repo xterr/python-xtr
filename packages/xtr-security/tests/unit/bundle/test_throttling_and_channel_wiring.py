@@ -5,9 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
+from xtr_dependency_injection import Kernel
 from xtr_rate_limiter import InMemoryStorage
 from xtr_security_core.exception import InvalidArgumentError
+from xtr_security_http import ChannelListener
 
+from tests.fixtures.remember_me_app.bundles import BUNDLES
+from xtr_security.bundle._channel_wiring import firewall_channel_listener_name
 from xtr_security.bundle._throttling_wiring import register_login_throttling
 from xtr_security.bundle.access_control_configs import AccessControlConfig
 from xtr_security.exception import InvalidConfigurationError
@@ -85,3 +89,16 @@ def test_a_channel_rule_naming_https_is_answered_by_the_map() -> None:
     rule = AccessControlConfig(path=r"^/", attribute="PUBLIC_ACCESS", channel="https")
 
     assert rule.channel == "https"
+
+
+@pytest.mark.anyio
+async def test_the_channel_step_is_built_once_for_the_application() -> None:
+    """It holds only the firewall's rules and what it answers with: nothing of a request."""
+    kernel = Kernel("tests.fixtures.remember_me_app", env="test", bundles=BUNDLES)
+    qualifier = firewall_channel_listener_name("main")
+
+    async with await kernel.boot() as booted:
+        first = await booted.container.get(ChannelListener, qualifier)
+        again = await booted.container.get(ChannelListener, qualifier)
+
+    assert first is again
