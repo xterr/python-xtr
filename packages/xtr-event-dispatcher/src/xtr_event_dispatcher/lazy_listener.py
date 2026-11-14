@@ -107,6 +107,10 @@ class LazyListener:
                     )
                     self._arity = positional_arity(resolved)
                     self._resolved = resolved
+        # Built: every later call returns above, so no loop needs its lock any
+        # more — and a lock first waited on keeps its loop alive, so it goes.
+        with _LOCKS_GUARD:
+            self._locks.clear()
 
         return resolved
 

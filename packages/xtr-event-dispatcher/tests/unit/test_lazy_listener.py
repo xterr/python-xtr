@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import gc
+import weakref
 from typing import TYPE_CHECKING, final
 
 import pytest
@@ -159,3 +161,23 @@ def test_its_representation_names_the_factory_and_the_method() -> None:
 def test_it_tells_which_method_it_calls() -> None:
     assert LazyListener(_Counting(object()), "on_foo").method == "on_foo"
     assert LazyListener(_Counting(object())).method == "__call__"
+
+
+def test_an_event_loop_two_first_dispatches_raced_on_is_released_once_it_is_closed() -> None:
+    async def build() -> Callable[[Event], None]:
+        await asyncio.sleep(0)
+        return lambda event: None
+
+    lazy = LazyListener(build)
+
+    async def race() -> None:
+        _ = await asyncio.gather(lazy.resolve(), lazy.resolve())
+
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(race())
+    loop.close()
+    released = weakref.ref(loop)
+    del loop
+    _ = gc.collect()
+
+    assert released() is None
