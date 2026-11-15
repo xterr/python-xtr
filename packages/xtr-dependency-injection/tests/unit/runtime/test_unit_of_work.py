@@ -538,6 +538,31 @@ async def test_resolving_after_shutdown_raises() -> None:
         _ = await container.get(app_hung_teardown.Hung)
 
 
+async def test_a_shutdown_cancelled_while_draining_still_closes_the_kernel() -> None:
+    booted = await _hung_kernel().boot()
+    held = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def hold() -> None:
+        async with unit_of_work(booted.container):
+            entered.set()
+            _ = await held.wait()
+
+    unit = asyncio.create_task(hold())
+    _ = await entered.wait()
+    shutdown = asyncio.create_task(booted.shutdown())
+    for _turn in range(20):
+        await asyncio.sleep(0)
+    _ = shutdown.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await shutdown
+    with pytest.raises(KernelShutDownError):
+        _ = await booted.container.get(app_hung_teardown.Hung)
+    held.set()
+    await unit
+
+
 async def test_a_unit_closing_after_the_waiting_loop_closed_keeps_its_own_outcome() -> None:
     """A shutdown waiting on another thread's loop that was closed meanwhile is not woken."""
     container = _container()

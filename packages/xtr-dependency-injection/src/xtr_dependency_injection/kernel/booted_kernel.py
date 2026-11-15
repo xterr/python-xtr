@@ -92,12 +92,7 @@ class BootedKernel:
         failures: list[BaseException] = []
         for hook in self._on_shutdown:
             await _attempt(failures, lambda hook=hook: call_injected(self._engine, hook))
-        left_open = await units_drained(self._engine, _SHUTDOWN_DRAIN_TIMEOUT)
-        if left_open:
-            _LOGGER.warning(
-                "shutting the kernel down with units of work still open",
-                extra={"open_units": left_open, "timeout": _SHUTDOWN_DRAIN_TIMEOUT},
-            )
+        await _attempt(failures, self._drain)
         for bundle in reversed(self._bundles):
             await _attempt(failures, lambda bundle=bundle: bundle.shutdown())
             bundle.container = None
@@ -109,6 +104,15 @@ class BootedKernel:
         if errors:
             msg = "the kernel failed to shut down cleanly"
             raise ExceptionGroup(msg, errors)
+
+    async def _drain(self) -> None:
+        """Wait for the open units of work, warning when some are still open once given up on."""
+        left_open = await units_drained(self._engine, _SHUTDOWN_DRAIN_TIMEOUT)
+        if left_open:
+            _LOGGER.warning(
+                "shutting the kernel down with units of work still open",
+                extra={"open_units": left_open, "timeout": _SHUTDOWN_DRAIN_TIMEOUT},
+            )
 
     async def __aenter__(self) -> BootedKernel:
         """Return this kernel."""
