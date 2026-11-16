@@ -17,7 +17,14 @@ from xtr_messenger.transport.transport_options import (
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-__all__ = ["DEFAULT_QUEUE", "DEFAULT_TABLE_NAME", "ORM_OPTIONS", "ORM_SCHEME", "OrmOptions"]
+__all__ = [
+    "DEFAULT_FAILURE_QUEUE",
+    "DEFAULT_QUEUE",
+    "DEFAULT_TABLE_NAME",
+    "ORM_OPTIONS",
+    "ORM_SCHEME",
+    "OrmOptions",
+]
 
 ORM_SCHEME: Final = "orm"
 """The DSN scheme the transport serves."""
@@ -28,10 +35,16 @@ DEFAULT_TABLE_NAME: Final = "messenger_messages"
 DEFAULT_QUEUE: Final = "default"
 """The queue a transport reads and writes when the configuration names none."""
 
+DEFAULT_FAILURE_QUEUE: Final = "failed"
+"""The queue a message is moved to once its attempts run out, when the configuration names none."""
+
 ORM_OPTIONS: Final = (
     "auto_setup",
+    "base_delay_seconds",
     "check_delayed_interval",
+    "failure_queue",
     "get_notify_timeout",
+    "max_attempts",
     "poll_interval",
     "queue",
     "redeliver_timeout",
@@ -73,6 +86,14 @@ class OrmOptions:
             falling due sends none.
         get_notify_timeout: Milliseconds one wait for a notification lasts at
             most.
+        max_attempts: Attempts a message gets, the first included; a rejected
+            message with attempts left is put back in its queue.
+        base_delay_seconds: Seconds before the second attempt; each later one
+            waits twice as long as the one before.
+        failure_queue: The queue of the same table a message is moved to once
+            its attempts run out, where it can be inspected, or consumed like
+            any queue to try it again. A transport reading the failure queue
+            itself deletes a message whose attempts there run out.
     """
 
     table_name: str = DEFAULT_TABLE_NAME
@@ -84,6 +105,9 @@ class OrmOptions:
     use_notify: bool = True
     check_delayed_interval: int = 60_000
     get_notify_timeout: int = 60_000
+    max_attempts: int = 3
+    base_delay_seconds: float = 1.0
+    failure_queue: str = DEFAULT_FAILURE_QUEUE
 
     def __post_init__(self) -> None:
         """Refuse values the transport would misread.
@@ -97,9 +121,18 @@ class OrmOptions:
             raise InvalidTransportOptionError(
                 "table_name", self.table_name, "a plain identifier: letters, digits and '_'"
             )
-        if not 0 < len(self.queue) <= _QUEUE_LENGTH:
+        for name, queue in (("queue", self.queue), ("failure_queue", self.failure_queue)):
+            if not 0 < len(queue) <= _QUEUE_LENGTH:
+                raise InvalidTransportOptionError(
+                    name, queue, f"between 1 and {_QUEUE_LENGTH} characters"
+                )
+        if self.max_attempts <= 0:
             raise InvalidTransportOptionError(
-                "queue", self.queue, f"between 1 and {_QUEUE_LENGTH} characters"
+                "max_attempts", str(self.max_attempts), "a positive number of attempts"
+            )
+        if self.base_delay_seconds < 0:
+            raise InvalidTransportOptionError(
+                "base_delay_seconds", str(self.base_delay_seconds), "zero or more seconds"
             )
         if self.redeliver_timeout <= 0:
             raise InvalidTransportOptionError(
@@ -142,4 +175,7 @@ class OrmOptions:
                 settings, "check_delayed_interval", base.check_delayed_interval
             ),
             get_notify_timeout=as_int(settings, "get_notify_timeout", base.get_notify_timeout),
+            max_attempts=as_int(settings, "max_attempts", base.max_attempts),
+            base_delay_seconds=as_float(settings, "base_delay_seconds", base.base_delay_seconds),
+            failure_queue=settings.get("failure_queue", base.failure_queue),
         )

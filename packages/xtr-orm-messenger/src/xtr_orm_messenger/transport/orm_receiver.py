@@ -12,9 +12,11 @@ from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_messenger import (
     EncodedEnvelope,
+    ErrorDetailsStamp,
     MessageDecodingFailedError,
     ReceivedStamp,
     ReceiverInterface,
+    RedeliveryStamp,
     TransportMessageIdStamp,
 )
 
@@ -53,7 +55,15 @@ _LOGGER: Final = logging.getLogger("messenger")
 
 @final
 class OrmReceiver(ReceiverInterface):
-    """Claims the messages of one queue, and deletes each once it is settled.
+    """Claims the messages of one queue, deleting each once handled and retrying each rejected.
+
+    A rejected message with attempts left is put back in its queue, due
+    after ``base_delay_seconds`` doubled for each attempt it already had, its
+    attempt count kept in a :class:`~xtr_messenger.RedeliveryStamp` and the
+    reason it failed in an :class:`~xtr_messenger.ErrorDetailsStamp`. Once
+    its ``max_attempts`` are spent it is moved to the ``failure_queue`` with
+    a fresh count, so whoever consumes that queue gets to try it again; a
+    message failing for good in the failure queue itself is deleted.
 
     Workers polling one table run into each other's transactions; a conflict
     says nothing about the message, so a poll sits through
@@ -142,15 +152,42 @@ class OrmReceiver(ReceiverInterface):
 
     @override
     async def reject(self, envelope: Envelope) -> None:
-        """Delete the message ``envelope`` was received as: it failed for good.
+        """Retry the message ``envelope`` was received as, or move it to the failure queue.
 
         Raises:
             TransportError: When ``envelope`` was not received from this
-                transport, or the database refuses the delete.
+                transport, or the database refuses the update.
         """
         message_id = self._message_id(envelope)
         await self._release(message_id)
-        await self._settle(message_id, self._connection.reject, "reject")
+        options = self._connection.options
+        attempt = _attempts_had(envelope)
+        failure = envelope.last(ErrorDetailsStamp)
+        next_try = envelope.without_stamps(RedeliveryStamp).without_stamps(ErrorDetailsStamp)
+        if failure is not None:
+            next_try = next_try.with_stamps(failure)
+        if self.will_retry(envelope):
+            queue = options.queue
+            delay_ms = int(options.base_delay_seconds * (1 << (attempt - 1)) * 1000)
+            next_try = next_try.with_stamps(RedeliveryStamp(attempt))
+        elif options.queue != options.failure_queue:
+            queue = options.failure_queue
+            delay_ms = 0
+        else:
+            await self._settle(message_id, self._connection.reject, "reject")
+            return
+        encoded = self._serializer.encode(next_try)
+
+        async def requeue(row: str) -> None:
+            await self._connection.requeue(
+                row, queue=queue, body=encoded.body, headers=encoded.headers, delay_ms=delay_ms
+            )
+
+        await self._settle(message_id, requeue, "reject")
+
+    def will_retry(self, envelope: Envelope) -> bool:
+        """Tell whether rejecting ``envelope`` puts it back in its queue for another attempt."""
+        return _attempts_had(envelope) < self._connection.options.max_attempts
 
     def decode(self, stored: StoredMessage) -> Envelope:
         """Rebuild the envelope ``stored`` keeps, stamped with the row it came from.
@@ -258,6 +295,12 @@ class OrmReceiver(ReceiverInterface):
 def _jitter() -> float:
     """Return a factor within 10% of one, so workers that collided do not collide again."""
     return 1 + (secrets.randbelow(21) - 10) / 100
+
+
+def _attempts_had(envelope: Envelope) -> int:
+    """Return how many attempts ``envelope`` has had, the one just made included."""
+    redelivery = envelope.last(RedeliveryStamp)
+    return 1 + (redelivery.retry_count if redelivery is not None else 0)
 
 
 async def _pause(seconds: float) -> None:

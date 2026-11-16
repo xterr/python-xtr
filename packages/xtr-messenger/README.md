@@ -316,6 +316,12 @@ is republished to `taskiq.dlq` — or the `dead_letter_queue` you name — in it
 format, so it can be inspected and replayed. A handler that asks for the envelope sees which
 attempt it is on in its `RedeliveryStamp`.
 
+A receiver that retries says so through `RetryingReceiverInterface.will_retry(envelope)`; the
+worker asks it before announcing a failure, so `WorkerMessageFailedEvent.will_retry` tells an
+attempt that will be made again from a message that failed for good. `ChainedReceiver` forwards
+the question to the receiver the message came from; a receiver that does not offer it never
+retries.
+
 ### Each message in a context of its own
 
 Something runs a worker — `messenger:consume`, your own entrypoint — and a worker handles each

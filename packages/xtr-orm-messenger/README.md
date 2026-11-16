@@ -84,8 +84,18 @@ handlers and deletes it. With a [container](#use-in-an-application) all of that 
 | Claim | In one transaction, the oldest row of the queue that is due and not handed out is selected `FOR UPDATE SKIP LOCKED` and stamped `delivered_at` |
 | Handle | The worker dispatches it; the envelope carries `OrmReceivedStamp` and `TransportMessageIdStamp`, both the row's id |
 | Keep alive | While the worker holds it, the row's `delivered_at` is renewed every half of `redeliver_timeout`, so a long handler keeps its message |
-| Settle | Acknowledged or rejected, the row is deleted |
+| Settle | Acknowledged, the row is deleted. Rejected, it is retried or moved to the failure queue (see below) |
 | Redeliver | A row not renewed for `redeliver_timeout` seconds is claimable again: its worker is taken for dead. A handler must be idempotent: a worker frozen that long has its message handled twice |
+
+A rejected message gets `max_attempts` attempts in all, the first included. While it has
+attempts left its row is put back in its queue, due `base_delay_seconds` later, the delay
+doubling with each attempt; the envelope carries a `RedeliveryStamp` with the attempt count and
+an `ErrorDetailsStamp` with why the last one failed. Once its attempts run out the row moves to
+the `failure_queue` of the same table, `failed` unless named otherwise, where `count()`, `all()`
+and `find()` on a transport reading that queue show it, and a worker consuming it tries it
+again, with a fresh count. A message failing for good in the failure queue itself is deleted.
+The worker asks the transport before it announces a failure, so `WorkerMessageFailedEvent`
+carries `will_retry=True` for an attempt that will be made again.
 
 A worker that finds nothing due waits `poll_interval` seconds before asking again. On
 PostgreSQL through asyncpg it listens instead: every send announces itself on the table's
@@ -145,6 +155,9 @@ An unknown one is refused with `UnknownTransportOptionError`, a bad value with
 | `use_notify` | `true` | on PostgreSQL through asyncpg, wait for notifications instead of polling |
 | `check_delayed_interval` | `60000` | milliseconds a listening worker waits at most before asking anyway |
 | `get_notify_timeout` | `60000` | milliseconds one wait for a notification lasts at most |
+| `max_attempts` | `3` | attempts a message gets, the first included, before it moves to the failure queue |
+| `base_delay_seconds` | `1.0` | seconds before the second attempt; each later one waits twice as long |
+| `failure_queue` | `failed` | the queue of the same table a message is moved to once its attempts run out |
 
 `orm://` with no name uses the default connection. A name the application did not configure is
 refused with `InvalidOrmDsnError` when the transport is built.

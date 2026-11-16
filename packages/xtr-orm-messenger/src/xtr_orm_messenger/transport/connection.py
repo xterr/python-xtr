@@ -5,7 +5,8 @@ deal in rows and never in SQL. A worker claims the oldest message of its queue
 that is due and not handed out, marking it handed out in the same transaction;
 a message handed out and never settled is handed out again once
 ``redeliver_timeout`` has passed, the worker holding it being taken for dead.
-Settling a message — handled or rejected — deletes it.
+A handled message is deleted; a rejected one is put back in line — in its own
+queue for another attempt, or in the failure queue — by rewriting its row.
 
 A claim selects the oldest due row ``FOR UPDATE SKIP LOCKED`` and marks it
 handed out, in one transaction, so concurrent workers each take a different row
@@ -136,15 +137,12 @@ class Connection:
         written in that unit's session and is sent only once the unit commits.
         """
         now = self._now()
-        available_at = now + timedelta(milliseconds=delay_ms)
-        if delay_ms > 0 and available_at.microsecond:
-            available_at = available_at.replace(microsecond=0) + timedelta(seconds=1)
         statement = insert(self._table).values(
             body=body,
             headers=msgspec.json.encode(dict(headers)).decode(),
             queue_name=self._options.queue,
             created_at=now,
-            available_at=available_at,
+            available_at=_due(now, delay_ms),
         )
         session = await self._unit_session()
         if session is not None:
@@ -165,12 +163,31 @@ class Connection:
         await self._with_setup(lambda: self._delete(message_id))
 
     async def reject(self, message_id: str) -> None:
-        """Forget the message ``message_id``: it failed for good.
-
-        The same as :meth:`ack`: whatever retries a message gets have run by
-        the time it is rejected, and keeping it would hand it out again.
-        """
+        """Forget the message ``message_id``: it failed for good, with nowhere left to go."""
         await self._with_setup(lambda: self._delete(message_id))
+
+    async def requeue(
+        self, message_id: str, *, queue: str, body: str, headers: Mapping[str, str], delay_ms: int
+    ) -> None:
+        """Put the message ``message_id`` back in line in ``queue``, due ``delay_ms`` from now.
+
+        Its body and headers are replaced, so what the failed attempt
+        learned — the attempt count, the reason — travels with it. The row
+        keeps its id and the time it was first sent.
+        """
+        table = self._table
+        statement = (
+            update(table)
+            .where(table.c.id == int(message_id))
+            .values(
+                queue_name=queue,
+                body=body,
+                headers=msgspec.json.encode(dict(headers)).decode(),
+                available_at=_due(self._now(), delay_ms),
+                delivered_at=None,
+            )
+        )
+        await self._with_setup(lambda: self._requeue(statement, queue))
 
     async def keepalive(self, message_id: str) -> None:
         """Mark the message ``message_id`` handed out now, restarting its redelivery clock.
@@ -325,13 +342,20 @@ class Connection:
                 _ = await connection.execute(self._notification())
         return _identifier(result)
 
-    def _notification(self) -> Executable:
+    def _notification(self, queue: str | None = None) -> Executable:
         """Announce a message on the table's channel, naming its queue.
 
         Sent in the transaction that wrote the message, so a listener hears it
         only once the message can be claimed.
         """
-        return select(func.pg_notify(self._options.table_name, self._options.queue))
+        return select(func.pg_notify(self._options.table_name, queue or self._options.queue))
+
+    async def _requeue(self, statement: Executable, queue: str) -> None:
+        engine = await self._engine_factory()
+        async with engine.begin() as connection:
+            _ = await connection.execute(statement)
+            if isinstance(connection.dialect, PGDialect):
+                _ = await connection.execute(self._notification(queue))
 
     async def _claim(self) -> StoredMessage | None:
         now = self._now()
@@ -422,6 +446,19 @@ def _identifier(result: CursorResult[tuple[object, ...]]) -> str:
         raise RuntimeError(message)
     values = cast("Sequence[object]", key)
     return str(values[0])
+
+
+def _due(now: datetime, delay_ms: int) -> datetime:
+    """Return when a message delayed ``delay_ms`` from ``now`` falls due.
+
+    A positive delay is rounded up to a whole second: some databases keep a
+    datetime to the second, and dropping the fraction would make the message
+    due before the delay asked for.
+    """
+    available_at = now + timedelta(milliseconds=delay_ms)
+    if delay_ms > 0 and available_at.microsecond:
+        available_at = available_at.replace(microsecond=0) + timedelta(seconds=1)
+    return available_at
 
 
 def _stored(row: RowMapping) -> StoredMessage:

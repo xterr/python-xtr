@@ -17,12 +17,17 @@ skill; for connections and migrations, `xtr-orm`.
 - Options (DSN query or `options`) — `table_name` (`messenger_messages`), `redeliver_timeout`
   (`3600` s), `auto_setup` (`true`), `poll_interval` (`1.0` s), `transactional` (`false`),
   `use_notify` (`true`), `check_delayed_interval` / `get_notify_timeout` (`60000` ms).
+  Retries: `max_attempts` (`3`, the first included), `base_delay_seconds` (`1.0`, doubling),
+  `failure_queue` (`failed`).
 - `OrmTransportFactory(registry, serializer, clock=None)` — not discovered by scheme: the orm
   bundle registers it with the messenger's envelope serializer, or you pass it to
   `MessageBusFactory` / `WorkerFactory`.
 - Migrations — each connection's migrator adds the table of every `orm://` transport on it, so
   `orm:migrations:diff` writes it; `messages_tables(bus_config, connection, default)` names them.
-- Settling deletes the row. While a worker holds a message its claim is renewed every half of
+- Acknowledging deletes the row. Rejecting puts it back in its queue with a `RedeliveryStamp`
+  while attempts are left, then moves it to `failure_queue` — consume that queue to try it
+  again; a failure there deletes it. `transport.will_retry(envelope)` says which, and the
+  worker's `WorkerMessageFailedEvent.will_retry` follows it. While a worker holds a message its claim is renewed every half of
   `redeliver_timeout`; a row not renewed that long (a dead or frozen worker) is claimed again,
   so handlers must be idempotent.
 - A `DelayStamp` makes the message due later, rounded up to a whole second.

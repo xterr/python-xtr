@@ -19,6 +19,7 @@ from xtr_messenger import (
     MessageBusInterface,
     ReceivedStamp,
     ReceiverInterface,
+    RetryingReceiverInterface,
     StampInterface,
     Worker,
     WorkerInterface,
@@ -635,3 +636,50 @@ async def test_the_receiver_is_closed_before_the_worker_says_it_stopped() -> Non
     await asyncio.wait_for(worker.run(), timeout=_TIMEOUT)
 
     assert events == ["receiver closed", "stopped"]
+
+
+@final
+class RetryingReceiver(ReceiverInterface):
+    """A receiver that retries every message once, and says so when asked."""
+
+    def __init__(self, backlog: Iterable[Envelope], *, retries: bool) -> None:
+        self._backlog = tuple(backlog)
+        self._retries = retries
+        self.asked: list[Envelope] = []
+        self.rejected: list[Envelope] = []
+
+    @override
+    async def get(self) -> AsyncIterator[Envelope]:
+        for envelope in self._backlog:
+            yield envelope
+
+    @override
+    async def ack(self, envelope: Envelope) -> None:
+        del envelope
+
+    @override
+    async def reject(self, envelope: Envelope) -> None:
+        self.rejected.append(envelope)
+
+    def will_retry(self, envelope: Envelope) -> bool:
+        self.asked.append(envelope)
+        return self._retries
+
+
+@pytest.mark.parametrize("retries", [True, False])
+async def test_a_failure_is_announced_as_retried_when_its_receiver_will_retry_it(
+    retries: bool,
+) -> None:
+    dispatcher = EventDispatcher()
+    failures: list[WorkerMessageFailedEvent] = []
+    dispatcher.add_listener(WorkerMessageFailedEvent, failures.append)
+    receiver = RetryingReceiver([Envelope("a")], retries=retries)
+
+    await Worker(
+        RecordingBus(failure=ValueError("boom")), receiver, event_dispatcher=dispatcher
+    ).run()
+
+    [failed] = failures
+    assert failed.will_retry is retries
+    assert isinstance(receiver, RetryingReceiverInterface)
+    assert receiver.rejected == [failed.envelope]

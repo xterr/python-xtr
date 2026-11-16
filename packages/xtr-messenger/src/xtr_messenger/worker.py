@@ -14,6 +14,7 @@ from ._own_context import in_own_context
 from .event import WorkerRunningEvent, WorkerStartedEvent, WorkerStoppedEvent
 from .stamp import ReceivedStamp
 from .transport.receiver._close_stream import close_stream
+from .transport.receiver.retrying_receiver_interface import RetryingReceiverInterface
 from .worker_interface import WorkerInterface
 
 if TYPE_CHECKING:
@@ -189,7 +190,13 @@ class Worker(WorkerInterface):
                 case Handled(settled) | Skipped(settled):
                     await self._receiver.ack(settled)
                 case Failed() as failed:
-                    await announce_failure(failed, name, self._dispatcher, self._receiver.reject)
+                    receiver = self._receiver
+                    will_retry = isinstance(
+                        receiver, RetryingReceiverInterface
+                    ) and receiver.will_retry(failed.envelope)
+                    await announce_failure(
+                        failed, name, self._dispatcher, receiver.reject, will_retry=will_retry
+                    )
         finally:
             if self._resetter is not None:
                 try:

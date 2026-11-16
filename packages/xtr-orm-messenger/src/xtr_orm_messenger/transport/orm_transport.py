@@ -82,8 +82,12 @@ class OrmTransport(TransportInterface):
 
     @override
     async def reject(self, envelope: Envelope) -> None:
-        """Delete the message ``envelope`` was received as: it failed for good."""
+        """Retry the message ``envelope`` was received as, or move it to the failure queue."""
         await self._receiver.reject(envelope)
+
+    def will_retry(self, envelope: Envelope) -> bool:
+        """Tell whether rejecting ``envelope`` puts it back in its queue for another attempt."""
+        return self._receiver.will_retry(envelope)
 
     async def keepalive(self, envelope: Envelope, seconds: int | None = None) -> None:
         """Keep the message ``envelope`` was received as from being handed out again.

@@ -101,16 +101,30 @@ async def test_a_message_that_does_not_decode_is_rejected_and_the_next_one_recei
     assert "s3cr3t" not in caplog.text
 
 
-@pytest.mark.parametrize("settle", ["ack", "reject"])
-async def test_settling_deletes_the_row(engine: AsyncEngine, clock: MockClock, settle: str) -> None:
+async def test_acknowledging_deletes_the_row(engine: AsyncEngine, clock: MockClock) -> None:
     connection = connection_on(engine, clock)
     message_id = await _send(connection, Envelope(OrderPlaced("o-1")))
     receiver = _receiver(connection, clock)
     received = await anext(receiver.get())
 
-    await (receiver.ack if settle == "ack" else receiver.reject)(received)
+    await receiver.ack(received)
 
     assert await connection.find(message_id) is None
+
+
+async def test_rejecting_keeps_the_row_for_its_next_attempt(
+    engine: AsyncEngine, clock: MockClock
+) -> None:
+    connection = connection_on(engine, clock)
+    message_id = await _send(connection, Envelope(OrderPlaced("o-1")))
+    receiver = _receiver(connection, clock)
+    received = await anext(receiver.get())
+
+    await receiver.reject(received)
+
+    kept = await connection.find(message_id)
+    assert kept is not None
+    assert kept.delivered_at is None
 
 
 async def test_an_envelope_from_another_transport_cannot_be_settled_here(
@@ -204,7 +218,7 @@ async def test_a_settle_gives_up_after_too_many_conflicts(
     _ = await _send(connection, Envelope(OrderPlaced("o-1")))
     receiver = _receiver(connection, clock)
     received = await anext(receiver.get())
-    _ = failing(monkeypatch, "reject", [deadlock()] * (MAX_RETRIES + 1))
+    _ = failing(monkeypatch, "requeue", [deadlock()] * (MAX_RETRIES + 1))
 
     with pytest.raises(TransportError) as raised:
         await receiver.reject(received)
