@@ -1,9 +1,10 @@
 """Building what this server publishes about itself, and the endpoint serving it.
 
 The document is made of the deployment's configuration, the grants its server
-runs and nothing a request can change, so it is built once — when the endpoint
-is first asked for, not when the container is built, because its absolute URLs
-are built from an issuer only the deployment can supply.
+runs and the paths the application being served has mounted. Those paths are
+only known inside a served request, so the endpoint is built for each request
+that asks for it — never kept from a build that ran outside one, which would
+name no endpoint at all.
 """
 
 from __future__ import annotations
