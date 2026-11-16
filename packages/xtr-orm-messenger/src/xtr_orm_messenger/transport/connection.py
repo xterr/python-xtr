@@ -10,9 +10,11 @@ Settling a message — handled or rejected — deletes it.
 A claim selects the oldest due row ``FOR UPDATE SKIP LOCKED`` and marks it
 handed out, in one transaction, so concurrent workers each take a different row
 without waiting on each other. A database without row locks — SQLite — gets the
-same statements with the lock clause left out; its single writer then turns two
-workers reaching for one row into a "database is locked" error for the second,
-which the receiver treats as a conflict worth trying again.
+same statements with the lock clause left out. With the driver's own
+transaction mode, two workers can then claim one row; with its transaction
+control off (``autocommit=False``), its single writer turns the second into a
+"database is locked" error, which the receiver treats as a conflict worth
+trying again. SQLite is for development and tests.
 """
 
 from __future__ import annotations

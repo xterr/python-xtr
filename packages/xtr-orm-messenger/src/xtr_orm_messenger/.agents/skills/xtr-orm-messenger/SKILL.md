@@ -22,7 +22,9 @@ skill; for connections and migrations, `xtr-orm`.
   `MessageBusFactory` / `WorkerFactory`.
 - Migrations — each connection's migrator adds the table of every `orm://` transport on it, so
   `orm:migrations:diff` writes it; `messages_tables(bus_config, connection, default)` names them.
-- Settling deletes the row; a row handed out longer than `redeliver_timeout` is claimed again.
+- Settling deletes the row. While a worker holds a message its claim is renewed every half of
+  `redeliver_timeout`; a row not renewed that long (a dead or frozen worker) is claimed again,
+  so handlers must be idempotent.
 - A `DelayStamp` makes the message due later, rounded up to a whole second.
 
 ## Send and consume without a container
@@ -67,7 +69,7 @@ transport = factory.transport("jobs", config.transports["jobs"])
 await transport.count()
 messages = [envelope async for envelope in transport.all(limit=10)]
 await transport.find(message_id)
-await transport.keepalive(envelope, seconds=600)  # a handler running past redeliver_timeout
+await transport.keepalive(envelope, seconds=600)  # a message held outside a worker
 ```
 
 ## Testing
@@ -103,6 +105,7 @@ do not care where messages are kept.
 
 - Do not put a database URL in the DSN: it names a connection, configured in the orm.
 - Do not rely on `transactional=true` without something committing the unit's session.
-- Do not set `redeliver_timeout` below the time a handler takes, unless it calls `keepalive`.
+- Do not run several workers on SQLite with the driver's default transaction mode: two can claim
+  one row (SQLite is for development and tests).
 - Do not expect notifications through a PostgreSQL driver other than asyncpg: it polls.
 - Do not look for an `OrmMessengerBundle`: there is none; list `OrmBundle` and `MessengerBundle`.

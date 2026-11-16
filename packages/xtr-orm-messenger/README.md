@@ -83,8 +83,9 @@ handlers and deletes it. With a [container](#use-in-an-application) all of that 
 | Send | One row: the encoded envelope, its queue, `created_at`, and `available_at` — later by the delay, rounded up to a whole second |
 | Claim | In one transaction, the oldest row of the queue that is due and not handed out is selected `FOR UPDATE SKIP LOCKED` and stamped `delivered_at` |
 | Handle | The worker dispatches it; the envelope carries `OrmReceivedStamp` and `TransportMessageIdStamp`, both the row's id |
+| Keep alive | While the worker holds it, the row's `delivered_at` is renewed every half of `redeliver_timeout`, so a long handler keeps its message |
 | Settle | Acknowledged or rejected, the row is deleted |
-| Redeliver | A row handed out more than `redeliver_timeout` seconds ago is claimable again: its worker is taken for dead |
+| Redeliver | A row not renewed for `redeliver_timeout` seconds is claimable again: its worker is taken for dead. A handler must be idempotent: a worker frozen that long has its message handled twice |
 
 A worker that finds nothing due waits `poll_interval` seconds before asking again. On
 PostgreSQL through asyncpg it listens instead: every send announces itself on the table's
@@ -92,8 +93,10 @@ channel, naming its queue, and the worker asks again at once — or after
 `check_delayed_interval`, for a delayed message falling due. Listening holds one connection of
 the pool for as long as the worker runs.
 
-SQLite has no row locks, so the lock clause is left out there. A second worker reaching for the
-row another is claiming gets "database is locked", which counts as a conflict and is tried again.
+SQLite has no row locks, so the lock clause is left out there, and SQLite is for development and
+tests. With the driver's default transaction mode two workers can claim one row; run one worker
+on SQLite, or pass `connect_args={"autocommit": False}` (Python 3.12+), under which the second
+gets "database is locked", which counts as a conflict and is tried again.
 
 Conflicts between workers — a deadlock, a lock wait that timed out — say nothing about the
 message. A poll sits through 3 in a row before it raises; an acknowledgement or a rejection
@@ -170,7 +173,8 @@ await transport.setup()  # create the table ahead of time
 ```
 
 `keepalive` restarts a message's redelivery clock; `seconds` is how long until the next call,
-refused when longer than `redeliver_timeout`.
+refused when longer than `redeliver_timeout`. A worker already renews what it holds on its own;
+call it for a message held some other way.
 
 ## Use in an application
 

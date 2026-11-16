@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 from typing import TYPE_CHECKING, Final, final
@@ -61,9 +62,15 @@ class OrmReceiver(ReceiverInterface):
     up to :data:`RECONNECT_TIMEOUT` seconds for it and tries once more: losing
     an acknowledgement to a database restart would have the message handed
     out, and handled, again.
+
+    A message is kept alive while it is held: from the moment it is handed
+    to the worker until it is settled, its claim is renewed every half of
+    ``redeliver_timeout``, so a handler running longer than that is not
+    taken for dead and its message handed to another worker under it. A
+    renewal the database refuses is logged and tried again at the next one.
     """
 
-    __slots__ = ("_clock", "_conflicts", "_connection", "_name", "_serializer")
+    __slots__ = ("_clock", "_conflicts", "_connection", "_held", "_name", "_serializer")
 
     def __init__(
         self,
@@ -78,6 +85,7 @@ class OrmReceiver(ReceiverInterface):
         self._name = name
         self._clock: ClockInterface = clock if clock is not None else SystemClock()
         self._conflicts = 0
+        self._held: dict[str, asyncio.Task[None]] = {}
 
     @override
     async def get(self) -> AsyncIterator[Envelope]:
@@ -97,23 +105,28 @@ class OrmReceiver(ReceiverInterface):
                 but a conflict, or for a conflict :data:`MAX_RETRIES` times in
                 a row.
         """
-        while True:
-            stored = await self._claim()
-            if stored is None:
-                await self._connection.wait()
-                continue
-            try:
-                envelope = self.decode(stored)
-            except MessageDecodingFailedError as error:
-                _LOGGER.warning(
-                    "rejecting message %s of the %r transport: it does not decode (%s)",
-                    stored.id,
-                    self._name,
-                    error.reason,
-                )
-                await self._settle(stored.id, self._connection.reject, "reject")
-                continue
-            yield envelope.with_stamps(ReceivedStamp(self._name))
+        try:
+            while True:
+                stored = await self._claim()
+                if stored is None:
+                    await self._connection.wait()
+                    continue
+                try:
+                    envelope = self.decode(stored)
+                except MessageDecodingFailedError as error:
+                    _LOGGER.warning(
+                        "rejecting message %s of the %r transport: it does not decode (%s)",
+                        stored.id,
+                        self._name,
+                        error.reason,
+                    )
+                    await self._settle(stored.id, self._connection.reject, "reject")
+                    continue
+                self._hold(stored.id)
+                yield envelope.with_stamps(ReceivedStamp(self._name))
+        finally:
+            for message_id in list(self._held):
+                await self._release(message_id)
 
     @override
     async def ack(self, envelope: Envelope) -> None:
@@ -123,7 +136,9 @@ class OrmReceiver(ReceiverInterface):
             TransportError: When ``envelope`` was not received from this
                 transport, or the database refuses the delete.
         """
-        await self._settle(self._message_id(envelope), self._connection.ack, "acknowledge")
+        message_id = self._message_id(envelope)
+        await self._release(message_id)
+        await self._settle(message_id, self._connection.ack, "acknowledge")
 
     @override
     async def reject(self, envelope: Envelope) -> None:
@@ -133,7 +148,9 @@ class OrmReceiver(ReceiverInterface):
             TransportError: When ``envelope`` was not received from this
                 transport, or the database refuses the delete.
         """
-        await self._settle(self._message_id(envelope), self._connection.reject, "reject")
+        message_id = self._message_id(envelope)
+        await self._release(message_id)
+        await self._settle(message_id, self._connection.reject, "reject")
 
     def decode(self, stored: StoredMessage) -> Envelope:
         """Rebuild the envelope ``stored`` keeps, stamped with the row it came from.
@@ -166,6 +183,35 @@ class OrmReceiver(ReceiverInterface):
             return None
         self._conflicts = 0
         return stored
+
+    def _hold(self, message_id: str) -> None:
+        """Keep the claim on ``message_id`` alive until it is released."""
+        self._held[message_id] = asyncio.get_running_loop().create_task(
+            self._keep_alive(message_id)
+        )
+
+    async def _release(self, message_id: str) -> None:
+        """Stop keeping ``message_id`` alive, and wait until its renewals stopped."""
+        task = self._held.pop(message_id, None)
+        if task is None:
+            return
+        _ = task.cancel()
+        _ = await asyncio.gather(task, return_exceptions=True)
+
+    async def _keep_alive(self, message_id: str) -> None:
+        """Renew the claim on ``message_id`` every half of ``redeliver_timeout``."""
+        every = self._connection.options.redeliver_timeout / 2
+        while True:
+            await _pause(every)
+            try:
+                await self._connection.keepalive(message_id)
+            except DBAPIError as error:
+                _LOGGER.warning(
+                    "could not keep message %s of the %r transport alive (%s); trying again",
+                    message_id,
+                    self._name,
+                    type(error.orig).__name__,
+                )
 
     async def _settle(
         self, message_id: str, operation: Callable[[str], Awaitable[None]], action: str
@@ -212,3 +258,13 @@ class OrmReceiver(ReceiverInterface):
 def _jitter() -> float:
     """Return a factor within 10% of one, so workers that collided do not collide again."""
     return 1 + (secrets.randbelow(21) - 10) / 100
+
+
+async def _pause(seconds: float) -> None:
+    """Wait ``seconds`` of the event loop's own time between two renewals of a claim.
+
+    Paced by the loop, not by the receiver's clock: a renewal runs beside
+    whatever handles the message, and a clock that only moves when told —
+    a test's — would be moved for every reader by a background wait.
+    """
+    await asyncio.sleep(seconds)
