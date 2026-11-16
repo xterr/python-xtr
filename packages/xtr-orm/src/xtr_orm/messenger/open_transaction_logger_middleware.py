@@ -9,7 +9,13 @@ from typing import TYPE_CHECKING, Final, final
 from sqlalchemy.orm import SessionTransactionOrigin
 from typing_extensions import override
 from xtr_logging_contracts import LoggerInterface, NullLogger
-from xtr_messenger import Envelope, MiddlewareInterface, StackInterface, as_middleware
+from xtr_messenger import (
+    Envelope,
+    MiddlewareInterface,
+    StackInterface,
+    TransportMessageIdStamp,
+    as_middleware,
+)
 
 from xtr_orm.connection_registry import ConnectionRegistry
 
@@ -104,10 +110,15 @@ class OpenTransactionLoggerMiddleware(MiddlewareInterface):
             if _opened(await self._connections.session(name)) > initial.get(name, 0)
         ]
         if left:
-            self._logger.error(
-                "A handler opened a transaction but did not close it.",
-                {"connections": left, "message": envelope.message},
-            )
+            # The message's type and id only: its body may carry anything a producer put in it.
+            context: dict[str, object] = {
+                "connections": left,
+                "message_type": type(envelope.message).__qualname__,
+            }
+            transport_id = envelope.last(TransportMessageIdStamp)
+            if transport_id is not None:
+                context["message_id"] = transport_id.message_id
+            self._logger.error("A handler opened a transaction but did not close it.", context)
         return handled
 
 

@@ -351,3 +351,50 @@ async def test_it_announces_starting_and_stopping() -> None:
     await asyncio.wait_for(run, timeout=_TIMEOUT)
 
     assert [type(event) for event in seen] == [WorkerStartedEvent, WorkerStoppedEvent]
+
+
+@final
+class StuckBus(MessageBusInterface):
+    """Never finishes a message; journals the cancellation that ends it."""
+
+    def __init__(self, journal: list[str]) -> None:
+        self.journal = journal
+        self.started = asyncio.Event()
+
+    @override
+    async def dispatch(self, message: object, *stamps: StampInterface) -> Envelope:
+        del message, stamps
+        self.started.set()
+        try:
+            _ = await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.journal.append("cancelled")
+            raise
+        raise AssertionError  # pragma: no cover — the wait never ends on its own
+
+
+@pytest.mark.parametrize("ending", ["stop", "cancel"])
+async def test_a_stuck_handler_is_cancelled_once_the_drain_bound_passes(
+    monkeypatch: pytest.MonkeyPatch, ending: str
+) -> None:
+    monkeypatch.setattr(taskiq_worker, "_DRAIN_TIMEOUT", 0.05)
+    journal: list[str] = []
+    serializer = json_serializer()
+    broker = DeliveringBroker(
+        [delivery(serializer.encode(Envelope.wrap(ingest_document())), "test.ingest.v1")]
+    )
+    bus = StuckBus(journal)
+    _ = bind_bus(broker, bus, serializer)
+    worker = TaskiqWorker(broker)
+    run = asyncio.create_task(worker.run())
+    _ = await asyncio.wait_for(bus.started.wait(), timeout=_TIMEOUT)
+
+    if ending == "stop":
+        worker.stop()
+        await asyncio.wait_for(run, timeout=_TIMEOUT)
+    else:
+        _ = run.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(run, timeout=_TIMEOUT)
+
+    assert journal == ["cancelled"]

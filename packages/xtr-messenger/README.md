@@ -303,6 +303,10 @@ Ctrl-C cancels it. Run without a container — a plain console with no kernel be
 command's `WorkerFactory` cannot be filled, so the console reports the missing parameter
 rather than build it bare.
 
+On a transport with its own worker — taskiq, RabbitMQ — a stopping worker waits up to 30 seconds
+for the messages it is handling, then cancels those still running: a cancelled handler counts as
+a failed attempt, retried or dead-lettered as any failure, not redelivered as unsettled.
+
 ### Who retries
 
 The loop makes **exactly one attempt per message** and never retries. Redelivery is something

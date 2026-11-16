@@ -50,7 +50,7 @@ class PoisonMessageReceiver(Receiver):
     asked for.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — everything past `broker` is keyword-only, mirroring taskiq's receiver
         self,
         broker: AsyncBroker,
         *,
@@ -58,13 +58,19 @@ class PoisonMessageReceiver(Receiver):
         max_async_tasks: int | None = None,
         max_prefetch: int = 0,
         run_startup: bool = True,
+        wait_tasks_timeout: float | None = None,
     ) -> None:
-        """Screen ``broker``'s deliveries, quarantining poison through ``dead_letter``."""
+        """Screen ``broker``'s deliveries, quarantining poison through ``dead_letter``.
+
+        ``wait_tasks_timeout`` bounds how long a stopping loop waits for the
+        deliveries it is still handling; ``None`` waits for as long as they take.
+        """
         super().__init__(
             broker,
             max_async_tasks=max_async_tasks,
             max_prefetch=max_prefetch,
             run_startup=run_startup,
+            wait_tasks_timeout=wait_tasks_timeout,
         )
         self._dead_letter = dead_letter
         self._in_flight: set[asyncio.Task[object]] = set()
