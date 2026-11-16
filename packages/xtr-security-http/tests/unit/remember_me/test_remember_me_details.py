@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from datetime import UTC, datetime
+from urllib.parse import quote
 
 import pytest
 from xtr_security_core.authentication.remember_me.persistent_token import PersistentToken
@@ -33,6 +34,19 @@ def test_a_raw_cookie_reads_back_into_the_details_it_was_written_from() -> None:
     details = RememberMeDetails(_REWRITTEN, 123, "series:value")
 
     read = RememberMeDetails.from_raw_cookie(str(details))
+
+    assert read.get_user_identifier() == _REWRITTEN
+    assert read.get_expires() == 123
+    assert read.get_value() == "series:value"
+
+
+def test_a_cookie_as_a_browser_returns_it_reads_back_percent_decoded() -> None:
+    # The Set-Cookie header carries the value percent-encoded, and a browser
+    # sends it back exactly so.
+    details = RememberMeDetails(_REWRITTEN, 123, "series:value")
+    returned = quote(str(details), safe="")
+
+    read = RememberMeDetails.from_raw_cookie(returned)
 
     assert read.get_user_identifier() == _REWRITTEN
     assert read.get_expires() == 123
