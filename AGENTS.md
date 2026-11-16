@@ -213,6 +213,33 @@ registers it in an application, linking in every skill the installed packages sh
 
 ## Code conventions
 
+### Reuse what exists — hard rule
+
+Never reinvent a mechanism the repository, or a library it depends on, already provides.
+Before writing a helper, a wrapper, a context manager or any "own" version of something:
+
+- Search for it first: `search_symbol` / `search_text` the concept, and read the README and
+  skill of the package that owns the concern (`xtr-dependency-injection` for units of work and
+  scopes, `xtr-orm` for connections and sessions, `xtr-clock` for time, `xtr-lock` for locks,
+  `xtr-messenger` for message handling). Read how the nearest existing caller does it, and do
+  the same.
+- Units of work: never open a session, a connection or a scope by hand for application data
+  (no `AsyncSession(engine)`, no hand-made wireup scope). Work that must be apart from the unit
+  under way opens a unit of its own through an injected `ScopeFactoryInterface` —
+  `unit_of_work(join=False)`, as the messenger's `UnitOfWorkMiddleware` does — and resolves what
+  it needs inside it (`ConnectionRegistry.session()` reads the current unit's session). Only
+  that unit carries the application's session options, replica routing, every
+  `UnitParticipantInterface` participant and the shielded, bounded teardown.
+- State that lives for one unit of work is a `UnitParticipantInterface` participant (tag
+  `kernel.unit_participant`), not a context variable someone must remember to reset. Context
+  state that must not reach a new connection is registered with `register_detached_variable`.
+- A third-party library's own setting beats custom code doing the same (an SQLAlchemy connect
+  argument rather than event hooks re-implementing it).
+- If the mechanism you need truly does not exist, stop and say so: the package that owns the
+  concern needs an API, which is a decision for the human, not a private helper in yours.
+
+### Style
+
 - Python `>= 3.11`.
 - Every module starts with `from __future__ import annotations`, a module docstring, and
   declares `__all__`.
