@@ -490,6 +490,15 @@ MessageBusConfig(
   dispatched while another is handled joins its unit, and its transaction — in a savepoint of
   its own, so when it fails only its handlers' work is rolled back, and the handler that
   dispatched it decides whether the rest goes on.
+- **The caller's transaction stays the caller's.** A message dispatched by code that already
+  has a transaction open on the session — a route that wrote, then dispatched over `sync://`
+  — runs in a savepoint of it: a failing message leaves the caller's work in place, and a
+  succeeding one commits nothing, so the caller still commits (or rolls back) its own work. A
+  message a worker received owns its transaction, whatever an earlier middleware read.
+- **Dispatch one message at a time per unit.** Messages handled at once by tasks sharing the
+  unit's session (`asyncio.gather` of dispatches) interleave on its one transaction, and one
+  message's rollback can undo another's work; give concurrent work units of its own
+  (`unit_of_work(join=False)`).
 - **Handlers do not commit** under `orm_transaction`; a handler that does ends the
   transaction early, and one using `async with session.begin()` is refused, the transaction
   being open already.

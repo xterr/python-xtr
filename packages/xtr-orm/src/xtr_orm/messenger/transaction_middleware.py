@@ -12,6 +12,7 @@ from xtr_messenger import (
     HandledStamp,
     HandlersFailedError,
     MiddlewareInterface,
+    ReceivedStamp,
     StackInterface,
     as_middleware,
 )
@@ -86,6 +87,16 @@ class TransactionMiddleware(MiddlewareInterface):
     wrote is rolled back to the savepoint — so a handler that catches the
     failure and carries on commits only its own work — and the failure goes
     on to the handler that dispatched it.
+
+    So does a message dispatched by code that already has a transaction open
+    on the session — a request that wrote, then dispatched: the transaction
+    is the caller's, so the message neither commits nor rolls back what the
+    caller did, and committing stays the caller's. A message received from a
+    transport owns its transaction whatever an earlier middleware began on
+    the session: nobody else is there to commit it.
+
+    Dispatch the messages of one unit one after another: messages handled at
+    once by tasks sharing the unit's session interleave on one transaction.
     """
 
     __slots__ = ("_connection_name", "_connections")
@@ -99,7 +110,9 @@ class TransactionMiddleware(MiddlewareInterface):
     async def handle(self, envelope: Envelope, stack: StackInterface, /) -> Envelope:
         """Run the rest of the chain inside a transaction, committed once it all succeeded."""
         session = await self._connections.session(self._connection_name)
-        if in_begun_transaction(session):
+        if in_begun_transaction(session) or (
+            session.in_transaction() and envelope.last(ReceivedStamp) is None
+        ):
             return await _in_savepoint(session, envelope, stack)
         if not session.in_transaction():
             _ = await session.begin()

@@ -312,6 +312,11 @@ A handler asks for `Injected[AsyncSession]` like any service and adds rows; it n
 
 - Every handler of a message shares one session per connection. A message dispatched while
   another is handled joins its unit of work, in a savepoint of its own.
+- A message dispatched by code holding an open transaction (a route that wrote, then dispatched)
+  runs in a savepoint of it and commits nothing of the caller's: the caller still commits its
+  own work. A message a worker received owns its transaction.
+- Never `asyncio.gather` dispatches that share one unit's session; give concurrent work its own
+  `unit_of_work(container, join=False)`.
 - A follow-up dispatched to a transport goes out at once unless stamped:
   `await bus.dispatch(SendReceipt(order.id), DispatchAfterCurrentBusStamp())` sends it only after
   the commit, and never after a rollback.

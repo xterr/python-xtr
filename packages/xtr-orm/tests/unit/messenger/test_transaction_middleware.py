@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import Column, Integer, MetaData, String, Table, insert, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from xtr_messenger import Envelope, HandledStamp, HandlersFailedError
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from xtr_messenger import Envelope, HandledStamp, HandlersFailedError, ReceivedStamp
 
 from tests.support.database import rows
 from tests.support.sessions import Sessions
@@ -222,3 +223,110 @@ async def test_a_new_session_reusing_a_freed_sessions_id_is_not_taken_for_begun(
 
 def _one_address(_: object) -> int:
     return 1
+
+
+# ── a caller's own transaction ──────────────────────────────────────────────
+
+# SQLite only rolls a savepoint back on its own with the driver's transaction
+# control off, which Python 3.11's sqlite3 cannot do.
+_savepoints = pytest.mark.skipif(
+    sys.version_info < (3, 12), reason="SQLite savepoints need sqlite3's autocommit=False"
+)
+
+
+@pytest.fixture
+async def caller(database_url: str, migrator: Migrator) -> AsyncIterator[Sessions]:
+    """Sessions on an engine whose SQLite savepoints roll back on their own."""
+    strict = create_async_engine(database_url, connect_args={"autocommit": False})
+    async with strict.begin() as connection:
+        await connection.run_sync(NOTE.metadata.create_all)
+    built = Sessions(strict, migrator, "default")
+    yield built
+    await built.aclose()
+    await strict.dispose()
+
+
+@_savepoints
+async def test_a_failing_message_dispatched_after_its_caller_wrote_keeps_the_callers_work(
+    caller: Sessions, engine: AsyncEngine
+) -> None:
+    session = caller.by_name["default"]
+    _ = await session.execute(insert(NOTE).values(text="caller"))
+    middleware = TransactionMiddleware(caller.registry)
+
+    with pytest.raises(LookupError):
+        _ = await middleware.handle(
+            Envelope("message"), _writing(caller, "message", then=LookupError())
+        )
+    assert session.in_transaction()
+    await session.commit()
+
+    assert await rows(engine, "select text from note") == [("caller",)]
+
+
+@_savepoints
+async def test_a_succeeding_message_does_not_commit_its_callers_pending_work(
+    caller: Sessions, engine: AsyncEngine
+) -> None:
+    session = caller.by_name["default"]
+    _ = await session.execute(insert(NOTE).values(text="caller"))
+    middleware = TransactionMiddleware(caller.registry)
+
+    _ = await middleware.handle(Envelope("message"), _writing(caller, "message"))
+
+    assert session.in_transaction()
+    await session.rollback()
+    assert await rows(engine, "select text from note") == []
+
+
+@_savepoints
+async def test_a_message_dispatched_after_an_unflushed_add_keeps_the_callers_object(
+    caller: Sessions, engine: AsyncEngine
+) -> None:
+    session = caller.by_name["default"]
+    _ = await session.execute(select(1))
+    middleware = TransactionMiddleware(caller.registry)
+
+    _ = await middleware.handle(Envelope("message"), _writing(caller, "message"))
+    await session.commit()
+
+    assert await rows(engine, "select text from note") == [("message",)]
+
+
+@_savepoints
+async def test_a_received_message_commits_even_if_an_earlier_middleware_began_its_transaction(
+    caller: Sessions, engine: AsyncEngine
+) -> None:
+    session = caller.by_name["default"]
+    # What a middleware ahead of this one does: read before the handlers run.
+    _ = await session.execute(select(1))
+    middleware = TransactionMiddleware(caller.registry)
+
+    _ = await middleware.handle(
+        Envelope("message", (ReceivedStamp("jobs"),)), _writing(caller, "message")
+    )
+
+    assert not session.in_transaction()
+    assert await rows(engine, "select text from note") == [("message",)]
+
+
+async def test_cancelling_a_message_rolls_back_and_leaves_no_transaction(
+    sessions: Sessions, engine: AsyncEngine
+) -> None:
+    middleware = TransactionMiddleware(sessions.registry)
+    started = asyncio.Event()
+
+    async def hang(envelope: Envelope) -> Envelope:
+        _ = await sessions.by_name["default"].execute(insert(NOTE).values(text="cancelled"))
+        started.set()
+        _ = await asyncio.Event().wait()
+        return envelope
+
+    task = asyncio.create_task(middleware.handle(Envelope("message"), Then(hang)))
+    _ = await started.wait()
+    _ = task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert not sessions.by_name["default"].in_transaction()
+    assert await rows(engine, "select text from note") == []
