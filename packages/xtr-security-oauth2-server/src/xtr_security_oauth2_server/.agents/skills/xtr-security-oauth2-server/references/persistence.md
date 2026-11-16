@@ -50,6 +50,9 @@ persistence = OrmPersistenceConfig()  # connection="default", table_prefix="oaut
   shipped `Client`. Credentials reference the client's `identifier` with `ON DELETE CASCADE`.
 - Every write commits before the endpoint answers, refusals included (a device's last poll, a
   revoked code), so a token is never handed out that was not stored.
+- Every read and write runs in a unit of work of the store's own, never the request's: storing a
+  credential commits nothing the application has pending in its session, and a rollback of the
+  request takes back no credential already handed out.
 - SQLite enforces the cascade only with `PRAGMA foreign_keys=ON`.
 
 ## The application's own client class

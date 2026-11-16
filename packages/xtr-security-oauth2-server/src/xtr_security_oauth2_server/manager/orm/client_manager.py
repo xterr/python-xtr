@@ -8,10 +8,12 @@ from sqlalchemy import Text, or_, select
 from sqlalchemy import cast as as_text
 from sqlalchemy.exc import IntegrityError
 from typing_extensions import override
+from xtr_dependency_injection import (
+    ScopeFactoryInterface,  # noqa: TC002 — read at runtime by the container
+)
 from xtr_event_dispatcher_contracts import (
     EventDispatcherInterface,  # noqa: TC002 — read at runtime by the container
 )
-from xtr_orm import ConnectionRegistry  # noqa: TC002 — read at runtime by the container
 
 from xtr_security_oauth2_server.event.pre_save_client_event import PreSaveClientEvent
 from xtr_security_oauth2_server.exception.client_already_registered_error import (
@@ -24,11 +26,12 @@ from xtr_security_oauth2_server.model.abstract_client import (
 from xtr_security_oauth2_server.oauth2_events import OAuth2Events
 from xtr_security_oauth2_server.persistence.mapping.mapped_table import mapped_table
 
+from ._unit_session import unit_session
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from sqlalchemy import Table
-    from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.sql.elements import ColumnElement
 
     from xtr_security_oauth2_server.manager.client_filter import ClientFilter
@@ -63,13 +66,14 @@ class ClientManager(ClientManagerInterface):
     kind of criterion named.
 
     One of these serves the whole application, and holds no session: every
-    read and every write asks the connection registry for the session of the
-    request being served.
+    read and every write runs in a unit of work of its own, never the
+    request's, so registering a client commits nothing the application has
+    pending.
     """
 
     def __init__(
         self,
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         connection: str,
         dispatcher: EventDispatcherInterface,
         client_class: type[AbstractClient],
@@ -77,30 +81,26 @@ class ClientManager(ClientManagerInterface):
         """Read and write the clients of the connection named ``connection``.
 
         Args:
-            connections: Where the session of the unit of work under way is
-                asked for.
-            connection: Which connection's session that is.
+            scope_factory: What opens the unit of work each read and write
+                runs in.
+            connection: Which connection's session the unit reads and writes.
             dispatcher: What each save is announced through.
             client_class: The class a client row is read into.
         """
-        self._connections = connections
+        self._scope_factory = scope_factory
         self._connection = connection
         self._dispatcher = dispatcher
         self._client_class = client_class
-
-    async def _session(self) -> AsyncSession:
-        """Return the session of the unit of work this request is served in."""
-        return await self._connections.session(self._connection)
 
     @override
     async def find(self, identifier: str) -> ClientInterface | None:
         """Return the client registered as ``identifier``, or ``None``."""
         clients = mapped_table(self._client_class)
-        read = await (await self._session()).execute(
-            select(self._client_class).where(clients.c["identifier"] == identifier),
-        )
-
-        return read.scalars().one_or_none()
+        async with unit_session(self._scope_factory, self._connection) as session:
+            read = await session.execute(
+                select(self._client_class).where(clients.c["identifier"] == identifier),
+            )
+            return read.scalars().one_or_none()
 
     @override
     async def save(self, client: ClientInterface) -> None:
@@ -122,31 +122,31 @@ class ClientManager(ClientManagerInterface):
             OAuth2Events.PRE_SAVE_CLIENT,
         )
         stored = event.get_client()
-        session = await self._session()
-        session.add(stored)
-        try:
-            await session.commit()
-        except IntegrityError:
-            await session.rollback()
+        async with unit_session(self._scope_factory, self._connection) as session:
+            session.add(stored)
+            try:
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
 
-            raise ClientAlreadyRegisteredError(stored.get_identifier()) from None
+                raise ClientAlreadyRegisteredError(stored.get_identifier()) from None
 
     @override
     async def remove(self, client: ClientInterface) -> None:
-        """Forget ``client``, which has to be one this unit of work knows."""
-        session = await self._session()
-        await session.delete(client)
-        await session.commit()
+        """Forget ``client``, a registration read back from this store."""
+        async with unit_session(self._scope_factory, self._connection) as session:
+            await session.delete(client)
+            await session.commit()
 
     @override
     async def list(self, client_filter: ClientFilter | None) -> Sequence[ClientInterface]:
         """Return the clients meeting ``client_filter``, or every one for ``None``."""
         clients = mapped_table(self._client_class)
-        read = await (await self._session()).execute(
-            select(self._client_class).where(*_criteria(clients, client_filter)),
-        )
-
-        return tuple(read.scalars().all())
+        async with unit_session(self._scope_factory, self._connection) as session:
+            read = await session.execute(
+                select(self._client_class).where(*_criteria(clients, client_filter)),
+            )
+            return tuple(read.scalars().all())
 
 
 def _criteria(

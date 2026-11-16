@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING, cast, final
 from sqlalchemy import delete, select, update
 from typing_extensions import override
 from xtr_clock import ClockInterface  # noqa: TC002 — read at runtime by the container
-from xtr_orm import ConnectionRegistry  # noqa: TC002 — read at runtime by the container
+from xtr_dependency_injection import (
+    ScopeFactoryInterface,  # noqa: TC002 — read at runtime by the container
+)
 
 from xtr_security_oauth2_server.manager.access_token_manager_interface import (
     AccessTokenManagerInterface,
@@ -15,6 +17,8 @@ from xtr_security_oauth2_server.manager.access_token_manager_interface import (
 from xtr_security_oauth2_server.model.access_token import AccessToken
 from xtr_security_oauth2_server.model.refresh_token import RefreshToken
 from xtr_security_oauth2_server.persistence.mapping.mapped_table import mapped_table
+
+from ._unit_session import unit_session
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -41,16 +45,15 @@ class AccessTokenManager(AccessTokenManagerInterface):
     deleted. Doing it the other way round leaves the database to decide, and
     not every one of them would answer the same.
 
-    One of these serves the whole application. It holds no session: a session
-    belongs to one request, and this is asked by all of them. Every read and
-    every write asks the connection registry for the session of the unit of
-    work under way, which is the one the application's own work in that
-    request is done in.
+    One of these serves the whole application. It holds no session: every
+    read and every write runs in a unit of work of its own, never the
+    request's, so issuing a token commits nothing the application has pending
+    and no rollback of the request takes a token back.
     """
 
     def __init__(
         self,
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         connection: str,
         clock: ClockInterface,
         persist_access_token: bool,
@@ -58,20 +61,16 @@ class AccessTokenManager(AccessTokenManagerInterface):
         """Read and write the access tokens of the connection named ``connection``.
 
         Args:
-            connections: Where the session of the unit of work under way is
-                asked for.
-            connection: Which connection's session that is.
+            scope_factory: What opens the unit of work each read and write
+                runs in.
+            connection: Which connection's session the unit reads and writes.
             clock: What decides whether a token has expired.
             persist_access_token: Whether access tokens are written down.
         """
-        self._connections = connections
+        self._scope_factory = scope_factory
         self._connection = connection
         self._clock = clock
         self._persist_access_token = persist_access_token
-
-    async def _session(self) -> AsyncSession:
-        """Return the session of the unit of work this request is served in."""
-        return await self._connections.session(self._connection)
 
     @override
     async def find(self, identifier: str) -> AccessTokenInterface | None:
@@ -79,7 +78,8 @@ class AccessTokenManager(AccessTokenManagerInterface):
         if not self._persist_access_token:
             return None
 
-        return await (await self._session()).get(AccessToken, identifier)
+        async with unit_session(self._scope_factory, self._connection) as session:
+            return await session.get(AccessToken, identifier)
 
     @override
     async def save(self, access_token: AccessTokenInterface) -> None:
@@ -90,9 +90,9 @@ class AccessTokenManager(AccessTokenManagerInterface):
         """
         if not self._persist_access_token:
             return
-        session = await self._session()
-        session.add(access_token)
-        await session.commit()
+        async with unit_session(self._scope_factory, self._connection) as session:
+            session.add(access_token)
+            await session.commit()
 
     @override
     async def clear_expired(self) -> int:
@@ -104,15 +104,15 @@ class AccessTokenManager(AccessTokenManagerInterface):
         """
         if not self._persist_access_token:
             return 0
-        session = await self._session()
-        expired = await self._expired(session)
-        if not expired:
-            return 0
-        await self._unlink(session, expired)
-        _ = await session.execute(
-            delete(AccessToken).where(mapped_table(AccessToken).c["identifier"].in_(expired)),
-        )
-        await session.commit()
+        async with unit_session(self._scope_factory, self._connection) as session:
+            expired = await self._expired(session)
+            if not expired:
+                return 0
+            await self._unlink(session, expired)
+            _ = await session.execute(
+                delete(AccessToken).where(mapped_table(AccessToken).c["identifier"].in_(expired)),
+            )
+            await session.commit()
 
         return len(expired)
 

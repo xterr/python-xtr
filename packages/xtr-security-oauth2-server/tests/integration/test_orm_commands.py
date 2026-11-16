@@ -1,13 +1,14 @@
 """Every command driven against a database, through the console that runs them.
 
 What this proves is the one thing an in-process store cannot: a command runs
-outside a request, and the stored managers ask the connection registry for *the
-session of the unit of work under way* — so if a command run were not one, every
-one of them would be refused before it reached a table.
+outside a request, and the stored managers do not need one — every read and
+every write opens *a unit of work of its own*, so a command reaches its tables
+whether or not its run is a unit of work, and what it writes is committed
+before it reports it.
 
-That is asserted directly: the shared manager, asked outside a run, reports
-there is no session; asked by a command, it reads and writes and commits, which
-a second unit of work then sees.
+That is asserted directly: the shared manager, asked outside a run, reads all
+the same; asked by a command, it reads and writes and commits, which a second
+unit of work then sees.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ from typing import TYPE_CHECKING, Final, TypeAlias
 import pytest
 from xtr_console import Application, CommandTester, ExitCode
 from xtr_dependency_injection import unit_of_work
-from xtr_orm.exception import SessionUnavailableError
 
 from tests.fixtures.oauth2_orm_app.config import URL_VARIABLE
 from tests.support.console import console_kernel, running
@@ -83,16 +83,16 @@ async def _read(container: ContainerInterface, identifier: str) -> ClientInterfa
         return await clients.find(identifier)
 
 
-async def test_the_shared_manager_has_no_session_outside_a_command_run(
+async def test_the_shared_manager_reads_in_a_unit_of_its_own_outside_a_command_run(
     console: Console,
 ) -> None:
-    # The premise of everything below: nothing but a unit of work gives a
-    # stored manager a session, and a command run is one.
+    # The premise of everything below: a stored manager does not need its
+    # caller to have a unit of work open, since it opens one of its own.
+    await _registered(console)
     _application, container = console
     clients = await container.get(ClientManagerInterface)
 
-    with pytest.raises(SessionUnavailableError):
-        _ = await clients.find(_IDENTIFIER)
+    assert await clients.find(_IDENTIFIER) is not None
 
 
 async def test_creating_a_client_writes_a_row_a_second_unit_of_work_sees(

@@ -8,9 +8,10 @@ reports, what a listing narrowed by nothing holds, and what one narrowed by two
 values of a kind holds. Every assertion below runs twice, once against each
 implementation, and the stored one runs against a real SQLite file.
 
-A client handed to a stored manager has to be one its session knows, which is
-why the credential fixtures hand out a client along with the manager: that is
-what a request has too, since the client is read through the same session.
+A credential is stored beside the client it names, which is why the credential
+fixtures hand out a client along with the manager: for the stored one, a client
+already registered and held by no open session — what a request has too, since
+a stored manager reads the client in a unit of work of its own.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ from tests.support.models import (
     device_code_model,
     refresh_token_model,
 )
-from tests.support.orm import CONNECTION, connections_of, registered, stored
+from tests.support.orm import CONNECTION, registered, stored
 from xtr_security_oauth2_server.manager import in_memory, orm
 from xtr_security_oauth2_server.manager.client_filter import ClientFilter
 from xtr_security_oauth2_server.model.client import Client
@@ -90,7 +91,7 @@ async def _held_clients(tmp_path: Path) -> AsyncGenerator[ClientManagerInterface
 async def _stored_clients(tmp_path: Path) -> AsyncGenerator[ClientManagerInterface, None]:
     async with stored(tmp_path) as database:
         yield orm.ClientManager(
-            connections_of(database.session()),
+            await database.scope_factory(),
             CONNECTION,
             RecordingEventDispatcher(),
             Client,
@@ -110,10 +111,9 @@ async def _stored_access_tokens(
     tmp_path: Path,
 ) -> AsyncGenerator[tuple[AccessTokenManagerInterface, ClientInterface], None]:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
+        client = await registered(database.session())
         manager = orm.AccessTokenManager(
-            connections_of(session),
+            await database.scope_factory(),
             CONNECTION,
             MockClock(NOW),
             True,
@@ -134,10 +134,9 @@ async def _stored_authorization_codes(
     tmp_path: Path,
 ) -> AsyncGenerator[tuple[AuthorizationCodeManagerInterface, ClientInterface], None]:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
+        client = await registered(database.session())
         manager = orm.AuthorizationCodeManager(
-            connections_of(session),
+            await database.scope_factory(),
             CONNECTION,
             MockClock(NOW),
         )
@@ -158,7 +157,7 @@ async def _stored_refresh_tokens(
 ) -> AsyncGenerator[RefreshTokenManagerInterface, None]:
     async with stored(tmp_path) as database:
         yield orm.RefreshTokenManager(
-            connections_of(database.session()),
+            await database.scope_factory(),
             CONNECTION,
             MockClock(NOW),
         )
@@ -177,9 +176,9 @@ async def _stored_device_codes(
     tmp_path: Path,
 ) -> AsyncGenerator[tuple[DeviceCodeManagerInterface, ClientInterface], None]:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
-        yield orm.DeviceCodeManager(connections_of(session), CONNECTION, MockClock(NOW)), client
+        client = await registered(database.session())
+        manager = orm.DeviceCodeManager(await database.scope_factory(), CONNECTION, MockClock(NOW))
+        yield manager, client
 
 
 _CLIENTS = [_held_clients, _stored_clients]

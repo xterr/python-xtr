@@ -6,12 +6,15 @@ from typing import TYPE_CHECKING, final
 
 from sqlalchemy import select, update
 from typing_extensions import override
-from xtr_orm import ConnectionRegistry  # noqa: TC002 — read at runtime by the container
+from xtr_dependency_injection import (
+    ScopeFactoryInterface,  # noqa: TC002 — read at runtime by the container
+)
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 from xtr_security_oauth2_server.manager.client_manager_interface import (
     ClientManagerInterface,  # noqa: TC001 — read at runtime by the container
 )
+from xtr_security_oauth2_server.manager.orm._unit_session import unit_session
 from xtr_security_oauth2_server.model.access_token import AccessToken
 from xtr_security_oauth2_server.model.authorization_code import AuthorizationCode
 from xtr_security_oauth2_server.model.device_code import DeviceCode
@@ -58,13 +61,13 @@ class OrmCredentialsRevoker(CredentialsRevokerInterface):
     reached through. The codes are still withdrawn.
 
     One of these serves the whole application, and holds no session: each
-    withdrawal asks the connection registry for the session of the unit of
-    work it is being made in.
+    withdrawal runs in a unit of work of its own, never the request's, so it
+    commits nothing the application has pending.
     """
 
     def __init__(
         self,
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         connection: str,
         client_manager: ClientManagerInterface,
         persist_access_token: bool = True,
@@ -73,23 +76,18 @@ class OrmCredentialsRevoker(CredentialsRevokerInterface):
         """Withdraw credentials on ``connection``, of clients ``client_manager`` knows.
 
         Args:
-            connections: Where the session of the unit of work under way is
-                asked for.
-            connection: Which connection's session that is.
+            scope_factory: What opens the unit of work each withdrawal runs in.
+            connection: Which connection's session the unit writes.
             client_manager: Where a client is read back from, so a withdrawal
                 is made against the registration that is stored.
             persist_access_token: Whether access tokens are written down.
             enable_device_code_grant: Whether the device flow is on.
         """
-        self._connections = connections
+        self._scope_factory = scope_factory
         self._connection = connection
         self._clients = client_manager
         self._persist_access_token = persist_access_token
         self._enable_device_code_grant = enable_device_code_grant
-
-    async def _session(self) -> AsyncSession:
-        """Return the session of the unit of work this withdrawal is made in."""
-        return await self._connections.session(self._connection)
 
     @override
     async def revoke_credentials_for_user(self, user: UserInterface) -> None:
@@ -119,23 +117,23 @@ class OrmCredentialsRevoker(CredentialsRevokerInterface):
 
     async def _withdraw(self, column: str, holder: str) -> None:
         """Withdraw every credential whose ``column`` names ``holder``."""
-        session = await self._session()
-        if self._persist_access_token:
-            await self._withdraw_tokens(session, column, holder)
-        codes = mapped_table(AuthorizationCode)
-        _ = await session.execute(
-            update(AuthorizationCode)
-            .where(codes.c[column] == holder)
-            .values({codes.c["revoked"]: True}),
-        )
-        if self._enable_device_code_grant:
-            device = mapped_table(DeviceCode)
+        async with unit_session(self._scope_factory, self._connection) as session:
+            if self._persist_access_token:
+                await self._withdraw_tokens(session, column, holder)
+            codes = mapped_table(AuthorizationCode)
             _ = await session.execute(
-                update(DeviceCode)
-                .where(device.c[column] == holder)
-                .values({device.c["revoked"]: True}),
+                update(AuthorizationCode)
+                .where(codes.c[column] == holder)
+                .values({codes.c["revoked"]: True}),
             )
-        await session.commit()
+            if self._enable_device_code_grant:
+                device = mapped_table(DeviceCode)
+                _ = await session.execute(
+                    update(DeviceCode)
+                    .where(device.c[column] == holder)
+                    .values({device.c["revoked"]: True}),
+                )
+            await session.commit()
 
     async def _withdraw_tokens(self, session: AsyncSession, column: str, holder: str) -> None:
         """Withdraw the access tokens of ``holder``, and the refresh tokens beside them."""

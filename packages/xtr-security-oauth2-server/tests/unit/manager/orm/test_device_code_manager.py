@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 import pytest
 from xtr_clock import MockClock
 
-from tests.support.models import EARLIER, LATER, NOW, device_code_model
-from tests.support.orm import CONNECTION, connections_of, registered, stored
+from tests.support.models import EARLIER, LATER, NOW, client_model, device_code_model
+from tests.support.orm import CONNECTION, registered, stored
 from xtr_security_oauth2_server.manager.device_code_manager_interface import (
     DeviceCodeManagerInterface,
 )
@@ -17,8 +17,6 @@ from xtr_security_oauth2_server.model.client import Client
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    from sqlalchemy.ext.asyncio import AsyncSession
 
     from tests.support.orm import Database
 
@@ -31,19 +29,32 @@ def test_it_declares_the_device_code_manager_contract() -> None:
 
 async def _manager(database: Database) -> tuple[DeviceCodeManager, Client]:
     """Return a manager and the stored client a device code may be issued to."""
-    session = database.session()
-    client = await registered(session)
+    client = await registered(database.session())
 
-    return _on(session), client
+    return await _on(database), client
 
 
-def _on(session: AsyncSession) -> DeviceCodeManager:
-    """Return a manager reading and writing through ``session``.
+async def _on(database: Database) -> DeviceCodeManager:
+    """Return a manager reading and writing ``database``.
 
-    The manager holds no session of its own: it asks the registry for the one
-    of the unit of work it is being used in, which is what this hands it.
+    The manager holds no session of its own: every read and every write opens
+    a unit of work of its own, through the scope factory this hands it. A
+    second one built here is what the other half of a flow is served by.
     """
-    return DeviceCodeManager(connections_of(session), CONNECTION, MockClock(NOW))
+    return DeviceCodeManager(await database.scope_factory(), CONNECTION, MockClock(NOW))
+
+
+async def test_saving_a_code_leaves_the_requests_pending_work_alone(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        unit = database.session()
+        client = await registered(unit)
+        unit.add(client_model("pending"))
+
+        await (await _on(database)).save(device_code_model(client=client))
+        await unit.rollback()
+
+        assert await database.count("oauth2_device_code") == 1
+        assert await database.count("oauth2_client") == 1
 
 
 async def test_it_finds_a_code_by_the_identifier_the_device_polls_with(tmp_path: Path) -> None:
@@ -92,7 +103,7 @@ async def test_what_a_poll_wrote_is_committed_so_the_other_half_reads_it(
         _ = code.set_user_identifier("user-1")
         _ = code.set_last_polled_at(NOW)
         await manager.save(code)
-        found = await _on(database.session()).find("dc-1")
+        found = await (await _on(database)).find("dc-1")
 
         assert found is not None
         assert found.get_user_approved() is True

@@ -18,7 +18,7 @@ from tests.support.models import (
     device_code_model,
     refresh_token_model,
 )
-from tests.support.orm import CONNECTION, connections_of, orm_driver, stored
+from tests.support.orm import CONNECTION, orm_driver, stored
 from tests.support.users import SecurityUser
 from xtr_security_oauth2_server.manager.orm.access_token_manager import AccessTokenManager
 from xtr_security_oauth2_server.manager.orm.authorization_code_manager import (
@@ -38,7 +38,7 @@ from xtr_security_oauth2_server.service.credentials_revoker_interface import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from tests.support.orm import Database
+    from xtr_dependency_injection import ScopeFactoryInterface
 
 pytestmark = pytest.mark.anyio
 
@@ -52,7 +52,7 @@ def test_it_declares_the_credentials_revoker_contract() -> None:
 
 @final
 class _Store:
-    """One session's worth of managers, and the revoker over the same session."""
+    """Every stored manager, and the revoker, as one application holds them."""
 
     __slots__ = (
         "access_tokens",
@@ -65,34 +65,32 @@ class _Store:
 
     def __init__(
         self,
-        database: Database,
+        scope_factory: ScopeFactoryInterface,
         *,
         persist_access_token: bool = True,
         enable_device_code_grant: bool = True,
     ) -> None:
-        session = database.session()
-        # Every manager and the revoker share one session, as they do inside
-        # one request: each asks the registry, and this registry answers with
-        # the session this store was built on.
-        connections = connections_of(session)
+        # Every manager and the revoker are built on one scope factory, as the
+        # container builds them: none holds a session, and each read and write
+        # opens a unit of work of its own on it.
         clock = MockClock(NOW)
         self.clients = ClientManager(
-            connections,
+            scope_factory,
             CONNECTION,
             RecordingEventDispatcher(),
             Client,
         )
         self.access_tokens = AccessTokenManager(
-            connections,
+            scope_factory,
             CONNECTION,
             clock,
             persist_access_token,
         )
-        self.authorization_codes = AuthorizationCodeManager(connections, CONNECTION, clock)
-        self.refresh_tokens = RefreshTokenManager(connections, CONNECTION, clock)
-        self.device_codes = DeviceCodeManager(connections, CONNECTION, clock)
+        self.authorization_codes = AuthorizationCodeManager(scope_factory, CONNECTION, clock)
+        self.refresh_tokens = RefreshTokenManager(scope_factory, CONNECTION, clock)
+        self.device_codes = DeviceCodeManager(scope_factory, CONNECTION, clock)
         self.revoker = OrmCredentialsRevoker(
-            connections,
+            scope_factory,
             CONNECTION,
             self.clients,
             persist_access_token,
@@ -142,7 +140,7 @@ async def _revoked(
 
 async def test_it_revokes_every_credential_a_user_holds(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        store = _Store(database)
+        store = _Store(await database.scope_factory())
         await store.clients.save(client_model())
         await _issued(store)
 
@@ -156,9 +154,24 @@ async def test_it_revokes_every_credential_a_user_holds(tmp_path: Path) -> None:
         }
 
 
+async def test_revoking_leaves_the_requests_pending_work_alone(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        store = _Store(await database.scope_factory())
+        await store.clients.save(client_model())
+        await _issued(store)
+        unit = database.session()
+        unit.add(client_model("pending"))
+
+        await store.revoker.revoke_credentials_for_user(SecurityUser("user-1"))
+        await unit.rollback()
+
+        assert await database.count("oauth2_client") == 1
+        assert (await _revoked(store))["authorization_code"] is True
+
+
 async def test_it_leaves_the_credentials_of_another_user_alone(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        store = _Store(database)
+        store = _Store(await database.scope_factory())
         await store.clients.save(client_model())
         await _issued(store, "user-1")
         await _issued(store, "user-2")
@@ -175,7 +188,7 @@ async def test_it_leaves_the_credentials_of_another_user_alone(tmp_path: Path) -
 
 async def test_it_revokes_every_credential_a_client_holds(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        store = _Store(database)
+        store = _Store(await database.scope_factory())
         await store.clients.save(client_model())
         await _issued(store)
 
@@ -191,7 +204,7 @@ async def test_it_revokes_every_credential_a_client_holds(tmp_path: Path) -> Non
 
 async def test_it_leaves_the_credentials_of_another_client_alone(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        store = _Store(database)
+        store = _Store(await database.scope_factory())
         await store.clients.save(client_model())
         await store.clients.save(client_model(_OTHER))
         await _issued(store, client="client-1")
@@ -211,7 +224,7 @@ async def test_revoking_for_a_client_that_was_never_registered_is_refused(
     tmp_path: Path,
 ) -> None:
     async with stored(tmp_path) as database:
-        store = _Store(database)
+        store = _Store(await database.scope_factory())
 
         with pytest.raises(InvalidArgumentError) as refused:
             await store.revoker.revoke_credentials_for_client(client_model("never-stored"))
@@ -221,7 +234,7 @@ async def test_revoking_for_a_client_that_was_never_registered_is_refused(
 
 async def test_it_touches_no_access_token_where_none_is_persisted(tmp_path: Path) -> None:
     async with stored(tmp_path, orm_driver(persist_access_token=False)) as database:
-        store = _Store(database, persist_access_token=False)
+        store = _Store(await database.scope_factory(), persist_access_token=False)
         await store.clients.save(client_model())
         await _issued(store)
 
@@ -237,7 +250,7 @@ async def test_it_touches_no_access_token_where_none_is_persisted(tmp_path: Path
 
 async def test_it_touches_no_device_code_without_the_device_flow(tmp_path: Path) -> None:
     async with stored(tmp_path, orm_driver(enable_device_code_grant=False)) as database:
-        store = _Store(database, enable_device_code_grant=False)
+        store = _Store(await database.scope_factory(), enable_device_code_grant=False)
         await store.clients.save(client_model())
         stored_client = await store.clients.find("client-1")
         assert stored_client is not None
