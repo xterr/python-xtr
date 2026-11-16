@@ -69,6 +69,8 @@ dev = [
     "xtr-password-hasher[bcrypt]>=6.0,<7",
     # The tests match request messages, so they build the request messages.
     "xtr-http-message>=6.0,<7",
+    # The throttling wiring locks through the lock bundle when it is active.
+    "xtr-lock>=6.0,<7",
 ]
 
 [build-system]

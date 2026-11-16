@@ -70,6 +70,7 @@ def build_firewall_map(
     *,
     clock_active: bool,
     logging_active: bool = False,
+    lock_active: bool = False,
 ) -> None:
     """Register a firewall context per firewall and the HTTP edge's firewall map.
 
@@ -118,6 +119,7 @@ def build_firewall_map(
             logout_registrations,
             csrf_wired=csrf_wired,
             logging_active=logging_active,
+            lock_active=lock_active,
         )
         if firewall.security and firewall.switch_user is not None:
             switch_user_registrations[name] = firewall.switch_user
@@ -143,6 +145,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
     *,
     csrf_wired: bool,
     logging_active: bool = False,
+    lock_active: bool = False,
 ) -> None:
     """Register everything one firewall needs: its dispatcher, authenticators and context."""
     if not firewall.security:
@@ -188,7 +191,9 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
         if remember_me is not None:
             register_remember_me_listeners(services, name, remember_me)
         if firewall.login_throttling is not None:
-            register_login_throttling(services, name, firewall.login_throttling)
+            register_login_throttling(
+                services, name, firewall.login_throttling, lock_active=lock_active
+            )
         extra_listeners = (
             (oidc_token_refresh_listener_name(name),)
             if any(

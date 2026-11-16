@@ -7066,6 +7066,7 @@ dev = [
     { name = "ty" },
     { name = "xtr-console" },
     { name = "xtr-http-message" },
+    { name = "xtr-lock" },
     { name = "xtr-password-hasher", extra = ["bcrypt"] },
 ]
 
@@ -7100,6 +7101,7 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
+    { name = "xtr-lock", editable = "packages/xtr-lock" },
     { name = "xtr-password-hasher", extras = ["bcrypt"], editable = "packages/xtr-password-hasher" },
 ]
 

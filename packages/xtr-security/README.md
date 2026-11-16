@@ -471,6 +471,12 @@ shared store keeps no readable account or address — the `secret` a configurati
 read from the environment the way [Secrets](#secrets) shows, never generated. The listener
 runs on the firewall's dispatcher at `2080`, ahead of the provider's `2048` — a request
 already over the limit is refused before any user is loaded or any password verified.
+Every attempt is counted there, before its password is checked, so a burst of concurrent
+attempts gets no further than the limit allows. With the lock bundle
+([xtr-lock](../xtr-lock)) active, both counts lock through its default `LockFactory`, so
+servers sharing a store count one attempt at a time; without it they lock within one
+process only. The address is the connection's client: behind a reverse proxy, have the
+server trust the proxy's forwarded headers.
 
 ### Switch user
 

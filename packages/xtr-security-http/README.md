@@ -569,18 +569,21 @@ event, on the application's main dispatcher.
 
 **Login throttling.** The throttling listener runs first of all on the passport check (priority
 2080, above the provider listener's 2048), and answers through one request limiter —
-`RequestRateLimiterInterface` from [xtr-http-foundation](../xtr-http-foundation), a peekable one
-preferred. The limiter builds its own keys, and the default one —
+`RequestRateLimiterInterface` from [xtr-http-foundation](../xtr-http-foundation). The limiter
+builds its own keys, and the default one —
 `DefaultLoginRateLimiter` in `rate_limiter/`, over the [xtr-rate-limiter](../xtr-rate-limiter)
 factories — counts a login twice: under the address it came from (a global limit, bounding how
 many accounts one client may sweep) and under the account it named from that address (a local
 limit). Both keys are eight-character HMAC-SHA256 prefixes over a non-empty application secret,
 so a store shared across servers keeps no readable account or address; a successful login forgets
 the local count only — the global one must survive the successful login of any one account. A
-peekable limiter is looked ahead at on the check (nothing spent), counted on a failure; a
-non-peekable one is counted on the check and still forgotten on a success. An attempt over the
+login is counted on the passport check, before its password is checked, so a burst of concurrent
+attempts past the limit is refused without a single password verified; a failure counts nothing
+more. An attempt over the
 limit is refused with the core `TooManyLoginAttemptsAuthenticationError`, carrying the minutes to
-wait, and announced as a `RateLimitExceededEvent` on the dispatcher the listener was given.
+wait, and announced as a `RateLimitExceededEvent` on the dispatcher the listener was given. The
+limiter keys the address on the connection's client (`scope["client"]`): behind a reverse proxy,
+have the server trust the proxy's forwarded headers, or every login counts under the proxy's address.
 
 **The dummy-hash timing guard.** When a password passport names an *unknown* user,
 `CheckCredentialsListener` still verifies against a dummy hash, so the timing of a bad username

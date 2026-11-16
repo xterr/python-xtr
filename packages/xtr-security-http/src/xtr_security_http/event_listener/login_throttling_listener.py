@@ -1,22 +1,19 @@
-"""The listener that throttles a login's failed attempts.
+"""The listener that throttles a login's attempts.
 
-Most requests pass; only the failures should count. So the passport check
-looks ahead without spending anything, a failed login spends one attempt,
-and a successful one forgets the account's count — the shape that keeps
-the counting to one trip per outcome, over a limiter that builds its own
-keys.
+Every attempt is counted at the passport check, before its password is: a
+check that only looked ahead would let a burst of concurrent attempts all
+through before the first failure was counted. A successful login forgets
+the account's count, over a limiter that builds its own keys.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import MutableMapping
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_event_dispatcher import EventSubscriberInterface
-from xtr_http_foundation import PeekableRequestRateLimiterInterface
 from xtr_rate_limiter import RateLimit, RateLimitExceededEvent
 from xtr_security_core.exception import (
     InvalidArgumentError,
@@ -26,7 +23,6 @@ from xtr_security_core.exception import (
 from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.event.check_passport_event import CheckPassportEvent
-from xtr_security_http.event.login_failure_event import LoginFailureEvent
 from xtr_security_http.event.login_success_event import LoginSuccessEvent
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
@@ -54,13 +50,13 @@ PRIORITY: Final = 2080
 class LoginThrottlingListener(EventSubscriberInterface):
     """Throttles the login attempts a request carries, through one request limiter.
 
-    On the passport check the attempt is looked ahead at, not counted: most
-    attempts pass, and only the failures should spend anything. A failed
-    login counts one attempt; a successful one forgets the account's count —
-    the local one only, the limiter's own asymmetry. An attempt the look
-    ahead refuses is turned away with the core too-many-attempts error,
-    carrying the minutes the caller must wait, and announced as an exceeded
-    rate limit on the dispatcher the listener was given.
+    On the passport check the attempt is counted, so concurrent attempts
+    past the limit are refused before any password is checked; a failed
+    login counts nothing more. A successful one forgets the account's count
+    — the local one only, the limiter's own asymmetry. A refused attempt is
+    turned away with the core too-many-attempts error, carrying the minutes
+    the caller must wait, and announced as an exceeded rate limit on the
+    dispatcher the listener was given.
     """
 
     __slots__ = ("_clock", "_dispatcher", "_limiter", "_limiter_name")
@@ -95,23 +91,18 @@ class LoginThrottlingListener(EventSubscriberInterface):
     @classmethod
     @override
     def get_subscribed_events(cls) -> Mapping[str | type, SubscribedEvents]:
-        """Throttle the passport check first of all; count a failure; forget on success."""
+        """Count the attempt on the passport check first of all; forget on success."""
         return {
             CheckPassportEvent: ("check_passport", PRIORITY),
-            LoginFailureEvent: "on_failed_login",
             LoginSuccessEvent: "on_successful_login",
         }
 
     async def check_passport(self, event: CheckPassportEvent) -> None:
-        """Refuse an attempt already over the limit, before any other check spends anything.
+        """Count the attempt, and refuse it over the limit before any other check spends anything.
 
         The username the passport names is parked on the request's security
         state first — the limiter reads its keys from there, and the form
-        that renders again reads the same. A limiter that can look ahead is
-        looked ahead at: a window with a token left is passed with nothing
-        spent, and remembered as untouched when it was full, so a successful
-        login has nothing to forget. A limiter that cannot is counted here
-        instead, and a successful login still forgets its count.
+        that renders again reads the same.
 
         Raises:
             TooManyLoginAttemptsAuthenticationError: When the attempt is
@@ -129,25 +120,13 @@ class LoginThrottlingListener(EventSubscriberInterface):
         attributes = security_state_of(state_bag_of(request)).attributes
         attributes[SecurityRequestAttributes.LAST_USERNAME] = badge.get_user_identifier()
 
-        if isinstance(self._limiter, PeekableRequestRateLimiterInterface):
-            limit = await self._limiter.peek(request)
-            # A look ahead spends nothing, so it is accepted even with no
-            # token left; both are read, for a third-party limiter that
-            # counts a look ahead anyway.
-            if limit.is_accepted() and limit.remaining_tokens != 0:
-                attributes[SecurityRequestAttributes.LOGIN_THROTTLING_UNTOUCHED] = (
-                    limit.remaining_tokens == limit.limit
-                )
-                return
-        else:
-            limit = await self._limiter.consume(request)
-            if limit.is_accepted():
-                return
+        limit = await self._limiter.consume(request)
+        if limit.is_accepted():
+            return
 
         if self._dispatcher is not None:
-            # The event carries the limit's state, not the limiter's own
-            # answer object: a look ahead that found no token left is
-            # accepted, and an exceeded event reports a refusal.
+            # The event carries a rate limit of its own: the limiter answers
+            # through an interface, which a third-party limiter implements.
             rejected = RateLimit(
                 limit.remaining_tokens,
                 limit.retry_after,
@@ -162,30 +141,10 @@ class LoginThrottlingListener(EventSubscriberInterface):
         wait = math.ceil((limit.retry_after.timestamp() - self._clock.now().timestamp()) / 60)
         raise TooManyLoginAttemptsAuthenticationError(wait)
 
-    async def on_failed_login(self, event: LoginFailureEvent) -> None:
-        """Count the failed attempt, when the limiter left it to be counted here.
-
-        A limiter that can look ahead spent nothing on the passport check,
-        so the failure is where the attempt is counted. A limiter that
-        cannot counted it there already.
-        """
-        if isinstance(self._limiter, PeekableRequestRateLimiterInterface):
-            _ = await self._limiter.consume(event.get_request())
-
     async def on_successful_login(self, event: LoginSuccessEvent) -> None:
-        """Forget the account's count, unless the window was never touched.
+        """Forget the account's count.
 
-        A window that was full when the passport was checked has nothing a
-        successful login needs to forget — and the global count, over the
-        address, must survive the login besides; the limiter keeps that
-        asymmetry itself.
+        The global count, over the address, survives the login: the
+        limiter keeps that asymmetry itself.
         """
-        request = event.get_request()
-        if isinstance(self._limiter, PeekableRequestRateLimiterInterface):
-            bag = request.get_attribute(SecurityRequestAttributes.STATE_BAG)
-            if isinstance(bag, MutableMapping) and security_state_of(
-                cast("MutableMapping[str, object]", bag)
-            ).attributes.get(SecurityRequestAttributes.LOGIN_THROTTLING_UNTOUCHED):
-                return
-
-        await self._limiter.reset(request)
+        await self._limiter.reset(event.get_request())

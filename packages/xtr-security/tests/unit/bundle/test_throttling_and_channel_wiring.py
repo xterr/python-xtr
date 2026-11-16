@@ -80,6 +80,41 @@ def test_the_throttling_listener_builds_its_two_limiters_when_the_secret_is_supp
     assert isinstance(listener, LoginThrottlingListener)
 
 
+def test_the_throttling_listener_asks_for_no_lock_factory_without_the_lock_bundle() -> None:
+    recorder = _Recorder()
+    register_login_throttling(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        "main",
+        LoginThrottlingConfig(secret="counting"),
+    )
+
+    assert "lock_factory" not in recorder.factories[0].__annotations__
+
+
+def test_the_throttling_listener_locks_through_the_lock_bundle_when_it_is_active() -> None:
+    from xtr_lock import InMemoryStore, LockFactory
+    from xtr_security_http import LoginThrottlingListener
+
+    recorder = _Recorder()
+    register_login_throttling(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        "main",
+        LoginThrottlingConfig(secret="counting"),
+        lock_active=True,
+    )
+    factory = recorder.factories[0]
+
+    listener = factory(
+        InMemoryStorage(),
+        clock=None,
+        firewall_dispatcher=None,
+        lock_factory=LockFactory(InMemoryStore()),
+    )
+
+    assert factory.__annotations__["lock_factory"] == LockFactory | None
+    assert isinstance(listener, LoginThrottlingListener)
+
+
 def test_a_channel_rule_naming_an_unknown_scheme_is_refused() -> None:
     with pytest.raises(InvalidArgumentError, match='neither "http" nor "https"'):
         _ = AccessControlConfig(path=r"^/", attribute="PUBLIC_ACCESS", channel="ftp")
