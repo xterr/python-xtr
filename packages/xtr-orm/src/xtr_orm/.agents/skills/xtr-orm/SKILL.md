@@ -28,6 +28,10 @@ connection's name. Everything is async; there is no sync counterpart.
 - One transaction per message: list `orm_transaction` in the bus's `middleware`; handlers never
   commit.
 - On SQLite, set `MigrationsConfig(render_as_batch=True)` or table alterations cannot be written.
+- SQLite is for development and tests only. For real transactions there (savepoints undone by an
+  outer rollback), pass `engine_options={"connect_args": {"autocommit": False}}` on Python 3.12+.
+- Outside debug `hide_parameters` is on: SQL errors leave bound values out. `?hide_parameters=false`
+  shows them.
 
 ## Inject a session
 

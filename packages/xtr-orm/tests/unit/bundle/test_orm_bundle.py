@@ -70,6 +70,34 @@ def _kernel(tmp_path: Path, app: str = "tests.fixtures.app_orm") -> Kernel:
     )
 
 
+async def _hides_parameters(tmp_path: Path, *, debug: bool, query: str = "") -> bool:
+    kernel = Kernel(
+        "tests.fixtures.app_orm",
+        env="test",
+        debug=debug,
+        environ={
+            "ORM_TEST_URL": f"sqlite+aiosqlite:///{tmp_path / 'app.sqlite'}{query}",
+            "ORM_TEST_REPORTS_URL": f"sqlite+aiosqlite:///{tmp_path / 'reports.sqlite'}",
+            "ORM_TEST_MIGRATIONS": str(tmp_path / "migrations"),
+        },
+    )
+    async with await kernel.boot() as booted:
+        engine = await booted.container.get(AsyncEngine)
+        return engine.sync_engine.hide_parameters
+
+
+async def test_parameters_are_hidden_outside_debug(tmp_path: Path) -> None:
+    assert await _hides_parameters(tmp_path, debug=False)
+
+
+async def test_parameters_are_shown_in_debug(tmp_path: Path) -> None:
+    assert not await _hides_parameters(tmp_path, debug=True)
+
+
+async def test_an_application_may_show_parameters(tmp_path: Path) -> None:
+    assert not await _hides_parameters(tmp_path, debug=False, query="?hide_parameters=false")
+
+
 async def test_zero_config_builds_boots_and_shuts_down() -> None:
     await assert_zero_config(OrmBundle)
 

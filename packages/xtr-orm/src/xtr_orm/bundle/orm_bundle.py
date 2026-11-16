@@ -36,7 +36,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from functools import partial
 from importlib.util import find_spec
 from operator import contains
-from typing import Final, TypeVar, cast, final
+from typing import Annotated, Final, TypeVar, cast, final
 
 from advanced_alchemy.base import metadata_registry
 from advanced_alchemy.config import AsyncSessionConfig, EngineConfig, SQLAlchemyAsyncConfig
@@ -47,6 +47,7 @@ from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from typing_extensions import override
 from xtr_dependency_injection import (
+    Autowire,
     Bundle,
     ContainerBuilder,
     ServiceConfigurator,
@@ -234,7 +235,7 @@ class _ConnectionsInUse:
 
 def _alchemy_factory(
     name: str, connection: ConnectionConfig
-) -> Callable[[_ConnectionsInUse], AsyncIterator[SQLAlchemyAsyncConfig]]:
+) -> Callable[[_ConnectionsInUse, bool], AsyncIterator[SQLAlchemyAsyncConfig]]:
     """Build the factory of the connection ``name``'s database layer configuration.
 
     It owns every engine of the connection — the primary's, and each
@@ -244,11 +245,17 @@ def _alchemy_factory(
     that one alone, so a connection never reads another's variables.
     """
 
-    async def alchemy(in_use: _ConnectionsInUse) -> AsyncIterator[SQLAlchemyAsyncConfig]:
+    async def alchemy(
+        in_use: _ConnectionsInUse,
+        debug: Annotated[bool, Autowire(param="kernel.debug")],
+    ) -> AsyncIterator[SQLAlchemyAsyncConfig]:
         resolved = connection.with_url_options()
         # The options are forwarded by name, each checked against the target's
-        # fields by ConnectionConfig; their values are the application's.
-        engine = cast("Callable[..., EngineConfig]", EngineConfig)(**resolved.engine_options)
+        # fields by ConnectionConfig; their values are the application's. Outside
+        # debug, a failed statement's error leaves its bound values out — an email,
+        # a token — unless the application asks for them.
+        engine_options = {"hide_parameters": not debug, **resolved.engine_options}
+        engine = cast("Callable[..., EngineConfig]", EngineConfig)(**engine_options)
         session = cast("Callable[..., AsyncSessionConfig]", AsyncSessionConfig)(
             **resolved.session_options
         )

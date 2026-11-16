@@ -50,6 +50,12 @@ uv add "xtr-messenger[orm]"                           # beside it: the orm:// tr
 |---|---|---|
 | `postgres` / `mysql` / `sqlite` | `asyncpg` / `asyncmy` / `aiosqlite` | The async driver of your database |
 
+SQLite is for development and tests, not production. Its Python driver runs in a legacy
+transaction mode by default: it begins no transaction for a read or a `SAVEPOINT`, so an outer
+rollback does not undo a savepoint that was already released. On Python 3.12 and later, the
+driver's own setting gives it real transactions — pass it through the engine options:
+`engine_options={"connect_args": {"autocommit": False}}`.
+
 No xtr package is an extra, and the container is not a dependency: the `OrmBundle` — engines,
 sessions, migrators from one configuration — is used when
 [xtr-dependency-injection](../xtr-dependency-injection) is installed beside the package, and a
@@ -307,6 +313,11 @@ DATABASE_URL="postgresql+asyncpg://app:secret@db/shop?pool_size=20&expire_on_com
 Flags read `1`/`true`/`yes`/`on` and `0`/`false`/`no`/`off`; numbers are numbers; `echo` also
 takes `debug`. A value that does not read fails the service that needed the URL, naming the
 option. Only the connection's own URL is read this way, not its replicas'.
+
+Outside debug (`kernel.debug` false), `hide_parameters` defaults to on: an error raised by a
+failed statement leaves its bound values out of its message and the logs — an email, a token.
+Set it in the engine options or the URL (`?hide_parameters=false`) to see them. A connection's
+`repr` hides the password of every URL and every value of `connect_args`.
 
 ### Read replicas
 
