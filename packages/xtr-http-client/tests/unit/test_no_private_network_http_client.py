@@ -370,7 +370,7 @@ async def test_a_redirect_with_nowhere_to_go_is_the_answer() -> None:
         assert response.get_status_code() == 302
 
 
-async def test_what_a_host_resolves_to_is_asked_once() -> None:
+async def test_two_requests_resolve_a_host_each() -> None:
     asked: list[str] = []
 
     async def resolve(host: str, port: int) -> Sequence[str]:
@@ -389,10 +389,10 @@ async def test_what_a_host_resolves_to_is_asked_once() -> None:
     async with await client.request("GET", "http://receiver.test/b"):
         pass
 
-    assert asked == ["receiver.test"]
+    assert asked == ["receiver.test", "receiver.test"]
 
 
-async def test_reset_forgets_what_every_host_resolved_to() -> None:
+async def test_a_redirect_chain_resolves_a_host_once() -> None:
     asked: list[str] = []
 
     async def resolve(host: str, port: int) -> Sequence[str]:
@@ -401,16 +401,13 @@ async def test_reset_forgets_what_every_host_resolved_to() -> None:
 
         return ["93.184.216.34"]
 
-    inner = MockHttpClient([MockResponse(b"one"), MockResponse(b"two")])
+    inner = MockHttpClient([_redirect("http://receiver.test/b"), MockResponse(b"two")])
     client = NoPrivateNetworkHttpClient(inner, resolver=resolve)
 
-    async with await client.request("GET", "http://receiver.test/a"):
-        pass
-    await client.reset()
-    async with await client.request("GET", "http://receiver.test/b"):
-        pass
+    async with await client.request("GET", "http://receiver.test/a") as response:
+        assert response.get_status_code() == 200
 
-    assert asked == ["receiver.test", "receiver.test"]
+    assert asked == ["receiver.test"]
 
 
 async def test_reset_resets_the_wrapped_client_too() -> None:
@@ -469,7 +466,7 @@ async def test_with_options_wraps_a_narrowed_client_and_keeps_the_guard() -> Non
         _ = await narrowed.request("GET", "http://104.26.14.7/")
 
 
-async def test_with_options_shares_the_address_cache_with_the_original() -> None:
+async def test_with_options_shares_no_address_cache_with_the_original() -> None:
     asked: list[str] = []
 
     async def resolve(host: str, port: int) -> Sequence[str]:
@@ -487,4 +484,4 @@ async def test_with_options_shares_the_address_cache_with_the_original() -> None
     async with await narrowed.request("GET", "http://receiver.test/b"):
         pass
 
-    assert asked == ["receiver.test"]
+    assert asked == ["receiver.test", "receiver.test"]

@@ -76,7 +76,7 @@ class RequestOptions(TypedDict, total=False):
         resolve: Host to IP address, used instead of asking a resolver. This
             is what pins a request to an address that has already been
             checked, so that nothing can change under it between the check
-            and the connection.
+            and the connection. It pins the request it is given with only.
         proxy: The proxy to go through, as a URL.
         verify_peer: Whether to check that the peer's certificate is trusted.
         verify_host: Whether to check that the certificate is for the host

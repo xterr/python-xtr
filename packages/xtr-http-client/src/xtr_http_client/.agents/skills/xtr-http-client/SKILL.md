@@ -137,13 +137,17 @@ guarded = NoPrivateNetworkHttpClient(inner, allow_list=("10.1.2.3",))
 ```
 
 - **Throttling** books a token before each request and waits for its turn, so the pace holds
-  under concurrency. Requests sharing a limiter share the pace; `with_options()` keeps it.
+  under concurrency. Requests sharing a limiter share the pace; `with_options()` keeps it, and
+  `reset()` does not forget it.
 - **Tracing** fills `client.get_traced_requests()` as requests go on — a `TracedRequest` has
   `method`, `url`, `options`, `info`, `content`. `extra={"trace_content": False}` drops the
   bodies (`content` is then `False`); `disabled=lambda: ...` records nothing while it says so.
+  Credentials (`auth_basic`, `auth_bearer`, `Authorization` / `Cookie` / `Proxy-Authorization`
+  headers) are recorded as `"***"`, and only the last `MAX_TRACES` (1000) requests are kept.
 - **The guard** is the SSRF answer for a URL that came from outside. It checks what the host
   *resolves to*, refuses the whole request if any address is refused, pins the request to the
   checked address through `resolve`, and follows redirects itself so no hop goes unchecked.
+  A `resolve` pin holds for the request that carries it only.
   Refusal is `TransportError`: `Host "<host>" is blocked for "<url>".`. Without `subnets` it
   refuses `IpUtils.PRIVATE_SUBNETS`; `allow_list` opens one receiver. Addresses and CIDR
   networks only — never host names.

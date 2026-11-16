@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Final, TypedDict, cast, final
 
@@ -26,6 +27,11 @@ __all__ = ["TraceableHttpClient", "TracedRequest"]
 # out of its record.
 _BODIES: Final = frozenset({"body", "json"})
 
+# The options and headers that carry a credential, kept in a record masked.
+_SECRET_OPTIONS: Final = frozenset({"auth_basic", "auth_bearer"})
+_SECRET_HEADERS: Final = frozenset({"authorization", "cookie", "proxy-authorization"})
+_MASK: Final = "***"
+
 
 class TracedRequest(TypedDict):
     """The record of one request made through a tracing client.
@@ -35,7 +41,9 @@ class TracedRequest(TypedDict):
         url: The URL it was made to, as it was asked for.
         options: The options it was made with, as they were given — without
             ``body`` and ``json`` when ``extra.trace_content`` turned the
-            bodies off.
+            bodies off, and with every credential (``auth_basic``,
+            ``auth_bearer``, an ``Authorization``, ``Cookie`` or
+            ``Proxy-Authorization`` header) written as ``"***"``.
         info: What the transfer knew about itself when the response arrived.
             Empty until it arrives, and carrying ``error`` alone when nothing
             does.
@@ -88,7 +96,14 @@ class TraceableHttpClient(HttpClientInterface, ResetInterface):
     The record is the point, so a copy made by :meth:`with_options` shares it:
     narrowing a client for one job hands out another way of making requests,
     all of them written into the one list.
+
+    The record keeps the last :attr:`MAX_TRACES` requests, so a client that
+    is never reset does not grow without bound, and it never keeps a
+    credential as it was sent.
     """
+
+    MAX_TRACES: Final[int] = 1000
+    """How many requests the record keeps, the oldest dropped first."""
 
     __slots__ = ("_client", "_disabled", "_traces")
 
@@ -106,7 +121,7 @@ class TraceableHttpClient(HttpClientInterface, ResetInterface):
         """
         self._client = client
         self._disabled = disabled
-        self._traces: list[TracedRequest] = []
+        self._traces: deque[TracedRequest] = deque(maxlen=self.MAX_TRACES)
 
     @override
     async def request(
@@ -216,10 +231,11 @@ class TraceableHttpClient(HttpClientInterface, ResetInterface):
     def _written(self, method: str, url: str, options: RequestOptions) -> TracedRequest:
         """Add the record of a request about to be made, for the rest to be filled into."""
         kept = _keeps_content(options)
+        recorded = options if kept else _without_bodies(options)
         trace: TracedRequest = {
             "method": method,
             "url": url,
-            "options": options if kept else _without_bodies(options),
+            "options": _masked(recorded),
             "info": {},
             "content": None if kept else False,
         }
@@ -277,6 +293,23 @@ def _keeps_content(options: RequestOptions) -> bool:
 def _without_bodies(options: RequestOptions) -> RequestOptions:
     """``options`` with what was sent dropped, for a request whose bodies are not kept."""
     return as_options({name: value for name, value in options.items() if name not in _BODIES})
+
+
+def _masked(options: RequestOptions) -> RequestOptions:
+    """``options`` with every credential they carry written as ``"***"``."""
+    if not _SECRET_OPTIONS.intersection(options) and "headers" not in options:
+        return options
+    masked: dict[str, object] = {
+        name: _MASK if name in _SECRET_OPTIONS and value is not None else value
+        for name, value in options.items()
+    }
+    headers = options.get("headers")
+    if headers is not None:
+        masked["headers"] = {
+            name: _MASK if name.lower() in _SECRET_HEADERS else value
+            for name, value in headers.items()
+        }
+    return as_options(masked)
 
 
 def _recorded_info(response: HttpResponseInterface) -> Mapping[str, object]:

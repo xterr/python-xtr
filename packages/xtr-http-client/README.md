@@ -111,8 +111,8 @@ the rest. An option this client does not know is refused with `InvalidArgumentEr
 the closest one it does, because an option spelled wrong that was quietly dropped is a setting
 that silently never applied.
 
-A host `resolve` pins to an address stays pinned for the requests after it; `reset()` forgets
-every pin and keeps the connections open.
+A host `resolve` pins to an address is pinned for that request only; the next request asks a
+resolver again unless it pins the host too. `reset()` keeps the connections open.
 
 A `body` mapping holding a file opened `"rb"` is uploaded as `multipart/form-data` — plain
 values as `data`, each file as a part named after its file and typed from that name — and a
@@ -244,7 +244,8 @@ moment that booking is due; booking first and waiting after is what makes the pa
 concurrency, since requests then leave in the order they were asked for rather than all at
 once. Which requests share a pace is decided by which of them are given the same limiter — one
 per host, one per account, one for the whole application — and a copy made by `with_options()`
-shares it.
+shares it. `reset()` keeps the pace: the end of one unit of work forgets nothing counted
+against a rate every unit shares.
 
 ### `TraceableHttpClient` — a record of every request made
 
@@ -267,7 +268,10 @@ reads the body. So a trace read mid-request says how far it has got rather than 
 The bodies are the costly half of a record and the half most likely to carry a credential, so
 `extra={"trace_content": False}` leaves them out: `body` and `json` are dropped from `options`
 and `content` is `False` rather than bytes. Pass `disabled=lambda: ...` to record nothing while
-it says so. There is one record per client and its copies; `reset()` clears it.
+it says so. `auth_basic`, `auth_bearer` and an `Authorization`, `Cookie` or
+`Proxy-Authorization` header are always recorded as `"***"`. There is one record per client and
+its copies, keeping the last `TraceableHttpClient.MAX_TRACES` (1000) requests; `reset()` clears
+it.
 
 ### `NoPrivateNetworkHttpClient` — refuse what leads inwards
 
@@ -294,7 +298,8 @@ blocked for "<url>".` for an address written out. With no `subnets` it refuses
 private, link-local, carrier-grade NAT, unique-local, multicast, reserved and unspecified
 alike. `subnets` replaces that set and `allow_list` opens one receiver without opening the
 network it sits in; both take addresses or CIDR networks, never host names. What a host
-resolved to is remembered for the client's life, and `reset()` forgets it.
+resolved to is remembered for one request's chain of redirects, so hops back to the same host
+ask the resolver once; the next request asks again.
 
 xtr-http-foundation is not a dependency: install it beside this package (`uv add
 xtr-http-foundation`) to use the guard. Without it, building `NoPrivateNetworkHttpClient`

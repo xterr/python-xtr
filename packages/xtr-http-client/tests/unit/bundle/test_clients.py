@@ -26,7 +26,7 @@ _BASE_URI = "https://primary.test/"
 async def test_the_real_transport_is_closed_when_its_factory_is() -> None:
     factory = cast("AsyncGenerator[HttpxHttpClient, None]", _httpx_transport(HttpClientConfig()))
     transport = await anext(factory)
-    pool, _ = transport._clients.for_options(transport._default_options)
+    pool = transport._clients.for_options(transport._default_options)
 
     await factory.aclose()
 

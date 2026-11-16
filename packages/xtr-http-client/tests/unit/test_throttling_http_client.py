@@ -160,12 +160,12 @@ async def test_a_narrowed_client_is_paced_by_the_same_limiter() -> None:
     assert limiter.reservations == [(1, None), (1, None)]
 
 
-async def test_resetting_forgets_what_the_limiter_counted() -> None:
+async def test_a_reset_keeps_the_shared_pace() -> None:
     client, limiter = _throttled()
 
     await client.reset()
 
-    assert limiter.resets == 1
+    assert limiter.resets == 0
 
 
 async def test_resetting_reaches_a_wrapped_client_that_can_be_reset() -> None:
@@ -177,7 +177,7 @@ async def test_resetting_reaches_a_wrapped_client_that_can_be_reset() -> None:
     await client.reset()
 
     assert inner.get_requests_count() == 0
-    assert limiter.resets == 1
+    assert limiter.resets == 0
 
 
 async def test_resetting_leaves_a_wrapped_client_that_cannot_be_reset_alone() -> None:
@@ -187,4 +187,4 @@ async def test_resetting_leaves_a_wrapped_client_that_cannot_be_reset_alone() ->
         pass
     await client.reset()
 
-    assert limiter.resets == 1
+    assert limiter.resets == 0

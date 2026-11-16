@@ -651,7 +651,7 @@ class HttpClientTestCase:
         assert _info(response, "canceled", bool) is True
 
     async def test_resolve(self) -> None:
-        """A host pinned to an address is reached at it, and is not once the pin is gone."""
+        """A host pinned to an address is reached at it, for the request that pinned it only."""
         client = self.create_client()
         response = await client.request(
             "GET",
@@ -660,9 +660,6 @@ class HttpClientTestCase:
         )
 
         assert response.get_status_code() == 200
-        assert (
-            await client.request("GET", f"http://{_PINNED_HOST}:{self.port}/")
-        ).get_status_code() == 200
 
         with pytest.raises(TransportError):
             _ = await client.request("GET", f"http://{_PINNED_HOST}:{self.port}/", timeout=1)

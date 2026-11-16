@@ -28,6 +28,50 @@ async def test_a_request_is_written_down_as_it_was_made() -> None:
     assert traced[0]["content"] == b"hello"
 
 
+async def test_traces_are_bounded_and_mask_credentials() -> None:
+    def answer(method: str, url: str, options: object) -> MockResponse:
+        del method, url, options
+        return MockResponse(b"")
+
+    client = TraceableHttpClient(MockHttpClient(answer))
+
+    for number in range(TraceableHttpClient.MAX_TRACES + 1):
+        async with await client.request(
+            "GET",
+            f"{_URL}?n={number}",
+            auth_basic=("user", "pa55"),
+            headers={
+                "Proxy-Authorization": "Basic cHJveHk=",
+                "Cookie": "sid=1",
+                "X-Kind": "thing",
+            },
+        ):
+            pass
+
+    traced = client.get_traced_requests()
+
+    assert len(traced) == TraceableHttpClient.MAX_TRACES
+    assert traced[0]["url"] == f"{_URL}?n=1"
+    assert traced[0]["options"] == {
+        "auth_basic": "***",
+        "headers": {"Proxy-Authorization": "***", "Cookie": "***", "X-Kind": "thing"},
+    }
+
+
+async def test_a_bearer_token_and_an_authorization_header_are_masked() -> None:
+    client = TraceableHttpClient(MockHttpClient(MockResponse(b"")))
+
+    async with await client.request(
+        "GET", _URL, auth_bearer="t0ken", headers={"authorization": "Bearer t0ken"}
+    ):
+        pass
+
+    assert client.get_traced_requests()[0]["options"] == {
+        "auth_bearer": "***",
+        "headers": {"authorization": "***"},
+    }
+
+
 async def test_a_sent_request_is_written_down_by_its_method_and_uri() -> None:
     client = TraceableHttpClient(MockHttpClient(MockResponse(b"sent")))
 

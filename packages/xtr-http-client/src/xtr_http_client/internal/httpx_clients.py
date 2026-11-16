@@ -42,16 +42,12 @@ class HttpxClients:
     them once, when a pool is made, so they are read here as well and a
     change in them asks for a different pool rather than being ignored.
 
-    Each pool also remembers the addresses that requests pinned their hosts
-    to, until :meth:`reset` or :meth:`aclose`: a host reached at an address
-    once is reached at it again, without asking a resolver a second time.
-
     ``max_connections`` is the backend's pool-wide ceiling, not a per-host
     one: it counts every connection the pool holds, whichever host each of
     them goes to.
     """
 
-    __slots__ = ("_clients", "_max_connections", "_resolved")
+    __slots__ = ("_clients", "_max_connections")
 
     def __init__(self, max_connections: int) -> None:
         """Open nothing yet.
@@ -62,12 +58,8 @@ class HttpxClients:
         """
         self._max_connections = max_connections
         self._clients: dict[_Key, httpx.AsyncClient] = {}
-        self._resolved: dict[_Key, dict[str, str]] = {}
 
-    def for_options(
-        self,
-        options: Mapping[str, object],
-    ) -> tuple[httpx.AsyncClient, dict[str, str]]:
+    def for_options(self, options: Mapping[str, object]) -> httpx.AsyncClient:
         """Return the pool a request made with ``options`` belongs to.
 
         Args:
@@ -75,7 +67,7 @@ class HttpxClients:
                 defaults.
 
         Returns:
-            The pool's client, and the addresses it has had hosts pinned to.
+            The pool's client.
 
         Raises:
             InvalidArgumentError: When the HTTP version asked for is not one
@@ -86,24 +78,13 @@ class HttpxClients:
         if client is None:
             client = _build(options, self._max_connections)
             self._clients[key] = client
-            self._resolved[key] = {}
 
-        return client, self._resolved[key]
-
-    def reset(self) -> None:
-        """Forget the address every host was pinned to, keeping every pool open.
-
-        A pin is what the requests of one unit of work asked for; the
-        connections are how the next one gets anywhere, so they stay.
-        """
-        for resolved in self._resolved.values():
-            resolved.clear()
+        return client
 
     async def aclose(self) -> None:
         """Close every pool, and with it every connection any of them holds."""
         clients = list(self._clients.values())
         self._clients.clear()
-        self._resolved.clear()
 
         for client in clients:
             await client.aclose()

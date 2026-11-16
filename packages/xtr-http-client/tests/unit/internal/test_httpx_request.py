@@ -325,7 +325,6 @@ def test_a_pinned_host_is_reached_at_its_address_and_still_named_in_the_headers(
     url, extensions = pin_host(
         httpx.URL("http://pinned.example:8057/"),
         {"resolve": {"pinned.example": "127.0.0.1"}},
-        {},
         headers,
     )
 
@@ -340,32 +339,28 @@ def test_a_pinned_host_on_a_standard_port_is_named_without_one() -> None:
     _, _ = pin_host(
         httpx.URL("http://pinned.example/"),
         {"resolve": {"pinned.example": "127.0.0.1"}},
-        {},
         headers,
     )
 
     assert headers == [("Host", "pinned.example")]
 
 
-def test_a_host_pinned_once_stays_pinned_for_the_pool() -> None:
-    remembered: dict[str, str] = {}
-
+def test_a_host_pinned_by_one_request_is_left_to_a_resolver_for_the_next() -> None:
     _ = pin_host(
         httpx.URL("http://pinned.example/"),
         {"resolve": {"pinned.example": "127.0.0.1"}},
-        remembered,
         [],
     )
-    url, extensions = pin_host(httpx.URL("http://pinned.example/"), {}, remembered, [])
+    url, extensions = pin_host(httpx.URL("http://pinned.example/"), {}, [])
 
-    assert str(url) == "http://127.0.0.1/"
-    assert extensions == {"sni_hostname": "pinned.example"}
+    assert str(url) == "http://pinned.example/"
+    assert extensions == {}
 
 
 def test_a_host_nobody_pinned_is_left_to_a_resolver() -> None:
     headers: list[tuple[str, str]] = []
 
-    url, extensions = pin_host(httpx.URL("http://example.test/"), {}, {}, headers)
+    url, extensions = pin_host(httpx.URL("http://example.test/"), {}, headers)
 
     assert str(url) == "http://example.test/"
     assert extensions == {}
