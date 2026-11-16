@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import threading
 from typing import TYPE_CHECKING
 
 import pytest
@@ -279,3 +280,49 @@ async def test_a_pool_given_a_clock_counts_lifetimes_on_it(wrap: str) -> None:
     clock.sleep(11)
 
     assert not (await pool.get_item("k")).is_hit()
+
+
+async def test_a_forced_recompute_runs_its_own_callback() -> None:
+    pool = ArrayAdapter()
+    first = Computation("first", held=True)
+    computing = asyncio.create_task(pool.get("k", first))
+    _ = await first.started.wait()
+    forced = Computation("forced")
+
+    async with asyncio.timeout(5):
+        value = await pool.get("k", forced, beta=math.inf)
+
+    assert value == "forced"
+    assert forced.calls == 1
+    first.release()
+    assert await computing == "first"
+
+
+def test_flights_of_two_loops_do_not_mix() -> None:
+    pool = ArrayAdapter()
+    started = threading.Event()
+    release = threading.Event()
+
+    async def held(item: ItemInterface) -> str:
+        del item
+        started.set()
+        _ = await asyncio.to_thread(release.wait, 5)
+        return "other loop"
+
+    async def mine(item: ItemInterface) -> str:
+        del item
+        return "this loop"
+
+    other = threading.Thread(target=lambda: asyncio.run(pool.get("k", held)))
+    other.start()
+    try:
+        assert started.wait(5)
+
+        async def read() -> str:
+            async with asyncio.timeout(5):
+                return await pool.get("k", mine)
+
+        assert asyncio.run(read()) == "this loop"
+    finally:
+        release.set()
+        other.join(5)

@@ -218,10 +218,16 @@ class AbstractAdapter(
 
     @override
     async def commit(self) -> bool:
-        deferred, self._deferred = self._deferred, {}
+        deferred, batch = self._take_deferred()
         if not deferred:
             return True
+        try:
+            return await self._commit_batch(deferred)
+        finally:
+            self._written(batch)
 
+    async def _commit_batch(self, deferred: Mapping[str, CacheItem]) -> bool:
+        """Write ``deferred``, grouped by lifetime; the expired ones deleted instead."""
         now = self._clock.now().timestamp()
         default_expiry = now + self._default_lifetime if self._default_lifetime > 0 else None
         by_lifetime: dict[float, dict[str, object]] = {}
@@ -254,7 +260,7 @@ class AbstractAdapter(
 
     @override
     def with_sub_namespace(self, namespace: str, /) -> Self:
-        _ = self._flights()  # made now, so the view shares it rather than make its own
+        _ = self._shared()  # made now, so the view shares it rather than make its own
         clone = self._unqueued_copy()
         clone._namespace = (  # noqa: SLF001 — a copy of this very class.
             self._namespace + CacheItem.validate_key(namespace) + self.NS_SEPARATOR

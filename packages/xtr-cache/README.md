@@ -194,6 +194,10 @@ deletes its version. Nothing is listed or scanned, so invalidating costs the sam
 items carry the tag. Versions read are trusted for `known_tag_versions_ttl` seconds (0.15 by
 default), which is how soon an invalidation elsewhere reaches this process. Items saved as
 deferred take their versions when committed, so an invalidation meanwhile does not apply to them.
+Within a process an invalidation holds once `invalidate_tags()` returned: a version read while it
+ran is used by that read but not trusted after, and a value `get()` computed while one of its tags
+was invalidated is returned but not saved (`save_failed` in the metadata). Another process's
+invalidation is seen through the version alone.
 A tag's first version is given one save at a time in a process; two processes giving one at the
 same moment may each keep their own, and the items of the one that lost miss once and are
 computed again.
@@ -226,10 +230,15 @@ Tagging an item of any other pool raises `LogicError`.
   its own lifetime, or the pool's default. On a hit, the value may be recomputed before it
   expires, with a chance that grows as expiry nears and faster for values that are slow to compute. Under load one caller refreshes it while the others
   keep reading the old one, instead of all missing at once. `beta` tunes it: `0` disables it,
-  `math.inf` forces a recomputation now.
+  `math.inf` forces a recomputation now — with the caller's own callback, never joining one
+  already running.
 
 A callback reading its own key — directly or through what it calls — computes without saving
-rather than waiting on itself. Time comes from the clock in force (`xtr_clock`), so
+rather than waiting on itself, and one reading another key of the slot it holds computes that key
+without locking. Two callbacks each reading the other's key wait on each other: that is a cyclic
+dependency between them, not something the pool breaks. Computations are shared per event loop,
+so loops in other threads never wait on each other's. A key a commit is writing is read once that
+commit is done. Time comes from the clock in force (`xtr_clock`), so
 `mock_time()` freezes lifetimes and recomputation alike.
 
 ## Marshallers
