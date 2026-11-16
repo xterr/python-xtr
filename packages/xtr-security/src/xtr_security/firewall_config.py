@@ -72,8 +72,8 @@ class FirewallConfig:
             name, path, domain, ``Secure``, ``HttpOnly``, ``SameSite`` and
             lifetime — or ``None`` for the session's default, an
             ``xtr_session`` cookie on ``/`` that is ``HttpOnly`` and
-            ``SameSite=Lax`` but not ``Secure``. An application served only
-            over HTTPS sets ``secure=True``. Firewalls sharing a
+            ``SameSite=Lax`` and ``Secure`` exactly when the request came
+            over https; ``secure=True`` pins it. Firewalls sharing a
             ``context_key`` share one session, so they name the same cookie.
             Meaningful on a stateful firewall only.
         provider: The name of the user provider the firewall loads users from,

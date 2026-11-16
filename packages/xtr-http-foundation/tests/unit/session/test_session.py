@@ -340,6 +340,37 @@ def test_it_builds_the_session_from_the_id_cookie_the_request_carried() -> None:
     assert session.staged_set_cookie() is None
 
 
+def test_the_cookie_is_secure_on_https_by_default() -> None:
+    session = Session.from_request(ServerRequest("GET", "https://shop.test/"), SpyStorage())
+
+    staged = session.staged_set_cookie()
+
+    assert staged is not None
+    assert "secure" in staged.lower().split("; ")
+
+
+def test_the_cookie_is_not_secure_on_plain_http_by_default() -> None:
+    session = Session.from_request(ServerRequest("GET", "http://shop.test/"), SpyStorage())
+
+    staged = session.staged_set_cookie()
+
+    assert staged is not None
+    assert "secure" not in staged.lower().split("; ")
+
+
+def test_a_cookie_said_insecure_stays_so_on_https() -> None:
+    session = Session.from_request(
+        ServerRequest("GET", "https://shop.test/"),
+        SpyStorage(),
+        cookie=SessionCookieConfig(secure=False),
+    )
+
+    staged = session.staged_set_cookie()
+
+    assert staged is not None
+    assert "secure" not in staged.lower().split("; ")
+
+
 def test_it_reads_the_cookie_the_config_names() -> None:
     request = ServerRequest("GET", "/").with_cookie_params({"app_session": _ID})
     cookie = SessionCookieConfig(name="app_session")

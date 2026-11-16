@@ -44,7 +44,7 @@ A firewall naming a `provider` that is not declared fails the build with
 | `stateless` | `True` | `False` keeps a session: the token it carries is restored on every request, through the `SessionStorageInterface` service the application registers; with none registered the build fails naming it |
 | `context_key` | `None` | The name the firewall's context is stored under in the session — the part after `_security.` — or `None` for the firewall's own name |
 | `session_strategy` | `"migrate"` | What a successful login does to the session it reattached: `migrate` rotates its ID keeping its attributes, `invalidate` empties it, `none` leaves it alone. Meaningful on a stateful firewall only |
-| `session_cookie` | `None` | The `SessionCookieConfig` (from `xtr_http_foundation`) the session ID travels in — `name`, `path`, `domain`, `secure`, `httponly`, `samesite`, `lifetime` — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, not `Secure`. Meaningful on a stateful firewall only |
+| `session_cookie` | `None` | The `SessionCookieConfig` (from `xtr_http_foundation`) the session ID travels in — `name`, `path`, `domain`, `secure`, `httponly`, `samesite`, `lifetime` — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, `Secure` on https requests. Meaningful on a stateful firewall only |
 | `provider` | `None` | The name of the user provider the firewall loads users from; with none here and none configured, an authenticator needing one gets a `MissingUserProvider` that fails, naming the firewall, when first used |
 | `user_checker` | `None` | A user-checker service type, or the default in-memory checker |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
@@ -94,8 +94,9 @@ below every other response listener, so the token is in the session before the s
 written, and a storage that fails fails the request loudly rather than losing the session
 quietly.
 
-The cookie is the firewall's `session_cookie`. The default is not `Secure`, so an application
-served only over HTTPS sets it:
+The cookie is the firewall's `session_cookie`. The default is `Secure` on https requests and not
+on plain http; an application that wants it pinned — `Secure` whatever the scheme the server
+reports — sets it:
 
 ```python
 from xtr_http_foundation import SessionCookieConfig

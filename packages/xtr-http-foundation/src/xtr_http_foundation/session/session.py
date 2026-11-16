@@ -6,6 +6,7 @@ import asyncio
 import re
 import secrets
 from copy import deepcopy
+from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING, Final, Self, TypeGuard, final
 
@@ -128,7 +129,8 @@ class Session(SessionInterface):
             request: The request that arrived.
             storage: Where the attributes are kept between requests.
             cookie: The shape of the cookie that carries the ID; its name
-                is the name read from the request.
+                is the name read from the request. A ``secure`` left unset
+                is settled here, by the request's scheme.
 
         Returns:
             The session for the request — started or not, since nothing is
@@ -136,7 +138,11 @@ class Session(SessionInterface):
         """
         return cls(
             storage,
-            cookie=cookie,
+            cookie=(
+                cookie
+                if cookie.secure is not None
+                else replace(cookie, secure=request.get_uri().get_scheme() == "https")
+            ),
             cookie_value=request.get_cookie_params().get(cookie.name),
         )
 
@@ -337,7 +343,8 @@ class Session(SessionInterface):
             expires=expires,
             path=self._cookie.path,
             domain=self._cookie.domain,
-            secure=self._cookie.secure,
+            # Unset only on a session built by hand, not from a request: no scheme to go by.
+            secure=self._cookie.secure is True,
             httponly=self._cookie.httponly,
             samesite=self._cookie.samesite,
         )

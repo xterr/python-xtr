@@ -270,7 +270,8 @@ async def test_a_listener_given_no_cookie_stages_the_sessions_default() -> None:
     parked = security_state_of(event.state).attributes[SecurityRequestAttributes.SESSION]
     assert isinstance(parked, Session)
     staged = parked.staged_set_cookie()
-    default = Session(MemorySessionStorage())
+    # The session's own default, settled by the same request: Secure, the request being https.
+    default = Session.from_request(event.request, MemorySessionStorage())
     expected = default.staged_set_cookie()
     assert staged is not None
     assert expected is not None

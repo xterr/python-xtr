@@ -37,7 +37,8 @@ an ID cookie, kept in whatever storage the application points at.
   `await session.get/set/has/remove/clear(...)`, `await session.migrate(destroy_old=False)`,
   `await session.invalidate()`, `await session.save()`, `session.get_id()`,
   `session.staged_set_cookie()`, `session.is_started()`. `SessionCookieConfig()` is the
-  cookie's shape, and `MemorySessionStorage` the storage that needs nothing else.
+  cookie's shape — `secure` unset means `Secure` on https requests, resolved by
+  `Session.from_request` — and `MemorySessionStorage` the storage that needs nothing else.
 
 ## Claim the requests that are yours
 
@@ -297,8 +298,9 @@ Everything derives from `HttpFoundationError`. There are two. `InvalidArgumentEr
 `ValueError`, is raised for an expression that does not read as one, by `is_private_ip` and
 `anonymize` for text that is no address, by the cookie builder for a name it cannot write, a
 `samesite` that is none of the three, or a `path` or `domain` an attribute cannot carry, by
-`SessionCookieConfig` for an empty name, a `samesite` that is none of the three or a negative
-lifetime, and by the cache-pool session storage at `save()` for a value JSON cannot give back
+`SessionCookieConfig` for an empty name, a `samesite` that is none of the three, a negative
+lifetime, or `secure=False` with `samesite="none"` or a `__Host-`/`__Secure-` name, and by the
+cache-pool session storage at `save()` for a value JSON cannot give back
 as it was given. `SessionError` is raised when the storage a session persists through fails to
 load, keep or remove an entry.
 

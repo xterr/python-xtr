@@ -40,10 +40,10 @@ _HASHED = "hashed"
 _REHASHED = "rehashed"
 
 
-def _request() -> ServerRequestInterface:
+def _request(scheme: str = "https") -> ServerRequestInterface:
     """Build a request whose state bag is parked, the flow's own contract."""
     bag: dict[str, object] = {}
-    return make_message().with_attribute(SecurityRequestAttributes.STATE_BAG, bag)
+    return make_message(scheme=scheme).with_attribute(SecurityRequestAttributes.STATE_BAG, bag)
 
 
 def _staged_of(request: ServerRequestInterface) -> RememberMeCookie:
@@ -181,6 +181,33 @@ async def test_clear_stages_the_cleared_cookie() -> None:
     await handler.clear_remember_me_cookie(request)
 
     assert _staged_of(request).value is None
+
+
+async def test_an_unset_secure_follows_the_request_scheme() -> None:
+    clock = _frozen()
+    user = InMemoryUser("ada", password=_HASHED)
+    handler, _provider = _handler(clock, user)
+    over_https, over_http = _request(), _request(scheme="http")
+
+    await handler.create_remember_me_cookie(over_https, user)
+    await handler.create_remember_me_cookie(over_http, user)
+
+    # Unset, the cookie is Secure exactly when the request came over https.
+    assert _staged_of(over_https).secure is True
+    assert _staged_of(over_http).secure is False
+
+
+async def test_a_cookie_said_insecure_stays_so_on_https() -> None:
+    clock = _frozen()
+    user = InMemoryUser("ada", password=_HASHED)
+    provider = RecordingUserProvider({"ada": user})
+    hasher = SignatureHasher(["password"], "a-secret", clock=clock)
+    handler = SignatureRememberMeHandler(hasher, provider, {"secure": False}, clock=clock)
+    request = _request()
+
+    await handler.create_remember_me_cookie(request, user)
+
+    assert _staged_of(request).secure is False
 
 
 async def test_the_options_name_the_cookie_and_its_attributes() -> None:

@@ -195,7 +195,7 @@ else registers unconfigured: no firewall, no rule, no voter beyond the built-ins
 | `stateless` | `True` | Whether the firewall keeps no session. A stateful firewall (`stateless=False`) restores the token its session carries on every request, through the `SessionStorageInterface` service the application registers; with none registered the build fails naming it |
 | `context_key` | `None` | The name the firewall's context is stored under in the session — the part after `_security.` — or `None` for the firewall's own name |
 | `session_strategy` | `migrate` | What a successful login does to the session it reattached: `migrate` rotates its ID keeping its attributes, `invalidate` empties it, `none` leaves it alone. Meaningful on a stateful firewall only |
-| `session_cookie` | `None` | The `SessionCookieConfig` the session ID travels in — name, path, domain, `secure`, `httponly`, `samesite`, lifetime — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, not `Secure`. Meaningful on a stateful firewall only |
+| `session_cookie` | `None` | The `SessionCookieConfig` the session ID travels in — name, path, domain, `secure`, `httponly`, `samesite`, lifetime — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, `Secure` on https requests. Meaningful on a stateful firewall only |
 | `provider` | `None` | The user provider the firewall loads users from; with none here and none configured at all, an authenticator that needs one gets a `MissingUserProvider` that fails, naming the firewall, when first used — and with none here but others configured, one that needs one fails the build, naming the firewall. The provider may be a service of the request (`lifetime="scoped"`), such as a repository over the session of the request's unit of work: everything the firewall builds over it is built per request too, so one request's services all use that request's instance |
 | `user_checker` | `None` | A user-checker service type, or the default in-memory checker; it may be a service of the request too, and one no service provides fails the build, naming the firewall |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
@@ -247,9 +247,10 @@ that failed without producing a response still wrote. The listener is registered
 any stateful firewall is configured and carries the same remove-if-missing marker over
 the application's session storage as the context step it serves.
 
-The session ID travels in the firewall's `session_cookie`,
-`SessionCookieConfig(name="sid", secure=True)` for an application served only over HTTPS; the
-default is `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax` and not `Secure`. The context step
+The session ID travels in the firewall's `session_cookie`, `SessionCookieConfig(name="sid")` to
+rename it; the default is `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, and `Secure` exactly
+when the request came over https — behind a proxy ending TLS, only where the server reads its
+forwarded headers; `secure=True` pins it. The context step
 is the only place the firewall's session is built, so the login's rotation and the logout's
 invalidation stage the same cookie, under a new ID with the same path and domain.
 
@@ -459,7 +460,8 @@ the cookie is held: `signature` signs the value over the user's covered properti
 changed password retires every cookie; `persistent` keeps a series per cookie through the
 application's `TokenProviderInterface` service, named by qualifier in `token_provider` —
 refused by name at wiring when the persistent handler is asked for without one. The cookie's
-shape — `name` (`REMEMBERME`), `lifetime` (a year), `path`, `domain`, `secure`, `httponly`,
+shape — `name` (`REMEMBERME`), `lifetime` (a year), `path`, `domain`, `secure` (unset: `Secure`
+on https requests), `httponly`,
 `samesite` — and the ask — `always_remember_me`, or the request's `remember_me_parameter`
 (`_remember_me`) — are the configuration's own fields; `signature_properties` names the
 user properties whose digest a persisted value carries (the password by default). The

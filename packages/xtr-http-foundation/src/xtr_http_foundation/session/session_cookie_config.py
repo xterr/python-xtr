@@ -36,7 +36,11 @@ class SessionCookieConfig:
             default.
         domain: The domain the cookie is available to; every host that
             reads it when ``None``.
-        secure: Whether the cookie travels only over a secure connection.
+        secure: Whether the cookie travels only over a secure connection;
+            ``None``, the default, makes it ``Secure`` exactly when the
+            request it answers came over https. Behind a proxy that ends
+            TLS, the scheme is https only where the server reads the
+            proxy's forwarded headers.
         httponly: Whether the cookie stays out of the scripts a page runs.
         samesite: Whether the cookie travels on cross-site requests —
             ``"lax"``, ``"strict"`` or ``"none"``, read without regard to
@@ -48,7 +52,7 @@ class SessionCookieConfig:
     name: str = "xtr_session"
     path: str | None = "/"
     domain: str | None = None
-    secure: bool = False
+    secure: bool | None = None
     httponly: bool = True
     samesite: str | None = "lax"
     lifetime: int | None = None
@@ -58,7 +62,10 @@ class SessionCookieConfig:
 
         Raises:
             InvalidArgumentError: When the name is empty, when ``samesite``
-                is none of the three, or when the lifetime is negative.
+                is none of the three, when the lifetime is negative, or when
+                a cookie said not to be secure has ``samesite="none"`` or a
+                ``__Host-``/``__Secure-`` name — both of which a browser
+                drops unless the cookie is secure.
         """
         if not self.name:
             raise InvalidArgumentError("The session cookie name cannot be empty.")
@@ -71,4 +78,15 @@ class SessionCookieConfig:
         if self.lifetime is not None and self.lifetime < 0:
             raise InvalidArgumentError(
                 f"The session lifetime cannot be negative: {self.lifetime}.",
+            )
+
+        if self.secure is False and (self.samesite or "").lower() == "none":
+            raise InvalidArgumentError(
+                'A samesite="none" cookie must be secure: leave secure unset or set it True.',
+            )
+
+        if self.secure is False and self.name.startswith(("__Host-", "__Secure-")):
+            raise InvalidArgumentError(
+                f'The cookie name "{self.name}" uses a reserved prefix, '
+                "which needs a secure cookie.",
             )

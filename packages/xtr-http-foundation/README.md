@@ -252,8 +252,13 @@ before writing, so an untouched session saves nothing and mints no cookie.
   here too, and every read is a copy of its own; an application whose sessions must survive a
   restart or be shared between servers points the session at a storage of its own.
 - **The cookie** is `SessionCookieConfig`, frozen and buildable with no arguments: name
-  `xtr_session`, path `/`, `httponly` on, `samesite` `lax`, `secure` off, no domain, no
-  lifetime. A `lifetime` of `None` is the browser session; a number is the application's
+  `xtr_session`, path `/`, `httponly` on, `samesite` `lax`, no domain, no lifetime, and
+  `secure` unset — `Secure` exactly when the request came over https (behind a proxy ending TLS,
+  only where the server reads its forwarded headers); `True` or `False` pins it. A
+  `samesite="none"` cookie, or one named `__Host-…`/`__Secure-…`, refuses `secure=False`: a browser
+  drops either unless it is secure. A `Session` built by hand rather than with `from_request`
+  has no request to read the scheme off, and writes no `Secure` while it is unset.
+  A `lifetime` of `None` is the browser session; a number is the application's
   notion of how long a session lives — the cookie is dated by it, and the storage entry is
   written to live as long, falling back to the storage's own default when none is given.
   The cookie's date is read from the `clock` the session is given (an xtr-clock
