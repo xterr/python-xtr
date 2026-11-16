@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import anyio
 import pytest
 from xtr_clock import MockClock
 
@@ -21,6 +22,9 @@ if TYPE_CHECKING:
     from tests.support.orm import Database
 
 pytestmark = pytest.mark.anyio
+
+_POLLS = 5
+"""How many requests race to record one poll, or to spend one code."""
 
 
 def test_it_declares_the_device_code_manager_contract() -> None:
@@ -55,6 +59,92 @@ async def test_saving_a_code_leaves_the_requests_pending_work_alone(tmp_path: Pa
 
         assert await database.count("oauth2_device_code") == 1
         assert await database.count("oauth2_client") == 1
+
+
+async def test_only_the_first_caller_to_spend_a_code_is_told_it_did(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(device_code_model(client=client))
+
+        assert await manager.revoke("dc-1") is True
+        assert await (await _on(database)).revoke("dc-1") is False
+        found = await manager.find("dc-1")
+        assert found is not None
+        assert found.is_revoked() is True
+
+
+async def test_many_polls_spending_one_code_leave_exactly_one_winner(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(device_code_model(client=client))
+        verdicts: list[bool] = []
+
+        async def spend() -> None:
+            verdicts.append(await (await _on(database)).revoke("dc-1"))
+
+        async with anyio.create_task_group() as group:
+            for _ in range(_POLLS):
+                _ = group.start_soon(spend)
+
+        assert sorted(verdicts) == [*[False] * (_POLLS - 1), True]
+
+
+async def test_only_the_first_decision_on_a_code_is_recorded(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(device_code_model(client=client))
+
+        assert await manager.record_decision("dc-1", "user-1", user_approved=True) is True
+        assert await manager.record_decision("dc-1", "user-2", user_approved=True) is False
+        found = await manager.find("dc-1")
+        assert found is not None
+        assert found.get_user_identifier() == "user-1"
+        assert found.get_user_approved() is True
+
+
+async def test_an_expired_device_code_cannot_be_approved(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(device_code_model(expiry=EARLIER, client=client))
+
+        assert await manager.record_decision("dc-1", "user-1", user_approved=True) is False
+
+
+async def test_a_spent_device_code_cannot_be_approved(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(device_code_model(client=client))
+        _ = await manager.revoke("dc-1")
+
+        assert await manager.record_decision("dc-1", "user-1", user_approved=True) is False
+
+
+async def test_a_poll_is_recorded_only_against_the_poll_it_read(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(device_code_model(client=client))
+
+        assert await manager.record_poll("dc-1", None, NOW) is True
+        assert await manager.record_poll("dc-1", None, LATER) is False
+        read = await manager.find("dc-1")
+        assert read is not None
+        assert await manager.record_poll("dc-1", read.get_last_polled_at(), LATER) is True
+
+
+async def test_many_polls_read_at_once_record_exactly_one(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(device_code_model(client=client))
+        verdicts: list[bool] = []
+
+        async def poll() -> None:
+            verdicts.append(await (await _on(database)).record_poll("dc-1", None, NOW))
+
+        async with anyio.create_task_group() as group:
+            for _ in range(_POLLS):
+                _ = group.start_soon(poll)
+
+        assert sorted(verdicts) == [*[False] * (_POLLS - 1), True]
 
 
 async def test_it_finds_a_code_by_the_identifier_the_device_polls_with(tmp_path: Path) -> None:

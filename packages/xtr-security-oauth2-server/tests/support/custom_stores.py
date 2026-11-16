@@ -53,6 +53,7 @@ from xtr_security_oauth2_server.service.credentials_revoker_interface import (
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from datetime import datetime
 
     from xtr_security_core.user.user_interface import UserInterface
 
@@ -190,6 +191,33 @@ class ApplicationDeviceCodeStore(DeviceCodeManagerInterface):
     @override
     async def save(self, device_code: DeviceCodeInterface) -> None:
         await self._held.save(device_code)
+
+    @override
+    async def revoke(self, identifier: str) -> bool:
+        return await self._held.revoke(identifier)
+
+    @override
+    async def record_decision(
+        self,
+        identifier: str,
+        user_identifier: str,
+        *,
+        user_approved: bool,
+    ) -> bool:
+        return await self._held.record_decision(
+            identifier,
+            user_identifier,
+            user_approved=user_approved,
+        )
+
+    @override
+    async def record_poll(
+        self,
+        identifier: str,
+        last_polled_at: datetime | None,
+        polled_at: datetime,
+    ) -> bool:
+        return await self._held.record_poll(identifier, last_polled_at, polled_at)
 
     @override
     async def clear_expired(self) -> int:

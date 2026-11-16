@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from .repository_interface import RepositoryInterface
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from xtr_security_oauth2_server_core.entities.device_code_entity_interface import (
         DeviceCodeEntityInterface,
     )
@@ -48,11 +50,48 @@ class DeviceCodeRepositoryInterface(RepositoryInterface, Protocol):
         """Return the stored code named ``device_code``, or ``None``."""
         ...
 
-    async def revoke_device_code(self, code_id: str) -> None:
-        """Stop accepting the device code named ``code_id``.
+    async def revoke_device_code(self, code_id: str) -> bool:
+        """Stop accepting the device code named ``code_id``, in one step.
 
-        Revoking one that is unknown, or already revoked, is not an error:
-        what the caller asked for is already true.
+        Exchanging a code for tokens spends it through this call, so two
+        polls at once are told apart here: exactly one of them revokes it.
+
+        Returns:
+            Whether this call is what revoked it: ``True`` when the code was
+            valid and is now revoked, ``False`` when it was already revoked or
+            is unknown.
+        """
+        ...
+
+    async def record_device_code_decision(
+        self,
+        code_id: str,
+        user_id: str,
+        user_approved: bool,
+    ) -> bool:
+        """Record what ``user_id`` decided about the code named ``code_id``, in one step.
+
+        Recorded only while the code is live — unspent and unexpired — and
+        nobody has decided yet, so the first decision is the one that holds.
+
+        Returns:
+            Whether this call is what recorded it.
+        """
+        ...
+
+    async def record_device_code_poll(
+        self,
+        code_id: str,
+        last_polled_at: datetime | None,
+        polled_at: datetime,
+    ) -> bool:
+        """Record a poll at ``polled_at``, in one step, if no other was since ``last_polled_at``.
+
+        ``last_polled_at`` is the previous poll as the caller read it; a poll
+        recorded since then means another request polled at the same time.
+
+        Returns:
+            Whether this call is what recorded it.
         """
         ...
 

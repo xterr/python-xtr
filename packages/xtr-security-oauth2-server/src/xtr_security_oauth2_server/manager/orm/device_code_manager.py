@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import TYPE_CHECKING, final
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from typing_extensions import override
 from xtr_clock import ClockInterface  # noqa: TC002 — read at runtime by the container
 from xtr_dependency_injection import (
@@ -23,7 +23,15 @@ from xtr_security_oauth2_server.persistence.mapping.mapped_table import mapped_t
 from ._changed_rows import changed_rows
 from ._unit_session import unit_session
 
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from sqlalchemy import Update
+
 __all__ = ["DeviceCodeManager"]
+
+_CHANGED = 1
+"""How many rows a conditional write changes when it is the one that took effect."""
 
 
 @final
@@ -76,6 +84,63 @@ class DeviceCodeManager(DeviceCodeManagerInterface):
             await session.commit()
 
     @override
+    async def revoke(self, identifier: str) -> bool:
+        """Spend the code stored as ``identifier``, in one conditional statement."""
+        codes = mapped_table(DeviceCode)
+
+        return await self._changed_one(
+            update(DeviceCode)
+            .where(codes.c["identifier"] == identifier, codes.c["revoked"].is_(False))
+            .values({codes.c["revoked"]: True}),
+        )
+
+    @override
+    async def record_decision(
+        self,
+        identifier: str,
+        user_identifier: str,
+        *,
+        user_approved: bool,
+    ) -> bool:
+        """Record the first decision on a live code, in one conditional statement."""
+        codes = mapped_table(DeviceCode)
+
+        return await self._changed_one(
+            update(DeviceCode)
+            .where(
+                codes.c["identifier"] == identifier,
+                codes.c["user_identifier"].is_(None),
+                codes.c["revoked"].is_(False),
+                codes.c["expiry"] >= self._clock.now(),
+            )
+            .values(
+                {
+                    codes.c["user_identifier"]: user_identifier,
+                    codes.c["user_approved"]: user_approved,
+                },
+            ),
+        )
+
+    @override
+    async def record_poll(
+        self,
+        identifier: str,
+        last_polled_at: datetime | None,
+        polled_at: datetime,
+    ) -> bool:
+        """Record a poll, in one statement conditional on the previous poll as it was read."""
+        codes = mapped_table(DeviceCode)
+
+        return await self._changed_one(
+            update(DeviceCode)
+            .where(
+                codes.c["identifier"] == identifier,
+                codes.c["last_polled_at"].is_not_distinct_from(last_polled_at),
+            )
+            .values({codes.c["last_polled_at"]: polled_at}),
+        )
+
+    @override
     async def clear_expired(self) -> int:
         """Forget every code that has expired, and return how many went."""
         codes = mapped_table(DeviceCode)
@@ -86,3 +151,11 @@ class DeviceCodeManager(DeviceCodeManagerInterface):
             await session.commit()
 
         return changed_rows(swept)
+
+    async def _changed_one(self, statement: Update) -> bool:
+        """Run ``statement`` in a unit of its own, committed; tell whether it changed the row."""
+        async with unit_session(self._scope_factory, self._connection) as session:
+            changed = await session.execute(statement)
+            await session.commit()
+
+        return changed_rows(changed) == _CHANGED

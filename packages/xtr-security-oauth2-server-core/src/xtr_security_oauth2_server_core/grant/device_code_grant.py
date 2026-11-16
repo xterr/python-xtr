@@ -181,7 +181,9 @@ class DeviceCodeGrant(AbstractGrant):
         Raises:
             OAuthServerError: When no such code is stored, or no resource owner
                 was named — a code approved on behalf of nobody would be
-                exchanged for a token acting for nobody.
+                exchanged for a token acting for nobody; ``access_denied``
+                when a decision was already recorded, or the code was spent or
+                has expired — the first decision is the one that holds.
         """
         stored = await self._device_code_repository.get_device_code_entity_by_device_code(
             device_code,
@@ -190,9 +192,12 @@ class DeviceCodeGrant(AbstractGrant):
             raise OAuthServerError.invalid_request("device_code", "Device code does not exist")
         if user_id == "":
             raise OAuthServerError.invalid_request("user_id", "User ID is required")
-        stored.set_user_identifier(user_id)
-        stored.set_user_approved(user_approved)
-        await self._device_code_repository.persist_device_code(stored)
+        if not await self._device_code_repository.record_device_code_decision(
+            device_code,
+            user_id,
+            user_approved,
+        ):
+            raise OAuthServerError.access_denied()
 
     @override
     async def respond_to_access_token_request(
@@ -202,6 +207,9 @@ class DeviceCodeGrant(AbstractGrant):
         access_token_ttl: timedelta,
     ) -> ResponseTypeInterface:
         """Answer a polling device: wait, slow down, refused, or here is your token.
+
+        The code is spent before the token pair is issued, so of two polls at
+        once only the one that spends it is answered with tokens.
 
         Raises:
             OAuthServerError: With ``authorization_pending`` while nobody has
@@ -224,8 +232,9 @@ class DeviceCodeGrant(AbstractGrant):
             client,
             owner,
         )
+        if not await self._device_code_repository.revoke_device_code(device_code.get_identifier()):
+            raise OAuthServerError.invalid_request("device_code", "Device code has been revoked")
         await self._issue_tokens(request, response_type, access_token_ttl, client, owner, granted)
-        await self._device_code_repository.revoke_device_code(device_code.get_identifier())
 
         return response_type
 
@@ -312,16 +321,22 @@ class DeviceCodeGrant(AbstractGrant):
 
         The recording happens whatever the answer is, which is the point: a
         device told to slow down has to be judged against the poll that was
-        refused, or it would be told to slow down for ever.
+        refused, or it would be told to slow down for ever. It is recorded
+        only if no other poll was since this one read the code: losing that to
+        a poll at the same moment is polling too soon as well.
 
         Raises:
             OAuthServerError: ``slow_down`` when the last poll was less than
-                the interval ago.
+                the interval ago, or another poll was recorded meanwhile.
         """
-        too_soon = self._polled_too_soon(device_code.get_last_polled_at())
-        device_code.set_last_polled_at(self._clock.now())
-        await self._device_code_repository.persist_device_code(device_code)
-        if too_soon:
+        last_polled_at = device_code.get_last_polled_at()
+        too_soon = self._polled_too_soon(last_polled_at)
+        recorded = await self._device_code_repository.record_device_code_poll(
+            device_code.get_identifier(),
+            last_polled_at,
+            self._clock.now(),
+        )
+        if too_soon or not recorded:
             raise OAuthServerError.slow_down()
 
     def _polled_too_soon(self, last_polled_at: datetime | None) -> bool:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from datetime import timedelta
 from typing import TYPE_CHECKING, cast
@@ -451,6 +452,89 @@ async def test_a_device_code_cannot_be_exchanged_twice() -> None:
         )
 
     assert "revoked" in str(refusal.value.get_hint())
+
+
+def _racing(storage: Storage) -> None:
+    """Have the next two reads of a device code both happen before either request writes."""
+    storage.device_codes.checked = asyncio.Barrier(2)
+
+
+@pytest.mark.anyio
+async def test_two_concurrent_polls_of_an_approved_device_code_issue_one_pair() -> None:
+    storage = Storage()
+    grant, _, _ = _grant(storage)
+    device_code = await _approved_code(grant, storage)
+    _racing(storage)
+
+    answers = await asyncio.gather(
+        *(
+            grant.respond_to_access_token_request(
+                _token_request(device_code=device_code), RecordingResponseType(), _AN_HOUR
+            )
+            for _ in range(2)
+        ),
+        return_exceptions=True,
+    )
+
+    refused = [answer for answer in answers if isinstance(answer, OAuthServerError)]
+    assert len(refused) == 1
+    assert len(storage.access_tokens.tokens) == 1
+
+
+@pytest.mark.anyio
+async def test_a_second_decision_on_a_code_is_refused() -> None:
+    storage = Storage()
+    grant, _, _ = _grant(storage)
+    device_code = await _approved_code(grant, storage)
+
+    with pytest.raises(OAuthServerError) as refusal:
+        await grant.complete_device_authorization_request(device_code, "user-2", user_approved=True)
+
+    assert refusal.value.get_error_type() == "access_denied"
+    assert storage.device_codes.codes[device_code].get_user_identifier() == "user-1"
+
+
+@pytest.mark.anyio
+async def test_two_concurrent_decisions_on_a_code_record_one() -> None:
+    storage = Storage()
+    grant, _, _ = _grant(storage)
+    device_code = str((await _issued(grant))["device_code"])
+    _racing(storage)
+
+    answers = await asyncio.gather(
+        grant.complete_device_authorization_request(device_code, "user-1", user_approved=True),
+        grant.complete_device_authorization_request(device_code, "user-2", user_approved=True),
+        return_exceptions=True,
+    )
+
+    refused = [answer for answer in answers if isinstance(answer, OAuthServerError)]
+    assert len(refused) == 1
+    assert refused[0].get_error_type() == "access_denied"
+    owner = storage.device_codes.codes[device_code].get_user_identifier()
+    assert owner == ("user-1" if answers[1] is refused[0] else "user-2")
+
+
+@pytest.mark.anyio
+async def test_concurrent_polls_get_slow_down() -> None:
+    storage = Storage()
+    grant, _, _ = _grant(storage)
+    device_code = str((await _issued(grant))["device_code"])
+    _racing(storage)
+
+    answers = await asyncio.gather(
+        *(
+            grant.respond_to_access_token_request(
+                _token_request(device_code=device_code), RecordingResponseType(), _AN_HOUR
+            )
+            for _ in range(2)
+        ),
+        return_exceptions=True,
+    )
+
+    errors = sorted(
+        answer.get_error_type() for answer in answers if isinstance(answer, OAuthServerError)
+    )
+    assert errors == ["authorization_pending", "slow_down"]
 
 
 @pytest.mark.anyio

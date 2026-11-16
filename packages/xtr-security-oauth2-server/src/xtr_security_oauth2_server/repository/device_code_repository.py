@@ -27,6 +27,8 @@ from xtr_security_oauth2_server.model.device_code import DeviceCode as DeviceCod
 from ._stored_client import stored_client_of
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from xtr_security_oauth2_server_core.entities.device_code_entity_interface import (
         DeviceCodeEntityInterface,
     )
@@ -105,13 +107,33 @@ class DeviceCodeRepository(DeviceCodeRepositoryInterface):
         return await self._entity_of(stored)
 
     @override
-    async def revoke_device_code(self, code_id: str) -> None:
-        """Stop accepting the device code named ``code_id``."""
-        stored = await self._device_code_manager.find(code_id)
-        if stored is None:
-            return
+    async def revoke_device_code(self, code_id: str) -> bool:
+        """Spend the device code named ``code_id``, and say whether this call did."""
+        return await self._device_code_manager.revoke(code_id)
 
-        await self._device_code_manager.save(stored.revoke())
+    @override
+    async def record_device_code_decision(
+        self,
+        code_id: str,
+        user_id: str,
+        user_approved: bool,
+    ) -> bool:
+        """Record the first decision on the code ``code_id``, and say whether this call did."""
+        return await self._device_code_manager.record_decision(
+            code_id,
+            user_id,
+            user_approved=user_approved,
+        )
+
+    @override
+    async def record_device_code_poll(
+        self,
+        code_id: str,
+        last_polled_at: datetime | None,
+        polled_at: datetime,
+    ) -> bool:
+        """Record a poll of the code named ``code_id``, and say whether this call did."""
+        return await self._device_code_manager.record_poll(code_id, last_polled_at, polled_at)
 
     @override
     async def is_device_code_revoked(self, code_id: str) -> bool:

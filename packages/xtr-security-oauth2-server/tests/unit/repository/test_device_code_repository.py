@@ -166,17 +166,37 @@ async def test_it_withdraws_a_code_it_stored() -> None:
     repository, codes = await _repository()
     await repository.persist_device_code(device_code_entity())
 
-    await repository.revoke_device_code("dc-1")
+    assert await repository.revoke_device_code("dc-1") is True
+    assert await repository.revoke_device_code("dc-1") is False
 
     stored = await codes.find("dc-1")
     assert stored is not None
     assert stored.is_revoked() is True
 
 
-async def test_withdrawing_a_code_it_never_stored_is_no_error() -> None:
+async def test_withdrawing_a_code_it_never_stored_withdraws_nothing() -> None:
     repository, _ = await _repository()
 
-    await repository.revoke_device_code("nope")
+    assert await repository.revoke_device_code("nope") is False
+
+
+async def test_it_records_the_first_decision_on_a_code_only() -> None:
+    repository, codes = await _repository()
+    await repository.persist_device_code(device_code_entity())
+
+    assert await repository.record_device_code_decision("dc-1", "user-1", True) is True
+    assert await repository.record_device_code_decision("dc-1", "user-2", True) is False
+    stored = await codes.find("dc-1")
+    assert stored is not None
+    assert stored.get_user_identifier() == "user-1"
+
+
+async def test_it_records_a_poll_only_against_the_poll_it_read() -> None:
+    repository, _ = await _repository()
+    await repository.persist_device_code(device_code_entity())
+
+    assert await repository.record_device_code_poll("dc-1", None, _POLLED_AT) is True
+    assert await repository.record_device_code_poll("dc-1", None, _POLLED_AT) is False
 
 
 async def test_a_code_it_never_stored_counts_as_withdrawn() -> None:
@@ -196,6 +216,6 @@ async def test_a_code_it_withdrew_reports_as_withdrawn() -> None:
     repository, _ = await _repository()
     await repository.persist_device_code(device_code_entity())
 
-    await repository.revoke_device_code("dc-1")
+    _ = await repository.revoke_device_code("dc-1")
 
     assert await repository.is_device_code_revoked("dc-1") is True
