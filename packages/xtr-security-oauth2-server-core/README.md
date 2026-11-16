@@ -260,6 +260,10 @@ carries. A grant of your own subclasses `AbstractGrant` (or `AbstractAuthorizeGr
 reached through `/authorize`); `AuthCodeGrant` keeps two seams for one that carries something
 through the code — `create_authorization_request()` and `get_auth_code_payload()`.
 
+The device code is stored as its SHA-256 — `issue_device_code` returns the entity beside the raw
+code, which only the response carries — and a poll is hashed before it is looked up;
+`complete_device_authorization_request` takes the stored identifier.
+
 A polling device is answered as RFC 8628 says: `authorization_pending` until its owner decides,
 `slow_down` when it polls too soon, `access_denied` when the owner refused and `expired_token`
 once the code expired. A device code that is unknown, already spent — including by a poll that

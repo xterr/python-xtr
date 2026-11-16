@@ -52,12 +52,20 @@ class DeviceCodeResponse(AbstractResponseType):
         """Answer against ``clock``, which decides how long the codes have left."""
         self._clock: ClockInterface = clock
         self._device_code_entity: DeviceCodeEntityInterface | None = None
+        self._device_code: str = ""
         self._include_verification_uri_complete: bool = False
         self._include_interval: bool = False
 
-    def set_device_code_entity(self, device_code_entity: DeviceCodeEntityInterface) -> None:
-        """Answer with ``device_code_entity``, the pair of codes just issued."""
+    def set_device_code_entity(
+        self, device_code_entity: DeviceCodeEntityInterface, device_code: str
+    ) -> None:
+        """Answer with the pair just issued, and the ``device_code`` the device polls with.
+
+        The entity is stored under the code's hash, so the code the device
+        polls with is handed over beside it rather than read off it.
+        """
         self._device_code_entity = device_code_entity
+        self._device_code = device_code
 
     def include_verification_uri_complete(self) -> None:
         """Also send the verification URI with the user code already in it."""
@@ -90,7 +98,7 @@ class DeviceCodeResponse(AbstractResponseType):
         params: dict[str, object] = dict(self.get_extra_params())
         params.update(
             {
-                "device_code": device_code.get_identifier(),
+                "device_code": self._device_code,
                 "user_code": device_code.get_user_code(),
                 "verification_uri": device_code.get_verification_uri(),
                 "expires_in": int(left),

@@ -27,6 +27,9 @@ from tests.support.served import (
     serving,
     text_field,
 )
+from xtr_security_oauth2_server.manager.device_code_manager_interface import (
+    DeviceCodeManagerInterface,
+)
 
 if TYPE_CHECKING:
     import httpx
@@ -49,12 +52,18 @@ def _verification(app: FastAPI) -> None:
     @app.post(APPROVE_PATH)
     async def approve(
         server: Injected[AuthorizationServer],
-        device_code: str,
+        devices: Injected[DeviceCodeManagerInterface],
+        user_code: str,
         *,
         user_id: str = OWNER,
         approved: bool = True,
     ) -> dict[str, str]:
-        await server.complete_device_authorization_request(device_code, user_id, approved)
+        # The page finds the code by the user code typed into it, and decides on what is stored.
+        found = await devices.find_by_user_code(user_code)
+        assert found is not None
+        await server.complete_device_authorization_request(
+            found.get_identifier(), user_id, approved
+        )
 
         return {"recorded": "yes"}
 
@@ -257,8 +266,8 @@ async def test_the_flow_is_asked_for_by_the_name_the_standard_registers() -> Non
     # "urn:ietf:params:oauth:grant-type:device_code"" (section 3.4).
     assert OAuth2Grants.DEVICE_CODE == "urn:ietf:params:oauth:grant-type:device_code"
     async with serving(_application()) as client:
-        device_code, _ = await _device_codes(client)
-        _ = await client.post(APPROVE_PATH, params={"device_code": device_code})
+        device_code, user_code = await _device_codes(client)
+        _ = await client.post(APPROVE_PATH, params={"user_code": user_code})
         answered = await client.post(
             "/token",
             data={
@@ -280,8 +289,8 @@ async def test_a_poll_naming_another_grant_type_earns_nothing() -> None:
     # ``unsupported_grant_type`` (RFC 6749 section 5.2) rather than a token —
     # even with an approved device code in the same request.
     async with serving(_application()) as client:
-        device_code, _ = await _device_codes(client)
-        _ = await client.post(APPROVE_PATH, params={"device_code": device_code})
+        device_code, user_code = await _device_codes(client)
+        _ = await client.post(APPROVE_PATH, params={"user_code": user_code})
         answered = await client.post(
             "/token",
             data={
@@ -347,10 +356,10 @@ async def test_a_device_polling_too_fast_is_told_to_slow_down() -> None:
 async def test_a_device_the_owner_refused_is_told_so() -> None:
     # "access_denied — The authorization request was denied" (section 3.5).
     async with serving(_application()) as client:
-        device_code, _ = await _device_codes(client)
+        device_code, user_code = await _device_codes(client)
         _ = await client.post(
             APPROVE_PATH,
-            params={"device_code": device_code, "approved": False},
+            params={"user_code": user_code, "approved": False},
         )
         answered = await _poll(client, device_code)
 
@@ -362,8 +371,8 @@ async def test_an_approved_device_is_issued_a_token() -> None:
     # "If the user has approved the grant, the token endpoint responds with a
     # success response defined in Section 5.1 of [RFC6749]" (section 3.5).
     async with serving(_application()) as client:
-        device_code, _ = await _device_codes(client)
-        _ = await client.post(APPROVE_PATH, params={"device_code": device_code})
+        device_code, user_code = await _device_codes(client)
+        _ = await client.post(APPROVE_PATH, params={"user_code": user_code})
         answered = await _poll(client, device_code)
 
     issued = json_of(answered)
@@ -378,8 +387,8 @@ async def test_a_device_code_already_exchanged_cannot_be_exchanged_again() -> No
     # not another token; the answer is one of the errors section 3.5 defines
     # over RFC 6749 section 5.2.
     async with serving(_application()) as client:
-        device_code, _ = await _device_codes(client)
-        _ = await client.post(APPROVE_PATH, params={"device_code": device_code})
+        device_code, user_code = await _device_codes(client)
+        _ = await client.post(APPROVE_PATH, params={"user_code": user_code})
         first = await _poll(client, device_code)
         again = await _poll(client, device_code)
 

@@ -68,7 +68,7 @@ def test_it_satisfies_the_response_type_contract() -> None:
 @pytest.mark.anyio
 async def test_it_names_the_device_code_the_user_code_and_where_to_type_it() -> None:
     response_type = DeviceCodeResponse(make_clock())
-    response_type.set_device_code_entity(_device_code())
+    response_type.set_device_code_entity(_device_code(), "device-1")
 
     body = await _answered(response_type)
 
@@ -80,7 +80,7 @@ async def test_it_names_the_device_code_the_user_code_and_where_to_type_it() -> 
 @pytest.mark.anyio
 async def test_it_counts_the_seconds_left_from_the_clock_it_was_given() -> None:
     response_type = DeviceCodeResponse(make_clock())
-    response_type.set_device_code_entity(_device_code())
+    response_type.set_device_code_entity(_device_code(), "device-1")
 
     assert (await _answered(response_type))["expires_in"] == 600
 
@@ -88,7 +88,7 @@ async def test_it_counts_the_seconds_left_from_the_clock_it_was_given() -> None:
 @pytest.mark.anyio
 async def test_it_leaves_out_the_pre_filled_uri_and_the_interval_by_default() -> None:
     response_type = DeviceCodeResponse(make_clock())
-    response_type.set_device_code_entity(_device_code())
+    response_type.set_device_code_entity(_device_code(), "device-1")
 
     body = await _answered(response_type)
 
@@ -100,7 +100,7 @@ async def test_it_leaves_out_the_pre_filled_uri_and_the_interval_by_default() ->
 async def test_it_carries_the_pre_filled_uri_when_asked_to() -> None:
     response_type = DeviceCodeResponse(make_clock())
     response_type.include_verification_uri_complete()
-    response_type.set_device_code_entity(_device_code())
+    response_type.set_device_code_entity(_device_code(), "device-1")
 
     expected = f"{_VERIFICATION_URI}?user_code=BCDFGHJK"
 
@@ -111,7 +111,7 @@ async def test_it_carries_the_pre_filled_uri_when_asked_to() -> None:
 async def test_it_carries_the_polling_interval_when_asked_to() -> None:
     response_type = DeviceCodeResponse(make_clock())
     response_type.include_interval()
-    response_type.set_device_code_entity(_device_code())
+    response_type.set_device_code_entity(_device_code(), "device-1")
 
     assert (await _answered(response_type))["interval"] == 5
 
@@ -119,7 +119,7 @@ async def test_it_carries_the_polling_interval_when_asked_to() -> None:
 @pytest.mark.anyio
 async def test_it_answers_json_that_nothing_may_cache() -> None:
     response_type = DeviceCodeResponse(make_clock())
-    response_type.set_device_code_entity(_device_code())
+    response_type.set_device_code_entity(_device_code(), "device-1")
 
     answer = await response_type.generate_http_response(Response())
 
@@ -132,7 +132,7 @@ async def test_it_answers_json_that_nothing_may_cache() -> None:
 @pytest.mark.anyio
 async def test_a_subclass_adds_fields_of_its_own() -> None:
     response_type = _ResponseWithAnExtraField(make_clock())
-    response_type.set_device_code_entity(_device_code())
+    response_type.set_device_code_entity(_device_code(), "device-1")
 
     assert (await _answered(response_type))["polling_hint"] == 10
 
@@ -148,7 +148,7 @@ async def test_answering_before_a_device_code_is_set_names_the_setter() -> None:
 @pytest.mark.anyio
 async def test_it_preserves_flow_fields_when_extras_try_to_override_them() -> None:
     response_type = _ResponseWithShadowingExtras(make_clock())
-    response_type.set_device_code_entity(_device_code())
+    response_type.set_device_code_entity(_device_code(), "device-1")
 
     body = await _answered(response_type)
     assert body["device_code"] == "device-1"

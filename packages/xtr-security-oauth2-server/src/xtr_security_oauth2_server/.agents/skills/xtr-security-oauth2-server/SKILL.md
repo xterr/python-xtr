@@ -267,6 +267,8 @@ async def approve_device(
 
 Name the page as `device_code_verification_uri`. A user code is 8 characters of 20, so limit how
 often the page may be guessed at (xtr-http-kernel's `RateLimited`).
+The device code is stored as its SHA-256: pass `complete_device_authorization_request` the stored
+identifier `find_by_user_code(...)` returns, never the code the device polls with.
 
 ## Build the servers by hand
 

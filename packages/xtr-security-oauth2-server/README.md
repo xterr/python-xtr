@@ -407,6 +407,9 @@ wherever it ends up, leaving out the ones excluded:
 - **`/device-code`** issues the pair a device polls with; the page the person types the user code
   into is the application's, and calls `AuthorizationServer.complete_device_authorization_request`
   (see the [skill](src/xtr_security_oauth2_server/.agents/skills/xtr-security-oauth2-server/SKILL.md)).
+  The device code is stored as its SHA-256, so a read of the store yields nothing a device could
+  poll with; the page passes the stored identifier — what `find_by_user_code(...)` returns — not
+  the device's code.
   Limit how often that page may be guessed at — a user code is 8 characters of 20 — with
   [xtr-http-kernel's](../xtr-http-kernel#rate-limits) `RateLimited`.
 - **The description** names, under the configured issuer, the endpoints served, the grants the

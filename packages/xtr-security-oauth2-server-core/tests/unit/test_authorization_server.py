@@ -183,7 +183,7 @@ class _DeviceGrant(AbstractGrant):
         device_code.set_interval(5)
         device_code.set_client(make_client())
         answer = DeviceCodeResponse(self._clock)
-        answer.set_device_code_entity(device_code)
+        answer.set_device_code_entity(device_code, device_code.get_identifier())
 
         return answer
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 from datetime import timedelta
 from typing import TYPE_CHECKING, cast
 
@@ -80,12 +81,19 @@ async def _issued(grant: DeviceCodeGrant, **body: str) -> Mapping[str, object]:
 
 
 async def _approved_code(grant: DeviceCodeGrant, storage: Storage) -> str:
+    """Issue a code, approve it as the verification page does; return what the device polls with."""
     issued = await _issued(grant)
     device_code = str(issued["device_code"])
-    await grant.complete_device_authorization_request(device_code, "user-1", user_approved=True)
-    assert storage.device_codes.codes[device_code].get_user_approved() is True
+    stored = _stored_identifier(device_code)
+    await grant.complete_device_authorization_request(stored, "user-1", user_approved=True)
+    assert storage.device_codes.codes[stored].get_user_approved() is True
 
     return device_code
+
+
+def _stored_identifier(device_code: str) -> str:
+    """The identifier a device code is stored under: its SHA-256, in hex."""
+    return hashlib.sha256(device_code.encode()).hexdigest()
 
 
 def test_it_is_asked_for_by_name() -> None:
@@ -121,10 +129,65 @@ async def test_the_code_it_issues_is_stored_against_the_client_and_the_scopes() 
 
     issued = await _issued(grant, scope="read")
 
-    stored = storage.device_codes.codes[str(issued["device_code"])]
+    stored = storage.device_codes.codes[_stored_identifier(str(issued["device_code"]))]
     assert stored.get_client().get_identifier() == "client-1"
     assert [scope.get_identifier() for scope in stored.get_scopes()] == ["read"]
     assert stored.get_interval() == 5
+
+
+@pytest.mark.anyio
+async def test_the_stored_device_code_is_a_hash() -> None:
+    storage = Storage()
+    grant, _, _ = _grant(storage)
+
+    issued = str((await _issued(grant))["device_code"])
+
+    assert list(storage.device_codes.codes) == [_stored_identifier(issued)]
+    assert issued not in storage.device_codes.codes
+
+
+@pytest.mark.anyio
+async def test_the_response_carries_the_raw_code() -> None:
+    storage = Storage()
+    grant, _, _ = _grant(storage)
+
+    issued = str((await _issued(grant))["device_code"])
+
+    assert len(issued) == 80
+    assert storage.device_codes.codes[_stored_identifier(issued)].get_identifier() != issued
+
+
+@pytest.mark.anyio
+async def test_completing_with_the_stored_identifier_still_works() -> None:
+    storage = Storage()
+    grant, _, _ = _grant(storage)
+    issued = await _issued(grant)
+    # What the verification page reads back by the user code the owner typed in.
+    found = next(
+        code
+        for code in storage.device_codes.codes.values()
+        if code.get_user_code() == issued["user_code"]
+    )
+
+    await grant.complete_device_authorization_request(
+        found.get_identifier(), "user-1", user_approved=True
+    )
+
+    assert found.get_user_identifier() == "user-1"
+
+
+@pytest.mark.anyio
+async def test_polling_with_the_raw_code_still_works() -> None:
+    storage = Storage()
+    grant, _, clock = _grant(storage)
+    device_code = await _approved_code(grant, storage)
+    clock.sleep(6)
+
+    _ = await grant.respond_to_access_token_request(
+        _token_request(device_code=device_code), RecordingResponseType(), _AN_HOUR
+    )
+
+    assert len(storage.access_tokens.tokens) == 1
 
 
 @pytest.mark.anyio
@@ -218,11 +281,11 @@ async def test_approving_a_code_records_the_owner_and_the_decision() -> None:
     storage = Storage()
     grant, _, _ = _grant(storage)
     issued = await _issued(grant)
-    device_code = str(issued["device_code"])
+    stored_as = _stored_identifier(str(issued["device_code"]))
 
-    await grant.complete_device_authorization_request(device_code, "user-1", user_approved=True)
+    await grant.complete_device_authorization_request(stored_as, "user-1", user_approved=True)
 
-    stored = storage.device_codes.codes[device_code]
+    stored = storage.device_codes.codes[stored_as]
     assert stored.get_user_identifier() == "user-1"
     assert stored.get_user_approved() is True
 
@@ -245,7 +308,7 @@ async def test_approving_a_code_on_behalf_of_nobody_is_refused() -> None:
 
     with pytest.raises(OAuthServerError) as refusal:
         await grant.complete_device_authorization_request(
-            str(issued["device_code"]),
+            _stored_identifier(str(issued["device_code"])),
             "",
             user_approved=True,
         )
@@ -283,7 +346,9 @@ async def test_a_poll_is_recorded_even_though_it_is_refused() -> None:
             _AN_HOUR,
         )
 
-    assert storage.device_codes.codes[device_code].get_last_polled_at() is not None
+    assert (
+        storage.device_codes.codes[_stored_identifier(device_code)].get_last_polled_at() is not None
+    )
 
 
 @pytest.mark.anyio
@@ -331,7 +396,7 @@ async def test_the_poll_that_was_told_to_slow_down_is_recorded_before_the_refusa
             _AN_HOUR,
         )
 
-    polled = storage.device_codes.codes[device_code].get_last_polled_at()
+    polled = storage.device_codes.codes[_stored_identifier(device_code)].get_last_polled_at()
     assert polled is not None
     assert polled == clock.now()
 
@@ -367,7 +432,9 @@ async def test_a_refused_device_is_told_so() -> None:
     grant, _, _ = _grant(storage)
     issued = await _issued(grant)
     device_code = str(issued["device_code"])
-    await grant.complete_device_authorization_request(device_code, "user-1", user_approved=False)
+    await grant.complete_device_authorization_request(
+        _stored_identifier(device_code), "user-1", user_approved=False
+    )
 
     with pytest.raises(OAuthServerError) as refusal:
         _ = await grant.respond_to_access_token_request(
@@ -430,7 +497,9 @@ async def test_a_device_code_is_spent_when_it_is_exchanged() -> None:
         _AN_HOUR,
     )
 
-    assert await storage.device_codes.is_device_code_revoked(device_code) is True
+    assert (
+        await storage.device_codes.is_device_code_revoked(_stored_identifier(device_code)) is True
+    )
 
 
 @pytest.mark.anyio
@@ -490,17 +559,22 @@ async def test_a_second_decision_on_a_code_is_refused() -> None:
     device_code = await _approved_code(grant, storage)
 
     with pytest.raises(OAuthServerError) as refusal:
-        await grant.complete_device_authorization_request(device_code, "user-2", user_approved=True)
+        await grant.complete_device_authorization_request(
+            _stored_identifier(device_code), "user-2", user_approved=True
+        )
 
     assert refusal.value.get_error_type() == "access_denied"
-    assert storage.device_codes.codes[device_code].get_user_identifier() == "user-1"
+    assert (
+        storage.device_codes.codes[_stored_identifier(device_code)].get_user_identifier()
+        == "user-1"
+    )
 
 
 @pytest.mark.anyio
 async def test_two_concurrent_decisions_on_a_code_record_one() -> None:
     storage = Storage()
     grant, _, _ = _grant(storage)
-    device_code = str((await _issued(grant))["device_code"])
+    device_code = _stored_identifier(str((await _issued(grant))["device_code"]))
     _racing(storage)
 
     answers = await asyncio.gather(
