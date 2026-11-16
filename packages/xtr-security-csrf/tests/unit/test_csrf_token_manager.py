@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import asyncio
+from typing import TYPE_CHECKING, final
 
 import pytest
 from xtr_http_foundation import MemorySessionStorage, Session
@@ -15,7 +16,9 @@ from xtr_security_csrf import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
+
+_ID = "0123456789abcdef" * 3
 
 
 @pytest.fixture
@@ -43,6 +46,44 @@ async def test_a_minted_token_checks_out(session: Session) -> None:
     token = await manager.get_token("foo")
 
     assert await manager.is_token_valid(token)
+
+
+@final
+class _SlowStorage:
+    """A memory session storage whose reads wait a few turns of the loop, as a remote one does."""
+
+    def __init__(self) -> None:
+        self.inner = MemorySessionStorage()
+
+    async def read(self, session_id: str) -> Mapping[str, object] | None:
+        for _ in range(3):
+            await asyncio.sleep(0)
+        return await self.inner.read(session_id)
+
+    async def write(
+        self,
+        session_id: str,
+        data: Mapping[str, object],
+        ttl: float | None,
+        *,
+        must_exist: bool = False,
+    ) -> bool:
+        return await self.inner.write(session_id, data, ttl, must_exist=must_exist)
+
+    async def delete(self, session_id: str) -> None:
+        await self.inner.delete(session_id)
+
+
+@pytest.mark.anyio
+async def test_two_concurrent_first_renders_in_one_request_get_the_same_token() -> None:
+    storage = _SlowStorage()
+    _ = await storage.inner.write(_ID, {"theme": "dark"}, None)
+    manager = _manager(Session(storage, cookie_value=_ID))
+
+    first, second = await asyncio.gather(manager.get_token("form"), manager.get_token("form"))
+
+    assert await manager.is_token_valid(first)
+    assert await manager.is_token_valid(second)
 
 
 @pytest.mark.anyio

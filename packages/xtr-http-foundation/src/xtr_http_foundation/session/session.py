@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 import secrets
 from copy import deepcopy
@@ -67,6 +68,7 @@ class Session(SessionInterface):
         "_id_generated",
         "_loaded",
         "_started",
+        "_starting",
         "_storage",
     )
 
@@ -98,6 +100,7 @@ class Session(SessionInterface):
         self._attributes: dict[str, object] = {}
         self._loaded: dict[str, object] = {}
         self._started = False
+        self._starting = asyncio.Lock()
         self._id_changed = False
 
         if _is_session_id(cookie_value):
@@ -145,22 +148,33 @@ class Session(SessionInterface):
         so a caller rarely needs this one; it is the way to pay for the
         session up front, before a response is half-written.
 
+        A reattached ID the storage holds nothing under is replaced here by
+        a fresh one, whose cookie is then staged. Tasks of one request may
+        start the session at once; the storage is read once, by the first,
+        and the others wait for it — a second read landing after a ``set``
+        would overwrite what was set. A started session returns before the
+        lock, so the members that start it on every call never queue behind
+        another task.
+
         Raises:
             SessionError: When the storage fails to load the session.
         """
         if self._started:
             return
 
-        stored = await self._storage.read(self._id)
-        if stored is not None:
-            self._attributes.update(stored)
-            self._loaded = deepcopy(self._attributes)
-        elif not self._id_generated:
-            # An ID the storage does not know is not adopted: the caller
-            # does not get to choose the ID a session is stored under.
-            self._id = secrets.token_hex(24)
-            self._id_generated = True
-        self._started = True
+        async with self._starting:
+            if self._started:
+                return
+            stored = await self._storage.read(self._id)
+            if stored is not None:
+                self._attributes.update(stored)
+                self._loaded = deepcopy(self._attributes)
+            elif not self._id_generated:
+                # An ID the storage does not know is not adopted: the caller
+                # does not get to choose the ID a session is stored under.
+                self._id = secrets.token_hex(24)
+                self._id_generated = True
+            self._started = True
 
     @override
     def is_started(self) -> bool:

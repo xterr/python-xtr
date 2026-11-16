@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
@@ -435,3 +436,48 @@ def test_it_dates_the_staged_cookie_by_the_clock_it_was_given() -> None:
 
     assert staged is not None
     assert "Tue, 01 Jan 2030 00:01:00 GMT" in staged
+
+
+@final
+class _SlowStorage:
+    """A storage whose reads wait a few turns of the loop, as a remote one does."""
+
+    def __init__(self, stored: dict[str, dict[str, object]]) -> None:
+        self.inner = SpyStorage(stored=stored)
+
+    async def read(self, session_id: str) -> Mapping[str, object] | None:
+        for _ in range(3):
+            await asyncio.sleep(0)
+        return await self.inner.read(session_id)
+
+    async def write(
+        self,
+        session_id: str,
+        data: Mapping[str, object],
+        ttl: float | None,
+        *,
+        must_exist: bool = False,
+    ) -> bool:
+        return await self.inner.write(session_id, data, ttl, must_exist=must_exist)
+
+    async def delete(self, session_id: str) -> None:
+        await self.inner.delete(session_id)
+
+
+@pytest.mark.anyio
+async def test_concurrent_starts_read_the_storage_once() -> None:
+    storage = _SlowStorage({_ID: {"user": "alice"}})
+    session = Session(storage, cookie_value=_ID)
+
+    _ = await asyncio.gather(session.start(), session.start(), session.get("user"))
+
+    assert storage.inner.reads == 1
+
+
+@pytest.mark.anyio
+async def test_a_set_during_a_concurrent_start_survives() -> None:
+    session = Session(_SlowStorage({_ID: {"user": "alice"}}), cookie_value=_ID)
+
+    _ = await asyncio.gather(session.set("user", "bob"), session.get("user"))
+
+    assert await session.get("user") == "bob"

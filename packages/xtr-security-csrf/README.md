@@ -125,6 +125,11 @@ is not in the list, and survives a clear.
 session: the tokens minted under the old one must not answer for the new. `remove_token`
 is the logout listener's — it drops the ids a listener knows by name.
 
+Forms rendered at once in one request share one token per id: the session is started once,
+and minting does not wait between asking for a token and storing it. Two separate requests
+rendering the first form of one session at once each mint their own, and the session saved
+last wins — the other page's form then fails its check, and re-rendering it fixes it.
+
 ## Errors
 
 Everything this library raises derives from `CsrfError`, and carries what went wrong as
