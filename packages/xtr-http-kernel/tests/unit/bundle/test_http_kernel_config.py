@@ -48,6 +48,19 @@ def test_it_accepts_an_app_import_string() -> None:
     assert config.app == "shop.web:app"
 
 
+def test_trusted_hosts_are_matched_lowercased() -> None:
+    assert HttpKernelConfig(trusted_hosts=("App.Test", "*.Shop.Test")).trusted_hosts == (
+        "app.test",
+        "*.shop.test",
+    )
+
+
+@pytest.mark.parametrize("host", ["", "*", "a*.test", "*.", "app.test:8000", "a b"])
+def test_it_refuses_a_trusted_host_that_names_no_host(host: str) -> None:
+    with pytest.raises(InvalidArgumentError, match="trusted_hosts"):
+        _ = HttpKernelConfig(trusted_hosts=(host,))
+
+
 @pytest.mark.parametrize("app", ["shop.web", "shop:web:app", ":app", "shop.web:"])
 def test_it_refuses_an_app_string_without_one_module_and_one_attribute(app: str) -> None:
     with pytest.raises(InvalidArgumentError, match="app"):

@@ -516,10 +516,25 @@ default:
 | `log_channel` | `"request"` | the channel the error listener writes to |
 | `middleware_priority` | `0` | where the lifecycle middleware sits among the contributed factories — highest outermost |
 | `app` | `None` | the `"package.module:app"` string the router commands load the application from |
+| `trusted_hosts` | `()` | the hosts a request may name — `"shop.test"`, `"*.shop.test"`, an address; any other is answered 400. Empty lets every host through |
 
 The constructor refuses values the lifecycle would silently misread: a `request_id_header` that
-is not an HTTP token, an empty `log_channel`, or an `app` that is not exactly one module and one
-attribute around a single `:`, each raise `InvalidArgumentError` — also a `ValueError`.
+is not an HTTP token, an empty `log_channel`, an `app` that is not exactly one module and one
+attribute around a single `:`, or a trusted host that names no host, each raise
+`InvalidArgumentError` — also a `ValueError`.
+
+`trusted_hosts` is matched against the `Host` header lowercased, port left out. A request
+naming another host — or a `Host` header that names none — is answered `400 Invalid host
+header` just outside the lifecycle, so none of its events run and no request id is minted for
+it. A health check that addresses the server by IP needs that address listed. Without
+`trusted_hosts`, a `Host` header the request's URI cannot hold (`a b`, `x/y`) reads as absent:
+the URI names the address the server listens on instead — which a firewall matching on the
+host then sees.
+
+A failure nothing answered — no `ExceptionEvent` listener set a response — goes on to the
+application's own error handling, outside the lifecycle: that answer gets no `ResponseEvent`,
+so no request id and no session cookie. Answer failures from an `ExceptionEvent` listener to
+have them.
 
 `trust_request_id` has one prerequisite: a proxy you control in front of the application, which
 sets `request_id_header` itself and strips whatever the caller sent. Reached directly, the

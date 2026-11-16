@@ -87,15 +87,24 @@ class _Served:
     that another request was started from, reads nothing of it.
     """
 
-    __slots__ = ("connection", "scoped")
+    __slots__ = ("connection", "container", "scoped")
 
-    def __init__(self, scoped: ScopedAsyncContainer, connection: HTTPConnection | None) -> None:
+    def __init__(
+        self,
+        scoped: ScopedAsyncContainer,
+        container: KernelContainer,
+        connection: HTTPConnection | None,
+    ) -> None:
         self.scoped: ScopedAsyncContainer | None = scoped
+        # The kernel the scope belongs to, for the parameter and environment
+        # markers: a mounted application the connection is routed into names none.
+        self.container: KernelContainer | None = container
         self.connection = connection
 
     def close(self) -> None:
         """Forget the scope and the connection: the request is over."""
         self.scoped = None
+        self.container = None
         self.connection = None
 
 
@@ -180,7 +189,11 @@ async def _request_scope(app: Starlette, connection_scope: Scope) -> AsyncGenera
     participants = await participants_of(attached.engine)
     with counted(attached.engine), participating(participants):
         async with closing_scope(attached.engine) as scoped:
-            served = _Served(scoped, enclosing.connection if enclosing is not None else None)
+            served = _Served(
+                scoped,
+                attached.container,
+                enclosing.connection if enclosing is not None else None,
+            )
             connection_scope[SERVED_KEY] = served
             bound = _SERVED.set(served)
             try:
@@ -364,7 +377,15 @@ def _publish(request: HTTPConnection) -> None:
 
 
 def _connection_container(request: HTTPConnection) -> KernelContainer:
-    """Return the container attached to the application ``request`` belongs to."""
+    """Return the container of the scope open on ``request``'s connection, or of its application.
+
+    The scope's first: a mounted application the connection is routed into
+    is attached to no kernel, while the scope open on the connection is the
+    kernel's whatever application serves it now.
+    """
+    served = _served_of(request.scope)
+    if served is not None and served.container is not None:
+        return served.container
     app = cast("Starlette", request.app)  # the framework types the connection's app loosely
     attached = attached_kernel(app)
     if attached is None:

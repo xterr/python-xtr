@@ -141,6 +141,24 @@ async def test_the_param_resolver_reads_the_attached_container() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(("kind", "expected"), [("param", "!"), ("env", "hi")])
+async def test_a_connection_resolver_in_a_mounted_sub_app_reads_the_scope_open_on_its_connection(
+    monkeypatch: pytest.MonkeyPatch, kind: Literal["param", "env"], expected: str
+) -> None:
+    monkeypatch.setenv("XTR_FASTAPI_TEST_GREETING", "hi")
+    app = _served_app()
+    scope = _connection(app).scope
+    resolve = provider(kind, "app.punctuation" if kind == "param" else "XTR_FASTAPI_TEST_GREETING")
+
+    async with request_scope(app, scope):
+        # A mount routes the same connection into its own application, attached to no kernel.
+        scope["app"] = Starlette()
+        value = await resolve(HTTPConnection(scope))
+
+    assert value == expected
+
+
+@pytest.mark.anyio
 async def test_the_env_resolver_reads_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("XTR_FASTAPI_TEST_GREETING", "hi")
     request = _connection(_served_app())

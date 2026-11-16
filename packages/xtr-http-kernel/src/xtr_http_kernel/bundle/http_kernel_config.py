@@ -13,6 +13,11 @@ __all__ = ["HttpKernelConfig"]
 _HTTP_TOKEN: Final = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
 """What a header field name may be made of."""
 
+_TRUSTED_HOST: Final = re.compile(
+    r"(\*\.)?[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*|\[[0-9a-f:.]+\]"
+)
+"""A host a request may name: a name or address, ``*.`` and a domain, or a bracketed address."""
+
 
 @dataclass(frozen=True, slots=True)
 class HttpKernelConfig:
@@ -37,11 +42,17 @@ class HttpKernelConfig:
             contributed factories — highest outermost.
         app: The ``"package.module:app"`` import string the console commands
             load the application from, when they need one.
+        trusted_hosts: The hosts a request may name in its ``Host`` header —
+            exact names, ``*.example.com`` for every subdomain, addresses (a
+            long one in brackets) — matched lowercased; any other host is
+            answered 400 before the lifecycle starts. Empty, the default, lets
+            every host through.
 
     Raises:
         InvalidArgumentError: When ``request_id_header`` is not an HTTP token,
-            ``log_channel`` is empty, or ``app`` does not hold exactly one
-            module and one attribute around a single ``:``.
+            ``log_channel`` is empty, ``app`` does not hold exactly one
+            module and one attribute around a single ``:``, or a trusted host
+            names no host.
     """
 
     request_id_header: str = "X-Request-Id"
@@ -50,6 +61,7 @@ class HttpKernelConfig:
     log_channel: str = "request"
     middleware_priority: int = 0
     app: str | None = None
+    trusted_hosts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Refuse values the lifecycle would silently misread."""
@@ -66,3 +78,10 @@ class HttpKernelConfig:
             if not (module and separator and attribute) or ":" in attribute:
                 message = f'app must read "package.module:app", not {self.app!r}'
                 raise InvalidArgumentError(message)
+        lowered = tuple(host.lower() for host in self.trusted_hosts)
+        for host in lowered:
+            if not _TRUSTED_HOST.fullmatch(host):
+                message = f"trusted_hosts entries must each name a host or *.domain, not {host!r}"
+                raise InvalidArgumentError(message)
+        # Hosts are matched as the client wrote them, which browsers send lowercased.
+        object.__setattr__(self, "trusted_hosts", lowered)

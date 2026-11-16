@@ -128,8 +128,10 @@ class HttpKernelBundle(Bundle[HttpKernelConfig]):
         graph of an application that never runs one.
         """
         register_messages(services)
-        _ = services.set(RequestLifecycleMiddlewareFactory).add_tag(
-            MIDDLEWARE_TAG, priority=config.middleware_priority
+        _ = (
+            services.set(RequestLifecycleMiddlewareFactory)
+            .set_argument("trusted_hosts", config.trusted_hosts)
+            .add_tag(MIDDLEWARE_TAG, priority=config.middleware_priority)
         )
         _ = services.set(_middleware_stack).set_argument("keys", ())
         _ = (
