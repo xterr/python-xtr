@@ -137,7 +137,9 @@ token is ever handed out twice.
 A storage limiter reads its state, decides, and writes it back under a lock on the key — held
 within the process when no lock factory is given, which already matters in one process: a task
 can be switched away from between the read and the write. Pass an `xtr-lock` `LockFactory` to
-share the lock between processes:
+share the lock between processes; every reservation then takes a lock of its own from the
+factory, after the in-process one, so tasks of one process queue in it rather than polling the
+store:
 
 ```python
 factory = RateLimiterFactory("api", config, CacheStorage(pool), LockFactory(RedisStore(redis)))
