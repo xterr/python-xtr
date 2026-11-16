@@ -8,7 +8,7 @@ from typing_extensions import override
 from xtr_http_kernel.bridge import Response as FrameworkResponse
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface
 
-from xtr_security_http._form_content_type import is_form_content_type
+from xtr_security_http._form_content_type import URLENCODED_FORM, is_form_content_type
 from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
@@ -44,13 +44,15 @@ class AuthenticatorManagerListener(AbstractListener):
     so the caller running the chain parks that bag on the request it asks
     about — the one place both hooks reach the same carrier.
 
-    A submitted form — a ``POST`` encoded as one — is read before the
+    A url-encoded form — a ``POST`` encoded as one — is read before the
     manager is handed the request: the request the lifecycle serves is born
     with its body unread, and its parsed side answers only what a read has
     yielded. Reading it first hands the form's fields to whatever asks for
     the parsed body without reading the stream — an authenticator, a handler
     or a listener of the login written against the message contract alone;
-    the body stays readable for the route behind the firewall.
+    the body stays readable for the route behind the firewall. A multipart
+    form is not read here: it may be an upload of any size, so it is left to
+    whoever asks for it — the form login reads its fields when it handles one.
 
     A response the manager produced is a message; the event answers with
     what the framework sends, so a pure message is converted through the
@@ -112,7 +114,9 @@ class AuthenticatorManagerListener(AbstractListener):
 
 
 def _is_unread_form(request: ServerRequestInterface) -> bool:
-    """Tell whether ``request`` submitted a form whose fields it does not answer yet."""
+    """Tell whether ``request`` submitted a url-encoded form whose fields it does not answer yet."""
     if request.get_method() != _FORM_METHOD or request.get_parsed_body() is not None:
         return False
-    return is_form_content_type(request.get_header_line("Content-Type"))
+    return is_form_content_type(
+        request.get_header_line("Content-Type"), media_types=URLENCODED_FORM
+    )

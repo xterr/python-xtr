@@ -517,6 +517,7 @@ default:
 | `middleware_priority` | `0` | where the lifecycle middleware sits among the contributed factories — highest outermost |
 | `app` | `None` | the `"package.module:app"` string the router commands load the application from |
 | `trusted_hosts` | `()` | the hosts a request may name — `"shop.test"`, `"*.shop.test"`, an address; any other is answered 400. Empty lets every host through |
+| `max_body_size` | `10485760` | the most bytes of a request body read, uploads included (10 MiB); more is answered 413. `None` reads any body |
 
 The constructor refuses values the lifecycle would silently misread: a `request_id_header` that
 is not an HTTP token, an empty `log_channel`, an `app` that is not exactly one module and one
@@ -535,6 +536,24 @@ A failure nothing answered — no `ExceptionEvent` listener set a response — g
 application's own error handling, outside the lifecycle: that answer gets no `ResponseEvent`,
 so no request id and no session cookie. Answer failures from an `ExceptionEvent` listener to
 have them.
+
+`max_body_size` is enforced outermost, around the lifecycle, so it bounds every read — a firewall
+listener reading a login form before routing as well as the route. A body declared over the
+limit by its `Content-Length`, or sent past it, is answered `413 Content Too Large`. That answer
+leaves from outside the lifecycle: no `ExceptionEvent` is dispatched for it, and
+`TerminateEvent.status_code` is the status the application started with, not the 413. A
+failure the server's `send` raises — a socket gone mid-response — is likewise announced to no
+exception listener. FastAPI ignores `Starlette(max_body_size=...)`; to take larger uploads on one
+route, mount a Starlette `Router` or `Route` with its own `max_body_size`, which raises the limit
+for what it serves. A hand-registered `RequestLifecycleMiddleware` gets neither the host check
+nor the body limit: add Starlette's `TrustedHostMiddleware` and `RequestBodyLimitMiddleware`
+yourself.
+
+An upload — a `multipart/form-data` body — read through the request message once a route asks
+for it is parsed straight off the wire into spooled files; its raw bytes are not kept, so the
+message's body is empty and an endpoint calling `await request.body()` after that gets the
+framework's "Stream consumed" error. A body the application read itself cannot be read again
+from a finish or terminate listener: read it at `RequestEvent`, or through the message.
 
 `trust_request_id` has one prerequisite: a proxy you control in front of the application, which
 sets `request_id_header` itself and strips whatever the caller sent. Reached directly, the

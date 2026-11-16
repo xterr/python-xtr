@@ -49,10 +49,18 @@ def test_it_accepts_an_app_import_string() -> None:
 
 
 def test_trusted_hosts_are_matched_lowercased() -> None:
+    assert HttpKernelConfig().max_body_size == 10 * 1024 * 1024
+    assert HttpKernelConfig(max_body_size=None).max_body_size is None
     assert HttpKernelConfig(trusted_hosts=("App.Test", "*.Shop.Test")).trusted_hosts == (
         "app.test",
         "*.shop.test",
     )
+
+
+@pytest.mark.parametrize("size", [0, -1])
+def test_it_refuses_a_body_limit_that_is_not_positive(size: int) -> None:
+    with pytest.raises(InvalidArgumentError, match="max_body_size"):
+        _ = HttpKernelConfig(max_body_size=size)
 
 
 @pytest.mark.parametrize("host", ["", "*", "a*.test", "*.", "app.test:8000", "a b"])

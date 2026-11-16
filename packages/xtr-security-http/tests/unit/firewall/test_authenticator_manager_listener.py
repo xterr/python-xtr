@@ -173,18 +173,16 @@ async def test_authenticate_hands_the_manager_the_form_a_post_submitted() -> Non
     assert dict(form) == {"_username": "alice", "_password": "secret"}  # pyright: ignore[reportUnknownArgumentType] -- a form maps names to what was sent
 
 
-async def test_authenticate_hands_the_manager_a_multipart_form_a_post_submitted() -> None:
-    manager = _Manager()
+async def test_authenticate_reads_no_body_of_a_multipart_post() -> None:
     body = b'--b\r\nContent-Disposition: form-data; name="_username"\r\n\r\nalice\r\n--b--\r\n'
-    request, _channel = served_message(
+    request, channel = served_message(
         "POST", "/login_check", body, content_type="multipart/form-data; boundary=b"
     )
 
-    await _listener(manager).authenticate(RequestEvent(request, {}))
+    await _listener(_Manager()).authenticate(RequestEvent(request, {}))
 
-    form = _handed_form(manager)
-    assert isinstance(form, Mapping)
-    assert dict(form) == {"_username": "alice"}  # pyright: ignore[reportUnknownArgumentType] -- a form maps names to what was sent
+    # An upload may be any size: it is left to whoever asks for it — a form login reads it then.
+    assert channel.reads == 0
 
 
 async def test_authenticate_leaves_the_body_readable_after_reading_the_form() -> None:

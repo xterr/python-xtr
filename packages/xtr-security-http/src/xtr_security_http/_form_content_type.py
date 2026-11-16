@@ -12,10 +12,13 @@ from __future__ import annotations
 
 from typing import Final
 
-__all__ = ["is_form_content_type"]
+__all__ = ["URLENCODED_FORM", "is_form_content_type"]
 
 #: The media types a submitted form is encoded in.
 _FORM_MEDIA_TYPES: Final = frozenset({"application/x-www-form-urlencoded", "multipart/form-data"})
+
+#: The one encoding whose body is small enough to read before it is asked for.
+URLENCODED_FORM: Final = frozenset({"application/x-www-form-urlencoded"})
 
 
 def is_form_content_type(

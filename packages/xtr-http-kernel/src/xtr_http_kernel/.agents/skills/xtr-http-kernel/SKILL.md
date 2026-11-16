@@ -374,8 +374,9 @@ to make.
        return HttpKernelConfig(disallow_search_indexing=True, app="app.web:app")
    ```
 
-   Seven fields, all optional: `request_id_header`, `trust_request_id`,
-   `disallow_search_indexing`, `log_channel`, `middleware_priority`, `app`, `trusted_hosts`. See
+   Eight fields, all optional: `request_id_header`, `trust_request_id`,
+   `disallow_search_indexing`, `log_channel`, `middleware_priority`, `app`, `trusted_hosts`,
+   `max_body_size` (10 MiB by default). See
    [references/configure.md](references/configure.md) for each one's default and meaning.
 5. **Environment** nothing.
 6. **Run** any ASGI server against the module `setup` was called in: `uvicorn app.web:app`.

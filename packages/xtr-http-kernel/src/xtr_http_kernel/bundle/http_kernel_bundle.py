@@ -131,6 +131,7 @@ class HttpKernelBundle(Bundle[HttpKernelConfig]):
         _ = (
             services.set(RequestLifecycleMiddlewareFactory)
             .set_argument("trusted_hosts", config.trusted_hosts)
+            .set_argument("max_body_size", config.max_body_size)
             .add_tag(MIDDLEWARE_TAG, priority=config.middleware_priority)
         )
         _ = services.set(_middleware_stack).set_argument("keys", ())

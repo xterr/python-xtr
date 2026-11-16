@@ -70,6 +70,7 @@ class _Lifecycle:
         "_request",
         "_response_dispatched",
         "_send",
+        "_send_failure",
         "_state",
         "_status_sent",
     )
@@ -87,6 +88,7 @@ class _Lifecycle:
         self._send = send
         self._status_sent: int | None = None
         self._response_dispatched = False
+        self._send_failure: BaseException | None = None
         self._finished = False
 
     @property
@@ -103,8 +105,16 @@ class _Lifecycle:
 
     @property
     def status_sent(self) -> int:
-        """The status that left, or 500 when the response never started."""
+        """The status the response started with, or 500 when it never started.
+
+        What a layer outside the lifecycle did with it — answered 413 in its
+        place, say — is that layer's, and not seen here.
+        """
         return self._status_sent if self._status_sent is not None else _SERVER_ERROR
+
+    def failed_sending(self, error: BaseException) -> bool:
+        """Tell whether ``error`` is what the outer send raised, not what the application did."""
+        return error is self._send_failure
 
     async def send(self, message: Message) -> None:
         message_type = cast("str", message["type"])
@@ -128,7 +138,13 @@ class _Lifecycle:
             and not cast("bool", message.get("more_body", False))
         ):
             await self.finish()
-        await self._send(message)
+        try:
+            await self._send(message)
+        except BaseException as error:
+            # Raised past the lifecycle — a layer outside it answering in the
+            # application's place, a socket gone — and so not a failure of handling.
+            self._send_failure = error
+            raise
 
     async def finish(self) -> None:
         """Declare handling finished, the first time this is asked for.
@@ -184,7 +200,11 @@ class RequestLifecycleMiddleware:
     closed as the request leaves.
 
     A failure nobody answered propagates as it arrived: turning it into a
-    response is the application's business, not this middleware's. Only the
+    response is the application's business, not this middleware's. A failure
+    the server's ``send`` raised — a layer outside answering in the
+    application's place, as a body limit answers 413, or a socket gone — is
+    no failure of handling: it is announced to no exception listener, and
+    propagates once the request finished. Only the
     lifespan of the application and its websockets pass through untouched —
     they are not requests.
 
@@ -290,6 +310,8 @@ class RequestLifecycleMiddleware:
         try:
             await self._app(scope, app_receive, lifecycle.send)
         except BaseException as error:
+            if lifecycle.failed_sending(error):
+                raise
             exception_event = ExceptionEvent(lifecycle.request, lifecycle.state, error)
             _ = await self._dispatcher.dispatch(exception_event)
             answer = exception_event.response

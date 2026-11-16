@@ -32,7 +32,7 @@ dependencies = [
     # builds on the 1.x response, and 1.3.1 is the first release that enforces
     # the limits of a urlencoded form, which every request read as a message
     # goes through (GHSA-82w8-qh3p-5jfq).
-    "starlette>=1.3.1",
+    "starlette>=1.6",
     "xtr-dependency-injection>=6.0,<7",
     "xtr-event-dispatcher>=6.0,<7",
     "xtr-event-dispatcher-contracts>=6.0,<7",
