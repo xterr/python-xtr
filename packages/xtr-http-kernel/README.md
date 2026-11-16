@@ -168,6 +168,15 @@ out as it arrived — turning it into a response is the application's job, not t
 `FinishRequestEvent` runs on every path, which is what makes it the place to close what a
 request opened; `TerminateEvent` carries the status that actually left, `500` when an
 unanswered exception left before the response started.
+Every path includes a file a server sends whole (`http.response.pathsend`), a client gone
+mid-stream and a request listener that raised. `ResponseEvent` is dispatched once per
+request: when one of its listeners raises, the answer sent in its place goes out without it.
+
+The finish and terminate listeners, and closing what the request opened, run to their end
+even when the request is cancelled — a disconnect, a server's deadline. Each runs in a task of
+its own, in a copy of the request's context (a listener cannot reset a context variable set
+earlier in the request), and is given 30 seconds; one still running then is cancelled with a
+`TimeoutError`. Keep a slow follow-up out of them: hand it to a message bus.
 
 Events are keyed by the qualified name of their class, so a listener declared on a typed
 parameter and one registered under the matching `KernelEvents` constant are the same

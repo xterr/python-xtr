@@ -249,6 +249,9 @@ scanned module needs no further registration.
 | `FinishRequestEvent` | handling finished, on every path | put away what the request set up |
 | `TerminateEvent` | everything was sent | read `status_code`, which is `500` when nothing left |
 
+Finish and terminate listeners run to their end even when the request is cancelled, each in its
+own task with a copy of the request's context, within 30 seconds; `ResponseEvent` fires once.
+
 - `set_response` stops the event: the listeners after it do not run.
 - `ExceptionEvent` only fires while nothing has been sent, and only an `Exception` is turned
   into a response; a cancellation or an interrupt is announced and then carries on out.
