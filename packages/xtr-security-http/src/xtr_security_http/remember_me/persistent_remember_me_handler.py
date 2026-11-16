@@ -212,9 +212,17 @@ class PersistentRememberMeHandler(AbstractRememberMeHandler):
         the user's signature properties is bound to it, the store rotates,
         and the fresh cookie is staged for the response.
 
+        The store rotates only over the value the request presented: of two
+        requests rotating it at once, one wins. The other stages no cookie —
+        its value was never stored — and is let through when the stored
+        value was rotated within the window; otherwise the value it carried
+        was spent long ago, and that is a stolen cookie.
+
         Raises:
             AuthenticationError: When the digest the value carries no
                 longer matches the user — a changed password.
+            CookieTheftError: When the rotation lost to anything but a
+                rotation within the window.
         """
         last_used, series, token_value, _user_class = remember_me_details.get_value().split(":", 3)
         token = PersistentToken(
@@ -236,9 +244,20 @@ class PersistentRememberMeHandler(AbstractRememberMeHandler):
         if digest is not None:
             token_value = with_digest(token_value, digest)
         token_last_used = self._clock.now()
+        if not await self._token_provider.update_token(
+            series, token.get_token_value(), token_value, token_last_used
+        ):
+            stored = await self._token_provider.load_token_by_series(series)
+            rotated_at = int(stored.get_last_used().timestamp()) + _ROTATION_WINDOW
+            if stored.get_token_value() != token.get_token_value() and rotated_at >= int(
+                self._clock.now().timestamp()
+            ):
+                return
+            raise CookieTheftError(
+                "This token was already used. The account is possibly compromised.",
+            )
         if self._token_verifier is not None:
             await self._token_verifier.update_existing_token(token, token_value, token_last_used)
-        await self._token_provider.update_token(series, token_value, token_last_used)
         self._create_cookie(request, remember_me_details.with_value(f"{series}:{token_value}"))
 
     @override

@@ -398,7 +398,9 @@ regexps of `HttpUtils`, when configured, still weigh whichever target wins.
 **`CustomAuthenticationSuccessHandler(handler, options, firewall_name)`** and
 **`CustomAuthenticationFailureHandler(handler, options)`** are the seams for an application's own
 handlers, handing them the wiring's options — and the firewall's name, for a success handler that
-keys by one — through duck-typed setters.
+keys by one — through duck-typed setters. Each wrapper sets them once, on a shallow copy of the
+handler of its own, so two firewalls sharing one handler never answer with each other's options;
+a handler's setters must rebind what they set rather than change state the copies share.
 
 **`AuthenticationUtils(request)`** reads what the last login attempt left, for the page that
 renders the form again: `get_last_authentication_error(clear_session=True)`, `get_last_username()`
@@ -440,9 +442,13 @@ names and stages every cookie; its options default to the name `REMEMBERME`, a o
   presented again raises the core `CookieTheftError`), skips the rotation within a 60-second
   window so concurrent requests do not spend one another, and binds a digest of the user's
   signature properties — the password by default, properties the user does not expose skipped —
-  so a changed password retires the series. A verifier accepts a value the store no longer holds
-  exactly; the provider itself is used when it implements the verifier's contract. Clearing drops
-  the series the request's own cookie names.
+  so a changed password retires the series. The rotation is conditional — `update_token(series,
+  expected_value, token_value, last_used) -> bool` stores the new value only over the one
+  presented — so of two requests rotating at once one wins; the other stages no cookie and
+  passes when the stored value was rotated within the window, and raises `CookieTheftError`
+  otherwise. A verifier accepts a value the store no longer holds exactly, and is told of a
+  rotation only once the store took it; the provider itself is used when it implements the
+  verifier's contract. Clearing drops the series the request's own cookie names.
 
 Around the handlers: **`CheckRememberMeConditionsListener(options, logger)`** enables the passport's
 `RememberMeBadge` on a successful login when the application always wants the cookie or the request

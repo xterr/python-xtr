@@ -34,8 +34,22 @@ class TokenProviderInterface(Protocol):
         """Delete every token of ``series``."""
         ...
 
-    async def update_token(self, series: str, token_value: str, last_used: datetime) -> None:
-        """Rotate the value of ``series``'s token and record its last use.
+    async def update_token(
+        self,
+        series: str,
+        expected_value: str,
+        token_value: str,
+        last_used: datetime,
+    ) -> bool:
+        """Rotate ``series``'s token to ``token_value`` if it still holds ``expected_value``.
+
+        The check and the write are one step — a conditional ``UPDATE`` in a
+        database — so of two requests rotating the same value at once only
+        one wins; the other is told so and stores nothing.
+
+        Returns:
+            ``True`` when the value was rotated and its last use recorded;
+            ``False`` when the stored value was no longer ``expected_value``.
 
         Raises an error when no token exists for the series, as
         :meth:`load_token_by_series` does.

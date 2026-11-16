@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import copy
 from typing import TYPE_CHECKING, Protocol, final, runtime_checkable
 
 from typing_extensions import override
@@ -35,9 +36,14 @@ class CustomAuthenticationFailureHandler(AuthenticationFailureHandlerInterface):
     answer should look like. This is the seam between them: the options are
     handed to the handler when they can be (a handler that takes them), and
     the answer is the handler's own either way.
+
+    The wrapper configures a copy of the handler of its own, once, so two
+    firewalls sharing one handler never answer with each other's options.
+    The copy is shallow: a handler's ``set_options`` must rebind what it
+    sets, not change state the copies share.
     """
 
-    __slots__ = ("_handler", "_options")
+    __slots__ = ("_handler",)
 
     def __init__(
         self,
@@ -51,8 +57,10 @@ class CustomAuthenticationFailureHandler(AuthenticationFailureHandlerInterface):
             options: The options the wiring collected for the firewall, for
                 a handler that takes them.
         """
-        self._handler = handler
-        self._options = dict(options)
+        own = copy(handler)
+        if isinstance(own, _OptionsAware):
+            own.set_options(dict(options))
+        self._handler = own
 
     @override
     async def on_authentication_failure(
@@ -60,7 +68,5 @@ class CustomAuthenticationFailureHandler(AuthenticationFailureHandlerInterface):
         request: ServerRequestInterface,
         error: AuthenticationError,
     ) -> ResponseInterface:
-        """Hand the options over, then let the application's handler answer."""
-        if isinstance(self._handler, _OptionsAware):
-            self._handler.set_options(self._options)
+        """Let the configured copy of the application's handler answer."""
         return await self._handler.on_authentication_failure(request, error)
