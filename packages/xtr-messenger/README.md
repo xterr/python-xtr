@@ -742,10 +742,6 @@ the taskiq bridge works installed without aio-pika: beside taskiq, the applicati
 package of the broker it picks — Redis, NATS — or uses taskiq's in-memory broker. RabbitMQ is a
 package of its own, built on that bridge. Tests enforce all three claims.
 
-`xtr_messenger.bridge.amqp` and its modules still import, as the very objects
-xtr-amqp-messenger defines, through this major version; import from `xtr_amqp_messenger`
-instead — the old path goes in the next one.
-
 ### Writing your own
 
 Implement two methods and advertise one entry point:

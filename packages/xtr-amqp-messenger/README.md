@@ -134,9 +134,6 @@ MessageBusFactory(config, [AmqpTransportFactory(wire, options=AmqpOptions(...))]
 `create_amqp_broker` builds a configured `AioPikaBroker` — retry ladder, delayed-message
 exchange and dead-lettering wired — and `declared_queues(broker)` names the queues it consumes.
 
-`xtr_messenger.bridge.amqp` and its modules, where this transport used to live, still import as
-the very objects defined here through this major version; they go in the next one.
-
 ## Use in an application
 
 Everything adding this package to an application takes — and, read backwards, what removing it

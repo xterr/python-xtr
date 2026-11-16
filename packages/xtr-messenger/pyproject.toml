@@ -58,7 +58,7 @@ dev = [
     "anyio>=4.0",
     "taskiq>=0.12.4",
     "ty>=0.0.83",
-    # The modules under xtr_messenger.bridge.amqp re-export it; their tests import both.
+    # Transport discovery is tested against the RabbitMQ factory it advertises.
     "xtr-amqp-messenger>=6.0,<7",
     "xtr-console>=6.0,<7",
     "xtr-dependency-injection>=6.0,<7",
