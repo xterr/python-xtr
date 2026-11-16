@@ -24,7 +24,7 @@ from xtr_dependency_injection import (
 from xtr_dependency_injection.testing import assert_zero_config
 from xtr_logging_contracts import NullLogger
 
-from xtr_orm import ConnectionRegistry, DatabaseManager, Migrator
+from xtr_orm import ConnectionRegistry, DatabaseManager, Migrator, SessionUnavailableError
 from xtr_orm.bundle import ORM_CHANNEL, OrmBundle
 
 if TYPE_CHECKING:
@@ -140,6 +140,26 @@ async def test_a_connection_reads_only_its_own_environment_variables(tmp_path: P
         assert (await registry.migrator()).name == "default"
         assert (await registry.database()).database.endswith("app.sqlite")
         assert await bind_callable(booted.container, unit, per_call_scope=True)() == 1
+
+
+async def test_a_singleton_never_gets_another_kernels_session(tmp_path: Path) -> None:
+    other_path = tmp_path / "other"
+    other_path.mkdir()
+    async with await _kernel(tmp_path).boot() as booted, await _kernel(other_path).boot() as other:
+        others = await other.container.get(ConnectionRegistry)
+
+        async def unit(session: Injected[AsyncSession]) -> type[Exception] | None:
+            del session
+            try:
+                _ = await others.session()
+            except SessionUnavailableError as error:
+                return type(error)
+            return None
+
+        assert (
+            await bind_callable(booted.container, unit, per_call_scope=True)()
+            is SessionUnavailableError
+        )
 
 
 async def test_a_connection_is_in_use_once_its_engine_is_built(tmp_path: Path) -> None:

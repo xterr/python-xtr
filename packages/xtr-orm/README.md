@@ -415,7 +415,7 @@ commands that change the database ask first; `-n` answers yes.
 |---|---|
 | `orm:database:create [--if-not-exists]` | Creates the database, through the server's maintenance database |
 | `orm:database:drop --force [--if-exists]` | Drops it; refused without `--force` |
-| `orm:run-sql SQL [--force-fetch]` | Runs a statement, committed; shows its rows or how many it changed — when the driver can tell |
+| `orm:run-sql SQL [--force-fetch]` | Runs a statement as written, committed — a `:word` is never read as a parameter; shows its rows or how many it changed — when the driver can tell |
 | `orm:migrations:current` | The revisions the database is at — `base` for none |
 | `orm:migrations:latest` | The revisions no other follows |
 | `orm:migrations:list` | Every revision with its status, when it ran and how long it took |
@@ -508,6 +508,10 @@ MessageBusConfig(
 - **Only messages a worker consumed are closed after** — one carrying a `ReceivedStamp` on
   arrival. A message handled during its dispatch, `sync://` included, closes nothing. A worker
   handling several at once closes once the last of them is done, keeping its pool meanwhile.
+  The unit's session on each connection is closed first, so a message that read and never
+  committed gives its connection back before the pool is dropped. A worker consuming an
+  `orm://` transport on the same connection reconnects for every poll after that: name only the
+  other connections in `connection_names` there.
 - **Follow-ups wait for the commit when stamped.** A message a handler dispatches to a
   transport is sent at once — before the commit, and whether or not it comes. Dispatch it
   with `DispatchAfterCurrentBusStamp` and it goes out only once the message being handled

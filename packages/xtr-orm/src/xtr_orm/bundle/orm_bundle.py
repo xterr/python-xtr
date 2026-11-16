@@ -53,8 +53,8 @@ from xtr_dependency_injection import (
     ServiceConfigurator,
     as_bundle,
     bundle_active,
-    current_unit_of_work,
     named_factory,
+    open_unit_of,
     optional_service,
     qualified_name,
     required_bundle,
@@ -466,7 +466,7 @@ def _connection_registry_factory(
                 engine=_provider(container, AsyncEngine, name),
                 migrator=_provider(container, Migrator, name),
                 database=_provider(container, DatabaseManager, name),
-                session=_unit_session(name),
+                session=_unit_session(container, name),
                 close=_closer(container, name, routed=replicated),
                 in_use=partial(contains, in_use.names, name),
             )
@@ -475,9 +475,13 @@ def _connection_registry_factory(
     return connection_registry
 
 
-def _unit_session(name: str) -> Callable[[], Awaitable[AsyncSession]]:
+def _unit_session(
+    container: ContainerInterface, name: str
+) -> Callable[[], Awaitable[AsyncSession]]:
+    """Reach the session of the unit of work open on ``container`` — never another kernel's."""
+
     async def session() -> AsyncSession:
-        unit = current_unit_of_work()
+        unit = open_unit_of(container)
         if unit is None:
             raise SessionUnavailableError(name, "no unit of work is under way")
         return await unit.get(AsyncSession, name)
