@@ -23,6 +23,10 @@ step through xtr-event-dispatcher; see the `xtr-event-dispatcher` skill for list
 - Where the marking lives: `MethodMarkingStore(single_state, property)` from
   `xtr_workflow.marking_store` — the subject's `get_<property>()` / `set_<property>()`, else its
   attribute. Both its methods are `async`.
+- `apply` takes one subject object at a time in this process (a listener re-applying to it goes
+  through). Across processes, or two objects loaded from one row, only a store implementing
+  `CompareAndSetMarkingStoreInterface.set_marking_if(subject, marking, expected, context) -> bool`
+  keeps transitions apart; its refusal raises `NotEnabledTransitionError`.
 - Declare on a class: `@as_workflow(...)` with `Transition` / `Place` markers and
   `as_*_listener` methods, from `xtr_workflow.decorator`. See
   [references/declaring-workflows.md](references/declaring-workflows.md).

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Final
 from typing_extensions import override
 
 from ._events_to_dispatch import events_to_dispatch_from
+from ._subject_locks import SubjectLocks
 from .event import (
     AnnounceEvent,
     CompletedEvent,
@@ -22,7 +23,8 @@ from .exception import (
     NotEnabledTransitionError,
     UndefinedTransitionError,
 )
-from .marking_store import MethodMarkingStore
+from .marking import Marking
+from .marking_store import CompareAndSetMarkingStoreInterface, MethodMarkingStore
 from .transition_blocker import TransitionBlocker
 from .transition_blocker_list import TransitionBlockerList
 from .workflow_events import WorkflowEvents
@@ -35,7 +37,6 @@ if TYPE_CHECKING:
 
     from .definition import Definition
     from .event import Event
-    from .marking import Marking
     from .marking_store import MarkingStoreInterface
     from .metadata import MetadataStoreInterface
     from .transition import Transition
@@ -58,6 +59,17 @@ class Workflow(WorkflowInterface):
     ``transition`` (where a listener may replace the call's context),
     ``enter``, ``entered``, ``completed`` and ``announce``. Without a
     dispatcher, nothing is asked and nothing told.
+
+    One transition is applied at a time per subject object: a second
+    ``apply`` of the same subject waits for the first, then weighs the
+    marking the first left — while a listener of the move applying to the
+    same subject goes straight through. That keeps the tasks of one process
+    apart; two processes, or two requests each loading the subject into an
+    object of its own, are kept apart only by a marking store implementing
+    :class:`~xtr_workflow.marking_store.CompareAndSetMarkingStoreInterface`,
+    which a transition then writes through. A write it refuses fails the
+    transition after ``leave``, ``transition`` and ``enter`` went out; they
+    are not taken back.
     """
 
     DISABLE_LEAVE_EVENT: Final[str] = "workflow_disable_leave_event"
@@ -94,11 +106,13 @@ class Workflow(WorkflowInterface):
     )
 
     __slots__: tuple[str, ...] = (
+        "_compare_and_set",
         "_definition",
         "_dispatcher",
         "_events_to_dispatch",
         "_marking_store",
         "_name",
+        "_subject_locks",
     )
 
     _definition: Definition
@@ -106,6 +120,8 @@ class Workflow(WorkflowInterface):
     _dispatcher: EventDispatcherInterface | None
     _name: str
     _events_to_dispatch: frozenset[str] | None
+    _compare_and_set: CompareAndSetMarkingStoreInterface | None
+    _subject_locks: SubjectLocks
 
     def __init__(
         self,
@@ -135,6 +151,12 @@ class Workflow(WorkflowInterface):
         """
         self._definition = definition
         self._marking_store = MethodMarkingStore() if marking_store is None else marking_store
+        self._compare_and_set = (
+            self._marking_store
+            if isinstance(self._marking_store, CompareAndSetMarkingStoreInterface)
+            else None
+        )
+        self._subject_locks = SubjectLocks()
         self._dispatcher = dispatcher
         self._name = name
         self._events_to_dispatch = (
@@ -209,6 +231,16 @@ class Workflow(WorkflowInterface):
         transition_name: str,
         context: Mapping[str, object] | None = None,
     ) -> Marking:
+        async with self._subject_locks.hold(subject):
+            return await self._apply(subject, transition_name, context)
+
+    async def _apply(
+        self,
+        subject: object,
+        transition_name: str,
+        context: Mapping[str, object] | None,
+    ) -> Marking:
+        """Apply ``transition_name`` to ``subject``, which this task chain holds."""
         call_context: dict[str, object] = dict(context) if context is not None else {}
         marking = await self.get_marking(subject, call_context)
 
@@ -230,10 +262,11 @@ class Workflow(WorkflowInterface):
             )
 
         for transition in approved_transitions:
+            expected = Marking(marking.get_places())
             await self._leave(subject, transition, marking, call_context)
             call_context = await self._transition(subject, transition, marking, call_context)
             await self._enter(subject, transition, marking, call_context)
-            await self._marking_store.set_marking(subject, marking, call_context)
+            await self._write_marking(subject, transition_name, marking, expected, call_context)
             await self._entered(subject, transition, marking, call_context)
             await self._completed(subject, transition, marking, call_context)
             await self._announce(subject, transition, marking, call_context)
@@ -241,6 +274,33 @@ class Workflow(WorkflowInterface):
         marking.set_context(call_context)
 
         return marking
+
+    async def _write_marking(
+        self,
+        subject: object,
+        transition_name: str,
+        marking: Marking,
+        expected: Marking,
+        context: dict[str, object],
+    ) -> None:
+        """Record ``marking``; through a compare-and-set store, only over ``expected``.
+
+        Raises:
+            NotEnabledTransitionError: When the store refused the write — the
+                subject moved since the transition was weighed.
+        """
+        store = self._compare_and_set
+        if store is None:
+            await self._marking_store.set_marking(subject, marking, context)
+            return
+        if not await store.set_marking_if(subject, marking, expected, context):
+            raise NotEnabledTransitionError(
+                subject,
+                transition_name,
+                self,
+                TransitionBlockerList([TransitionBlocker.create_blocked_by_marking(expected)]),
+                context,
+            )
 
     @override
     async def get_enabled_transitions(self, subject: object) -> list[Transition]:
