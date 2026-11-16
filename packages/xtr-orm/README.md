@@ -592,8 +592,9 @@ Every error derives from `OrmError`.
 ## Known limitations
 
 - **Migrations take no lock.** Two processes migrating one database at once — two deploys
-  starting together — both run the same revisions; run `orm:migrations:migrate` from one
-  place, before the application starts.
+  starting together — race: on PostgreSQL the loser fails on recording a revision already
+  recorded and rolls its transaction back; elsewhere a revision may run twice. Run
+  `orm:migrations:migrate` from one place, before the application starts.
 - **Applied times follow the database.** `executed_at` has a time zone on PostgreSQL and is
   naive elsewhere: UTC on SQLite, the session's time zone on MySQL.
 - **advanced-alchemy's model registry is process-wide.** Its `metadata_registry` maps a

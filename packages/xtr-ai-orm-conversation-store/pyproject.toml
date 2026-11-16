@@ -39,6 +39,9 @@ dev = [
     # The store is tested against a real database: a SQLite file in the test's
     # own directory, which needs an async driver for it.
     "aiosqlite>=0.20",
+    # The PostgreSQL suite, run when XTR_TEST_POSTGRES_URL names a server: row locks
+    # only a real server takes.
+    "asyncpg>=0.29",
 ]
 
 [build-system]

@@ -5437,6 +5437,7 @@ dependencies = [
 dev = [
     { name = "aiosqlite" },
     { name = "anyio" },
+    { name = "asyncpg" },
     { name = "basedpyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -5457,6 +5458,7 @@ requires-dist = [
 dev = [
     { name = "aiosqlite", specifier = ">=0.20" },
     { name = "anyio", specifier = ">=4.0" },
+    { name = "asyncpg", specifier = ">=0.29" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
