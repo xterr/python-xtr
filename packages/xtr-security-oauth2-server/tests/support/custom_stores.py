@@ -138,6 +138,10 @@ class ApplicationAuthorizationCodeStore(AuthorizationCodeManagerInterface):
         await self._held.save(auth_code)
 
     @override
+    async def revoke(self, identifier: str) -> bool:
+        return await self._held.revoke(identifier)
+
+    @override
     async def clear_expired(self) -> int:
         return await self._held.clear_expired()
 

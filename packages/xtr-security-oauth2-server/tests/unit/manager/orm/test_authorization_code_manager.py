@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import anyio
 import pytest
 from xtr_clock import MockClock
 
@@ -26,6 +27,9 @@ if TYPE_CHECKING:
     from tests.support.orm import Database
 
 pytestmark = pytest.mark.anyio
+
+_REDEMPTIONS = 5
+"""How many callers race to spend one code in the concurrency test."""
 
 
 def test_it_declares_the_authorization_code_manager_contract() -> None:
@@ -102,6 +106,62 @@ async def test_a_saved_code_is_committed_so_another_session_reads_it(tmp_path: P
         await manager.save(authorization_code_model(client=client))
 
         assert await database.count("oauth2_authorization_code") == 1
+
+
+async def test_the_first_caller_to_revoke_a_code_is_told_it_did(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(authorization_code_model(client=client))
+
+        assert await manager.revoke("ac-1") is True
+
+
+async def test_the_second_caller_to_revoke_the_same_code_is_told_it_did_not(
+    tmp_path: Path,
+) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(authorization_code_model(client=client))
+        _ = await manager.revoke("ac-1")
+
+        assert await _on(database.session()).revoke("ac-1") is False
+
+
+async def test_a_revocation_is_committed_so_another_session_reads_it_back(
+    tmp_path: Path,
+) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(authorization_code_model(client=client))
+
+        _ = await manager.revoke("ac-1")
+        found = await _on(database.session()).find("ac-1")
+
+        assert found is not None
+        assert found.is_revoked() is True
+
+
+async def test_revoking_a_code_that_was_never_stored_revoked_nothing(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, _ = await _manager(database)
+
+        assert await manager.revoke("nope") is False
+
+
+async def test_many_redemptions_of_one_code_leave_exactly_one_winner(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        manager, client = await _manager(database)
+        await manager.save(authorization_code_model(client=client))
+        verdicts: list[bool] = []
+
+        async def redeem() -> None:
+            verdicts.append(await _on(database.session()).revoke("ac-1"))
+
+        async with anyio.create_task_group() as group:
+            for _ in range(_REDEMPTIONS):
+                _ = group.start_soon(redeem)
+
+        assert sorted(verdicts) == [*[False] * (_REDEMPTIONS - 1), True]
 
 
 async def test_it_sweeps_the_expired_codes_and_counts_them(tmp_path: Path) -> None:

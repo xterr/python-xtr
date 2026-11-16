@@ -179,9 +179,13 @@ class InMemoryAuthCodeRepository:
         self.collisions.claim()
         self.codes[auth_code_entity.get_identifier()] = auth_code_entity
 
-    async def revoke_auth_code(self, code_id: str) -> None:
-        """Stop accepting the authorization code named ``code_id``."""
+    async def revoke_auth_code(self, code_id: str) -> bool:
+        """Revoke ``code_id``, reporting whether this call is what revoked it."""
+        if code_id in self.revoked:
+            return False
         self.revoked.add(code_id)
+
+        return True
 
     async def is_auth_code_revoked(self, code_id: str) -> bool:
         """Tell whether the authorization code named ``code_id`` was revoked."""

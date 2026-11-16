@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
 
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from typing_extensions import override
 from xtr_clock import ClockInterface  # noqa: TC002 — read at runtime by the container
 from xtr_orm import ConnectionRegistry  # noqa: TC002 — read at runtime by the container
@@ -24,6 +24,9 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 __all__ = ["AuthorizationCodeManager"]
+
+_SPENT = 1
+"""How many rows a revocation changes when it is the one that spent the code."""
 
 
 @final
@@ -69,6 +72,30 @@ class AuthorizationCodeManager(AuthorizationCodeManagerInterface):
         session = await self._session()
         session.add(auth_code)
         await session.commit()
+
+    @override
+    async def revoke(self, identifier: str) -> bool:
+        """Spend the code stored as ``identifier``, in one step.
+
+        One conditional statement, so of two redemptions at once only one finds
+        the code valid — on every worker, whatever their sessions read before.
+
+        Returns:
+            Whether this call is what spent it: ``True`` when the statement
+            found a code that was valid, ``False`` when it was already revoked
+            or was never stored.
+        """
+        codes = mapped_table(AuthorizationCode)
+        session = await self._session()
+        spent = await session.execute(
+            update(AuthorizationCode)
+            .where(codes.c["identifier"] == identifier, codes.c["revoked"].is_(False))
+            .values({codes.c["revoked"]: True})
+            .execution_options(synchronize_session="fetch"),
+        )
+        await session.commit()
+
+        return changed_rows(spent) == _SPENT
 
     @override
     async def clear_expired(self) -> int:

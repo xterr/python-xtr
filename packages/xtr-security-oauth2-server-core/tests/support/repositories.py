@@ -21,6 +21,7 @@ from tests.support.entities import AccessToken, AuthCode, DeviceCode, RefreshTok
 from xtr_security_oauth2_server_core.exception import UniqueTokenIdentifierConstraintViolationError
 
 if TYPE_CHECKING:
+    import asyncio
     from collections.abc import Sequence
 
     from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
@@ -164,12 +165,18 @@ class InMemoryAccessTokenRepository:
 
 @final
 class InMemoryAuthCodeRepository:
-    """Mints and stores authorization codes, and remembers which were redeemed."""
+    """Mints and stores authorization codes, and remembers which were redeemed.
 
-    def __init__(self) -> None:
+    ``checked`` holds every caller asking whether a code was revoked until as
+    many are waiting as it has parties — so concurrent redemptions all read
+    "not revoked" before any of them spends the code.
+    """
+
+    def __init__(self, checked: asyncio.Barrier | None = None) -> None:
         self.codes: dict[str, AuthCodeEntityInterface] = {}
         self.revoked: set[str] = set()
         self.collisions: _Collisions = _Collisions()
+        self._checked = checked
 
     async def get_new_auth_code(self) -> AuthCodeEntityInterface:
         """Return a new, unstored authorization code."""
@@ -180,13 +187,20 @@ class InMemoryAuthCodeRepository:
         self.collisions.claim()
         self.codes[auth_code_entity.get_identifier()] = auth_code_entity
 
-    async def revoke_auth_code(self, code_id: str) -> None:
-        """Stop accepting the authorization code named ``code_id``."""
+    async def revoke_auth_code(self, code_id: str) -> bool:
+        """Revoke ``code_id``, reporting whether this call is what revoked it."""
+        if code_id in self.revoked:
+            return False
         self.revoked.add(code_id)
+
+        return True
 
     async def is_auth_code_revoked(self, code_id: str) -> bool:
         """Tell whether the authorization code named ``code_id`` was revoked."""
-        return code_id in self.revoked
+        revoked = code_id in self.revoked
+        if self._checked is not None:
+            _ = await self._checked.wait()
+        return revoked
 
 
 @final

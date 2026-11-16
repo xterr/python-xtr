@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 from datetime import timedelta
@@ -17,7 +18,11 @@ from tests.support.encryption import seal, unseal
 from tests.support.entities import make_client, make_user
 from tests.support.grants import Storage, wire
 from tests.support.messages import server_request
-from tests.support.repositories import InMemoryRefreshTokenRepository, InMemoryScopeRepository
+from tests.support.repositories import (
+    InMemoryAuthCodeRepository,
+    InMemoryRefreshTokenRepository,
+    InMemoryScopeRepository,
+)
 from tests.support.response_types import RecordingResponseType
 from tests.support.signing import FROZEN_NOW, make_clock
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
@@ -554,6 +559,30 @@ async def test_a_code_cannot_be_redeemed_twice() -> None:
 
 
 @pytest.mark.anyio
+async def test_two_concurrent_redemptions_of_one_code_issue_one_pair() -> None:
+    storage = Storage(auth_codes=InMemoryAuthCodeRepository(checked=asyncio.Barrier(2)))
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    code = await _approved_code(grant)
+
+    answers = await asyncio.gather(
+        *(
+            grant.respond_to_access_token_request(
+                _token_request(code=code), RecordingResponseType(), _AN_HOUR
+            )
+            for _ in range(2)
+        ),
+        return_exceptions=True,
+    )
+
+    refused = [answer for answer in answers if isinstance(answer, OAuthServerError)]
+    assert len(refused) == 1
+    assert refused[0].get_error_type() == "invalid_grant"
+    assert len(storage.access_tokens.tokens) == 1
+    assert len(storage.refresh_tokens.tokens) == 1
+
+
+@pytest.mark.anyio
 async def test_a_token_request_carrying_no_code_is_refused() -> None:
     storage = Storage()
     _confidential(storage)
@@ -735,6 +764,29 @@ async def test_another_verifier_does_not_redeem_the_code() -> None:
 
     assert refusal.value.get_error_type() == "invalid_grant"
     assert "code_verifier" in str(refusal.value.get_hint())
+
+
+@pytest.mark.anyio
+async def test_a_wrong_verifier_does_not_spend_the_code() -> None:
+    storage = Storage()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    code = await _approved_code(grant, code_challenge=_CHALLENGE, code_challenge_method="S256")
+    with pytest.raises(OAuthServerError):
+        _ = await grant.respond_to_access_token_request(
+            _token_request(code=code, code_verifier="b" * 43),
+            RecordingResponseType(),
+            _AN_HOUR,
+        )
+    response_type = RecordingResponseType()
+
+    _ = await grant.respond_to_access_token_request(
+        _token_request(code=code, code_verifier=_VERIFIER),
+        response_type,
+        _AN_HOUR,
+    )
+
+    assert response_type.access_token is not None
 
 
 @pytest.mark.anyio

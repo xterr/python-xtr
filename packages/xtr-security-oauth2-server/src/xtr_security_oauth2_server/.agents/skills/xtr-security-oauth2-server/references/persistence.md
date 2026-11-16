@@ -8,7 +8,7 @@
 | `ClientManagerInterface` | `find(identifier)`, `save(client)`, `remove(client)`, `list(client_filter)` |
 | `AccessTokenManagerInterface` | `find`, `save`, `clear_expired() -> int` |
 | `RefreshTokenManagerInterface` | `find`, `save`, `revoke(identifier) -> bool` (true only for the call that revoked it), `clear_expired` |
-| `AuthorizationCodeManagerInterface` | `find`, `save`, `clear_expired` |
+| `AuthorizationCodeManagerInterface` | `find`, `save`, `revoke(identifier) -> bool` (true only for the call that spent it; a redemption spends the code before tokens are issued), `clear_expired` |
 | `DeviceCodeManagerInterface` | `find`, `find_by_user_code(code)`, `save`, `clear_expired` |
 | `CredentialsRevokerInterface` (`xtr_security_oauth2_server.service`) | `revoke_credentials_for_user(user)`, `revoke_credentials_for_client(client)` |
 

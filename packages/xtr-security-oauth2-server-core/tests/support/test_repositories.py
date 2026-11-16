@@ -140,8 +140,8 @@ async def test_a_redeemed_authorization_code_reports_itself_revoked() -> None:
     code.set_identifier("code-1")
     await repository.persist_new_auth_code(code)
 
-    await repository.revoke_auth_code("code-1")
-
+    assert await repository.revoke_auth_code("code-1") is True
+    assert await repository.revoke_auth_code("code-1") is False
     assert await repository.is_auth_code_revoked("code-1") is True
 
 
