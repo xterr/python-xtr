@@ -451,6 +451,7 @@ async def test_a_device_code_cannot_be_exchanged_twice() -> None:
             _AN_HOUR,
         )
 
+    assert refusal.value.get_error_type() == "invalid_grant"
     assert "revoked" in str(refusal.value.get_hint())
 
 
@@ -478,6 +479,7 @@ async def test_two_concurrent_polls_of_an_approved_device_code_issue_one_pair() 
 
     refused = [answer for answer in answers if isinstance(answer, OAuthServerError)]
     assert len(refused) == 1
+    assert refused[0].get_error_type() == "invalid_grant"
     assert len(storage.access_tokens.tokens) == 1
 
 
@@ -607,4 +609,5 @@ async def test_a_device_code_issued_to_another_client_is_refused() -> None:
             _AN_HOUR,
         )
 
+    assert refusal.value.get_error_type() == "invalid_grant"
     assert "not issued to this client" in str(refusal.value.get_hint())

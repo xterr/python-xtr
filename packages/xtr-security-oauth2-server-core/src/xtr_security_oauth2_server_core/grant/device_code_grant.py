@@ -70,7 +70,9 @@ class DeviceCodeGrant(AbstractGrant):
     reach a phone.
 
     A device code is single use. It is revoked as soon as it is exchanged, so a
-    code read off a device that has already been authorized buys nothing.
+    code read off a device that has already been authorized buys nothing: it is
+    answered ``invalid_grant``, the answer for a grant that is invalid, revoked
+    or another client's.
     """
 
     def __init__(  # noqa: PLR0913, PLR0917 -- one wiring of one flow, not seven choices
@@ -214,8 +216,10 @@ class DeviceCodeGrant(AbstractGrant):
         Raises:
             OAuthServerError: With ``authorization_pending`` while nobody has
                 decided, ``slow_down`` when the device polled too soon,
-                ``access_denied`` when its owner refused, and the usual
-                refusals when the code or the client is not what it claims.
+                ``access_denied`` when its owner refused, ``expired_token``
+                when the code expired, and ``invalid_grant`` when the code is
+                unknown, already spent — by this poll's rival too — or was
+                issued to another client.
         """
         client = await self.validate_client(request)
         device_code = await self.validate_device_code(request, client)
@@ -233,7 +237,7 @@ class DeviceCodeGrant(AbstractGrant):
             owner,
         )
         if not await self._device_code_repository.revoke_device_code(device_code.get_identifier()):
-            raise OAuthServerError.invalid_request("device_code", "Device code has been revoked")
+            raise OAuthServerError.invalid_grant("Device code has been revoked")
         await self._issue_tokens(request, response_type, access_token_ttl, client, owner, granted)
 
         return response_type
@@ -267,12 +271,9 @@ class DeviceCodeGrant(AbstractGrant):
         if self._clock.now().timestamp() > stored.get_expiry_date_time().timestamp():
             raise OAuthServerError.expired_token("device_code")
         if await self._device_code_repository.is_device_code_revoked(polled_with):
-            raise OAuthServerError.invalid_request("device_code", "Device code has been revoked")
+            raise OAuthServerError.invalid_grant("Device code has been revoked")
         if stored.get_client().get_identifier() != client.get_identifier():
-            raise OAuthServerError.invalid_request(
-                "device_code",
-                "Device code was not issued to this client",
-            )
+            raise OAuthServerError.invalid_grant("Device code was not issued to this client")
 
         return stored
 

@@ -260,6 +260,12 @@ carries. A grant of your own subclasses `AbstractGrant` (or `AbstractAuthorizeGr
 reached through `/authorize`); `AuthCodeGrant` keeps two seams for one that carries something
 through the code — `create_authorization_request()` and `get_auth_code_payload()`.
 
+A polling device is answered as RFC 8628 says: `authorization_pending` until its owner decides,
+`slow_down` when it polls too soon, `access_denied` when the owner refused and `expired_token`
+once the code expired. A device code that is unknown, already spent — including by a poll that
+raced this one — or issued to another client is `invalid_grant`, as RFC 6749 answers any grant
+that is invalid, revoked or another client's.
+
 `AuthorizationServer` answers `validate_authorization_request` / `complete_authorization_request`,
 `respond_to_access_token_request`, `respond_to_device_authorization_request` and
 `complete_device_authorization_request(device_code, user_id, user_approved)`. `TokenServer`
