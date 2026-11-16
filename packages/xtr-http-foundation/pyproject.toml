@@ -26,6 +26,7 @@ classifiers = [
 # built on the standard library's `ipaddress`.
 dependencies = [
     "typing-extensions>=4.4",
+    "xtr-clock>=6.0,<7",
     "xtr-http-message-contracts>=6.0,<7",
 ]
 

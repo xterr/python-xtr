@@ -114,6 +114,7 @@ graph LR
     httpkernel --> httpmsg
     httpkernel --> httpmsgcon
     httpfoundation[xtr-http-foundation] --> httpmsgcon
+    httpfoundation --> clock
     httpclientcon[xtr-http-client-contracts] --> httpmsgcon
     httpclient[xtr-http-client] --> httpclientcon
     httpclient -. optional .-> httpfoundation

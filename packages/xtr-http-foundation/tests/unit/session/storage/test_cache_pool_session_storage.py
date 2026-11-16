@@ -164,7 +164,7 @@ async def test_it_keeps_the_entry_under_the_pools_own_name_for_a_session() -> No
     pool = FakePool()
     storage = CachePoolSessionStorage(pool)
 
-    await storage.write(_ID, {"theme": "dark"}, ttl=None)
+    _ = await storage.write(_ID, {"theme": "dark"}, ttl=None)
 
     assert list(pool.entries) == [_KEY]
 
@@ -174,7 +174,7 @@ async def test_it_writes_the_attributes_as_json_and_reads_them_back() -> None:
     pool = FakePool()
     storage = CachePoolSessionStorage(pool)
 
-    await storage.write(_ID, {"theme": "dark", "visits": 3}, ttl=None)
+    _ = await storage.write(_ID, {"theme": "dark", "visits": 3}, ttl=None)
 
     assert await storage.read(_ID) == {"theme": "dark", "visits": 3}
     assert pool.entries[_KEY].value == '{"theme": "dark", "visits": 3}'
@@ -189,7 +189,7 @@ async def test_it_reads_nothing_for_an_id_the_pool_does_not_hold() -> None:
 async def test_it_reads_nothing_once_the_pool_expired_the_entry() -> None:
     pool = FakePool()
     storage = CachePoolSessionStorage(pool)
-    await storage.write(_ID, {"theme": "dark"}, ttl=None)
+    _ = await storage.write(_ID, {"theme": "dark"}, ttl=None)
     pool.entries[_KEY].hit = False
 
     assert await storage.read(_ID) is None
@@ -220,7 +220,7 @@ async def test_it_expires_the_entry_by_the_ttl_the_write_names() -> None:
     pool = FakePool()
     storage = CachePoolSessionStorage(pool)
 
-    await storage.write(_ID, {"theme": "dark"}, ttl=60)
+    _ = await storage.write(_ID, {"theme": "dark"}, ttl=60)
 
     assert pool.entries[_KEY].ttl == 60
 
@@ -230,7 +230,7 @@ async def test_it_expires_the_entry_by_its_own_default_when_the_write_names_none
     pool = FakePool()
     storage = CachePoolSessionStorage(pool, ttl=900)
 
-    await storage.write(_ID, {"theme": "dark"}, ttl=None)
+    _ = await storage.write(_ID, {"theme": "dark"}, ttl=None)
 
     assert pool.entries[_KEY].ttl == 900
 
@@ -239,7 +239,7 @@ async def test_it_expires_the_entry_by_its_own_default_when_the_write_names_none
 async def test_it_expires_the_entry_by_twenty_four_minutes_when_nothing_is_said() -> None:
     pool = FakePool()
 
-    await CachePoolSessionStorage(pool).write(_ID, {"theme": "dark"}, ttl=None)
+    _ = await CachePoolSessionStorage(pool).write(_ID, {"theme": "dark"}, ttl=None)
 
     assert pool.entries[_KEY].ttl == 1440
 
@@ -253,7 +253,7 @@ async def test_it_refuses_a_value_that_cannot_round_trip(value: object) -> None:
     storage = CachePoolSessionStorage(FakePool())
 
     with pytest.raises(InvalidArgumentError):
-        await storage.write(_ID, {"theme": value}, ttl=None)
+        _ = await storage.write(_ID, {"theme": value}, ttl=None)
 
 
 @pytest.mark.anyio
@@ -272,7 +272,7 @@ async def test_it_raises_when_the_pool_cannot_keep_the_entry() -> None:
     pool.backend_fails = True
 
     with pytest.raises(SessionError):
-        await CachePoolSessionStorage(pool).write(_ID, {"theme": "dark"}, ttl=None)
+        _ = await CachePoolSessionStorage(pool).write(_ID, {"theme": "dark"}, ttl=None)
 
 
 @pytest.mark.anyio
@@ -288,7 +288,7 @@ async def test_it_raises_when_the_pool_cannot_remove_the_entry() -> None:
 async def test_it_removes_the_entry() -> None:
     pool = FakePool()
     storage = CachePoolSessionStorage(pool)
-    await storage.write(_ID, {"theme": "dark"}, ttl=None)
+    _ = await storage.write(_ID, {"theme": "dark"}, ttl=None)
 
     await storage.delete(_ID)
 
@@ -302,3 +302,25 @@ async def test_it_removes_an_id_the_pool_does_not_hold_without_complaint() -> No
     await storage.delete(_ID)
 
     assert await storage.read(_ID) is None
+
+
+@pytest.mark.anyio
+async def test_it_refuses_to_write_an_entry_that_must_exist_but_is_gone() -> None:
+    pool = FakePool()
+    storage = CachePoolSessionStorage(pool)
+
+    written = await storage.write(_ID, {"theme": "dark"}, ttl=None, must_exist=True)
+
+    assert written is False
+    assert not await pool.has_item(_KEY)
+
+
+@pytest.mark.anyio
+async def test_it_writes_over_an_entry_that_must_exist_and_does() -> None:
+    storage = CachePoolSessionStorage(FakePool())
+    _ = await storage.write(_ID, {"theme": "dark"}, ttl=None)
+
+    written = await storage.write(_ID, {"theme": "light"}, ttl=None, must_exist=True)
+
+    assert written is True
+    assert await storage.read(_ID) == {"theme": "light"}

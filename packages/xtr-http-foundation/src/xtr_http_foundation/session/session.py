@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 import secrets
-from datetime import UTC, datetime, timedelta
+from copy import deepcopy
+from datetime import timedelta
 from typing import TYPE_CHECKING, Final, Self, TypeGuard, final
 
 from typing_extensions import override
+from xtr_clock import SystemClock
 
 from xtr_http_foundation.response_cookie import cookie_header_value
 
@@ -15,6 +17,7 @@ from .session_cookie_config import SessionCookieConfig
 from .session_interface import SessionInterface
 
 if TYPE_CHECKING:
+    from xtr_clock import ClockInterface
     from xtr_http_message_contracts import ServerRequestInterface
 
     from .storage.session_storage_interface import SessionStorageInterface
@@ -25,9 +28,8 @@ __all__ = ["Session"]
 # inside the key alphabet every storage accepts: letters, digits and the
 # underscore up to 64 characters, per the caching contracts, because the ID
 # becomes the key its entry is stored under. An ID that arrives in a cookie
-# is taken between 32 and 128 characters, so a longer or an older generation
-# still reattaches; anything else is no ID at all.
-_ID_PATTERN: Final = re.compile(r"^[0-9a-f]{32,128}$")
+# is taken only in that exact shape; anything else is no ID at all.
+_ID_PATTERN: Final = re.compile(r"^[0-9a-f]{48}$")
 
 # The cookie every session travels in when the application says nothing. One
 # shared instance, because the config is frozen: nothing a request does can
@@ -47,14 +49,23 @@ class Session(SessionInterface):
     Nothing is read from the storage until the first attribute is asked for,
     so a request that never touches its session costs nothing; and a session
     on the memory storage performs no I/O at all, ever.
+
+    Only an ID the storage knows is reattached: one it holds nothing under
+    is replaced by a fresh one when the session starts, so a caller cannot
+    choose the ID a session is stored under. A session is written back only
+    when its attributes differ from what it loaded, or its ID is new; and a
+    reattached one only over an entry still stored, so a request that read
+    the session before a logout deleted it cannot bring it back.
     """
 
     __slots__ = (
         "_attributes",
+        "_clock",
         "_cookie",
         "_id",
         "_id_changed",
         "_id_generated",
+        "_loaded",
         "_started",
         "_storage",
     )
@@ -65,6 +76,7 @@ class Session(SessionInterface):
         *,
         cookie: SessionCookieConfig = _DEFAULT_COOKIE,
         cookie_value: str | None = None,
+        clock: ClockInterface | None = None,
     ) -> None:
         """Record where the attributes are kept, and decide the ID.
 
@@ -77,10 +89,14 @@ class Session(SessionInterface):
                 all: the stranger's cookie is theirs to misspell, so a new
                 ID is made and nothing is ever stored under the unreadable
                 one.
+            clock: The reader of the current instant, for dating the
+                cookie's expiry.
         """
         self._storage = storage
         self._cookie = cookie
+        self._clock = clock if clock is not None else SystemClock()
         self._attributes: dict[str, object] = {}
+        self._loaded: dict[str, object] = {}
         self._started = False
         self._id_changed = False
 
@@ -138,6 +154,12 @@ class Session(SessionInterface):
         stored = await self._storage.read(self._id)
         if stored is not None:
             self._attributes.update(stored)
+            self._loaded = deepcopy(self._attributes)
+        elif not self._id_generated:
+            # An ID the storage does not know is not adopted: the caller
+            # does not get to choose the ID a session is stored under.
+            self._id = secrets.token_hex(24)
+            self._id_generated = True
         self._started = True
 
     @override
@@ -233,6 +255,11 @@ class Session(SessionInterface):
         attribute deletes the entry rather than writing an empty one: a
         request that only consumed its session leaves none behind.
 
+        A reattached session whose attributes equal what it loaded writes
+        nothing, so a request that only read cannot overwrite another's
+        write; one that changed writes only over an entry still stored, and
+        a session deleted meanwhile stays deleted.
+
         The entry is written to live as long as the cookie config's
         ``lifetime`` names, the application's notion of how long a session
         lives; a ``lifetime`` of ``None`` — the browser session, which
@@ -249,11 +276,18 @@ class Session(SessionInterface):
         if not self._started:
             return
 
+        new_id = self._id_generated or self._id_changed
+        if not new_id and self._attributes == self._loaded:
+            return
+
         if not self._attributes:
             await self._storage.delete(self._id)
             return
 
-        await self._storage.write(self._id, self._attributes, self._cookie.lifetime)
+        if await self._storage.write(
+            self._id, self._attributes, self._cookie.lifetime, must_exist=not new_id
+        ):
+            self._loaded = deepcopy(self._attributes)
 
     @override
     def get_id(self) -> str:
@@ -281,7 +315,7 @@ class Session(SessionInterface):
 
         expires = None
         if self._cookie.lifetime is not None:
-            expires = datetime.now(UTC) + timedelta(seconds=self._cookie.lifetime)
+            expires = self._clock.now() + timedelta(seconds=self._cookie.lifetime)
 
         return cookie_header_value(
             self._cookie.name,

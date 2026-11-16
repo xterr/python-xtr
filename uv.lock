@@ -6018,6 +6018,7 @@ version = "6.8.1"
 source = { editable = "packages/xtr-http-foundation" }
 dependencies = [
     { name = "typing-extensions" },
+    { name = "xtr-clock" },
     { name = "xtr-http-message-contracts" },
 ]
 
@@ -6042,6 +6043,7 @@ dev = [
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "packages/xtr-cache-contracts" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
 ]
 provides-extras = ["cache"]

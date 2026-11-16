@@ -25,6 +25,9 @@ class SessionStorageInterface(Protocol):
     - ``delete`` of an ID that holds nothing is fine, not an error.
     - What a value must be to survive the round trip is the storage's own
       contract, and it is heard at ``write`` — loudly, never a silent loss.
+    - ``write`` with ``must_exist`` writes only over an entry still there:
+      a session another request deleted — a logout — is not brought back
+      by a request that read it before.
     """
 
     async def read(self, session_id: str) -> Mapping[str, object] | None:
@@ -44,7 +47,9 @@ class SessionStorageInterface(Protocol):
         session_id: str,
         data: Mapping[str, object],
         ttl: float | None,
-    ) -> None:
+        *,
+        must_exist: bool = False,
+    ) -> bool:
         """Store ``data`` under ``session_id``, the whole of it, to live ``ttl`` seconds.
 
         A ``ttl`` of ``None`` names no moment to expire at: the entry
@@ -55,6 +60,12 @@ class SessionStorageInterface(Protocol):
             data: The attributes, all of them at once.
             ttl: How many seconds the entry is to live, or ``None`` for
                 the storage's own default.
+            must_exist: Write only when an entry is already stored under
+                ``session_id``.
+
+        Returns:
+            ``False`` when ``must_exist`` is set and the entry is gone, so
+            nothing was written; ``True`` once the entry is kept.
 
         Raises:
             InvalidArgumentError: When a value in ``data`` cannot round-trip
