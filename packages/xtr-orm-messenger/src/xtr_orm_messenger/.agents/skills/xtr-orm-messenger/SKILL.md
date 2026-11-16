@@ -31,6 +31,8 @@ skill; for connections and migrations, `xtr-orm`.
   `redeliver_timeout`; a row not renewed that long (a dead or frozen worker) is claimed again,
   so handlers must be idempotent.
 - A `DelayStamp` makes the message due later, rounded up to a whole second.
+- A dropped LISTEN connection is replaced on the next wait (polling while that fails); a claim
+  cancelled before its worker heard of it is released at once.
 
 ## Send and consume without a container
 

@@ -34,12 +34,21 @@ class _Listening(Protocol):
         self, channel: str, callback: Callable[[object, int, str, str], None]
     ) -> Awaitable[None]: ...
 
+    def add_termination_listener(self, callback: Callable[[object], None]) -> None: ...
+
+    def remove_termination_listener(self, callback: Callable[[object], None]) -> None: ...
+
 
 @final
 class PostgreSqlNotifier:
-    """Listens on a table's channel and wakes a waiting worker when its queue is named."""
+    """Listens on a table's channel and wakes a waiting worker when its queue is named.
 
-    __slots__ = ("_channel", "_connection", "_driver", "_engine", "_queue", "_woken")
+    A listening connection the database drops hears nothing more: the
+    notifier is then :attr:`lost`, and the wait under way returns at once so
+    whoever waits can listen again.
+    """
+
+    __slots__ = ("_channel", "_connection", "_driver", "_engine", "_lost", "_queue", "_woken")
 
     def __init__(self, engine: AsyncEngine, channel: str, queue: str) -> None:
         """Listen on ``channel`` through ``engine``, waking for ``queue``'s messages only.
@@ -52,6 +61,12 @@ class PostgreSqlNotifier:
         self._woken = asyncio.Event()
         self._connection: AsyncConnection | None = None
         self._driver: _Listening | None = None
+        self._lost = False
+
+    @property
+    def lost(self) -> bool:
+        """Whether the listening connection was dropped, so nothing more is heard on it."""
+        return self._lost
 
     async def listen(self) -> None:
         """Take a connection of the engine's and start listening on it.
@@ -67,6 +82,7 @@ class PostgreSqlNotifier:
             raw = await connection.get_raw_connection()
             driver = cast("_Listening", raw.driver_connection)
             await driver.add_listener(self._channel, self._heard)
+            driver.add_termination_listener(self._dropped)
         except BaseException:
             await connection.close()
             raise
@@ -87,14 +103,23 @@ class PostgreSqlNotifier:
         self._woken.clear()
 
     async def close(self) -> None:
-        """Stop listening and give the connection back."""
+        """Stop listening and give the connection back.
+
+        A connection the database dropped is discarded rather than given back,
+        so the pool never hands the dead connection to the next statement.
+        """
         driver, connection = self._driver, self._connection
         self._driver = None
         self._connection = None
         if driver is None or connection is None:
             return
+        if self._lost:
+            await connection.invalidate()
+            await connection.close()
+            return
         try:
             await driver.remove_listener(self._channel, self._heard)
+            driver.remove_termination_listener(self._dropped)
         finally:
             await connection.close()
 
@@ -103,3 +128,9 @@ class PostgreSqlNotifier:
         del connection, pid, channel
         if payload == self._queue:
             self._woken.set()
+
+    def _dropped(self, connection: object) -> None:
+        """Mark the notifier lost and end the wait under way: nothing more will wake it."""
+        del connection
+        self._lost = True
+        self._woken.set()

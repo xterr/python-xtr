@@ -21,6 +21,7 @@ class FakeDriver:
 
     def __init__(self, *, fails: bool = False) -> None:
         self.listeners: dict[str, list[Callable[[object, int, str, str], None]]] = {}
+        self.terminations: list[Callable[[object], None]] = []
         self.fails = fails
 
     async def add_listener(
@@ -39,6 +40,16 @@ class FakeDriver:
         for callback in self.listeners.get(channel, []):
             callback(self, 1, channel, payload)
 
+    def add_termination_listener(self, callback: Callable[[object], None]) -> None:
+        self.terminations.append(callback)
+
+    def remove_termination_listener(self, callback: Callable[[object], None]) -> None:
+        self.terminations.remove(callback)
+
+    def terminate(self) -> None:
+        for callback in self.terminations:
+            callback(self)
+
 
 @final
 class FakeRaw:
@@ -51,9 +62,13 @@ class FakeConnection:
     def __init__(self, driver: FakeDriver) -> None:
         self._driver = driver
         self.closed = False
+        self.invalidated = False
 
     async def get_raw_connection(self) -> FakeRaw:
         return FakeRaw(self._driver)
+
+    async def invalidate(self) -> None:
+        self.invalidated = True
 
     async def close(self) -> None:
         self.closed = True
@@ -146,4 +161,31 @@ async def test_closing_stops_listening_and_gives_the_connection_back() -> None:
     await notifier.close()
 
     assert engine.driver.listeners["messenger_messages"] == []
+    assert engine.connections[0].closed
+    assert engine.driver.terminations == []
+
+
+async def test_a_dropped_listen_connection_is_lost_and_ends_the_wait() -> None:
+    engine = FakeEngine(FakeDriver())
+    notifier = _notifier(engine)
+    await notifier.listen()
+    assert not notifier.lost
+
+    waiting = asyncio.ensure_future(notifier.wait(30))
+    await asyncio.sleep(0)
+    engine.driver.terminate()
+
+    await asyncio.wait_for(waiting, 1)
+    assert notifier.lost
+
+
+async def test_closing_a_lost_notifier_discards_its_connection_instead_of_pooling_it() -> None:
+    engine = FakeEngine(FakeDriver())
+    notifier = _notifier(engine)
+    await notifier.listen()
+    engine.driver.terminate()
+
+    await notifier.close()
+
+    assert engine.connections[0].invalidated
     assert engine.connections[0].closed

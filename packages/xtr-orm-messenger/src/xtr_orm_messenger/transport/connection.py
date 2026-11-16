@@ -20,6 +20,9 @@ trying again. SQLite is for development and tests.
 
 from __future__ import annotations
 
+import asyncio
+import logging
+from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, TypeVar, cast, final
@@ -62,6 +65,9 @@ __all__ = ["LISTING_PAGE_SIZE", "Connection"]
 
 _T = TypeVar("_T")
 
+#: Through the messenger channel, beside the rest of the bus's output.
+_LOGGER: Final = logging.getLogger("messenger")
+
 LISTING_PAGE_SIZE: Final = 100
 """How many rows :meth:`Connection.all` reads per statement when it lists every message."""
 
@@ -82,6 +88,7 @@ class Connection:
         "_notifier",
         "_notifier_resolved",
         "_options",
+        "_relisten",
         "_session_factory",
         "_table",
     )
@@ -115,6 +122,7 @@ class Connection:
         self._auto_setup = options.auto_setup
         self._notifier: PostgreSqlNotifier | None = None
         self._notifier_resolved = False
+        self._relisten = False
 
     @property
     def options(self) -> OrmOptions:
@@ -281,9 +289,29 @@ class Connection:
         returns: a message sent between the poll that found nothing and the
         moment the listening started announced itself to nobody, so the worker
         asks once more before it waits for real.
+
+        A listening connection the database dropped is replaced the same way
+        on the next wait; while listening again fails, the worker waits its
+        ``poll_interval`` and tries again the time after.
         """
+        if self._notifier is not None and self._notifier.lost:
+            await self._drop_notifier()
+            self._relisten = True
         if not self._notifier_resolved:
-            await self._resolve_notifier()
+            try:
+                await self._resolve_notifier()
+            except (DBAPIError, OSError) as error:
+                if not self._relisten:
+                    raise
+                _LOGGER.warning(
+                    "could not listen on %r again (%s); polling until it can",
+                    self._options.table_name,
+                    type(error).__name__,
+                )
+                self._notifier_resolved = False
+                await self._clock.sleep_async(self._options.poll_interval)
+                return
+            self._relisten = False
             if self._notifier is not None:
                 return
         notifier = self._notifier
@@ -298,7 +326,19 @@ class Connection:
         notifier = self._notifier
         self._notifier = None
         self._notifier_resolved = False
+        self._relisten = False
         if notifier is not None:
+            await notifier.close()
+
+    async def _drop_notifier(self) -> None:
+        """Give back the connection of a notifier whose listening was dropped."""
+        notifier = self._notifier
+        self._notifier = None
+        self._notifier_resolved = False
+        if notifier is None:
+            return
+        # The connection is already gone; closing it may only report as much.
+        with suppress(DBAPIError, OSError):
             await notifier.close()
 
     async def _with_setup(self, operation: Callable[[], Awaitable[_T]]) -> _T:
@@ -368,15 +408,37 @@ class Connection:
             .with_for_update(skip_locked=True)
         )
         engine = await self._engine_factory()
-        async with engine.begin() as connection:
-            row = (await connection.execute(statement)).mappings().first()
-            if row is None:
-                return None
-            stored = _stored(row)
-            _ = await connection.execute(
-                update(table).where(table.c.id == int(stored.id)).values(delivered_at=now)
-            )
+        stored: StoredMessage | None = None
+        try:
+            async with engine.begin() as connection:
+                row = (await connection.execute(statement)).mappings().first()
+                if row is None:
+                    return None
+                stored = _stored(row)
+                _ = await connection.execute(
+                    update(table).where(table.c.id == int(stored.id)).values(delivered_at=now)
+                )
+        except asyncio.CancelledError:
+            if stored is not None:
+                await self._release_claim(stored.id, now)
+            raise
         return replace(stored, delivered_at=now)
+
+    async def _release_claim(self, message_id: str, delivered_at: datetime) -> None:
+        """Hand back a claim its caller was cancelled before it heard of.
+
+        The claim may have committed or not; the update only matches a row
+        still marked handed out by this claim, so it never releases another
+        worker's. Not shielded: a second cancellation leaves the row to
+        ``redeliver_timeout``.
+        """
+        table = self._table
+        statement = (
+            update(table)
+            .where(table.c.id == int(message_id), table.c.delivered_at == delivered_at)
+            .values(delivered_at=None)
+        )
+        await self._execute(statement)
 
     def _available(self, now: datetime) -> ColumnElement[bool]:
         """Select the queue's messages that are due and not held by a worker that is still alive."""

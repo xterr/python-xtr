@@ -102,6 +102,10 @@ PostgreSQL through asyncpg it listens instead: every send announces itself on th
 channel, naming its queue, and the worker asks again at once — or after
 `check_delayed_interval`, for a delayed message falling due. Listening holds one connection of
 the pool for as long as the worker runs.
+If the database drops that connection, the wait under way ends and the next one listens on a
+fresh connection; while listening again fails, the worker polls every `poll_interval` and keeps
+trying. A claim whose worker is cancelled before it hears of it is handed back at once, not left
+until `redeliver_timeout`.
 
 SQLite has no row locks, so the lock clause is left out there, and SQLite is for development and
 tests. With the driver's default transaction mode two workers can claim one row; run one worker
