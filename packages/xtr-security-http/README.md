@@ -657,6 +657,9 @@ The session is built from the request here and nowhere else, reading its ID from
 Every later step of the request reaches that same session, so the cookie a login's rotation, a
 logout's invalidation and the save stage is always this one.
 Any step reads it with **`parked_session_of(request)`** — `None` for a request no stateful chain ran.
+An application's route reads it the same way, from the request message carrying the request's
+state (`SecurityRequestAttributes.STATE_BAG` set to the ASGI scope's `"state"`) — see the
+[xtr-security](../xtr-security#reading-the-session-in-a-route) README.
 
 The response half, **`on_response(response_event)`** — registered beside the chain on the
 kernel's response event — writes the token back: what the request authenticated is stored under

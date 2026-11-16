@@ -10,14 +10,15 @@ step that changes the user under the request's own feet.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from xtr_dependency_injection import Injected, Kernel
 from xtr_http_kernel import setup
 from xtr_http_kernel.bridge import Response
+from xtr_http_message_contracts import ServerRequestInterface
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import CurrentUser
+from xtr_security_http import CurrentUser, SecurityRequestAttributes, parked_session_of
 
 from tests.fixtures.remember_me_app.bundles import BUNDLES
 
@@ -57,6 +58,21 @@ async def home(
         f"<p>{user.get_user_identifier()}</p>".encode(),
     )
     return response.with_header("content-type", "text/html")
+
+
+@app.get("/visits")
+async def visits(request: Request, message: Injected[ServerRequestInterface]) -> dict[str, object]:
+    """Count this session's visits, reading the session the firewall reattached."""
+    session = parked_session_of(
+        message.with_attribute(
+            SecurityRequestAttributes.STATE_BAG, cast("object", request.scope["state"])
+        )
+    )
+    if session is None:
+        return {"session": False}
+    count = cast("int", await session.get("visits", 0)) + 1
+    await session.set("visits", count)
+    return {"session": True, "visits": count}
 
 
 kernel = Kernel(

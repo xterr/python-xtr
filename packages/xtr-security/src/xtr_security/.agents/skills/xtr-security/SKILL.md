@@ -139,6 +139,12 @@ def session_storage() -> SessionStorageInterface:
 - On the response side a `SaveSessionListener` writes the session through the storage and
   stages the cookie carrying its ID — a storage that fails fails the request loudly rather
   than losing the session quietly.
+- A route reads and writes that same session — never one built from the storage itself — by
+  handing `parked_session_of` the request message carrying the request's state:
+  `parked_session_of(message.with_attribute(SecurityRequestAttributes.STATE_BAG, request.scope["state"]))`,
+  with `request: fastapi.Request` and `message: Injected[ServerRequestInterface]` (both
+  `SecurityRequestAttributes` and `parked_session_of` from `xtr_security_http`). It is `None`
+  for a path no stateful firewall ran.
 - The session holds JSON only, on every storage: the token is kept as an envelope of its class,
   its state and its user — kept whole when it implements `SessionSerializableUserInterface`,
   else as a snapshot of its identifier, roles and `password_digest` — and the last login error

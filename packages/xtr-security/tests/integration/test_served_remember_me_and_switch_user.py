@@ -16,7 +16,6 @@ route materialises it.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
-from urllib.parse import unquote
 
 import httpx
 import pytest
@@ -57,6 +56,19 @@ async def _login(
     if remember:
         query["_remember_me"] = "1"
     return await client.post("/login_check", params=query)
+
+
+async def test_a_route_reads_and_writes_the_session_the_firewall_reattached(
+    client: httpx.AsyncClient,
+) -> None:
+    """The route reaches the request's session through the lifecycle's state, and it persists."""
+    _ = await _login(client)
+
+    first = await client.get("/visits")
+    second = await client.get("/visits")
+
+    assert first.json() == {"session": True, "visits": 1}
+    assert second.json() == {"session": True, "visits": 2}
 
 
 async def test_a_login_asking_to_be_remembered_stages_the_cookie(client: httpx.AsyncClient) -> None:
@@ -102,10 +114,9 @@ async def test_the_cookie_authenticates_a_client_with_no_session_of_its_own(
     name, _, value = cookie.partition("=")
 
     async with _fresh_client() as fresh:
-        # The staged value rides the ``Set-Cookie`` header percent-encoded;
-        # the browser carries it back exactly as it was written, so the
-        # client here presents the value it read, unquoted.
-        fresh.cookies.set(name, unquote(value))
+        # The staged value rides the ``Set-Cookie`` header percent-encoded,
+        # and a browser carries it back exactly as it was written.
+        fresh.cookies.set(name, value)
         home = await fresh.get("/")
 
     assert home.status_code == 200

@@ -253,6 +253,36 @@ default is `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax` and not `Secure`. Th
 is the only place the firewall's session is built, so the login's rotation and the logout's
 invalidation stage the same cookie, under a new ID with the same path and domain.
 
+#### Reading the session in a route
+
+A route reaches the very session the firewall reattached — the one its login rotated and its
+logout invalidates, saved with the response — never one of its own. The firewall parks it on the
+request's state, the per-request bag the framework's `request.state` wraps, so the route hands
+`parked_session_of` the request message carrying that state:
+
+```python
+from fastapi import Request
+from xtr_dependency_injection import Injected
+from xtr_http_message_contracts import ServerRequestInterface
+from xtr_security_http import SecurityRequestAttributes, parked_session_of
+
+
+@app.get("/cart")
+async def cart(request: Request, message: Injected[ServerRequestInterface]) -> dict[str, object]:
+    session = parked_session_of(
+        message.with_attribute(SecurityRequestAttributes.STATE_BAG, request.scope["state"])
+    )
+    if session is None:  # no stateful firewall ran for this path
+        return {"items": []}
+    items = await session.get("cart", [])
+    await session.set("cart", [*items, "book"])
+    return {"items": await session.get("cart")}
+```
+
+Never build a `Session` from the storage in a route: a second session for the same ID would be
+saved apart from the firewall's, and one would overwrite the other. What the route sets is
+written by the same save as the token, and only if something changed.
+
 #### What the session keeps
 
 A session holds JSON and nothing else, whatever storage keeps it — the memory one as much as a
