@@ -173,6 +173,10 @@ async def test_every_held_message_is_tried_and_their_failures_raised_together() 
         _ = await bus.dispatch(Note("order"))
 
     assert [str(error) for error in raised.value.errors] == ["receipt", "archive"]
+    assert [envelope.message for envelope, _ in raised.value.failures] == [
+        Note("receipt"),
+        Note("archive"),
+    ]
     assert raised.value.envelope.message == Note("order")
     assert isinstance(raised.value.__cause__, LookupError)
     assert "handle audit" in log

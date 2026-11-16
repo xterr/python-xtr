@@ -134,7 +134,9 @@ decoding is an allow-list; two declared stamps may not share a class name. A
 
 `DispatchAfterCurrentBusStamp` holds a follow-up back until the message being handled has been
 handled, every middleware included; if that message fails, the follow-up never goes out.
-Failures of held-back messages come back as `DelayedMessageHandlingError`.
+Failures of held-back messages come back as `DelayedMessageHandlingError` (`failures`: each
+envelope with its error). In a worker the parent is still acknowledged — each failed follow-up
+is logged and announced as its own `WorkerMessageFailedEvent` (`will_retry=False`), not retried.
 
 `RedispatchMessage(BuildReport(id))` asks for a message to go out again **through routing**;
 `RedispatchMessage(BuildReport(id), "urgent")` pins the transport. Nothing needs declaring. It

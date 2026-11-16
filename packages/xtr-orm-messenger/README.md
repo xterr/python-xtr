@@ -173,6 +173,9 @@ command: any unit of work — is written in that unit's session and sent only wh
 commits. Run the `orm_transaction` middleware, or commit yourself: a session never commits on
 its own. Outside a unit of work the message is written in a transaction of its own, as it is
 without the option.
+A follow-up held back with `DispatchAfterCurrentBusStamp` in a worker goes out after the
+handled message's unit is over; with `transactional=true` it is written in the worker's session
+only when `orm_transaction` runs for it too, so keep that middleware on the bus the worker uses.
 
 ## Looking into a queue
 

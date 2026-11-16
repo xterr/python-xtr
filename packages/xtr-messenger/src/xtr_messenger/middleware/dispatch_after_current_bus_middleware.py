@@ -90,18 +90,18 @@ class DispatchAfterCurrentBusMiddleware(MiddlewareInterface):
         token = _held.set(held)
         try:
             handled = await stack.next().handle(envelope, stack)
-            errors: list[Exception] = []
+            failures: list[tuple[Envelope, Exception]] = []
             # A message dispatched here may hold back more: they join the end.
             while held.envelopes:
                 waiting, rest = held.envelopes.pop(0)
                 try:
                     _ = await rest.next().handle(waiting, rest)
                 except Exception as error:  # noqa: BLE001 — every held message is tried; each failure is reported.
-                    errors.append(error)
+                    failures.append((waiting, error))
         finally:
             held.open = False
             held.envelopes.clear()
             _held.reset(token)
-        if errors:
-            raise DelayedMessageHandlingError(handled, errors) from errors[0]
+        if failures:
+            raise DelayedMessageHandlingError(handled, failures) from failures[0][1]
         return handled

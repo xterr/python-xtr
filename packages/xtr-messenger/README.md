@@ -583,8 +583,13 @@ async def place(message: PlaceOrder, bus: Injected[MessageBusInterface]) -> None
 
 - Held-back messages go out in the order dispatched; one they dispatch with the stamp joins the
   end of the line. Each is tried even when one before it failed, and then
-  `DelayedMessageHandlingError` carries every failure, and the envelope of the message that
-  succeeded.
+  `DelayedMessageHandlingError` carries every failure in `failures` — each held-back envelope
+  with what it raised — and the envelope of the message that succeeded.
+- In a worker, a follow-up failing does not fail the message that held it back: that message is
+  done and committed, and rejecting it would run it again. It is acknowledged; each failed
+  follow-up is logged on the `messenger` logger and announced as a `WorkerMessageFailedEvent`
+  of its own with `will_retry=False` — reported, never retried. A listener of
+  `WorkerMessageHandledEvent` that raises is logged too; the message stays handled.
 - The message being handled is the first dispatched in the task — on the bus or by a worker,
   whichever bus the handler dispatches through. A stamped message dispatched with nothing
   being handled goes out at once.
