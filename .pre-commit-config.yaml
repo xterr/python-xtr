@@ -25,3 +25,11 @@ repos:
         [ -d "packages/$p/tests" ] || continue;
         uv run --frozen --package "$p" pytest -q --rootdir "packages/$p" "packages/$p" || exit 1;
         done' --
+    # Every context variable a library declares is classified, and per-unit state is detached:
+    # a package's own suite cannot see that, so it is checked whenever a library source changes.
+    - id: context-vars
+      name: context variables (classified, per-unit state detached)
+      language: system
+      files: ^(packages/[^/]+/src/.+\.py|tests/test_context_vars\.py)$
+      pass_filenames: false
+      entry: uv run --frozen pytest -q -p no:cacheprovider tests/test_context_vars.py

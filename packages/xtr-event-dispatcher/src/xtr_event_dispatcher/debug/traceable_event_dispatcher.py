@@ -89,6 +89,15 @@ class TraceableEventDispatcher(EventDispatcherInterface):
         self._logger = logger
         self._trace = _Trace()
         self._unit: ContextVar[_Trace | None] = ContextVar("event_trace_unit", default=None)
+        self.detached_variable: tuple[ContextVar[_Trace | None], None] = (self._unit, None)
+        """The variable a new connection must start without, and the value it starts from.
+
+        A server may start a connection from a copy of another's context taken
+        mid-request; without this, that request's open trace would become the
+        new one's outer trace, and what the new one records after its unit
+        ends would land in it. The bundle registers it as it builds this
+        dispatcher.
+        """
 
     @override
     async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
