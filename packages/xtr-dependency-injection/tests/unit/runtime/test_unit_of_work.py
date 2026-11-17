@@ -26,6 +26,7 @@ from xtr_dependency_injection import (
     open_unit_of,
     unit_of_work,
 )
+from xtr_dependency_injection.compiler._registration import clone_function, synthesize_class_factory
 from xtr_dependency_injection.exception import (
     InvalidArgumentTypeError,
     KernelShutDownError,
@@ -67,8 +68,10 @@ async def session_factory() -> AsyncIterator[Session]:
 
 
 def _container() -> WireupContainer:
+    # wireup refuses to register one function twice; each container gets a clone, as the
+    # compiler gives each kernel.
     engine = wireup.create_async_container(
-        injectables=[wireup.injectable(session_factory, lifetime="scoped")],
+        injectables=[wireup.injectable(clone_function(session_factory), lifetime="scoped")],
     )
     return WireupContainer(engine)
 
@@ -86,7 +89,7 @@ class Counted:
 def _counting_container() -> WireupContainer:
     Counted.built = 0
     engine = wireup.create_async_container(
-        injectables=[wireup.injectable(Counted, lifetime="scoped")],
+        injectables=[wireup.injectable(synthesize_class_factory(Counted), lifetime="scoped")],
     )
     return WireupContainer(engine)
 
@@ -298,7 +301,7 @@ async def test_there_is_no_unit_of_work_outside_one() -> None:
 
 async def test_the_unit_reads_the_container_s_services_and_parameters() -> None:
     engine = wireup.create_async_container(
-        injectables=[wireup.injectable(session_factory, lifetime="scoped")],
+        injectables=[wireup.injectable(clone_function(session_factory), lifetime="scoped")],
         config={"app": {"name": "shop"}},
     )
     container = WireupContainer(engine)

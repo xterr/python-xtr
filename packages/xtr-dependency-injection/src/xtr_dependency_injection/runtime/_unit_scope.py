@@ -130,14 +130,20 @@ class _Units:
 
 # Per engine. Units of one engine may run on several threads' loops, so it is
 # guarded by a lock, and a waiter is woken on its own loop.
-_UNITS: weakref.WeakKeyDictionary[AsyncContainer, _Units] = weakref.WeakKeyDictionary()
+#
+# Keyed by the engine's override manager, not the engine: wireup's containers
+# take no weak reference (they declare ``__slots__`` without one), and the
+# override manager is the one object wireup gives each root container through
+# its public API that it shares with every scope of that container and that
+# nothing else holds — so an entry goes with its engine.
+_UNITS: weakref.WeakKeyDictionary[object, _Units] = weakref.WeakKeyDictionary()
 _UNITS_LOCK = threading.Lock()
 
 
 def _units_of(engine: AsyncContainer) -> _Units:
-    units = _UNITS.get(engine)
+    units = _UNITS.get(engine.override)
     if units is None:
-        units = _UNITS.setdefault(engine, _Units())
+        units = _UNITS.setdefault(engine.override, _Units())
     return units
 
 
@@ -175,7 +181,7 @@ def _wake(waiter: asyncio.Future[None]) -> None:
 def open_units(engine: AsyncContainer) -> int:
     """Return how many units of ``engine`` are open, their teardown included."""
     with _UNITS_LOCK:
-        units = _UNITS.get(engine)
+        units = _UNITS.get(engine.override)
         return 0 if units is None else units.open
 
 
@@ -209,7 +215,7 @@ def mark_shut_down(engine: AsyncContainer) -> None:
 def is_shut_down(engine: AsyncContainer) -> bool:
     """Tell whether ``engine``'s kernel shut down."""
     with _UNITS_LOCK:
-        units = _UNITS.get(engine)
+        units = _UNITS.get(engine.override)
         return units is not None and units.shut_down
 
 
@@ -250,28 +256,19 @@ class UnitParticipants:
         self.participants: tuple[UnitParticipantInterface, ...] = tuple(participants)
 
 
-# Each engine's participants, looked up the first time one of its units opens.
-_PARTICIPANTS: weakref.WeakKeyDictionary[AsyncContainer, tuple[UnitParticipantInterface, ...]] = (
-    weakref.WeakKeyDictionary()
-)
-
-
 async def participants_of(engine: AsyncContainer) -> tuple[UnitParticipantInterface, ...]:
     """Return the participants told of every unit of work ``engine`` opens.
 
     Built the first time a unit opens rather than at boot, so a container
     never booted — one ``create_container`` compiled, one attached without a
     lifespan — still tells them; looked up before the unit is set, so their
-    construction reads no unit. An engine no kernel compiled has none.
+    construction reads no unit. An engine no kernel compiled has none. The
+    collection is a singleton, so the engine itself keeps it once built.
     """
-    participants = _PARTICIPANTS.get(engine)
-    if participants is None:
-        try:
-            participants = (await engine.get(UnitParticipants)).participants
-        except UnknownServiceRequestedError:
-            participants = ()
-        _PARTICIPANTS[engine] = participants
-    return participants
+    try:
+        return (await engine.get(UnitParticipants)).participants
+    except UnknownServiceRequestedError:
+        return ()
 
 
 @contextmanager
