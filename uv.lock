@@ -5252,6 +5252,7 @@ name = "xtr-messenger"
 version = "7.0.0"
 source = { editable = "packages/xtr-messenger" }
 dependencies = [
+    { name = "xtr-clock" },
     { name = "xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts" },
     { name = "xtr-serializer" },
@@ -5278,6 +5279,7 @@ dev = [
     { name = "xtr-console" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
+    { name = "xtr-http-kernel" },
     { name = "xtr-logging" },
     { name = "xtr-service-contracts" },
     { name = "yarl" },
@@ -5286,6 +5288,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "xtr-amqp-messenger", marker = "extra == 'amqp'", editable = "packages/xtr-amqp-messenger" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
     { name = "xtr-orm-messenger", marker = "extra == 'orm'", editable = "packages/xtr-orm-messenger" },
@@ -5306,6 +5309,7 @@ dev = [
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
+    { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
     { name = "yarl", specifier = ">=1.21" },
