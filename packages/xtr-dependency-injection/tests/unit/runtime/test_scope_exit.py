@@ -176,6 +176,8 @@ async def test_a_teardown_error_without_an_exception_being_unwound_is_raised() -
     with pytest.raises(ExceptionGroup) as raised:
         await use()
 
+    # The container's own group, not the engine's error type.
+    assert type(raised.value) is ExceptionGroup
     assert [str(error) for error in raised.value.exceptions] == ["close failed"]
 
 

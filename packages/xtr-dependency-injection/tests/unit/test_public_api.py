@@ -87,6 +87,7 @@ PUBLIC = {
     "BUNDLE_PASS_PRIORITY",
     "sort_with_priorities",
     "ScopeFactoryInterface",
+    "UNIT_PARTICIPANT_TAG",
 }
 
 # What the web seam exports for an entry point such as the HTTP kernel to

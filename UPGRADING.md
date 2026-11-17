@@ -20,7 +20,9 @@ No package ships a database migration for 7.0: no table gains or loses a column.
 - A unit's container refuses to resolve once its unit has exited (`UnitOfWorkClosedError`), and
   every container refuses once its kernel has shut down (`KernelShutDownError`).
 - Closing a unit is shielded from cancellation and bounded at 30 seconds
-  (`ScopeTeardownTimeoutError` when nothing else is being raised). A failing or hung cleanup is a
+  (`ScopeTeardownTimeoutError` when nothing else is being raised). A cleanup that fails after a
+  clean unit raises an `ExceptionGroup` of what failed, no longer wireup's `ContainerCloseError`.
+  A failing or hung cleanup while the unit raised is a
   note on the unit's own error, and is also logged once as a warning on the
   `xtr_dependency_injection` standard-library logger.
 - Shutting a kernel down waits up to 30 seconds for the units still open, after the shutdown hooks

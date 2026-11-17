@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fastapi import FastAPI
-from wireup.errors import ContainerCloseError
 from xtr_dependency_injection import Injected, Kernel
 
 from tests.fixtures.teardown_app.services import ANSWER_FAILURES, Fragile
@@ -80,7 +79,7 @@ async def test_an_answered_failure_still_reports_the_failed_cleanup(
     ANSWER_FAILURES[0] = True
     with caplog.at_level(logging.WARNING, logger="xtr_dependency_injection"):
         async with driving(_app()) as drive:
-            with pytest.raises(ContainerCloseError):
+            with pytest.raises(ExceptionGroup):
                 _ = await drive(asgi_scope(path="/fails"), _receive)
 
     (warning,) = _close_warnings(caplog)

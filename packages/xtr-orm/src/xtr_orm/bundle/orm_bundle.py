@@ -47,6 +47,7 @@ from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from typing_extensions import override
 from xtr_dependency_injection import (
+    UNIT_PARTICIPANT_TAG,
     Autowire,
     Bundle,
     ContainerBuilder,
@@ -171,7 +172,7 @@ class OrmBundle(Bundle[OrmConfig]):
         _ = services.set(_connection_registry_factory(config.default_connection, routed))
         if any(routed.values()):
             _ = services.set(stickiness_participant.StickinessParticipant).add_tag(
-                "kernel.unit_participant"
+                UNIT_PARTICIPANT_TAG
             )
             register_detached_variable(*stickiness_participant.DETACHED_VARIABLE)
 

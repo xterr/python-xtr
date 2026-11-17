@@ -98,8 +98,7 @@ def register_login_throttling(
         "return": LoginThrottlingListener,
     }
     if lock_active:
-        # Only named when the lock bundle is active, which proves the package installed.
-        from xtr_lock import LockFactory  # noqa: PLC0415
+        from xtr_lock import LockFactory  # noqa: PLC0415 — only with the lock bundle active
 
         annotations["lock_factory"] = LockFactory | None
     login_throttling_listener.__annotations__ = annotations

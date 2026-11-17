@@ -6,6 +6,8 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Final, cast, final
 
 from advanced_alchemy.routing import stick_to_primary_var
+from typing_extensions import override
+from xtr_service_contracts import UnitParticipantInterface
 
 if TYPE_CHECKING:
     from contextvars import Token
@@ -20,7 +22,7 @@ The orm bundle registers it with the container when a connection has replicas.
 
 
 @final
-class StickinessParticipant:
+class StickinessParticipant(UnitParticipantInterface):
     """Starts every unit of work on the replicas, and leaves the unit around it as it was.
 
     On a connection with replicas, a write sends every later read of the unit
@@ -35,10 +37,12 @@ class StickinessParticipant:
 
     __slots__ = ()
 
+    @override
     def unit_began(self) -> object | None:
         """Read from the replicas until the new unit writes."""
         return stick_to_primary_var.set(False)
 
+    @override
     def unit_ended(self, token: object | None) -> None:
         """Put back what the unit around this one read from."""
         # The container hands back what unit_began returned for this unit.

@@ -66,6 +66,8 @@ async def closing_scope(engine: AsyncContainer) -> AsyncGenerator[ScopedAsyncCon
     Raises:
         ScopeTeardownTimeoutError: If the teardown did not finish in time,
             and the block raised nothing.
+        ExceptionGroup: Of what the teardown raised, when it failed and the
+            block raised nothing.
         asyncio.CancelledError: If the block was cancelled while closing;
             what the teardown raised meanwhile is a note on it.
     """
@@ -97,7 +99,10 @@ async def _close(scope: ScopedAsyncContainer, error: BaseException | None) -> No
         )
     except ContainerCloseError as failed:
         if error is None:
-            raise
+            # A plain group, as for every other multi-failure: no caller catches a wireup type.
+            raise ExceptionGroup(
+                "closing the unit's services failed", list(failed.exceptions)
+            ) from None
         for failure in failed.exceptions:
             error.add_note(f"closing the unit's services also failed: {safe_repr(failure)}")
     finally:

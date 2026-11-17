@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, cast, final
 from typing_extensions import override
 from xtr_clock import ClockInterface
 from xtr_dependency_injection import (
+    UNIT_PARTICIPANT_TAG,
     Bundle,
     ContainerBuilder,
     ServiceConfigurator,
@@ -175,7 +176,7 @@ class LoggingBundle(Bundle[LoggingConfig]):
         for channel in config.all_channels:
             _ = services.set(_channel_logger_factory(channel), qualifier=channel)
 
-        _ = services.set(LogUnitParticipant).add_tag("kernel.unit_participant")
+        _ = services.set(LogUnitParticipant).add_tag(UNIT_PARTICIPANT_TAG)
 
     @override
     def process(self, builder: ContainerBuilder) -> None:

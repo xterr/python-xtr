@@ -950,7 +950,8 @@ async with unit_of_work(container) as unit:
 - `open_unit_of(container)` returns the unit `container` has open in this context, or `None` —
   never a unit another kernel opened.
 - Closing a unit is shielded from cancellation and bounded at 30 seconds
-  (`ScopeTeardownTimeoutError` when nothing else is being raised). A cleanup that fails or runs
+  (`ScopeTeardownTimeoutError` when nothing else is being raised). A cleanup that fails after a
+  clean unit raises an `ExceptionGroup` of what failed. A cleanup that fails or runs
   out of time while the unit raised is a note on the unit's own error; either way it is also
   logged once, as a warning on the `xtr_dependency_injection` standard-library logger.
 - State kept for one unit is a `UnitParticipantInterface` participant (from

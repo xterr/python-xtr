@@ -216,8 +216,7 @@ def _register_handler(
     if settings.max_uses is not None:
         annotations["storage"] = StorageInterface
         if lock_active:
-            # Only named when the lock bundle is active, which proves the package installed.
-            from xtr_lock import LockFactory  # noqa: PLC0415
+            from xtr_lock import LockFactory  # noqa: PLC0415 — only with the lock bundle active
 
             # Required, not optional: the active lock bundle registers it, and an
             # optional parameter with a default is left at its default.
