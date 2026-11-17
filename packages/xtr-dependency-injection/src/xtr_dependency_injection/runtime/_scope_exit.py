@@ -7,6 +7,7 @@ served request — opens its scope here, so each closes it the same way.
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Final
 
@@ -27,6 +28,15 @@ __all__ = ["closing_scope"]
 _TEARDOWN_TIMEOUT: Final[float] = 30.0
 """How many seconds a unit's scoped services are given to close."""
 
+_LOGGER: Final = logging.getLogger("xtr_dependency_injection")
+"""Where a failed teardown is recorded, once, whatever becomes of its error.
+
+A note on the unit's error reaches only whoever reports that error — the
+server's own output for a request — and an application log written while the
+unit was still open never sees it; a failure raised after a clean unit
+reaches no application code at all.
+"""
+
 
 @asynccontextmanager
 async def closing_scope(engine: AsyncContainer) -> AsyncGenerator[ScopedAsyncContainer]:
@@ -42,6 +52,8 @@ async def closing_scope(engine: AsyncContainer) -> AsyncGenerator[ScopedAsyncCon
     scope's instances are released as soon as it is
     closed, rather than whenever the garbage collector finds the cycle the
     scope keeps with them.
+    Either way, a teardown that fails or runs out of time is also logged,
+    once, as a warning on the ``xtr_dependency_injection`` logger.
 
     A scoped service's teardown — the code after ``yield`` in its factory —
     runs in a copy of the unit's context, in a task of its own. So it must
@@ -71,14 +83,13 @@ async def _close(scope: ScopedAsyncContainer, error: BaseException | None) -> No
     """Close ``scope``, unwinding ``error`` through its services when the block raised one."""
     try:
         await shielded(
-            scope.__aexit__(
-                None if error is None else type(error),
-                error,
-                None if error is None else error.__traceback__,
-            ),
+            _exit_logging_failures(scope, error),
             timeout=_TEARDOWN_TIMEOUT,
         )
     except TimeoutError as timeout:
+        _LOGGER.warning(
+            "Closing a unit's services did not finish within %s seconds.", _TEARDOWN_TIMEOUT
+        )
         if error is None:
             raise ScopeTeardownTimeoutError(_TEARDOWN_TIMEOUT) from timeout
         error.add_note(
@@ -93,3 +104,24 @@ async def _close(scope: ScopedAsyncContainer, error: BaseException | None) -> No
         objects = scope._current_scope_objects  # noqa: SLF001 — wireup keeps the scope in its own object map; clearing it releases scoped instances without waiting for cyclic GC  # pyright: ignore[reportPrivateUsage]
         if objects is not None:
             objects.clear()
+
+
+async def _exit_logging_failures(scope: ScopedAsyncContainer, error: BaseException | None) -> None:
+    """Exit ``scope``, logging what its services' teardown raised before it travels on.
+
+    Logged here, inside the shielded teardown, so a failure is recorded once
+    whether it then becomes a note on the unit's error, a note on a
+    cancellation, or the error raised.
+    """
+    try:
+        await scope.__aexit__(
+            None if error is None else type(error),
+            error,
+            None if error is None else error.__traceback__,
+        )
+    except ContainerCloseError as failed:
+        _LOGGER.warning(
+            "Closing a unit's services failed: %s",
+            "; ".join(safe_repr(failure) for failure in failed.exceptions),
+        )
+        raise

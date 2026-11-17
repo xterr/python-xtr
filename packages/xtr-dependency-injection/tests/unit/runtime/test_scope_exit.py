@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import logging
 import weakref
 from collections.abc import (
     AsyncIterator,  # noqa: TC003 — the engine reads the factories' return annotations
@@ -14,6 +15,7 @@ from typing import TYPE_CHECKING, final
 import anyio
 import pytest
 import wireup
+from typing_extensions import override
 
 from xtr_dependency_injection import unit_of_work
 from xtr_dependency_injection.exception import ScopeTeardownTimeoutError
@@ -315,3 +317,162 @@ async def test_a_teardown_setting_a_context_variable_does_not_fail_the_scope() -
         _ = await unit.get(First)
 
     assert _VALUE.get() == "caller"
+
+
+def _close_warnings(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
+    return [
+        record
+        for record in caplog.records
+        if record.name == "xtr_dependency_injection" and record.levelno == logging.WARNING
+    ]
+
+
+async def test_a_failed_teardown_under_an_error_is_logged_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A note on the unit's error reaches only whoever reports that error; an
+    # application log written before the unit closed never sees it.
+    async def failing() -> AsyncIterator[First]:
+        try:
+            yield First()
+        finally:
+            raise RuntimeError("close failed")
+
+    container = _container(failing)
+
+    async def fail_inside() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+            raise LookupError
+
+    with (
+        caplog.at_level(logging.WARNING, logger="xtr_dependency_injection"),
+        pytest.raises(LookupError),
+    ):
+        await fail_inside()
+
+    (record,) = _close_warnings(caplog)
+    assert "RuntimeError('close failed')" in record.getMessage()
+
+
+async def test_a_failed_teardown_raised_bare_is_logged_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def failing() -> AsyncIterator[First]:
+        yield First()
+        raise RuntimeError("close failed")
+
+    container = _container(failing)
+
+    async def use() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+
+    with (
+        caplog.at_level(logging.WARNING, logger="xtr_dependency_injection"),
+        pytest.raises(ExceptionGroup),
+    ):
+        await use()
+
+    (record,) = _close_warnings(caplog)
+    assert "RuntimeError('close failed')" in record.getMessage()
+
+
+async def test_a_failed_teardown_of_a_cancelled_unit_is_logged_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    tearing, release = asyncio.Event(), asyncio.Event()
+
+    async def failing() -> AsyncIterator[First]:
+        yield First()
+        tearing.set()
+        _ = await release.wait()
+        raise RuntimeError("close failed")
+
+    container = _container(failing)
+
+    async def use() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+
+    with caplog.at_level(logging.WARNING, logger="xtr_dependency_injection"):
+        task = asyncio.create_task(use())
+        _ = await tearing.wait()
+        _ = task.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    (record,) = _close_warnings(caplog)
+    assert "RuntimeError('close failed')" in record.getMessage()
+
+
+async def test_a_hung_teardown_is_logged_once(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_scope_exit, "_TEARDOWN_TIMEOUT", 0.05)
+
+    async def hung() -> AsyncIterator[First]:
+        yield First()
+        _ = await asyncio.Event().wait()
+
+    container = _container(hung)
+
+    async def use() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+
+    with (
+        caplog.at_level(logging.WARNING, logger="xtr_dependency_injection"),
+        pytest.raises(ScopeTeardownTimeoutError),
+    ):
+        await use()
+
+    (record,) = _close_warnings(caplog)
+    assert "0.05 seconds" in record.getMessage()
+
+
+async def test_a_clean_teardown_logs_nothing(caplog: pytest.LogCaptureFixture) -> None:
+    async def fine() -> AsyncIterator[First]:
+        yield First()
+
+    container = _container(fine)
+
+    with caplog.at_level(logging.DEBUG, logger="xtr_dependency_injection"):
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+
+    assert _close_warnings(caplog) == []
+
+
+async def test_an_unreprable_teardown_failure_is_logged_by_its_class(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class ReprlessError(Exception):
+        @override
+        def __repr__(self) -> str:
+            raise ValueError("cannot say")
+
+    async def failing() -> AsyncIterator[First]:
+        try:
+            yield First()
+        finally:
+            raise ReprlessError
+
+    container = _container(failing)
+
+    async def fail_inside() -> None:
+        async with unit_of_work(container) as unit:
+            _ = await unit.get(First)
+            raise LookupError
+
+    with (
+        caplog.at_level(logging.WARNING, logger="xtr_dependency_injection"),
+        pytest.raises(LookupError),
+    ):
+        await fail_inside()
+
+    (record,) = _close_warnings(caplog)
+    assert "[unprintable " in record.getMessage()
+    assert "ReprlessError]" in record.getMessage()
