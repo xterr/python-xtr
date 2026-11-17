@@ -40,6 +40,8 @@ class EsmtpTransportFactory(AbstractTransportFactory):
 
     - ``auto_tls`` — ``false`` keeps an ``smtp`` session plain, even on a server offering
       ``STARTTLS``; ``require_tls`` refuses to send over a session that is not encrypted.
+    - ``allow_plain_auth`` — ``true`` sends the credentials over an unencrypted session to a
+      server that is not on this host; refused by default, since anyone on the path reads them.
     - ``verify_peer`` — ``false`` trusts any certificate; ``peer_fingerprint`` accepts only the
       certificate with that MD5, SHA-1 or SHA-256 digest, in hex.
     - ``source_ip`` — the local address sessions leave from; ``timeout`` — seconds to wait to
@@ -73,6 +75,7 @@ class EsmtpTransportFactory(AbstractTransportFactory):
             logger=self._logger,
         )
         _ = transport.set_auto_tls(auto_tls).set_require_tls(dsn.get_boolean_option("require_tls"))
+        _ = transport.set_allow_plain_auth(dsn.get_boolean_option("allow_plain_auth"))
         _configure_connection(transport, dsn)
         if dsn.user:
             _ = transport.set_username(dsn.user)

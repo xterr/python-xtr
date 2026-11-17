@@ -92,7 +92,8 @@ assert_notification_subject_contains(listener.events.get_messages()[0], "Disk")
 ```
 
 Use `null://null` to send nowhere; under the bundle a `NotificationLoggerListener` is registered
-when the event dispatcher bundle is active — get it from the container.
+when the event dispatcher bundle is active and the kernel is in debug (`dev`, `test`) — get it
+from the container.
 
 ## Use in an application
 
@@ -109,7 +110,8 @@ when the event dispatcher bundle is active — get it from the container.
    package is installed.
 4. **Configure** — `<app>/config/packages/notifier.py`, a `@configure` function returning
    `NotifierConfig`: `chatter_transports`, `texter_transports`, `channel_policy`,
-   `admin_recipients` (`AdminRecipientConfig`), `notification_on_failed_messages`, `http_client`.
+   `admin_recipients` (`AdminRecipientConfig`), `notification_on_failed_messages`,
+   `include_traceback` (off: reports carry no traceback), `http_client`.
    With no transports there is no channel: sending raises `The "chat" channel does not exist.`
 5. **Queue** — route `ChatMessage`, `SmsMessage`, `PushMessage` in `<app>/config/packages/messenger.py`;
    an unrouted message is sent at once.

@@ -51,8 +51,9 @@ TelegramOptions().location(48.8566, 2.3522)  # the text is not sent
 TelegramOptions().contact("+33100000000", "Ops", "Team")
 ```
 
-An upload keeps its path, so the message can be queued; the transport sends the fields as a
-form body the HTTP client turns into `multipart/form-data`.
+An upload is read when the option is set — its name and base64 bytes — so the message can be
+queued and sent by a worker without the file; the transport sends the fields as a form body the
+HTTP client turns into `multipart/form-data`.
 
 ## Edit or answer
 
@@ -107,12 +108,12 @@ There is no bundle to activate.
 | `IncompleteDsnError` | `Missing token.` / `Malformed token.` |
 | `MultipleExclusiveOptionsUsedError` | Two kinds of message picked at once |
 | `LogicError` | Editing a media with a file to upload — use a URL or a file id |
-| `TransportError` | `Unable to post the Telegram message: <description> (code <n>).` (or `edit`, `answer callback query`); `Could not reach the remote Telegram server.` |
+| `TransportError` | `Unable to post the Telegram message: <description> (code <n>).` (or `edit`, `answer callback query`); `Could not reach the remote Telegram server (<error class>).`, nothing chained (the URL holds the token) |
 | `UnsupportedMessageTypeError` | A message that is not a `ChatMessage` |
 
 ## Do not
 
 - Do not write the bot token into code or configuration; read the DSN with `env("TELEGRAM_DSN")`.
-- Do not pass open files in options; use the `upload_*` methods, which keep a path.
+- Do not pass open files in options; use the `upload_*` methods, which read the file's bytes.
 - Do not escape MarkdownV2 yourself; the transport does, and keeps what is already escaped.
 - Do not combine `edit` with an `upload_*` media; the bot API refuses it.

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, final
 from xtr_messenger import HandlersFailedError
 
 from xtr_notifier.admin_recipients_provider_interface import AdminRecipientsProviderInterface
+from xtr_notifier.message import ChatMessage, PushMessage, SmsMessage
 from xtr_notifier.notification import Importance, Notification
 
 if TYPE_CHECKING:
@@ -27,21 +28,28 @@ class SendFailedMessageToNotifierListener:
 
     Listen to :class:`~xtr_messenger.event.WorkerMessageFailedEvent` with
     :meth:`on_message_failed`. A message that will be retried is left alone:
-    only the last failure is news. The notification names the message type and
-    what went wrong — the first failed handler's error, when several handlers
-    ran — at high importance, with the traceback attached, and goes to the
-    notifier's administrators, or to nobody in particular when it has none.
+    only the last failure is news. A chat, SMS or push message the notifier
+    itself queued is left alone too: reporting it would send another one
+    through the transport that just failed. The notification names the message
+    type and what went wrong — the first failed handler's error, when several
+    handlers ran — at high importance, and goes to the notifier's
+    administrators, or to nobody in particular when it has none. The traceback
+    is attached only with ``include_traceback``: it may hold the failed
+    message's own data.
     """
 
-    __slots__ = ("_notifier",)
+    __slots__ = ("_include_traceback", "_notifier")
 
-    def __init__(self, notifier: NotifierInterface) -> None:
-        """Report failures through ``notifier``."""
+    def __init__(self, notifier: NotifierInterface, *, include_traceback: bool = False) -> None:
+        """Report failures through ``notifier``, with the traceback when ``include_traceback``."""
         self._notifier = notifier
+        self._include_traceback = include_traceback
 
     async def on_message_failed(self, event: WorkerMessageFailedEvent) -> None:
         """Notify the administrators that ``event``'s message failed, unless it will be retried."""
         if event.will_retry:
+            return
+        if isinstance(event.envelope.message, (ChatMessage, SmsMessage, PushMessage)):
             return
         error = event.error
         if isinstance(error, HandlersFailedError) and error.errors:
@@ -51,7 +59,7 @@ class SendFailedMessageToNotifierListener:
         notification = Notification(
             f'A "{message_type}" message has just failed: {reason}.',
             importance=Importance.HIGH,
-            exception=error,
+            exception=error if self._include_traceback else None,
         )
         recipients = (
             self._notifier.admin_recipients

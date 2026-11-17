@@ -15,6 +15,17 @@ def test_it_is_built_bare_with_nothing_configured() -> None:
     assert tuple(config.admin_recipients) == ()
     assert config.notification_on_failed_messages is False
     assert config.http_client is None
+    assert config.include_traceback is False
+
+
+def test_repr_hides_transport_dsns() -> None:
+    # A DSN carries the provider's credentials.
+    config = NotifierConfig(
+        chatter_transports={"ops": "slack://xoxb-SECRET@default?channel=ops"},
+        texter_transports={"texts": "twilio://SID:SECRET@default?from=1"},
+    )
+
+    assert "SECRET" not in repr(config)
 
 
 def test_it_accepts_a_policy_keyed_by_importance() -> None:

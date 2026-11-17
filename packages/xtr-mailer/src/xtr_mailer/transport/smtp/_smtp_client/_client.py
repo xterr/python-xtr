@@ -88,6 +88,16 @@ class SmtpClient:
         return context is not None
 
     @property
+    def peer_address(self) -> str | None:
+        """The address of the server the open session is connected to, or ``None``."""
+        if not self._smtp.is_connected:
+            return None
+        peer: object = self._smtp.get_transport_info("peername")  # pyright: ignore[reportAny] — aiosmtplib types transport info as Any
+        if isinstance(peer, tuple) and peer and isinstance(peer[0], str):
+            return peer[0]
+        return None
+
+    @property
     def has_pending_data(self) -> bool:
         """Whether the server sent more than the last reply, which the next command would read.
 

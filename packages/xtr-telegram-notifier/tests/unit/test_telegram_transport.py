@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from io import BufferedReader
+from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -138,8 +138,23 @@ async def test_an_error_answer_to_a_callback_query_names_the_answer() -> None:
 async def test_an_unreachable_server_is_a_transport_error() -> None:
     client = MockHttpClient(MockResponse(info={"error": "Could not resolve host."}))
 
-    with pytest.raises(TransportError, match=r"^Could not reach the remote Telegram server\.$"):
+    with pytest.raises(
+        TransportError, match=r"^Could not reach the remote Telegram server \(TransportError\)\.$"
+    ):
         _ = await _transport(client, "testChannel").send(ChatMessage("testMessage"))
+
+
+@pytest.mark.anyio
+async def test_the_token_is_not_in_the_error_chain() -> None:
+    # The client's error names the URL, and the URL carries the bot token.
+    client = MockHttpClient(MockResponse(info={"error": "Could not resolve host."}))
+
+    with pytest.raises(TransportError) as raised:
+        _ = await TelegramTransport("SECRET-TOKEN", "c", client).send(ChatMessage("Hi"))
+
+    assert raised.value.__cause__ is None
+    assert raised.value.__suppress_context__ is True
+    assert "SECRET-TOKEN" not in str(raised.value)
 
 
 @pytest.mark.anyio
@@ -182,11 +197,10 @@ async def test_it_reports_no_id_when_the_result_carries_none() -> None:
 
 
 @pytest.mark.anyio
-async def test_a_missing_upload_is_refused_before_any_request() -> None:
-    options = TelegramOptions().upload_photo(FIXTURE_FILE).upload_document("/missing/file.pdf")
-
+async def test_a_missing_upload_is_refused_before_any_message_exists() -> None:
+    # Read when the option is set, so nothing reaches the bus or the server.
     with pytest.raises(FileNotFoundError):
-        _ = await _transport(_never_called(), "c").send(ChatMessage("Hi", options.to_options()))
+        _ = TelegramOptions().upload_photo(FIXTURE_FILE).upload_document("/missing/file.pdf")
 
 
 @pytest.mark.anyio
@@ -566,9 +580,9 @@ async def test_it_uploads_a_file_as_a_form_body_and_closes_it(
         body = request.get("body")
         assert isinstance(body, dict)
         upload = body.pop(file_option)
-        assert isinstance(upload, BufferedReader)
+        assert isinstance(upload, BytesIO)
         assert not upload.closed
-        assert upload.name == FIXTURE_FILE
+        assert cast("str", upload.name) == "image.png"
         assert upload.read() == Path(FIXTURE_FILE).read_bytes()
         assert body == expected
         closed.append(lambda: upload.closed)
@@ -597,7 +611,7 @@ async def test_an_uploaded_file_is_closed_when_the_send_fails() -> None:
             ChatMessage("Hi", TelegramOptions().upload_photo(FIXTURE_FILE).to_options())
         )
 
-    assert [isinstance(upload, BufferedReader) and upload.closed for upload in uploaded] == [True]
+    assert [isinstance(upload, BytesIO) and upload.closed for upload in uploaded] == [True]
 
 
 @pytest.mark.anyio

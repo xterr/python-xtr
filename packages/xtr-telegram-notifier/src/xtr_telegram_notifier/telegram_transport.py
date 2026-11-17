@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 from collections.abc import Mapping
 from http import HTTPStatus
-from pathlib import Path
+from io import BytesIO
 from typing import TYPE_CHECKING, ClassVar, Final, cast, final
 from urllib.parse import urlencode
 
@@ -29,8 +30,6 @@ from ._payload import (
 from .telegram_options import TelegramOptions
 
 if TYPE_CHECKING:
-    from io import BufferedReader
-
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_http_client_contracts import HttpClientInterface
     from xtr_notifier.message import MessageInterface
@@ -47,10 +46,10 @@ class TelegramTransport(AbstractTransport):
     unless the options pick another parse mode, escaped so that a plain
     sentence is accepted and markup written on purpose is kept.
 
-    A file to upload is opened when the message is sent, and the fields go
-    as a form body the HTTP client sends as ``multipart/form-data``; without
-    one they go as JSON. The files are closed once the request is made,
-    whatever came of it.
+    A file to upload arrives as its name and base64 bytes, and is sent from
+    memory, the fields going as a form body the HTTP client sends as
+    ``multipart/form-data``; without one they go as JSON. The files are closed
+    once the request is made, whatever came of it.
 
     To find a chat's id, message the bot from that chat and read
     ``https://api.telegram.org/bot<token>/getUpdates``.
@@ -153,7 +152,11 @@ class TelegramTransport(AbstractTransport):
                 else self._http_client.request("POST", url, json=fields)
             )
         except HttpTransportError as error:
-            raise TransportError("Could not reach the remote Telegram server.") from error
+            # The client's error names the URL, which carries the bot token: only its
+            # class is told, and nothing is chained.
+            raise TransportError(
+                f"Could not reach the remote Telegram server ({type(error).__name__}).",
+            ) from None
         async with response:
             answer = await response.to_array(throw=False)
         if response.get_status_code() != HTTPStatus.OK:
@@ -175,22 +178,18 @@ class TelegramTransport(AbstractTransport):
         return sent
 
 
-def _open_uploads(options: dict[str, object]) -> list[BufferedReader]:
-    """Replace the ``upload`` paths of ``options`` with their files, opened for reading.
+def _open_uploads(options: dict[str, object]) -> list[BytesIO]:
+    """Replace the ``upload`` entries of ``options`` with in-memory files carrying their names.
 
     The caller closes them once the request is made.
     """
     uploads = options.pop("upload", None)
     if not isinstance(uploads, Mapping):
         return []
-    files: list[BufferedReader] = []
-    try:
-        for option, path in cast("Mapping[str, object]", uploads).items():
-            file = Path(str(path)).open("rb")  # noqa: SIM115 -- closed by the caller once sent
-            files.append(file)
-            options[option] = file
-    except BaseException:
-        for file in files:
-            file.close()
-        raise
+    files: list[BytesIO] = []
+    for option, upload in cast("Mapping[str, Mapping[str, str]]", uploads).items():
+        file = BytesIO(base64.b64decode(upload["content"]))
+        file.name = upload["name"]
+        files.append(file)
+        options[option] = file
     return files

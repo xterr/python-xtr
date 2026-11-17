@@ -181,12 +181,27 @@ async def test_a_message_failed_for_good_is_reported_to_the_admins(booted: Boote
     dispatcher = await booted.container.get(EventDispatcherInterface)
 
     _ = await dispatcher.dispatch(
-        WorkerMessageFailedEvent(Envelope(ChatMessage("x")), "async", RuntimeError("Boom"))
+        WorkerMessageFailedEvent(Envelope(_OrderPlaced()), "async", RuntimeError("Boom"))
     )
 
     [(name, message)] = SENT
     assert name == "ops"
-    assert message.subject == 'A "ChatMessage" message has just failed: RuntimeError: Boom.'
+    assert message.subject == 'A "_OrderPlaced" message has just failed: RuntimeError: Boom.'
+
+
+async def test_a_failed_notification_is_not_reported_again(booted: BootedKernel) -> None:
+    # Reporting it would send another message through the transport that just failed.
+    dispatcher = await booted.container.get(EventDispatcherInterface)
+
+    _ = await dispatcher.dispatch(
+        WorkerMessageFailedEvent(Envelope(ChatMessage("x")), "async", RuntimeError("Boom"))
+    )
+
+    assert SENT == []
+
+
+class _OrderPlaced:
+    """An application message, which a worker may fail."""
 
 
 @pytest.mark.parametrize("missing", ["messenger", "event_dispatcher"])

@@ -11,6 +11,7 @@ from xtr_notifier import AdminRecipientsProviderInterface, NotifierInterface
 from xtr_notifier.event_listener.send_failed_message_to_notifier_listener import (
     SendFailedMessageToNotifierListener,
 )
+from xtr_notifier.message import ChatMessage, PushMessage, SmsMessage
 from xtr_notifier.notification import Importance
 from xtr_notifier.recipient import Recipient
 
@@ -45,9 +46,14 @@ class _NotifierWithAdmins(_Notifier, AdminRecipientsProviderInterface):
         return self._admins
 
 
-def _event(error: Exception, *, will_retry: bool = False) -> WorkerMessageFailedEvent:
+def _event(
+    error: Exception, *, will_retry: bool = False, message: object | None = None
+) -> WorkerMessageFailedEvent:
     return WorkerMessageFailedEvent(
-        Envelope(_OrderPlaced()), "receiver", error, will_retry=will_retry
+        Envelope(_OrderPlaced() if message is None else message),
+        "receiver",
+        error,
+        will_retry=will_retry,
     )
 
 
@@ -61,8 +67,36 @@ async def test_it_reports_the_failure_with_high_importance_to_nobody_without_adm
     [(notification, recipients)] = notifier.sent
     assert notification.subject == 'A "_OrderPlaced" message has just failed: RuntimeError: Boom.'
     assert notification.importance is Importance.HIGH
-    assert notification.exception_as_string.endswith("RuntimeError: Boom")
+    # No traceback by default: it may hold the failed message's own data.
+    assert notification.exception is None
+    assert notification.exception_as_string == ""
     assert recipients == ()
+
+
+async def test_the_traceback_is_attached_when_asked_for() -> None:
+    notifier = _Notifier()
+
+    await SendFailedMessageToNotifierListener(notifier, include_traceback=True).on_message_failed(
+        _event(RuntimeError("Boom"))
+    )
+
+    assert notifier.sent[0][0].exception_as_string.endswith("RuntimeError: Boom")
+
+
+@pytest.mark.parametrize(
+    "message",
+    [ChatMessage("down"), SmsMessage("+40700000000", "down"), PushMessage("down", "body")],
+    ids=["chat", "sms", "push"],
+)
+async def test_a_failed_notification_does_not_notify_again(message: object) -> None:
+    # Reporting it would send another notification through the transport that just failed.
+    notifier = _Notifier()
+
+    await SendFailedMessageToNotifierListener(notifier).on_message_failed(
+        _event(RuntimeError("Boom"), message=message)
+    )
+
+    assert notifier.sent == []
 
 
 async def test_it_reports_the_failure_to_the_admin_recipients() -> None:
@@ -93,7 +127,9 @@ async def test_it_reports_what_the_first_failed_handler_raised() -> None:
         Envelope(_OrderPlaced()), {"bill": first, "ship": RuntimeError("later")}
     )
 
-    await SendFailedMessageToNotifierListener(notifier).on_message_failed(_event(handlers_failed))
+    await SendFailedMessageToNotifierListener(notifier, include_traceback=True).on_message_failed(
+        _event(handlers_failed)
+    )
 
     notification = notifier.sent[0][0]
     assert notification.exception is first

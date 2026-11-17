@@ -197,6 +197,7 @@ Give the port. A `smtp://` DSN with none reaches 465 for every host but the lite
 |---|---|---|
 | `auto_tls` | boolean: use STARTTLS when the server offers it | on |
 | `require_tls` | boolean: refuse to send without TLS | off |
+| `allow_plain_auth` | boolean: send the user and password to a server not on this host over a session that is not encrypted; otherwise that is refused, since anyone on the path reads them | off |
 | `verify_peer` | boolean: check the certificate and the name on it | on |
 | `peer_fingerprint` | an MD5, SHA-1 or SHA-256 digest in hex, compared after connecting | none |
 | `source_ip` | the local IPv4 or IPv6 address to connect from | the system's choice |

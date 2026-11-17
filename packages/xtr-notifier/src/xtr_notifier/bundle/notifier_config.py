@@ -49,14 +49,21 @@ class NotifierConfig:
         http_client: The qualifier of the HTTP client providers are reached
             through — a scoped client of the HTTP client configuration; ``None``
             means the default one.
+        include_traceback: Whether a failure reported to the administrators
+            carries the error's traceback. Off by default: a traceback may hold
+            the failed message's own data.
+
+    The transport DSNs are left out of the configuration's ``repr``: each
+    carries its provider's credentials.
     """
 
-    chatter_transports: Mapping[str, str] = field(default_factory=_no_transports)
-    texter_transports: Mapping[str, str] = field(default_factory=_no_transports)
+    chatter_transports: Mapping[str, str] = field(default_factory=_no_transports, repr=False)
+    texter_transports: Mapping[str, str] = field(default_factory=_no_transports, repr=False)
     channel_policy: Mapping[str, Sequence[str]] = field(default_factory=_no_policy)
     admin_recipients: Sequence[AdminRecipientConfig] = ()
     notification_on_failed_messages: bool = False
     http_client: str | None = None
+    include_traceback: bool = False
 
     def __post_init__(self) -> None:
         """Refuse a policy keyed by something no notification can have.
