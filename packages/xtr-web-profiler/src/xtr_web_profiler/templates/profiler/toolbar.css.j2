@@ -300,10 +300,13 @@
 
 /* ------------------------------------------------------------- popover */
 
+/* Fixed, not absolute: the strip of blocks scrolls sideways, and a scrolling box clips what
+   is drawn outside it, a popover above the bar included. The toolbar's script sets
+   --xtr-pop-left to the hovered block's edge, kept on screen. */
 .xtr-toolbar-popover {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
+  position: fixed;
+  bottom: var(--xtr-bar);
+  left: var(--xtr-pop-left, var(--xtr-space-3));
   z-index: 1;
   display: none;
   width: max-content;
@@ -323,13 +326,6 @@
 .xtr-toolbar-block:hover > .xtr-toolbar-popover,
 .xtr-toolbar-block:focus-within > .xtr-toolbar-popover {
   display: block;
-}
-
-/* the last blocks open leftwards so a wide popover stays on screen */
-
-.xtr-toolbar-block:nth-last-child(-n + 3) > .xtr-toolbar-popover {
-  right: 0;
-  left: auto;
 }
 
 .xtr-toolbar-popover-head {

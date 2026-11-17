@@ -201,7 +201,26 @@
       writeState(next);
       applyState(root, next);
     });
+    root.addEventListener("mouseover", placePopover);
+    root.addEventListener("focusin", placePopover);
     applyState(root, readState());
+  }
+
+  /* A popover is drawn fixed above the bar; it is moved under the block it
+     belongs to, as far as the window allows. A custom property set from here
+     is not a style attribute, so a page's policy lets it through. */
+  function placePopover(event) {
+    var target = event.target;
+    var block = target && target.closest ? target.closest(".xtr-toolbar-block") : null;
+    var popover = block ? block.querySelector(".xtr-toolbar-popover") : null;
+    if (!popover) {
+      return;
+    }
+    var margin = 12;
+    var left = block.getBoundingClientRect().left;
+    var width = popover.getBoundingClientRect().width;
+    var widest = document.documentElement.clientWidth - width - margin;
+    popover.style.setProperty("--xtr-pop-left", Math.max(margin, Math.min(left, widest)) + "px");
   }
 
   /* --------------------------------------- the requests the page makes */
