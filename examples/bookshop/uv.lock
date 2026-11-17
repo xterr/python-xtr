@@ -2480,6 +2480,7 @@ version = "6.8.1"
 source = { editable = "../../packages/xtr-http-foundation" }
 dependencies = [
     { name = "typing-extensions" },
+    { name = "xtr-clock" },
     { name = "xtr-http-message-contracts" },
 ]
 
@@ -2487,6 +2488,7 @@ dependencies = [
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "../../packages/xtr-cache-contracts" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-http-message-contracts", editable = "../../packages/xtr-http-message-contracts" },
 ]
 provides-extras = ["cache"]
@@ -2525,7 +2527,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.1" },
     { name = "python-multipart", specifier = ">=0.0.18" },
-    { name = "starlette", specifier = ">=1.3.1" },
+    { name = "starlette", specifier = ">=1.6" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "../../packages/xtr-event-dispatcher" },
@@ -3058,6 +3060,8 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
     { name = "xtr-http-message", editable = "../../packages/xtr-http-message" },
+    { name = "xtr-lock", editable = "../../packages/xtr-lock" },
+    { name = "xtr-logging", editable = "../../packages/xtr-logging" },
     { name = "xtr-password-hasher", extras = ["bcrypt"], editable = "../../packages/xtr-password-hasher" },
 ]
 
