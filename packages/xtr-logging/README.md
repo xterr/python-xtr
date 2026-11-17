@@ -169,6 +169,7 @@ deep, with a warning, rather than recursing until the stack overflows.
 | `SyslogHandler` | Syslog over UDP or a socket such as `/dev/log`, with the right severity |
 | `ConsoleHandler` | Standard error, or any stream set later, its level following `-v` verbosity, coloured on a terminal |
 | `NullHandler` | Swallows records at its level |
+| `DebugHandler` | Keeps the records of the open [unit of work](#units-of-work), and nothing outside one, for a debugging tool — a request's profile — to read with `get_logs()`; always bubbles |
 | `TestHandler` | Keeps records in memory for assertions |
 | `FingersCrossedHandler` | Buffers everything; writes it all once one record is bad enough |
 | `BufferHandler` | Buffers records and writes them as a batch on `close()` |
@@ -332,7 +333,8 @@ The rules:
 - **Channels.** `app` (`default_channel`) always exists. `channels` adds more, and a channel
   named in any handler's `channels` is declared too. Asking for any other channel raises
   `UnknownChannelError`. `config.with_channels("mail")` returns a copy declaring more — what a
-  bundle calls from `prepend_extension` to give itself a channel.
+  bundle calls from `prepend_extension` to give itself a channel; `config.with_handler(name,
+  handler)` adds a handler the same way, leaving a name the application already took to it.
 - **Channel filters.** `channels: "security"` or `["a", "b"]` includes; `"!event"` or
   `["!a", "!b"]` excludes. Mixing the two raises `MixedChannelFilterError`. A filter applies only
   to a handler on a channel's stack, not to one nested in another handler.

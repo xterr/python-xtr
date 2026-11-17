@@ -12,6 +12,7 @@ Everything here is imported from `xtr_logging`.
 | `ConsoleHandler` | Standard error, or any stream set later; its level follows `-v` verbosity, coloured on a terminal |
 | `NullHandler` | Swallows records at its level |
 | `TestHandler` | Keeps records in memory for assertions |
+| `DebugHandler` | Keeps the open unit of work's records, and none outside one, read with `get_logs()`; always bubbles |
 | `FingersCrossedHandler` | Buffers everything; writes it all once one record is bad enough |
 | `BufferHandler` | Buffers records and writes them as a batch on `close()` |
 | `GroupHandler` | Sends every record to every member |
