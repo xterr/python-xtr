@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, final
+from typing import Any, Final, final
+
+from typing_extensions import override
 
 from xtr_ai.exception import InvalidConfigurationError
 
 from ._placeholder import is_literal
 
 __all__ = ["PlatformConfig"]
+
+_USERINFO: Final = re.compile(r"(?<=://)[^/@\s]+(?=@)")
+"""The credentials a URL may carry before its host."""
+
+_HIDDEN: Final = "[hidden]"
 
 
 @final
@@ -30,6 +38,10 @@ class PlatformConfig:
             ``stream_function``.
         model_settings: Defaults every model of this platform carries, under
             the agent's and the run's — ``timeout``, ``max_tokens``, …
+
+    Its ``repr`` names every option but shows none of their values, and masks
+    the credentials a ``base_url`` carries: an option can hold a key under any
+    name a provider gives it.
     """
 
     provider: str
@@ -46,3 +58,17 @@ class PlatformConfig:
         """
         if is_literal(self.provider) and not self.provider:
             raise InvalidConfigurationError("A platform needs a provider.")
+
+    @override
+    def __repr__(self) -> str:
+        """Show the platform without the key, any option's value, or the URL's credentials."""
+        base_url = (
+            _USERINFO.sub(_HIDDEN, self.base_url)
+            if isinstance(self.base_url, str)
+            else self.base_url
+        )
+        options = dict.fromkeys(self.options, _HIDDEN)
+        return (
+            f"PlatformConfig(provider={self.provider!r}, base_url={base_url!r}, "
+            f"options={options!r}, model_settings={dict(self.model_settings)!r})"
+        )

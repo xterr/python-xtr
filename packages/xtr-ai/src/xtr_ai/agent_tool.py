@@ -25,8 +25,10 @@ def agent_toolset(
 ) -> FunctionToolset[Any]:
     """Return a toolset of one tool, ``name``, that runs ``agent`` on a prompt.
 
-    The delegated run receives the calling run's dependencies and adds its usage
-    to the calling run's, so usage limits count both. It also inherits the
+    The delegated run receives the calling run's dependencies, adds its usage
+    to the calling run's and runs under the calling run's usage limits, so one
+    prompt's limits bound everything it sets off — the delegated agent's own
+    limits do not apply. It also inherits the
     caller's deadline. Pass a function returning the agent to build it only
     when the tool is first called.
 
@@ -40,7 +42,9 @@ def agent_toolset(
     async def delegate(ctx: RunContext[Any], prompt: str) -> Any:
         if not resolved:
             resolved.append(agent if isinstance(agent, AbstractAgent) else await agent())
-        result = await resolved[0].run(prompt, deps=ctx.deps, usage=ctx.usage)
+        result = await resolved[0].run(
+            prompt, deps=ctx.deps, usage=ctx.usage, usage_limits=ctx.usage_limits
+        )
         return result.output
 
     toolset: FunctionToolset[Any] = FunctionToolset()

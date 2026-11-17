@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, cast, final, get_origin
 
 from pydantic_ai.agent import AbstractAgent
 from pydantic_ai.capabilities import AbstractCapability
@@ -45,6 +45,10 @@ DEFAULT_STORE: Final = "default"
 
 _STORE_CONNECTION: Final = "ai.conversation_store.orm_connection"
 _STORE_ENABLED: Final = "ai.conversation_store.orm_enabled"
+_ABSTRACT_KEYS: Final[frozenset[type]] = frozenset(
+    {AbstractAgent, AbstractCapability, AbstractToolset}
+)
+"""The keys every agent reaches through one singleton locator."""
 
 
 @final
@@ -167,6 +171,7 @@ class AiBundle(Bundle[AiConfig]):
                     "is built from it once: register it as a singleton, and read per-run state "
                     "from the run's deps.",
                 )
+        _refuse_scoped_abstract_members(builder)
 
     def _hand_over_tools(self, builder: ContainerBuilder) -> None:
         """Add the toolsets ``@as_tool`` methods make to the agents they are declared for.
@@ -248,3 +253,26 @@ class AiBundle(Bundle[AiConfig]):
         builder.set_parameter(_STORE_ENABLED, True)  # noqa: FBT003 — a parameter's value
         if self._store_mappings is not None:
             self._store_mappings.set_driver(ConversationMappingDriver(table_prefix))
+
+
+def _refuse_scoped_abstract_members(builder: ContainerBuilder) -> None:
+    """Refuse, by name, a service under an abstract ai key that is not a singleton.
+
+    Every agent is a singleton reaching capabilities, toolsets and other agents
+    through one locator over each abstract key, so a per-scope member there
+    would outlive its scope. Naming it here beats a failure deep in the container.
+
+    Raises:
+        InvalidConfigurationError: Naming the key, the qualifier and the lifetime.
+    """
+    for definition in builder.get_definitions():
+        provided, qualifier = definition.key
+        # An application may register under the parameterised form, AbstractToolset[Any].
+        base = get_origin(provided) or provided
+        if base not in _ABSTRACT_KEYS or definition.lifetime == "singleton":
+            continue
+        raise InvalidConfigurationError(
+            f'{base.__name__} "{qualifier}" is registered {definition.lifetime}, but every '
+            "agent reaches this key through one singleton locator: register it as a "
+            "singleton, or under a type of its own rather than the abstract one.",
+        )

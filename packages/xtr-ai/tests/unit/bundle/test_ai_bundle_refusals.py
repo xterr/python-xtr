@@ -51,3 +51,11 @@ async def test_a_tool_for_an_unknown_agent_is_refused() -> None:
 async def test_a_capability_that_is_not_a_singleton_is_refused() -> None:
     with pytest.raises(InvalidConfigurationError, match="registered scoped"):
         _ = await Kernel("tests.fixtures.app_ai_scoped", env="test").boot()
+
+
+async def test_a_scoped_service_under_an_abstract_ai_key_is_refused_by_name() -> None:
+    # Every agent is a singleton reaching toolsets through one locator over the
+    # abstract key: a per-scope member there would outlive its scope. The build
+    # names the service rather than failing somewhere inside the container.
+    with pytest.raises(InvalidConfigurationError, match=r'AbstractToolset.*"per_request".*scoped'):
+        _ = await Kernel("tests.fixtures.app_ai_scoped_unrelated", env="test").boot()

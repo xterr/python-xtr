@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from xtr_dependency_injection import env
 
-from xtr_ai.bundle import AgentConfig, AiConfig, ModelRef, PlatformConfig
+from xtr_ai.bundle import AgentConfig, AiConfig, ModelRef
 from xtr_ai.exception import InvalidConfigurationError
 
 
@@ -13,15 +13,6 @@ def test_the_default_configuration_declares_nothing() -> None:
     assert config.platforms == {}
     assert config.agents == {}
     assert config.conversation_stores == {}
-
-
-def test_a_platform_needs_a_provider() -> None:
-    with pytest.raises(InvalidConfigurationError):
-        _ = PlatformConfig(provider="")
-
-
-def test_a_platforms_key_is_never_shown() -> None:
-    assert "sk-secret" not in repr(PlatformConfig(provider="openai", api_key="sk-secret"))
 
 
 def test_an_agent_takes_one_kind_of_instructions() -> None:

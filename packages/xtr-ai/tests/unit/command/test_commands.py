@@ -36,6 +36,9 @@ async def test_debug_ai_lists_platforms_and_agents_without_any_secret(
     display = tester.display
     assert "env(AI_TEST_KEY)" in display
     assert KEY_SENTINEL not in display
+    # The base URL's credentials are masked; its host is still shown.
+    assert "proxy-pw-sentinel" not in display
+    assert "proxy.example" in display
     assert "env(AI_TEST_CHAT_PLATFORM)" in display
     assert "offline:backup" in display
     assert "Greeting" in display
