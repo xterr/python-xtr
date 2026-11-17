@@ -66,7 +66,9 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-rate-limiter](packages/xtr-rate-limiter) | Limits on how often anything may happen, by fixed window, sliding window or token bucket, in memory, in a cache or atomically in Redis. |
 | [xtr-recipes](packages/xtr-recipes) | A command that applies each dependency's use-in-an-application steps from a committed lock, and undoes them when the package is removed. |
 | [xtr-storage](packages/xtr-storage) | Files on local disk, in memory or in object stores, behind one async interface. |
+| [xtr-stopwatch](packages/xtr-stopwatch) | Named events timed in nested sections — one set per concurrent unit of work — for a profile's timeline. |
 | [xtr-remote-event](packages/xtr-remote-event) | Events received from another system, as one value type, handed to the consumer registered under their source's name. |
+| [xtr-web-profiler](packages/xtr-web-profiler) | In development, a toolbar on every page and a searchable profile of every request: timeline, logs, events, routing, the exception. |
 | [xtr-webhook](packages/xtr-webhook) | Webhooks received as events — verified and replay-bounded — and sent signed, in the legacy or the Standard Webhooks format. |
 | [xtr-workflow](packages/xtr-workflow) | Move objects through workflows and state machines — weighted places and transitions, guards, events at every step, definitions in code, config or on a class, dumped as Graphviz, PlantUML or Mermaid. |
 
@@ -91,6 +93,8 @@ graph LR
     cache -. optional .-> console
     events[xtr-event-dispatcher] --> eventcon[xtr-event-dispatcher-contracts]
     events --> logcon
+    events -. optional .-> stopwatch
+    stopwatch[xtr-stopwatch] --> clock
     messenger -. optional .-> console[xtr-console]
     scheduler[xtr-scheduler] --> messenger
     scheduler --> serializer
@@ -113,6 +117,11 @@ graph LR
     httpmsg[xtr-http-message] --> httpmsgcon
     httpkernel --> httpmsg
     httpkernel --> httpmsgcon
+    httpkernel --> clock
+    httpkernel --> stopwatch
+    webprofiler[xtr-web-profiler] --> httpkernel
+    webprofiler --> di
+    webprofiler --> httpmsgcon
     httpfoundation[xtr-http-foundation] --> httpmsgcon
     httpfoundation --> clock
     httpclientcon[xtr-http-client-contracts] --> httpmsgcon
