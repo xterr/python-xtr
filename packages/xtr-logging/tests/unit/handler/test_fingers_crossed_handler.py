@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
-from typing import TYPE_CHECKING, final
+import threading
+from typing import TYPE_CHECKING, cast, final
 
 import anyio
 import anyio.lowlevel
@@ -415,3 +416,37 @@ def test_the_buffer_is_bounded_by_default() -> None:
     # The default size drops the oldest once full, so the first record is gone.
     assert len(spy.handled) == 10_000
     assert spy.handled[0].message == "1"
+
+
+@final
+class _ActivatingFirst:
+    """A lock that, the first time it is taken, lets another thread activate the handler first."""
+
+    def __init__(self, handler: FingersCrossedHandler) -> None:
+        self._lock = threading.Lock()
+        self._handler = handler
+        self._raced = False
+
+    def __enter__(self) -> bool:
+        if not self._raced:
+            self._raced = True
+            racing = threading.Thread(target=self._handler.activate)
+            racing.start()
+            racing.join()
+        return self._lock.__enter__()
+
+    def __exit__(self, *exc: object) -> None:
+        self._lock.__exit__(None, None, None)
+
+
+def test_activation_racing_a_record_never_strands_it() -> None:
+    # The buffering flag is read under the lock: a record arriving as another
+    # thread activates is passed through, not left in a buffer nothing flushes.
+    spy = Spy()
+    handler = FingersCrossedHandler(spy)
+    # The race, made deterministic: the lock lets another thread activate first.
+    handler._buffer_lock = cast("threading.Lock", cast("object", _ActivatingFirst(handler)))  # pyright: ignore[reportPrivateUsage] -- the lock under test
+
+    _ = handler.handle(make_record(Level.INFO, "racing"))
+
+    assert [record.message for record in spy.handled] == ["racing"]

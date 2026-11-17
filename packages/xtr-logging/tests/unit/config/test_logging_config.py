@@ -13,6 +13,7 @@ from xtr_logging.config import (
     JsonFormatterConfig,
     LoggingConfig,
     NullHandlerConfig,
+    RedactingProcessorConfig,
     StdlibHandlerConfig,
     StreamHandlerConfig,
     UidProcessorConfig,
@@ -24,6 +25,7 @@ from xtr_logging.exception.invalid_option_error import InvalidOptionError
 from xtr_logging.exception.mixed_channel_filter_error import MixedChannelFilterError
 from xtr_logging.exception.unknown_channel_error import UnknownChannelError
 from xtr_logging.exception.unknown_handler_error import UnknownHandlerError
+from xtr_logging.processor.redacting_processor import DEFAULT_VALUE_PATTERNS
 
 
 def test_an_empty_config_has_only_the_default_channel() -> None:
@@ -228,3 +230,9 @@ def test_with_channels_leaves_the_original_untouched() -> None:
     _ = config.with_channels("mail")
 
     assert config.channels == ()
+
+
+def test_urls_with_passwords_are_masked_by_default() -> None:
+    config = LoggingConfig()
+
+    assert config.processors == (RedactingProcessorConfig(values=DEFAULT_VALUE_PATTERNS),)

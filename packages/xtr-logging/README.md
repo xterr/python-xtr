@@ -165,7 +165,7 @@ deep, with a warning, rather than recursing until the stack overflows.
 | Handler | Does |
 | --- | --- |
 | `StreamHandler` | Writes to a stream or a file, opened on first write, parent directories created |
-| `RotatingFileHandler` | One file per day (or any `date_format`), keeping the newest `max_files` |
+| `RotatingFileHandler` | One file per day (or any `date_format`) of the clock — never of the record, so a replayed timestamp cannot reopen an old file — keeping the newest `max_files` |
 | `SyslogHandler` | Syslog over UDP or a socket such as `/dev/log`, with the right severity |
 | `ConsoleHandler` | Standard error, or any stream set later, its level following `-v` verbosity, coloured on a terminal |
 | `NullHandler` | Swallows records at its level |
@@ -350,7 +350,13 @@ Handler types: `stream`, `rotating_file`, `syslog`, `console`, `null`, `stdlib`,
 `introspection`, `hostname`, `process_id`, `tags`, `redacting`, `service`. The `redacting`
 processor masks secrets by key — `password`, `token`, `authorization`, `api_key` and the like —
 and by value pattern, matched against the message and every value in context and extra, before
-any handler writes them.
+any handler writes them. A `LoggingConfig` that names no processors gets one by default, masking
+those keys plus URL credentials (`scheme://user:pass@` becomes `scheme://[redacted]@`) and the
+values of the `token`, `access_token`, `refresh_token`, `id_token`, `client_secret` and
+`password` query parameters (`DEFAULT_VALUE_PATTERNS`). A configuration listing its own
+processors replaces that default: add a `RedactingProcessorConfig` there to keep it.
+
+The deduplication store keeps a SHA-256 of each message's first line, never the text.
 
 `syslog` sends records in cleartext: a UDP datagram, or a TCP stream with `socktype = "tcp"`,
 crosses the network unencrypted, so keep it on a trusted segment or a local socket such as

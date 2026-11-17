@@ -44,7 +44,7 @@ class DeduplicationHandler(BufferHandler):
     mail or chat handler would send the identical error hundreds of times.
     Records are buffered like :class:`BufferHandler`, and on flush each one at
     or above ``deduplication_level`` is checked against a small file of what
-    was recently sent — matched by level and first line of message, within
+    was recently sent — matched by level and a digest of the message's first line, within
     ``time`` seconds. The batch goes out whole, with the records below that
     level that explain it, when any of them is new or none reaches the level;
     it is dropped whole when every one of them is a repeat.
@@ -158,7 +158,7 @@ class DeduplicationHandler(BufferHandler):
 
     def _is_duplicate(self, store: list[str], record: LogRecord) -> bool:
         newer_than = int(record.datetime.timestamp()) - self._time
-        expected = _first_line(record.message)
+        expected = _fingerprint(record.message)
         yesterday = int(self._clock.now().timestamp()) - _ONE_DAY_SECONDS
         for line in reversed(store):
             parts = line.split(":", _STORE_FIELDS - 1)
@@ -175,7 +175,7 @@ class DeduplicationHandler(BufferHandler):
 
     def _build_entry(self, record: LogRecord) -> str:
         return (
-            f"{int(record.datetime.timestamp())}:{record.level.name}:{_first_line(record.message)}"
+            f"{int(record.datetime.timestamp())}:{record.level.name}:{_fingerprint(record.message)}"
         )
 
     def _read_store(self) -> list[str] | None:
@@ -266,8 +266,14 @@ def _private_directory(directory: Path) -> bool:
     return True
 
 
-def _first_line(message: str) -> str:
-    return re.split(r"[\r\n]", message, maxsplit=1)[0]
+def _fingerprint(message: str) -> str:
+    """Return the SHA-256 of the message's first line: what the store keeps, never the text.
+
+    The store sits on disk and outlives the process, and a message may carry
+    a user's data; a digest still tells one message from another.
+    """
+    first_line = re.split(r"[\r\n]", message, maxsplit=1)[0]
+    return hashlib.sha256(first_line.encode()).hexdigest()
 
 
 def _parse_timestamp(text: str) -> int | None:

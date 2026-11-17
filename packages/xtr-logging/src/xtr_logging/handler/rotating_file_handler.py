@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
+from xtr_clock import Clock
 from xtr_logging_contracts import Level
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
@@ -17,6 +18,7 @@ from xtr_logging.exception.invalid_option_error import InvalidOptionError
 from .stream_handler import StreamHandler
 
 if TYPE_CHECKING:
+    from xtr_clock import ClockInterface
     from xtr_logging_contracts import LevelLike
 
     from xtr_logging.log_record import LogRecord
@@ -35,8 +37,9 @@ _REFERENCE_DATE: Final = datetime(2026, 1, 2, 3, 4, 5)  # noqa: DTZ001 — a ren
 class RotatingFileHandler(StreamHandler):
     """Writes to a file whose name carries a date, switching when the date changes.
 
-    The date comes from the record, not the wall clock, so a batch of records
-    replayed from yesterday lands in yesterday's file. ``app.log`` with the
+    The date comes from the clock, not the record: a record carrying an old or
+    forged timestamp lands in today's file, and never reopens yesterday's or
+    sweeps today's away. ``app.log`` with the
     default format becomes ``app-2026-09-24.log`` — the extension kept, the
     date spliced into the stem.
 
@@ -56,6 +59,7 @@ class RotatingFileHandler(StreamHandler):
         date_format: str = "%Y-%m-%d",
         filename_format: str = "{filename}-{date}",
         file_permission: int | None = None,
+        clock: ClockInterface | None = None,
     ) -> None:
         """Rotate ``filename`` daily, keeping the newest ``max_files`` of them.
 
@@ -67,6 +71,8 @@ class RotatingFileHandler(StreamHandler):
             date_format: A :meth:`~datetime.datetime.strftime` format for the date.
             filename_format: A template with ``{filename}`` and ``{date}``.
             file_permission: The mode to ``chmod`` each file created to.
+            clock: What today's date is read from; the clock in force when
+                ``None``.
 
         Raises:
             InvalidOptionError: If ``filename_format`` lacks ``{date}`` or
@@ -81,15 +87,17 @@ class RotatingFileHandler(StreamHandler):
         self._date_format: str = date_format
         self._filename_format: str = filename_format
         self._current_date: str | None = None
+        self._clock: ClockInterface = clock if clock is not None else Clock()
 
     @override
     def write(self, record: LogRecord, formatted: str) -> None:
-        """Write to the file for the record's date, rotating first if it changed.
+        """Write to the file for today's date, rotating first if it changed.
 
         Deciding to rotate, rotating and writing happen under one lock: a
         thread seeing the new date half set would reopen the old file.
         """
-        date = record.datetime.strftime(self._date_format)
+        del record
+        date = self._clock.now().strftime(self._date_format)
         with self._lock:
             rotating = date != self._current_date
             if rotating:
@@ -101,19 +109,6 @@ class RotatingFileHandler(StreamHandler):
             stream.flush()
             if rotating:
                 self._collect()
-
-    @override
-    def _batches(self, records: list[LogRecord]) -> list[list[LogRecord]]:
-        """Split ``records`` where the date changes, so each part lands in its own file."""
-        batches: list[list[LogRecord]] = []
-        previous: str | None = None
-        for record in records:
-            date = record.datetime.strftime(self._date_format)
-            if not batches or date != previous:
-                batches.append([])
-            batches[-1].append(record)
-            previous = date
-        return batches
 
     def _timed_path(self, date: str) -> str:
         name = self._filename_format.replace(_FILENAME_TOKEN, self._original.stem).replace(

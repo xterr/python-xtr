@@ -8,7 +8,7 @@ from xtr_logging_contracts import EXCEPTION_KEY
 
 from tests.support.records import make_record
 from xtr_logging.formatter.line_formatter import LineFormatter
-from xtr_logging.processor.redacting_processor import RedactingProcessor
+from xtr_logging.processor.redacting_processor import DEFAULT_VALUE_PATTERNS, RedactingProcessor
 
 
 def test_it_masks_values_whose_key_matches_a_default_pattern() -> None:
@@ -323,3 +323,28 @@ def test_an_exception_chain_that_loops_back_leaks_nothing() -> None:
     formatted = LineFormatter().format(processor(record))
 
     assert "hunter2" not in formatted
+
+
+def test_the_default_value_patterns_mask_url_userinfo_and_secret_query_values() -> None:
+    processor = RedactingProcessor(values=DEFAULT_VALUE_PATTERNS)
+    record = make_record(
+        message="connecting to postgres://u:pw@h/db",
+        context={
+            "url": "https://api.example/cb?code=1&access_token=abc&refresh_token=def&state=x",
+            "more": "https://h/?id_token=ghi&client_secret=jkl&password=mno&token=pqr",
+            "mail": "mailto:ada@example.com",
+            "plain": "https://h/path?q=1",
+        },
+    )
+
+    result = processor(record)
+
+    assert result.message == "connecting to postgres://[redacted]@h/db"
+    assert result.context["url"] == (
+        "https://api.example/cb?code=1&access_token=[redacted]&refresh_token=[redacted]&state=x"
+    )
+    assert result.context["more"] == (
+        "https://h/?id_token=[redacted]&client_secret=[redacted]&password=[redacted]&token=[redacted]"
+    )
+    assert result.context["mail"] == "mailto:ada@example.com"
+    assert result.context["plain"] == "https://h/path?q=1"

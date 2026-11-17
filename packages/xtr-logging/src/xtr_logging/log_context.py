@@ -97,8 +97,17 @@ def unbind_context(*keys: str) -> None:
 
 
 def clear_context() -> None:
-    """Drop every bound value."""
-    _ = _CONTEXT.set(_NOTHING)
+    """Drop the bound values: in a unit of work, the unit's own; outside one, all of them.
+
+    Inside a unit what was bound outside any unit lasts: a request clearing
+    what it bound must not take away what the process bound for good.
+    """
+    unit = _unit()
+    if unit is None:
+        _ = _CONTEXT.set(_NOTHING)
+        return
+    lasting = _CONTEXT.get().lasting
+    _ = _CONTEXT.set(_Bound(lasting, unit, lasting))
 
 
 def current_context() -> Context:

@@ -126,11 +126,15 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
         record = self._process(record)
         late = in_closed_unit()
         state = _FingersCrossedState() if late else self._state()
-        if state.buffering:
-            with self._buffer_lock:
+        # Read under the lock: a record arriving while another thread activates
+        # is passed through, never appended to a buffer that was just released.
+        with self._buffer_lock:
+            buffered = state.buffering
+            if buffered:
                 state.buffer.append(record)
                 if self._buffer_size > 0 and len(state.buffer) > self._buffer_size:
                     _ = state.buffer.pop(0)
+        if buffered:
             if self._activation_strategy.is_handler_activated(record):
                 self._activate(state)
         else:

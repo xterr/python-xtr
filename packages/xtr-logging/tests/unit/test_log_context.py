@@ -88,6 +88,20 @@ def test_clearing_drops_everything() -> None:
     assert dict(current_context()) == {}
 
 
+def test_clear_context_in_a_unit_keeps_lasting_values() -> None:
+    # A request clearing what it bound must not take away what the process bound for good.
+    bind_context({"service": "api"})
+    begin_unit()
+    bind_context({"request_id": "r-1"})
+
+    clear_context()
+    inside = dict(current_context())
+    end_unit()
+
+    assert inside == {"service": "api"}
+    assert dict(current_context()) == {"service": "api"}
+
+
 def test_bound_context_restores_the_previous_state_on_exit() -> None:
     bind_context({"a": 1})
 
