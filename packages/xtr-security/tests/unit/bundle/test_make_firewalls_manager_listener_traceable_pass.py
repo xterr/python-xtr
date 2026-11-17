@@ -15,19 +15,25 @@ from xtr_security_http.firewall_map_interface import FirewallMapInterface
 
 from tests.fixtures.security_app.bundles import BUNDLES
 from tests.support.messages import make_message
+from xtr_security.data_collector import SecurityDataCollector
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from xtr_service_contracts import ContainerInterface
 
 pytestmark = pytest.mark.anyio
 
+_APP = "tests.fixtures.security_app"
 
-def _kernel(*, debug: bool) -> Kernel:
+
+def _kernel(*resources: str, debug: bool) -> Kernel:
     return Kernel(
-        "tests.fixtures.security_app",
+        _APP,
         env="test",
         debug=debug,
         bundles=BUNDLES,
+        resources=(_APP, *resources),
         concurrent_scoped_access=True,
     )
 
@@ -58,3 +64,23 @@ async def test_outside_debug_mode_a_firewalls_manager_listener_is_not_traced() -
         AuthenticatorManagerListener,
         AccessListener,
     ]
+
+
+async def test_a_traced_listener_reports_to_the_security_panel_while_profiling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PROFILER_TEST_FOLDER", str(tmp_path))
+    async with await _kernel("tests.fixtures.profiler_on", debug=True).boot() as booted:
+        collector = await booted.container.get(SecurityDataCollector)
+        listener, _ = await _secured_chain(booted.container)
+
+    assert isinstance(listener, TraceableAuthenticatorManagerListener)
+    assert listener._recorder == collector.record_authenticator
+
+
+async def test_a_traced_listener_reports_to_nothing_without_the_profiler() -> None:
+    async with await _kernel(debug=True).boot() as booted:
+        listener, _ = await _secured_chain(booted.container)
+
+    assert isinstance(listener, TraceableAuthenticatorManagerListener)
+    assert listener._recorder is None

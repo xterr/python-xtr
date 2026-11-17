@@ -54,6 +54,7 @@ from xtr_security_http import (
 from xtr_security.bundle._hasher_wiring import register_hashers
 from xtr_security.bundle._voter_wiring import register_voters
 from xtr_security.bundle._wiring import register_user_providers
+from xtr_security.data_collector import SecurityDataCollector
 from xtr_security.security import Security
 
 if TYPE_CHECKING:
@@ -82,6 +83,10 @@ def register_core_security_services(
     takes the application's clock while the clock bundle is active; the
     forgery checker carries its remove-if-missing markers, so it stays only
     while a firewall's wiring built the manager it answers through.
+
+    When votes are traced and the profiler's security panel is registered —
+    the http kernel profiles requests — the traceable manager reports each
+    finished decision to it.
     """
     from xtr_dependency_injection import bundle_active  # noqa: PLC0415 -- read at registration time
 
@@ -98,9 +103,12 @@ def register_core_security_services(
         _access_decision_manager_factory(strategy, trace_votes=trace_votes)
     ).set_argument("voter_qualifiers", ())
     if trace_votes:
-        _ = services.set(_traceable_access_decision_manager, lifetime="scoped").add_tag(
-            "kernel.reset", method="reset"
-        )
+        _ = services.set(
+            _traceable_access_decision_manager(
+                profiled=builder.has_definition(SecurityDataCollector)
+            ),
+            lifetime="scoped",
+        ).add_tag("kernel.reset", method="reset")
         services.alias(AccessDecisionManagerInterface, TraceableAccessDecisionManager)
         services.load("xtr_security.event_listener.vote_listener")
     else:
@@ -176,10 +184,31 @@ def _authentication_trust_resolver(clock: ClockInterface) -> AuthenticationTrust
 
 
 def _traceable_access_decision_manager(
-    manager: AccessDecisionManager,
-) -> TraceableAccessDecisionManager:
-    """Build the request's traceable decision manager over the shared one."""
-    return TraceableAccessDecisionManager(manager)
+    *,
+    profiled: bool,
+) -> Callable[..., TraceableAccessDecisionManager]:
+    """Return the factory of the request's traceable decision manager.
+
+    When ``profiled``, the factory also takes the security panel, and the
+    manager reports every finished decision to it.
+    """
+
+    def traceable_access_decision_manager(
+        manager: AccessDecisionManager,
+        collector: SecurityDataCollector | None = None,
+    ) -> TraceableAccessDecisionManager:
+        """Build the request's traceable decision manager over the shared one."""
+        recorder = collector.record_decision if collector is not None else None
+        return TraceableAccessDecisionManager(manager, recorder)
+
+    annotations: dict[str, object] = {
+        "manager": AccessDecisionManager,
+        "return": TraceableAccessDecisionManager,
+    }
+    if profiled:
+        annotations["collector"] = SecurityDataCollector
+    traceable_access_decision_manager.__annotations__ = annotations
+    return traceable_access_decision_manager
 
 
 def _security_facade(

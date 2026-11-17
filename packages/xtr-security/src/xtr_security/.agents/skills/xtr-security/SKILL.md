@@ -32,6 +32,7 @@ Write one `SecurityConfig`; the container owns the rest.
 | Keep a session (form login, logout, remember me) | `stateless=False` plus a `SessionStorageInterface` service |
 | Sign in with an OIDC provider | `OidcLoginConfig` behind the `oidc` extra |
 | Mint this application's own OIDC token | a `token_generator` block, then `security:oidc:generate-token` |
+| See the firewall, token, authenticators and votes of a request | turn on the http kernel's profiler: the bundle registers the `security` panel (`SecurityDataCollector`); decisions and authenticators show in debug mode |
 
 Import from these surfaces, nothing deeper: `xtr_security` (`Security`), `xtr_security.bundle`
 (every `*Config` and `SecurityBundle`), `xtr_security_core` (users, tokens, voters, errors),

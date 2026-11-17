@@ -807,6 +807,31 @@ A factory whose authenticator can settle on a user without a provider — as the
 can, its handler building the user — inherits `StatelessAuthenticatorFactoryInterface`, and is
 handed no provider rather than a `MissingUserProvider` when the application configures none.
 
+## Profiler panel
+
+When the http kernel's profiler is on (`HttpKernelConfig(profiler=ProfilerConfig(enabled=True))`),
+the bundle registers `SecurityDataCollector` as the profiler's `security` panel. For each
+profiled request it keeps:
+
+- the firewall that secured the request — its name, entry point, access-denied handler, listener
+  chain and whether it logs out — or nothing when no secured firewall claimed it;
+- the token the access step decided with: its class, the user identifier, the roles, whether a
+  user is authenticated and, for a switched user, who is impersonating. The token's credentials
+  are never read;
+- every access decision — its attributes, its subject, its result and strategy, and each voter's
+  vote (`granted`, `denied`, `abstain`) with its reasons;
+- every authenticator the firewall asked — whether it supported the request and why not, whether
+  it authenticated, how long it took, the passport it built and the error it failed with.
+
+Decisions appear when votes are traced (`trace_votes`, on in debug mode unless set), the
+authenticators when the event dispatcher traces (its `trace`, on in debug mode unless set); the
+panel's `votes_traced` and `authenticators_traced` say which were, so it tells "none made" from
+"not traced". A subject or a passport keeps `******` under every key or attribute named like a
+password, a secret or a token.
+
+With the profiler off nothing is registered and the traced decorations report to no one; on, a
+request the profiler does not profile records nothing either — reporting costs a context lookup.
+
 ## Use in an application
 
 Everything adding this package to an application on
@@ -930,6 +955,7 @@ xtr_security/
 ├── oidc_back_channel_logout_handler.py  answers the route a provider pushes logout tokens to
 ├── exception/                 InvalidConfigurationError
 ├── command/                   debug:firewall
+├── data_collector/            SecurityDataCollector, the profiler's security panel
 ├── factory/                   authenticator factory interface + the built-in factories,
 │                              with add_authenticator_factory
 ├── access_token/              token-handler factory interface + built-ins,

@@ -1,0 +1,365 @@
+{#
+  Who the request ran as, under which firewall, and what was decided about it.
+
+  The firewall and the token are read off the request as the response starts;
+  the decisions and the authenticators are recorded while it runs. Both are
+  recorded only where tracing decorated them, so `votes_traced` and
+  `authenticators_traced` are what tells "not traced" from "none made" — and a
+  token of none under a firewall that did claim the request means the access
+  step never ran. Nothing a credential sits in is shown: a subject and a
+  passport arrive already masked.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set firewall = collector.data.get("firewall") or {} %}
+{% set token = collector.data.get("token") %}
+{% set decisions = collector.data.get("decisions") or [] %}
+{% set tally = namespace(denied=0) %}
+{% for decision in decisions %}
+{% if decision.get("result") is sameas false %}
+{% set tally.denied = tally.denied + 1 %}
+{% endif %}
+{% endfor %}
+{% set who = "n/a" if token is none else (token.get("user_identifier") or "anonymous") %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8 1.8l4.8 1.7v4c0 2.9-2 5.4-4.8 6.4-2.8-1-4.8-3.5-4.8-6.4v-4z"></path>
+  <circle cx="8" cy="7" r="1.1"></circle>
+  <path d="M8 8.1v1.9"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ who }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Firewall</dt><dd>{{ firewall.get("name") or "none" }}</dd>
+  <dt>User</dt><dd>{{ who }}</dd>
+  <dt>Roles</dt><dd>{{ (token.get("roles") if token else [])|join(", ") or "—" }}</dd>
+  <dt>Authenticated</dt><dd>{{ "yes" if (token and token.get("authenticated")) else "no" }}</dd>
+  <dt>Decisions</dt><dd>{{ decisions|length if collector.data.get("votes_traced") else "not traced" }}</dd>
+  <dt>Denied</dt><dd>{{ tally.denied }}</dd>
+</dl>
+{% if not collector.data.get("enabled") %}
+<p class="xtr-toolbar-note">No firewall claimed this request.</p>
+{% elif token is none %}
+<p class="xtr-toolbar-note">The access step did not run, so no token was kept.</p>
+{% endif %}
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status="red" if tally.denied else "normal") }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8 1.8l4.8 1.7v4c0 2.9-2 5.4-4.8 6.4-2.8-1-4.8-3.5-4.8-6.4v-4z"></path>
+  <circle cx="8" cy="7" r="1.1"></circle>
+  <path d="M8 8.1v1.9"></path>
+</svg>
+<span class="xtr-menu-label">Security</span>
+{% set decisions = collector.data.get("decisions") or [] %}
+{% set tally = namespace(denied=0) %}
+{% for decision in decisions %}
+{% if decision.get("result") is sameas false %}
+{% set tally.denied = tally.denied + 1 %}
+{% endif %}
+{% endfor %}
+{% if tally.denied %}
+<span class="xtr-menu-count xtr-menu-count-red" title="denied">{{ tally.denied }}</span>
+{% elif collector.data.get("enabled") %}
+<span class="xtr-menu-count">{{ decisions|length }}</span>
+{% else %}
+<span class="xtr-menu-count">off</span>
+{% endif %}
+{% endblock %}
+
+{% block panel %}
+{% set data = collector.data %}
+{% set enabled = data.get("enabled") %}
+{% set firewall = data.get("firewall") %}
+{% set token = data.get("token") %}
+{% set decisions = data.get("decisions") or [] %}
+{% set authenticators = data.get("authenticators") or [] %}
+{% set listeners = (firewall.get("listeners") if firewall else none) or [] %}
+{% set votes = {"granted": "green", "denied": "red"} %}
+{% set who = "n/a" if token is none else (token.get("user_identifier") or "anonymous") %}
+{% set tally = namespace(denied=0) %}
+{% for decision in decisions %}
+{% if decision.get("result") is sameas false %}
+{% set tally.denied = tally.denied + 1 %}
+{% endif %}
+{% endfor %}
+{% macro answer(value, yes, no, unknown) %}
+{% if value is sameas true %}
+<span class="xtr-badge xtr-badge-green">{{ yes }}</span>
+{% elif value is sameas false %}
+<span class="xtr-badge xtr-badge-red">{{ no }}</span>
+{% else %}
+<span class="xtr-badge">{{ unknown }}</span>
+{% endif %}
+{% endmacro %}
+{% macro lines(caption, written) %}
+{% if written %}
+<details class="xtr-dump">
+  <summary><span class="xtr-dump-type">{{ caption }}</span> <span class="xtr-dump-count">({{ written|length }})</span></summary>
+  <ul>
+    {% for line in written %}
+    <li><span class="xtr-dump-str">{{ line }}</span></li>
+    {% endfor %}
+  </ul>
+</details>
+{% else %}
+<span class="xtr-dump-null">none</span>
+{% endif %}
+{% endmacro %}
+<h1 class="xtr-panel-title">Security</h1>
+<section class="xtr-card">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">{{ (firewall.get("name") or "unnamed firewall") if firewall else "No firewall" }}</h2>
+    {% if tally.denied %}
+    <span class="xtr-badge xtr-badge-red">denied</span>
+    {% elif token and token.get("authenticated") %}
+    <span class="xtr-badge xtr-badge-green">authenticated</span>
+    {% else %}
+    <span class="xtr-badge">anonymous</span>
+    {% endif %}
+    <span class="xtr-card-note">{{ decisions|length }} decisions, {{ authenticators|length }} authenticators</span>
+  </header>
+  <div class="xtr-card-body">
+    {% if not enabled %}
+    <p class="xtr-empty">
+      No firewall claimed this request. It was answered outside everything the
+      security configuration guards, so no token was decided and nothing of a
+      firewall was kept.
+    </p>
+    {% else %}
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>User</td><td class="xtr-cell-mono xtr-break">{{ who }}</td></tr>
+        <tr>
+          <td>Authenticated</td>
+          <td>{{ answer(token.get("authenticated") if token else none, "yes", "no", "no token") }}</td>
+        </tr>
+        <tr>
+          <td>Roles</td>
+          <td>
+            {% if token and token.get("roles") %}
+            {% for role in token.get("roles") %}
+            <span class="xtr-badge xtr-badge-violet">{{ role }}</span>
+            {% endfor %}
+            {% else %}
+            <span class="xtr-badge">none</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Token</td>
+          <td class="xtr-cell-mono xtr-break">{{ (token.get("class") or "?") if token else "none kept" }}</td>
+        </tr>
+        <tr>
+          <td>Impersonated</td>
+          <td class="xtr-cell-mono xtr-break">
+            {% if token and token.get("impersonated") %}
+            {{ token.get("impersonator") or "?" }} <span class="xtr-dump-arrow">⇒</span> {{ who }}
+            {% else %}
+            no
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Voter strategy</td>
+          <td class="xtr-cell-mono">{{ data.get("voter_strategy") or "not recorded" }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% if token is none %}
+    <p class="xtr-card-note">
+      The firewall claimed this request but no token was kept: the access step
+      never ran, so nothing authenticated it and nothing decided about it.
+    </p>
+    {% endif %}
+    {% endif %}
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush xtr-tabs">
+  <div class="xtr-tablist" role="tablist" aria-label="What to show of this request's security">
+    <button type="button" class="xtr-tab xtr-on" data-xtr-tab="decisions" role="tab" aria-selected="true">Decisions<span class="xtr-tab-count">{{ decisions|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="authenticators" role="tab" aria-selected="false">Authenticators<span class="xtr-tab-count">{{ authenticators|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="firewall" role="tab" aria-selected="false">Firewall</button>
+  </div>
+  <section class="xtr-pane xtr-on" data-xtr-pane="decisions" role="tabpanel">
+    {% if decisions %}
+    <p class="xtr-card-note">
+      Each decision as the manager made it, the subject as it was when it was
+      decided, and every voter that answered.
+    </p>
+    {% for decision in decisions %}
+    <details class="xtr-frame"{% if decision.get("result") is sameas false %} open{% endif %}>
+      <summary>
+        <span class="xtr-frame-function">{{ (decision.get("attributes") or [])|join(", ") or "no attribute" }}</span>
+        {{ answer(decision.get("result"), "granted", "denied", "not answered") }}
+        <span class="xtr-frame-where">{{ decision.get("strategy") or "strategy not recorded" }}</span>
+      </summary>
+      <div class="xtr-frame-body">
+        <h3 class="xtr-section-title">Subject</h3>
+        {{ decision.get("subject")|profiler_dump }}
+        <h3 class="xtr-section-title">Voters</h3>
+        {% if decision.get("voters") %}
+        <table class="xtr-table">
+          <thead>
+            <tr>
+              <th scope="col">Voter</th>
+              <th scope="col">Attributes</th>
+              <th scope="col">Vote</th>
+              <th scope="col">Reasons</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for voter in decision.get("voters") %}
+            {% set tone = votes.get(voter.get("vote"), "") %}
+            <tr>
+              <td class="xtr-cell-mono xtr-break">{{ voter.get("voter") or "?" }}</td>
+              <td class="xtr-cell-mono xtr-break">{{ (voter.get("attributes") or [])|join(", ") or "—" }}</td>
+              <td class="xtr-cell-tight"><span class="xtr-badge{% if tone %} xtr-badge-{{ tone }}{% endif %}">{{ voter.get("vote") or "?" }}</span></td>
+              <td class="xtr-break">{{ lines("reasons", voter.get("reasons") or []) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="xtr-card-note">
+          No vote was reported for this decision: it was recorded without the
+          voters that answered it.
+        </p>
+        {% endif %}
+      </div>
+    </details>
+    {% endfor %}
+    {% elif not data.get("votes_traced") %}
+    <p class="xtr-empty">Votes are not traced.</p>
+    <p class="xtr-card-note">
+      Decisions are kept only where the decision manager was decorated to
+      report them. Nothing here says the request was decided without a vote —
+      only that no vote was reported.
+    </p>
+    {% else %}
+    <p class="xtr-empty">Nothing was decided about this request.</p>
+    {% endif %}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="authenticators" role="tabpanel">
+    {% if authenticators %}
+    <div class="xtr-toolstrip">
+      <input class="xtr-filter" type="search" placeholder="Filter these authenticators…" aria-label="Filter the authenticators shown" data-xtr-filter="xtr-security-authenticators" data-xtr-filter-count="xtr-security-authenticators-count">
+      <span class="xtr-card-note" id="xtr-security-authenticators-count">{{ authenticators|length }} of {{ authenticators|length }}</span>
+    </div>
+    <div class="xtr-scroll">
+      <table class="xtr-table" id="xtr-security-authenticators">
+        <thead>
+          <tr>
+            <th scope="col">Authenticator</th>
+            <th scope="col">Supports</th>
+            <th scope="col">Authenticated</th>
+            <th scope="col">Passport</th>
+            <th scope="col">Error</th>
+            <th scope="col">Took</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asked in authenticators %}
+          <tr>
+            <td class="xtr-cell-mono xtr-break">{{ asked.get("authenticator") or "?" }}</td>
+            <td class="xtr-cell-tight">
+              {% if asked.get("supports") is sameas true %}
+              <span class="xtr-badge xtr-badge-green">yes</span>
+              {% elif asked.get("supports") is sameas false %}
+              <span class="xtr-badge">no</span>
+              {% else %}
+              <span class="xtr-badge xtr-badge-blue" title="a yes decided by authenticating">lazy</span>
+              {% endif %}
+              {% if asked.get("unsupported_reasons") %}
+              {{ lines("why not", asked.get("unsupported_reasons")) }}
+              {% endif %}
+            </td>
+            <td class="xtr-cell-tight">{{ answer(asked.get("authenticated"), "yes", "no", "not answered") }}</td>
+            <td>
+              {% if asked.get("passport") is not none %}
+              {{ asked.get("passport")|profiler_dump }}
+              {% else %}
+              <span class="xtr-dump-null">none</span>
+              {% endif %}
+            </td>
+            <td class="xtr-break">
+              {% if asked.get("error") or asked.get("error_class") %}
+              <details class="xtr-dump">
+                <summary><span class="xtr-dump-type">{{ asked.get("error_class") or "error" }}</span></summary>
+                <ul>
+                  <li><span class="xtr-dump-str">{{ asked.get("error") or "no message" }}</span></li>
+                </ul>
+              </details>
+              {% else %}
+              <span class="xtr-dump-null">none</span>
+              {% endif %}
+            </td>
+            <td class="xtr-cell-num">{{ asked.get("duration_ms")|format_ms }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="xtr-card-foot">
+      <span class="xtr-badge xtr-badge-blue">lazy</span> the authenticator left
+      the question open and answered it by authenticating.
+      <span class="xtr-badge">not answered</span> it never got that far.
+    </p>
+    {% elif not data.get("authenticators_traced") %}
+    <div class="xtr-card-body">
+      <p class="xtr-empty">The firewalls' authenticators are not traced.</p>
+      <p class="xtr-card-note">
+        An authenticator reports what it did only where the firewall's manager
+        listener was decorated to trace it. Run the application in debug mode,
+        or turn tracing on, to read this tab.
+      </p>
+    </div>
+    {% else %}
+    <div class="xtr-card-body">
+      <p class="xtr-empty">No authenticator was asked about this request.</p>
+    </div>
+    {% endif %}
+  </section>
+  <section class="xtr-pane" data-xtr-pane="firewall" role="tabpanel">
+    {% if firewall %}
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Name</td><td class="xtr-cell-mono">{{ firewall.get("name") or "—" }}</td></tr>
+        <tr><td>Secured</td><td>{{ answer(firewall.get("security"), "yes", "no, every request passes", "—") }}</td></tr>
+        <tr><td>Entry point</td><td class="xtr-cell-mono xtr-break">{{ firewall.get("entry_point") or "none" }}</td></tr>
+        <tr><td>Access denied handler</td><td class="xtr-cell-mono xtr-break">{{ firewall.get("access_denied_handler") or "none" }}</td></tr>
+        <tr><td>Logout</td><td>{{ answer(firewall.get("logout"), "configured", "none", "—") }}</td></tr>
+      </tbody>
+    </table>
+    <h3 class="xtr-section-title">Listeners, in the order they ran</h3>
+    {% if listeners %}
+    <div class="xtr-scroll">
+      <table class="xtr-table" id="xtr-security-listeners">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Listener</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for listener in listeners %}
+          <tr>
+            <td class="xtr-cell-num">{{ loop.index }}</td>
+            <td class="xtr-cell-mono xtr-break">{{ listener }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="xtr-card-note">The firewall ran no listener of its own.</p>
+    {% endif %}
+    {% else %}
+    <p class="xtr-empty">No firewall claimed this request, so none was kept.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}
