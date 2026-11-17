@@ -1,0 +1,155 @@
+{#
+  The request as it arrived, and the head of the response it got.
+
+  Each block is rendered on its own — the toolbar asks for `toolbar`, the
+  profile page for `menu` and `panel` — so every block brings what it needs
+  with it and reads nothing from around it.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set code = collector.data.get("status_code") or 0 %}
+{% set status = "green" if 200 <= code < 300 else ("yellow" if 300 <= code < 400 else ("red" if code >= 400 else "normal")) %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M2 5.5h9M8.5 3l2.5 2.5L8.5 8M14 10.5H5M7.5 8L5 10.5 7.5 13"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ code }}</span>
+<span class="xtr-toolbar-sep">·</span>
+<span class="xtr-toolbar-value">{{ collector.data.get("method") or "?" }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Status</dt><dd>{{ code }}</dd>
+  <dt>Method</dt><dd>{{ collector.data.get("method") or "—" }}</dd>
+  <dt>Path</dt><dd>{{ collector.data.get("path") or "—" }}</dd>
+  <dt>Request id</dt><dd>{{ collector.data.get("request_id") or "—" }}</dd>
+  <dt>Content type</dt><dd>{{ collector.data.get("content_type") or "—" }}</dd>
+  <dt>Protocol</dt><dd>{{ collector.data.get("protocol_version") or "—" }}</dd>
+</dl>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status=status) }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M2 5.5h9M8.5 3l2.5 2.5L8.5 8M14 10.5H5M7.5 8L5 10.5 7.5 13"></path>
+</svg>
+<span class="xtr-menu-label">Request</span>
+<span class="xtr-menu-count">{{ collector.data.get("status_code") or 0 }}</span>
+{% endblock %}
+
+{% block panel %}
+{% set data = collector.data %}
+{% set code = data.get("status_code") or 0 %}
+{% set tone = "green" if 200 <= code < 300 else ("yellow" if 300 <= code < 400 else ("red" if code >= 400 else "blue")) %}
+{% macro values(caption, mapping) %}
+<h3 class="xtr-section-title">{{ caption }}</h3>
+{% if mapping %}
+<table class="xtr-table xtr-table-key">
+  <tbody>
+    {% for name, value in mapping.items() %}
+    <tr>
+      <td>{{ name }}</td>
+      <td>{{ value|profiler_dump }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="xtr-card-note">None.</p>
+{% endif %}
+{% endmacro %}
+{% macro headers(caption, mapping) %}
+<h3 class="xtr-section-title">{{ caption }}</h3>
+{% if mapping %}
+<table class="xtr-table xtr-table-key">
+  <tbody>
+    {% for name, value in mapping.items() %}
+    <tr>
+      <td>{{ name }}</td>
+      <td class="xtr-cell-mono xtr-break">{{ value }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="xtr-card-note">None.</p>
+{% endif %}
+{% endmacro %}
+<h1 class="xtr-panel-title">Request</h1>
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Method</td><td><span class="xtr-method">{{ data.get("method") or "—" }}</span></td></tr>
+        <tr><td>URI</td><td class="xtr-cell-mono xtr-break">{{ data.get("uri") or "—" }}</td></tr>
+        <tr><td>Path</td><td class="xtr-cell-mono xtr-break">{{ data.get("path") or "—" }}</td></tr>
+        <tr><td>Protocol</td><td class="xtr-cell-mono">{{ data.get("protocol_version") or "—" }}</td></tr>
+        <tr><td>Status</td><td><span class="xtr-badge xtr-badge-{{ tone }}">{{ code }}</span></td></tr>
+        <tr><td>Content type</td><td class="xtr-cell-mono xtr-break">{{ data.get("content_type") or "—" }}</td></tr>
+        <tr><td>Request id</td><td class="xtr-cell-mono xtr-break">{{ data.get("request_id") or "—" }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush xtr-tabs">
+  <div class="xtr-tablist" role="tablist" aria-label="What the request and the response carried">
+    <button type="button" class="xtr-tab xtr-on" data-xtr-tab="request" role="tab" aria-selected="true">Request</button>
+    <button type="button" class="xtr-tab" data-xtr-tab="response" role="tab" aria-selected="false">Response</button>
+    <button type="button" class="xtr-tab" data-xtr-tab="state" role="tab" aria-selected="false">State</button>
+    <button type="button" class="xtr-tab" data-xtr-tab="curl" role="tab" aria-selected="false">cURL</button>
+  </div>
+  <section class="xtr-pane xtr-on" data-xtr-pane="request" role="tabpanel">
+    {{ values("Query", data.get("query") or {}) }}
+    <h3 class="xtr-section-title">Body</h3>
+    {% set body = data.get("body") %}
+    {% if body is none %}
+    <p class="xtr-card-note">No parsed body was kept. A body is only kept once the application has read and parsed it.</p>
+    {% elif body is mapping and "kind" not in body %}
+    {% if body %}
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        {% for name, value in body.items() %}
+        <tr>
+          <td>{{ name }}</td>
+          <td>{{ value|profiler_dump }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="xtr-card-note">The parsed body held no field.</p>
+    {% endif %}
+    {% else %}
+    {{ body|profiler_dump }}
+    {% endif %}
+    {{ values("Attributes", data.get("attributes") or {}) }}
+    {{ values("Cookies", data.get("cookies") or {}) }}
+    {{ headers("Headers", data.get("request_headers") or {}) }}
+  </section>
+  <section class="xtr-pane" data-xtr-pane="response" role="tabpanel">
+    <h3 class="xtr-section-title">Status</h3>
+    <p><span class="xtr-badge xtr-badge-{{ tone }}">{{ code }}</span></p>
+    {{ headers("Headers", data.get("response_headers") or {}) }}
+  </section>
+  <section class="xtr-pane" data-xtr-pane="state" role="tabpanel">
+    {{ values("State", data.get("state") or {}) }}
+    <p class="xtr-card-note">
+      The bag a request carries through its handling. What the profiler keeps
+      for itself is left out.
+    </p>
+  </section>
+  <section class="xtr-pane" data-xtr-pane="curl" role="tabpanel">
+    {% set command = collector.data.get("curl_command") %}
+    {% if command %}
+    <div class="xtr-toolstrip">
+      <span class="xtr-card-note">Replays this request, credentials masked.</span>
+      <button type="button" class="xtr-button xtr-button-quiet" data-xtr-copy="xtr-request-curl">Copy</button>
+    </div>
+    <pre class="xtr-code" id="xtr-request-curl">{{ command }}</pre>
+    {% else %}
+    <p class="xtr-card-note">No command was built: it is added once the response has left.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

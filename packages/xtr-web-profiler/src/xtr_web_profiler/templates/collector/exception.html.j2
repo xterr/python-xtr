@@ -1,0 +1,135 @@
+{#
+  What handling raised, with every frame it passed through.
+
+  The chain reads as the language prints it: the raised error first, then what
+  it was raised from or while handling. Within one error the innermost frame
+  is where it happened, so the frames are shown newest first.
+#}
+{% block toolbar %}
+{% if collector.data.get("has_exception") %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set chain = collector.data.get("chain") or [] %}
+{% set raised = chain[0] if chain else {} %}
+{% set qualified = raised.get("class") or "Error" %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8 2.2l6 11.2H2z"></path>
+  <path d="M8 6v3.4"></path>
+  <path d="M8 11.3v.1"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ qualified.split(".")|last }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Raised</dt><dd>{{ qualified }}</dd>
+  <dt>Message</dt><dd>{{ raised.get("message") or "—" }}</dd>
+  <dt>Status</dt><dd>{{ collector.data.get("status_code") or "—" }}</dd>
+  <dt>Frames</dt><dd>{{ (raised.get("frames") or [])|length }}</dd>
+  {% if chain|length > 1 %}
+  <dt>Caused by</dt><dd>{{ chain|length - 1 }} more</dd>
+  {% endif %}
+</dl>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status="red") }}
+{% endif %}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8 2.2l6 11.2H2z"></path>
+  <path d="M8 6v3.4"></path>
+  <path d="M8 11.3v.1"></path>
+</svg>
+<span class="xtr-menu-label">Exception</span>
+{% if collector.data.get("has_exception") %}
+<span class="xtr-menu-mark" title="Handling raised"></span>
+{% endif %}
+{% endblock %}
+
+{% block panel %}
+<h1 class="xtr-panel-title">Exception</h1>
+{% if not collector.data.get("has_exception") %}
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <p class="xtr-empty">Nothing was raised while this request was handled.</p>
+  </div>
+</section>
+{% else %}
+{% set chain = collector.data.get("chain") or [] %}
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Status</td><td class="xtr-cell-mono">{{ collector.data.get("status_code") or "—" }}</td></tr>
+        <tr><td>Errors</td><td class="xtr-cell-mono">{{ chain|length }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% for entry in chain %}
+{% set outer = loop %}
+{% set frames = (entry.get("frames") or [])|reverse|list %}
+<section class="xtr-card">
+  <header class="xtr-card-head">
+    <div class="xtr-chain-head">
+      <span class="xtr-badge xtr-badge-red">{{ "raised" if outer.first else "caused by" }}</span>
+      <span class="xtr-chain-class">{{ entry.get("class") or "Error" }}</span>
+    </div>
+    <div class="xtr-card-tail">
+      <span class="xtr-card-note">{{ frames|length }} {{ "frame" if frames|length == 1 else "frames" }}</span>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    <p class="xtr-chain-message">{{ entry.get("message") or "(no message)" }}</p>
+    {% if frames %}
+    <h3 class="xtr-section-title">Frames, newest first</h3>
+    {% for frame in frames %}
+    {% set file = frame.get("file") or "" %}
+    {% set line = frame.get("line") or 1 %}
+    {% set editor = file|file_link(line) %}
+    {% set target = editor if editor is not none else open_file_url(file, line) %}
+    <details class="xtr-frame"{% if outer.first and loop.first %} open{% endif %}>
+      <summary>
+        <span class="xtr-badge">{{ loop.index }}</span>
+        <span class="xtr-frame-function">{{ frame.get('function') or '?' }}</span>
+        <span class="xtr-frame-where">{{ file }}:{{ line }}</span>
+      </summary>
+      <div class="xtr-frame-body">
+        <p class="xtr-card-note">
+          <a href="{{ target }}">Open {{ file }} at line {{ line }}</a>
+        </p>
+        {% if frame.get("code") %}
+        <div class="xtr-lines">
+          {% for row in frame.get("code") %}
+          <div class="xtr-line{% if row.number == line %} xtr-line-on{% endif %}"><span class="xtr-line-number">{{ row.number }}</span><span class="xtr-line-text">{{ row.text }}</span></div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="xtr-card-note">The source of this frame could not be read.</p>
+        {% endif %}
+        <h4 class="xtr-section-title">Locals</h4>
+        {% if frame.get("locals") %}
+        <table class="xtr-table xtr-table-key">
+          <tbody>
+            {% for name, value in frame.get("locals").items() %}
+            <tr>
+              <td>{{ name }}</td>
+              <td>{{ value|profiler_dump }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="xtr-card-note">This frame held no local variable.</p>
+        {% endif %}
+      </div>
+    </details>
+    {% endfor %}
+    {% else %}
+    <p class="xtr-card-note">This error carried no traceback.</p>
+    {% endif %}
+  </div>
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}

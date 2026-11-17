@@ -1,0 +1,142 @@
+{#
+  Which listeners the request's events reached, and which they did not.
+
+  The trace belongs to one unit of work, so these are this request's events
+  alone. Outside debug mode the dispatcher keeps no trace and there is
+  nothing to show.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set traced = collector.data.get("traced") %}
+{% set called = collector.data.get("called") or [] %}
+{% set orphaned = collector.data.get("orphaned") or [] %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8 1.8l5.4 3.1v6.2L8 14.2 2.6 11.1V4.9z"></path>
+  <path d="M8 5.6v4.8M5.6 6.8v2.4M10.4 6.8v2.4"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ called|length if traced else "off" }}</span>
+{% endset %}
+{% set text %}
+{% if traced %}
+<dl class="xtr-toolbar-rows">
+  <dt>Called</dt><dd>{{ called|length }}</dd>
+  <dt>Not called</dt><dd>{{ (collector.data.get("not_called") or [])|length }}</dd>
+  <dt>Orphaned</dt><dd>{{ orphaned|length }}</dd>
+</dl>
+{% else %}
+<p class="xtr-toolbar-note">Events are traced in debug mode only.</p>
+{% endif %}
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name)) }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8 1.8l5.4 3.1v6.2L8 14.2 2.6 11.1V4.9z"></path>
+  <path d="M8 5.6v4.8M5.6 6.8v2.4M10.4 6.8v2.4"></path>
+</svg>
+<span class="xtr-menu-label">Events</span>
+{% if collector.data.get("traced") %}
+<span class="xtr-menu-count">{{ (collector.data.get("called") or [])|length }}</span>
+{% endif %}
+{% endblock %}
+
+{% block panel %}
+{% set traced = collector.data.get("traced") %}
+{% set called = collector.data.get("called") or [] %}
+{% set not_called = collector.data.get("not_called") or [] %}
+{% set orphaned = collector.data.get("orphaned") or [] %}
+{% macro listener_groups(tag, rows, nothing) %}
+{% if rows %}
+<div class="xtr-toolstrip">
+  <input class="xtr-filter" type="search" placeholder="Filter these listeners…" aria-label="Filter the listeners shown" data-xtr-filter="xtr-events-{{ tag }}" data-xtr-filter-count="xtr-events-{{ tag }}-count">
+  <span class="xtr-card-note" id="xtr-events-{{ tag }}-count">{{ rows|length }} of {{ rows|length }}</span>
+</div>
+<div class="xtr-scroll">
+  <table class="xtr-table" id="xtr-events-{{ tag }}">
+    <thead>
+      <tr>
+        <th scope="col">Event</th>
+        <th scope="col">Listener</th>
+        <th scope="col">Priority</th>
+        <th scope="col">Calls</th>
+        <th scope="col">Took</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event, group in rows|groupby("event") %}
+      {% set grouping = loop %}
+      {% for entry in group %}
+      <tr{% if loop.first and not grouping.first %} class="xtr-group-start"{% endif %}>
+        <td class="xtr-cell-mono xtr-break xtr-group-event">{% if loop.first %}{{ event }}{% endif %}</td>
+        <td class="xtr-cell-mono xtr-break">{{ entry.get("listener") or "?" }}</td>
+        <td class="xtr-cell-num">{{ entry.get("priority") if entry.get("priority") is not none else "—" }}</td>
+        <td class="xtr-cell-num">{{ entry.get("calls") if entry.get("calls") is not none else "—" }}</td>
+        <td class="xtr-cell-num">{{ entry.get("duration_ms")|format_ms }}</td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="xtr-empty">{{ nothing }}</p>
+{% endif %}
+{% endmacro %}
+<h1 class="xtr-panel-title">Events</h1>
+{% if not traced %}
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <p class="xtr-empty">Events are traced in debug mode only.</p>
+    <p class="xtr-card-note">
+      Outside debug mode the dispatcher keeps no trace: listeners run as they
+      always do, and nothing records which of them were reached. Run the
+      application in debug mode to read this panel.
+    </p>
+  </div>
+</section>
+{% else %}
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Called</td><td class="xtr-cell-mono">{{ called|length }}</td></tr>
+        <tr><td>Not called</td><td class="xtr-cell-mono">{{ not_called|length }}</td></tr>
+        <tr><td>Orphaned</td><td class="xtr-cell-mono">{{ orphaned|length }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush xtr-tabs">
+  <div class="xtr-tablist" role="tablist" aria-label="Which listeners to show">
+    <button type="button" class="xtr-tab xtr-on" data-xtr-tab="called" role="tab" aria-selected="true">Called<span class="xtr-tab-count">{{ called|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="not-called" role="tab" aria-selected="false">Not called<span class="xtr-tab-count">{{ not_called|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="orphaned" role="tab" aria-selected="false">Orphaned<span class="xtr-tab-count">{{ orphaned|length }}</span></button>
+  </div>
+  <section class="xtr-pane xtr-pane-flush xtr-on" data-xtr-pane="called" role="tabpanel">
+    {{ listener_groups("called", called, "No listener was reached by this request.") }}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="not-called" role="tabpanel">
+    {{ listener_groups("not-called", not_called, "Every registered listener was reached.") }}
+  </section>
+  <section class="xtr-pane" data-xtr-pane="orphaned" role="tabpanel">
+    {% if orphaned %}
+    <p class="xtr-card-note">These events were dispatched with nobody listening for them.</p>
+    <table class="xtr-table">
+      <thead>
+        <tr><th scope="col">Event</th></tr>
+      </thead>
+      <tbody>
+        {% for name in orphaned %}
+        <tr><td class="xtr-cell-mono xtr-break">{{ name }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="xtr-empty">Every event this request dispatched had a listener.</p>
+    {% endif %}
+  </section>
+</section>
+{% endif %}
+{% endblock %}

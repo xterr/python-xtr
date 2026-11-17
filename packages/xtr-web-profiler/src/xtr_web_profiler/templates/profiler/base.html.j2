@@ -1,0 +1,1462 @@
+{#
+  The shell every page of the profiler is built in.
+
+  It carries the whole look — one token layer, every rule written against it —
+  and the handful of behaviours a panel may lean on: the theme switch, tab
+  strips, table filters and copy buttons. A page fills the blocks it has
+  something for: `summary`, `search`, `sidebar`, `main`.
+
+  Only `url` and the two nonces are read out here, so a page with no profile
+  and no search behind it fits the same shell.
+#}<!DOCTYPE html>
+<html lang="en" data-xtr-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}Profiler{% endblock %}</title>
+<style nonce="{{ csp_style_nonce }}">
+/* ------------------------------------------------------------ the tokens */
+
+:root {
+  color-scheme: light;
+
+  --xtr-bg: #f7f8fa;
+  --xtr-bg-sunken: #eef0f4;
+  --xtr-surface: #ffffff;
+  --xtr-surface-2: #f4f5f8;
+  --xtr-surface-3: #e9ebf0;
+  --xtr-line: #dcdfe6;
+  --xtr-line-soft: #e8eaf0;
+  --xtr-fg: #15171d;
+  --xtr-fg-dim: #5b6472;
+  --xtr-fg-faint: #868f9e;
+  --xtr-accent: #2f5de0;
+  --xtr-accent-soft: #e6ecfd;
+  --xtr-green: #0f7a3d;
+  --xtr-green-soft: #dcf5e6;
+  --xtr-yellow: #9a5b00;
+  --xtr-yellow-soft: #fdf0d5;
+  --xtr-red: #c62828;
+  --xtr-red-soft: #fde3e3;
+  --xtr-violet: #6d41c8;
+  --xtr-violet-soft: #ece4fb;
+  --xtr-shadow: 0 1px 2px rgba(18, 22, 32, 0.06), 0 8px 24px rgba(18, 22, 32, 0.06);
+  --xtr-shadow-sm: 0 1px 2px rgba(18, 22, 32, 0.07);
+  --xtr-zebra: rgba(18, 22, 32, 0.022);
+
+  --xtr-space-1: 2px;
+  --xtr-space-2: 4px;
+  --xtr-space-3: 8px;
+  --xtr-space-4: 12px;
+  --xtr-space-5: 16px;
+  --xtr-space-6: 24px;
+  --xtr-space-7: 32px;
+
+  --xtr-radius-sm: 5px;
+  --xtr-radius: 9px;
+  --xtr-radius-lg: 14px;
+
+  --xtr-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --xtr-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --xtr-text-xs: 11px;
+  --xtr-text-sm: 12px;
+  --xtr-text-md: 13px;
+  --xtr-text-lg: 15px;
+  --xtr-text-xl: 19px;
+
+  --xtr-sidebar: 248px;
+  --xtr-topbar: 48px;
+}
+
+html[data-xtr-theme="dark"] {
+  color-scheme: dark;
+
+  --xtr-bg: #0e1014;
+  --xtr-bg-sunken: #090a0d;
+  --xtr-surface: #16191f;
+  --xtr-surface-2: #1c2027;
+  --xtr-surface-3: #23272f;
+  --xtr-line: #2c313b;
+  --xtr-line-soft: #21252d;
+  --xtr-fg: #e7eaf0;
+  --xtr-fg-dim: #9aa3b2;
+  --xtr-fg-faint: #6c7483;
+  --xtr-accent: #7cc5ff;
+  --xtr-accent-soft: #15293d;
+  --xtr-green: #4ade80;
+  --xtr-green-soft: #12301f;
+  --xtr-yellow: #fbbf24;
+  --xtr-yellow-soft: #33260a;
+  --xtr-red: #fb7185;
+  --xtr-red-soft: #371a20;
+  --xtr-violet: #c4b5fd;
+  --xtr-violet-soft: #241d3b;
+  --xtr-shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --xtr-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --xtr-zebra: rgba(255, 255, 255, 0.022);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-xtr-theme="system"] {
+    color-scheme: dark;
+
+    --xtr-bg: #0e1014;
+    --xtr-bg-sunken: #090a0d;
+    --xtr-surface: #16191f;
+    --xtr-surface-2: #1c2027;
+    --xtr-surface-3: #23272f;
+    --xtr-line: #2c313b;
+    --xtr-line-soft: #21252d;
+    --xtr-fg: #e7eaf0;
+    --xtr-fg-dim: #9aa3b2;
+    --xtr-fg-faint: #6c7483;
+    --xtr-accent: #7cc5ff;
+    --xtr-accent-soft: #15293d;
+    --xtr-green: #4ade80;
+    --xtr-green-soft: #12301f;
+    --xtr-yellow: #fbbf24;
+    --xtr-yellow-soft: #33260a;
+    --xtr-red: #fb7185;
+    --xtr-red-soft: #371a20;
+    --xtr-violet: #c4b5fd;
+    --xtr-violet-soft: #241d3b;
+    --xtr-shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 30px rgba(0, 0, 0, 0.5);
+    --xtr-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --xtr-zebra: rgba(255, 255, 255, 0.022);
+  }
+}
+
+/* ------------------------------------------------------------- the frame */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body.xtr-profiler {
+  margin: 0;
+  padding: 0;
+  background: var(--xtr-bg);
+  color: var(--xtr-fg);
+  font-family: var(--xtr-font);
+  font-size: var(--xtr-text-md);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.xtr-profiler a {
+  color: var(--xtr-accent);
+  text-decoration: none;
+}
+
+.xtr-profiler a:hover {
+  text-decoration: underline;
+}
+
+.xtr-profiler :focus-visible {
+  outline: 2px solid var(--xtr-accent);
+  outline-offset: 1px;
+  border-radius: var(--xtr-radius-sm);
+}
+
+.xtr-skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.xtr-skip:focus {
+  position: static;
+  display: inline-block;
+  margin: var(--xtr-space-3);
+}
+
+.xtr-mono {
+  font-family: var(--xtr-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.xtr-truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xtr-break {
+  overflow-wrap: anywhere;
+}
+
+.xtr-empty {
+  margin: 0;
+  padding: var(--xtr-space-6);
+  border: 1px dashed var(--xtr-line);
+  border-radius: var(--xtr-radius);
+  background: var(--xtr-surface-2);
+  color: var(--xtr-fg-dim);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ the topbar */
+
+.xtr-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-5);
+  height: var(--xtr-topbar);
+  padding: 0 var(--xtr-space-5);
+  border-bottom: 1px solid var(--xtr-line);
+  background: var(--xtr-surface);
+  box-shadow: var(--xtr-shadow-sm);
+}
+
+.xtr-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-3);
+  font-size: var(--xtr-text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.xtr-brand svg {
+  color: var(--xtr-accent);
+}
+
+.xtr-topnav {
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-1);
+  margin-right: auto;
+}
+
+.xtr-topnav a {
+  padding: var(--xtr-space-2) var(--xtr-space-3);
+  border-radius: var(--xtr-radius-sm);
+  color: var(--xtr-fg-dim);
+  font-size: var(--xtr-text-sm);
+  font-weight: 500;
+}
+
+.xtr-topnav a:hover {
+  background: var(--xtr-surface-2);
+  color: var(--xtr-fg);
+  text-decoration: none;
+}
+
+.xtr-topbar-tail {
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-4);
+}
+
+.xtr-theme {
+  display: inline-flex;
+  padding: var(--xtr-space-1);
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius);
+  background: var(--xtr-surface-2);
+}
+
+.xtr-theme button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--xtr-radius-sm);
+  background: transparent;
+  color: var(--xtr-fg-faint);
+  cursor: pointer;
+}
+
+.xtr-theme button:hover {
+  color: var(--xtr-fg);
+}
+
+.xtr-theme button.xtr-on {
+  background: var(--xtr-surface);
+  color: var(--xtr-accent);
+  box-shadow: var(--xtr-shadow-sm);
+}
+
+/* ----------------------------------------------------------- the summary */
+
+.xtr-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--xtr-space-4);
+  padding: var(--xtr-space-4) var(--xtr-space-5);
+  border-bottom: 1px solid var(--xtr-line);
+  background: var(--xtr-surface);
+}
+
+.xtr-summary-url {
+  flex: 1 1 320px;
+  min-width: 0;
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  color: var(--xtr-fg);
+}
+
+.xtr-summary-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--xtr-space-5);
+}
+
+.xtr-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.xtr-fact dt,
+.xtr-fact-label {
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.xtr-fact dd,
+.xtr-fact-value {
+  margin: 0;
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.xtr-method {
+  padding: 2px var(--xtr-space-3);
+  border-radius: var(--xtr-radius-sm);
+  background: var(--xtr-violet-soft);
+  color: var(--xtr-violet);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.xtr-badge {
+  display: inline-block;
+  padding: 2px var(--xtr-space-3);
+  border-radius: 999px;
+  background: var(--xtr-surface-3);
+  color: var(--xtr-fg-dim);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.xtr-badge-green {
+  background: var(--xtr-green-soft);
+  color: var(--xtr-green);
+}
+
+.xtr-badge-yellow {
+  background: var(--xtr-yellow-soft);
+  color: var(--xtr-yellow);
+}
+
+.xtr-badge-red {
+  background: var(--xtr-red-soft);
+  color: var(--xtr-red);
+}
+
+.xtr-badge-blue {
+  background: var(--xtr-accent-soft);
+  color: var(--xtr-accent);
+}
+
+.xtr-badge-violet {
+  background: var(--xtr-violet-soft);
+  color: var(--xtr-violet);
+}
+
+.xtr-errors-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--xtr-space-2);
+  padding: 2px var(--xtr-space-3);
+  border-radius: 999px;
+  background: var(--xtr-red-soft);
+  color: var(--xtr-red);
+  font-size: var(--xtr-text-xs);
+  font-weight: 600;
+}
+
+.xtr-errors-mark::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ------------------------------------------------------------ the search */
+
+.xtr-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--xtr-space-3);
+  padding: var(--xtr-space-3) var(--xtr-space-5);
+  border-bottom: 1px solid var(--xtr-line);
+  background: var(--xtr-surface-2);
+}
+
+.xtr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.xtr-field label,
+.xtr-field > span {
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.xtr-profiler input,
+.xtr-profiler select {
+  min-width: 0;
+  padding: var(--xtr-space-2) var(--xtr-space-3);
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius-sm);
+  background: var(--xtr-surface);
+  color: var(--xtr-fg);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+}
+
+.xtr-field-token input {
+  width: 190px;
+}
+
+.xtr-field-url input {
+  width: 220px;
+}
+
+.xtr-field-ip input {
+  width: 120px;
+}
+
+.xtr-field-narrow input,
+.xtr-field-narrow select {
+  width: 92px;
+}
+
+.xtr-button {
+  padding: var(--xtr-space-2) var(--xtr-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--xtr-radius-sm);
+  background: var(--xtr-accent);
+  color: var(--xtr-surface);
+  font-family: var(--xtr-font);
+  font-size: var(--xtr-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.xtr-button:hover {
+  filter: brightness(1.08);
+}
+
+.xtr-button-quiet {
+  border-color: var(--xtr-line);
+  background: var(--xtr-surface);
+  color: var(--xtr-fg-dim);
+  font-weight: 500;
+}
+
+.xtr-button-quiet:hover {
+  color: var(--xtr-fg);
+  filter: none;
+}
+
+html[data-xtr-theme="dark"] .xtr-button {
+  color: #0e1014;
+}
+
+/* ------------------------------------------------------------- the shell */
+
+.xtr-shell {
+  display: grid;
+  grid-template-columns: var(--xtr-sidebar) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--xtr-space-5);
+  padding: var(--xtr-space-5);
+}
+
+.xtr-shell-wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.xtr-sidebar {
+  position: sticky;
+  top: calc(var(--xtr-topbar) + var(--xtr-space-5));
+  display: flex;
+  flex-direction: column;
+  gap: var(--xtr-space-1);
+  min-width: 0;
+  padding: var(--xtr-space-3);
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius);
+  background: var(--xtr-surface);
+  box-shadow: var(--xtr-shadow-sm);
+}
+
+.xtr-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-3);
+  padding: var(--xtr-space-3);
+  border-radius: var(--xtr-radius-sm);
+  color: var(--xtr-fg-dim);
+  font-size: var(--xtr-text-md);
+  font-weight: 500;
+}
+
+.xtr-menu-item:hover {
+  background: var(--xtr-surface-2);
+  color: var(--xtr-fg);
+  text-decoration: none;
+}
+
+.xtr-menu-item.xtr-on {
+  background: var(--xtr-accent-soft);
+  color: var(--xtr-accent);
+  font-weight: 600;
+}
+
+.xtr-menu-item svg {
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+
+.xtr-menu-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xtr-menu-count {
+  flex: 0 0 auto;
+  padding: 0 var(--xtr-space-2);
+  border-radius: 999px;
+  background: var(--xtr-surface-3);
+  color: var(--xtr-fg-dim);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.xtr-menu-count-red {
+  background: var(--xtr-red-soft);
+  color: var(--xtr-red);
+}
+
+.xtr-menu-count-yellow {
+  background: var(--xtr-yellow-soft);
+  color: var(--xtr-yellow);
+}
+
+.xtr-menu-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--xtr-red);
+}
+
+.xtr-main {
+  min-width: 0;
+}
+
+/* -------------------------------------------------------------- the card */
+
+.xtr-card {
+  margin: 0 0 var(--xtr-space-5);
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius);
+  background: var(--xtr-surface);
+  box-shadow: var(--xtr-shadow-sm);
+  overflow: hidden;
+}
+
+.xtr-card:last-child {
+  margin-bottom: 0;
+}
+
+.xtr-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--xtr-space-3);
+  padding: var(--xtr-space-4) var(--xtr-space-5);
+  border-bottom: 1px solid var(--xtr-line-soft);
+  background: var(--xtr-surface-2);
+}
+
+.xtr-card-title {
+  margin: 0;
+  font-size: var(--xtr-text-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.xtr-card-note {
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-sm);
+}
+
+.xtr-card-tail {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-3);
+}
+
+.xtr-card-tail .xtr-card-note {
+  white-space: nowrap;
+}
+
+.xtr-card-body {
+  padding: var(--xtr-space-5);
+}
+
+.xtr-card-body > :first-child {
+  margin-top: 0;
+}
+
+.xtr-card-body > :last-child {
+  margin-bottom: 0;
+}
+
+.xtr-card-flush .xtr-card-body {
+  padding: 0;
+}
+
+.xtr-card-foot {
+  margin: 0;
+  padding: var(--xtr-space-4) var(--xtr-space-5);
+  border-top: 1px solid var(--xtr-line-soft);
+  background: var(--xtr-surface-2);
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-sm);
+}
+
+.xtr-panel-title {
+  margin: 0 0 var(--xtr-space-4);
+  font-size: var(--xtr-text-xl);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.xtr-section-title {
+  margin: var(--xtr-space-6) 0 var(--xtr-space-3);
+  color: var(--xtr-fg-dim);
+  font-size: var(--xtr-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ------------------------------------------------------------ the tables */
+
+.xtr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--xtr-text-sm);
+}
+
+.xtr-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--xtr-space-3) var(--xtr-space-4);
+  border-bottom: 1px solid var(--xtr-line);
+  background: var(--xtr-surface-2);
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-xs);
+  font-weight: 700;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.xtr-table td {
+  padding: var(--xtr-space-3) var(--xtr-space-4);
+  border-bottom: 1px solid var(--xtr-line-soft);
+  vertical-align: top;
+}
+
+.xtr-table tbody tr:nth-child(even) {
+  background: var(--xtr-zebra);
+}
+
+.xtr-table tbody tr:hover {
+  background: var(--xtr-surface-2);
+}
+
+.xtr-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The first row of a group: a rule above it reads as the group's own start. */
+.xtr-table tbody tr.xtr-group-start td {
+  border-top: 2px solid var(--xtr-line);
+  padding-top: var(--xtr-space-5);
+}
+
+.xtr-group-event {
+  color: var(--xtr-fg);
+  font-weight: 600;
+}
+
+.xtr-table-key td:first-child,
+.xtr-table-key th:first-child {
+  width: 1%;
+  min-width: 170px;
+  color: var(--xtr-fg-dim);
+  font-family: var(--xtr-mono);
+  white-space: nowrap;
+}
+
+.xtr-table-fixed {
+  table-layout: fixed;
+}
+
+.xtr-cell-mono {
+  font-family: var(--xtr-mono);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.xtr-cell-num {
+  font-family: var(--xtr-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.xtr-cell-tight {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.xtr-scroll {
+  max-height: 62vh;
+  overflow: auto;
+}
+
+/* -------------------------------------------------------------- the tabs */
+
+.xtr-tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--xtr-space-1);
+  padding: var(--xtr-space-2);
+  border-bottom: 1px solid var(--xtr-line-soft);
+  background: var(--xtr-surface-2);
+}
+
+.xtr-tab {
+  padding: var(--xtr-space-2) var(--xtr-space-4);
+  border: 0;
+  border-radius: var(--xtr-radius-sm);
+  background: transparent;
+  color: var(--xtr-fg-dim);
+  font-family: var(--xtr-font);
+  font-size: var(--xtr-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.xtr-tab:hover {
+  background: var(--xtr-surface-3);
+  color: var(--xtr-fg);
+}
+
+.xtr-tab.xtr-on {
+  background: var(--xtr-surface);
+  color: var(--xtr-accent);
+  font-weight: 600;
+  box-shadow: var(--xtr-shadow-sm);
+}
+
+.xtr-tab-count {
+  margin-left: var(--xtr-space-2);
+  color: var(--xtr-fg-faint);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-xs);
+}
+
+.xtr-pane {
+  display: none;
+  padding: var(--xtr-space-5);
+}
+
+.xtr-pane.xtr-on {
+  display: block;
+}
+
+.xtr-pane-flush.xtr-on {
+  padding: 0;
+}
+
+.xtr-pane > :first-child {
+  margin-top: 0;
+}
+
+.xtr-pane > :last-child {
+  margin-bottom: 0;
+}
+
+/* --------------------------------------------------------- code and dumps */
+
+.xtr-code {
+  margin: 0;
+  padding: var(--xtr-space-4);
+  overflow: auto;
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius-sm);
+  background: var(--xtr-surface-2);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.xtr-lines {
+  margin: 0;
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius-sm);
+  background: var(--xtr-surface-2);
+  overflow: auto;
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  line-height: 1.65;
+}
+
+.xtr-line {
+  display: flex;
+  gap: var(--xtr-space-4);
+  padding: 0 var(--xtr-space-4) 0 0;
+}
+
+.xtr-line-number {
+  flex: 0 0 auto;
+  width: 5ch;
+  padding: 0 var(--xtr-space-3);
+  border-right: 1px solid var(--xtr-line-soft);
+  background: var(--xtr-surface-3);
+  color: var(--xtr-fg-faint);
+  text-align: right;
+  user-select: none;
+}
+
+.xtr-line-text {
+  flex: 1 1 auto;
+  white-space: pre;
+}
+
+.xtr-line-on {
+  background: var(--xtr-yellow-soft);
+}
+
+.xtr-line-on .xtr-line-number {
+  background: var(--xtr-yellow);
+  color: var(--xtr-surface);
+  font-weight: 700;
+}
+
+html[data-xtr-theme="dark"] .xtr-line-on .xtr-line-number {
+  color: #0e1014;
+}
+
+.xtr-dump {
+  margin: var(--xtr-space-1) 0;
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  line-height: 1.65;
+}
+
+.xtr-dump > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--xtr-fg-dim);
+}
+
+.xtr-dump > summary::-webkit-details-marker {
+  display: none;
+}
+
+.xtr-dump > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--xtr-fg-dim);
+}
+
+.xtr-dump[open] > summary::before {
+  content: "▾";
+}
+
+.xtr-dump > ul {
+  margin: 0;
+  padding: 0 0 0 var(--xtr-space-5);
+  border-left: 1px solid var(--xtr-line);
+  list-style: none;
+}
+
+.xtr-dump > ul > li {
+  margin: 0;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A value that is itself a tree stays on the line of the key it belongs to. */
+.xtr-dump li > .xtr-dump {
+  display: inline-block;
+  vertical-align: top;
+}
+
+.xtr-dump-type {
+  color: var(--xtr-violet);
+}
+
+.xtr-dump-count,
+.xtr-dump-arrow {
+  color: var(--xtr-fg-faint);
+}
+
+.xtr-dump-key {
+  color: var(--xtr-accent);
+}
+
+.xtr-dump-str {
+  color: var(--xtr-green);
+  overflow-wrap: anywhere;
+}
+
+.xtr-dump-bytes {
+  color: var(--xtr-yellow);
+  overflow-wrap: anywhere;
+}
+
+.xtr-dump-number {
+  color: var(--xtr-accent);
+}
+
+.xtr-dump-bool {
+  color: var(--xtr-violet);
+}
+
+.xtr-dump-null {
+  color: var(--xtr-fg-faint);
+  font-style: italic;
+}
+
+.xtr-dump-scalar {
+  color: var(--xtr-fg);
+  overflow-wrap: anywhere;
+}
+
+.xtr-dump-cut {
+  color: var(--xtr-red);
+  font-style: italic;
+}
+
+.xtr-dump-more {
+  color: var(--xtr-fg-faint);
+  font-style: italic;
+}
+
+/* --------------------------------------------------------- the toolstrip */
+
+.xtr-toolstrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--xtr-space-3);
+  padding: var(--xtr-space-3) var(--xtr-space-5);
+  border-bottom: 1px solid var(--xtr-line-soft);
+  background: var(--xtr-surface);
+}
+
+.xtr-filter {
+  flex: 1 1 200px;
+  max-width: 320px;
+  font-family: var(--xtr-font) !important;
+}
+
+/* ------------------------------------------------------------ the frames */
+
+.xtr-frame {
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius-sm);
+  background: var(--xtr-surface);
+  margin-bottom: var(--xtr-space-3);
+  overflow: hidden;
+}
+
+.xtr-frame > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--xtr-space-3);
+  padding: var(--xtr-space-3) var(--xtr-space-4);
+  background: var(--xtr-surface-2);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--xtr-text-sm);
+}
+
+.xtr-frame > summary::-webkit-details-marker {
+  display: none;
+}
+
+.xtr-frame > summary::before {
+  content: "▸";
+  color: var(--xtr-fg-faint);
+}
+
+.xtr-frame[open] > summary::before {
+  content: "▾";
+}
+
+.xtr-frame-function {
+  font-family: var(--xtr-mono);
+  font-weight: 600;
+}
+
+.xtr-frame-where {
+  margin-left: auto;
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-xs);
+  color: var(--xtr-fg-dim);
+  overflow-wrap: anywhere;
+}
+
+.xtr-frame-body {
+  padding: var(--xtr-space-4);
+  border-top: 1px solid var(--xtr-line-soft);
+}
+
+.xtr-chain-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--xtr-space-3);
+  margin: 0 0 var(--xtr-space-2);
+}
+
+.xtr-chain-class {
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-md);
+  font-weight: 700;
+  color: var(--xtr-red);
+  overflow-wrap: anywhere;
+}
+
+.xtr-chain-message {
+  margin: 0 0 var(--xtr-space-4);
+  font-size: var(--xtr-text-lg);
+  overflow-wrap: anywhere;
+}
+
+/* ----------------------------------------------------------- the timeline */
+
+.xtr-timeline {
+  width: 100%;
+  overflow: hidden;
+}
+
+.xtr-timeline svg {
+  display: block;
+  width: 100%;
+  font-family: var(--xtr-mono);
+}
+
+.xtr-tl-row {
+  fill: transparent;
+}
+
+.xtr-tl-row:hover {
+  fill: var(--xtr-surface-2);
+}
+
+.xtr-tl-grid {
+  stroke: var(--xtr-line-soft);
+  stroke-width: 1;
+}
+
+.xtr-tl-tick {
+  fill: var(--xtr-fg-faint);
+  font-size: 10px;
+}
+
+.xtr-tl-label {
+  fill: var(--xtr-fg);
+  font-size: 11px;
+}
+
+.xtr-tl-duration {
+  fill: var(--xtr-fg-faint);
+  font-size: 10px;
+}
+
+.xtr-tl-bar {
+  rx: 2;
+}
+
+.xtr-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--xtr-space-2);
+}
+
+.xtr-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--xtr-space-2);
+  padding: var(--xtr-space-1) var(--xtr-space-3);
+  border: 1px solid var(--xtr-line);
+  border-radius: 999px;
+  background: var(--xtr-surface);
+  color: var(--xtr-fg-dim);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-xs);
+  cursor: pointer;
+}
+
+.xtr-legend button.xtr-off {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.xtr-legend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* -------------------------------------------------------------- narrow */
+
+@media (max-width: 900px) {
+  .xtr-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xtr-sidebar {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .xtr-menu-item {
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xtr-profiler * {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+<script nonce="{{ csp_script_nonce }}">
+/* Read before the first paint, so the page never flashes the other theme. */
+(function () {
+  try {
+    var stored = window.localStorage.getItem("xtr/profiler/theme");
+    if (stored === "light" || stored === "dark" || stored === "system") {
+      document.documentElement.setAttribute("data-xtr-theme", stored);
+    }
+  } catch (error) {
+    return;
+  }
+})();
+</script>
+{% block head %}{% endblock %}
+</head>
+<body class="xtr-profiler">
+<a class="xtr-skip" href="#xtr-main">Skip to the panel</a>
+<header class="xtr-topbar">
+  <div class="xtr-brand">
+    <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 10h3.2l2-5.5 3.4 11L13 10h5"></path>
+    </svg>
+    <span>Profiler</span>
+  </div>
+  <nav class="xtr-topnav" aria-label="Profiles">
+    <a href="{{ url('_profiler', token='latest') }}">Latest</a>
+    <a href="{{ url('_profiler_search_results', token='empty') }}">Last 10</a>
+  </nav>
+  <div class="xtr-topbar-tail">
+    {% block topbar_tail %}{% endblock %}
+    <div class="xtr-theme" role="group" aria-label="Theme">
+      <button type="button" data-xtr-theme-choice="light" aria-pressed="false" title="Light" aria-label="Light theme">
+        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+          <circle cx="8" cy="8" r="3"></circle>
+          <path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.2 1.2M11.8 11.8L13 13M13 3l-1.2 1.2M4.2 11.8L3 13"></path>
+        </svg>
+      </button>
+      <button type="button" data-xtr-theme-choice="dark" aria-pressed="false" title="Dark" aria-label="Dark theme">
+        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 9.6A5.6 5.6 0 0 1 6.4 3a5.6 5.6 0 1 0 6.6 6.6z"></path>
+        </svg>
+      </button>
+      <button type="button" data-xtr-theme-choice="system" aria-pressed="false" title="Follow the system" aria-label="Follow the system theme">
+        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1.5" y="2.5" width="13" height="9" rx="1.5"></rect>
+          <path d="M5.5 14h5"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+{% block summary %}{% endblock %}
+{% block search %}
+<form class="xtr-search" method="get" action="{{ url('_profiler_search') }}">
+  <div class="xtr-field xtr-field-token">
+    <label for="xtr-search-token">Token</label>
+    <input id="xtr-search-token" type="text" name="token" value="" placeholder="a token to open" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="xtr-field xtr-field-ip">
+    <label for="xtr-search-ip">IP</label>
+    <input id="xtr-search-ip" type="text" name="ip" value="{{ search.ip }}" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="xtr-field xtr-field-url">
+    <label for="xtr-search-url">URL</label>
+    <input id="xtr-search-url" type="text" name="url" value="{{ search.url }}" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="xtr-field xtr-field-narrow">
+    <label for="xtr-search-method">Method</label>
+    <select id="xtr-search-method" name="method">
+      <option value=""{% if not search.method %} selected{% endif %}>any</option>
+      {% for name in ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS") %}
+      <option value="{{ name }}"{% if search.method == name %} selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="xtr-field xtr-field-narrow">
+    <label for="xtr-search-status">Status</label>
+    <input id="xtr-search-status" type="text" name="status_code" value="{{ search.status_code }}" inputmode="numeric" autocomplete="off">
+  </div>
+  <div class="xtr-field xtr-field-narrow">
+    <label for="xtr-search-limit">Limit</label>
+    <input id="xtr-search-limit" type="text" name="limit" value="{{ search.limit }}" inputmode="numeric" autocomplete="off">
+  </div>
+  <button type="submit" class="xtr-button">Search</button>
+</form>
+{% endblock %}
+<div class="xtr-shell {% block shell_class %}{% endblock %}">
+  {% block sidebar %}{% endblock %}
+  <main class="xtr-main" id="xtr-main">
+    {% block main %}{% endblock %}
+  </main>
+</div>
+<script nonce="{{ csp_script_nonce }}">
+(function () {
+  "use strict";
+
+  var THEME_KEY = "xtr/profiler/theme";
+  var COPIED_FOR = 1200;
+
+  bindTheme();
+  document.addEventListener("click", onClick);
+  document.addEventListener("input", onInput);
+  initialiseFilters();
+
+  /* ------------------------------------------------------------- theme */
+
+  function bindTheme() {
+    var stored = "system";
+    try {
+      stored = window.localStorage.getItem(THEME_KEY) || "system";
+    } catch (error) {
+      stored = "system";
+    }
+    showTheme(stored);
+  }
+
+  function showTheme(theme) {
+    var buttons = document.querySelectorAll("[data-xtr-theme-choice]");
+    var index;
+    document.documentElement.setAttribute("data-xtr-theme", theme);
+    for (index = 0; index < buttons.length; index = index + 1) {
+      var chosen = buttons[index].getAttribute("data-xtr-theme-choice") === theme;
+      buttons[index].classList.toggle("xtr-on", chosen);
+      buttons[index].setAttribute("aria-pressed", chosen ? "true" : "false");
+    }
+  }
+
+  /* ---------------------------------------------------- one click handler */
+
+  function onClick(event) {
+    var target = event.target;
+    if (!target || !target.closest) {
+      return;
+    }
+    var theme = target.closest("[data-xtr-theme-choice]");
+    if (theme) {
+      var chosen = theme.getAttribute("data-xtr-theme-choice");
+      try {
+        window.localStorage.setItem(THEME_KEY, chosen);
+      } catch (error) {
+        showTheme(chosen);
+        return;
+      }
+      showTheme(chosen);
+      return;
+    }
+    var tab = target.closest("[data-xtr-tab]");
+    if (tab) {
+      event.preventDefault();
+      selectTab(tab);
+      return;
+    }
+    var copy = target.closest("[data-xtr-copy]");
+    if (copy) {
+      event.preventDefault();
+      copyFrom(copy);
+    }
+  }
+
+  /* -------------------------------------------------------------- tabs */
+
+  function selectTab(tab) {
+    var group = tab.closest(".xtr-tabs");
+    var name = tab.getAttribute("data-xtr-tab");
+    var index;
+    if (!group) {
+      return;
+    }
+    var tabs = group.querySelectorAll("[data-xtr-tab]");
+    var panes = group.querySelectorAll("[data-xtr-pane]");
+    for (index = 0; index < tabs.length; index = index + 1) {
+      if (tabs[index].closest(".xtr-tabs") !== group) {
+        continue;
+      }
+      var chosen = tabs[index].getAttribute("data-xtr-tab") === name;
+      tabs[index].classList.toggle("xtr-on", chosen);
+      tabs[index].setAttribute("aria-selected", chosen ? "true" : "false");
+    }
+    for (index = 0; index < panes.length; index = index + 1) {
+      if (panes[index].closest(".xtr-tabs") !== group) {
+        continue;
+      }
+      panes[index].classList.toggle("xtr-on", panes[index].getAttribute("data-xtr-pane") === name);
+    }
+  }
+
+  /* ----------------------------------------------------- table filters */
+
+  function onInput(event) {
+    var input = event.target;
+    if (input && input.hasAttribute && input.hasAttribute("data-xtr-filter")) {
+      applyFilter(input);
+    }
+  }
+
+  function initialiseFilters() {
+    var inputs = document.querySelectorAll("[data-xtr-filter]");
+    var index;
+    for (index = 0; index < inputs.length; index = index + 1) {
+      if (inputs[index].value) {
+        applyFilter(inputs[index]);
+      }
+    }
+  }
+
+  function applyFilter(input) {
+    var table = document.getElementById(input.getAttribute("data-xtr-filter"));
+    if (!table) {
+      return;
+    }
+    var needle = input.value.toLowerCase();
+    var rows = table.querySelectorAll("tbody tr");
+    var shown = 0;
+    var index;
+    for (index = 0; index < rows.length; index = index + 1) {
+      var hit = !needle || (rows[index].textContent || "").toLowerCase().indexOf(needle) !== -1;
+      rows[index].hidden = !hit;
+      if (hit) {
+        shown = shown + 1;
+      }
+    }
+    var output = input.getAttribute("data-xtr-filter-count");
+    var counter = output ? document.getElementById(output) : null;
+    if (counter) {
+      counter.textContent = shown + " of " + rows.length;
+    }
+  }
+
+  /* ------------------------------------------------------ copy buttons */
+
+  function copyFrom(button) {
+    var source = document.getElementById(button.getAttribute("data-xtr-copy"));
+    if (!source) {
+      return;
+    }
+    var text = source.textContent || "";
+    var label = button.textContent;
+    function flash() {
+      button.textContent = "Copied";
+      window.setTimeout(function () {
+        button.textContent = label;
+      }, COPIED_FOR);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(flash, function () {
+        fallback(text, flash);
+      });
+      return;
+    }
+    fallback(text, flash);
+  }
+
+  function fallback(text, flash) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "readonly");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    try {
+      document.execCommand("copy");
+      flash();
+    } catch (error) {
+      area.blur();
+    }
+    document.body.removeChild(area);
+  }
+})();
+</script>
+{% block body_tail %}{% endblock %}
+</body>
+</html>

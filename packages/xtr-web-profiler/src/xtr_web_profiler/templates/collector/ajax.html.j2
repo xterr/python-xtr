@@ -1,0 +1,71 @@
+{#
+  The requests the page makes after it has loaded.
+
+  Nothing is stored for this: the page itself records each request it sends
+  and fills the table below in the browser, linking every response to the
+  profile it names. Only the page that made them can list them.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8 1.6a6.4 6.4 0 1 0 6.4 6.4"></path>
+  <path d="M11.4 1.8l3 1.2-1.2 3"></path>
+</svg>
+<span class="xtr-toolbar-value" data-xtr-ajax-count>0</span>
+{% endset %}
+{% set text %}
+<table>
+  <thead>
+    <tr>
+      <th scope="col">Method</th>
+      <th scope="col">Status</th>
+      <th scope="col">URL</th>
+      <th scope="col">Took</th>
+      <th scope="col">Profile</th>
+    </tr>
+  </thead>
+  <tbody data-xtr-ajax-list>
+    <tr class="xtr-toolbar-empty">
+      <td colspan="5">No request was sent after the page loaded.</td>
+    </tr>
+  </tbody>
+</table>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name)) }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8 1.6a6.4 6.4 0 1 0 6.4 6.4"></path>
+  <path d="M11.4 1.8l3 1.2-1.2 3"></path>
+</svg>
+<span class="xtr-menu-label">Background requests</span>
+{% endblock %}
+
+{% block panel %}
+<h1 class="xtr-panel-title">Background requests</h1>
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <p>
+      The requests a page sends after it has loaded are listed in the toolbar
+      of that page, under this panel's icon — not here. The browser is the
+      only place that sees them: it records the method, the address, how long
+      each took, the status it came back with, and the profile its response
+      named, so each one opens its own profile from there.
+    </p>
+    <p class="xtr-card-note">
+      A background request gets no toolbar of its own, which is why the page
+      that made it keeps the list. Paths matching the profiler's
+      <code class="xtr-mono">excluded_ajax_paths</code> setting are left out,
+      so the toolbar loading itself never shows up. With
+      <code class="xtr-mono">ajax_replace</code> on, a background request's
+      response can swap the whole toolbar for its own profile.
+    </p>
+    <p class="xtr-card-note">
+      A failed request — a status of 400 or more, or no response at all —
+      turns the toolbar's icon red until the page is loaded again.
+    </p>
+  </div>
+</section>
+{% endblock %}
