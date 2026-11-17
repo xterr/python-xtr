@@ -250,6 +250,11 @@ per host, one per account, one for the whole application — and a copy made by 
 shares it. `reset()` keeps the pace: the end of one unit of work forgets nothing counted
 against a rate every unit shares.
 
+A booking is never handed back: a request cancelled or timed out while it waits still counts
+against the pace, and later requests queue behind its turn. Bookings are not bounded either;
+under a burst, callers queue as far ahead as the limiter's rate dictates, so bound the wait
+itself (a timeout around the call) where waiting long is worse than failing.
+
 ### `TraceableHttpClient` — a record of every request made
 
 ```python
