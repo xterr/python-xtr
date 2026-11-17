@@ -58,6 +58,8 @@ configured.
     locked until it commits: a delete racing a fork waits for it and keeps what the fork shares,
     and a fork of an origin deleted meanwhile raises `ConversationConflict`.
 - **Databases.** It runs on PostgreSQL, MySQL 8 and SQLite, through their async drivers.
+- **Scopes.** `read_records(scope=...)` reads one scope's conversations; with no scope it reads
+  every scope's — every tenant's, when scopes are tenants. Pass the caller's.
 
 ## Development
 

@@ -964,6 +964,11 @@ async with unit_of_work(container) as unit:
 - In a debug kernel, a singleton factory reading `current_unit_of_work()` or
   `current_connection()` raises `UnitReadDuringSingletonBuildError`: the singleton would keep
   whichever unit happened to build it.
+- A kernel lives in one event loop. An async singleton is built under a lock that belongs to the
+  first loop waiting on it, so a container used from a second loop — a test kernel shared by
+  tests that each run their own loop — can raise `RuntimeError`.
+- A singleton factory must not wait on work in another task or unit that needs the same
+  singleton: that work waits for the factory's lock, and the factory waits for it.
 
 A library opens a unit around what it runs for one piece of work — the message bus does, per
 message — and a service that needs "the one for this unit" resolves it from

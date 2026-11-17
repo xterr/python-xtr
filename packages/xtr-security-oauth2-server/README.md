@@ -303,7 +303,7 @@ ever minted on the deployment's behalf.
 | `private_key_passphrase` | `""` | The pass phrase that key is encrypted with |
 | `encryption_key` | `None` | What authorization codes and refresh tokens are sealed with |
 | `encryption_key_type` | `"plain"` | `"plain"`: a password of at least 32 characters, stretched once when the server is built. `"key"`: the base64url of 32 random bytes, used as is |
-| `audience` | `None` | The `aud` access tokens carry and the resource server requires; `None` addresses each token to its client and checks none |
+| `audience` | `None` | The `aud` access tokens carry and the resource server requires; `None` addresses each token to its client and checks none. Set one per resource server, so a token for one API is refused by another |
 | `signature_algorithm` | `"RS256"` | How access tokens are signed |
 | `additional_public_keys` | `()` | Files of further public keys tokens verify against, for rotation |
 | `access_token_ttl` / `refresh_token_ttl` | 1 hour / 30 days | `timedelta`s, positive |

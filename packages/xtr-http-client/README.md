@@ -167,6 +167,9 @@ async with HttpxHttpClient({"timeout": 5}, max_host_connections=4) as client:
 - Redirects are followed here rather than by the backend, for the one thing a backend cannot be
   told: an `Authorization` header belongs to the host it was meant for, so it is dropped the
   moment a chain leaves that host and put back only if the chain returns to it.
+  Only that header is: a custom credential header — `X-Api-Key`, say — follows a redirect to
+  another host. Send such a request with `max_redirects=0`, or put the credential in
+  `Authorization`.
 - `aclose()` — or leaving the `async with` — closes every pool. Nothing is opened until a
   request is made.
 - Each event loop gets pools of its own, since a connection cannot move between loops: one

@@ -87,6 +87,10 @@ handlers and deletes it. With a [container](#use-in-an-application) all of that 
 | Settle | Acknowledged, the row is deleted. Rejected, it is retried or moved to the failure queue (see below) |
 | Redeliver | A row not renewed for `redeliver_timeout` seconds is claimable again: its worker is taken for dead. A handler must be idempotent: a worker frozen that long has its message handled twice |
 
+Due times and the redelivery window are measured on each worker's clock, not the database's:
+keep the workers' clocks synchronized. A clock running ahead claims delayed messages early and
+takes a live worker's message for abandoned.
+
 A rejected message gets `max_attempts` attempts in all, the first included. While it has
 attempts left its row is put back in its queue, due `base_delay_seconds` later, the delay
 doubling with each attempt; the envelope carries a `RedeliveryStamp` with the attempt count and

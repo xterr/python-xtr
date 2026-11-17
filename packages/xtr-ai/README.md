@@ -95,7 +95,7 @@ below:
 | `RunDefaultsAgent(agent, usage_limits=, timeout=)` | Gives every run defaults pydantic-ai only takes per run; a call passing its own wins. An `AbstractAgent`, not an `Agent` |
 | `RunClock(clock)` | Measures a run's `timeout` against an xtr-clock `ClockInterface`. Message timestamps still come from the system clock |
 | `RunLogging(logger, registry)` | Logs each response and each run's end with ids, token counts and finish reasons: never a prompt, an instruction or an output |
-| `agent_toolset(agent, name=)` | Another agent as a tool. Its usage counts toward the caller's, and it runs under the caller's `usage_limits` — the delegated agent's own limits do not apply |
+| `agent_toolset(agent, name=)` | Another agent as a tool. Its usage counts toward the caller's, and it runs under the caller's `usage_limits` — the delegated agent's own limits do not apply. It receives the caller's `deps` unchanged, so its tools reach whatever the caller's run can |
 
 ## Tools
 

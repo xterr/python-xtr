@@ -51,6 +51,10 @@ A `DelayStamp` and the retry backoff ride the `rabbitmq_delayed_message_exchange
 broker without it, add `delayed_message_exchange_plugin=false` and `max_attempts=1`; a delayed
 send is then refused with `UnsupportedStampError`. A message out of attempts — or one that can
 never be handled — goes to `dead_letter_queue` (`taskiq.dlq` by default) in its wire format.
+The n-th retry waits `base_delay_seconds × n` seconds, at most 60. The dead-letter queue has no
+limit: bound it with a RabbitMQ policy (`rabbitmqctl set_policy … '{"max-length": …}'`), never
+queue arguments — limits on an existing queue fail with `PRECONDITION_FAILED` at startup. On
+RabbitMQ 4+, quorum queues stop a crash-looping message after 20 deliveries by default.
 
 ## Build it by hand
 

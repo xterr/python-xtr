@@ -181,6 +181,10 @@ deep, with a warning, rather than recursing until the stack overflows.
 | `QueueHandler` | Writes on a background thread, so logging never waits on I/O |
 | `StdlibHandler` | Hands records to a standard-library logger |
 
+Give each place its own handler instance. One instance registered twice — in a group and
+inside a fingers-crossed handler, say — is flushed in registration order, and records can be
+left in a buffer that has already been flushed.
+
 ### Fingers crossed
 
 The handler to run in production. Records are buffered; nothing is written until one
@@ -199,6 +203,9 @@ buffer, and `passthru_level` keeps records at that level even when nothing trigg
 container, each unit of work's own log unit holds and flushes its records; outside one, await
 `reset()` between the requests or messages of a long-running process so one unit of work does
 not bleed into the next.
+A buffered record keeps the exception it carries — and with it every frame of its traceback —
+alive until it is flushed or dropped. A streamed response keeps its unit, and that buffer, open
+as long as it streams; lower `buffer_size` where that matters.
 
 ## Processors
 
@@ -478,6 +485,9 @@ that opened it, so **state is mutated in place**: a synchronous endpoint, which 
 copied context of its own, enriches the same unit, whereas a `ContextVar.set()` there would be
 lost to the caller. Owners mutate their share of the unit; they never reach for the context
 variable itself.
+`bind_context()` is such a `set()`: a value it binds inside a synchronous endpoint is gone once
+the endpoint returns, so the rest of the request — its error log included — does not carry it.
+Bind it in async code before the endpoint runs.
 
 `QueueHandler` writes on a background thread, and carries each record's logged context across
 with it, so a record buffered under one unit is formatted and written as though still inside it,

@@ -232,6 +232,10 @@ the session from, and a stateful firewall with none registered fails the build n
 service — the bundle never builds one silently, and a firewall the application asked to be
 stateful cannot quietly run as a stateless one.
 
+A stateful firewall keeps whatever authenticated a request, so a single Bearer or Basic login
+through it comes back as a session cookie — and a cookie-carried API is open to cross-site
+requests. Put API routes behind a firewall of their own with `stateless=True`.
+
 A successful login hands the session to the firewall's `session_strategy` — `migrate` by
 default, rotating the session's ID so a fixation stops answering for the account the login
 named — through a `SessionStrategyListener` on the firewall's own dispatcher.

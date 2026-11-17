@@ -179,6 +179,12 @@ The key is measured where it is read, too: an HMAC secret shorter than its algor
 refused the first time it signs, with an `InvalidConfigurationError` naming the floor; an
 `issuer=env(…)` resolving to nothing is refused where the token manager is built.
 
+A token minted for something else — another issuer's token, or one addressed to an audience this
+deployment does not answer to — is refused on `iss` and `aud`, whatever its kind: a token that
+names an audience is refused when `audience` is empty. So an OAuth2 access token signed with the
+same key is not read as a login token as long as the two differ in issuer or audience; give each
+its own when they share a key.
+
 | Field | Default | What it is |
 |---|---|---|
 | `secret_key` | `None` | The private key or shared secret that signs, as the key text or a file path. Nothing signs until it names a key |

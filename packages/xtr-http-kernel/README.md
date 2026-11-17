@@ -359,6 +359,14 @@ a `finally`: the engine throws a scope's error into the generator, so a commit t
 raises there, and — with the logging listeners active — that failure is written to the log
 against the request that caused it, like any other uncaught exception.
 
+A WebSocket or a streamed (SSE) response is one request: its unit, and every scoped service it
+built — a database session, the connection that session holds — lives as long as the
+connection. Open a unit per message for work that should not share one.
+
+Each request's own state lives in the ASGI scope's `state`, which the server copies for every
+request; uvicorn and hypercorn do. Under another server, confirm it copies it — a shared one
+would share the request id and the security state between requests.
+
 Nothing else is reset between requests. A service built for the application's life is shared
 by every request, including the ones in flight at the same time, so the lifecycle clears no
 state when a request begins or ends: a reset would wipe what a concurrent request is halfway

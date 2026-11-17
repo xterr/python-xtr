@@ -234,7 +234,8 @@ Each resource is a sorted set named after it: one member per holder, scored with
 that holder's lock expires, and a marker member while it is held for writing. Every change is
 one server-side script, so it lands whole; scripts are sent by digest and loaded on first use.
 Expiry is measured on the server's clock when scripts may read it, and on this process's clock
-otherwise.
+otherwise. In that case keep every client's clock synchronized: a process whose clock runs ahead
+expires the others' locks early, and one running behind keeps its own too long.
 
 ```python
 from redis.asyncio import Redis
