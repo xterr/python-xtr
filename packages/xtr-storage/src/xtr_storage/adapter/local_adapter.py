@@ -355,7 +355,9 @@ class _RootedPathPrefixer(PathPrefixer):
         """
         real = os.path.realpath(location)
         root = os.path.realpath(self._root)
-        if real != root and not real.startswith(root + os.sep):
+        # A root of "/" already ends in the separator; adding another would
+        # make every path look like it left the tree.
+        if real != root and not real.startswith(root.rstrip(os.sep) + os.sep):
             raise SymbolicLinkEncounteredError(path.strip("/"))
 
 

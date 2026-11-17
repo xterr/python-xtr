@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import ssl
 import urllib.request
 from typing import TYPE_CHECKING, Final, final
+from weakref import WeakKeyDictionary
 
 import httpx
 
@@ -45,6 +47,12 @@ class HttpxClients:
     ``max_connections`` is the backend's pool-wide ceiling, not a per-host
     one: it counts every connection the pool holds, whichever host each of
     them goes to.
+
+    The event loop is part of what a connection is as well: a connection
+    opened on one loop cannot be used from another. Each loop gets pools of
+    its own, forgotten with the loop, so a client shared by two
+    ``asyncio.run`` calls — or by threads each running a loop — never hands
+    one loop's connections to the other.
     """
 
     __slots__ = ("_clients", "_max_connections")
@@ -57,10 +65,12 @@ class HttpxClients:
                 counted across every host it reaches.
         """
         self._max_connections = max_connections
-        self._clients: dict[_Key, httpx.AsyncClient] = {}
+        self._clients: WeakKeyDictionary[
+            asyncio.AbstractEventLoop, dict[_Key, httpx.AsyncClient]
+        ] = WeakKeyDictionary()
 
     def for_options(self, options: Mapping[str, object]) -> httpx.AsyncClient:
-        """Return the pool a request made with ``options`` belongs to.
+        """Return the running loop's pool a request made with ``options`` belongs to.
 
         Args:
             options: The request's options, merged over the client's
@@ -72,19 +82,24 @@ class HttpxClients:
         Raises:
             InvalidArgumentError: When the HTTP version asked for is not one
                 this client can send.
+            RuntimeError: When no event loop is running.
         """
+        pools = self._clients.setdefault(asyncio.get_running_loop(), {})
         key = _key(options)
-        client = self._clients.get(key)
+        client = pools.get(key)
         if client is None:
             client = _build(options, self._max_connections)
-            self._clients[key] = client
+            pools[key] = client
 
         return client
 
     async def aclose(self) -> None:
-        """Close every pool, and with it every connection any of them holds."""
-        clients = list(self._clients.values())
-        self._clients.clear()
+        """Close the running loop's pools, and with them every connection they hold.
+
+        Another loop's pools are left alone: closing them needs that loop, and
+        they are forgotten with it.
+        """
+        clients = list(self._clients.pop(asyncio.get_running_loop(), {}).values())
 
         for client in clients:
             await client.aclose()

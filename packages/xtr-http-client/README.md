@@ -65,6 +65,9 @@ Three things in that are worth saying out loud.
   the message stream over that same kept body.
 - **A response holds a connection until it is done with.** Leaving the `async with` block
   closes the body, which frees the connection; `await response.cancel()` does it mid-transfer.
+  A response that is neither read to the end nor closed is never freed for you — closing needs
+  an `await` no finalizer can make — so it keeps its connection, and enough of them exhaust the
+  pool. Always use the `async with`, or read the body.
 
 `get_content()` and `to_array()` are where an unsuccessful status *is* raised —
 `RedirectionError`, `ClientError`, `ServerError`. Pass `throw=False` to read the body a 4xx
@@ -166,6 +169,9 @@ async with HttpxHttpClient({"timeout": 5}, max_host_connections=4) as client:
   moment a chain leaves that host and put back only if the chain returns to it.
 - `aclose()` — or leaving the `async with` — closes every pool. Nothing is opened until a
   request is made.
+- Each event loop gets pools of its own, since a connection cannot move between loops: one
+  client can serve several `asyncio.run` calls, or threads each running a loop. `aclose()`
+  closes the pools of the loop it runs on; another loop's pools go with that loop.
 
 What it refuses, before anything is sent: an empty method or one that is not uppercase ASCII
 letters; `auth_basic` and `auth_bearer` together, or either in a shape credentials cannot be

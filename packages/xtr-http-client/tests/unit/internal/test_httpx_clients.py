@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import ssl
 from typing import TYPE_CHECKING
 
@@ -31,7 +32,7 @@ def test_a_version_that_cannot_be_sent_is_refused(version: str) -> None:
         _ = _wants_http2(version)
 
 
-def test_asking_for_http_2_without_the_extra_names_the_extra(
+async def test_asking_for_http_2_without_the_extra_names_the_extra(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def missing(**_kwargs: object) -> httpx.AsyncClient:
@@ -133,3 +134,35 @@ async def test_closing_lets_go_of_every_pool() -> None:
     assert clients.for_options({}) is not client
 
     await clients.aclose()
+
+
+def test_a_second_event_loop_gets_its_own_client() -> None:
+    # A pool's connections belong to the loop that opened them; handing one to
+    # another loop fails the first request it sends.
+    clients = HttpxClients(3)
+
+    async def pool() -> httpx.AsyncClient:
+        return clients.for_options({})
+
+    first = asyncio.run(pool())
+    second = asyncio.run(pool())
+
+    assert first is not second
+
+
+async def test_closing_lets_go_of_the_running_loops_pools_only() -> None:
+    clients = HttpxClients(3)
+
+    async def pool() -> httpx.AsyncClient:
+        return clients.for_options({})
+
+    def on_another_loop() -> httpx.AsyncClient:
+        return asyncio.run(pool())
+
+    elsewhere = await asyncio.to_thread(on_another_loop)
+    here = clients.for_options({})
+
+    await clients.aclose()
+
+    assert here.is_closed
+    assert not elsewhere.is_closed

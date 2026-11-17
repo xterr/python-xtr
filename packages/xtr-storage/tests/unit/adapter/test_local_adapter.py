@@ -671,3 +671,12 @@ async def test_a_failed_stream_leaves_the_old_file_and_no_temp(tmp_path: Path) -
 
     assert await adapter.read("data.txt") == b"old"
     assert sorted(path.name for path in (tmp_path / "root").iterdir()) == ["data.txt"]
+
+
+async def test_the_root_directory_works(tmp_path: Path) -> None:
+    # Every path is below "/", so nothing read through a storage rooted there escapes it.
+    target = tmp_path / "note.txt"
+    _ = target.write_bytes(b"hello")
+    adapter = LocalAdapter("/")
+
+    assert await adapter.read(target.as_posix().lstrip("/")) == b"hello"

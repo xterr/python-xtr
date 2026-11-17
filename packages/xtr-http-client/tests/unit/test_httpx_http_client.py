@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, cast
 
 import anyio
@@ -29,9 +30,10 @@ pytestmark = pytest.mark.anyio
 
 
 def _answering(client: HttpxHttpClient, handler: _Handler) -> None:
-    """Put a client answering from ``handler`` in the pool this client would reach for."""
+    """Put a client answering from ``handler`` in this loop's pool the client would reach for."""
     key = _key(client._default_options)
-    client._clients._clients[key] = httpx.AsyncClient(
+    pools = client._clients._clients.setdefault(asyncio.get_running_loop(), {})
+    pools[key] = httpx.AsyncClient(
         transport=httpx.MockTransport(handler),
         follow_redirects=False,
     )
