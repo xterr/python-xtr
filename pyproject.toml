@@ -56,8 +56,10 @@ xtr-security-openid-connect-server = { workspace = true }
 xtr-serializer           = { workspace = true }
 xtr-service-contracts    = { workspace = true }
 xtr-slack-notifier       = { workspace = true }
+xtr-stopwatch            = { workspace = true }
 xtr-storage              = { workspace = true }
 xtr-telegram-notifier    = { workspace = true }
+xtr-web-profiler         = { workspace = true }
 xtr-webhook              = { workspace = true }
 xtr-workflow             = { workspace = true }
 

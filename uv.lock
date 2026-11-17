@@ -53,6 +53,7 @@ members = [
     "xtr-serializer",
     "xtr-service-contracts",
     "xtr-slack-notifier",
+    "xtr-stopwatch",
     "xtr-storage",
     "xtr-telegram-notifier",
     "xtr-webhook",
@@ -6359,6 +6360,37 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-recipes", editable = "packages/xtr-recipes" },
+]
+
+[[package]]
+name = "xtr-stopwatch"
+version = "7.0.0"
+source = { editable = "packages/xtr-stopwatch" }
+dependencies = [
+    { name = "xtr-clock" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "xtr-clock", editable = "packages/xtr-clock" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.10" },
+    { name = "basedpyright", specifier = ">=1.31.7" },
+    { name = "pytest", specifier = ">=8.4" },
+    { name = "pytest-cov", specifier = ">=7.1" },
+    { name = "ruff", specifier = ">=0.14.7" },
+    { name = "ty", specifier = ">=0.0.83" },
 ]
 
 [[package]]
