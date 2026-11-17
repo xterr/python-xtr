@@ -37,6 +37,8 @@ class ScriptedAdapter(AbstractAdapter):
         super().__init__(namespace, default_lifetime)
         self.stored: dict[str, tuple[object, float | None]] = {}
         self.fail: set[str] = set()
+        # What a failing operation raises instead of BackendDownError, when set.
+        self.error: Exception | None = None
         self.refuse_batches = False
         self.refuse_all = False
         self.reject: set[str] = set()
@@ -97,6 +99,8 @@ class ScriptedAdapter(AbstractAdapter):
     def _record(self, operation: str, ids: Sequence[str]) -> None:
         self.calls.append((operation, tuple(ids)))
         if operation in self.fail:
+            if self.error is not None:
+                raise self.error
             raise BackendDownError(operation)
 
     @staticmethod

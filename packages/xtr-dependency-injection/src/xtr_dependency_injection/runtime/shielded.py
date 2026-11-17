@@ -6,6 +6,8 @@ import asyncio
 import contextvars
 from typing import TYPE_CHECKING, TypeVar
 
+from xtr_dependency_injection._text import safe_repr
+
 if TYPE_CHECKING:
     from collections.abc import Coroutine
     from typing import Never
@@ -60,6 +62,6 @@ async def shielded(coro: Coroutine[object, Never, T], *, timeout: float) -> T:  
         if failure is not None:
             failures = failure.exceptions if isinstance(failure, BaseExceptionGroup) else (failure,)
             for raised in failures:
-                cancellation.add_note(f"raised while finishing: {raised!r}")
+                cancellation.add_note(f"raised while finishing: {safe_repr(raised)}")
         raise cancellation
     return task.result()

@@ -13,6 +13,7 @@ from typing_extensions import override
 from wireup.errors import UnknownParameterError
 from xtr_service_contracts import ContainerInterface
 
+from xtr_dependency_injection._text import safe_str
 from xtr_dependency_injection.compiler._wireup_bridge import is_registered, parameters_of
 from xtr_dependency_injection.config.env_placeholder import (
     ENV_PARAMETERS_ROOT,
@@ -95,7 +96,7 @@ class WireupContainer(ContainerInterface):
         except ServiceNotFoundError:
             raise
         except Exception as error:
-            reason = str(error)
+            reason = safe_str(error)
             advice = _SCOPE_ADVICE if "scope mismatch" in reason.lower() else None
             raise ServiceResolutionError((service, qualifier), reason, advice=advice) from error
 

@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 
 from xtr_security_core.exception import AuthenticationError, BadMethodCallError
 
+from xtr_security_http._text import safe_str
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -318,7 +320,7 @@ class OidcDiscovery:
         """Wrap a fetch failure into the refusal every reader reports."""
         return AuthenticationError(
             "The OIDC discovery document could not be fetched from "
-            f'"{self._open_id_configuration_url}": {error}',
+            f'"{self._open_id_configuration_url}": {safe_str(error)}',
         )
 
     def _cache_key_value(self) -> str:

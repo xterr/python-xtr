@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Final
 
 from wireup.errors import ContainerCloseError
 
+from xtr_dependency_injection._text import safe_repr
 from xtr_dependency_injection.exception import ScopeTeardownTimeoutError
 
 from .shielded import shielded
@@ -87,7 +88,7 @@ async def _close(scope: ScopedAsyncContainer, error: BaseException | None) -> No
         if error is None:
             raise
         for failure in failed.exceptions:
-            error.add_note(f"closing the unit's services also failed: {failure!r}")
+            error.add_note(f"closing the unit's services also failed: {safe_repr(failure)}")
     finally:
         objects = scope._current_scope_objects  # noqa: SLF001 — wireup keeps the scope in its own object map; clearing it releases scoped instances without waiting for cyclic GC  # pyright: ignore[reportPrivateUsage]
         if objects is not None:

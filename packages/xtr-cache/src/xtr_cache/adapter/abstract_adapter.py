@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, Self
 from typing_extensions import override
 from xtr_cache_contracts import InvalidArgumentError, NamespacedPoolInterface
 
+from xtr_cache._text import safe_str
 from xtr_cache.cache_item import CacheItem
 from xtr_cache.exception.marshalling_error import MarshallingError
 
@@ -341,5 +342,5 @@ class AbstractAdapter(
         context["cache_adapter"] = type(self).__name__
         if error is not None:
             context["exception"] = error
-            context["reason"] = str(error)
+            context["reason"] = safe_str(error)
         self.logger.warning(message, context)

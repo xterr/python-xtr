@@ -13,7 +13,7 @@ BRIDGE = f"{PACKAGE}.compiler._wireup_bridge"
 PUBLIC_WIREUP = {"wireup", "wireup.errors"}
 
 # What each layer may import at runtime, beyond itself. "exception" is the
-# leaf every layer may raise from.
+# leaf every layer may raise from; "_text" the leaf that describes an error.
 ALLOWED: dict[str, set[str]] = {
     "exception": set(),
     "decorator": {
@@ -24,10 +24,11 @@ ALLOWED: dict[str, set[str]] = {
         "compiler.compiler_pass_interface",
         "compiler.pass_stage",
     },
-    "bundle": {"exception", "diagnostics"},
+    "bundle": {"_text", "exception", "diagnostics"},
     "cache_clearer": set(),
     "cache_warmer": {"exception"},
     "runtime": {
+        "_text",
         "exception",
         "builder.definition",
         "compiler._wireup_bridge",

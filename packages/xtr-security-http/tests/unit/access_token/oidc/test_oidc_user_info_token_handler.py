@@ -6,6 +6,7 @@ import json
 from typing import TYPE_CHECKING, TypeVar, final
 
 import pytest
+from typing_extensions import override
 from xtr_cache import ArrayAdapter, CacheItem
 from xtr_http_client import MockHttpClient
 from xtr_http_client.response import MockResponse
@@ -514,3 +515,41 @@ async def test_the_authenticator_replaces_the_marked_loader_with_the_user_provid
 
     assert isinstance(user, InMemoryUser)
     assert user.get_roles() == ("ROLE_OWN",)
+
+
+class _UnprintableError(Exception):
+    @override
+    def __str__(self) -> str:
+        raise ValueError("cannot say")
+
+
+def _unprintable(method: str, url: str, options: RequestOptions) -> MockResponse:
+    del method, url, options
+    raise _UnprintableError
+
+
+@pytest.mark.anyio
+async def test_the_server_failure_names_an_unprintable_error_by_its_class() -> None:
+    logger = RecordingLogger()
+    handler = _handler(MockHttpClient(_unprintable, base_uri=_USERINFO_URI), logger=logger)
+
+    with pytest.raises(InvalidAccessTokenError) as raised:
+        _ = await handler.get_user_badge_from("the-token")
+
+    assert "_UnprintableError" in str(raised.value)
+    _, _, context = logger.records[0]
+    assert "_UnprintableError" in str(context["error"])
+
+
+@pytest.mark.anyio
+async def test_the_discovery_failure_names_an_unprintable_error_by_its_class() -> None:
+    logger = RecordingLogger()
+    handler = _handler(MockHttpClient(_unprintable, base_uri=_CONFIGURATION_URI), logger=logger)
+    handler.enable_discovery(ArrayAdapter(), "oidc")
+
+    with pytest.raises(InvalidAccessTokenError) as raised:
+        _ = await handler.get_user_badge_from("the-token")
+
+    assert "_UnprintableError" in str(raised.value)
+    _, _, context = logger.records[0]
+    assert "_UnprintableError" in str(context["error"])

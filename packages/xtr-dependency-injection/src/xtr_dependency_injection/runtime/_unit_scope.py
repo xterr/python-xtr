@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, final
 
 from wireup.errors import UnknownServiceRequestedError
 
+from xtr_dependency_injection._text import safe_repr
 from xtr_dependency_injection.exception import UnitReadDuringSingletonBuildError
 
 from ._detached_variables import register_detached_variable
@@ -299,7 +300,9 @@ def participating(participants: Sequence[UnitParticipantInterface]) -> Generator
         yield
     except BaseException as error:
         for participant, failure in _ended(began):
-            error.add_note(f"{type(participant).__qualname__}.unit_ended failed: {failure!r}")
+            error.add_note(
+                f"{type(participant).__qualname__}.unit_ended failed: {safe_repr(failure)}"
+            )
         raise
     failures = [failure for _, failure in _ended(began)]
     if failures:
