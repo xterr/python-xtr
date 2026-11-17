@@ -319,7 +319,10 @@ class PaymentConsumer:
         await self._orders.mark_paid(event.payload["order_id"])
 ```
 
-Each is built — with its dependencies — only when an event for its source first arrives. To
+Each is built — with its dependencies — only when an event for its source arrives, in the unit
+of work of the message it consumes, so a consumer may be
+`@as_service(lifetime="scoped")` and take the message's scoped services — the same database
+session everything else handling that message sees. To
 consume on a worker rather than in the process that received the event, route the message in
 the messenger configuration:
 
