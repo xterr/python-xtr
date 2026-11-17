@@ -260,6 +260,16 @@ carries. A grant of your own subclasses `AbstractGrant` (or `AbstractAuthorizeGr
 reached through `/authorize`); `AuthCodeGrant` keeps two seams for one that carries something
 through the code — `create_authorization_request()` and `get_auth_code_payload()`.
 
+The device code is stored as its SHA-256 — `issue_device_code` returns the entity beside the raw
+code, which only the response carries — and a poll is hashed before it is looked up;
+`complete_device_authorization_request` takes the stored identifier.
+
+A polling device is answered as RFC 8628 says: `authorization_pending` until its owner decides,
+`slow_down` when it polls too soon, `access_denied` when the owner refused and `expired_token`
+once the code expired. A device code that is unknown, already spent — including by a poll that
+raced this one — or issued to another client is `invalid_grant`, as RFC 6749 answers any grant
+that is invalid, revoked or another client's.
+
 `AuthorizationServer` answers `validate_authorization_request` / `complete_authorization_request`,
 `respond_to_access_token_request`, `respond_to_device_authorization_request` and
 `complete_device_authorization_request(device_code, user_id, user_approved)`. `TokenServer`
@@ -318,7 +328,9 @@ Everything the library raises derives from `OAuth2Error`
 | `InvalidArgumentError` | `OAuth2Error`, `ValueError` | One of the library's objects used wrongly — a reserved extra claim, an unreadable encryption key, a grant asked to work before it was enabled |
 
 A refresh token that is invalid, expired or spent is `invalid_grant` with status `400`, as RFC
-6749 §5.2 names it.
+6749 §5.2 names it — with no hint, the same answer whatever the reason. A response type keeps the
+scopes `set_refresh_token_scopes()` gives the refresh token it seals (a refresh keeps the spent
+token's scope); a custom `ResponseTypeInterface` implements it too.
 
 ## Layout
 
@@ -344,6 +356,11 @@ xtr_security_oauth2_server_core/
 ├── redirect_uri_validators/        exact matching, loopback ports aside
 └── exception/                      OAuth2Error and the errors under it
 ```
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security-oauth2-server-core-and-xtr-security-oauth2-server).
 
 ## Development
 

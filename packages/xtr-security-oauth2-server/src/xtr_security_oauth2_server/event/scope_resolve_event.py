@@ -29,6 +29,11 @@ class ScopeResolveEvent(Event):
     about scopes is usually a rule about one of them: a scope only one client
     may have, a scope no refresh may widen into, a scope that depends on who
     the token acts for.
+
+    It runs after the "no more than was granted" check of a refresh or a code
+    exchange, so whatever a listener adds is issued as it stands: a listener
+    may narrow freely, but one that adds a scope widens the token past what
+    the user approved. Add a scope only for a grant that has no such ceiling.
     """
 
     def __init__(

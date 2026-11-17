@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 from typing import TYPE_CHECKING, Final
 
 from typing_extensions import override
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
     from xtr_logging_contracts import LoggerInterface
 
+    from ._smtp_client import SmtpClient
     from .auth import AuthenticatorInterface
 
 __all__ = ["EsmtpTransport"]
@@ -96,6 +98,7 @@ class EsmtpTransport(SmtpTransport):
         self._capabilities: dict[str, list[str]] = {}
         self._auto_tls: bool = True
         self._require_tls: bool = False
+        self._allow_plain_auth: bool = False
 
     def set_username(self, username: str) -> Self:
         """Log in as ``username``; empty, as by default, logs in as no one."""
@@ -132,6 +135,19 @@ class EsmtpTransport(SmtpTransport):
     def is_tls_required(self) -> bool:
         """Return whether a session must be encrypted."""
         return self._require_tls
+
+    def set_allow_plain_auth(self, allow_plain_auth: bool) -> Self:
+        """Send credentials over an unencrypted session to a server that is not on this host.
+
+        Off by default: without TLS the password crosses the network readable by anyone on
+        the path. A session to a loopback address is allowed either way.
+        """
+        self._allow_plain_auth = allow_plain_auth
+        return self
+
+    def is_plain_auth_allowed(self) -> bool:
+        """Tell whether credentials may go to a remote server over an unencrypted session."""
+        return self._allow_plain_auth
 
     def set_authenticators(self, authenticators: Iterable[AuthenticatorInterface]) -> None:
         """Log in with ``authenticators``, tried in this order, instead of the ones set."""
@@ -179,6 +195,16 @@ class EsmtpTransport(SmtpTransport):
         if not tls_started and self._require_tls:
             raise TransportError("TLS required but neither TLS or STARTTLS are in use.")
         if "AUTH" in self._capabilities:
+            if (
+                self._username
+                and not tls_started
+                and not self._allow_plain_auth
+                and not _on_loopback(client)
+            ):
+                raise TransportError(
+                    "Refusing to authenticate over an unencrypted session to a remote server; "
+                    "use TLS, or set the allow_plain_auth option to send the credentials in clear.",
+                )
             await self._handle_auth(self._capabilities["AUTH"])
         return reply
 
@@ -221,3 +247,14 @@ class EsmtpTransport(SmtpTransport):
             f' Authenticator "{name}" returned "{text}".' for name, text in errors.items()
         )
         raise TransportError(message, code or _AUTHENTICATION_FAILED)
+
+
+def _on_loopback(client: SmtpClient) -> bool:
+    """Tell whether the open session's server is on this host, where clear text stays local."""
+    address = client.peer_address
+    if address is None:
+        return False
+    try:
+        return ipaddress.ip_address(address.partition("%")[0]).is_loopback
+    except ValueError:
+        return False

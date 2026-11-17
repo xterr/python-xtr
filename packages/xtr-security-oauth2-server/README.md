@@ -212,6 +212,13 @@ async def register_demo_clients(
 A request is denied until a listener approves it. With a database store, register clients with
 `oauth2-server:create-client` instead, which prints the secret once and stores only its hash.
 
+A redirect URI may not carry a fragment (`#…`): the server writes implicit answers there, so one is
+refused when it is registered — and when a stored client holding one is read back, so remove the
+fragment from any registration made before. A client registered for some scopes that asks for
+another is answered `invalid_scope` at its redirect URI before anyone is asked to consent. Every
+redirect the authorization endpoint answers, success or refusal, names this server as `iss`
+(RFC 9207), and the description says so with `authorization_response_iss_parameter_supported`.
+
 ### 5. Serve it
 
 ```python
@@ -242,7 +249,7 @@ async def invoices(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, s
     return {"caller": user.get_user_identifier()}
 
 
-kernel = Kernel("app", concurrent_scoped_access=True)
+kernel = Kernel("app")
 setup(app, kernel)
 ```
 
@@ -296,7 +303,7 @@ ever minted on the deployment's behalf.
 | `private_key_passphrase` | `""` | The pass phrase that key is encrypted with |
 | `encryption_key` | `None` | What authorization codes and refresh tokens are sealed with |
 | `encryption_key_type` | `"plain"` | `"plain"`: a password of at least 32 characters, stretched once when the server is built. `"key"`: the base64url of 32 random bytes, used as is |
-| `audience` | `None` | The `aud` access tokens carry and the resource server requires; `None` addresses each token to its client and checks none |
+| `audience` | `None` | The `aud` access tokens carry and the resource server requires; `None` addresses each token to its client and checks none. Set one per resource server, so a token for one API is refused by another |
 | `signature_algorithm` | `"RS256"` | How access tokens are signed |
 | `additional_public_keys` | `()` | Files of further public keys tokens verify against, for rotation |
 | `access_token_ttl` / `refresh_token_ttl` | 1 hour / 30 days | `timedelta`s, positive |
@@ -404,9 +411,22 @@ wherever it ends up, leaving out the ones excluded:
   `client_id`/`client_secret` in the form — so no firewall claims them. A revoked refresh token
   takes its access token with it; a token that is unknown or another client's is answered as one
   just revoked.
+  One way per request: beside Basic, the form may repeat the client's id but neither name
+  another nor carry a `client_secret` (`invalid_request`). The two halves of a Basic header are
+  form-decoded, as RFC 6749 §2.3.1 has clients encode them — a secret holding `%` or `+` is now
+  read as the client wrote it. `/introspect` answers confidential clients only: a public client
+  proves nothing about itself (`invalid_client`).
+- **Refreshing** keeps the refresh token's scope as it was (RFC 6749 §6): a refresh asking for
+  less narrows the access token only, and the next refresh may ask for the original scope again.
+  A code, device code or refresh token that cannot be redeemed is `invalid_grant` with no hint,
+  whatever the reason. No user token is issued to a user whose identifier is the client's own:
+  a resource server tells a client's token by `sub` being the client id.
 - **`/device-code`** issues the pair a device polls with; the page the person types the user code
   into is the application's, and calls `AuthorizationServer.complete_device_authorization_request`
   (see the [skill](src/xtr_security_oauth2_server/.agents/skills/xtr-security-oauth2-server/SKILL.md)).
+  The device code is stored as its SHA-256, so a read of the store yields nothing a device could
+  poll with; the page passes the stored identifier — what `find_by_user_code(...)` returns — not
+  the device's code.
   Limit how often that page may be guessed at — a user code is 8 characters of 20 — with
   [xtr-http-kernel's](../xtr-http-kernel#rate-limits) `RateLimited`.
 - **The description** names, under the configured issuer, the endpoints served, the grants the
@@ -506,8 +526,8 @@ removing it undoes.
   what has expired, and the revision a database store takes.
 - **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_security_oauth2_server.bundle` — and `JwtBundle` beside it when the end user signs in
-  with a self-issued token. Then build the kernel with `concurrent_scoped_access=True` and call
-  `setup(app, kernel)`, as the security family requires: it adds this server's endpoints. The
+  with a self-issued token. Then call `setup(app, kernel)`, as the security family requires: it
+  adds this server's endpoints. The
   firewalls the configuration matches run as the firewall — a subscriber the security bundle
   registers over the kernel lifecycle's events — so the endpoints carry no dependency of their
   own: the `login` firewall is what establishes the resource owner on `/authorize`.
@@ -641,6 +661,11 @@ xtr_security_oauth2_server/
 ├── recipe/                     what recipes:sync applies
 └── bundle/                     OAuth2ServerBundle, its configuration and its passes
 ```
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security-oauth2-server-core-and-xtr-security-oauth2-server).
 
 ## Development
 

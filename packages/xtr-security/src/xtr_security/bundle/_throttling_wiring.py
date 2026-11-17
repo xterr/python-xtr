@@ -26,6 +26,7 @@ from xtr_security.exception import InvalidConfigurationError
 
 if TYPE_CHECKING:
     from xtr_dependency_injection import ServiceConfigurator
+    from xtr_lock import LockFactory
 
     from xtr_security.login_throttling_config import LoginThrottlingConfig
 
@@ -36,6 +37,8 @@ def register_login_throttling(
     services: ServiceConfigurator,
     name: str,
     settings: LoginThrottlingConfig,
+    *,
+    lock_active: bool = False,
 ) -> None:
     """Register the throttling listener on the firewall's own dispatcher.
 
@@ -45,6 +48,9 @@ def register_login_throttling(
     verified. The two limiters it counts under are its own, built over the
     application's storage when the listener is first asked for: an
     application that registered none is told so, by name, at that moment.
+    With the lock bundle active, both limiters lock through its default
+    factory, so a count shared across processes is read and written by one
+    of them at a time; without it, they lock within this process only.
     """
     dispatcher = firewall_dispatcher_name(name)
 
@@ -52,6 +58,7 @@ def register_login_throttling(
         storage: StorageInterface,
         clock: ClockInterface | None = None,
         firewall_dispatcher: EventDispatcherInterface | None = None,
+        lock_factory: LockFactory | None = None,
     ) -> LoginThrottlingListener:
         """Build the listener counting this firewall's attempts under its two limiters."""
         if not settings.secret:
@@ -66,6 +73,7 @@ def register_login_throttling(
                 "fixed_window", limit=settings.global_limit, interval=settings.global_interval
             ),
             storage,
+            lock_factory,
             clock=clock,
         )
         local_factory = RateLimiterFactory(
@@ -74,6 +82,7 @@ def register_login_throttling(
                 "fixed_window", limit=settings.local_limit, interval=settings.local_interval
             ),
             storage,
+            lock_factory,
             clock=clock,
         )
         return LoginThrottlingListener(
@@ -82,12 +91,17 @@ def register_login_throttling(
             clock=clock,
         )
 
-    login_throttling_listener.__annotations__ = {
+    annotations: dict[str, object] = {
         "storage": StorageInterface,
         "clock": ClockInterface | None,
         "firewall_dispatcher": Annotated[EventDispatcherInterface, Target(dispatcher)],
         "return": LoginThrottlingListener,
     }
+    if lock_active:
+        from xtr_lock import LockFactory  # noqa: PLC0415 — only with the lock bundle active
+
+        annotations["lock_factory"] = LockFactory | None
+    login_throttling_listener.__annotations__ = annotations
     login_throttling_listener.__name__ = f"login_throttling_listener_{name}"
     login_throttling_listener.__qualname__ = login_throttling_listener.__name__
     _ = services.set(

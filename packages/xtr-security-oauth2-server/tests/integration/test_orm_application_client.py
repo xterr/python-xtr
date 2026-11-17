@@ -26,7 +26,7 @@ from xtr_clock import MockClock
 from tests.support.app_client import AuditAppClient, PlainAppClient
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.models import LATER, NOW, authorization_code_model, device_code_model
-from tests.support.orm import CONNECTION, connections_of, orm_driver, selects, stored
+from tests.support.orm import CONNECTION, orm_driver, selects, stored
 from xtr_security_oauth2_server.manager.orm.authorization_code_manager import (
     AuthorizationCodeManager,
 )
@@ -39,7 +39,8 @@ if TYPE_CHECKING:
     from typing import TypeAlias
 
     from sqlalchemy import MetaData
-    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from tests.support.orm import Database
 
     AppClient: TypeAlias = PlainAppClient | AuditAppClient
     AppClientClass: TypeAlias = type[PlainAppClient | AuditAppClient]
@@ -73,19 +74,19 @@ def _app_client(client_class: AppClientClass, identifier: str = "client-1") -> A
     return client
 
 
-def _clients(session: AsyncSession, client_class: AppClientClass) -> ClientManager:
-    """Return a client manager reading and writing through ``session``."""
+async def _clients(database: Database, client_class: AppClientClass) -> ClientManager:
+    """Return a client manager reading and writing ``database``, in units of its own."""
     return ClientManager(
-        connections_of(session),
+        await database.scope_factory(),
         CONNECTION,
         RecordingEventDispatcher(),
         client_class,
     )
 
 
-def _codes(session: AsyncSession) -> AuthorizationCodeManager:
-    """Return an authorization-code manager reading and writing through ``session``."""
-    return AuthorizationCodeManager(connections_of(session), CONNECTION, MockClock(NOW))
+async def _codes(database: Database) -> AuthorizationCodeManager:
+    """Return an authorization-code manager reading and writing ``database``, in its own units."""
+    return AuthorizationCodeManager(await database.scope_factory(), CONNECTION, MockClock(NOW))
 
 
 @pytest.mark.parametrize("client_class", _BASES)
@@ -104,10 +105,8 @@ async def test_a_registration_round_trips_beside_the_applications_own_column(
 ) -> None:
     driver = orm_driver(client_class=client_class, table_prefix=prefix)
     async with stored(tmp_path, driver, _definitions(client_class)) as database:
-        session = database.session()
-        manager = _clients(session, client_class)
+        manager = await _clients(database, client_class)
         await manager.save(_app_client(client_class))
-        session.expunge_all()
 
         found = await manager.find("client-1")
 
@@ -129,9 +128,9 @@ async def test_a_credential_reads_its_application_client_in_one_statement(
         client = _app_client(client_class)
         session.add(client)
         await session.commit()
-        codes = _codes(session)
+        session.expunge(client)
+        codes = await _codes(database)
         await codes.save(authorization_code_model(client=client))
-        session.expunge_all()
 
         with database.watching() as statements:
             found = await codes.find("ac-1")
@@ -148,15 +147,14 @@ async def test_removing_an_application_client_takes_its_credentials_with_it(
 ) -> None:
     driver = orm_driver(client_class=client_class, table_prefix=prefix)
     async with stored(tmp_path, driver, _definitions(client_class)) as database:
-        session = database.session()
-        manager = _clients(session, client_class)
+        manager = await _clients(database, client_class)
         await manager.save(_app_client(client_class))
         registered = await manager.find("client-1")
         assert registered is not None
-        await _codes(session).save(
+        await (await _codes(database)).save(
             authorization_code_model(client=registered),
         )
-        await DeviceCodeManager(connections_of(session), CONNECTION, MockClock(NOW)).save(
+        await DeviceCodeManager(await database.scope_factory(), CONNECTION, MockClock(NOW)).save(
             device_code_model(client=registered),
         )
 
@@ -170,9 +168,8 @@ async def test_an_audited_client_keeps_its_own_primary_key(tmp_path: Path, prefi
     driver = orm_driver(client_class=AuditAppClient, table_prefix=prefix)
     async with stored(tmp_path, driver, AuditAppClient.metadata) as database:
         session = database.session()
-        manager = _clients(session, AuditAppClient)
+        manager = await _clients(database, AuditAppClient)
         await manager.save(_app_client(AuditAppClient))
-        session.expunge_all()
 
         read = await session.execute(select(AuditAppClient))
         found = read.scalars().one()
@@ -187,9 +184,7 @@ async def test_a_credential_is_stored_beside_the_client_it_names(
 ) -> None:
     driver = orm_driver(client_class=PlainAppClient, table_prefix=prefix)
     async with stored(tmp_path, driver, PlainAppClient.metadata) as database:
-        session = database.session()
-
-        await _codes(session).save(
+        await (await _codes(database)).save(
             authorization_code_model("ac-1", LATER, _app_client(PlainAppClient)),
         )
 

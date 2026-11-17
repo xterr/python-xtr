@@ -44,6 +44,7 @@ _VERIFY_PEER_OFF = _smtps(lambda transport: transport.set_verify_peer(False))
 _PINNED = _smtps(lambda transport: transport.set_peer_fingerprint(FINGERPRINT))
 _AUTO_TLS_OFF = _smtp().set_auto_tls(False)
 _TLS_REQUIRED = _smtps(lambda transport: transport.set_require_tls(True))
+_PLAIN_AUTH = _smtps(lambda transport: transport.set_allow_plain_auth(True))
 _CREATE: list[tuple[Dsn, EsmtpTransport]] = [
     (Dsn("smtp", "localhost"), EsmtpTransport("localhost", 25, False, logger=NullLogger())),
     (
@@ -105,6 +106,7 @@ _CREATE: list[tuple[Dsn, EsmtpTransport]] = [
     ),
     (Dsn("smtps", "example.com", "", "", 465, {"require_tls": "true"}), _TLS_REQUIRED),
     (Dsn.from_string("smtps://:@example.com?require_tls=true"), _TLS_REQUIRED),
+    (Dsn.from_string("smtps://:@example.com?allow_plain_auth=1"), _PLAIN_AUTH),
 ]
 
 

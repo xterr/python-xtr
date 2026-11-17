@@ -17,6 +17,7 @@ way.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final, cast
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
@@ -48,6 +49,18 @@ async def client(request: pytest.FixtureRequest) -> AsyncIterator[httpx.AsyncCli
 async def _login(client: httpx.AsyncClient, password: str) -> httpx.Response:
     """Post the login form as ``ada`` with ``password``, the way a browser submits it."""
     return await client.post("/login_check", data={"_username": "ada", "_password": password})
+
+
+async def _rendered(client: httpx.AsyncClient) -> dict[str, str]:
+    """Return the logout, switch and exit addresses a page of the signed-in user renders."""
+    answered = await client.get("/links")
+    assert answered.status_code == 200, answered.text
+    return cast("dict[str, str]", answered.json())
+
+
+def _token_in(address: str) -> str:
+    """Return the forgery token a rendered address carries."""
+    return parse_qs(urlsplit(address).query)["_csrf_token"][0]
 
 
 async def test_a_form_login_posted_as_its_body_redirects_to_the_target(
@@ -142,21 +155,40 @@ async def test_a_json_login_with_a_wrong_password_is_refused(client: httpx.Async
 
 async def test_a_switch_posted_in_a_form_switches_the_user(client: httpx.AsyncClient) -> None:
     _ = await _login(client, "secret")
+    token = _token_in((await _rendered(client))["switch"])
 
-    switched = await client.post("/", data={"_switch_user": "bob"}, follow_redirects=True)
+    switched = await client.post(
+        "/",
+        data={"_switch_user": "bob", "_csrf_token": token},
+        follow_redirects=True,
+    )
 
     assert switched.status_code == 200
     assert switched.json() == {"user": "bob"}
+
+
+async def test_a_switch_without_its_token_is_refused_on_a_stateful_firewall(
+    client: httpx.AsyncClient,
+) -> None:
+    # A stateful firewall's switch asks for a token by default: the session
+    # cookie rides along on a link a foreign page embeds.
+    _ = await _login(client, "secret")
+
+    refused = await client.get("/", params={"_switch_user": "bob"})
+    kept = await client.get("/")
+
+    assert refused.status_code == 403
+    assert kept.json() == {"user": "ada"}
 
 
 async def test_a_switch_is_kept_and_its_exit_restores_the_original_user(
     client: httpx.AsyncClient,
 ) -> None:
     _ = await _login(client, "secret")
-    _ = await client.get("/", params={"_switch_user": "bob"})
+    _ = await client.get((await _rendered(client))["switch"])
     kept = await client.get("/")
 
-    exited = await client.get("/", params={"_switch_user": "_exit"}, follow_redirects=True)
+    exited = await client.get((await _rendered(client))["exit"], follow_redirects=True)
 
     assert kept.json() == {"user": "bob"}
     assert exited.status_code == 200
@@ -165,7 +197,7 @@ async def test_a_switch_is_kept_and_its_exit_restores_the_original_user(
 
 async def test_a_logout_clears_the_session(client: httpx.AsyncClient) -> None:
     _ = await _login(client, "secret")
-    logout = await client.get("/logout")
+    logout = await client.get((await _rendered(client))["logout"])
 
     home = await client.get("/")
 
@@ -173,3 +205,15 @@ async def test_a_logout_clears_the_session(client: httpx.AsyncClient) -> None:
     assert logout.headers["location"] == "/"
     assert home.status_code == 302
     assert home.headers["location"] == "/login"
+
+
+async def test_a_logout_without_its_token_is_refused_on_a_stateful_firewall(
+    client: httpx.AsyncClient,
+) -> None:
+    _ = await _login(client, "secret")
+
+    refused = await client.get("/logout")
+    home = await client.get("/")
+
+    assert refused.status_code == 403
+    assert home.json() == {"user": "ada"}

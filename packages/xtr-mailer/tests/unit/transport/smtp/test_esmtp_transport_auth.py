@@ -157,6 +157,60 @@ async def test_a_server_offering_no_authentication_is_not_asked_for_it() -> None
     assert not any(command.startswith("AUTH") for command in server.commands)
 
 
+def _off_loopback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read every peer as a remote one: the scripted server only listens on loopback."""
+
+    def remote(client: object) -> bool:
+        del client
+        return False
+
+    monkeypatch.setattr("xtr_mailer.transport.smtp.esmtp_transport._on_loopback", remote)
+
+
+async def test_auth_in_clear_to_a_remote_server_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The password would cross the network readable by anyone on the path.
+    _off_loopback(monkeypatch)
+    async with _server_offering_every_mechanism() as server:
+        error = await _failed_send(_transport(server))
+
+    assert "allow_plain_auth" in str(error)
+    assert not any(command.startswith("AUTH") for command in server.commands)
+
+
+async def test_auth_in_clear_is_sent_when_the_application_allows_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _off_loopback(monkeypatch)
+    async with _server_offering_every_mechanism() as server:
+        transport = _transport(server).set_allow_plain_auth(True)
+        _ = await transport.send(email())
+        await transport.stop()
+
+    assert server.commands.count(_PLAIN[0]) == 1
+
+
+async def test_auth_in_clear_on_loopback_is_allowed() -> None:
+    async with _server_offering_every_mechanism() as server:
+        transport = _transport(server)
+        _ = await transport.send(email())
+        await transport.stop()
+
+    assert any(command.startswith("AUTH") for command in server.commands)
+
+
+async def test_a_remote_server_asking_no_auth_is_still_sent_to_in_clear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Only a password going out is refused, not a plain session.
+    _off_loopback(monkeypatch)
+    async with ScriptedSmtpServer() as server:
+        transport = _transport(server)
+        _ = await transport.send(email())
+        await transport.stop()
+
+    assert len(server.messages) == 1
+
+
 def test_add_authenticator_appends_one() -> None:
     transport = EsmtpTransport(authenticators=[])
 

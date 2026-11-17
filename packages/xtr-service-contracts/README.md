@@ -145,6 +145,15 @@ async for name, service in collection:
 All three are `@runtime_checkable`, which checks method presence only — an implementation inherits
 the protocol explicitly so a type checker verifies its signatures against the contract.
 
+## `UnitParticipantInterface`
+
+Something that takes part in every unit of work a container opens: `unit_began()` runs as each
+unit opens and returns a token, and `unit_ended(token)` runs as that unit closes, in the unit's
+own context. A container calls every registered participant; xtr-dependency-injection registers
+each service tagged `kernel.unit_participant`. State that lives for one unit — its log unit, its
+read-your-writes routing — belongs here rather than in a context variable someone must remember
+to reset.
+
 ## Why providers are not containers
 
 A **container** is keyed by **type** (plus an optional qualifier) and carries **parameters**: it
@@ -159,6 +168,11 @@ speak in types rather than being pinned to string ids.
 | --- | --- |
 | [xtr-dependency-injection](https://github.com/xterr/python-xtr-dependency-injection) | `ContainerInterface`, `ServiceProviderInterface` and `ServiceCollectionInterface` as its container, locator and tagged-collection contracts, and `ResetInterface` for `kernel.reset` |
 | [xtr-logging](https://github.com/xterr/python-xtr-logging) | Buffered and fingers-crossed handlers, generated ids, and `LoggerFactory.reset()` between requests or messages |
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-service-contracts).
 
 ## Development
 

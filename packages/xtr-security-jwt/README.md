@@ -137,7 +137,7 @@ async def me(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
     return {"user": user.get_user_identifier()}
 
 
-kernel = Kernel("app", concurrent_scoped_access=True)
+kernel = Kernel("app")
 setup(app, kernel)
 ```
 
@@ -178,6 +178,12 @@ deployment mounts its own and points `secret_key` at it.
 The key is measured where it is read, too: an HMAC secret shorter than its algorithm requires is
 refused the first time it signs, with an `InvalidConfigurationError` naming the floor; an
 `issuer=env(…)` resolving to nothing is refused where the token manager is built.
+
+A token minted for something else — another issuer's token, or one addressed to an audience this
+deployment does not answer to — is refused on `iss` and `aud`, whatever its kind: a token that
+names an audience is refused when `audience` is empty. So an OAuth2 access token signed with the
+same key is not read as a login token as long as the two differ in issuer or audience; give each
+its own when they share a key.
 
 | Field | Default | What it is |
 |---|---|---|
@@ -304,8 +310,8 @@ removing it undoes.
   `secrets/jwt.pem` when no file is there, and adds `/secrets/*.pem` and `/secrets/*.jwks.json` to
   `.gitignore`. It prints the `setup` and firewall steps, which a recipe cannot make for you.
 - **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported from
-  `xtr_security_jwt.bundle`. Then build the kernel with `concurrent_scoped_access=True` and call
-  `setup(app, kernel)` where the application is served, as the security family requires.
+  `xtr_security_jwt.bundle`. Then call `setup(app, kernel)` where the application is served, as
+  the security family requires.
 - **Brings along** — the [security bundle](../xtr-security), the
   [clock](../xtr-clock) and the [event dispatcher](../xtr-event-dispatcher) always, because this
   bundle requires them; the [console](../xtr-console) bundle when xtr-console is installed, for

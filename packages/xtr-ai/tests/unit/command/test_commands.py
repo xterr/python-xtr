@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+from io import StringIO
 from typing import TYPE_CHECKING
 
 import pytest
-from xtr_console import Application, ApplicationTester, ExitCode
-from xtr_dependency_injection import Kernel
+from pydantic_ai.agent import AbstractAgent
+from xtr_console import Application, ApplicationTester, ConsoleStyle, ExitCode
+from xtr_dependency_injection import Kernel, ScopeFactoryInterface, ServiceLocator
+
+from xtr_ai.command.agent_call_command import AgentCallCommand
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+    from contextlib import AbstractAsyncContextManager
 
     from xtr_dependency_injection import BootedKernel
+    from xtr_service_contracts import ContainerInterface
 
 pytestmark = pytest.mark.anyio
 
@@ -36,6 +42,9 @@ async def test_debug_ai_lists_platforms_and_agents_without_any_secret(
     display = tester.display
     assert "env(AI_TEST_KEY)" in display
     assert KEY_SENTINEL not in display
+    # The base URL's credentials are masked; its host is still shown.
+    assert "proxy-pw-sentinel" not in display
+    assert "proxy.example" in display
     assert "env(AI_TEST_CHAT_PLATFORM)" in display
     assert "offline:backup" in display
     assert "Greeting" in display
@@ -74,3 +83,25 @@ async def test_an_agent_holds_a_conversation_until_an_empty_line(
 
 async def test_calling_an_unknown_agent_is_refused(tester: ApplicationTester) -> None:
     assert await tester.execute(["ai:agent:call", "ghost"], inputs=[""]) == ExitCode.INVALID
+
+
+async def test_each_prompt_runs_in_its_own_unit(booted: BootedKernel) -> None:
+    # A conversation can last for hours; one unit for all of it would keep every
+    # scoped service — a database session — open for as long.
+    real = await booted.container.get(ScopeFactoryInterface)
+    joins: list[bool] = []
+
+    class RecordingScopes:
+        def unit_of_work(
+            self, *, join: bool = True
+        ) -> AbstractAsyncContextManager[ContainerInterface]:
+            joins.append(join)
+            return real.unit_of_work(join=join)
+
+    command = AgentCallCommand(
+        await booted.container.get(ServiceLocator[AbstractAgent]), RecordingScopes()
+    )
+    io = ConsoleStyle(StringIO(), input_stream=StringIO("first\nsecond\n\n"))
+
+    assert await command(io, "research") == ExitCode.SUCCESS
+    assert joins == [False, False]

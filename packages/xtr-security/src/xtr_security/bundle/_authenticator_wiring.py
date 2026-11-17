@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from xtr_dependency_injection import ServiceKey, named_factory
 from xtr_security_core.user.missing_user_provider import MissingUserProvider
@@ -49,12 +49,14 @@ class TakesTokenHandlerFactories(Protocol):
         ...
 
 
-def register_authenticators(
+def register_authenticators(  # noqa: PLR0913 -- a wiring call gathering one firewall's parts
     services: ServiceConfigurator,
     config: SecurityConfig,
     name: str,
     firewall: FirewallConfig,
     provider_qualifier: str | None,
+    *,
+    builder: ContainerBuilder,
 ) -> tuple[tuple[str, ...], str | None]:
     """Register the firewall's authenticators, aliased for collection, sorted by priority.
 
@@ -88,7 +90,9 @@ def register_authenticators(
         stateless = StatelessAuthenticatorFactoryInterface in type(prepared).__mro__
         created = prepared.create_authenticator(
             services,
-            NO_BUILDER,
+            # The real builder: a token handler's factory asks it which peer
+            # bundles are active, to inject what those provide.
+            builder,
             name,
             authenticator_config,
             user_provider if stateless or missing_user_provider is None else missing_user_provider,
@@ -167,8 +171,3 @@ def match_authenticator_factory(
         f"No authenticator factory handles {type(authenticator_config).__name__} "
         f'on the firewall "{firewall_name}".',
     )
-
-
-# A sentinel where a factory's ``builder`` argument is not used: the built-in
-# factories register services and read no other definitions.
-NO_BUILDER = cast("ContainerBuilder", cast("object", None))

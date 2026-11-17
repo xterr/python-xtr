@@ -51,6 +51,17 @@ class AuthorizationCodeManager(AuthorizationCodeManagerInterface):
         self._authorization_codes[auth_code.get_identifier()] = auth_code
 
     @override
+    async def revoke(self, identifier: str) -> bool:
+        """Spend the code stored as ``identifier``, and say whether this call did."""
+        code = self._authorization_codes.get(identifier)
+        if code is None or code.is_revoked():
+            return False
+
+        _ = code.revoke()
+
+        return True
+
+    @override
     async def clear_expired(self) -> int:
         """Forget every code that has expired, and return how many went.
 

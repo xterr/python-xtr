@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
+from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_security_core.exception import AuthenticationError, CookieTheftError
 from xtr_security_core.user.in_memory_user import InMemoryUser
@@ -88,6 +90,25 @@ class _VerifyingProvider(RecordingTokenProvider):
     ) -> None:
         """Record the rotation the handler asked the verifier for."""
         self.updated.append((token.get_series(), token_value, last_used))
+
+
+@final
+class _NeverRotatingProvider(RecordingTokenProvider):
+    """A token provider whose every rotation loses, the stored token left as it was."""
+
+    __slots__ = ()
+
+    @override
+    async def update_token(
+        self,
+        series: str,
+        expected_value: str,
+        token_value: str,
+        last_used: datetime,
+    ) -> bool:
+        """Refuse the rotation, as a store where someone else got there first would."""
+        del series, expected_value, token_value, last_used
+        return False
 
 
 def _request(*, cookie: str | None = None) -> ServerRequestInterface:
@@ -234,6 +255,75 @@ async def test_consume_refuses_a_value_the_store_no_longer_holds() -> None:
             _request(),
             details.with_value(f"{series}:spent"),
         )
+
+
+async def test_two_parallel_rotations_do_not_raise_cookie_theft() -> None:
+    clock = MockClock(_FROZEN)
+    user = InMemoryUser("ada", password=_HASHED)
+    handler, provider, _users = _handler(clock, user)
+    created = _request()
+    await handler.create_remember_me_cookie(created, user)
+    details = _details_of(_staged_of(created))
+    clock.sleep(_WINDOW + 1)
+    provider.load_barrier = asyncio.Barrier(2)
+    first, second = _request(), _request()
+
+    loaded = await asyncio.gather(
+        handler.consume_remember_me_cookie(first, details),
+        handler.consume_remember_me_cookie(second, details),
+    )
+
+    assert [user.get_user_identifier() for user in loaded] == ["ada", "ada"]
+    assert len(provider.updated) == 1
+    series, stored_value, _last_used = provider.updated[0]
+    staged = [cookie for cookie in (_staged_of(first), _staged_of(second)) if cookie is not None]
+    assert len(staged) == 1
+    assert _details_of(staged[0]).get_value() == f"{series}:{stored_value}"
+
+
+async def test_a_losing_rotation_tells_the_verifier_nothing() -> None:
+    clock = MockClock(_FROZEN)
+    user = InMemoryUser("ada", password=_HASHED)
+    provider = RecordingTokenProvider()
+    verifier = RecordingTokenVerifier()
+    handler = PersistentRememberMeHandler(
+        provider,
+        RecordingUserProvider({"ada": user}),
+        token_verifier=verifier,
+        clock=clock,
+    )
+    created = _request()
+    await handler.create_remember_me_cookie(created, user)
+    details = _details_of(_staged_of(created))
+    clock.sleep(_WINDOW + 1)
+    provider.load_barrier = asyncio.Barrier(2)
+
+    _ = await asyncio.gather(
+        handler.consume_remember_me_cookie(_request(), details),
+        handler.consume_remember_me_cookie(_request(), details),
+    )
+
+    assert len(verifier.updates) == 1
+    assert verifier.updates[0][1] == provider.updated[0][1]
+
+
+async def test_a_rotation_lost_to_no_recent_rotation_is_cookie_theft() -> None:
+    clock = MockClock(_FROZEN)
+    user = InMemoryUser("ada", password=_HASHED)
+    provider = _NeverRotatingProvider()
+    handler = PersistentRememberMeHandler(
+        provider, RecordingUserProvider({"ada": user}), clock=clock
+    )
+    created = _request()
+    await handler.create_remember_me_cookie(created, user)
+    details = _details_of(_staged_of(created))
+    clock.sleep(_WINDOW + 1)
+    presented = _request()
+
+    with pytest.raises(CookieTheftError):
+        _ = await handler.consume_remember_me_cookie(presented, details)
+
+    assert _staged_of(presented) is None
 
 
 async def test_consume_consults_the_verifier_over_the_plain_equality() -> None:

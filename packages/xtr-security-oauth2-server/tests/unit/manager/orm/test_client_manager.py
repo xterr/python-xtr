@@ -9,7 +9,7 @@ import pytest
 from tests.support.app_client import AuditAppClient
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.models import client_model
-from tests.support.orm import CONNECTION, connections_of, orm_driver, stored
+from tests.support.orm import CONNECTION, orm_driver, stored
 from xtr_security_oauth2_server.event.pre_save_client_event import PreSaveClientEvent
 from xtr_security_oauth2_server.exception import ClientAlreadyRegisteredError
 from xtr_security_oauth2_server.manager.client_filter import ClientFilter
@@ -34,19 +34,19 @@ def test_it_declares_the_client_manager_contract() -> None:
     assert ClientManagerInterface in ClientManager.__mro__
 
 
-def _manager(database: Database) -> tuple[ClientManager, RecordingEventDispatcher]:
-    """Return a manager on a session of its own, and the dispatcher it announces through."""
+async def _manager(database: Database) -> tuple[ClientManager, RecordingEventDispatcher]:
+    """Return a manager opening a unit of work of its own for every call, and its dispatcher."""
     dispatcher = RecordingEventDispatcher()
 
     return (
-        ClientManager(connections_of(database.session()), CONNECTION, dispatcher, Client),
+        ClientManager(await database.scope_factory(), CONNECTION, dispatcher, Client),
         dispatcher,
     )
 
 
 async def test_it_finds_a_client_it_stored(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model(grants=("password",), scopes=("read",)))
 
         found = await manager.find("client-1")
@@ -62,14 +62,14 @@ async def test_it_finds_a_client_it_stored(tmp_path: Path) -> None:
 
 async def test_it_finds_nothing_under_an_unknown_identifier(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
 
         assert await manager.find("nope") is None
 
 
 async def test_it_announces_a_client_before_storing_it(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, dispatcher = _manager(database)
+        manager, dispatcher = await _manager(database)
 
         await manager.save(client_model())
 
@@ -79,7 +79,7 @@ async def test_it_announces_a_client_before_storing_it(tmp_path: Path) -> None:
 
 async def test_it_stores_the_client_a_listener_put_on_the_event(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, dispatcher = _manager(database)
+        manager, dispatcher = await _manager(database)
         dispatcher.listen(
             OAuth2Events.PRE_SAVE_CLIENT,
             _replace_with(client_model("replacement")),
@@ -93,17 +93,17 @@ async def test_it_stores_the_client_a_listener_put_on_the_event(tmp_path: Path) 
 
 async def test_a_saved_client_is_committed_so_another_session_reads_it(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
 
         await manager.save(client_model())
 
-        second, _ = _manager(database)
+        second, _ = await _manager(database)
         assert await second.find("client-1") is not None
 
 
 async def test_it_forgets_a_client_it_removed(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model())
         found = await manager.find("client-1")
         assert found is not None
@@ -114,9 +114,22 @@ async def test_it_forgets_a_client_it_removed(tmp_path: Path) -> None:
         assert await database.count("oauth2_client") == 0
 
 
+async def test_saving_a_client_leaves_the_requests_pending_work_alone(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        unit = database.session()
+        unit.add(client_model("pending"))
+        manager, _ = await _manager(database)
+
+        await manager.save(client_model())
+        await unit.rollback()
+
+        assert await database.count("oauth2_client") == 1
+        assert await manager.find("client-1") is not None
+
+
 async def test_it_lists_every_client_when_nothing_narrows_the_listing(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model("one"))
         await manager.save(client_model("two"))
 
@@ -126,7 +139,7 @@ async def test_it_lists_every_client_when_nothing_narrows_the_listing(tmp_path: 
 
 async def test_it_lists_only_the_clients_holding_a_named_grant(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model("with", grants=("password",)))
         await manager.save(client_model("without", grants=("implicit",)))
 
@@ -137,7 +150,7 @@ async def test_it_lists_only_the_clients_holding_a_named_grant(tmp_path: Path) -
 
 async def test_a_value_stored_between_two_others_is_matched(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(
             client_model("middle", grants=("authorization_code", "refresh_token", "password")),
         )
@@ -151,7 +164,7 @@ async def test_a_value_stored_between_two_others_is_matched(tmp_path: Path) -> N
 
 async def test_a_client_has_to_hold_every_value_named_of_one_kind(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model("both", grants=("password", "implicit")))
         await manager.save(client_model("one-of-them", grants=("password",)))
 
@@ -164,7 +177,7 @@ async def test_a_client_has_to_hold_every_value_named_of_one_kind(tmp_path: Path
 
 async def test_a_client_has_to_meet_every_kind_of_criterion_named(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model("both", grants=("password",), scopes=("read",)))
         await manager.save(client_model("grant-only", grants=("password",), scopes=("write",)))
 
@@ -181,7 +194,7 @@ async def test_it_lists_only_the_clients_registered_with_a_named_redirect_uri(
     tmp_path: Path,
 ) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model("with", redirect_uris=("https://a.example.com/cb",)))
         await manager.save(client_model("without", redirect_uris=("https://b.example.com/cb",)))
 
@@ -196,7 +209,7 @@ async def test_it_lists_only_the_clients_registered_with_a_named_redirect_uri(
 
 async def test_a_client_holding_nothing_of_a_named_kind_is_left_out(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model("open"))
 
         listed = await manager.list(ClientFilter.create().add_grant_criteria(Grant("implicit")))
@@ -206,7 +219,7 @@ async def test_a_client_holding_nothing_of_a_named_kind_is_left_out(tmp_path: Pa
 
 async def test_a_criterion_carrying_a_wildcard_matches_itself_only(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager, _ = _manager(database)
+        manager, _ = await _manager(database)
         await manager.save(client_model("plain", redirect_uris=("https://a.example.com/cb",)))
 
         listed = await manager.list(
@@ -221,9 +234,8 @@ async def test_it_finds_a_client_by_its_identifier_and_not_by_its_primary_key(
 ) -> None:
     driver = orm_driver(client_class=AuditAppClient)
     async with stored(tmp_path, driver, AuditAppClient.metadata) as database:
-        session = database.session()
         manager = ClientManager(
-            connections_of(session),
+            await database.scope_factory(),
             CONNECTION,
             RecordingEventDispatcher(),
             AuditAppClient,
@@ -242,8 +254,8 @@ async def test_storing_a_client_under_a_taken_identifier_is_reported_as_one(
     # The race a caller that looked first can still lose: two units of work
     # registering one identifier, the second refused by the store.
     async with stored(tmp_path) as database:
-        first, _ = _manager(database)
-        second, _ = _manager(database)
+        first, _ = await _manager(database)
+        second, _ = await _manager(database)
         await first.save(client_model("client-1"))
 
         with pytest.raises(ClientAlreadyRegisteredError) as reported:
@@ -256,8 +268,8 @@ async def test_the_refusal_says_nothing_of_the_row_the_store_would_not_write(
     tmp_path: Path,
 ) -> None:
     async with stored(tmp_path) as database:
-        first, _ = _manager(database)
-        second, _ = _manager(database)
+        first, _ = await _manager(database)
+        second, _ = await _manager(database)
         await first.save(client_model("client-1"))
 
         with pytest.raises(ClientAlreadyRegisteredError) as reported:

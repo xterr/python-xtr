@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, final
 
 from xtr_logging_contracts import EXCEPTION_KEY, NullLogger
 
+from xtr_security_http._text import safe_str
 from xtr_security_http.authenticator.fallback_user_loader import FallbackUserLoader
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.exception.invalid_access_token_error import InvalidAccessTokenError
@@ -135,7 +136,7 @@ class OidcUserInfoTokenHandler(OidcTrait):
             except Exception as error:
                 self._log_configuration_failure(error)
                 raise InvalidAccessTokenError(
-                    f"An error occurred while requesting the OIDC configuration: {error}",
+                    f"An error occurred while requesting the OIDC configuration: {safe_str(error)}",
                 ) from error
         try:
             claims = await self._claims(access_token, endpoint)
@@ -148,7 +149,7 @@ class OidcUserInfoTokenHandler(OidcTrait):
         except Exception as error:
             self._log_server_failure(error)
             raise InvalidAccessTokenError(
-                f"An error occurred on the OIDC server: {error}",
+                f"An error occurred on the OIDC server: {safe_str(error)}",
             ) from error
 
     async def _claims(self, access_token: str, endpoint: str) -> dict[str, object]:
@@ -207,12 +208,12 @@ class OidcUserInfoTokenHandler(OidcTrait):
         """Write the failure the discovery read explains."""
         self._logger.error(
             "An error occurred while requesting the OIDC configuration.",
-            {"error": str(error), EXCEPTION_KEY: error},
+            {"error": safe_str(error), EXCEPTION_KEY: error},
         )
 
     def _log_server_failure(self, error: Exception) -> None:
         """Write the failure the OIDC server's answer explains."""
         self._logger.error(
             "An error occurred on the OIDC server.",
-            {"error": str(error), EXCEPTION_KEY: error},
+            {"error": safe_str(error), EXCEPTION_KEY: error},
         )

@@ -59,6 +59,21 @@ async def test_it_forgets_the_codes_that_have_expired() -> None:
     assert await manager.find("alive") is not None
 
 
+async def test_only_the_first_caller_to_revoke_a_code_is_told_it_did() -> None:
+    manager = _manager()
+    await manager.save(authorization_code_model())
+
+    assert await manager.revoke("ac-1") is True
+    assert await manager.revoke("ac-1") is False
+    found = await manager.find("ac-1")
+    assert found is not None
+    assert found.is_revoked() is True
+
+
+async def test_revoking_an_unknown_code_revoked_nothing() -> None:
+    assert await _manager().revoke("nope") is False
+
+
 async def test_a_code_expiring_exactly_now_is_kept() -> None:
     manager = _manager()
     await manager.save(authorization_code_model("on-the-dot", NOW))

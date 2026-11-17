@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, Annotated, cast, final
 
 from typing_extensions import override
 from xtr_clock import ClockInterface
-from xtr_dependency_injection import Target
+from xtr_dependency_injection import Target, bundle_active
+from xtr_rate_limiter import LimiterConfig, RateLimiterFactory
+from xtr_rate_limiter.storage.storage_interface import StorageInterface
 from xtr_security_core import SignatureHasher
 from xtr_security_core.user.user_provider_interface import (
     UserProviderInterface,
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator, ServiceKey
+    from xtr_lock import LockFactory
     from xtr_security_http.authentication.authentication_failure_handler_interface import (
         AuthenticationFailureHandlerInterface,
     )
@@ -57,6 +60,9 @@ class LoginLinkFactory(AuthenticatorFactoryInterface):
     the handler fails naming it the first time it is asked for. The
     authenticator itself never challenges: a request that follows no link
     has nothing to spend, so it is no entry point.
+
+    With the lock bundle active, a link's uses are counted under the lock
+    every worker shares.
     """
 
     __slots__ = ()
@@ -99,7 +105,6 @@ class LoginLinkFactory(AuthenticatorFactoryInterface):
         holds the firewall's provider, which may be one of the request's
         services.
         """
-        del builder
         settings = cast("LoginLinkConfig", config)
         if user_provider is None:
             raise InvalidConfigurationError(
@@ -107,7 +112,13 @@ class LoginLinkFactory(AuthenticatorFactoryInterface):
                 f"name one on the firewall.",
             )
 
-        handler_key = _register_handler(services, firewall_name, settings, user_provider)
+        handler_key = _register_handler(
+            services,
+            firewall_name,
+            settings,
+            user_provider,
+            lock_active=bundle_active(builder, "lock"),
+        )
         success_key = _register_success_handler(services, firewall_name, settings)
         failure_key = _register_failure_handler(services, firewall_name, settings)
         handler_annotation = Annotated[handler_key[0], Target(handler_key[1])]  # ty: ignore[invalid-type-form] -- runtime marker
@@ -149,12 +160,24 @@ def _register_handler(
     firewall_name: str,
     settings: LoginLinkConfig,
     user_provider: ServiceKey,
+    *,
+    lock_active: bool = False,
 ) -> ServiceKey:
-    """Register the handler a firewall's minted links are signed by."""
+    """Register the handler a firewall's minted links are signed by.
+
+    With ``max_uses`` set, the handler counts each link's uses in the
+    application's rate-limiter storage — the one every limiter counts in,
+    so workers sharing it share the count — over a window as long as the
+    link's lifetime, so the limit holds for as long as the link does.
+    With the lock bundle active, the count is taken under its lock, so two
+    workers presenting one link at once cannot both spend its last use.
+    """
 
     def login_link_handler(
         provider: UserProviderInterface,
         clock: ClockInterface | None = None,
+        storage: StorageInterface | None = None,
+        lock_factory: LockFactory | None = None,
     ) -> LoginLinkHandler:
         """Build the handler signing links until a lifetime from their minting."""
         if not settings.secret:
@@ -163,18 +186,42 @@ def _register_handler(
                 f'"secret" the application must supply; set one on the login-link '
                 f"configuration.",
             )
+        uses = None
+        if settings.max_uses is not None:
+            uses = RateLimiterFactory(
+                f"{firewall_name}#login_link_uses",
+                LimiterConfig(
+                    "fixed_window",
+                    limit=settings.max_uses,
+                    interval=f"{settings.lifetime} seconds",
+                ),
+                # Required whenever max_uses is set: the annotations below name it then.
+                cast("StorageInterface", storage),
+                lock_factory,
+                clock=clock,
+            )
         return LoginLinkHandler(
             provider,
             SignatureHasher(tuple(settings.signature_properties), settings.secret),
             {"path": settings.path, "lifetime": settings.lifetime},
             clock=clock,
+            uses_limiter_factory=uses,
         )
 
-    login_link_handler.__annotations__ = {
+    annotations: dict[str, object] = {
         "provider": Annotated[UserProviderInterface, Target(user_provider[1])],
         "clock": ClockInterface | None,
         "return": LoginLinkHandler,
     }
+    if settings.max_uses is not None:
+        annotations["storage"] = StorageInterface
+        if lock_active:
+            from xtr_lock import LockFactory  # noqa: PLC0415 — only with the lock bundle active
+
+            # Required, not optional: the active lock bundle registers it, and an
+            # optional parameter with a default is left at its default.
+            annotations["lock_factory"] = LockFactory
+    login_link_handler.__annotations__ = annotations
     login_link_handler.__name__ = f"login_link_handler_{firewall_name}"
     login_link_handler.__qualname__ = login_link_handler.__name__
     return services.set(

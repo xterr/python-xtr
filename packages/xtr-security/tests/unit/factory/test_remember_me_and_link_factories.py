@@ -17,6 +17,7 @@ from xtr_security_http import (
     X509Authenticator,
 )
 
+from tests.support.builders import NO_PEERS, with_peers
 from xtr_security.bundle import (
     LoginLinkConfig,
     RememberMeConfig,
@@ -173,7 +174,7 @@ def test_a_login_link_wraps_the_application_handlers_it_is_given() -> None:
 
     _ = LoginLinkFactory().create_authenticator(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "main",
         LoginLinkConfig(
             check_path="/login_link",
@@ -213,7 +214,7 @@ def test_the_login_link_factory_registers_handler_and_authenticator() -> None:
 
     keys = LoginLinkFactory().create_authenticator(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "main",
         LoginLinkConfig(check_path="/login_link", path="/login", secret="signed"),
         _PROVIDER,
@@ -235,7 +236,7 @@ def test_the_login_link_handler_fails_naming_the_secret_when_it_is_absent() -> N
 
     _ = LoginLinkFactory().create_authenticator(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "main",
         LoginLinkConfig(check_path="/login_link", path="/login"),
         _PROVIDER,
@@ -243,6 +244,56 @@ def test_the_login_link_handler_fails_naming_the_secret_when_it_is_absent() -> N
 
     with pytest.raises(InvalidConfigurationError, match='"secret"'):
         _ = recorder.factories[0](_Provider(), clock=None)
+
+
+def test_a_login_link_limited_in_uses_counts_them_in_the_applications_storage() -> None:
+    from xtr_rate_limiter.storage.storage_interface import StorageInterface
+
+    recorder = _Recorder()
+
+    _ = LoginLinkFactory().create_authenticator(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
+        "main",
+        LoginLinkConfig(check_path="/login_link", path="/login", secret="signed", max_uses=1),
+        _PROVIDER,
+    )
+
+    handler_factory = recorder.factories[0]
+    assert handler_factory.__annotations__["storage"] is StorageInterface
+    # No lock bundle active: the count is locked within the process.
+    assert "lock_factory" not in handler_factory.__annotations__
+
+
+def test_with_the_lock_bundle_a_links_uses_are_counted_under_its_lock() -> None:
+    from xtr_lock import LockFactory
+
+    recorder = _Recorder()
+
+    _ = LoginLinkFactory().create_authenticator(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        with_peers("lock"),
+        "main",
+        LoginLinkConfig(check_path="/login_link", path="/login", secret="signed", max_uses=1),
+        _PROVIDER,
+    )
+
+    # Required: an optional parameter with a default would be left at None by the container.
+    assert recorder.factories[0].__annotations__["lock_factory"] is LockFactory
+
+
+def test_a_login_link_without_a_limit_asks_for_no_storage() -> None:
+    recorder = _Recorder()
+
+    _ = LoginLinkFactory().create_authenticator(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
+        "main",
+        LoginLinkConfig(check_path="/login_link", path="/login", secret="signed"),
+        _PROVIDER,
+    )
+
+    assert "storage" not in recorder.factories[0].__annotations__
 
 
 def test_the_pre_authenticated_factories_answer_their_interface_shape() -> None:
@@ -300,7 +351,7 @@ def test_a_login_link_without_a_user_provider_fails_the_build() -> None:
     with pytest.raises(InvalidConfigurationError, match="user provider"):
         _ = LoginLinkFactory().create_authenticator(
             _Recorder(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            NO_PEERS,
             "main",
             LoginLinkConfig(check_path="/login_link", path="/login"),
             None,

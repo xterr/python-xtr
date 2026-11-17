@@ -44,7 +44,7 @@ class HeaderSignatureConfigurator(RequestConfiguratorInterface):
         self,
         algorithm: str = "sha256",
         signature_header_name: str = "Webhook-Signature",
-        signature_format: SignatureFormat | str = SignatureFormat.LEGACY,
+        signature_format: SignatureFormat | str = SignatureFormat.STANDARD,
         timestamp_header_name: str = "Webhook-Timestamp",
     ) -> None:
         """Configure what signs, under which name and format.

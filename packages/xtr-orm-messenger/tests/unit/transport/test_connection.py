@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
@@ -7,7 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, AsyncTransaction, async_sessionmaker
 from xtr_clock import DatePoint, MockClock
 from xtr_orm.exception import SessionUnavailableError
 
@@ -394,3 +395,31 @@ async def test_a_session_is_not_asked_for_unless_sends_are_transactional(
     async with engine.connect() as raw:
         rows = (await raw.execute(select(connection.table.c.body))).all()
     assert len(rows) == 1
+
+
+async def test_cancelling_a_claim_does_not_leave_the_row_delivered(
+    engine: AsyncEngine, clock: MockClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connection = connection_on(engine, clock)
+    message_id = await connection.send("{}", HEADERS)
+    committed = asyncio.Event()
+    original_exit = AsyncTransaction.__aexit__
+
+    async def commit_then_hold(self: AsyncTransaction, *exc: object) -> None:
+        await original_exit(self, *exc)
+        if not committed.is_set():
+            committed.set()  # the claim is committed; its caller has not heard yet
+            _ = await asyncio.Event().wait()
+
+    monkeypatch.setattr(AsyncTransaction, "__aexit__", commit_then_hold)
+    claiming = asyncio.ensure_future(connection.get())
+    _ = await committed.wait()
+
+    _ = claiming.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await claiming
+
+    kept = await connection.find(message_id)
+    assert kept is not None
+    assert kept.delivered_at is None
+    assert await connection.count() == 1

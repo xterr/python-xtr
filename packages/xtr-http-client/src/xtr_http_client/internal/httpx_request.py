@@ -290,7 +290,6 @@ async def checked_body(source: AsyncIterable[object]) -> AsyncIterator[bytes]:
 def pin_host(
     url: httpx.URL,
     options: Mapping[str, object],
-    resolved: dict[str, str],
     headers: list[tuple[str, str]],
 ) -> tuple[httpx.URL, dict[str, str]]:
     """The URL to connect to, with the host swapped for the address it is pinned to.
@@ -299,12 +298,11 @@ def pin_host(
     checked, so nothing can change under it between the check and the
     connection. The host survives the swap in two places that still need it:
     the ``Host`` header, which is what the server routes on, and the name the
-    TLS handshake asks for.
+    TLS handshake asks for. A pin is the request's own ``resolve`` option, and
+    holds for that request only.
     """
-    resolved.update(_text_mapping(options.get("resolve")))
-
     host = url.raw_host.decode("ascii")
-    address = resolved.get(host)
+    address = _text_mapping(options.get("resolve")).get(host)
     if address is None:
         return url, {}
 

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_clock import Clock
-from xtr_http_foundation import ChainRequestMatcher, IsJsonRequestMatcher, MethodRequestMatcher
+from xtr_http_foundation import MethodRequestMatcher
 from xtr_remote_event import RemoteEvent
 
 from xtr_webhook._standard_webhooks_signature import sign
@@ -60,7 +60,7 @@ class RequestParser(AbstractRequestParser):
         event_header_name: str = "Webhook-Event",
         id_header_name: str = "Webhook-Id",
         timestamp_header_name: str = "Webhook-Timestamp",
-        signature_format: SignatureFormat | str = SignatureFormat.LEGACY,
+        signature_format: SignatureFormat | str = SignatureFormat.STANDARD,
         timestamp_tolerance: int = 300,
         clock: ClockInterface | None = None,
     ) -> None:
@@ -75,7 +75,9 @@ class RequestParser(AbstractRequestParser):
             id_header_name: The header the event's id arrives in.
             timestamp_header_name: The header the signed timestamp arrives in.
             signature_format: Which scheme a request must carry. The string a
-                configuration carries is accepted.
+                configuration carries is accepted. The Standard Webhooks
+                scheme by default: it is the one whose signature covers the
+                timestamp, so the one that bounds a replay.
             timestamp_tolerance: How many seconds either side of now a signed
                 timestamp may be. Zero or less turns the bound off — for a
                 replayed capture to matter less than clocks that cannot be kept
@@ -105,13 +107,14 @@ class RequestParser(AbstractRequestParser):
 
     @override
     def get_request_matcher(self) -> RequestMatcherInterface:
-        """Claim only a ``POST`` whose body reads as JSON, as the sender's side emits.
+        """Claim every ``POST``; the body is judged only once its signature verifies.
 
-        The body itself decides, not the ``Content-Type`` header: a sender that
-        announces nothing still sent JSON, and one that announces JSON and sent
-        something else did not.
+        Nothing reads the body before :meth:`do_parse` has checked the
+        signature over it, so what an unauthenticated sender posts is never
+        decoded: a body that is not JSON is refused after verification, as
+        malformed.
         """
-        return ChainRequestMatcher([MethodRequestMatcher("POST"), IsJsonRequestMatcher()])
+        return MethodRequestMatcher("POST")
 
     @override
     async def do_parse(self, request: ServerRequestInterface, secret: str) -> RemoteEvent:

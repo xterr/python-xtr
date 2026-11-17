@@ -65,7 +65,8 @@ Ambient context: `bind_context(values)`, `unbind_context(*keys)`, `clear_context
 `current_context()`, and `bound_context(values)` as a context manager. It lives in a context
 variable, so it is separate per thread and per asyncio or anyio task. What is bound during a
 unit of work is bound for that unit — gone when it ends or when another unit begins in a
-context still carrying it; what is bound outside any unit lasts.
+context still carrying it; what is bound outside any unit lasts. `clear_context()` inside a
+unit drops only the unit's own values; outside one it drops everything.
 
 `as_processor` declares one into `default_processor_registry()`, or into a `ProcessorRegistry`
 passed as `registry=`. A `LoggerFactory` attaches every declaration it finds; a kernel also
@@ -80,8 +81,9 @@ instantiates a decorated *class* as a service.
 | `ConsoleFormatter` | A short line with the level coloured |
 
 `LineFormatter` also knows `%level%` and `%context.KEY%` / `%extra.KEY%` for a single entry. It
-keeps each record on one line unless `allow_inline_line_breaks` is set, and prints tracebacks
-when `include_stacktraces` is set.
+keeps each record on one line unless `allow_inline_line_breaks` is set (U+2028/U+2029 count as
+breaks; bidi controls are stripped), and with `include_stacktraces` prints a traceback across
+lines only for an exception named by `%context.KEY%` — every other value stays on its line.
 
 `Normalizer`, which both build on, reduces any value to plain `Normalized` data, cutting nesting
 and collections short at a limit — so a value that cannot be serialised is described rather than

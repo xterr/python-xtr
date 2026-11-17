@@ -23,7 +23,13 @@ from xtr_dependency_injection import Injected, Kernel
 from xtr_http_kernel import setup
 from xtr_http_message_contracts import ServerRequestInterface
 from xtr_security_core.user.user_interface import UserInterface
-from xtr_security_http import AuthenticationUtils, CurrentUser, SecurityRequestAttributes
+from xtr_security_http import (
+    AuthenticationUtils,
+    CurrentUser,
+    ImpersonateUrlGenerator,
+    LogoutUrlGenerator,
+    SecurityRequestAttributes,
+)
 
 from tests.fixtures.form_login_app.bundles import BUNDLES
 
@@ -83,6 +89,22 @@ def serve(served_by: Kernel) -> FastAPI:
     async def api_me(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, object]:
         """The API's protected resource: the user the request is authenticated as."""
         return {"user": user.get_user_identifier()}
+
+    @application.get("/links")
+    async def links(
+        request: Request,
+        served: Injected[ServerRequestInterface],
+        logout: Injected[LogoutUrlGenerator],
+        impersonate: Injected[ImpersonateUrlGenerator],
+    ) -> dict[str, object]:
+        """The logout, switch-to-bob and exit addresses a page renders, each with its token."""
+        state = cast("dict[str, object]", request.scope["state"])
+        parked = served.with_attribute(SecurityRequestAttributes.STATE_BAG, state)
+        return {
+            "logout": await logout.get_logout_path(),
+            "switch": await impersonate.generate_impersonation_path(parked, "bob", "/"),
+            "exit": await impersonate.generate_exit_path(parked, "/"),
+        }
 
     setup(application, served_by)
     return application

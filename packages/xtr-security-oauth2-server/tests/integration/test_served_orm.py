@@ -2,9 +2,11 @@
 
 What this proves is the one thing a double cannot: the managers are singletons
 — one per application, as every other service of this package is — and each of
-them asks the connection registry for the session of *the request being
-served*, every time it reads or writes. A manager handed a session when it was
-built would be holding the first request's session for the life of the process.
+them opens *a unit of work of its own* every time it reads or writes, never the
+one of the request being served. A manager writing in the request's unit would
+commit whatever the application has pending there, and one handed a session
+when it was built would be holding the first request's for the life of the
+process.
 """
 
 from __future__ import annotations
@@ -52,7 +54,7 @@ CHALLENGE: Final = code_challenge_of(VERIFIER)
 #: What ties the redirect back to the browser that started the flow.
 STATE: Final = "the-stored-opaque-state"
 
-#: Where a request says which session the stored client manager read through.
+#: Where a request says whether what the stored client manager read is in its session.
 PROBE_PATH: Final = "/which-session"
 
 #: An API path the firewall claims, so a withdrawn token can be seen to be.
@@ -70,7 +72,7 @@ def _routes(app: FastAPI) -> None:
         clients: Injected[ClientManagerInterface],
         session: Injected[AsyncSession],
     ) -> dict[str, object]:
-        """Read a client through the shared manager, and say which session saw it."""
+        """Read a client through the shared manager, and say whether this session holds it."""
         found = await clients.find(CLIENT_ID)
 
         return {
@@ -313,7 +315,7 @@ async def test_the_introspection_endpoint_reads_a_stored_token(tmp_path: Path) -
         assert text_field(described, "client_id") == CLIENT_ID
 
 
-async def test_two_requests_at_once_read_through_two_different_sessions(
+async def test_two_requests_at_once_read_through_units_of_the_managers_own(
     tmp_path: Path,
 ) -> None:
     async with stored_tables(tmp_path), serving(_application(tmp_path)) as client:
@@ -329,8 +331,9 @@ async def test_two_requests_at_once_read_through_two_different_sessions(
 
         assert len(answers) == _CONCURRENT
         for answer in answers:
-            # The shared manager read the client, and the instance it handed
-            # back belongs to the session of the request that asked.
+            # The shared manager read the client in a unit of work of its own:
+            # the instance it handed back is not in the session of the request
+            # that asked.
             assert answer["found"] is True
-            assert answer["read_in_this_session"] is True
+            assert answer["read_in_this_session"] is False
         assert len({answer["session"] for answer in answers}) == _CONCURRENT

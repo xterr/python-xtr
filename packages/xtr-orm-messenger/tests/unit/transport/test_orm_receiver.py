@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from xtr_messenger import (
@@ -20,11 +22,15 @@ from xtr_orm_messenger.transport import (
     MAX_RETRIES,
     RECONNECT_TIMEOUT,
     Connection,
+    OrmOptions,
     OrmReceivedStamp,
     OrmReceiver,
+    orm_receiver,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from sqlalchemy.ext.asyncio import AsyncEngine
     from xtr_clock import MockClock
 
@@ -95,16 +101,30 @@ async def test_a_message_that_does_not_decode_is_rejected_and_the_next_one_recei
     assert "s3cr3t" not in caplog.text
 
 
-@pytest.mark.parametrize("settle", ["ack", "reject"])
-async def test_settling_deletes_the_row(engine: AsyncEngine, clock: MockClock, settle: str) -> None:
+async def test_acknowledging_deletes_the_row(engine: AsyncEngine, clock: MockClock) -> None:
     connection = connection_on(engine, clock)
     message_id = await _send(connection, Envelope(OrderPlaced("o-1")))
     receiver = _receiver(connection, clock)
     received = await anext(receiver.get())
 
-    await (receiver.ack if settle == "ack" else receiver.reject)(received)
+    await receiver.ack(received)
 
     assert await connection.find(message_id) is None
+
+
+async def test_rejecting_keeps_the_row_for_its_next_attempt(
+    engine: AsyncEngine, clock: MockClock
+) -> None:
+    connection = connection_on(engine, clock)
+    message_id = await _send(connection, Envelope(OrderPlaced("o-1")))
+    receiver = _receiver(connection, clock)
+    received = await anext(receiver.get())
+
+    await receiver.reject(received)
+
+    kept = await connection.find(message_id)
+    assert kept is not None
+    assert kept.delivered_at is None
 
 
 async def test_an_envelope_from_another_transport_cannot_be_settled_here(
@@ -198,7 +218,7 @@ async def test_a_settle_gives_up_after_too_many_conflicts(
     _ = await _send(connection, Envelope(OrderPlaced("o-1")))
     receiver = _receiver(connection, clock)
     received = await anext(receiver.get())
-    _ = failing(monkeypatch, "reject", [deadlock()] * (MAX_RETRIES + 1))
+    _ = failing(monkeypatch, "requeue", [deadlock()] * (MAX_RETRIES + 1))
 
     with pytest.raises(TransportError) as raised:
         await receiver.reject(received)
@@ -282,3 +302,119 @@ async def test_a_settle_the_database_refuses_for_another_reason_fails_at_once(
         await receiver.ack(received)
 
     assert calls[0] == 1
+
+
+# ── a message a long handler holds ──────────────────────────────────────────
+
+_HELD = OrmOptions(redeliver_timeout=10)
+"""Messages handed out are taken for lost after ten seconds unless kept alive."""
+
+
+@final
+class _Ticks:
+    """Stands in for the wait between renewals: each tick lets one renewal through."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._ticks: asyncio.Queue[None] = asyncio.Queue()
+        self._waiting = asyncio.Condition()
+        self.waits: list[float] = []
+        monkeypatch.setattr(orm_receiver, "_pause", self._pause)
+
+    async def _pause(self, seconds: float) -> None:
+        async with self._waiting:
+            self.waits.append(seconds)
+            self._waiting.notify_all()
+        _ = await self._ticks.get()
+
+    async def tick(self) -> None:
+        """Let one renewal run, and return once it is back to waiting for the next.
+
+        With no renewal waiting — none held, or all stopped — return after
+        a few turns of the loop: nothing is there to run.
+        """
+        waited = len(self.waits)
+        self._ticks.put_nowait(None)
+        async with self._waiting:
+            with contextlib.suppress(TimeoutError):
+                async with asyncio.timeout(1):
+                    _ = await self._waiting.wait_for(lambda: len(self.waits) > waited)
+
+
+async def test_a_long_handler_keeps_its_message_alive(
+    engine: AsyncEngine, clock: MockClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ticks = _Ticks(monkeypatch)
+    connection = connection_on(engine, clock, _HELD)
+    _ = await _send(connection, Envelope(OrderPlaced("o-1")))
+    receiver = _receiver(connection, clock)
+    # Kept referenced, as a worker keeps the receiver it reads from while it handles.
+    receiving = receiver.get()
+    received = await anext(receiving)
+
+    clock.sleep(6)
+    await ticks.tick()
+    clock.sleep(6)  # twelve seconds after the claim, six after the renewal
+
+    assert ticks.waits[0] == _HELD.redeliver_timeout / 2
+    assert await connection.get() is None  # another worker's claim finds it still held
+    await receiver.ack(received)
+    del receiving
+
+
+async def test_the_keepalive_stops_once_the_message_is_settled(
+    engine: AsyncEngine, clock: MockClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ticks = _Ticks(monkeypatch)
+    connection = connection_on(engine, clock, _HELD)
+    _ = await _send(connection, Envelope(OrderPlaced("o-1")))
+    receiver = _receiver(connection, clock)
+    receiving = receiver.get()
+    received = await anext(receiving)
+    calls = failing(monkeypatch, "keepalive", [])
+
+    await receiver.ack(received)
+    await ticks.tick()
+
+    assert calls[0] == 0
+    del receiving
+
+
+async def test_a_failing_keepalive_is_logged_and_tried_again(
+    engine: AsyncEngine,
+    clock: MockClock,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    ticks = _Ticks(monkeypatch)
+    connection = connection_on(engine, clock, _HELD)
+    _ = await _send(connection, Envelope(OrderPlaced("o-1")))
+    receiver = _receiver(connection, clock)
+    calls = failing(monkeypatch, "keepalive", [lost_connection()])
+
+    with caplog.at_level(logging.WARNING, logger="messenger"):
+        receiving = receiver.get()
+        received = await anext(receiving)
+        await ticks.tick()
+        await ticks.tick()
+
+    assert calls[0] == 2
+    assert any("keep message" in record.getMessage() for record in caplog.records)
+    await receiver.ack(received)
+    del receiving
+
+
+async def test_closing_the_receiver_stops_every_keepalive(
+    engine: AsyncEngine, clock: MockClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ticks = _Ticks(monkeypatch)
+    connection = connection_on(engine, clock, _HELD)
+    _ = await _send(connection, Envelope(OrderPlaced("o-1")))
+    # What a worker stopping does to the receiver it was reading from.
+    receiving = cast("AsyncGenerator[Envelope, None]", _receiver(connection, clock).get())
+    _ = await anext(receiving)
+    calls = failing(monkeypatch, "keepalive", [])
+
+    await receiving.aclose()
+    await ticks.tick()
+
+    assert calls[0] == 0

@@ -22,7 +22,7 @@ def test_it_builds_with_nothing_said() -> None:
     assert cookie.name == "xtr_session"
     assert cookie.path == "/"
     assert cookie.domain is None
-    assert cookie.secure is False
+    assert cookie.secure is None  # Secure when the request is https
     assert cookie.httponly is True
     assert cookie.samesite == "lax"
     assert cookie.lifetime is None
@@ -38,6 +38,21 @@ def test_it_is_frozen_once_built() -> None:
 def test_it_refuses_a_name_no_cookie_could_carry() -> None:
     with pytest.raises(InvalidArgumentError):
         _ = SessionCookieConfig(name="")
+
+
+@pytest.mark.parametrize("samesite", ["none", "None", "NONE"])
+def test_samesite_none_needs_secure(samesite: str) -> None:
+    with pytest.raises(InvalidArgumentError, match="samesite"):
+        _ = SessionCookieConfig(samesite=samesite, secure=False)
+
+    assert SessionCookieConfig(samesite=samesite).secure is None
+    assert SessionCookieConfig(samesite=samesite, secure=True).secure is True
+
+
+@pytest.mark.parametrize("name", ["__Host-session", "__Secure-session"])
+def test_a_prefixed_name_refuses_an_insecure_cookie(name: str) -> None:
+    with pytest.raises(InvalidArgumentError, match="prefix"):
+        _ = SessionCookieConfig(name=name, secure=False)
 
 
 @pytest.mark.parametrize("samesite", ["sometimes", "lax "])

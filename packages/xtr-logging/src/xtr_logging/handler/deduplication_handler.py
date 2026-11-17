@@ -44,7 +44,7 @@ class DeduplicationHandler(BufferHandler):
     mail or chat handler would send the identical error hundreds of times.
     Records are buffered like :class:`BufferHandler`, and on flush each one at
     or above ``deduplication_level`` is checked against a small file of what
-    was recently sent — matched by level and first line of message, within
+    was recently sent — matched by level and a digest of the message's first line, within
     ``time`` seconds. The batch goes out whole, with the records below that
     level that explain it, when any of them is new or none reaches the level;
     it is dropped whole when every one of them is a repeat.
@@ -73,7 +73,7 @@ class DeduplicationHandler(BufferHandler):
         bubble: bool = True,
         *,
         clock: ClockInterface | None = None,
-        buffer_limit: int = 0,
+        buffer_limit: int = 10_000,
         flush_on_overflow: bool = False,
         name: str = "",
     ) -> None:
@@ -90,8 +90,9 @@ class DeduplicationHandler(BufferHandler):
             bubble: Whether buffered records still reach later handlers.
             clock: Where "now" is read from, for expiry; the clock in force
                 by default.
-            buffer_limit: The most records held until a flush; ``0`` holds
-                them all.
+            buffer_limit: The most records held until a flush — ten thousand
+                by default, so one failure flooding the logs cannot fill the
+                memory; ``0`` holds them all.
             flush_on_overflow: Forward the held records when ``buffer_limit``
                 is reached, rather than dropping the oldest.
             name: Tells the default store apart from that of another handler
@@ -157,7 +158,7 @@ class DeduplicationHandler(BufferHandler):
 
     def _is_duplicate(self, store: list[str], record: LogRecord) -> bool:
         newer_than = int(record.datetime.timestamp()) - self._time
-        expected = _first_line(record.message)
+        expected = _fingerprint(record.message)
         yesterday = int(self._clock.now().timestamp()) - _ONE_DAY_SECONDS
         for line in reversed(store):
             parts = line.split(":", _STORE_FIELDS - 1)
@@ -174,7 +175,7 @@ class DeduplicationHandler(BufferHandler):
 
     def _build_entry(self, record: LogRecord) -> str:
         return (
-            f"{int(record.datetime.timestamp())}:{record.level.name}:{_first_line(record.message)}"
+            f"{int(record.datetime.timestamp())}:{record.level.name}:{_fingerprint(record.message)}"
         )
 
     def _read_store(self) -> list[str] | None:
@@ -265,8 +266,14 @@ def _private_directory(directory: Path) -> bool:
     return True
 
 
-def _first_line(message: str) -> str:
-    return re.split(r"[\r\n]", message, maxsplit=1)[0]
+def _fingerprint(message: str) -> str:
+    """Return the SHA-256 of the message's first line: what the store keeps, never the text.
+
+    The store sits on disk and outlives the process, and a message may carry
+    a user's data; a digest still tells one message from another.
+    """
+    first_line = re.split(r"[\r\n]", message, maxsplit=1)[0]
+    return hashlib.sha256(first_line.encode()).hexdigest()
 
 
 def _parse_timestamp(text: str) -> int | None:

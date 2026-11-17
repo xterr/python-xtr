@@ -16,6 +16,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal, final
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from xtr_http_message_contracts import ResponseInterface
 
     from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
@@ -35,6 +37,7 @@ class RecordingResponseType:
     def __init__(self) -> None:
         self.access_token: AccessTokenEntityInterface | None = None
         self.refresh_token: RefreshTokenEntityInterface | None = None
+        self.refresh_token_scopes: tuple[str, ...] | None = None
         self.encryption_key: tuple[str, Literal["plain", "key"]] | None = None
 
     def set_access_token(self, access_token: AccessTokenEntityInterface) -> None:
@@ -44,6 +47,10 @@ class RecordingResponseType:
     def set_refresh_token(self, refresh_token: RefreshTokenEntityInterface) -> None:
         """Keep the refresh token the grant issued."""
         self.refresh_token = refresh_token
+
+    def set_refresh_token_scopes(self, scopes: Sequence[str]) -> None:
+        """Keep the scopes the grant asked the refresh token to carry."""
+        self.refresh_token_scopes = tuple(scopes)
 
     def set_encryption_key(self, key: str, key_type: Literal["plain", "key"]) -> None:
         """Keep the key this response type would seal its payloads with."""

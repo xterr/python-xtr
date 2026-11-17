@@ -146,7 +146,7 @@ async def invoices(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, s
     return {"caller": user.get_user_identifier()}
 
 
-kernel = Kernel("app", concurrent_scoped_access=True)
+kernel = Kernel("app")
 setup(app, kernel)
 ```
 
@@ -267,6 +267,8 @@ async def approve_device(
 
 Name the page as `device_code_verification_uri`. A user code is 8 characters of 20, so limit how
 often the page may be guessed at (xtr-http-kernel's `RateLimited`).
+The device code is stored as its SHA-256: pass `complete_device_authorization_request` the stored
+identifier `find_by_user_code(...)` returns, never the code the device polls with.
 
 ## Build the servers by hand
 
@@ -343,8 +345,7 @@ async def test_a_service_is_issued_a_token(tmp_path, monkeypatch) -> None:
    the rest: the issuer, `setup`, the
    three firewalls, the consent listener, a client, the scheduled sweep, the revision.
 3. **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` (and `JwtBundle` when the end
-   user signs in with a self-issued token); `Kernel(..., concurrent_scoped_access=True)` and
-   `setup(app, kernel)`, which adds the endpoints.
+   user signs in with a self-issued token); `setup(app, kernel)`, which adds the endpoints.
 4. **Brings along** — the security, clock, event-dispatcher and HTTP-kernel bundles always; the
    logging and console bundles when installed.
 5. **Configure** — `issuer`, `private_key`, `encryption_key`, `scopes.available`, `persistence` in
@@ -380,6 +381,11 @@ All derive from `OAuth2Error`.
 - Do not `app.include_router(...)` these endpoints yourself: `setup` adds them.
 - Do not put a firewall in front of `/token`, `/revoke`, `/introspect` or `/device-code`: the
   server authenticates the client there.
+- Do not send Basic credentials and a body `client_secret` together (`invalid_request`), or call
+  `/introspect` as a public client (`invalid_client`). Basic halves are form-decoded.
+- Do not expect a reason in an `invalid_grant`: every unredeemable code or token gets the same
+  answer. A refresh keeps the refresh token's original scope; a user named like the client gets
+  no token through it.
 - Do not approve every authorization request in a listener for third-party clients; show a page
   and protect its form against cross-site posts.
 - Do not store a client secret in plaintext, or compare one with `==`.

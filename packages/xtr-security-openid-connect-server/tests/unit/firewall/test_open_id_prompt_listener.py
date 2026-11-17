@@ -34,7 +34,7 @@ from tests.support.repositories import (
     InMemoryRefreshTokenRepository,
     InMemoryScopeRepository,
 )
-from tests.support.signing import FROZEN_NOW, make_clock, make_signer
+from tests.support.signing import FROZEN_NOW, ISSUER, make_clock, make_signer
 from xtr_security_openid_connect_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
@@ -158,6 +158,14 @@ async def test_prompt_none_with_nobody_signed_in_is_answered_with_login_required
 
     sent = _location_query(event)
     assert (sent["error"], sent["state"]) == ("login_required", "xyz")
+
+
+async def test_login_required_names_the_server_that_sent_it() -> None:
+    # RFC 9207: the relying party refuses a callback without ``iss`` once the
+    # provider announces it, so this refusal has to carry it like any other.
+    event = await _decided(_listener(), prompt="none")
+
+    assert _location_query(event)["iss"] == ISSUER
 
 
 async def test_prompt_none_with_the_end_user_signed_in_goes_on() -> None:

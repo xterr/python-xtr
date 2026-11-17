@@ -43,7 +43,9 @@ def register_channel_listener(
     The step is aliased under the firewall listener interface and parked
     first on the chain, ahead of the context step and the manager's own: a
     request arriving over the wrong scheme is redirected before anything it
-    carries is restored, authenticated or decided.
+    carries is restored, authenticated or decided. It holds the firewall's
+    rules and what it answers with, nothing of a request, so it is built once
+    for the application.
     """
     from xtr_security_http import (  # noqa: PLC0415 -- the family's chain-step import
         FirewallListenerInterface,
@@ -71,7 +73,7 @@ def register_channel_listener(
     }
     channel_listener.__name__ = f"channel_listener_{name}"
     channel_listener.__qualname__ = channel_listener.__name__
-    _ = services.set(channel_listener, qualifier=qualifier, lifetime="scoped")
+    _ = services.set(channel_listener, qualifier=qualifier)
     services.alias(
         FirewallListenerInterface,
         ChannelListener,

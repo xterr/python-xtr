@@ -1,6 +1,6 @@
 [project]
 name = "xtr-ai"
-version = "6.8.1"
+version = "7.0.0"
 description = "Named language-model platforms and agents built on pydantic-ai, configured once and injected by name, with conversation stores."
 readme = "README.md"
 authors = [
@@ -24,8 +24,8 @@ dependencies = [
     "anyio>=4.0",
     "pydantic-ai-slim>=2.66,<3",
     "typing-extensions>=4.12",
-    "xtr-clock>=6.0,<7",
-    "xtr-logging-contracts>=6.0,<7",
+    "xtr-clock>=7.0,<8",
+    "xtr-logging-contracts>=7.0,<8",
 ]
 
 # The model providers are pydantic-ai's own extras, forwarded under the same names.
@@ -42,7 +42,7 @@ ag-ui = ["pydantic-ai-slim[ag-ui]>=2.66,<3"]
 # Conversations kept on an xtr-orm connection: the bridge, which the bundle wires when it is
 # installed.
 orm = [
-    "xtr-ai-orm-conversation-store>=6.0,<7",
+    "xtr-ai-orm-conversation-store>=7.0,<8",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -63,11 +63,11 @@ dev = [
     "ty>=0.0.83",
     # A real provider is built, never called, to check keys and closing.
     "pydantic-ai-slim[openai]>=2.66,<3",
-    "xtr-dependency-injection>=6.0,<7",
-    "xtr-console>=6.0,<7",
-    "xtr-logging>=6.0,<7",
-    "xtr-orm>=6.0,<7",
-    "xtr-ai-orm-conversation-store>=6.0,<7",
+    "xtr-dependency-injection>=7.0,<8",
+    "xtr-console>=7.0,<8",
+    "xtr-logging>=7.0,<8",
+    "xtr-orm>=7.0,<8",
+    "xtr-ai-orm-conversation-store>=7.0,<8",
     "aiosqlite>=0.20",
 ]
 

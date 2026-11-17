@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 from datetime import timedelta
 from typing import TYPE_CHECKING, final
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 from typing_extensions import override
@@ -17,9 +18,13 @@ from tests.support.encryption import seal, unseal
 from tests.support.entities import make_client, make_user
 from tests.support.grants import Storage, wire
 from tests.support.messages import server_request
-from tests.support.repositories import InMemoryRefreshTokenRepository, InMemoryScopeRepository
+from tests.support.repositories import (
+    InMemoryAuthCodeRepository,
+    InMemoryRefreshTokenRepository,
+    InMemoryScopeRepository,
+)
 from tests.support.response_types import RecordingResponseType
-from tests.support.signing import FROZEN_NOW, make_clock
+from tests.support.signing import FROZEN_NOW, ISSUER, make_clock
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server_core.grant.auth_code_grant import AuthCodeGrant
@@ -261,7 +266,10 @@ async def test_an_unknown_scope_is_refused_to_the_client_with_its_state() -> Non
         )
 
     assert refusal.value.get_error_type() == "invalid_scope"
-    assert refusal.value.get_redirect_uri() == f"{_CALLBACK}?state=xyz"
+    assert (
+        refusal.value.get_redirect_uri()
+        == f"{_CALLBACK}?{urlencode({'state': 'xyz', 'iss': ISSUER})}"
+    )
 
 
 @pytest.mark.anyio
@@ -407,6 +415,44 @@ async def test_the_state_is_handed_back_unchanged() -> None:
 
 
 @pytest.mark.anyio
+async def test_the_browser_is_sent_back_naming_the_server_that_sent_it() -> None:
+    # RFC 9207: a client talking to several servers tells by ``iss`` which one
+    # answered, so a response another server forged is not taken for this one's.
+    storage = Storage()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    authorization_request = await grant.validate_authorization_request(
+        _authorize_request(response_type="code", client_id="client-1", state="xyz"),
+    )
+    authorization_request.set_user(make_user("user-1"))
+    authorization_request.set_authorization_approved(True)
+
+    answered = await grant.complete_authorization_request(
+        _authorize_request(),
+        authorization_request,
+    )
+    answer = await answered.generate_http_response(Response())
+
+    assert parse_qs(urlsplit(answer.get_header_line("location")).query)["iss"] == [ISSUER]
+
+
+@pytest.mark.anyio
+async def test_a_refusal_names_the_server_that_sent_it_too() -> None:
+    storage = _known_scopes()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = await grant.validate_authorization_request(
+            _authorize_request(response_type="code", client_id="client-1", scope="delete"),
+        )
+
+    redirect_uri = refusal.value.get_redirect_uri()
+    assert redirect_uri is not None
+    assert parse_qs(urlsplit(redirect_uri).query)["iss"] == [ISSUER]
+
+
+@pytest.mark.anyio
 async def test_the_code_carries_the_scopes_and_the_challenge_it_was_asked_with() -> None:
     storage = _known_scopes()
     _confidential(storage)
@@ -453,7 +499,10 @@ async def test_a_refused_request_sends_the_browser_back_with_the_refusal() -> No
         )
 
     assert refusal.value.get_error_type() == "access_denied"
-    assert refusal.value.get_redirect_uri() == f"{_CALLBACK}?state=xyz"
+    assert (
+        refusal.value.get_redirect_uri()
+        == f"{_CALLBACK}?{urlencode({'state': 'xyz', 'iss': ISSUER})}"
+    )
 
 
 @pytest.mark.anyio
@@ -550,7 +599,31 @@ async def test_a_code_cannot_be_redeemed_twice() -> None:
         )
 
     assert refusal.value.get_error_type() == "invalid_grant"
-    assert "revoked" in str(refusal.value.get_hint())
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
+
+
+@pytest.mark.anyio
+async def test_two_concurrent_redemptions_of_one_code_issue_one_pair() -> None:
+    storage = Storage(auth_codes=InMemoryAuthCodeRepository(checked=asyncio.Barrier(2)))
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    code = await _approved_code(grant)
+
+    answers = await asyncio.gather(
+        *(
+            grant.respond_to_access_token_request(
+                _token_request(code=code), RecordingResponseType(), _AN_HOUR
+            )
+            for _ in range(2)
+        ),
+        return_exceptions=True,
+    )
+
+    refused = [answer for answer in answers if isinstance(answer, OAuthServerError)]
+    assert len(refused) == 1
+    assert refused[0].get_error_type() == "invalid_grant"
+    assert len(storage.access_tokens.tokens) == 1
+    assert len(storage.refresh_tokens.tokens) == 1
 
 
 @pytest.mark.anyio
@@ -625,7 +698,58 @@ async def test_an_expired_code_is_refused() -> None:
             _AN_HOUR,
         )
 
-    assert "expired" in str(refusal.value.get_hint())
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
+
+
+@pytest.mark.anyio
+async def test_a_refresh_token_is_not_accepted_as_a_code() -> None:
+    storage = Storage()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    refresh = seal(
+        {
+            "client_id": "client-1",
+            "refresh_token_id": "refresh-1",
+            "access_token_id": "access-1",
+            "scopes": [],
+            "user_id": "user-1",
+            "expire_time": int((FROZEN_NOW + timedelta(days=1)).timestamp()),
+        },
+    )
+
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = await grant.respond_to_access_token_request(
+            _token_request(code=refresh), RecordingResponseType(), _AN_HOUR
+        )
+
+    assert refusal.value.get_error_type() == "invalid_request"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("case", ["revoked", "expired"])
+async def test_failures_share_one_hint(case: str) -> None:
+    storage = Storage()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    code = await _approved_code(grant)
+    if case == "revoked":
+        _ = await grant.respond_to_access_token_request(
+            _token_request(code=code), RecordingResponseType(), _AN_HOUR
+        )
+    else:
+        code = seal(
+            {**unseal(code), "expire_time": int((FROZEN_NOW - timedelta(seconds=1)).timestamp())}
+        )
+
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = await grant.respond_to_access_token_request(
+            _token_request(code=code), RecordingResponseType(), _AN_HOUR
+        )
+
+    # One answer whatever the reason, as the error promises: a client learns nothing from it.
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None
 
 
 @pytest.mark.anyio
@@ -734,7 +858,30 @@ async def test_another_verifier_does_not_redeem_the_code() -> None:
         )
 
     assert refusal.value.get_error_type() == "invalid_grant"
-    assert "code_verifier" in str(refusal.value.get_hint())
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
+
+
+@pytest.mark.anyio
+async def test_a_wrong_verifier_does_not_spend_the_code() -> None:
+    storage = Storage()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    code = await _approved_code(grant, code_challenge=_CHALLENGE, code_challenge_method="S256")
+    with pytest.raises(OAuthServerError):
+        _ = await grant.respond_to_access_token_request(
+            _token_request(code=code, code_verifier="b" * 43),
+            RecordingResponseType(),
+            _AN_HOUR,
+        )
+    response_type = RecordingResponseType()
+
+    _ = await grant.respond_to_access_token_request(
+        _token_request(code=code, code_verifier=_VERIFIER),
+        response_type,
+        _AN_HOUR,
+    )
+
+    assert response_type.access_token is not None
 
 
 @pytest.mark.anyio

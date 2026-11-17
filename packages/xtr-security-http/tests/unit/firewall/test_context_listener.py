@@ -270,7 +270,8 @@ async def test_a_listener_given_no_cookie_stages_the_sessions_default() -> None:
     parked = security_state_of(event.state).attributes[SecurityRequestAttributes.SESSION]
     assert isinstance(parked, Session)
     staged = parked.staged_set_cookie()
-    default = Session(MemorySessionStorage())
+    # The session's own default, settled by the same request: Secure, the request being https.
+    default = Session.from_request(event.request, MemorySessionStorage())
     expected = default.staged_set_cookie()
     assert staged is not None
     assert expected is not None
@@ -323,9 +324,9 @@ async def test_a_foreign_object_payload_leaves_the_storage_empty() -> None:
 
 
 async def test_a_value_that_is_no_envelope_goes_on_anonymous_with_a_warning() -> None:
-    """A live token object — what a session held before it held JSON — is no envelope."""
+    """A value the serializer cannot read back as a token is no envelope."""
     session_storage = MemorySessionStorage()
-    session_id = await _session_holding(session_storage, _MAIN_KEY, _token(InMemoryUser("ada")))
+    session_id = await _session_holding(session_storage, _MAIN_KEY, "not-an-envelope")
     storage = TokenStorage()
     logger = RecordingLogger()
     provider = _FakeProvider(refreshed=InMemoryUser("ada"))
@@ -340,7 +341,7 @@ async def test_a_value_that_is_no_envelope_goes_on_anonymous_with_a_warning() ->
         "Expected a security token from the session, got something else.",
     ]
     assert logger.contexts("warning") == [
-        {"key": _MAIN_KEY, "received": "PostAuthenticationToken"},
+        {"key": _MAIN_KEY, "received": "str"},
     ]
 
 

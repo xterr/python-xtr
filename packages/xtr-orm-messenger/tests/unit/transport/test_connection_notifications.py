@@ -26,16 +26,20 @@ pytestmark = pytest.mark.anyio
 @final
 class FakeNotifier:
     built: ClassVar[list[FakeNotifier]] = []
+    refusing: ClassVar[bool] = False
 
     def __init__(self, engine: object, channel: str, queue: str) -> None:
         self.channel = channel
         self.queue = queue
         self.listening = False
+        self.lost = False
         self.waits: list[float] = []
         self.closed = False
         FakeNotifier.built.append(self)
 
     async def listen(self) -> None:
+        if FakeNotifier.refusing:
+            raise ConnectionError("the database is down")
         self.listening = True
 
     async def wait(self, seconds: float) -> None:
@@ -48,6 +52,7 @@ class FakeNotifier:
 @pytest.fixture
 def listening_dialect(monkeypatch: pytest.MonkeyPatch) -> list[FakeNotifier]:
     FakeNotifier.built.clear()
+    FakeNotifier.refusing = False
     monkeypatch.setattr(connection_module, "PGDialect_asyncpg", SQLiteDialect_aiosqlite)
     monkeypatch.setattr(connection_module, "PostgreSqlNotifier", FakeNotifier)
     return FakeNotifier.built
@@ -104,3 +109,34 @@ async def test_without_use_notify_nothing_listens(
 
     assert listening_dialect == []
     assert clock.now().isoformat() == "2026-01-01T00:00:03+00:00"
+
+
+async def test_a_lost_listen_connection_is_replaced_on_the_next_wait(
+    engine: AsyncEngine, clock: MockClock, listening_dialect: list[FakeNotifier]
+) -> None:
+    connection = connection_on(engine, clock)
+    await connection.wait()
+    listening_dialect[0].lost = True
+
+    await connection.wait()
+
+    first, second = listening_dialect
+    assert first.closed
+    assert second.listening
+    assert second.waits == []  # listening again only: the worker asks once more first
+
+
+async def test_a_failed_listen_again_falls_back_to_polling_until_it_works(
+    engine: AsyncEngine, clock: MockClock, listening_dialect: list[FakeNotifier]
+) -> None:
+    connection = connection_on(engine, clock, OrmOptions(poll_interval=2))
+    await connection.wait()
+    listening_dialect[0].lost = True
+    FakeNotifier.refusing = True
+
+    await connection.wait()
+
+    assert clock.now().isoformat() == "2026-01-01T00:00:02+00:00"
+    FakeNotifier.refusing = False
+    await connection.wait()
+    assert listening_dialect[-1].listening

@@ -127,6 +127,45 @@ def test_stack_traces_are_printed_on_request() -> None:
     assert "_raise(error)" in rendered
 
 
+def test_a_newline_in_context_cannot_forge_a_line_with_stack_traces_on() -> None:
+    # Stack traces keep their own line breaks; a value a user supplied does not.
+    record = make_record(message="login", context={"user": "bob\n[2026] app.CRITICAL: forged"})
+
+    rendered = LineFormatter("%message% %context%", include_stacktraces=True).format(record)
+
+    assert "\n" not in rendered
+
+
+def test_a_keyed_value_that_is_no_exception_stays_on_one_line_with_stack_traces_on() -> None:
+    record = make_record(context={"user": "bob\nforged"})
+
+    rendered = LineFormatter("%context.user%", include_stacktraces=True).format(record)
+
+    assert rendered == "bob forged"
+
+
+def test_the_exception_in_the_context_bag_stays_on_one_line() -> None:
+    # Only a keyed exception spans lines: inside the JSON bag a break would forge one.
+    record = make_record(context={"exception": _raised(ValueError("bad"))})
+
+    rendered = LineFormatter("%context%", include_stacktraces=True).format(record)
+
+    assert "\n" not in rendered
+
+
+@pytest.mark.parametrize(
+    "character",
+    ["\u2028", "\u2029", "\u202a", "\u202e", "\u2066", "\u2069"],
+    ids=["line-sep", "para-sep", "lre", "rlo", "lri", "pdi"],
+)
+def test_unicode_line_separators_and_bidirectional_controls_are_replaced(character: str) -> None:
+    record = make_record(message=f"a{character}b", context={"k": f"c{character}d"})
+
+    rendered = LineFormatter("%message% %context%").format(record)
+
+    assert character not in rendered
+
+
 def test_a_batch_is_the_records_joined() -> None:
     formatter = LineFormatter("%message%\n")
 

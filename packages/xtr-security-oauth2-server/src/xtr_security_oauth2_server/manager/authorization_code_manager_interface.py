@@ -30,6 +30,16 @@ class AuthorizationCodeManagerInterface(Protocol):
         """Store ``auth_code``, new or already known."""
         ...
 
+    async def revoke(self, identifier: str) -> bool:
+        """Spend the code stored as ``identifier``, in one step.
+
+        Returns:
+            Whether this call is what spent it: ``True`` when the code was
+            valid and is now revoked, ``False`` when it was already revoked or
+            was never stored.
+        """
+        ...
+
     async def clear_expired(self) -> int:
         """Forget every code that has expired, and return how many went."""
         ...

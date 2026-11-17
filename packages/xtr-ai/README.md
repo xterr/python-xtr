@@ -95,7 +95,7 @@ below:
 | `RunDefaultsAgent(agent, usage_limits=, timeout=)` | Gives every run defaults pydantic-ai only takes per run; a call passing its own wins. An `AbstractAgent`, not an `Agent` |
 | `RunClock(clock)` | Measures a run's `timeout` against an xtr-clock `ClockInterface`. Message timestamps still come from the system clock |
 | `RunLogging(logger, registry)` | Logs each response and each run's end with ids, token counts and finish reasons: never a prompt, an instruction or an output |
-| `agent_toolset(agent, name=)` | Another agent as a tool. Its usage counts toward the caller's |
+| `agent_toolset(agent, name=)` | Another agent as a tool. Its usage counts toward the caller's, and it runs under the caller's `usage_limits` — the delegated agent's own limits do not apply. It receives the caller's `deps` unchanged, so its tools reach whatever the caller's run can |
 
 ## Tools
 
@@ -255,7 +255,8 @@ def ai() -> AiConfig:
 
 - **Platform fields.** `PlatformConfig` takes `provider`, `api_key`, `base_url`, `options` and
   `model_settings`, as [Platforms](#platforms) describes. A key never shows in
-  `debug:config` or `debug:ai`.
+  `debug:config` or `debug:ai`; neither does an `options` value (only its name) nor the
+  credentials a `base_url` carries before its host.
 - **The model.** An agent's `platform` and `model` make its model id. Either may be `env(...)`,
   so the model is chosen per environment. A literal platform is checked at build; one from the
   environment is checked when the agent is first built, and an unknown one raises
@@ -315,7 +316,7 @@ Every error derives from `AiError`. pydantic-ai's own are raised as pydantic-ai 
 
 | Error | Raised when |
 |---|---|
-| `InvalidConfigurationError` | A configuration cannot be used: an unknown platform or agent named literally, a cycle of agents, an orm store without its bridge or without `OrmBundle` listed, a tool for an unknown agent, a capability or tool service that is not a singleton. Also a `ValueError` |
+| `InvalidConfigurationError` | A configuration cannot be used: an unknown platform or agent named literally, a cycle of agents, an orm store without its bridge or without `OrmBundle` listed, a tool for an unknown agent, a capability or tool service that is not a singleton, or any service registered under `AbstractAgent`, `AbstractCapability` or `AbstractToolset` that is not a singleton (named with its qualifier). Also a `ValueError` |
 | `PlatformUnavailableError` | A platform cannot be built: unknown, its extra missing, its key unset, a keyword refused. Names the platform and the variable, never a value |
 
 ## Known limitations
@@ -323,7 +324,10 @@ Every error derives from `AiError`. pydantic-ai's own are raised as pydantic-ai 
 - **Message timestamps** come from the system clock: pydantic-ai stamps them itself. The clock
   bundle reaches run timeouts only.
 - **Agents are singletons.** Capabilities, toolsets and tool services they are built from must be
-  too.
+  too, and so must anything registered under the abstract agent, capability or toolset keys:
+  every agent reaches those through one singleton locator.
+- **Parallel tool calls** run as separate tasks: tools must not share one session concurrently.
+- **A platform keeps its 64 most recently used models** built; an older one is rebuilt on next use.
 - **`isinstance(agent, Agent)`** is false for an agent with run defaults: it is a
   `RunDefaultsAgent` wrapping one.
 - **`isinstance(model, OpenAIChatModel)`** is false when the platform sets `model_settings`: the
@@ -335,6 +339,11 @@ Every error derives from `AiError`. pydantic-ai's own are raised as pydantic-ai 
   being deleted can lose the messages they share, except on SQLite, where writes take turns.
 - **The provider SDKs own HTTP.** No xtr-http-client is used. Timeouts and retries go in a
   platform's or agent's `model_settings`.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-ai).
 
 ## Development
 

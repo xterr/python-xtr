@@ -149,6 +149,10 @@ replace; directories a write needs are created with the mode that converter
 names, not the process umask. Symbolic links in a listing are either skipped or
 refused. Nothing is touched until the first operation — the root is created by
 the first write.
+A `write` or `write_stream` lands in a hidden temporary file beside its target
+(never listed) and replaces it in one step: a reader sees the old file or the new
+one, never part of either, and a failed write leaves the old file. A replaced file
+keeps its mode, a new one gets what the umask leaves, an explicit visibility wins.
 Whichever of the two is chosen, no link is followed out of the root: a read, a
 write, a delete, a move or a copy naming a path a link carries above the root is
 refused with `SymbolicLinkEncounteredError`. `LinkHandling.SKIP` hides a link
@@ -460,6 +464,11 @@ mistake to fix rather than to retry. No message ever repeats a credential.
 | `InvalidVisibilityError` | A string names no visibility (also a `ValueError`) |
 | `InvalidStreamError` | A write stream is of a type the storage cannot read (also a `TypeError`) |
 | `InvalidArgumentError` | An argument or option is invalid (also a `ValueError`) |
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-storage).
 
 ## Development
 

@@ -25,3 +25,43 @@ repos:
         [ -d "packages/$p/tests" ] || continue;
         uv run --frozen --package "$p" pytest -q --rootdir "packages/$p" "packages/$p" || exit 1;
         done' --
+    # Type-check every package with a staged file, each under its own configuration, and the
+    # repository's own code (scripts/, tests/) when it changes.
+    - id: basedpyright
+      name: basedpyright (changed packages and the repository)
+      language: system
+      files: ^(packages/[^/]+/.+\.pyi?|packages/[^/]+/pyproject\.toml|scripts/.+\.py|tests/.+\.py|pyproject\.toml)$
+      require_serial: true
+      entry: >-
+        bash -c 'root=0; for f in "$@"; do case "$f" in packages/*) ;; *) root=1;; esac; done;
+        for p in $(printf "%s\n" "$@" | grep "^packages/" | cut -d/ -f2 | sort -u); do
+        uv run --frozen --directory "packages/$p" basedpyright || exit 1;
+        done;
+        [ "$root" = 0 ] || uv run --frozen basedpyright' --
+    - id: ty
+      name: ty (changed packages and the repository)
+      language: system
+      files: ^(packages/[^/]+/.+\.pyi?|packages/[^/]+/pyproject\.toml|scripts/.+\.py|tests/.+\.py|pyproject\.toml)$
+      require_serial: true
+      entry: >-
+        bash -c 'root=0; for f in "$@"; do case "$f" in packages/*) ;; *) root=1;; esac; done;
+        for p in $(printf "%s\n" "$@" | grep "^packages/" | cut -d/ -f2 | sort -u); do
+        uv run --frozen --directory "packages/$p" ty check || exit 1;
+        done;
+        [ "$root" = 0 ] || uv run --frozen ty check' --
+    # The repository's own tests (tests/): docs links, the README graph, recipes, skills, the
+    # context-variable classification and the kernel-wide unit participants. They import every
+    # package, so they run here, against the full development environment, and never in CI.
+    - id: repository-tests
+      name: repository tests (tests/)
+      language: system
+      always_run: true
+      pass_filenames: false
+      entry: uv run --frozen pytest -q -p no:cacheprovider tests
+    # Every task a library starts says which context it runs in (lint/ast-grep/rules).
+    - id: ast-grep
+      name: ast-grep (task-without-context)
+      language: system
+      files: ^(packages/[^/]+/src/.+\.py|lint/ast-grep/.+|sgconfig\.yml)$
+      pass_filenames: false
+      entry: bash -c 'uv run --frozen ast-grep scan && uv run --frozen ast-grep test'

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, final
 
@@ -235,6 +236,20 @@ def test_end_unit_flushes_the_units_buffer() -> None:
 
     assert [record.message for record in spy.handled] == ["a", "b"]
     assert len(spy.batches) == 1
+
+
+def test_a_record_arriving_after_the_unit_ended_is_forwarded_at_once() -> None:
+    spy = Spy()
+    handler = BufferHandler(spy)
+    begin_unit()
+    late = contextvars.copy_context()
+    end_unit()
+
+    _ = late.run(handler.handle, make_record(message="late"))
+
+    assert [record.message for record in spy.handled] == ["late"]
+    handler.flush()
+    assert [record.message for record in spy.handled] == ["late"]
 
 
 def test_a_units_buffer_stays_empty_for_the_instance() -> None:

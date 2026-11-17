@@ -7,6 +7,7 @@ from xtr_dependency_injection import Kernel
 from xtr_messenger import HandlersFailedError, MessageBusInterface
 
 from tests.fixtures.app_consumers.services import OTHER, TEST, BothSourcesConsumer
+from tests.fixtures.app_scoped_consumer.services import SOURCE, ScopedConsumer
 from xtr_remote_event import RemoteEvent
 from xtr_remote_event.exception import LogicError
 from xtr_remote_event.messenger import ConsumeRemoteEventMessage
@@ -53,3 +54,19 @@ async def test_two_consumers_claiming_one_name_fail_the_build() -> None:
         'The remote event consumer name "test" is declared by both FirstConsumer and '
         "SecondConsumer."
     )
+
+
+async def test_a_scoped_consumer_gets_the_messages_session() -> None:
+    ScopedConsumer.consumed.clear()
+    async with await Kernel("tests.fixtures.app_scoped_consumer", env="test").boot() as booted:
+        bus = await booted.container.get(MessageBusInterface)
+        first = RemoteEvent(SOURCE, "evt_1", {})
+        second = RemoteEvent(SOURCE, "evt_2", {})
+
+        _ = await bus.dispatch(ConsumeRemoteEventMessage(SOURCE, first))
+        _ = await bus.dispatch(ConsumeRemoteEventMessage(SOURCE, second))
+
+    (one_session, one), (other_session, other) = ScopedConsumer.consumed
+    assert (one, other) == (first, second)
+    # Each message is its own unit, so each gets a session of its own.
+    assert one_session is not other_session

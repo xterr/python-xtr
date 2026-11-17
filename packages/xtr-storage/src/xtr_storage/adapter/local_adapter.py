@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import secrets
 import stat
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, final
@@ -46,6 +47,16 @@ _DIRECTORY_FLAGS: Final = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
 
 _NO_FOLLOW_FLAGS: Final = _DIRECTORY_FLAGS | getattr(os, "O_NOFOLLOW", 0)
 """The same, refusing a symbolic link in the directory's place."""
+
+_TEMPORARY_PREFIX: Final = ".xtr-storage-tmp-"
+"""What names a file a write in progress stages beside its target; listings hide it."""
+
+
+def _temporary_path(path: str) -> str:
+    """Return a fresh hidden name in the directory ``path`` lives in."""
+    directory, _, name = path.strip("/").rpartition("/")
+    staged = f"{_TEMPORARY_PREFIX}{secrets.token_hex(8)}-{name}"
+    return f"{directory}/{staged}" if directory else staged
 
 
 @final
@@ -130,17 +141,69 @@ class LocalAdapter(FsspecAdapter):
 
     @override
     async def write(self, path: str, contents: bytes, config: Config) -> None:
-        """Write the bytes at ``path``, directories and permissions as asked."""
+        """Write the bytes at ``path``, directories and permissions as asked.
+
+        The bytes go to a hidden temporary file beside the target, which then
+        replaces it in one step: a reader sees the old file or the new one,
+        never part of either, and a failed write leaves the old file.
+        """
         await self._make_parent_directory(path, config)
-        await super().write(path, contents, config)
-        await self._apply_file_visibility(path, config)
+        location = self._prefixer.prefix_path(path)
+        temporary = _temporary_path(path)
+        try:
+            await super().write(temporary, contents, config)
+            await self._settle(path, location, temporary, config)
+        except BaseException:
+            await self._discard(temporary)
+            raise
 
     @override
     async def write_stream(self, path: str, contents: AsyncIterable[bytes], config: Config) -> None:
-        """Stream the bytes to ``path``, directories and permissions as asked."""
+        """Stream the bytes to ``path``, replacing it whole once the stream ends."""
         await self._make_parent_directory(path, config)
-        await super().write_stream(path, contents, config)
-        await self._apply_file_visibility(path, config)
+        location = self._prefixer.prefix_path(path)
+        temporary = _temporary_path(path)
+        try:
+            await super().write_stream(temporary, contents, config)
+            await self._settle(path, location, temporary, config)
+        except BaseException:
+            await self._discard(temporary)
+            raise
+
+    async def _settle(self, path: str, location: str, temporary: str, config: Config) -> None:
+        """Give the temporary file its mode, then put it in place of ``path``.
+
+        An explicit visibility wins; otherwise a file being replaced keeps its
+        mode, and a new one keeps what the process umask gave the temporary.
+        """
+        staged = self._prefixer.prefix_path(temporary)
+        visibility = config.visibility_option(Config.VISIBILITY)
+        try:
+            if visibility is not None:
+                await self.set_visibility(temporary, visibility)
+            else:
+                try:
+                    kept = stat.S_IMODE((await asyncio.to_thread(os.stat, location)).st_mode)
+                except FileNotFoundError:
+                    kept = None
+                if kept is not None:
+                    await asyncio.to_thread(os.chmod, staged, kept)
+            await asyncio.to_thread(os.replace, staged, location)
+        except OSError as error:
+            raise UnableToWriteFileError(path) from error
+
+    async def _discard(self, temporary: str) -> None:
+        """Remove a temporary file a failed write left, if any."""
+        staged = self._prefixer.prefix_path(temporary)
+        try:
+            await asyncio.to_thread(os.unlink, staged)
+        except OSError:
+            return
+
+    @override
+    def _is_hidden_entry(self, path: str) -> bool:
+        """Hide the temporary files a write in progress stages beside its target."""
+        return path.rstrip("/").rsplit("/", 1)[-1].startswith(_TEMPORARY_PREFIX)
 
     @override
     async def create_directory(self, path: str, config: Config) -> None:
@@ -222,18 +285,6 @@ class LocalAdapter(FsspecAdapter):
         except OSError as error:
             raise UnableToWriteFileError(path) from error
 
-    async def _apply_file_visibility(self, path: str, config: Config) -> None:
-        """Set a freshly written file's permissions, when the call named any.
-
-        A write that said nothing about visibility leaves the file as the
-        filesystem made it, rather than quietly imposing one of the two modes:
-        the caller made no demand, so there is nothing to enforce.
-        """
-        visibility = config.visibility_option(Config.VISIBILITY)
-        if visibility is None:
-            return
-        await self.set_visibility(path, visibility)
-
     def _directory_mode(self, config: Config) -> int:
         """Return the mode the directories of this operation should carry."""
         visibility = config.visibility_option(Config.DIRECTORY_VISIBILITY)
@@ -304,7 +355,9 @@ class _RootedPathPrefixer(PathPrefixer):
         """
         real = os.path.realpath(location)
         root = os.path.realpath(self._root)
-        if real != root and not real.startswith(root + os.sep):
+        # A root of "/" already ends in the separator; adding another would
+        # make every path look like it left the tree.
+        if real != root and not real.startswith(root.rstrip(os.sep) + os.sep):
             raise SymbolicLinkEncounteredError(path.strip("/"))
 
 

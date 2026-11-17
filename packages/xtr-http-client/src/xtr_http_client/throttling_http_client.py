@@ -130,9 +130,12 @@ class ThrottlingHttpClient(HttpClientInterface, ResetInterface):
 
     @override
     async def reset(self) -> None:
-        """Forget every request counted against the rate, and reset the wrapped client."""
-        await self._limiter.reset()
+        """Reset the wrapped client, keeping the pace.
 
+        The rate is shared on purpose — by every unit of work and every copy
+        made with :meth:`with_options` — so the end of one unit forgets none
+        of what was counted against it.
+        """
         if isinstance(self._client, ResetInterface):
             await self._client.reset()
 

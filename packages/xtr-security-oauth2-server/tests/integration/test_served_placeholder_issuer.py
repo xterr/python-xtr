@@ -9,7 +9,7 @@ used, and checked there with the refusal a literal gets when it is written.
 from __future__ import annotations
 
 import pytest
-from xtr_dependency_injection import Kernel
+from xtr_dependency_injection import Kernel, unit_of_work
 from xtr_dependency_injection.exception import ServiceResolutionError
 from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server_core.authorization_validators.bearer_token_validator import (
@@ -93,9 +93,12 @@ async def test_a_variable_that_is_not_an_origin_is_refused_where_the_issuer_is_u
     app: str,
     service: type[object],
 ) -> None:
-    async with await _kernel(app, "https://x.example/path").boot() as booted:
+    async with (
+        await _kernel(app, "https://x.example/path").boot() as booted,
+        unit_of_work(booted.container) as unit,
+    ):
         with pytest.raises(ServiceResolutionError) as reported:
-            _ = await booted.container.get(service)
+            _ = await unit.get(service)
 
     refusal = reported.value.__cause__
     assert isinstance(refusal, InvalidConfigurationError)

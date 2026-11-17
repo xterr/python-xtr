@@ -45,7 +45,6 @@ kernel: Final = Kernel(
     __package__,
     allowed_envs=("dev", "test", "prod"),
     exclude=(".web.app",),
-    concurrent_scoped_access=True,
 )
 ```
 

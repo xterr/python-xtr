@@ -11,6 +11,7 @@ checks travel in the session of the request it answers.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
     from xtr_dependency_injection import ServiceConfigurator
     from xtr_http_message_contracts import ServerRequestInterface
 
+    from xtr_security.bundle.security_config import SecurityConfig
     from xtr_security.firewall_config import FirewallConfig
 
 __all__ = [
@@ -37,6 +39,7 @@ __all__ = [
     "firewall_asks_for_csrf",
     "form_login_asks_for_csrf",
     "register_csrf_token_manager",
+    "with_csrf_settled",
 ]
 
 
@@ -170,16 +173,42 @@ def register_csrf_token_manager(services: ServiceConfigurator) -> None:
     services.load("xtr_security.bundle._csrf_listeners")
 
 
+def with_csrf_settled(config: SecurityConfig) -> SecurityConfig:
+    """Return ``config`` with every logout's and switch's unset forgery check decided.
+
+    A logout or a switch left at ``enable_csrf=None`` asks for a token on a
+    stateful firewall — the session cookie a browser sends on its own is
+    what authenticates the request, so a foreign page could trigger it —
+    and asks for none on a stateless one, which keeps no session to store
+    a token in. A value the application wrote is kept as written.
+    """
+    firewalls: dict[str, FirewallConfig] = {}
+    for name, firewall in config.firewalls.items():
+        asks = not firewall.stateless
+        logout = firewall.logout
+        if logout is not None and logout.enable_csrf is None:
+            logout = replace(logout, enable_csrf=asks)
+        switch_user = firewall.switch_user
+        if switch_user is not None and switch_user.enable_csrf is None:
+            switch_user = replace(switch_user, enable_csrf=asks)
+        firewalls[name] = replace(firewall, logout=logout, switch_user=switch_user)
+
+    return replace(config, firewalls=firewalls)
+
+
 def firewall_asks_for_csrf(firewall: FirewallConfig) -> bool:
     """Tell whether the firewall's configuration asks for a forgery token.
+
+    Read on a configuration :func:`with_csrf_settled` has settled, where every
+    logout and switch says ``True`` or ``False``.
 
     A form login whose form carries one, a logout that must be proven, a
     logout that drops its tokens, and a switch that asks for one — each
     needs the manager, so each wires it. So do the routes that prove
     themselves with the marker: the firewall declaring ``csrf_route_markers``
     says its routes carry ``IsCsrfTokenValid``, whose checker answers
-    through the manager. Nothing else does: the machinery is opt-in, the
-    way the protection is.
+    through the manager. Nothing else does: a stateless firewall with no
+    form login and no marker carries none of it.
     """
     if firewall.logout is not None and (
         firewall.logout.enable_csrf or firewall.logout.clear_csrf_tokens

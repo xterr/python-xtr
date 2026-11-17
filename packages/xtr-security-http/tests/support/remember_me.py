@@ -8,6 +8,7 @@ from xtr_security_core.authentication.remember_me.persistent_token import Persis
 from xtr_security_core.exception import AuthenticationError, UserNotFoundError
 
 if TYPE_CHECKING:
+    import asyncio
     from datetime import datetime
 
     from xtr_http_message_contracts import ServerRequestInterface
@@ -56,15 +57,26 @@ class RecordingUserProvider:
 
 
 class RecordingTokenProvider:
-    """Keeps the tokens a test stored, in memory, recording every call."""
+    """Keeps the tokens a test stored, in memory, recording every call.
 
-    __slots__: tuple[str, ...] = ("created", "deleted", "series", "updated")
+    Given a ``load_barrier``, the loads that meet it wait on it before
+    answering, so two requests both load a series before either rotates it;
+    once they met, it is dropped and later loads answer at once.
+    """
 
-    def __init__(self, tokens: dict[str, PersistentToken] | None = None) -> None:
+    __slots__: tuple[str, ...] = ("created", "deleted", "load_barrier", "series", "updated")
+
+    def __init__(
+        self,
+        tokens: dict[str, PersistentToken] | None = None,
+        *,
+        load_barrier: asyncio.Barrier | None = None,
+    ) -> None:
         self.series: dict[str, PersistentToken] = dict(tokens or {})
         self.created: list[PersistentToken] = []
         self.deleted: list[str] = []
         self.updated: list[tuple[str, str, datetime]] = []
+        self.load_barrier: asyncio.Barrier | None = load_barrier
 
     async def load_token_by_series(self, series: str) -> PersistentToken:
         """Return the stored token of ``series``.
@@ -75,6 +87,10 @@ class RecordingTokenProvider:
         token = self.series.get(series)
         if token is None:
             raise AuthenticationError(f'No token found for the series "{series}".')
+        barrier = self.load_barrier
+        if barrier is not None:
+            _ = await barrier.wait()
+            self.load_barrier = None
         return token
 
     async def delete_token_by_series(self, series: str) -> None:
@@ -82,18 +98,31 @@ class RecordingTokenProvider:
         self.deleted.append(series)
         _ = self.series.pop(series, None)
 
-    async def update_token(self, series: str, token_value: str, last_used: datetime) -> None:
-        """Rotate the stored value of ``series``, recording the update."""
-        self.updated.append((series, token_value, last_used))
+    async def update_token(
+        self,
+        series: str,
+        expected_value: str,
+        token_value: str,
+        last_used: datetime,
+    ) -> bool:
+        """Rotate the stored value of ``series`` if it is still ``expected_value``, recording a win.
+
+        Raises:
+            AuthenticationError: When no token was stored for the series.
+        """
         token = self.series.get(series)
         if token is None:
             raise AuthenticationError(f'No token found for the series "{series}".')
+        if token.get_token_value() != expected_value:
+            return False
+        self.updated.append((series, token_value, last_used))
         self.series[series] = PersistentToken(
             token.get_user_identifier(),
             series,
             token_value,
             last_used,
         )
+        return True
 
     async def create_new_token(self, token: PersistentToken) -> None:
         """Store ``token`` as a new series, recording the create."""

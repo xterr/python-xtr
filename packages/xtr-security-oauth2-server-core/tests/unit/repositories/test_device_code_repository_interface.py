@@ -10,6 +10,8 @@ from xtr_security_oauth2_server_core.repositories.device_code_repository_interfa
 )
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from xtr_security_oauth2_server_core.entities.device_code_entity_interface import (
         DeviceCodeEntityInterface,
     )
@@ -38,8 +40,29 @@ class _DeviceCodeRepository:
     ) -> DeviceCodeEntityInterface | None:
         return self.stored.get(device_code)
 
-    async def revoke_device_code(self, code_id: str) -> None:
+    async def revoke_device_code(self, code_id: str) -> bool:
+        if code_id in self.revoked:
+            return False
         self.revoked.add(code_id)
+        return True
+
+    async def record_device_code_decision(
+        self,
+        code_id: str,
+        user_id: str,
+        user_approved: bool,
+    ) -> bool:
+        del code_id, user_id, user_approved
+        return True
+
+    async def record_device_code_poll(
+        self,
+        code_id: str,
+        last_polled_at: datetime | None,
+        polled_at: datetime,
+    ) -> bool:
+        del code_id, last_polled_at, polled_at
+        return True
 
     async def is_device_code_revoked(self, code_id: str) -> bool:
         return code_id in self.revoked

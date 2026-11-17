@@ -234,20 +234,35 @@ before writing, so an untouched session saves nothing and mints no cookie.
   every storage accepts as a key. A cookie value that is no readable ID — misspelled, upper
   case, somebody else's format — is treated as no cookie at all: the stranger's cookie is
   theirs to misspell, so a new ID is made and nothing is ever stored under the unreadable one.
+  A readable ID the storage holds nothing under is not adopted either: the session starts
+  under a fresh ID and stages its cookie, so a caller never chooses the ID it is stored under.
+- **Saving** writes only what changed: a reattached session whose attributes equal what it
+  loaded — values changed in place included — writes nothing, so a request that only read
+  cannot overwrite another's write. A reattached session writes only over an entry still
+  stored, so a request that read it before a logout deleted it cannot bring it back.
 - **`migrate(destroy_old=False)`** carries the attributes to a new ID, keeping every one of
   them; the old entry is deleted only when asked to. `invalidate()` empties the attributes and
   destroys the old entry. Both stage the cookie again under the new ID — a session cookie is
   never taken away, only re-issued.
 - **The storage** is a three-member port — `read`, `write`, `delete` — awaited throughout, so
   one storage is swappable for another and a remote one costs nothing more to call.
-  `MemorySessionStorage` keeps the sessions of one process, for as long as the process lives;
-  an application whose sessions must survive a restart or be shared between servers points
-  the session at a storage of its own.
+  `write(..., must_exist=True)` returns `False`, writing nothing, when the entry is gone.
+  `MemorySessionStorage` keeps the sessions of one process, for as long as the process lives,
+  as the same JSON the cache-pool storage writes — a value that storage refuses is refused
+  here too, and every read is a copy of its own; an application whose sessions must survive a
+  restart or be shared between servers points the session at a storage of its own.
 - **The cookie** is `SessionCookieConfig`, frozen and buildable with no arguments: name
-  `xtr_session`, path `/`, `httponly` on, `samesite` `lax`, `secure` off, no domain, no
-  lifetime. A `lifetime` of `None` is the browser session; a number is the application's
+  `xtr_session`, path `/`, `httponly` on, `samesite` `lax`, no domain, no lifetime, and
+  `secure` unset — `Secure` exactly when the request came over https (behind a proxy ending TLS,
+  only where the server reads its forwarded headers); `True` or `False` pins it. A
+  `samesite="none"` cookie, or one named `__Host-…`/`__Secure-…`, refuses `secure=False`: a browser
+  drops either unless it is secure. A `Session` built by hand rather than with `from_request`
+  has no request to read the scheme off, and writes no `Secure` while it is unset.
+  A `lifetime` of `None` is the browser session; a number is the application's
   notion of how long a session lives — the cookie is dated by it, and the storage entry is
   written to live as long, falling back to the storage's own default when none is given.
+  The cookie's date is read from the `clock` the session is given (an xtr-clock
+  `ClockInterface`, `SystemClock()` by default).
 - **The response listener** — `await session.save()`, then place `staged_set_cookie()` on the
   response's `Set-Cookie` when it returns one — is wiring this library does not ship: it lands
   with the security wiring that owns the response event. The two calls it makes are the two
@@ -277,6 +292,9 @@ JSON never is; pickle is not an option and will not be. A value that cannot roun
 set, an object, a tuple — is refused at `save()`, loudly, rather than stored and quietly
 changed. Reaching for the module by name is what turns the extra on: importing
 `xtr_http_foundation` itself pulls in no caching contract.
+
+A write that must find its entry still there asks the pool first and writes after — two calls,
+so a logout landing between them is not refused; the memory storage has no gap there.
 
 A stateful firewall of [xtr-security](../xtr-security) keeps what it stores in a session — the
 security token and the last authentication error — as JSON envelopes on every storage, the
@@ -381,9 +399,14 @@ Everything derives from `HttpFoundationError`. There are two. `InvalidArgumentEr
 empty, or carrying a reserved prefix without what the prefix asks for — a `samesite` that is
 none of the three, or a `path` or `domain` carrying characters an attribute cannot, by
 `SessionCookieConfig` for an empty name, a `samesite` that is none of the three or a negative
-lifetime, and by the cache-pool session storage at `save()` for a value JSON cannot give back
-as it was given. `SessionError` is raised when the storage a session persists through fails to
+lifetime, and by either session storage at `save()` for a value JSON cannot give back as it
+was given. `SessionError` is raised when the storage a session persists through fails to
 load, keep or remove an entry.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-http-foundation).
 
 ## Development
 

@@ -138,9 +138,10 @@ class RefreshTokenGrant(AbstractGrant):
         if self._revoke_refresh_tokens:
             repository = self._refresh_token_repository_or_fail()
             if not await repository.revoke_refresh_token(spent.identifier):
-                raise OAuthServerError.invalid_refresh_token(
-                    "The refresh token has already been used",
-                )
+                raise OAuthServerError.invalid_refresh_token()
+        # RFC 6749 section 6: the new refresh token carries the scope of the one spent,
+        # however far this access token was narrowed.
+        response_type.set_refresh_token_scopes(spent.scopes)
         await self._issue_tokens(
             request,
             response_type,
@@ -182,7 +183,7 @@ class RefreshTokenGrant(AbstractGrant):
         identifier = self._payload_text(payload, "refresh_token_id")
         access_token_id = self._payload_text(payload, "access_token_id")
         if identifier is None or access_token_id is None:
-            raise OAuthServerError.invalid_refresh_token("Token is malformed")
+            raise OAuthServerError.invalid_refresh_token()
 
         return _SpentRefreshToken(
             identifier,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final, final
 
@@ -27,6 +28,9 @@ OFFLINE_PROVIDERS: Final = frozenset({"test", "function"})
 """Provider names served in process, without a key or a network: pydantic-ai's test doubles."""
 
 _NO_OPTIONS: Final[Mapping[str, Any]] = MappingProxyType({})
+
+_MAX_MODELS: Final = 64
+"""How many models one platform keeps built, the least recently used dropped first."""
 
 
 @final
@@ -86,7 +90,7 @@ class Platform(PlatformInterface):
         self._options = dict(options)
         self._model_settings = model_settings
         self._provider_instance: Provider[Any] | None = None
-        self._models: dict[str, Model] = {}
+        self._models: OrderedDict[str, Model] = OrderedDict()
 
     @property
     @override
@@ -143,6 +147,11 @@ class Platform(PlatformInterface):
             if self._model_settings:
                 found = PlatformModel(found, self._model_settings)
             self._models[model_name] = found
+            # A model name may come from each caller: keep the most recently used.
+            if len(self._models) > _MAX_MODELS:
+                _ = self._models.popitem(last=False)
+        else:
+            self._models.move_to_end(model_name)
         return found
 
     @override

@@ -26,11 +26,25 @@ if TYPE_CHECKING:
 
 __all__ = ["AuthorizationChecker"]
 
-#: The tokens :meth:`AuthorizationChecker.is_granted_for_user` is deciding for on
-#: the current task, innermost last, each paired with the checker that pushed
-#: it. A context variable rather than a list on the checker, so two tasks
-#: sharing one checker never see each other's token.
-_token_stack: ContextVar[tuple[tuple[AuthorizationChecker, TokenInterface], ...]] = ContextVar(
+
+@final
+class _Deciding:
+    """A decision ``is_granted_for_user`` is making for a given user, open until it returns."""
+
+    __slots__ = ("checker", "open", "token")
+
+    def __init__(self, checker: AuthorizationChecker, token: TokenInterface) -> None:
+        self.checker = checker
+        self.token = token
+        self.open = True
+
+
+#: The decisions :meth:`AuthorizationChecker.is_granted_for_user` is making on
+#: the current task, innermost last. A context variable rather than a list on
+#: the checker, so two tasks sharing one checker never see each other's token;
+#: each closed once its decision returns, so a task a voter started, outliving
+#: the decision, decides against the current token again.
+_token_stack: ContextVar[tuple[_Deciding, ...]] = ContextVar(
     "xtr_security_authorization_token_stack",
     default=(),
 )
@@ -103,15 +117,17 @@ class AuthorizationChecker(AuthorizationCheckerInterface, GuestAuthorizationChec
         token = _OfflineToken(user.get_roles() if user is not None else ())
         if user is not None:
             token.set_user(user)
-        reset_token = _token_stack.set((*_token_stack.get(), (self, token)))
+        deciding = _Deciding(self, token)
+        reset_token = _token_stack.set((*_token_stack.get(), deciding))
         try:
             return await self.is_granted(attribute, subject, access_decision)
         finally:
+            deciding.open = False
             _token_stack.reset(reset_token)
 
     def _current_offline_token(self) -> TokenInterface | None:
-        """Return the innermost token this checker is deciding a given user for, if any."""
-        for checker, token in reversed(_token_stack.get()):
-            if checker is self:
-                return token
+        """Return the innermost token this checker is still deciding a given user for, if any."""
+        for deciding in reversed(_token_stack.get()):
+            if deciding.checker is self and deciding.open:
+                return deciding.token
         return None

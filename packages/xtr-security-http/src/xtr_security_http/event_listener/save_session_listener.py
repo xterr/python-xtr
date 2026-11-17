@@ -96,6 +96,9 @@ class SaveSessionListener(EventSubscriberInterface):
         The finish runs whether the request was answered or not; the response
         half has already saved the answered ones, and its mark is what keeps
         this from writing the same session twice.
+        A session whose ID still needs its cookie is not saved here: by the
+        finish no head is left to carry the cookie, so the entry would be
+        stored under an ID no client will ever send back.
 
         Raises:
             SessionError: When the storage fails to write the session.
@@ -104,7 +107,7 @@ class SaveSessionListener(EventSubscriberInterface):
         if state.attributes.get(SecurityRequestAttributes.SESSION_SAVED):
             return
         session = _parked_session_of(state)
-        if session is None:
+        if session is None or session.staged_set_cookie() is not None:
             return
         await _save(state, session)
 

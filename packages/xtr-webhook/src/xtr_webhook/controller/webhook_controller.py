@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from xtr_service_contracts import ServiceProviderInterface
 
     from xtr_webhook.client import RequestParserInterface
+    from xtr_webhook.client.webhook_id_store_interface import WebhookIdStoreInterface
 
 __all__ = ["WebhookController"]
 
@@ -67,15 +68,18 @@ class WebhookController:
     out and sends the webhook again.
     """
 
-    __slots__ = ("_bus", "_parsers", "_secrets", "_serializer")
+    __slots__ = ("_bus", "_id_store", "_id_ttl", "_parsers", "_secrets", "_serializer")
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- the endpoint's collaborators, the id store optional past them
         self,
         parsers: ServiceProviderInterface[RequestParserInterface]
         | Mapping[str, RequestParserInterface],
         secrets: Mapping[str, str],
         bus: MessageBusInterface,
         serializer: SerializerInterface,
+        *,
+        id_store: WebhookIdStoreInterface | None = None,
+        id_ttl: int = 86_400,
     ) -> None:
         """Receive webhooks for the types ``parsers`` speaks for.
 
@@ -91,6 +95,13 @@ class WebhookController:
             serializer: What writes each message as a bus writing its messages does, so a
                 message it would refuse is found before any message of the webhook is
                 dispatched.
+            id_store: Where the ids of the events already taken are remembered,
+                keyed by type and id. An event whose id it already remembers is
+                acknowledged and not handed on again: a sender retries a webhook
+                whose answer it never received, and refusing the retry would have
+                it retry forever. ``None`` hands on every event.
+            id_ttl: How many seconds an id is remembered — as long as a sender
+                may retry.
         """
         self._parsers: ServiceProviderInterface[RequestParserInterface] = (
             BuiltParsers(parsers) if isinstance(parsers, Mapping) else parsers
@@ -98,6 +109,8 @@ class WebhookController:
         self._secrets = dict(secrets)
         self._bus = bus
         self._serializer = serializer
+        self._id_store = id_store
+        self._id_ttl = id_ttl
 
     async def index_action(
         self,
@@ -153,6 +166,15 @@ class WebhookController:
         for message in messages:
             _ = self._serializer.serialize(message, _WIRE_FORMAT, type_=ConsumeRemoteEventMessage)
         for message in messages:
-            _ = await self._bus.dispatch(message)
+            key = f"{event_type}:{message.event.id}"
+            if self._id_store is not None and not await self._id_store.remember(key, self._id_ttl):
+                continue
+            try:
+                _ = await self._bus.dispatch(message)
+            except BaseException:
+                # Not handed on, so the sender's retry must be handled, not acknowledged.
+                if self._id_store is not None:
+                    await self._id_store.forget(key)
+                raise
 
         return await parser.create_successful_response(request, response)

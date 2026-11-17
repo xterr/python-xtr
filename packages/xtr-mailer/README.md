@@ -197,6 +197,7 @@ Give the port. A `smtp://` DSN with none reaches 465 for every host but the lite
 |---|---|---|
 | `auto_tls` | boolean: use STARTTLS when the server offers it | on |
 | `require_tls` | boolean: refuse to send without TLS | off |
+| `allow_plain_auth` | boolean: send the user and password to a server not on this host over a session that is not encrypted; otherwise that is refused, since anyone on the path reads them | off |
 | `verify_peer` | boolean: check the certificate and the name on it | on |
 | `peer_fingerprint` | an MD5, SHA-1 or SHA-256 digest in hex, compared after connecting | none |
 | `source_ip` | the local IPv4 or IPv6 address to connect from | the system's choice |
@@ -694,6 +695,11 @@ walks through it.
 - **`EnvelopeListener` and `MessageLoggerListener` share a priority.** Both sit at -255, so which
   of them runs first is not defined: a recorded email may show the envelope either before or
   after the override. It matters to a test reading the recorder, never to the mail sent.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-mailer).
 
 ## Development
 

@@ -26,6 +26,9 @@ def webhook() -> WebhookConfig:
     """Route two types to custom parsers and one to the bundle's own, sending by the app client."""
     return WebhookConfig(
         http_client=APP_CLIENT,
+        # These suites are about routing and the legacy headers; the Standard
+        # default is pinned by the parser's and the configurators' own tests.
+        signature_format="legacy",
         routing={
             PARSED_TYPE: RouteConfig(parser=SecretHeaderRequestParser, secret=PARSED_SECRET),
             PLAIN_TYPE: RouteConfig(secret=PLAIN_SECRET),

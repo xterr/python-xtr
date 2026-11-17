@@ -243,7 +243,6 @@ async def test_a_token_names_its_user(tmp_path) -> None:
         "tests.fixtures.token_app",
         env="test",
         bundles={JwtBundle: {"all": True}},
-        concurrent_scoped_access=True,
         environ={"JWT_SECRET_KEY_PATH": str(key)},
     )
 
@@ -276,8 +275,8 @@ undoes.
    adds `/secrets/*.pem` and `/secrets/*.jwks.json` to `.gitignore`. It prints the `setup` and
    firewall steps, which a recipe cannot make for you.
 3. **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, from
-   `xtr_security_jwt.bundle`. Build the kernel with `concurrent_scoped_access=True` and call
-   `setup(app, kernel)` where the application is served, as the security family requires.
+   `xtr_security_jwt.bundle`. Call `setup(app, kernel)` where the application is served, as the
+   security family requires.
 4. **Brings along** — the security, clock and event dispatcher bundles always; the console
    bundle when xtr-console is installed.
 5. **Configure** — the recipe mints the development key the written `<app>/config/packages/jwt.py`

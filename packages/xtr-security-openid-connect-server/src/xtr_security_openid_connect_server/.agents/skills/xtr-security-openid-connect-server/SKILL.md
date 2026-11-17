@@ -30,7 +30,8 @@ objects, no dynamic client registration, no `id_token` on a refresh.
   never register it again.
 - List `PROMPT_LISTENER` (`"openid_connect_server#prompt_listener"`, from
   `xtr_security_openid_connect_server.bundle`) in the `listeners` of the firewall that signs
-  end-users in, and leave that firewall stateful.
+  end-users in, and leave that firewall stateful. A `login_firewall` without it fails the build,
+  and so does an `HS*` `signature_algorithm`.
 - Put a firewall carrying `OAuth2AuthenticatorConfig()` in front of `/userinfo`. The endpoint reads
   no credential of its own, so without one every request is refused.
 - Two route resources: `openid_connect_server` (`/userinfo`, `GET` and `POST`) moves under a
@@ -276,8 +277,7 @@ async def test_a_sign_in_is_answered_an_id_token(app) -> None:  # app calls setu
    the document at the root. It prints the rest: the identity provider, the prompt step, the
    userinfo firewall, the scopes, the issuer, the consent listener.
 3. **Activate** — `OpenIdConnectServerBundle: {"all": True}` in `BUNDLES` in
-   `<app>/config/bundles.py`. The authorization server's `setup(app, kernel)` and
-   `concurrent_scoped_access=True` already apply.
+   `<app>/config/bundles.py`. The authorization server's `setup(app, kernel)` already applies.
 4. **Brings along** — the OAuth 2.0 authorization server, and the security, clock, event-dispatcher
    and HTTP-kernel bundles, all required.
 5. **Configure** — `identity_provider`, `login_path` and `login_firewall` in

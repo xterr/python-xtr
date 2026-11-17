@@ -398,7 +398,9 @@ regexps of `HttpUtils`, when configured, still weigh whichever target wins.
 **`CustomAuthenticationSuccessHandler(handler, options, firewall_name)`** and
 **`CustomAuthenticationFailureHandler(handler, options)`** are the seams for an application's own
 handlers, handing them the wiring's options — and the firewall's name, for a success handler that
-keys by one — through duck-typed setters.
+keys by one — through duck-typed setters. Each wrapper sets them once, on a shallow copy of the
+handler of its own, so two firewalls sharing one handler never answer with each other's options;
+a handler's setters must rebind what they set rather than change state the copies share.
 
 **`AuthenticationUtils(request)`** reads what the last login attempt left, for the page that
 renders the form again: `get_last_authentication_error(clear_session=True)`, `get_last_username()`
@@ -440,9 +442,13 @@ names and stages every cookie; its options default to the name `REMEMBERME`, a o
   presented again raises the core `CookieTheftError`), skips the rotation within a 60-second
   window so concurrent requests do not spend one another, and binds a digest of the user's
   signature properties — the password by default, properties the user does not expose skipped —
-  so a changed password retires the series. A verifier accepts a value the store no longer holds
-  exactly; the provider itself is used when it implements the verifier's contract. Clearing drops
-  the series the request's own cookie names.
+  so a changed password retires the series. The rotation is conditional — `update_token(series,
+  expected_value, token_value, last_used) -> bool` stores the new value only over the one
+  presented — so of two requests rotating at once one wins; the other stages no cookie and
+  passes when the stored value was rotated within the window, and raises `CookieTheftError`
+  otherwise. A verifier accepts a value the store no longer holds exactly, and is told of a
+  rotation only once the store took it; the provider itself is used when it implements the
+  verifier's contract. Clearing drops the series the request's own cookie names.
 
 Around the handlers: **`CheckRememberMeConditionsListener(options, logger)`** enables the passport's
 `RememberMeBadge` on a successful login when the application always wants the cookie or the request
@@ -542,6 +548,8 @@ distinguished name when the email is not there — `emailAddress` also answers i
 spelling `1.2.840.113549.1.9.1`, a custom identifier is matched anywhere in the name, and the
 value read out of a name is trimmed. A request carrying neither key, or a name without the
 identifier, is refused.
+Both read the request's server parameters, which an ASGI server served through the HTTP kernel
+never fills with these keys: there, neither signs anyone in.
 
 ### Listeners
 
@@ -569,18 +577,21 @@ event, on the application's main dispatcher.
 
 **Login throttling.** The throttling listener runs first of all on the passport check (priority
 2080, above the provider listener's 2048), and answers through one request limiter —
-`RequestRateLimiterInterface` from [xtr-http-foundation](../xtr-http-foundation), a peekable one
-preferred. The limiter builds its own keys, and the default one —
+`RequestRateLimiterInterface` from [xtr-http-foundation](../xtr-http-foundation). The limiter
+builds its own keys, and the default one —
 `DefaultLoginRateLimiter` in `rate_limiter/`, over the [xtr-rate-limiter](../xtr-rate-limiter)
 factories — counts a login twice: under the address it came from (a global limit, bounding how
 many accounts one client may sweep) and under the account it named from that address (a local
 limit). Both keys are eight-character HMAC-SHA256 prefixes over a non-empty application secret,
 so a store shared across servers keeps no readable account or address; a successful login forgets
 the local count only — the global one must survive the successful login of any one account. A
-peekable limiter is looked ahead at on the check (nothing spent), counted on a failure; a
-non-peekable one is counted on the check and still forgotten on a success. An attempt over the
+login is counted on the passport check, before its password is checked, so a burst of concurrent
+attempts past the limit is refused without a single password verified; a failure counts nothing
+more. An attempt over the
 limit is refused with the core `TooManyLoginAttemptsAuthenticationError`, carrying the minutes to
-wait, and announced as a `RateLimitExceededEvent` on the dispatcher the listener was given.
+wait, and announced as a `RateLimitExceededEvent` on the dispatcher the listener was given. The
+limiter keys the address on the connection's client (`scope["client"]`): behind a reverse proxy,
+have the server trust the proxy's forwarded headers, or every login counts under the proxy's address.
 
 **The dummy-hash timing guard.** When a password passport names an *unknown* user,
 `CheckCredentialsListener` still verifies against a dummy hash, so the timing of a bad username
@@ -648,6 +659,9 @@ The session is built from the request here and nowhere else, reading its ID from
 Every later step of the request reaches that same session, so the cookie a login's rotation, a
 logout's invalidation and the save stage is always this one.
 Any step reads it with **`parked_session_of(request)`** — `None` for a request no stateful chain ran.
+An application's route reads it the same way, from the request message carrying the request's
+state (`SecurityRequestAttributes.STATE_BAG` set to the ASGI scope's `"state"`) — see the
+[xtr-security](../xtr-security#reading-the-session-in-a-route) README.
 
 The response half, **`on_response(response_event)`** — registered beside the chain on the
 kernel's response event — writes the token back: what the request authenticated is stored under
@@ -1764,6 +1778,11 @@ authenticators, the access map, the exception listener, the `Firewall` subscribe
 `IsGranted`/`CurrentUser` surface — into an application on [xtr-dependency-injection](../xtr-dependency-injection), with
 firewalls written as configuration. See that package's
 [Use in an application](../xtr-security#use-in-an-application).
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security-http).
 
 ## Development
 

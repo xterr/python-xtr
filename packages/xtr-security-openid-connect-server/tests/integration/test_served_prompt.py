@@ -42,6 +42,7 @@ from tests.support.served import (
     serving,
     text_field,
 )
+from tests.support.signing import ISSUER
 from xtr_security_openid_connect_server.exception.invalid_configuration_error import (
     InvalidConfigurationError,
 )
@@ -180,6 +181,18 @@ async def test_prompt_none_needing_a_consent_never_given_is_refused_at_the_redir
     answered = await _authorize(client, client_id=CONSENT_CLIENT_ID, prompt="none")
 
     assert _refused_with(answered) == ("consent_required", _STATE)
+
+
+async def test_consent_required_names_the_server_that_sent_it(
+    client: httpx.AsyncClient,
+) -> None:
+    # The relying party refuses a callback without ``iss`` once the provider
+    # announces it, so the consent refusal carries it like any other.
+    _ = await _log_in(client)
+
+    answered = await _authorize(client, client_id=CONSENT_CLIENT_ID, prompt="none")
+
+    assert redirected_with(answered)["iss"] == ISSUER
 
 
 async def test_prompt_consent_reaches_the_listener_as_the_value_it_named(

@@ -37,11 +37,22 @@ class RedirectUri:
     redirect_uri: str
 
     def __post_init__(self) -> None:
-        """Refuse anything that is not a URI.
+        """Refuse anything that is not a URI, and a URI carrying a fragment.
+
+        A fragment is refused (RFC 6749 §3.1.2) because the server answers an
+        implicit request in the fragment: a registered one would be
+        overwritten, or read by script on the client's page.
 
         Raises:
-            InvalidArgumentError: When ``redirect_uri`` is not one.
+            InvalidArgumentError: When ``redirect_uri`` is not one, or carries
+                a fragment.
         """
+        if "#" in self.redirect_uri:
+            raise InvalidArgumentError(
+                f"The redirect URI {self.redirect_uri!r} carries a fragment, which a redirect "
+                "URI may not: the server writes its answer there. Register it without the "
+                "part from `#` on.",
+            )
         if _URI.fullmatch(self.redirect_uri) is None:
             raise InvalidArgumentError(
                 f"The string {self.redirect_uri!r} is not a valid URI, so no client could "

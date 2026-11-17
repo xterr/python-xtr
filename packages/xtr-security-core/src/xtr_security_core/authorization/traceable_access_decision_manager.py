@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, final
 
 from typing_extensions import override
 
@@ -20,21 +20,32 @@ if TYPE_CHECKING:
 
 __all__ = ["TraceableAccessDecisionManager"]
 
-#: The logs being filled on the current task, innermost last, each with the
-#: manager that opened it and its list of votes — a stack, since a voter may
-#: ask for a decision while one is being made.
-_current_logs: ContextVar[
-    tuple[
-        tuple[TraceableAccessDecisionManager, dict[str, object], list[dict[str, object]]],
-        ...,
-    ]
-] = ContextVar("xtr_security_traceable_decision_logs", default=())
 
-#: The decision records in progress on the current task, innermost last, each
-#: paired with the manager that opened it.
-_access_decision_stack: ContextVar[
-    tuple[tuple[TraceableAccessDecisionManager, AccessDecision], ...]
-] = ContextVar("xtr_security_traceable_access_decision_stack", default=())
+@final
+class _Logging:
+    """A decision being logged: the manager logging it and its votes, open until it returns."""
+
+    __slots__ = ("access_decision", "manager", "open", "voter_details")
+
+    def __init__(
+        self,
+        manager: TraceableAccessDecisionManager,
+        voter_details: list[dict[str, object]],
+        access_decision: AccessDecision,
+    ) -> None:
+        self.manager = manager
+        self.voter_details = voter_details
+        self.access_decision = access_decision
+        self.open = True
+
+
+#: The decisions being logged on the current task, innermost last — a stack,
+#: since a voter may ask for a decision while one is being made. Each closed
+#: once its decision returns, so a task a voter started, outliving the
+#: decision, votes into no log and joins no record of it.
+_current_logs: ContextVar[tuple[_Logging, ...]] = ContextVar(
+    "xtr_security_traceable_decision_logs", default=()
+)
 
 
 class TraceableAccessDecisionManager(AccessDecisionManagerInterface):
@@ -79,13 +90,10 @@ class TraceableAccessDecisionManager(AccessDecisionManagerInterface):
             "object": subject,
             "voter_details": voter_details,
         }
-        logs_reset = _current_logs.set((*_current_logs.get(), (self, current_log, voter_details)))
-
         if access_decision is None:
             access_decision = self._innermost_access_decision() or AccessDecision()
-        stack_reset = _access_decision_stack.set(
-            (*_access_decision_stack.get(), (self, access_decision))
-        )
+        logging = _Logging(self, voter_details, access_decision)
+        logs_reset = _current_logs.set((*_current_logs.get(), logging))
 
         decided = False
         try:
@@ -95,7 +103,7 @@ class TraceableAccessDecisionManager(AccessDecisionManagerInterface):
             decided = True
             return access_decision.is_granted
         finally:
-            _access_decision_stack.reset(stack_reset)
+            logging.open = False
             self._strategy = access_decision.strategy
             _current_logs.reset(logs_reset)
             if decided:
@@ -146,15 +154,18 @@ class TraceableAccessDecisionManager(AccessDecisionManagerInterface):
         self._decision_log = []
 
     def _innermost_voter_details(self) -> list[dict[str, object]] | None:
-        """Return the votes of the innermost log entry this manager is filling, if any."""
-        for manager, _, voter_details in reversed(_current_logs.get()):
-            if manager is self:
-                return voter_details
-        return None
+        """Return the votes of the innermost log entry this manager is still filling, if any."""
+        logging = self._innermost_logging()
+        return None if logging is None else logging.voter_details
 
     def _innermost_access_decision(self) -> AccessDecision | None:
-        """Return the innermost decision record this manager has in progress, if any."""
-        for manager, access_decision in reversed(_access_decision_stack.get()):
-            if manager is self:
-                return access_decision
+        """Return the innermost decision record this manager still has in progress, if any."""
+        logging = self._innermost_logging()
+        return None if logging is None else logging.access_decision
+
+    def _innermost_logging(self) -> _Logging | None:
+        """Return the innermost decision this manager is still logging, if any."""
+        for logging in reversed(_current_logs.get()):
+            if logging.manager is self and logging.open:
+                return logging
         return None

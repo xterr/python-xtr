@@ -27,11 +27,11 @@ def failing(
     calls = [0]
     remaining = list(errors)
 
-    async def flaky(self: Connection, *args: object) -> object:
+    async def flaky(self: Connection, *args: object, **kwargs: object) -> object:
         calls[0] += 1
         if remaining:
             raise remaining.pop(0)
-        return await original(self, *args)
+        return await original(self, *args, **kwargs)
 
     monkeypatch.setattr(Connection, method, flaky)
     return calls

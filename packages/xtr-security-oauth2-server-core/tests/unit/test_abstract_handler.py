@@ -386,7 +386,7 @@ async def test_a_refresh_token_this_server_did_not_seal_is_refused() -> None:
         _ = await handler.validate_encrypted_refresh_token(_request(), "abcdef", "client-1")
 
     assert refusal.value.get_error_type() == "invalid_grant"
-    assert refusal.value.get_hint() == "Cannot decrypt the refresh token"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio
@@ -405,7 +405,8 @@ async def test_a_refresh_token_of_another_client_is_refused_and_announced() -> N
     with pytest.raises(OAuthServerError) as refusal:
         _ = await handler.validate_encrypted_refresh_token(_request(), sealed, "client-1")
 
-    assert refusal.value.get_hint() == "Token is not linked to client"
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
     assert dispatcher.only().name == RequestEvent.REFRESH_TOKEN_CLIENT_FAILED
 
 
@@ -423,7 +424,8 @@ async def test_an_expired_refresh_token_is_refused() -> None:
     with pytest.raises(OAuthServerError) as refusal:
         _ = await handler.validate_encrypted_refresh_token(_request(), sealed, "client-1")
 
-    assert refusal.value.get_hint() == "Token has expired"
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio
@@ -436,7 +438,8 @@ async def test_a_refresh_token_payload_naming_no_token_is_refused() -> None:
     with pytest.raises(OAuthServerError) as refusal:
         _ = await handler.validate_encrypted_refresh_token(_request(), sealed, "client-1")
 
-    assert refusal.value.get_hint() == "Token is malformed"
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio
@@ -455,7 +458,8 @@ async def test_a_revoked_refresh_token_is_refused() -> None:
     with pytest.raises(OAuthServerError) as refusal:
         _ = await handler.validate_encrypted_refresh_token(_request(), sealed, "client-1")
 
-    assert refusal.value.get_hint() == "Token has been revoked"
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio

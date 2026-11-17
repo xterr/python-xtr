@@ -24,13 +24,17 @@ def _transport(client: MockHttpClient | None = None, channel: str | None = None)
     return SlackTransport("xoxb-TestToken", channel, client or MockHttpClient())
 
 
-def _expecting(json: Mapping[str, object], method: str = "chat.postMessage") -> MockHttpClient:
+def _expecting(
+    json: Mapping[str, object],
+    method: str = "chat.postMessage",
+    answered: Mapping[str, object] = _POSTED,
+) -> MockHttpClient:
     def answer(verb: str, url: str, options: RequestOptions) -> MockResponse:
         assert verb == "POST"
         assert url == f"https://slack.com/api/{method}"
         assert options.get("json") == json
         assert options.get("auth_bearer") == "xoxb-TestToken"
-        return JsonMockResponse(_POSTED)
+        return JsonMockResponse(answered)
 
     return MockHttpClient(answer)
 
@@ -218,14 +222,26 @@ async def test_it_updates_a_sent_message() -> None:
 
 
 @pytest.mark.anyio
-async def test_it_schedules_a_message_with_post_at() -> None:
+async def test_a_scheduled_send_reads_the_scheduled_message_id() -> None:
+    # Slack's chat.scheduleMessage answer, as documented: no top-level ts.
+    scheduled = {
+        "ok": True,
+        "channel": "C1",
+        "scheduled_message_id": "Q1298393284",
+        "post_at": "1767225600",
+        "message": {"text": "Later", "type": "delayed_message"},
+    }
     client = _expecting(
-        {"post_at": 1767225600, "channel": "C1", "text": "Later"}, "chat.scheduleMessage"
+        {"post_at": 1767225600, "channel": "C1", "text": "Later"},
+        "chat.scheduleMessage",
+        scheduled,
     )
 
-    _ = await _transport(client, "C1").send(
+    sent = await _transport(client, "C1").send(
         ChatMessage("Later", SlackOptions({"post_at": 1767225600}).to_options())
     )
+
+    assert sent.message_id == "Q1298393284"
 
 
 @pytest.mark.anyio

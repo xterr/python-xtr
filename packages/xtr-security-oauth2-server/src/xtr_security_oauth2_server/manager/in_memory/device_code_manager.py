@@ -14,6 +14,8 @@ from xtr_security_oauth2_server.manager.device_code_manager_interface import (
 )
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from xtr_security_oauth2_server.model.device_code_interface import DeviceCodeInterface
 
 __all__ = ["DeviceCodeManager"]
@@ -57,6 +59,55 @@ class DeviceCodeManager(DeviceCodeManagerInterface):
     async def save(self, device_code: DeviceCodeInterface) -> None:
         """Store ``device_code``, new or already known."""
         self._device_codes[device_code.get_identifier()] = device_code
+
+    @override
+    async def revoke(self, identifier: str) -> bool:
+        """Spend the code stored as ``identifier``, and say whether this call did."""
+        code = self._device_codes.get(identifier)
+        if code is None or code.is_revoked():
+            return False
+
+        _ = code.revoke()
+
+        return True
+
+    @override
+    async def record_decision(
+        self,
+        identifier: str,
+        user_identifier: str,
+        *,
+        user_approved: bool,
+    ) -> bool:
+        """Record the first decision on a live code, and say whether this call did."""
+        code = self._device_codes.get(identifier)
+        if (
+            code is None
+            or code.is_revoked()
+            or code.get_user_identifier() is not None
+            or code.get_expiry() < self._clock.now()
+        ):
+            return False
+
+        _ = code.set_user_identifier(user_identifier).set_user_approved(user_approved)
+
+        return True
+
+    @override
+    async def record_poll(
+        self,
+        identifier: str,
+        last_polled_at: datetime | None,
+        polled_at: datetime,
+    ) -> bool:
+        """Record a poll unless another was recorded since ``last_polled_at`` was read."""
+        code = self._device_codes.get(identifier)
+        if code is None or code.get_last_polled_at() != last_polled_at:
+            return False
+
+        _ = code.set_last_polled_at(polled_at)
+
+        return True
 
     @override
     async def clear_expired(self) -> int:

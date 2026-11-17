@@ -153,10 +153,10 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
         self.validate_auth(merged)
         self.validate_body(merged)
 
-        client, resolved = self._clients.for_options(merged)
+        client = self._clients.for_options(merged)
         headers = assemble_headers(request, merged)
         payload = await assemble_payload(request, merged, headers)
-        url, extensions = pin_host(target_url(request, merged), merged, resolved, headers)
+        url, extensions = pin_host(target_url(request, merged), merged, headers)
 
         outgoing = client.build_request(
             request.get_method(),
@@ -173,8 +173,11 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
 
     @override
     async def reset(self) -> None:
-        """Forget the address every host was pinned to, keeping the connections open."""
-        self._clients.reset()
+        """Keep everything: the connections are how the next unit gets anywhere.
+
+        A request's ``resolve`` pins its own request only, so there is nothing
+        a unit of work left behind to forget.
+        """
 
     async def aclose(self) -> None:
         """Close every pool, and with it every connection this client holds."""

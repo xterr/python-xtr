@@ -165,7 +165,7 @@ deep, with a warning, rather than recursing until the stack overflows.
 | Handler | Does |
 | --- | --- |
 | `StreamHandler` | Writes to a stream or a file, opened on first write, parent directories created |
-| `RotatingFileHandler` | One file per day (or any `date_format`), keeping the newest `max_files` |
+| `RotatingFileHandler` | One file per day (or any `date_format`) of the clock — never of the record, so a replayed timestamp cannot reopen an old file — keeping the newest `max_files` |
 | `SyslogHandler` | Syslog over UDP or a socket such as `/dev/log`, with the right severity |
 | `ConsoleHandler` | Standard error, or any stream set later, its level following `-v` verbosity, coloured on a terminal |
 | `NullHandler` | Swallows records at its level |
@@ -176,10 +176,14 @@ deep, with a warning, rather than recursing until the stack overflows.
 | `WhatFailureGroupHandler` | A group where a failing member never stops the others |
 | `FallbackGroupHandler` | Tries members in order until one does not raise — a member below its level counts as done |
 | `FilterHandler` | Passes a level range, or a list of levels, to the handler it wraps |
-| `DeduplicationHandler` | Drops a buffered batch whose errors were all written in the last `time` seconds |
+| `DeduplicationHandler` | Drops a buffered batch whose errors were all written in the last `time` seconds; holds at most `buffer_limit` (10 000) records |
 | `SamplingHandler` | Passes one record in `factor` |
 | `QueueHandler` | Writes on a background thread, so logging never waits on I/O |
 | `StdlibHandler` | Hands records to a standard-library logger |
+
+Give each place its own handler instance. One instance registered twice — in a group and
+inside a fingers-crossed handler, say — is flushed in registration order, and records can be
+left in a buffer that has already been flushed.
 
 ### Fingers crossed
 
@@ -195,9 +199,13 @@ logger = Logger("app", [FingersCrossedHandler(StreamHandler("var/log/app.log"), 
 ```
 
 `ChannelLevelActivationStrategy` sets a different trigger per channel, `buffer_size` caps the
-buffer, and `passthru_level` keeps records at that level even when nothing triggered. Await
-`reset()` between the requests or messages of a long-running process so one unit of work does not
-bleed into the next.
+buffer, and `passthru_level` keeps records at that level even when nothing triggered. Under a
+container, each unit of work's own log unit holds and flushes its records; outside one, await
+`reset()` between the requests or messages of a long-running process so one unit of work does
+not bleed into the next.
+A buffered record keeps the exception it carries — and with it every frame of its traceback —
+alive until it is flushed or dropped. A streamed response keeps its unit, and that buffer, open
+as long as it streams; lower `buffer_size` where that matters.
 
 ## Processors
 
@@ -253,9 +261,13 @@ runs first.
 | `ConsoleFormatter` | A short line with the level coloured |
 
 `LineFormatter` also knows `%level%` and `%context.KEY%` / `%extra.KEY%` for one entry. It keeps
-each record on one line unless `allow_inline_line_breaks` is set, and prints tracebacks when
-`include_stacktraces` is set. `Normalizer`, which both formatters build on, reduces any value to
-plain data, cutting nesting and collections short at a limit.
+each record on one line unless `allow_inline_line_breaks` is set — the Unicode line and paragraph
+separators count as breaks, and bidirectional controls are stripped with the other control
+characters. `include_stacktraces` prints a traceback across lines only for an exception named by
+`%context.KEY%` (or `%extra.KEY%`); every other value, a caller's text above all, stays on its
+line, so it cannot forge another record. `Normalizer`, which both formatters build on, reduces any
+value to plain data, cutting nesting and collections short at a limit, and leaves out a dataclass
+field declared `repr=False`.
 
 ## Configuration
 
@@ -346,7 +358,13 @@ Handler types: `stream`, `rotating_file`, `syslog`, `console`, `null`, `stdlib`,
 `introspection`, `hostname`, `process_id`, `tags`, `redacting`, `service`. The `redacting`
 processor masks secrets by key — `password`, `token`, `authorization`, `api_key` and the like —
 and by value pattern, matched against the message and every value in context and extra, before
-any handler writes them.
+any handler writes them. A `LoggingConfig` that names no processors gets one by default, masking
+those keys plus URL credentials (`scheme://user:pass@` becomes `scheme://[redacted]@`) and the
+values of the `token`, `access_token`, `refresh_token`, `id_token`, `client_secret` and
+`password` query parameters (`DEFAULT_VALUE_PATTERNS`). A configuration listing its own
+processors replaces that default: add a `RedactingProcessorConfig` there to keep it.
+
+The deduplication store keeps a SHA-256 of each message's first line, never the text.
 
 `syslog` sends records in cleartext: a UDP datagram, or a TCP stream with `socktype = "tcp"`,
 crosses the network unencrypted, so keep it on a trusted segment or a local socket such as
@@ -437,8 +455,11 @@ forgot `end_unit()` cannot leak one unit's state into the next.
 A unit belongs to the context that began it and ends there. A copy of that context only
 carries it — a task started inside the unit, or a request a server started from an earlier
 request's context — and beginning or ending a unit there does not end one still open where it
-began: whoever began it is still filling it, and ends it. A carried unit that is already over
-is flushed once more as it is let go of, so what was logged into it late is not stranded.
+began: whoever began it is still filling it, and ends it. Once a unit is over, a context still
+carrying it finds no unit: `unit_state` hands out nothing for it and the values bound in it are
+no longer read, so what is logged there late is handled at once — a fingers-crossed handler
+passes it on if it activates or the passthru floor keeps it, a buffer forwards it — rather
+than kept in a unit nobody ends again.
 
 ```python
 from xtr_logging import begin_unit, end_unit
@@ -464,13 +485,29 @@ that opened it, so **state is mutated in place**: a synchronous endpoint, which 
 copied context of its own, enriches the same unit, whereas a `ContextVar.set()` there would be
 lost to the caller. Owners mutate their share of the unit; they never reach for the context
 variable itself.
+`bind_context()` is such a `set()`: a value it binds inside a synchronous endpoint is gone once
+the endpoint returns, so the rest of the request — its error log included — does not carry it.
+Bind it in async code before the endpoint runs.
 
 `QueueHandler` writes on a background thread, and carries each record's logged context across
 with it, so a record buffered under one unit is formatted and written as though still inside it,
-whichever thread does the writing. Awaiting `reset()` on a `LoggerFactory`, a
-`FingersCrossedHandler` or a `DeduplicationHandler` ends the current unit's accumulation, so one
-unit does not bleed into the next; the kernel awaits it between messages through
-`ServicesResetter`.
+whichever thread does the writing. Each queued record holds its unit open until it is written: a
+unit ending while its records are still queued closes once the last of them is written, on the
+worker, so an error still queued when the unit ends brings the unit's records with it.
+
+Under a container, every unit of work it opens — a request, a message, a command — is a log
+unit of its own: the logging bundle registers `LogUnitParticipant`, which opens one as the
+container's unit begins and closes it once that unit has ended. A unit opened inside another —
+a message handled inside a request — is a log unit of its own, and the one around it is open
+again once it ends. Two orderings follow from that:
+
+- The container closes a unit's scoped services before the log unit closes, so what a service's
+  teardown logs — the code after `yield` in its factory — lands in that unit, never in another
+  one handled at the same time.
+- A worker awaits `ServicesResetter.reset()` between messages from the command hosting it, so
+  `reset()` on a `LoggerFactory`, a `FingersCrossedHandler` or a `DeduplicationHandler` acts on
+  the host's state — the command's log unit, or the handler's own outside any unit — and never
+  on a message's, which its own unit's end flushes.
 
 ## Use in an application
 
@@ -631,6 +668,11 @@ Everything the library raises derives from `LoggingError` and carries typed attr
 | `UnknownServiceError` | Configuration names a service that was not supplied |
 | `NotProcessableHandlerError` | A processor targets a handler that runs none |
 | `CaptureConflictError` | A `stdlib` handler is configured while capture is on |
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-logging).
 
 ## Development
 

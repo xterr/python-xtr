@@ -16,7 +16,7 @@ from tests.support.grants import Storage
 from tests.support.messages import MultiValuedForm, document_of, server_request
 from tests.support.response_types import RecordingResponseType
 from tests.support.servers import make_server
-from tests.support.signing import FROZEN_NOW, make_clock
+from tests.support.signing import FROZEN_NOW, ISSUER, make_clock
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server_core.grant.abstract_grant import AbstractGrant
@@ -26,7 +26,7 @@ from xtr_security_oauth2_server_core.response_types.bearer_token_response import
 from xtr_security_oauth2_server_core.response_types.device_code_response import DeviceCodeResponse
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from xtr_clock import ClockInterface
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
@@ -61,6 +61,9 @@ class _LocationResponseType:
 
     def set_refresh_token(self, refresh_token: RefreshTokenEntityInterface) -> None:
         del refresh_token
+
+    def set_refresh_token_scopes(self, scopes: Sequence[str]) -> None:
+        del scopes
 
     def set_encryption_key(self, key: str, key_type: Literal["plain", "key"]) -> None:
         del key, key_type
@@ -183,7 +186,7 @@ class _DeviceGrant(AbstractGrant):
         device_code.set_interval(5)
         device_code.set_client(make_client())
         answer = DeviceCodeResponse(self._clock)
-        answer.set_device_code_entity(device_code)
+        answer.set_device_code_entity(device_code, device_code.get_identifier())
 
         return answer
 
@@ -581,3 +584,7 @@ def test_its_reading_says_a_key_is_held_and_never_which() -> None:
 
     assert "AuthorizationServer" in shown
     assert ENCRYPTION_KEY not in shown
+
+
+def test_it_names_the_issuer_its_tokens_claim() -> None:
+    assert _server().get_issuer() == ISSUER

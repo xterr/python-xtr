@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from xtr_http_message_contracts import ResponseInterface
 
     from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
@@ -44,6 +46,15 @@ class ResponseTypeInterface(Protocol):
 
     def set_refresh_token(self, refresh_token: RefreshTokenEntityInterface) -> None:
         """Carry ``refresh_token`` in the answer, beside the access token."""
+        ...
+
+    def set_refresh_token_scopes(self, scopes: Sequence[str]) -> None:
+        """Seal ``scopes`` into the refresh token, rather than the access token's.
+
+        Set by a refresh that narrowed the new access token: the new refresh
+        token keeps the scope of the one spent (RFC 6749 section 6). Unset, the
+        refresh token carries the access token's scopes.
+        """
         ...
 
     def set_encryption_key(self, key: str, key_type: Literal["plain", "key"]) -> None:

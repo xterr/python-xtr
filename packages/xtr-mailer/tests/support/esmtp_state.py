@@ -26,6 +26,7 @@ def esmtp_state(transport: TransportInterface) -> dict[str, object]:
         "password": transport.get_password(),
         "auto_tls": transport.is_auto_tls(),
         "require_tls": transport.is_tls_required(),
+        "allow_plain_auth": transport.is_plain_auth_allowed(),
         "restart_threshold": (transport._restart_threshold, transport._restart_threshold_sleep),
         "ping_threshold": transport._ping_threshold,
         "max_per_second": transport._rate,

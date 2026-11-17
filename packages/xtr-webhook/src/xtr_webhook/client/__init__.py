@@ -15,9 +15,11 @@ from __future__ import annotations
 from .abstract_request_parser import AbstractRequestParser
 from .request_parser import RequestParser
 from .request_parser_interface import RequestParserInterface
+from .webhook_id_store_interface import WebhookIdStoreInterface
 
 __all__ = [
     "AbstractRequestParser",
     "RequestParser",
     "RequestParserInterface",
+    "WebhookIdStoreInterface",
 ]

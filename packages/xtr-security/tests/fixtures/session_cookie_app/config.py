@@ -47,7 +47,9 @@ def security() -> SecurityConfig:
                 stateless=False,
                 provider="users",
                 session_cookie=SESSION_COOKIE,
-                logout=LogoutConfig(),
+                # About the cookie a logout reissues, not the forgery check a stateful
+                # firewall's logout asks for by default.
+                logout=LogoutConfig(enable_csrf=False),
                 authenticators=(FormLoginConfig(login_path="/login", post_only=False),),
             )
         },

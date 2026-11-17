@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import final
 
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from typing_extensions import override
 from xtr_clock import ClockInterface  # noqa: TC002 — read at runtime by the container
-from xtr_orm import ConnectionRegistry  # noqa: TC002 — read at runtime by the container
+from xtr_dependency_injection import (
+    ScopeFactoryInterface,  # noqa: TC002 — read at runtime by the container
+)
 
 from xtr_security_oauth2_server.manager.authorization_code_manager_interface import (
     AuthorizationCodeManagerInterface,
@@ -19,11 +21,12 @@ from xtr_security_oauth2_server.model.authorization_code_interface import (
 from xtr_security_oauth2_server.persistence.mapping.mapped_table import mapped_table
 
 from ._changed_rows import changed_rows
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+from ._unit_session import unit_session
 
 __all__ = ["AuthorizationCodeManager"]
+
+_SPENT = 1
+"""How many rows a revocation changes when it is the one that spent the code."""
 
 
 @final
@@ -39,45 +42,65 @@ class AuthorizationCodeManager(AuthorizationCodeManagerInterface):
     these per authorization and never reads most of them again.
 
     One of these serves the whole application, and holds no session: every
-    read and every write asks the connection registry for the session of the
-    request being served.
+    read and every write runs in a unit of work of its own, never the
+    request's, so storing a code commits nothing the application has pending.
     """
 
     def __init__(
         self,
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         connection: str,
         clock: ClockInterface,
     ) -> None:
         """Read and write the authorization codes of the connection ``connection``."""
-        self._connections = connections
+        self._scope_factory = scope_factory
         self._connection = connection
         self._clock = clock
-
-    async def _session(self) -> AsyncSession:
-        """Return the session of the unit of work this request is served in."""
-        return await self._connections.session(self._connection)
 
     @override
     async def find(self, identifier: str) -> AuthorizationCodeInterface | None:
         """Return the code stored as ``identifier``, or ``None``."""
-        return await (await self._session()).get(AuthorizationCode, identifier)
+        async with unit_session(self._scope_factory, self._connection) as session:
+            return await session.get(AuthorizationCode, identifier)
 
     @override
     async def save(self, auth_code: AuthorizationCodeInterface) -> None:
         """Store ``auth_code``, and commit it."""
-        session = await self._session()
-        session.add(auth_code)
-        await session.commit()
+        async with unit_session(self._scope_factory, self._connection) as session:
+            session.add(auth_code)
+            await session.commit()
+
+    @override
+    async def revoke(self, identifier: str) -> bool:
+        """Spend the code stored as ``identifier``, in one step.
+
+        One conditional statement, so of two redemptions at once only one finds
+        the code valid — on every worker, whatever their sessions read before.
+
+        Returns:
+            Whether this call is what spent it: ``True`` when the statement
+            found a code that was valid, ``False`` when it was already revoked
+            or was never stored.
+        """
+        codes = mapped_table(AuthorizationCode)
+        async with unit_session(self._scope_factory, self._connection) as session:
+            spent = await session.execute(
+                update(AuthorizationCode)
+                .where(codes.c["identifier"] == identifier, codes.c["revoked"].is_(False))
+                .values({codes.c["revoked"]: True}),
+            )
+            await session.commit()
+
+        return changed_rows(spent) == _SPENT
 
     @override
     async def clear_expired(self) -> int:
         """Forget every code that has expired, and return how many went."""
         codes = mapped_table(AuthorizationCode)
-        session = await self._session()
-        swept = await session.execute(
-            delete(AuthorizationCode).where(codes.c["expiry"] < self._clock.now()),
-        )
-        await session.commit()
+        async with unit_session(self._scope_factory, self._connection) as session:
+            swept = await session.execute(
+                delete(AuthorizationCode).where(codes.c["expiry"] < self._clock.now()),
+            )
+            await session.commit()
 
         return changed_rows(swept)

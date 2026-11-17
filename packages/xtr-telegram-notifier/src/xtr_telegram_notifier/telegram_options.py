@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import copy
 from collections.abc import Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING, Final, Self, cast, final
 
 from typing_extensions import override
@@ -26,8 +28,9 @@ class TelegramOptions(MessageOptionsInterface):
     picked by the option set; options that each pick one cannot be combined,
     and the transport refuses a message that combines them.
 
-    A file to upload is kept as its path, so the message stays plain data
-    that crosses a message bus; the transport opens it when it sends.
+    A file to upload is read when the option is set, and kept as its name and
+    its bytes in base64, so the message stays plain data that crosses a message
+    bus — and a worker sending it needs no access to the file the path named.
     """
 
     #: Parse the text as HTML.
@@ -225,11 +228,17 @@ class TelegramOptions(MessageOptionsInterface):
         return self
 
     def _upload(self, option: str, path: str) -> Self:
-        """Upload the file at ``path`` as ``option``, kept by path until the send."""
+        """Upload the file at ``path`` as ``option``, read now into its name and base64 bytes.
+
+        Raises:
+            FileNotFoundError: When no file is at ``path``.
+        """
+        source = Path(path)
+        upload = {"name": source.name, "content": base64.b64encode(source.read_bytes()).decode()}
         existing = self._options.get("upload")
         uploads = (
             dict(cast("Mapping[str, object]", existing)) if isinstance(existing, Mapping) else {}
         )
-        uploads[option] = path
+        uploads[option] = upload
         self._options["upload"] = uploads
         return self

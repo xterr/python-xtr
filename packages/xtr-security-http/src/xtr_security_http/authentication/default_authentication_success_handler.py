@@ -150,6 +150,11 @@ class DefaultAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface)
         A return trip happens once: the saved path is the page the caller
         was heading for when the login interrupted them, and once they are
         back on it, it is not a place to return to again.
+
+        Only a target of the request's own origin is followed, as with the
+        other rungs: the session is one more place a value can be planted,
+        and a login never sends the caller off the application. A foreign
+        one is removed all the same, and the ladder goes on.
         """
         if self._firewall_name is None:
             return None
@@ -160,6 +165,8 @@ class DefaultAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface)
         if kept is None:
             return None
         await remove_target_path(session, self._firewall_name)
+        if not is_same_origin(request, kept):
+            return None
         return kept
 
     async def _referer_target_of(self, request: ServerRequestInterface) -> str | None:

@@ -633,6 +633,15 @@ dump, compare the string.
 
 ## Known limitations
 
+- **One subject object at a time, within one process.** `apply` holds the subject object for the
+  whole move, so two tasks applying to it at once take turns, and the second weighs the marking
+  the first left; a listener of the move applying to the same subject goes straight through. Two
+  processes — or two requests each loading the subject into an object of their own, the usual
+  case — are kept apart only by the store: give the workflow a marking store implementing
+  `CompareAndSetMarkingStoreInterface` (`set_marking_if(subject, marking, expected, context) ->
+  bool`, a conditional `UPDATE` or a version column), and a transition whose subject moved
+  meanwhile fails with `NotEnabledTransitionError`. That refusal comes after `leave`, `transition`
+  and `enter` went out, and does not take them back.
 - **Guards need a request, or they see no one.** A guard runs in the unit of work open where its
   guard event is dispatched, and reads the security token of the request or message being handled
   there. A workflow moved from a console command, or anywhere outside such a unit, opens one with
@@ -679,6 +688,11 @@ Everything the library raises derives from `WorkflowError` (`xtr_workflow.except
 - `WorkflowRuntimeError` — a failure while running.
 
 `Transition` raises a plain `TypeError` for an arc that is neither a place name nor an `Arc`.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-workflow).
 
 ## Development
 

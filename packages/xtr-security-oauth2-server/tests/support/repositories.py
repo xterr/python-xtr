@@ -23,6 +23,7 @@ from tests.support.entities import AccessToken, AuthCode, DeviceCode, RefreshTok
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from datetime import datetime
 
     from xtr_security_oauth2_server_core.entities import ClientEntityInterface
     from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
@@ -179,9 +180,13 @@ class InMemoryAuthCodeRepository:
         self.collisions.claim()
         self.codes[auth_code_entity.get_identifier()] = auth_code_entity
 
-    async def revoke_auth_code(self, code_id: str) -> None:
-        """Stop accepting the authorization code named ``code_id``."""
+    async def revoke_auth_code(self, code_id: str) -> bool:
+        """Revoke ``code_id``, reporting whether this call is what revoked it."""
+        if code_id in self.revoked:
+            return False
         self.revoked.add(code_id)
+
+        return True
 
     async def is_auth_code_revoked(self, code_id: str) -> bool:
         """Tell whether the authorization code named ``code_id`` was revoked."""
@@ -322,9 +327,42 @@ class InMemoryDeviceCodeRepository:
         """Return the stored code named ``device_code``, or ``None``."""
         return self.codes.get(device_code)
 
-    async def revoke_device_code(self, code_id: str) -> None:
-        """Stop accepting the device code named ``code_id``."""
+    async def revoke_device_code(self, code_id: str) -> bool:
+        """Revoke ``code_id``, reporting whether this call is what revoked it."""
+        if code_id in self.revoked:
+            return False
         self.revoked.add(code_id)
+
+        return True
+
+    async def record_device_code_decision(
+        self,
+        code_id: str,
+        user_id: str,
+        user_approved: bool,
+    ) -> bool:
+        """Record the decision unless one was recorded or the code was spent."""
+        stored = self.codes.get(code_id)
+        if stored is None or code_id in self.revoked or stored.get_user_identifier() is not None:
+            return False
+        stored.set_user_identifier(user_id)
+        stored.set_user_approved(user_approved)
+
+        return True
+
+    async def record_device_code_poll(
+        self,
+        code_id: str,
+        last_polled_at: datetime | None,
+        polled_at: datetime,
+    ) -> bool:
+        """Record the poll unless another was recorded since ``last_polled_at`` was read."""
+        stored = self.codes.get(code_id)
+        if stored is None or stored.get_last_polled_at() != last_polled_at:
+            return False
+        stored.set_last_polled_at(polled_at)
+
+        return True
 
     async def is_device_code_revoked(self, code_id: str) -> bool:
         """Tell whether the device code named ``code_id`` was revoked."""

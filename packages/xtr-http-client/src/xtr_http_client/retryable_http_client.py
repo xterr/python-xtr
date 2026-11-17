@@ -12,7 +12,6 @@ from xtr_service_contracts import ResetInterface
 from .exception import InvalidArgumentError, TransportError
 from .internal.option_merge import as_options
 from .internal.retry_count_response import with_retry_count
-from .internal.retry_delay import retry_after_ms
 from .internal.retry_options import (
     base_uri_rotation,
     replays_body,
@@ -278,9 +277,8 @@ class RetryableHttpClient(HttpClientInterface, ResetInterface):
             if not retry:
                 return _answer(response, count)
 
-            delay = retry_after_ms(response)
-            if delay is None:
-                delay = self._strategy.get_delay(context, content, None)
+            # The strategy reads the answer's own Retry-After, so it is the one to bound it.
+            delay = self._strategy.get_delay(context, content, None)
 
             count += 1
             await response.cancel()

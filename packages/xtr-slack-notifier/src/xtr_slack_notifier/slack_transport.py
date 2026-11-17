@@ -118,7 +118,9 @@ class SlackTransport(AbstractTransport):
         if "post_at" in fields:
             method = "chat.scheduleMessage"
         answer = await self._call(method, fields)
-        return SlackSentMessage(message, str(self), str(answer["channel"]), str(answer["ts"]))
+        # A scheduled message has no ts yet: Slack names it by scheduled_message_id.
+        message_id = answer["scheduled_message_id" if method == "chat.scheduleMessage" else "ts"]
+        return SlackSentMessage(message, str(self), str(answer["channel"]), str(message_id))
 
     async def _call(self, method: str, fields: Mapping[str, object]) -> Mapping[str, object]:
         """Call ``method`` with the fields that are not empty, and return what it answered."""

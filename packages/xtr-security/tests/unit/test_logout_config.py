@@ -14,7 +14,8 @@ def test_a_logout_defaults_to_the_documented_choices() -> None:
 
     assert logout.path == "/logout"
     assert logout.target_path == "/"
-    assert logout.enable_csrf is False
+    # Left to the wiring, which asks for the proof on every stateful firewall.
+    assert logout.enable_csrf is None
     assert logout.csrf_parameter == "_csrf_token"
     assert logout.csrf_token_id == "logout"
     assert logout.clear_site_data is None

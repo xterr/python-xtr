@@ -55,10 +55,15 @@ class AbstractAuthorizeGrant(AbstractGrant, ABC):
         params: Mapping[str, str | int | None] = NO_PARAMS,
         query_delimiter: str = "?",
     ) -> str:
-        """Return ``uri`` carrying ``params``, in its query or in its fragment.
+        """Return ``uri`` carrying ``params`` and this server's issuer, in its query or fragment.
 
         A parameter whose value is absent is left out rather than sent empty,
         because a client reads ``state=`` as state it never sent.
+
+        The issuer goes on every answer, success or refusal, as ``iss``
+        (RFC 9207): a client talking to more than one server can then tell
+        which one sent the browser back, so a response another server produced
+        is not taken for this one's.
 
         A seam a subclass may replace; what it does is the package's one way
         of building such a URI, which the authorization endpoint uses too.
@@ -70,7 +75,9 @@ class AbstractAuthorizeGrant(AbstractGrant, ABC):
                 them in the fragment — which is what an access token handed
                 straight to a browser uses, so it never reaches a server log.
         """
-        return redirect_uri_carrying(uri, params, query_delimiter)
+        issuer = self._wired(self._private_key, "set_private_key").issuer
+
+        return redirect_uri_carrying(uri, {**params, "iss": issuer}, query_delimiter)
 
     def create_authorization_request(self) -> AuthorizationRequestInterface:
         """Return the request this grant records what it read into.

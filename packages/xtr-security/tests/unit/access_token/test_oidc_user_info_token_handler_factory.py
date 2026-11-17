@@ -10,6 +10,7 @@ from xtr_cache import ArrayAdapter
 from xtr_http_client import MockHttpClient
 from xtr_http_client.response import MockResponse
 
+from tests.support.builders import NO_PEERS
 from xtr_security.bundle import (
     OidcUserInfoTokenHandlerConfig,
     OidcUserInfoTokenHandlerFactory,
@@ -66,7 +67,7 @@ async def test_it_builds_a_handler_that_reads_the_userinfo_endpoint() -> None:
 
     _ = OidcUserInfoTokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_userinfo",
         config,
     )
@@ -97,7 +98,7 @@ async def test_a_configured_discovery_cache_enables_the_discovery_read() -> None
     recorder = _Recorder()
     _ = OidcUserInfoTokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_userinfo",
         config,
     )
@@ -130,3 +131,19 @@ async def test_a_configured_discovery_cache_enables_the_discovery_read() -> None
 
     badge = await handler.get_user_badge_from("s3cret")
     assert badge.get_user_identifier() == "alice"
+
+
+def test_the_logger_is_asked_for_only_while_the_logging_bundle_is_active() -> None:
+    from xtr_logging_contracts import LoggerInterface
+
+    from xtr_security.access_token.oidc_user_info_token_handler_factory import (
+        _oidc_user_info_handler_factory,
+    )
+
+    config = OidcUserInfoTokenHandlerConfig(userinfo_base_uri="https://as.example/userinfo")
+
+    with_logger = _oidc_user_info_handler_factory(config, logging_active=True)
+    without_logger = _oidc_user_info_handler_factory(config, logging_active=False)
+
+    assert with_logger.__annotations__["logger"] is LoggerInterface
+    assert "logger" not in without_logger.__annotations__

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from functools import partial
 from typing import TYPE_CHECKING, Final, final
@@ -70,7 +71,9 @@ class DeviceCodeGrant(AbstractGrant):
     reach a phone.
 
     A device code is single use. It is revoked as soon as it is exchanged, so a
-    code read off a device that has already been authorized buys nothing.
+    code read off a device that has already been authorized buys nothing: it is
+    answered ``invalid_grant``, the answer for a grant that is invalid, revoked
+    or another client's.
     """
 
     def __init__(  # noqa: PLR0913, PLR0917 -- one wiring of one flow, not seven choices
@@ -151,7 +154,7 @@ class DeviceCodeGrant(AbstractGrant):
         scopes = await self.validate_scopes(
             self.get_request_parameter("scope", request, self._default_scope_or_fail()),
         )
-        device_code = await self.issue_device_code(
+        device_code, handed_out = await self.issue_device_code(
             self._device_code_ttl,
             client,
             self._verification_uri,
@@ -162,7 +165,7 @@ class DeviceCodeGrant(AbstractGrant):
             response.include_verification_uri_complete()
         if self._interval_visibility:
             response.include_interval()
-        response.set_device_code_entity(device_code)
+        response.set_device_code_entity(device_code, handed_out)
 
         return response
 
@@ -173,15 +176,20 @@ class DeviceCodeGrant(AbstractGrant):
         user_id: str,
         user_approved: bool,
     ) -> None:
-        """Record what the resource owner decided about ``device_code``.
+        """Record what the resource owner decided about the stored ``device_code``.
 
         Called by whatever serves the verification page, once it knows who is
-        looking at it and what they chose.
+        looking at it and what they chose. ``device_code`` is the identifier the
+        code is stored under — what the stored code found by its user code
+        answers to ``get_identifier()`` — never the value the device polls with,
+        which is not stored.
 
         Raises:
             OAuthServerError: When no such code is stored, or no resource owner
                 was named — a code approved on behalf of nobody would be
-                exchanged for a token acting for nobody.
+                exchanged for a token acting for nobody; ``access_denied``
+                when a decision was already recorded, or the code was spent or
+                has expired — the first decision is the one that holds.
         """
         stored = await self._device_code_repository.get_device_code_entity_by_device_code(
             device_code,
@@ -190,9 +198,12 @@ class DeviceCodeGrant(AbstractGrant):
             raise OAuthServerError.invalid_request("device_code", "Device code does not exist")
         if user_id == "":
             raise OAuthServerError.invalid_request("user_id", "User ID is required")
-        stored.set_user_identifier(user_id)
-        stored.set_user_approved(user_approved)
-        await self._device_code_repository.persist_device_code(stored)
+        if not await self._device_code_repository.record_device_code_decision(
+            device_code,
+            user_id,
+            user_approved,
+        ):
+            raise OAuthServerError.access_denied()
 
     @override
     async def respond_to_access_token_request(
@@ -203,11 +214,16 @@ class DeviceCodeGrant(AbstractGrant):
     ) -> ResponseTypeInterface:
         """Answer a polling device: wait, slow down, refused, or here is your token.
 
+        The code is spent before the token pair is issued, so of two polls at
+        once only the one that spends it is answered with tokens.
+
         Raises:
             OAuthServerError: With ``authorization_pending`` while nobody has
                 decided, ``slow_down`` when the device polled too soon,
-                ``access_denied`` when its owner refused, and the usual
-                refusals when the code or the client is not what it claims.
+                ``access_denied`` when its owner refused, ``expired_token``
+                when the code expired, and ``invalid_grant`` when the code is
+                unknown, already spent — by this poll's rival too — or was
+                issued to another client.
         """
         client = await self.validate_client(request)
         device_code = await self.validate_device_code(request, client)
@@ -224,8 +240,9 @@ class DeviceCodeGrant(AbstractGrant):
             client,
             owner,
         )
+        if not await self._device_code_repository.revoke_device_code(device_code.get_identifier()):
+            raise OAuthServerError.invalid_grant()
         await self._issue_tokens(request, response_type, access_token_ttl, client, owner, granted)
-        await self._device_code_repository.revoke_device_code(device_code.get_identifier())
 
         return response_type
 
@@ -248,8 +265,9 @@ class DeviceCodeGrant(AbstractGrant):
         polled_with = self.get_request_parameter("device_code", request)
         if polled_with is None:
             raise OAuthServerError.invalid_request("device_code")
+        stored_as = _stored_identifier(polled_with)
         stored = await self._device_code_repository.get_device_code_entity_by_device_code(
-            polled_with,
+            stored_as,
         )
         if stored is None:
             await self._announce(RequestEvent.USER_AUTHENTICATION_FAILED, request)
@@ -257,13 +275,10 @@ class DeviceCodeGrant(AbstractGrant):
             raise OAuthServerError.invalid_grant()
         if self._clock.now().timestamp() > stored.get_expiry_date_time().timestamp():
             raise OAuthServerError.expired_token("device_code")
-        if await self._device_code_repository.is_device_code_revoked(polled_with):
-            raise OAuthServerError.invalid_request("device_code", "Device code has been revoked")
+        if await self._device_code_repository.is_device_code_revoked(stored_as):
+            raise OAuthServerError.invalid_grant()
         if stored.get_client().get_identifier() != client.get_identifier():
-            raise OAuthServerError.invalid_request(
-                "device_code",
-                "Device code was not issued to this client",
-            )
+            raise OAuthServerError.invalid_grant()
 
         return stored
 
@@ -273,12 +288,17 @@ class DeviceCodeGrant(AbstractGrant):
         client: ClientEntityInterface,
         verification_uri: str,
         scopes: Sequence[ScopeEntityInterface] = (),
-    ) -> DeviceCodeEntityInterface:
-        """Mint and store the pair of codes for ``client``.
+    ) -> tuple[DeviceCodeEntityInterface, str]:
+        """Mint and store the pair of codes for ``client``, and return them with the device's code.
 
         Both codes are minted together on every attempt, so a collision on the
         device code mints a new user code too rather than reusing one that may
         already be on somebody's screen.
+
+        The device code is stored hashed: the entity carries its SHA-256 as
+        its identifier, and the code itself — returned beside the entity — is
+        handed to the device and kept nowhere, so a read of the store yields
+        nothing a device could poll with.
 
         Raises:
             UniqueTokenIdentifierConstraintViolationError: When no free
@@ -291,12 +311,18 @@ class DeviceCodeGrant(AbstractGrant):
         device_code.set_interval(self._retry_interval)
         for scope in scopes:
             device_code.add_scope(scope)
+        handed_out: list[str] = []
+
+        def name(minted: str) -> None:
+            handed_out[:] = [minted]
+            self._name_device_code(device_code, _stored_identifier(minted))
+
         await self._store_under_a_free_identifier(
-            partial(self._name_device_code, device_code),
+            name,
             partial(self._device_code_repository.persist_device_code, device_code),
         )
 
-        return device_code
+        return device_code, handed_out[0]
 
     def generate_user_code(self, length: int = _USER_CODE_LENGTH) -> str:
         """Return a user code of ``length`` characters for somebody to type in."""
@@ -312,16 +338,22 @@ class DeviceCodeGrant(AbstractGrant):
 
         The recording happens whatever the answer is, which is the point: a
         device told to slow down has to be judged against the poll that was
-        refused, or it would be told to slow down for ever.
+        refused, or it would be told to slow down for ever. It is recorded
+        only if no other poll was since this one read the code: losing that to
+        a poll at the same moment is polling too soon as well.
 
         Raises:
             OAuthServerError: ``slow_down`` when the last poll was less than
-                the interval ago.
+                the interval ago, or another poll was recorded meanwhile.
         """
-        too_soon = self._polled_too_soon(device_code.get_last_polled_at())
-        device_code.set_last_polled_at(self._clock.now())
-        await self._device_code_repository.persist_device_code(device_code)
-        if too_soon:
+        last_polled_at = device_code.get_last_polled_at()
+        too_soon = self._polled_too_soon(last_polled_at)
+        recorded = await self._device_code_repository.record_device_code_poll(
+            device_code.get_identifier(),
+            last_polled_at,
+            self._clock.now(),
+        )
+        if too_soon or not recorded:
             raise OAuthServerError.slow_down()
 
     def _polled_too_soon(self, last_polled_at: datetime | None) -> bool:
@@ -330,3 +362,8 @@ class DeviceCodeGrant(AbstractGrant):
             return False
 
         return last_polled_at.timestamp() + self._retry_interval > self._clock.now().timestamp()
+
+
+def _stored_identifier(device_code: str) -> str:
+    """Return the identifier ``device_code`` is stored under: its SHA-256, in hex."""
+    return hashlib.sha256(device_code.encode()).hexdigest()

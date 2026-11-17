@@ -617,3 +617,66 @@ def test_a_link_on_the_creation_walk_surfaces_its_own_error(tmp_path: Path) -> N
     # told not to follow, Darwin reports that a link is not the directory asked
     # for. Either is the walk's own answer; a closed descriptor's EBADF is not.
     assert caught.value.errno in (errno.ELOOP, errno.ENOTDIR)
+
+
+async def test_a_reader_never_sees_a_half_written_file(tmp_path: Path) -> None:
+    # The stream lands in a hidden temp beside the file and replaces it whole.
+    adapter = LocalAdapter(tmp_path / "root")
+    await adapter.write("data.txt", b"old", Config())
+    seen: list[tuple[bytes, set[str]]] = []
+
+    async def halfway() -> AsyncIterator[bytes]:
+        yield b"ne"
+        seen.append((await adapter.read("data.txt"), await _paths(adapter)))
+        yield b"w"
+
+    await adapter.write_stream("data.txt", halfway(), Config())
+
+    assert seen == [(b"old", {"data.txt"})]
+    assert await adapter.read("data.txt") == b"new"
+    assert await _paths(adapter) == {"data.txt"}
+
+
+async def test_a_write_replaces_the_file_rather_than_rewriting_it(tmp_path: Path) -> None:
+    adapter = LocalAdapter(tmp_path / "root")
+    await adapter.write("data.txt", b"old", Config())
+    before = (tmp_path / "root" / "data.txt").stat().st_ino
+
+    await adapter.write("data.txt", b"new", Config())
+
+    assert (tmp_path / "root" / "data.txt").stat().st_ino != before
+    assert await adapter.read("data.txt") == b"new"
+
+
+async def test_rewriting_a_file_keeps_its_mode(tmp_path: Path) -> None:
+    adapter = LocalAdapter(tmp_path / "root")
+    await adapter.write("data.txt", b"old", Config())
+    (tmp_path / "root" / "data.txt").chmod(0o640)
+
+    await adapter.write("data.txt", b"new", Config())
+
+    assert _mode(tmp_path / "root" / "data.txt") == 0o640
+
+
+async def test_a_failed_stream_leaves_the_old_file_and_no_temp(tmp_path: Path) -> None:
+    adapter = LocalAdapter(tmp_path / "root")
+    await adapter.write("data.txt", b"old", Config())
+
+    async def broken() -> AsyncIterator[bytes]:
+        yield b"partial"
+        raise RuntimeError("the upload dropped")
+
+    with pytest.raises(RuntimeError):
+        await adapter.write_stream("data.txt", broken(), Config())
+
+    assert await adapter.read("data.txt") == b"old"
+    assert sorted(path.name for path in (tmp_path / "root").iterdir()) == ["data.txt"]
+
+
+async def test_the_root_directory_works(tmp_path: Path) -> None:
+    # Every path is below "/", so nothing read through a storage rooted there escapes it.
+    target = tmp_path / "note.txt"
+    _ = target.write_bytes(b"hello")
+    adapter = LocalAdapter("/")
+
+    assert await adapter.read(target.as_posix().lstrip("/")) == b"hello"

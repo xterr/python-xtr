@@ -91,7 +91,8 @@ async def test_an_auth_code_is_stored_and_revoked() -> None:
     await codes.persist_new_auth_code(code)
 
     assert not await codes.is_auth_code_revoked("code-1")
-    await codes.revoke_auth_code("code-1")
+    assert await codes.revoke_auth_code("code-1")
+    assert not await codes.revoke_auth_code("code-1")
     assert await codes.is_auth_code_revoked("code-1")
     assert codes.codes == {"code-1": code}
 

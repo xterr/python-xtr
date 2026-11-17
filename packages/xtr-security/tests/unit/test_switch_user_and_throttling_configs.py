@@ -12,7 +12,8 @@ def test_the_switch_user_defaults_are_the_listener_shape() -> None:
 
     assert config.role == "ROLE_ALLOWED_TO_SWITCH"
     assert config.parameter == "_switch_user"
-    assert config.enable_csrf is False
+    # Left to the wiring, which asks for the proof on every stateful firewall.
+    assert config.enable_csrf is None
     assert config.csrf_parameter == "_csrf_token"
     assert config.csrf_token_id == "switch_user"
     assert config.path is None

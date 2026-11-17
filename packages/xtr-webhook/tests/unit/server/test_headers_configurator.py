@@ -27,10 +27,12 @@ def test_without_a_clock_the_timestamp_is_the_current_time() -> None:
     assert abs(int(request.headers["Webhook-Timestamp"]) - Clock.get().now().timestamp()) <= 2
 
 
-def test_without_a_clock_it_still_sends_the_event_and_the_id() -> None:
+def test_without_a_clock_it_still_sends_the_event_and_the_id_under_the_legacy_format() -> None:
     request = OutgoingRequest()
 
-    HeadersConfigurator().configure(_event(), _WHSEC, request)
+    HeadersConfigurator(signature_format=SignatureFormat.LEGACY).configure(
+        _event(), _WHSEC, request
+    )
 
     assert request.headers["Webhook-Event"] == "event-name"
     assert request.headers["Webhook-Id"] == "event-id"
@@ -98,6 +100,7 @@ def test_the_header_names_are_configurable() -> None:
         event_header_name="X-Event",
         id_header_name="X-Id",
         timestamp_header_name="X-Timestamp",
+        signature_format=SignatureFormat.LEGACY,
         clock=MockClock(_FROZEN),
     ).configure(_event(), _WHSEC, request)
 

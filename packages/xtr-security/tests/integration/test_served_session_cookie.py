@@ -29,8 +29,9 @@ pytestmark = pytest.mark.anyio
 #: The ``Set-Cookie`` the fixture's configuration stages, its ID left open.
 CONFIGURED = re.compile(r"sid=([0-9a-f]{48}); path=/; secure; httponly; samesite=lax")
 
-#: The ``Set-Cookie`` a firewall configuring no cookie stages, its ID left open.
-DEFAULT = re.compile(r"xtr_session=([0-9a-f]{48}); path=/; httponly; samesite=lax")
+#: The ``Set-Cookie`` a firewall configuring no cookie stages, its ID left open — Secure,
+#: the served requests coming over https.
+DEFAULT = re.compile(r"xtr_session=([0-9a-f]{48}); path=/; secure; httponly; samesite=lax")
 
 _LOGIN = {"_username": "alice", "_password": "secret"}
 

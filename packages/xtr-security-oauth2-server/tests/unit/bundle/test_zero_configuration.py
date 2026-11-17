@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from xtr_dependency_injection import Kernel
+from xtr_dependency_injection import Kernel, unit_of_work
 from xtr_dependency_injection.exception import ServiceResolutionError
 from xtr_dependency_injection.testing import assert_zero_config
 from xtr_security_jwt.services.key_loader.key_loader_interface import KeyLoaderInterface
@@ -103,7 +103,7 @@ async def test_asking_for_the_scopes_names_the_available_setting() -> None:
 
 
 async def test_asking_for_the_description_names_the_issuer_setting() -> None:
-    async with await _unconfigured().boot() as booted:
-        refusal = await _refused(booted.container, MetadataController)
+    async with await _unconfigured().boot() as booted, unit_of_work(booted.container) as unit:
+        refusal = await _refused(unit, MetadataController)
 
     assert "authorization_server.issuer" in str(refusal)

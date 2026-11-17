@@ -107,7 +107,7 @@ def _token_request(authorization: str | None = None) -> ServerRequestInterface:
                 None,
             ),
         ),
-        (OAuthServerError.invalid_grant(), _Answer("invalid_grant", 10, 400, _BAD_GRANT, "")),
+        (OAuthServerError.invalid_grant(), _Answer("invalid_grant", 10, 400, _BAD_GRANT, None)),
         (
             OAuthServerError.expired_token(),
             _Answer(
@@ -397,7 +397,7 @@ def test_it_keeps_the_error_it_was_raised_from() -> None:
     cause = ValueError("the payload could not be decrypted")
 
     with pytest.raises(OAuthServerError) as raised:
-        raise OAuthServerError.invalid_refresh_token("Cannot decrypt the refresh token") from cause
+        raise OAuthServerError.invalid_refresh_token() from cause
 
     assert raised.value.__cause__ is cause
 
@@ -406,3 +406,37 @@ def test_its_repr_shows_no_credential_the_request_carried() -> None:
     error = OAuthServerError.invalid_client(_token_request("Basic YXBwOnMzY3IzdA=="))
 
     assert "YXBwOnMzY3IzdA==" not in repr(error)
+
+
+@pytest.mark.anyio
+async def test_a_redirected_refusal_carries_the_issuer_it_was_given() -> None:
+    error = OAuthServerError.access_denied(None, "https://app.test/cb?state=xyz")
+
+    error.carry_issuer("https://issuer.test")
+    answer = await error.generate_http_response(Response())
+
+    query = parse_qs(urlsplit(answer.get_header_line("location")).query)
+    assert query["iss"] == ["https://issuer.test"]
+    assert query["state"] == ["xyz"]
+
+
+@pytest.mark.anyio
+async def test_a_refusal_already_naming_an_issuer_is_left_naming_that_one() -> None:
+    error = OAuthServerError.access_denied(None, "https://app.test/cb?iss=https%3A%2F%2Fa.test")
+
+    error.carry_issuer("https://issuer.test")
+    answer = await error.generate_http_response(Response())
+
+    assert parse_qs(urlsplit(answer.get_header_line("location")).query)["iss"] == ["https://a.test"]
+
+
+@pytest.mark.anyio
+async def test_a_refusal_answered_as_a_document_carries_no_issuer() -> None:
+    # RFC 9207 names the authorization response; a document answers no redirect.
+    error = OAuthServerError.invalid_request("scope")
+
+    error.carry_issuer("https://issuer.test")
+    document = await document_of(await error.generate_http_response(Response()))
+
+    assert isinstance(document, dict)
+    assert "iss" not in document

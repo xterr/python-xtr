@@ -22,6 +22,38 @@ def test_it_declares_the_device_code_manager_contract() -> None:
     assert DeviceCodeManagerInterface in DeviceCodeManager.__mro__
 
 
+async def test_only_the_first_caller_to_spend_a_code_is_told_it_did() -> None:
+    manager = _manager()
+    await manager.save(device_code_model())
+
+    assert await manager.revoke("dc-1") is True
+    assert await manager.revoke("dc-1") is False
+    assert await manager.revoke("nope") is False
+
+
+async def test_only_the_first_decision_on_a_live_code_is_recorded() -> None:
+    manager = _manager()
+    await manager.save(device_code_model())
+    await manager.save(device_code_model("expired", EARLIER, "EXPIRED1"))
+
+    assert await manager.record_decision("dc-1", "user-1", user_approved=False) is True
+    assert await manager.record_decision("dc-1", "user-2", user_approved=True) is False
+    assert await manager.record_decision("expired", "user-1", user_approved=True) is False
+    found = await manager.find("dc-1")
+    assert found is not None
+    assert found.get_user_identifier() == "user-1"
+    assert found.get_user_approved() is False
+
+
+async def test_a_poll_is_recorded_only_against_the_poll_it_read() -> None:
+    manager = _manager()
+    await manager.save(device_code_model())
+
+    assert await manager.record_poll("dc-1", None, NOW) is True
+    assert await manager.record_poll("dc-1", None, LATER) is False
+    assert await manager.record_poll("dc-1", NOW, LATER) is True
+
+
 async def test_it_finds_a_code_it_stored() -> None:
     manager = _manager()
     code = device_code_model()

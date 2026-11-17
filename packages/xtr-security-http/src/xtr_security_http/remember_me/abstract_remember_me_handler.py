@@ -29,7 +29,8 @@ __all__ = ["AbstractRememberMeHandler"]
 #: The options every handler carries, and their defaults. The name is the
 #: cookie's own; the lifetime is one year, the longest a browser is asked to
 #: keep a login that was never re-proven; the rest are the cookie's attributes,
-#: repeated by the header that clears it. The last two belong to the listener
+#: repeated by the header that clears it — ``secure`` left ``None`` makes the
+#: cookie Secure exactly when the request came over https. The last two belong to the listener
 #: that decides whether a login wants the cookie at all — the handler carries
 #: them so one options mapping serves the whole suite.
 _DEFAULT_OPTIONS: Mapping[str, object] = {
@@ -37,7 +38,7 @@ _DEFAULT_OPTIONS: Mapping[str, object] = {
     "lifetime": 31536000,
     "path": "/",
     "domain": None,
-    "secure": False,
+    "secure": None,
     "httponly": True,
     "samesite": None,
     "always_remember_me": False,
@@ -153,6 +154,7 @@ class AbstractRememberMeHandler(  # pyright: ignore[reportImplicitAbstractClass]
         """
         options = self._options
         state = security_state_of(state_bag_of(request))
+        secure = options["secure"]
         state.attributes[SecurityRequestAttributes.REMEMBER_ME_COOKIE] = RememberMeCookie(
             name=str(options["name"]),
             value=None if remember_me_details is None else str(remember_me_details),
@@ -163,7 +165,10 @@ class AbstractRememberMeHandler(  # pyright: ignore[reportImplicitAbstractClass]
             ),
             path=_optional_str(options["path"]),
             domain=_optional_str(options["domain"]),
-            secure=options["secure"] is True,
+            # Unset, settled by the request: Secure over https, not over plain http.
+            secure=(request.get_uri().get_scheme() == "https")
+            if secure is None
+            else secure is True,
             httponly=options["httponly"] is not False,
             samesite=_optional_str(options["samesite"]),
         )

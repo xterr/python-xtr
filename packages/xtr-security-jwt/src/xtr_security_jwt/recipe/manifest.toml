@@ -38,7 +38,7 @@ lines = ["/secrets/*.pem", "/secrets/*.jwks.json"]
 
 [notes]
 steps = [
-  "Build the kernel with concurrent_scoped_access=True and call setup(app, kernel) where the application is served, as the security family requires.",
+  "Call setup(app, kernel) where the application is served, as the security family requires.",
   "The signing key was minted at secrets/jwt.pem, encrypted with JWT_PASSPHRASE. The key is ignored, so another checkout mints its own with 'uv run xtr-recipes recipes:install xtr-security-jwt', which encrypts it with the JWT_PASSPHRASE in its .env. In production, set JWT_SECRET_KEY_PATH and JWT_PASSPHRASE to the deployment's own key rather than the development values in .env.",
   "Add JwtAuthenticatorConfig() to a firewall's authenticators in config/packages/security.py: nothing reads a token until a firewall does.",
 ]

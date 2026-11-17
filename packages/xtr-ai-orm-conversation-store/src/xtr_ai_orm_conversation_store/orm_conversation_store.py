@@ -90,6 +90,10 @@ class OrmConversationStore(ConversationStore):
         conversation = self._tables.conversation
         async with self._engine.begin() as connection:
             if expected_revision is None:
+                if record.forked_from is not None and not await self._origin_kept(
+                    connection, record.forked_from
+                ):
+                    raise ConversationConflict(record.conversation_id)
                 try:
                     _ = await connection.execute(insert(conversation).values(record_row(record)))
                 except IntegrityError:
@@ -122,6 +126,13 @@ class OrmConversationStore(ConversationStore):
     async def delete_record(self, conversation_id: str, *, expected_revision: str) -> None:
         conversation = self._tables.conversation
         async with self._engine.begin() as connection:
+            # Locked in a statement of its own first: a fork being written holds its origin
+            # share-locked until it commits, so the family read next sees that fork.
+            _ = await connection.execute(
+                select(conversation.c.conversation_id)
+                .where(conversation.c.conversation_id == conversation_id)
+                .with_for_update()
+            )
             family = await self._fork_family(connection, conversation_id)
             deleted = await connection.execute(
                 delete(conversation).where(
@@ -188,6 +199,21 @@ class OrmConversationStore(ConversationStore):
         )
         return bool(found)
 
+    async def _origin_kept(self, connection: AsyncConnection, origin_id: str) -> bool:
+        """Share-lock the conversation a new fork comes from; ``False`` when it is gone.
+
+        Held until the fork commits, so a delete of the origin waits for the
+        fork and then counts what the fork reaches as still in use; an origin
+        deleted meanwhile leaves the fork nothing to share.
+        """
+        conversation = self._tables.conversation
+        found = await connection.scalar(
+            select(conversation.c.conversation_id)
+            .where(conversation.c.conversation_id == origin_id)
+            .with_for_update(read=True)
+        )
+        return found is not None
+
     async def _fork_family(
         self, connection: AsyncConnection, conversation_id: str
     ) -> dict[str, list[str]]:
@@ -203,12 +229,14 @@ class OrmConversationStore(ConversationStore):
         while pending:
             rows = (
                 await connection.execute(
-                    select(conversation).where(
+                    select(conversation)
+                    .where(
                         or_(
                             conversation.c.conversation_id.in_(pending),
                             conversation.c.forked_from.in_(pending),
                         )
                     )
+                    .with_for_update()
                 )
             ).all()
             explored |= pending

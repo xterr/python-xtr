@@ -35,6 +35,32 @@ def _answered(response: FakeResponse, method: str, retry_count: int = 0) -> Retr
     return RetryContext(method, _URL, as_options({}), retry_count, response)
 
 
+def _asking(after: str) -> RetryContext:
+    return _answered(FakeResponse(status_code=503, headers={"retry-after": [after]}), "GET")
+
+
+def test_the_wait_a_server_asks_for_is_obeyed() -> None:
+    assert GenericRetryStrategy([503], 250, 1, 0, 0).get_delay(_asking("2"), None, None) == 2000
+
+
+def test_the_wait_a_server_asks_for_is_capped_by_max_delay() -> None:
+    assert (
+        GenericRetryStrategy([503], 250, 1, 5000, 0).get_delay(_asking("99999"), None, None) == 5000
+    )
+
+
+def test_the_wait_a_server_asks_for_is_capped_at_a_minute_with_no_max_delay() -> None:
+    assert (
+        GenericRetryStrategy([503], 250, 1, 0, 0).get_delay(_asking("99999"), None, None) == 60_000
+    )
+
+
+def test_the_ceiling_on_the_wait_a_server_asks_for_can_be_set() -> None:
+    strategy = GenericRetryStrategy([503], 250, 1, 0, 0, max_retry_after_ms=1500)
+
+    assert strategy.get_delay(_asking("99999"), None, None) == 1500
+
+
 @pytest.mark.parametrize(
     ("method", "status_code", "error"),
     [

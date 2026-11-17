@@ -1,4 +1,4 @@
-"""The token storage: one token per unit of work, cleared between them."""
+"""The token storage: one token per unit of work, each unit holding its own."""
 
 from __future__ import annotations
 
@@ -19,15 +19,20 @@ __all__ = ["TokenStorage"]
 
 @final
 class TokenStorage(TokenStorageInterface, ResetInterface):
-    """Holds the current token, and returns to empty between units of work.
+    """Holds the current token of one unit of work.
 
     A scoped service: one instance per request, message or command, so two
-    units of work never see each other's token. It satisfies
-    :class:`~xtr_service_contracts.reset_interface.ResetInterface` — a
-    container clears it when a unit of work ends, so the next starts with no
-    token — and is weakly referenceable because it declares no ``__slots__``,
-    so instances carry the ``__weakref__`` a kernel that resets its scoped
-    services requires.
+    units of work never see each other's token. Its isolation comes from that
+    scope alone — each unit is built a fresh, empty instance, and the instance
+    goes with the unit. The container's resetter never touches it: it resets
+    singletons only, since resetting a scoped instance from whichever unit
+    ended first would clear the token of another still running.
+
+    It still satisfies
+    :class:`~xtr_service_contracts.reset_interface.ResetInterface`, for an
+    owner that holds one instance across several units of its own — a hand-built
+    storage reused between tasks — and must clear it itself in between. It
+    declares no ``__slots__``, so instances stay weakly referenceable.
 
     An initializer, when set, runs once — the first time the token is read, or
     just before one is stored — so the token can be produced lazily, only when

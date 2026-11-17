@@ -8,13 +8,13 @@ that never stores sessions in a pool carries no caching contract.
 
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 
-from xtr_http_foundation.exception import InvalidArgumentError, SessionError
+from xtr_http_foundation.exception import SessionError
 
+from ._json_values import decoded, encoded
 from .session_storage_interface import SessionStorageInterface
 
 try:
@@ -59,6 +59,9 @@ class CachePoolSessionStorage(SessionStorageInterface):
     reads as no session, and the session starts fresh. A write the pool
     cannot keep, or a delete it cannot make, is a failure the caller must
     hear: a login that cannot persist must not pretend it did.
+
+    A write that must find its entry still there asks the pool first and
+    writes after, two calls: a delete landing between them is not refused.
     """
 
     __slots__ = ("_pool", "_ttl")
@@ -89,35 +92,39 @@ class CachePoolSessionStorage(SessionStorageInterface):
         value = item.get()
         if not isinstance(value, str):
             return None
-
-        try:
-            decoded = cast("object", json.loads(value))
-        except ValueError:
-            return None
-
-        if not isinstance(decoded, dict):
-            return None
-
-        # A decoded JSON object is keyed by strings; the cast says so once
-        # rather than at every lookup the caller makes.
-        return cast("dict[str, object]", decoded)
+        return decoded(value)
 
     @override
-    async def write(self, session_id: str, data: Mapping[str, object], ttl: float | None) -> None:
+    async def write(
+        self,
+        session_id: str,
+        data: Mapping[str, object],
+        ttl: float | None,
+        *,
+        must_exist: bool = False,
+    ) -> bool:
         """Store ``data`` under ``session_id`` as JSON, to live as long as ``ttl`` names.
+
+        Returns:
+            ``False`` when ``must_exist`` is set and the entry is gone, so
+            nothing was written; ``True`` once the pool kept the entry.
 
         Raises:
             InvalidArgumentError: When a value in ``data`` cannot round-trip
                 through JSON.
             SessionError: When the pool cannot keep the entry.
         """
-        encoded = _encoded(data)
+        text = encoded(data)
+        key = _KEY_PREFIX + session_id
+        if must_exist and not await self._pool.has_item(key):
+            return False
 
-        item = await self._pool.get_item(_KEY_PREFIX + session_id)
-        _ = item.set(encoded).expires_after(ttl if ttl is not None else self._ttl)
+        item = await self._pool.get_item(key)
+        _ = item.set(text).expires_after(ttl if ttl is not None else self._ttl)
 
         if not await self._pool.save(item):
             raise SessionError(f'The pool could not keep the session "{session_id}".')
+        return True
 
     @override
     async def delete(self, session_id: str) -> None:
@@ -128,35 +135,3 @@ class CachePoolSessionStorage(SessionStorageInterface):
         """
         if not await self._pool.delete_item(_KEY_PREFIX + session_id):
             raise SessionError(f'The pool could not remove the session "{session_id}".')
-
-
-def _encoded(data: Mapping[str, object]) -> str:
-    """Return ``data`` as the JSON an entry stores, or refuse what cannot round-trip.
-
-    A value that would come back as something else than it went in — a
-    tuple that would return a list, a key that would return a string — is
-    not a value the session can rely on reading again, so it is refused
-    here, where the caller can still hear it.
-
-    Raises:
-        InvalidArgumentError: When ``data`` holds a value JSON cannot give
-            back as it was given.
-    """
-    values = dict(data)
-
-    try:
-        encoded = json.dumps(values, allow_nan=False)
-    except (TypeError, ValueError) as error:
-        raise InvalidArgumentError(
-            "A session value must round-trip through JSON — a string, a number, a boolean, "
-            f"None, a list or a dictionary of them — and one of them does not: {error}.",
-        ) from error
-
-    decoded = cast("object", json.loads(encoded))
-    if not isinstance(decoded, dict) or decoded != values:
-        raise InvalidArgumentError(
-            "A session value must round-trip through JSON — a string, a number, a boolean, "
-            "None, a list or a dictionary of them; something in this session is not.",
-        )
-
-    return encoded

@@ -1,6 +1,6 @@
 [project]
 name = "xtr-storage"
-version = "6.8.1"
+version = "7.0.0"
 description = "Files on local disk, in memory or in object stores, behind one async interface."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -53,8 +53,8 @@ dev = [
     "moto[server]>=5",
     "s3fs>=2026.6",
     "gcsfs>=2026.6",
-    "xtr-dependency-injection>=6.0,<7",
-    "xtr-service-contracts>=6.0,<7",
+    "xtr-dependency-injection>=7.0,<8",
+    "xtr-service-contracts>=7.0,<8",
 ]
 
 [build-system]

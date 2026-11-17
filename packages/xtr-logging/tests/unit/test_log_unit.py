@@ -10,7 +10,14 @@ import anyio.to_thread
 import pytest
 
 import xtr_logging
-from xtr_logging.log_unit import begin_unit, end_unit, in_unit, unit_state
+from xtr_logging.log_unit import (
+    begin_unit,
+    end_unit,
+    enter_nested_unit,
+    exit_nested_unit,
+    in_unit,
+    unit_state,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -159,35 +166,109 @@ def test_ending_in_a_context_that_only_carries_a_unit_lets_go_of_it() -> None:
     assert ended == ["first"]
 
 
-def test_what_is_logged_into_a_unit_after_it_ended_is_flushed_when_its_carrier_lets_go() -> None:
+def test_a_context_carrying_a_closed_unit_does_not_end_it_again() -> None:
     begin_unit()
-    owner = object()
-    flushed: list[list[str]] = []
-
-    def buffer() -> list[str]:
-        return []
-
-    def flush(held: list[str]) -> None:
-        flushed.append(list(held))
-        held.clear()
-
-    held = unit_state(owner, buffer, flush)
-    assert held is not None
-    held.append("in time")
+    ended: list[str] = []
+    _ = unit_state(object(), lambda: 1, lambda _s: ended.append("end"))
     kept = contextvars.copy_context()
     end_unit()
 
-    def log_late_then_begin() -> None:
-        # The copy still carries the unit that is over: what is logged there
-        # lands in it, and beginning the next unit must not strand it.
-        late = unit_state(owner, buffer, flush)
-        assert late is not None
-        late.append("late")
+    kept.run(end_unit)
+
+    assert ended == ["end"]
+
+
+def test_an_ended_unit_hands_out_no_state() -> None:
+    begin_unit()
+    owner = object()
+    ended: list[str] = []
+    _ = unit_state(owner, _names, lambda _state: ended.append("end"))
+    kept = contextvars.copy_context()
+    end_unit()
+
+    def ask() -> tuple[object, bool]:
+        # The copy still carries the unit that is over: it hands out nothing,
+        # and takes no callback that would never run.
+        return unit_state(owner, _names, lambda _state: ended.append("late")), in_unit()
+
+    assert kept.run(ask) == (None, False)
+    assert ended == ["end"]
+
+
+def test_a_failing_end_still_opens_the_new_unit() -> None:
+    begin_unit()
+
+    def fail(_state: object) -> None:
+        raise RuntimeError("flush failed")
+
+    _ = unit_state(object(), object, fail)
+
+    with pytest.raises(ExceptionGroup):
         begin_unit()
 
-    kept.run(log_late_then_begin)
+    assert in_unit()
+    assert unit_state(object(), _names) == []
 
-    assert flushed == [["in time"], ["late"]]
+
+def test_a_nested_unit_restores_the_outer_one() -> None:
+    begin_unit()
+    owner = object()
+    outer = unit_state(owner, _names)
+    assert outer is not None
+    ended: list[str] = []
+
+    token = enter_nested_unit()
+    inner = unit_state(owner, _names, lambda _state: ended.append("inner"))
+    exit_nested_unit(token)
+
+    assert inner is not outer
+    assert ended == ["inner"]
+    assert unit_state(owner, _names) is outer
+
+
+def test_a_nested_unit_outside_any_unit_leaves_none_open() -> None:
+    token = enter_nested_unit()
+    assert in_unit()
+
+    exit_nested_unit(token)
+
+    assert not in_unit()
+
+
+def test_a_nested_unit_exited_in_another_context_still_ends() -> None:
+    ended: list[str] = []
+
+    def enter() -> object:
+        token = enter_nested_unit()
+        _ = unit_state(object(), _names, lambda _state: ended.append("ended"))
+        return token
+
+    entering = contextvars.copy_context()
+    token = entering.run(enter)
+    contextvars.copy_context().run(exit_nested_unit, token)
+
+    assert ended == ["ended"]
+    assert entering.run(in_unit) is False
+
+
+def test_a_failing_end_of_a_nested_unit_still_restores_the_outer_one() -> None:
+    begin_unit()
+    owner = object()
+    outer = unit_state(owner, _names)
+
+    def fail(_state: object) -> None:
+        raise RuntimeError("flush failed")
+
+    token = enter_nested_unit()
+    _ = unit_state(object(), object, fail)
+    with pytest.raises(ExceptionGroup):
+        exit_nested_unit(token)
+
+    assert unit_state(owner, _names) is outer
+
+
+def _names() -> list[str]:
+    return []
 
 
 @pytest.mark.anyio

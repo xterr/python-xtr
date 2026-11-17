@@ -208,9 +208,16 @@ class _RememberMeTokens(TokenProviderInterface):
         _ = self._tokens.pop(series, None)
 
     @override
-    async def update_token(self, series: str, token_value: str, last_used: datetime) -> None:
+    async def update_token(
+        self,
+        series: str,
+        expected_value: str,
+        token_value: str,
+        last_used: datetime,
+    ) -> bool:
         """Nothing to update: the fixture never spends a stored series."""
-        del series, token_value, last_used
+        del series, expected_value, token_value, last_used
+        return False
 
     @override
     async def create_new_token(self, token: PersistentToken) -> None:

@@ -27,6 +27,9 @@ from tests.support.served import (
     serving,
     text_field,
 )
+from xtr_security_oauth2_server.manager.device_code_manager_interface import (
+    DeviceCodeManagerInterface,
+)
 
 if TYPE_CHECKING:
     import httpx
@@ -46,12 +49,18 @@ def _verification(app: FastAPI) -> None:
     @app.post(APPROVE_PATH)
     async def approve(
         server: Injected[AuthorizationServer],
-        device_code: str,
+        devices: Injected[DeviceCodeManagerInterface],
+        user_code: str,
         *,
         user_id: str = OWNER,
         approved: bool = True,
     ) -> dict[str, str]:
-        await server.complete_device_authorization_request(device_code, user_id, approved)
+        # The page finds the code by the user code typed into it, and decides on what is stored.
+        found = await devices.find_by_user_code(user_code)
+        assert found is not None
+        await server.complete_device_authorization_request(
+            found.get_identifier(), user_id, approved
+        )
 
         return {"recorded": "yes"}
 
@@ -129,8 +138,8 @@ async def test_a_device_polling_again_too_soon_is_told_to_slow_down() -> None:
 
 async def test_an_approved_device_is_issued_a_token() -> None:
     async with serving(_application()) as client:
-        device_code, _ = await _device_codes(client)
-        recorded = await client.post(APPROVE_PATH, params={"device_code": device_code})
+        device_code, user_code = await _device_codes(client)
+        recorded = await client.post(APPROVE_PATH, params={"user_code": user_code})
         answered = await _poll(client, device_code)
 
     assert recorded.status_code == 200
@@ -142,10 +151,10 @@ async def test_an_approved_device_is_issued_a_token() -> None:
 
 async def test_a_refused_device_is_told_the_owner_said_no() -> None:
     async with serving(_application()) as client:
-        device_code, _ = await _device_codes(client)
+        device_code, user_code = await _device_codes(client)
         _ = await client.post(
             APPROVE_PATH,
-            params={"device_code": device_code, "approved": False},
+            params={"user_code": user_code, "approved": False},
         )
         answered = await _poll(client, device_code)
 

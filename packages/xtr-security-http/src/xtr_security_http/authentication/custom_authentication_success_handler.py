@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import copy
 from typing import TYPE_CHECKING, Protocol, final, runtime_checkable
 
 from typing_extensions import override
@@ -44,9 +45,15 @@ class CustomAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface):
     knows what the answer should look like. This is the seam between them:
     both are handed to the handler when they can be (a handler that takes
     them), and the answer is the handler's own either way.
+
+    The wrapper configures a copy of the handler of its own, once, so two
+    firewalls sharing one handler never answer with each other's options.
+    The copy is shallow: a handler's ``set_options`` and
+    ``set_firewall_name`` must rebind what they set, not change state the
+    copies share.
     """
 
-    __slots__ = ("_firewall_name", "_handler", "_options")
+    __slots__ = ("_handler",)
 
     def __init__(
         self,
@@ -63,9 +70,12 @@ class CustomAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface):
             firewall_name: The firewall that authenticated, for a handler
                 that keys its answers by one.
         """
-        self._handler = handler
-        self._options = dict(options)
-        self._firewall_name = firewall_name
+        own = copy(handler)
+        if isinstance(own, _OptionsAware):
+            own.set_options(dict(options))
+        if isinstance(own, _FirewallNamed):
+            own.set_firewall_name(firewall_name)
+        self._handler = own
 
     @override
     async def on_authentication_success(
@@ -73,9 +83,5 @@ class CustomAuthenticationSuccessHandler(AuthenticationSuccessHandlerInterface):
         request: ServerRequestInterface,
         token: TokenInterface,
     ) -> ResponseInterface | None:
-        """Hand the options and the firewall's name over, then let the handler answer."""
-        if isinstance(self._handler, _OptionsAware):
-            self._handler.set_options(self._options)
-        if isinstance(self._handler, _FirewallNamed):
-            self._handler.set_firewall_name(self._firewall_name)
+        """Let the configured copy of the handler answer."""
         return await self._handler.on_authentication_success(request, token)

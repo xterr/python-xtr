@@ -48,6 +48,28 @@ def test_a_model_is_built_once() -> None:
     platform = Platform("t", "test")
 
     assert platform.model("a") is platform.model("a")
+
+
+def test_the_model_cache_is_bounded() -> None:
+    # A model name may come from each caller: unbounded, the cache grows with them.
+    platform = Platform("t", "test")
+    first = platform.model("m-0")
+    for index in range(1, 65):
+        _ = platform.model(f"m-{index}")
+
+    assert len(platform._models) == 64
+    assert platform.model("m-0") is not first
+
+
+def test_the_model_used_last_is_the_one_kept() -> None:
+    platform = Platform("t", "test")
+    kept = platform.model("m-0")
+    for index in range(1, 64):
+        _ = platform.model(f"m-{index}")
+    _ = platform.model("m-0")
+    _ = platform.model("m-64")
+
+    assert platform.model("m-0") is kept
     assert platform.model("a") is not platform.model("b")
 
 

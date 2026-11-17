@@ -14,11 +14,12 @@ tests would pass against a database that silently keeps orphans.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager, contextmanager
-from typing import TYPE_CHECKING, Final, Never, TypeVar, cast, final
+from typing import TYPE_CHECKING, Final, TypeVar, cast, final
 
 from sqlalchemy import Column, MetaData, String, Table, event, func, select
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from xtr_orm import ConnectionRegistry
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from xtr_dependency_injection import Kernel, ScopeFactoryInterface
+from xtr_orm.bundle import OrmBundle
 
 from xtr_security_oauth2_server.model.client import Client
 from xtr_security_oauth2_server.persistence.mapping.driver import Driver
@@ -30,16 +31,15 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from sqlalchemy.engine.interfaces import DBAPIConnection
-    from sqlalchemy.ext.asyncio import AsyncEngine
     from sqlalchemy.pool import ConnectionPoolEntry
     from sqlalchemy.types import TypeEngine
+    from xtr_dependency_injection.kernel.booted_kernel import BootedKernel
 
     from xtr_security_oauth2_server.model.abstract_client import AbstractClient
 
 __all__ = [
     "CONNECTION",
     "Database",
-    "connections_of",
     "enforce_foreign_keys",
     "orm_driver",
     "registered",
@@ -52,47 +52,6 @@ _ValueT = TypeVar("_ValueT")
 
 CONNECTION: Final = "default"
 """The connection every stored manager in these tests reads and writes through."""
-
-_NO_DEFAULT: Final = "a-connection-this-registry-does-not-have"
-"""What a registry built here answers for when nothing is named.
-
-Deliberately unregistered: a manager that asked for the default connection
-instead of the one it was built for would be refused rather than quietly
-reading the right database by accident.
-"""
-
-
-async def _never() -> Never:
-    """Stand where a connection's migrator and database manager would be.
-
-    A manager asks a registry for a session and for nothing else, but a
-    connection cannot be registered without the other two.
-    """
-    raise AssertionError("a manager asks a registry only for a session")  # pragma: no cover
-
-
-def connections_of(session: AsyncSession, connection: str = CONNECTION) -> ConnectionRegistry:
-    """Return a registry answering with ``session`` for the connection managers read.
-
-    A stored manager is a singleton and holds no session: it asks the registry
-    for the session of the unit of work it is being used in. A test decides
-    what that is by handing one over, which is also how it gives two managers
-    two different sessions — as two requests have.
-    """
-    registry = ConnectionRegistry(_NO_DEFAULT)
-
-    async def provide() -> AsyncSession:
-        return session
-
-    registry.register(
-        connection,
-        engine=_never,
-        migrator=_never,
-        database=_never,
-        session=provide,
-    )
-
-    return registry
 
 
 def orm_driver(
@@ -108,9 +67,15 @@ def orm_driver(
 
 @final
 class Database:
-    """A SQLite file with one driver's tables on it, and the sessions over it."""
+    """A SQLite file with one driver's tables on it, the sessions over it, and its units of work.
 
-    __slots__ = ("_driver", "_engine", "_metadata", "_sessions", "_statements")
+    The stored managers open a unit of work of their own for each read and
+    write, through a kernel's scope factory: :meth:`scope_factory` boots one
+    holding nothing but the orm bundle, on this very file, so every unit they
+    open is a real one.
+    """
+
+    __slots__ = ("_booted", "_driver", "_engine", "_metadata", "_sessions", "_statements")
 
     def __init__(self, engine: AsyncEngine, driver: Driver, metadata: MetaData) -> None:
         self._engine = engine
@@ -118,6 +83,7 @@ class Database:
         self._metadata = metadata
         self._sessions: list[AsyncSession] = []
         self._statements: list[str] = []
+        self._booted: BootedKernel | None = None
         event.listen(engine.sync_engine, "before_cursor_execute", self._record)
 
     @property
@@ -135,11 +101,27 @@ class Database:
         return self._metadata.tables[name]
 
     def session(self) -> AsyncSession:
-        """Return a fresh unit of work, as the container hands one out per request."""
-        opened = AsyncSession(self._engine)
+        """Return a fresh session, built as the orm bundle builds a unit's: kept on commit."""
+        opened = AsyncSession(self._engine, expire_on_commit=False)
         self._sessions.append(opened)
 
         return opened
+
+    async def scope_factory(self) -> ScopeFactoryInterface:
+        """Return the scope factory of a kernel serving this file, booted the first time asked."""
+        if self._booted is None:
+            kernel = Kernel(
+                "tests.fixtures.orm_units_app",
+                env="test",
+                bundles={OrmBundle: {"all": True}},
+                environ={"DATABASE_URL": self._engine.url.render_as_string(hide_password=False)},
+            )
+            self._booted = await kernel.boot()
+            served = await self._booted.container.get(AsyncEngine)
+            enforce_foreign_keys(served)
+            event.listen(served.sync_engine, "before_cursor_execute", self._record)
+
+        return await self._booted.container.get(ScopeFactoryInterface)
 
     async def count(self, name: str) -> int:
         """Return how many rows the table ``name`` holds, read in a session of its own."""
@@ -158,10 +140,13 @@ class Database:
             self._statements.clear()
 
     async def close(self) -> None:
-        """Close every session handed out, so none is left for the collector."""
+        """Close every session handed out, and shut the kernel down, so nothing is left behind."""
         for opened in self._sessions:
             await opened.close()
         self._sessions.clear()
+        if self._booted is not None:
+            await self._booted.shutdown()
+            self._booted = None
 
     def _record(self, *arguments: object) -> None:
         """Remember the statement a cursor is about to run."""
@@ -174,15 +159,16 @@ def selects(statements: list[str]) -> list[str]:
 
 
 async def registered(session: AsyncSession, identifier: str = "client-1") -> Client:
-    """Store a client through ``session``, and hand back the instance it knows.
+    """Store a client through ``session``, and hand it back detached.
 
-    A credential is written through the client it holds, so that client has to
-    be one the session already knows — which is what a stored deployment hands
-    its managers: one session for the whole request, the client read through it.
+    A stored manager reads a client in a unit of work of its own and hands it
+    back detached once that unit ends, so that is what a credential is written
+    with: a client no open session holds.
     """
     client = client_model(identifier)
     session.add(client)
     await session.commit()
+    session.expunge(client)
 
     return client
 

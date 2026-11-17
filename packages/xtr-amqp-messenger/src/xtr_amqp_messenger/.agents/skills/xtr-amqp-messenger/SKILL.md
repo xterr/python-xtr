@@ -1,6 +1,6 @@
 ---
 name: xtr-amqp-messenger
-description: How to send and consume xtr-messenger messages through RabbitMQ with xtr-amqp-messenger — amqp and amqps DSNs found with no wiring, queues and exchanges, the retry ladder, delays through the delayed-message exchange, real dead-lettering, TLS settings, scoping a worker to its queues, and building the factory or broker by hand. Use when an application installs xtr-messenger[amqp], configures an amqp transport, sets a retry or dead-letter policy, needs delays on RabbitMQ, or moves imports off xtr_messenger.bridge.amqp.
+description: How to send and consume xtr-messenger messages through RabbitMQ with xtr-amqp-messenger — amqp and amqps DSNs found with no wiring, queues and exchanges, the retry ladder, delays through the delayed-message exchange, real dead-lettering, TLS settings, scoping a worker to its queues, and building the factory or broker by hand. Use when an application installs xtr-messenger[amqp], configures an amqp transport, sets a retry or dead-letter policy, or needs delays on RabbitMQ.
 ---
 
 # xtr-amqp-messenger
@@ -23,8 +23,7 @@ it ships no bundle. For buses, routing and workers, load the `xtr-messenger` ski
   serializer.
 - Imports — `from xtr_amqp_messenger import AmqpTransportFactory, create_amqp_broker,
   declared_queues, DeadLetterMiddleware, Reliability`; `AmqpOptions` from
-  `xtr_amqp_messenger.transport.amqp_options`. `xtr_messenger.bridge.amqp` still works, as the
-  same objects, for this major version.
+  `xtr_amqp_messenger.transport.amqp_options`.
 
 ## Configure a transport
 
@@ -52,6 +51,11 @@ A `DelayStamp` and the retry backoff ride the `rabbitmq_delayed_message_exchange
 broker without it, add `delayed_message_exchange_plugin=false` and `max_attempts=1`; a delayed
 send is then refused with `UnsupportedStampError`. A message out of attempts — or one that can
 never be handled — goes to `dead_letter_queue` (`taskiq.dlq` by default) in its wire format.
+The n-th retry waits n times the one before (`base_delay_seconds`, ×2, ×3, …), at most 60 s; a
+`DelayStamp`'s delay replaces the base for its message. The dead-letter queue has no
+limit: bound it with a RabbitMQ policy (`rabbitmqctl set_policy … '{"max-length": …}'`), never
+queue arguments — limits on an existing queue fail with `PRECONDITION_FAILED` at startup. On
+RabbitMQ 4+, quorum queues stop a crash-looping message after 20 deliveries by default.
 
 ## Build it by hand
 
@@ -88,7 +92,6 @@ routing to `in-memory://?serialize=true` and switch the DSN to `amqp://` in prod
 
 ## Do not
 
-- Do not import from `xtr_messenger.bridge.amqp` in new code: it goes in the next major version.
 - Do not leave `verify=false` on in production: it drops the broker's identity check.
 - Do not expect a delay without the delayed-message plugin: the send is refused, not sent early.
 - Do not build a worker before importing the modules declaring your messages.

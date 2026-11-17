@@ -107,7 +107,11 @@ class BearerTokenResponse(AbstractResponseType):
                     "client_id": access_token.get_client().get_identifier(),
                     "refresh_token_id": self._refresh_token.get_identifier(),
                     "access_token_id": access_token.get_identifier(),
-                    "scopes": [scope.get_identifier() for scope in access_token.get_scopes()],
+                    "scopes": (
+                        list(self._refresh_token_scopes)
+                        if self._refresh_token_scopes is not None
+                        else [scope.get_identifier() for scope in access_token.get_scopes()]
+                    ),
                     "user_id": access_token.get_user_identifier(),
                     "expire_time": int(
                         self._refresh_token.get_expiry_date_time().timestamp(),

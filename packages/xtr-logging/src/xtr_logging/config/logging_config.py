@@ -30,6 +30,7 @@ from xtr_logging.exception.circular_handler_reference_error import CircularHandl
 from xtr_logging.exception.invalid_configuration_error import InvalidConfigurationError
 from xtr_logging.exception.unknown_channel_error import UnknownChannelError
 from xtr_logging.exception.unknown_handler_error import UnknownHandlerError
+from xtr_logging.processor.redacting_processor import DEFAULT_VALUE_PATTERNS
 
 from .capture_config import CaptureConfig  # noqa: TC001 — msgspec reads field types at runtime
 from .handler_configs import (
@@ -41,7 +42,10 @@ from .handler_configs import (
     StreamHandlerConfig,
     SyslogHandlerConfig,
 )
-from .processor_configs import ProcessorConfig  # noqa: TC001 — msgspec reads field types at runtime
+from .processor_configs import (
+    ProcessorConfig,
+    RedactingProcessorConfig,
+)
 from .wrapper_handler_configs import (
     BufferHandlerConfig,
     DeduplicationHandlerConfig,
@@ -84,6 +88,11 @@ def _no_handlers() -> dict[str, HandlerConfig]:
     return {}
 
 
+def _default_processors() -> tuple[ProcessorConfig, ...]:
+    """Mask secrets by key, URL credentials and secret query values, unless told otherwise."""
+    return (RedactingProcessorConfig(values=DEFAULT_VALUE_PATTERNS),)
+
+
 class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fields=True):
     """The channels, handlers and processors of an application.
 
@@ -96,7 +105,10 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
             handlers they wrap; those leave every channel's stack.
         channels: Channels beyond :attr:`default_channel`. Channels named in
             a handler's ``channels`` list are declared too.
-        processors: Processors and where they run.
+        processors: Processors and where they run. By default one redacting
+            processor, masking secret keys, URL credentials and secret query
+            values; a configuration naming its own processors replaces it, so
+            list a ``RedactingProcessorConfig`` there to keep it.
         default_channel: The channel a logger is on when none is asked for.
         capture: Send the standard library's logging into channels, and only
             there. Off when omitted.
@@ -104,7 +116,7 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
 
     handlers: dict[str, HandlerConfig] = msgspec.field(default_factory=_no_handlers)
     channels: tuple[str, ...] = ()
-    processors: tuple[ProcessorConfig, ...] = ()
+    processors: tuple[ProcessorConfig, ...] = msgspec.field(default_factory=_default_processors)
     default_channel: str = "app"
     capture: CaptureConfig | None = None
 

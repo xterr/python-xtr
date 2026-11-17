@@ -192,6 +192,24 @@ async def test_no_saved_target_without_a_firewall_name() -> None:
     assert await get_target_path(session, "main") == "/kept"
 
 
+async def test_a_foreign_saved_target_is_not_followed() -> None:
+    # The session is another store a value can be planted in; a login never
+    # sends the caller off the application's own origin.
+    message, session = _request_with_session()
+    await session.set(
+        SecurityRequestAttributes.TARGET_PATH.format(firewall="main"),
+        "https://evil.example/steal",
+    )
+    handler = _handler()
+    handler.set_firewall_name("main")
+
+    response = await handler.on_authentication_success(message, NullToken())
+
+    assert response is not None
+    assert response.get_header_line("Location") == "/"
+    assert await get_target_path(session, "main") is None
+
+
 async def test_the_referer_wins_when_the_option_asks_for_it() -> None:
     message, _session = _request_with_session(referer="https://example.com/where?asked=1")
 

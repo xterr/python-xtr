@@ -93,13 +93,9 @@ class AuthCodeRepository(AuthCodeRepositoryInterface):
         )
 
     @override
-    async def revoke_auth_code(self, code_id: str) -> None:
-        """Stop accepting the authorization code named ``code_id``."""
-        code = await self._authorization_code_manager.find(code_id)
-        if code is None:
-            return
-
-        await self._authorization_code_manager.save(code.revoke())
+    async def revoke_auth_code(self, code_id: str) -> bool:
+        """Spend the authorization code named ``code_id``, and say whether this call did."""
+        return await self._authorization_code_manager.revoke(code_id)
 
     @override
     async def is_auth_code_revoked(self, code_id: str) -> bool:

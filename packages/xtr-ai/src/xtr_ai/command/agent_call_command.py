@@ -9,7 +9,7 @@ from pydantic_ai.agent import AbstractAgent
 from pydantic_ai.conversation import Conversation
 from pydantic_ai.exceptions import AgentRunError, ModelAPIError, UserError
 from xtr_console import ConsoleStyle, ExitCode, as_command, escape
-from xtr_dependency_injection import ServiceLocator
+from xtr_dependency_injection import ScopeFactoryInterface, ServiceLocator
 from xtr_dependency_injection.exception import UnknownLocatorKeyError
 
 from xtr_ai.exception import AiError
@@ -22,14 +22,22 @@ __all__ = ["AgentCallCommand"]
 @as_command("ai:agent:call", registry=AI_COMMANDS)
 @final
 class AgentCallCommand:
-    """Talk to an agent; an empty line ends the conversation."""
+    """Talk to an agent; an empty line ends the conversation.
 
-    __slots__ = ("_agents",)
+    Each prompt is answered in a unit of work of its own, so a conversation
+    held open for hours keeps no scoped service — a database session — open
+    for as long.
+    """
+
+    __slots__ = ("_agents", "_scopes")
 
     # The container keys agents by the bare class, so the parameter names it bare.
-    def __init__(self, agents: ServiceLocator[AbstractAgent]) -> None:
-        """Reach the configured agents through ``agents``."""
+    def __init__(
+        self, agents: ServiceLocator[AbstractAgent], scopes: ScopeFactoryInterface
+    ) -> None:
+        """Reach the agents through ``agents``; open each prompt's unit through ``scopes``."""
         self._agents: ServiceLocator[AbstractAgent[Any, Any]] = agents
+        self._scopes = scopes
 
     async def __call__(self, io: ConsoleStyle, agent: str) -> int:
         """Ask, answer, and ask again, keeping the conversation in memory.
@@ -47,7 +55,8 @@ class AgentCallCommand:
         conversation: Conversation | None = None
         while prompt := io.ask("You").strip():
             try:
-                result = await chosen.run(prompt, conversation=conversation)
+                async with self._scopes.unit_of_work(join=False):
+                    result = await chosen.run(prompt, conversation=conversation)
             except (AiError, AgentRunError, ModelAPIError, UserError) as error:
                 io.error(escape(str(error)))
                 return ExitCode.FAILURE

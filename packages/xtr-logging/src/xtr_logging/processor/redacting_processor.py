@@ -22,13 +22,31 @@ if TYPE_CHECKING:
 
     from xtr_logging.log_record import LogRecord
 
-__all__ = ["DEFAULT_KEY_PATTERN", "DEFAULT_MASK", "RedactingProcessor"]
+__all__ = ["DEFAULT_KEY_PATTERN", "DEFAULT_MASK", "DEFAULT_VALUE_PATTERNS", "RedactingProcessor"]
 
 DEFAULT_KEY_PATTERN: Final = r"password|secret|token|authorization|api[_-]?key|cookie"
 """The keys masked unless another pattern is given: the usual carriers of secrets."""
 
 DEFAULT_MASK: Final = "[redacted]"
 """What a masked value is replaced with."""
+
+_SECRET_QUERY_KEYS: Final = (
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "client_secret",
+    "password",
+    "token",
+)
+
+DEFAULT_VALUE_PATTERNS: Final[tuple[str, ...]] = (
+    # The userinfo of a URL — ``scheme://user:pass@host`` — and nothing else: a
+    # ``mailto:`` address carries no ``//``, so it is left alone.
+    r"(?<=://)[^/@\s]+(?=@)",
+    # The value of a query parameter that carries a credential, the name kept.
+    *(rf"(?<=[?&]{key}=)[^&\s#]+" for key in _SECRET_QUERY_KEYS),
+)
+"""The value shapes a default configuration masks: URL credentials and secret query values."""
 
 
 @final

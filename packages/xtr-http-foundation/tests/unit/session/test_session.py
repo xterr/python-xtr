@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+import asyncio
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
+from xtr_clock import MockClock
 from xtr_http_message import ServerRequest
 
 if TYPE_CHECKING:
@@ -26,7 +28,7 @@ class SpyStorage:
     the storage read nothing, and the first attribute reads exactly once.
     """
 
-    __slots__ = ("deletes", "read_ids", "reads", "stored", "writes", "written_ttls")
+    __slots__ = ("deletes", "must_exist", "read_ids", "reads", "stored", "writes", "written_ttls")
 
     def __init__(self, stored: dict[str, dict[str, object]] | None = None) -> None:
         self.stored: dict[str, dict[str, object]] = dict(stored or {})
@@ -35,16 +37,29 @@ class SpyStorage:
         self.deletes = 0
         self.read_ids: list[str] = []
         self.written_ttls: list[float | None] = []
+        self.must_exist: list[bool] = []
 
     async def read(self, session_id: str) -> Mapping[str, object] | None:
         self.reads += 1
         self.read_ids.append(session_id)
-        return self.stored.get(session_id)
+        stored = self.stored.get(session_id)
+        return None if stored is None else dict(stored)
 
-    async def write(self, session_id: str, data: Mapping[str, object], ttl: float | None) -> None:
+    async def write(
+        self,
+        session_id: str,
+        data: Mapping[str, object],
+        ttl: float | None,
+        *,
+        must_exist: bool = False,
+    ) -> bool:
+        self.must_exist.append(must_exist)
+        if must_exist and session_id not in self.stored:
+            return False
         self.writes += 1
         self.written_ttls.append(ttl)
         self.stored[session_id] = dict(data)
+        return True
 
     async def delete(self, session_id: str) -> None:
         self.deletes += 1
@@ -274,7 +289,7 @@ def test_it_stages_the_cookie_dated_by_the_lifetime() -> None:
 
 @pytest.mark.anyio
 async def test_it_leaves_the_old_id_reading_as_nothing_after_a_destroying_migrate() -> None:
-    storage = SpyStorage()
+    storage = SpyStorage(stored={_ID: {}})
     session = Session(storage, cookie_value=_ID)
     await session.set("user", "alice")
     await session.save()
@@ -303,7 +318,7 @@ async def test_it_keeps_the_attributes_just_stored_when_the_id_is_rotated() -> N
 
 @pytest.mark.anyio
 async def test_it_never_mixes_two_sessions_over_one_storage() -> None:
-    storage = SpyStorage()
+    storage = SpyStorage(stored={_ID: {}, _OTHER_ID: {}})
     first = Session(storage, cookie_value=_ID)
     second = Session(storage, cookie_value=_OTHER_ID)
     await first.set("user", "alice")
@@ -325,6 +340,48 @@ def test_it_builds_the_session_from_the_id_cookie_the_request_carried() -> None:
     assert session.staged_set_cookie() is None
 
 
+def test_the_cookie_is_secure_on_https_by_default() -> None:
+    session = Session.from_request(ServerRequest("GET", "https://shop.test/"), SpyStorage())
+
+    staged = session.staged_set_cookie()
+
+    assert staged is not None
+    assert "secure" in staged.lower().split("; ")
+
+
+def test_the_cookie_is_not_secure_on_plain_http_by_default() -> None:
+    session = Session.from_request(ServerRequest("GET", "http://shop.test/"), SpyStorage())
+
+    staged = session.staged_set_cookie()
+
+    assert staged is not None
+    assert "secure" not in staged.lower().split("; ")
+
+
+def test_a_cookie_said_insecure_stays_so_on_https() -> None:
+    session = Session.from_request(
+        ServerRequest("GET", "https://shop.test/"),
+        SpyStorage(),
+        cookie=SessionCookieConfig(secure=False),
+    )
+
+    staged = session.staged_set_cookie()
+
+    assert staged is not None
+    assert "secure" not in staged.lower().split("; ")
+
+
+def test_a_prefixed_cookie_name_still_builds_the_session_on_plain_http() -> None:
+    cookie = SessionCookieConfig(name="__Host-sid")
+    request = ServerRequest("GET", "http://shop.test/").with_cookie_params({"__Host-sid": _ID})
+
+    session = Session.from_request(request, SpyStorage(), cookie=cookie)
+
+    # The request is served; only writing a new cookie over plain http is refused.
+    assert session.get_id() == _ID
+    assert session.staged_set_cookie() is None
+
+
 def test_it_reads_the_cookie_the_config_names() -> None:
     request = ServerRequest("GET", "/").with_cookie_params({"app_session": _ID})
     cookie = SessionCookieConfig(name="app_session")
@@ -339,3 +396,130 @@ def test_it_treats_a_request_without_the_cookie_as_a_new_session() -> None:
 
     assert session.staged_set_cookie() is not None
     assert session.get_id() != _ID
+
+
+@pytest.mark.anyio
+async def test_a_request_in_flight_cannot_bring_back_a_logged_out_session() -> None:
+    storage = SpyStorage(stored={_ID: {"user": "alice"}})
+    in_flight = Session(storage, cookie_value=_ID)
+    await in_flight.set("visits", 1)
+    logout = Session(storage, cookie_value=_ID)
+    await logout.invalidate()
+    await logout.save()
+
+    await in_flight.save()
+
+    assert _ID not in storage.stored
+
+
+@pytest.mark.anyio
+async def test_an_unknown_cookie_id_is_replaced() -> None:
+    storage = SpyStorage()
+    session = Session(storage, cookie_value=_ID)
+
+    await session.set("user", "alice")
+    await session.save()
+
+    assert session.get_id() != _ID
+    assert session.staged_set_cookie() is not None
+    assert _ID not in storage.stored
+    assert storage.stored == {session.get_id(): {"user": "alice"}}
+
+
+def test_only_an_id_of_the_generated_length_is_reattached() -> None:
+    session = Session(SpyStorage(), cookie_value="0123456789abcdef" * 2)
+
+    assert session.get_id() != "0123456789abcdef" * 2
+
+
+@pytest.mark.anyio
+async def test_a_read_only_request_does_not_overwrite_another_requests_write() -> None:
+    storage = SpyStorage(stored={_ID: {"cart": []}})
+    reader = Session(storage, cookie_value=_ID)
+    writer = Session(storage, cookie_value=_ID)
+    assert await reader.get("cart") == []
+    await writer.set("cart", ["book"])
+    await writer.save()
+
+    await reader.save()
+
+    assert storage.stored[_ID] == {"cart": ["book"]}
+
+
+@pytest.mark.anyio
+async def test_mutating_what_was_read_then_saving_persists_it() -> None:
+    storage = SpyStorage(stored={_ID: {"cart": []}})
+    session = Session(storage, cookie_value=_ID)
+    cart = await session.get("cart")
+    assert isinstance(cart, list)
+
+    cast("list[object]", cart).append("book")
+    await session.save()
+
+    assert storage.stored[_ID] == {"cart": ["book"]}
+
+
+@pytest.mark.anyio
+async def test_a_reattached_session_saves_only_if_its_entry_still_exists() -> None:
+    storage = SpyStorage(stored={_ID: {"user": "alice"}})
+    session = Session(storage, cookie_value=_ID)
+    await session.set("visits", 1)
+
+    await session.save()
+
+    assert storage.must_exist == [True]
+
+
+def test_it_dates_the_staged_cookie_by_the_clock_it_was_given() -> None:
+    clock = MockClock("2030-01-01 00:00:00", "UTC")
+    session = Session(SpyStorage(), cookie=SessionCookieConfig(lifetime=60), clock=clock)
+
+    staged = session.staged_set_cookie()
+
+    assert staged is not None
+    assert "Tue, 01 Jan 2030 00:01:00 GMT" in staged
+
+
+@final
+class _SlowStorage:
+    """A storage whose reads wait a few turns of the loop, as a remote one does."""
+
+    def __init__(self, stored: dict[str, dict[str, object]]) -> None:
+        self.inner = SpyStorage(stored=stored)
+
+    async def read(self, session_id: str) -> Mapping[str, object] | None:
+        for _ in range(3):
+            await asyncio.sleep(0)
+        return await self.inner.read(session_id)
+
+    async def write(
+        self,
+        session_id: str,
+        data: Mapping[str, object],
+        ttl: float | None,
+        *,
+        must_exist: bool = False,
+    ) -> bool:
+        return await self.inner.write(session_id, data, ttl, must_exist=must_exist)
+
+    async def delete(self, session_id: str) -> None:
+        await self.inner.delete(session_id)
+
+
+@pytest.mark.anyio
+async def test_concurrent_starts_read_the_storage_once() -> None:
+    storage = _SlowStorage({_ID: {"user": "alice"}})
+    session = Session(storage, cookie_value=_ID)
+
+    _ = await asyncio.gather(session.start(), session.start(), session.get("user"))
+
+    assert storage.inner.reads == 1
+
+
+@pytest.mark.anyio
+async def test_a_set_during_a_concurrent_start_survives() -> None:
+    session = Session(_SlowStorage({_ID: {"user": "alice"}}), cookie_value=_ID)
+
+    _ = await asyncio.gather(session.set("user", "bob"), session.get("user"))
+
+    assert await session.get("user") == "bob"

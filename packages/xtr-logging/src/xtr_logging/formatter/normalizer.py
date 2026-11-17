@@ -92,8 +92,11 @@ class Normalizer:
                 # A logged collection holds whatever the caller put in.
                 return self._normalize_items(value, depth)  # pyright: ignore[reportUnknownArgumentType]
             case _ if dataclasses.is_dataclass(value) and not isinstance(value, type):
+                # A field the class keeps out of its own repr is one it means never to print.
                 fields: dict[object, object] = {
-                    field.name: getattr(value, field.name) for field in dataclasses.fields(value)
+                    field.name: getattr(value, field.name)
+                    for field in dataclasses.fields(value)
+                    if field.repr
                 }
                 return {class_name(value): self._normalize_mapping(fields, depth)}
             case _:

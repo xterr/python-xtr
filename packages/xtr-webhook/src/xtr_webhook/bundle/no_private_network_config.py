@@ -16,8 +16,8 @@ __all__ = ["NoPrivateNetworkConfig"]
 class NoPrivateNetworkConfig:
     """Whether the client webhooks are sent through refuses to deliver into a private network.
 
-    Off by default: a receiver on this network is a legitimate setup until the
-    application says otherwise. Turned on, it wraps that client in
+    On by default: a webhook's URL is the subscriber's to choose, so by default
+    none may point into this network. It wraps that client in
     :class:`~xtr_http_client.NoPrivateNetworkHttpClient`, which checks what
     every destination *resolves to* before anything is sent.
 
@@ -32,7 +32,7 @@ class NoPrivateNetworkConfig:
             addresses, and a name could point anywhere by the time it is used.
     """
 
-    enabled: bool = False
+    enabled: bool = True
     subnets: tuple[str, ...] | None = None
     allow_list: tuple[str, ...] = ()
 

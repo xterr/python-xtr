@@ -34,6 +34,8 @@ _TO_GET: Final = (301, 302)
 _SEE_OTHER: Final = 303
 _HOPS: Final = 20
 _BODY: Final = ("body", "json")
+_CREDENTIAL_HEADERS: Final = frozenset({"authorization", "cookie", "proxy-authorization"})
+"""What a hop to another origin is not handed: credentials meant for the first one."""
 
 
 @final
@@ -61,15 +63,15 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
     hop nobody checked would walk straight past the guard: each one is
     resolved and checked like the request that started the chain.
 
-    What a host resolves to is remembered for as long as this client lives,
-    so a chain of hops back to the same host asks the resolver once;
-    :meth:`reset` forgets it.
+    What a host resolves to is remembered for one request's chain of hops,
+    so hops back to the same host ask the resolver once; the next request
+    asks again, so no answer outlives the request that asked for it.
 
     The networks it refuses come from xtr-http-foundation, which is not a
     dependency of this package: install it beside it to use this client.
     """
 
-    __slots__ = ("_allow_list", "_client", "_dns_cache", "_ip_utils", "_resolver", "_subnets")
+    __slots__ = ("_allow_list", "_client", "_ip_utils", "_resolver", "_subnets")
 
     def __init__(
         self,
@@ -102,7 +104,6 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
         self._subnets = _entries(subnets) if subnets is not None else self._ip_utils.PRIVATE_SUBNETS
         self._allow_list = _entries(allow_list)
         self._resolver = resolver if resolver is not None else _getaddrinfo
-        self._dns_cache: dict[str, Sequence[str]] = {}
 
     @override
     async def request(
@@ -152,10 +153,11 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
         allowed = _hops(options.get("max_redirects"))
         given: dict[str, object] = dict(options)
         outgoing = _absolute(request, given.get("base_uri"))
+        resolved: dict[str, Sequence[str]] = {}
         hops = 0
 
         while True:
-            response = await self._sent(outgoing, given)
+            response = await self._sent(outgoing, given, resolved)
             following = _next_hop(outgoing, response) if hops < allowed else None
             if following is None:
                 return response
@@ -163,6 +165,8 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
             await response.cancel()
             if following.get_method() != outgoing.get_method():
                 given = {name: value for name, value in given.items() if name not in _BODY}
+            if _origin(following) != _origin(outgoing):
+                given, following = _without_credentials(given, following)
             outgoing = following
             hops += 1
 
@@ -174,27 +178,21 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
             **options: The defaults of the wrapped client of the copy.
 
         Returns:
-            A new client, guarding the same networks and sharing this one's
-            address cache, so a host resolved through either is known to both.
+            A new client, guarding the same networks.
 
         Raises:
             InvalidArgumentError: When an option is invalid.
         """
-        narrowed = type(self)(
+        return type(self)(
             self._client.with_options(**options),
             self._subnets,
             self._allow_list,
             self._resolver,
         )
-        narrowed._dns_cache = self._dns_cache  # noqa: SLF001 — same class, same cache by design
-
-        return narrowed
 
     @override
     async def reset(self) -> None:
-        """Forget what every host resolved to, and reset the wrapped client."""
-        self._dns_cache.clear()
-
+        """Reset the wrapped client; this one keeps nothing between requests."""
         if isinstance(self._client, ResetInterface):
             await self._client.reset()
 
@@ -202,13 +200,14 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
         self,
         outgoing: RequestInterface,
         options: Mapping[str, object],
+        resolved: dict[str, Sequence[str]],
     ) -> HttpResponseInterface:
         """Hand one hop to the wrapped client, pinned to the address it was vetted at."""
         uri = outgoing.get_uri()
         host = uri.get_host()
         url = str(uri)
         port = uri.get_port() or _PORTS.get(uri.get_scheme(), 0)
-        address = await self._vetted(host, port, options.get("resolve"), url)
+        address = await self._vetted(host, port, options.get("resolve"), url, resolved)
 
         sent: Mapping[str, object] = {
             **options,
@@ -220,7 +219,14 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
 
         return await self._client.send_request(outgoing, **as_options(sent))
 
-    async def _vetted(self, host: str, port: int, pinned: object, url: str) -> str:
+    async def _vetted(
+        self,
+        host: str,
+        port: int,
+        pinned: object,
+        url: str,
+        resolved: dict[str, Sequence[str]],
+    ) -> str:
         """The address this request may go to, every one of the host's having passed.
 
         Raises:
@@ -232,7 +238,7 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
             addresses: Sequence[str] = (literal,)
         else:
             named = _text_mapping(pinned).get(host)
-            addresses = (named,) if named else await self._addresses(host, port, url)
+            addresses = (named,) if named else await self._addresses(host, port, url, resolved)
 
         for address in addresses:
             if self._refuses(address):
@@ -241,35 +247,45 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
 
         return addresses[0]
 
-    async def _addresses(self, host: str, port: int, url: str) -> Sequence[str]:
-        """Every address ``host`` has, asked once and remembered.
+    async def _addresses(
+        self, host: str, port: int, url: str, resolved: dict[str, Sequence[str]]
+    ) -> Sequence[str]:
+        """Every address ``host`` has, asked once per chain and remembered in ``resolved``.
 
         Raises:
             TransportError: When the host has no address at all, which is a
                 request that can reach nothing rather than one to send.
         """
-        cached = self._dns_cache.get(host)
+        cached = resolved.get(host)
         if cached is not None:
             return cached
 
-        resolved = tuple(await self._resolver(host, port))
-        if not resolved:
+        addresses = tuple(await self._resolver(host, port))
+        if not addresses:
             raise TransportError(f'Host "{host}" could not be resolved for "{url}".')
 
-        self._dns_cache[host] = resolved
+        resolved[host] = addresses
 
-        return resolved
+        return addresses
 
     def _refuses(self, address: str) -> bool:
         """Whether ``address`` may not be connected to.
 
         The allow list is read first, so one internal receiver is opened
-        without opening the network it sits in.
+        without opening the network it sits in. An address the checks cannot
+        read is refused: the network it lies in is unknown. One with a zone —
+        ``fe80::1%eth0`` — is checked as the address it names.
         """
-        if self._allow_list and self._ip_utils.check_ip(address, self._allow_list):
+        bare = address.partition("%")[0]
+        try:
+            _ = ip_address(bare)
+        except ValueError:
+            return True
+
+        if self._allow_list and self._ip_utils.check_ip(bare, self._allow_list):
             return False
 
-        return self._ip_utils.check_ip(address, self._subnets)
+        return self._ip_utils.check_ip(bare, self._subnets)
 
 
 def _ip_utils() -> type[IpUtils]:
@@ -342,6 +358,41 @@ def _literal(host: str) -> str | None:
         return str(ip_address(text))
     except ValueError:
         return None
+
+
+def _origin(request: RequestInterface) -> tuple[str, str, int]:
+    """The scheme, host and port ``request`` goes to: what credentials are meant for."""
+    uri = request.get_uri()
+    scheme = uri.get_scheme()
+    return scheme, uri.get_host().lower(), uri.get_port() or _PORTS.get(scheme, 0)
+
+
+def _without_credentials(
+    given: dict[str, object], following: RequestInterface
+) -> tuple[dict[str, object], RequestInterface]:
+    """The options and request of a hop to another origin, every credential left behind.
+
+    The authentication options, the query parameters (an API key travels there) and the
+    credential headers go: they were meant for the origin that redirected. The headers and
+    query are set empty rather than left out, so the wrapped client's own defaults for them
+    are not sent there either.
+    """
+    sent = given.get("headers")
+    headers: Mapping[str, object] = (
+        cast("Mapping[str, object]", sent) if isinstance(sent, Mapping) else {}
+    )
+    kept = {
+        name: value for name, value in headers.items() if name.lower() not in _CREDENTIAL_HEADERS
+    }
+    for name in _CREDENTIAL_HEADERS:
+        following = following.without_header(name)
+    return {
+        **given,
+        "auth_bearer": None,
+        "auth_basic": None,
+        "query": {},
+        "headers": kept,
+    }, following
 
 
 def _entries(value: str | Sequence[str]) -> tuple[str, ...]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import threading
 import time
 from datetime import UTC, datetime
@@ -287,3 +288,39 @@ def test_install_may_be_restored_from_another_thread() -> None:
 
     assert errors == []
     assert Clock.get() is before
+
+
+def _fallback() -> ClockInterface:
+    """The clock a context that installed nothing reads — a thread started later, say."""
+    return contextvars.Context().run(Clock.get)
+
+
+def test_overlapping_using_blocks_restore_the_right_fallback() -> None:
+    # Two concurrent tasks, each in its own context, ending out of the order they began.
+    before = _fallback()
+    first, second = MockClock(FIXED), MockClock(FIXED)
+    in_first, in_second = contextvars.copy_context(), contextvars.copy_context()
+    first_block, second_block = Clock.using(first), Clock.using(second)
+
+    _ = in_first.run(first_block.__enter__)
+    _ = in_second.run(second_block.__enter__)
+    _ = in_first.run(first_block.__exit__, None, None, None)
+    after_first = _fallback()
+    _ = in_second.run(second_block.__exit__, None, None, None)
+
+    assert after_first is second
+    assert _fallback() is before
+
+
+def test_installs_restored_out_of_order_restore_the_right_fallback() -> None:
+    before = _fallback()
+    first, second = MockClock(FIXED), MockClock(FIXED)
+    restore_first = contextvars.copy_context().run(Clock.install, first)
+    restore_second = contextvars.copy_context().run(Clock.install, second)
+
+    restore_first()
+    after_first = _fallback()
+    restore_second()
+
+    assert after_first is second
+    assert _fallback() is before

@@ -138,7 +138,7 @@ async def books() -> list[str]: ...
 async def delete_book(isbn: str) -> None: ...
 
 
-kernel = Kernel("app", concurrent_scoped_access=True)
+kernel = Kernel("app")
 setup(app, kernel)
 ```
 
@@ -195,7 +195,7 @@ else registers unconfigured: no firewall, no rule, no voter beyond the built-ins
 | `stateless` | `True` | Whether the firewall keeps no session. A stateful firewall (`stateless=False`) restores the token its session carries on every request, through the `SessionStorageInterface` service the application registers; with none registered the build fails naming it |
 | `context_key` | `None` | The name the firewall's context is stored under in the session — the part after `_security.` — or `None` for the firewall's own name |
 | `session_strategy` | `migrate` | What a successful login does to the session it reattached: `migrate` rotates its ID keeping its attributes, `invalidate` empties it, `none` leaves it alone. Meaningful on a stateful firewall only |
-| `session_cookie` | `None` | The `SessionCookieConfig` the session ID travels in — name, path, domain, `secure`, `httponly`, `samesite`, lifetime — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, not `Secure`. Meaningful on a stateful firewall only |
+| `session_cookie` | `None` | The `SessionCookieConfig` the session ID travels in — name, path, domain, `secure`, `httponly`, `samesite`, lifetime — or `None` for the default: `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, `Secure` on https requests. Meaningful on a stateful firewall only |
 | `provider` | `None` | The user provider the firewall loads users from; with none here and none configured at all, an authenticator that needs one gets a `MissingUserProvider` that fails, naming the firewall, when first used — and with none here but others configured, one that needs one fails the build, naming the firewall. The provider may be a service of the request (`lifetime="scoped"`), such as a repository over the session of the request's unit of work: everything the firewall builds over it is built per request too, so one request's services all use that request's instance |
 | `user_checker` | `None` | A user-checker service type, or the default in-memory checker; it may be a service of the request too, and one no service provides fails the build, naming the firewall |
 | `entry_point` | `None` | The authenticator whose challenge answers an unauthenticated request |
@@ -232,6 +232,10 @@ the session from, and a stateful firewall with none registered fails the build n
 service — the bundle never builds one silently, and a firewall the application asked to be
 stateful cannot quietly run as a stateless one.
 
+A stateful firewall keeps whatever authenticated a request, so a single Bearer or Basic login
+through it comes back as a session cookie — and a cookie-carried API is open to cross-site
+requests. Put API routes behind a firewall of their own with `stateless=True`.
+
 A successful login hands the session to the firewall's `session_strategy` — `migrate` by
 default, rotating the session's ID so a fixation stops answering for the account the login
 named — through a `SessionStrategyListener` on the firewall's own dispatcher.
@@ -247,11 +251,42 @@ that failed without producing a response still wrote. The listener is registered
 any stateful firewall is configured and carries the same remove-if-missing marker over
 the application's session storage as the context step it serves.
 
-The session ID travels in the firewall's `session_cookie`,
-`SessionCookieConfig(name="sid", secure=True)` for an application served only over HTTPS; the
-default is `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax` and not `Secure`. The context step
+The session ID travels in the firewall's `session_cookie`, `SessionCookieConfig(name="sid")` to
+rename it; the default is `xtr_session` on `/`, `HttpOnly`, `SameSite=Lax`, and `Secure` exactly
+when the request came over https — behind a proxy ending TLS, only where the server reads its
+forwarded headers; `secure=True` pins it. The context step
 is the only place the firewall's session is built, so the login's rotation and the logout's
 invalidation stage the same cookie, under a new ID with the same path and domain.
+
+#### Reading the session in a route
+
+A route reaches the very session the firewall reattached — the one its login rotated and its
+logout invalidates, saved with the response — never one of its own. The firewall parks it on the
+request's state, the per-request bag the framework's `request.state` wraps, so the route hands
+`parked_session_of` the request message carrying that state:
+
+```python
+from fastapi import Request
+from xtr_dependency_injection import Injected
+from xtr_http_message_contracts import ServerRequestInterface
+from xtr_security_http import SecurityRequestAttributes, parked_session_of
+
+
+@app.get("/cart")
+async def cart(request: Request, message: Injected[ServerRequestInterface]) -> dict[str, object]:
+    session = parked_session_of(
+        message.with_attribute(SecurityRequestAttributes.STATE_BAG, request.scope["state"])
+    )
+    if session is None:  # no stateful firewall ran for this path
+        return {"items": []}
+    items = await session.get("cart", [])
+    await session.set("cart", [*items, "book"])
+    return {"items": await session.get("cart")}
+```
+
+Never build a `Session` from the storage in a route: a second session for the same ID would be
+saved apart from the firewall's, and one would overwrite the other. What the route sets is
+written by the same save as the token, and only if something changed.
 
 #### What the session keeps
 
@@ -429,7 +464,8 @@ the cookie is held: `signature` signs the value over the user's covered properti
 changed password retires every cookie; `persistent` keeps a series per cookie through the
 application's `TokenProviderInterface` service, named by qualifier in `token_provider` —
 refused by name at wiring when the persistent handler is asked for without one. The cookie's
-shape — `name` (`REMEMBERME`), `lifetime` (a year), `path`, `domain`, `secure`, `httponly`,
+shape — `name` (`REMEMBERME`), `lifetime` (a year), `path`, `domain`, `secure` (unset: `Secure`
+on https requests), `httponly`,
 `samesite` — and the ask — `always_remember_me`, or the request's `remember_me_parameter`
 (`_remember_me`) — are the configuration's own fields; `signature_properties` names the
 user properties whose digest a persisted value carries (the password by default). The
@@ -458,6 +494,17 @@ environment the way [Secrets](#secrets) shows — never generated. The success a
 handlers follow the form login's pattern — the default pair, or the application's own
 named by service type.
 
+A link is usable any number of times until it expires, unless `max_uses` says otherwise:
+`max_uses=1` makes every link single-use. The uses are counted per link — keyed by its hash,
+and only once the link has verified, so a forged one spends none — in the application's
+`StorageInterface` service from [xtr-rate-limiter](../xtr-rate-limiter), over a window as long
+as the link's `lifetime`; workers sharing that storage share the count. Two links minted for
+one user in the same second, with the same parameters, are the same link and share its uses.
+
+After any login, the target the interrupted request saved on the session is followed only
+when it is a path or URL of the request's own origin, like the `_target_path` parameter and
+the referer; a foreign one is dropped and the default target answers.
+
 ### Login throttling
 
 A firewall's `login_throttling` block counts its login attempts: `global_limit` per
@@ -471,6 +518,12 @@ shared store keeps no readable account or address — the `secret` a configurati
 read from the environment the way [Secrets](#secrets) shows, never generated. The listener
 runs on the firewall's dispatcher at `2080`, ahead of the provider's `2048` — a request
 already over the limit is refused before any user is loaded or any password verified.
+Every attempt is counted there, before its password is checked, so a burst of concurrent
+attempts gets no further than the limit allows. With the lock bundle
+([xtr-lock](../xtr-lock)) active, both counts lock through its default `LockFactory`, so
+servers sharing a store count one attempt at a time; without it they lock within one
+process only. The address is the connection's client: behind a reverse proxy, have the
+server trust the proxy's forwarded headers.
 
 ### Switch user
 
@@ -480,8 +533,10 @@ block's `role` (`ROLE_ALLOWED_TO_SWITCH` by default, weighed against the target 
 subject) becomes another user by carrying `parameter` (`_switch_user`) — on any page the
 firewall claims, or on the dedicated `path` — and steps back out with the same parameter
 carrying `_exit`. `enable_csrf` asks for a forgery token under `csrf_parameter` and
-`csrf_token_id` (`switch_user`), refused on a stateless firewall, which has no session to
-keep the tokens in. One scoped `ImpersonateUrlGenerator` service renders the addresses a
+`csrf_token_id` (`switch_user`). Left at `None`, it asks on a stateful firewall — the session
+cookie a browser sends on its own authenticates the switch — and not on a stateless one;
+`True` on a stateless firewall is refused, which has no session to keep the tokens in. One
+scoped `ImpersonateUrlGenerator` service renders the addresses a
 page switches by — the impersonation and exit paths, URLs and forms — reading the
 request's firewall's block through a lookup built from the firewall map.
 
@@ -499,6 +554,11 @@ under `user_key` (`SSL_CLIENT_S_DN_Email`), or the configured identifier out of 
 distinguished name under `credentials_key` when there is no email. Both need a user
 provider and both run at priority `100`; neither answers a challenge, so a request they
 cannot read goes on anonymous to the next authenticator.
+
+Neither signs anyone in when the application is served by the HTTP kernel: an ASGI server hands
+the application no `REMOTE_USER` or `SSL_CLIENT_*` entries, and the kernel passes on only the
+connection's own (`method`, `path`, `client`, …), so every request reads as carrying no user.
+They are for an application that builds its requests from such an environment itself.
 
 ### Form login
 
@@ -559,7 +619,8 @@ The cross-site request forgery checks a logout can ask for are wired with the ma
 `enable_csrf` has the step prove the request with the manager before it logs out, and
 `clear_csrf_tokens` drops every token the request's session minted on the logout event. Both
 need the session the tokens are stored in, so a stateless firewall asking for either fails the
-build saying so.
+build saying so. `enable_csrf` left at `None` asks on a stateful firewall and not on a
+stateless one; the `LogoutUrlGenerator` then renders the logout address carrying the token.
 
 ### The OIDC back channel
 
@@ -758,12 +819,11 @@ removing it undoes.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Configure* steps below:
   it lists `SecurityBundle`, which brings the event dispatcher and http-kernel bundles with it,
   and writes `<app>/config/packages/security.py` with the bundle's own defaults. There is no
-  environment or ignore line to write; it prints the `concurrent_scoped_access=True`,
-  `setup(app, kernel)` and firewall steps, which a recipe cannot make for you.
+  environment or ignore line to write; it prints the `setup(app, kernel)` and firewall steps,
+  which a recipe cannot make for you.
 - **Activate** — `SecurityBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
-  from `xtr_security.bundle`. Then call `setup(app, kernel)` where the application is built, and
-  build the kernel with `concurrent_scoped_access=True` so concurrent requests keep their own
-  token storage.
+  from `xtr_security.bundle`. Then call `setup(app, kernel)` where the application is built.
+  Concurrent requests keep their own token storage on the kernel's defaults.
 - **Brings along** — the [event dispatcher](../xtr-event-dispatcher) and
   [http-kernel](../xtr-http-kernel) bundles always, because the firewalls dispatch through the
   one and answer on the other's exception event; the [clock](../xtr-clock) bundle, installed
@@ -887,6 +947,11 @@ xtr_security/
     ├── sort_firewall_listeners_pass.py  orders each firewall's listener chain
     └── *_configs.py           the configs an application writes, incl. password_hasher_configs
 ```
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security).
 
 ## Development
 

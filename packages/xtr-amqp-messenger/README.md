@@ -80,6 +80,8 @@ TransportConfig(
 `max_async_tasks` is how many messages a worker handles at once: ten per CPU, capped at 100,
 unless set. A message is acked once handled, so `prefetch_count` (10 by default) caps it too —
 a worker handles the smaller of the two at once. Raise both together to go wider.
+Each message handled at once may hold a database connection; keep that number within the
+pool's size, or the extra handlers wait for a connection.
 
 Delays — a `DelayStamp`, and the retry ladder's backoff — ride RabbitMQ's delayed-message
 exchange, which needs the **`rabbitmq_delayed_message_exchange` plugin** enabled on the broker
@@ -102,15 +104,35 @@ does accept, and a value it cannot use — `prefetch_count=lots` — with
 ## Retries and dead-lettering
 
 The bus's own worker makes one attempt per message; here taskiq's worker runs the message, and
-the transport decides what a failure means. A failed message is retried, each attempt later
-than the last, until `max_attempts`; then it is republished to `taskiq.dlq` — or the
+the transport decides what a failure means. A failed message is retried until `max_attempts`,
+each retry waiting n times as long as the one before it — `base_delay_seconds`, then twice
+that, then three times the second, at most 60 seconds; then it is republished to
+`taskiq.dlq` — or the
 `dead_letter_queue` you name — in its original wire format, so it can be inspected and
 replayed. A handler asking for the envelope reads which attempt it is on in its
 `RedeliveryStamp`.
+A message sent with a `DelayStamp` carries that delay into its retries: its first retry waits as
+long as the stamp asked, not `base_delay_seconds`.
+A retry is a new copy published before the failed delivery is acked, so a worker dying between
+the two leaves both: handlers must be idempotent.
 
 With a dead-letter queue configured, a delivery that can never be handled — unparsable, naming
 a task nobody registered, or whose body does not decode into its message — is quarantined there
 at once rather than retried.
+
+The dead-letter queue is declared with no length or delivery limit, so it grows until someone
+drains it. Bound it with a RabbitMQ policy rather than queue arguments: declaring limits on a
+queue that already exists without them fails with `PRECONDITION_FAILED`, at startup, on every
+deployment that has one.
+
+```sh
+rabbitmqctl set_policy dlq-bound '^taskiq\.dlq$' \
+  '{"max-length": 100000, "overflow": "drop-head"}' --apply-to queues
+```
+
+On RabbitMQ 4 and later a quorum queue (`queue_type=quorum`) already stops redelivering a message
+that crashes its worker after 20 deliveries — its default delivery limit — and drops it, or
+dead-letters it when the queue has a dead-letter exchange.
 
 Transports sharing a DSN but naming different queues share one connection, and a worker
 consumes exactly the queues of the transports it is asked for, so one deployment can run a
@@ -133,9 +155,6 @@ MessageBusFactory(config, [AmqpTransportFactory(wire, options=AmqpOptions(...))]
 
 `create_amqp_broker` builds a configured `AioPikaBroker` — retry ladder, delayed-message
 exchange and dead-lettering wired — and `declared_queues(broker)` names the queues it consumes.
-
-`xtr_messenger.bridge.amqp` and its modules, where this transport used to live, still import as
-the very objects defined here through this major version; they go in the next one.
 
 ## Use in an application
 
@@ -167,6 +186,11 @@ Everything raised derives from xtr-messenger's `MessageBusError`:
 | `UnsupportedStampError` | A delayed message is sent with `delayed_message_exchange_plugin=false` |
 | `MixedDsnError` | One worker is asked to serve transports on two servers |
 | `MissingSerializerError` | The factory is discovered with no envelope serializer to build it with |
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-amqp-messenger).
 
 ## Development
 

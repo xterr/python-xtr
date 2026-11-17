@@ -139,6 +139,12 @@ def session_storage() -> SessionStorageInterface:
 - On the response side a `SaveSessionListener` writes the session through the storage and
   stages the cookie carrying its ID — a storage that fails fails the request loudly rather
   than losing the session quietly.
+- A route reads and writes that same session — never one built from the storage itself — by
+  handing `parked_session_of` the request message carrying the request's state:
+  `parked_session_of(message.with_attribute(SecurityRequestAttributes.STATE_BAG, request.scope["state"]))`,
+  with `request: fastapi.Request` and `message: Injected[ServerRequestInterface]` (both
+  `SecurityRequestAttributes` and `parked_session_of` from `xtr_security_http`). It is `None`
+  for a path no stateful firewall ran.
 - The session holds JSON only, on every storage: the token is kept as an envelope of its class,
   its state and its user — kept whole when it implements `SessionSerializableUserInterface`,
   else as a snapshot of its identifier, roles and `password_digest` — and the last login error
@@ -351,17 +357,15 @@ back — rather than writing a token into storage by hand.
 `uv run xtr-recipes recipes:sync` applies the recipe shipped with this package: it lists
 `SecurityBundle`, which brings the event dispatcher and http-kernel bundles with it, and writes
 `<app>/config/packages/security.py` with the bundle's own defaults. That is the steps below a
-recipe can do; the `concurrent_scoped_access`, `setup(app, kernel)` and firewall steps it prints
-for you to make.
+recipe can do; the `setup(app, kernel)` and firewall steps it prints for you to make.
 
 1. **Install** — `uv add xtr-security`; xtr-console, installed beside it, adds `debug:firewall`
    and `security:hash-password` — and `security:oidc:generate-token` when a firewall's OIDC
    login mints. `"xtr-security-http[oidc]"` adds verifying third-party OIDC issuers' tokens
    and the OIDC login.
 2. **Activate** — `SecurityBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
-   from `xtr_security.bundle`. Call `setup(app, kernel)` where the application is built, and
-   build the kernel with `concurrent_scoped_access=True` so concurrent requests keep their own
-   token storage.
+   from `xtr_security.bundle`. Call `setup(app, kernel)` where the application is built;
+   concurrent requests keep their own token storage on the kernel's defaults.
 3. **Brings along** — the event-dispatcher and http-kernel bundles always; the clock bundle,
    installed with the security core, whose clock the trust resolver reads; the logging and
    console bundles whenever those packages are installed.

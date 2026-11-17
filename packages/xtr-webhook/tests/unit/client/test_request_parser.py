@@ -12,6 +12,7 @@ from xtr_remote_event import RemoteEvent
 from tests.support.signed_requests import EVENT_ID, WHSEC, arriving, json_body, legacy_entry
 from xtr_webhook.client import RequestParser
 from xtr_webhook.exception import InvalidArgumentError, RejectWebhookError
+from xtr_webhook.server.signature_format import SignatureFormat
 
 _MALFORMED = "Request body is malformed."
 _PAYLOAD: dict[str, object] = {
@@ -22,7 +23,11 @@ _PAYLOAD: dict[str, object] = {
 
 
 def _parser() -> RequestParser:
-    return RequestParser(clock=MockClock(datetime(2026, 1, 1, tzinfo=UTC)))
+    # This file is about the legacy scheme, which is no longer the default: it names it.
+    return RequestParser(
+        signature_format=SignatureFormat.LEGACY,
+        clock=MockClock(datetime(2026, 1, 1, tzinfo=UTC)),
+    )
 
 
 def _signed(body: bytes, event_name: str = "event-name") -> ServerRequest:
@@ -49,14 +54,15 @@ async def test_it_refuses_a_request_its_matcher_does_not_claim() -> None:
 @pytest.mark.parametrize(
     "body", [b"{not json at all", b'{"a":"\xff"}'], ids=["garbled", "not-utf-8"]
 )
-async def test_it_refuses_a_body_that_is_not_json_whatever_the_media_type_says(
+async def test_a_signed_body_that_is_not_json_is_refused_as_malformed_after_it_verifies(
     body: bytes,
 ) -> None:
     with pytest.raises(RejectWebhookError) as refused:
         _ = await _parser().parse(_signed(body), WHSEC)
 
     assert refused.value.status_code == 406
-    assert str(refused.value) == "Request does not match."
+    # The matcher no longer reads the body: it is decoded only once the signature verified.
+    assert str(refused.value) == _MALFORMED
 
 
 @pytest.mark.anyio
@@ -182,3 +188,28 @@ def test_an_algorithm_this_runtime_cannot_make_is_refused_where_it_is_configured
         _ = RequestParser(algorithm="not-a-digest")
 
     assert str(misconfigured.value) == 'The signing algorithm "not-a-digest" is not available.'
+
+
+@pytest.mark.anyio
+async def test_a_legacy_signature_is_refused_by_default() -> None:
+    # Only the Standard Webhooks signature covers the timestamp, so only it
+    # bounds a replay: the default is the format that protects.
+    body = json_body({"foo": "bar"})
+
+    with pytest.raises(RejectWebhookError) as refused:
+        _ = await RequestParser().parse(_signed(body), WHSEC)
+
+    assert refused.value.status_code == 406
+
+
+@pytest.mark.anyio
+async def test_the_body_is_not_parsed_before_the_signature_verifies() -> None:
+    # An unsigned body that is not JSON is refused on its signature, not
+    # decoded first: nothing an attacker sends is read until it verifies.
+    garbled = arriving(b"{not json", {"Webhook-Signature": "v1,AAAA", "Webhook-Id": EVENT_ID})
+
+    with pytest.raises(RejectWebhookError) as refused:
+        _ = await _parser().parse(garbled, WHSEC)
+
+    assert str(refused.value) != "Request does not match."
+    assert "Signature" in str(refused.value) or "Missing" in str(refused.value)

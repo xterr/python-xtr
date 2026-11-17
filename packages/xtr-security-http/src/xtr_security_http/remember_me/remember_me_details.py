@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import binascii
 from typing import TYPE_CHECKING, final
+from urllib.parse import unquote
 
 from typing_extensions import override
 from xtr_security_core.exception import AuthenticationError
@@ -69,6 +70,11 @@ class RememberMeDetails:
     def from_raw_cookie(cls, raw_cookie: str) -> RememberMeDetails:
         """Read a cookie's value back into the details it was written from.
 
+        The ``Set-Cookie`` header carries the value percent-encoded — the
+        separator among what it encodes — and a browser sends it back exactly
+        so, so the value is percent-decoded first; a value that holds no
+        escape reads the same either way.
+
         A value carrying no separator at all was written base64-encoded as a
         whole, so it is decoded first — the layout then continues as always.
         A value that does not split into the four fields, whose identifier is
@@ -76,7 +82,8 @@ class RememberMeDetails:
         is not a cookie this flow issued, and is refused as such.
 
         Args:
-            raw_cookie: The cookie's value, exactly as the request carried it.
+            raw_cookie: The cookie's value, exactly as the request carried it:
+                percent-encoded, as the header wrote it, or already decoded.
 
         Returns:
             The details the value was written from.
@@ -85,7 +92,7 @@ class RememberMeDetails:
             AuthenticationError: When the value is not a remember-me cookie
                 this flow could have written.
         """
-        raw = raw_cookie
+        raw = unquote(raw_cookie)
         if _COOKIE_DELIMITER not in raw:
             try:
                 raw = base64.b64decode(raw).decode("utf-8")

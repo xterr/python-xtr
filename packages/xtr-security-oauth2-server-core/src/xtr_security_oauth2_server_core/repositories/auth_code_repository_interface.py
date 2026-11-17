@@ -38,11 +38,16 @@ class AuthCodeRepositoryInterface(RepositoryInterface, Protocol):
         """
         ...
 
-    async def revoke_auth_code(self, code_id: str) -> None:
-        """Stop accepting the authorization code named ``code_id``.
+    async def revoke_auth_code(self, code_id: str) -> bool:
+        """Stop accepting the authorization code named ``code_id``, in one step.
 
-        Revoking one that is unknown, or already revoked, is not an error:
-        what the caller asked for is already true.
+        Redeeming a code spends it through this call, so two redemptions at
+        once are told apart here: exactly one of them revokes it.
+
+        Returns:
+            Whether this call is what revoked it: ``True`` when the code was
+            valid and is now revoked, ``False`` when it was already revoked or
+            is unknown.
         """
         ...
 

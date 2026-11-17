@@ -28,8 +28,11 @@ class _AuthCodeRepository:
     async def persist_new_auth_code(self, auth_code_entity: AuthCodeEntityInterface) -> None:
         del auth_code_entity
 
-    async def revoke_auth_code(self, code_id: str) -> None:
+    async def revoke_auth_code(self, code_id: str) -> bool:
+        if code_id in self.revoked:
+            return False
         self.revoked.add(code_id)
+        return True
 
     async def is_auth_code_revoked(self, code_id: str) -> bool:
         return code_id in self.revoked
@@ -42,8 +45,9 @@ class _WithoutPersist:
     async def get_new_auth_code(self) -> AuthCodeEntityInterface:
         return AuthCode()
 
-    async def revoke_auth_code(self, code_id: str) -> None:
+    async def revoke_auth_code(self, code_id: str) -> bool:
         del code_id
+        return False
 
     async def is_auth_code_revoked(self, code_id: str) -> bool:
         del code_id

@@ -10,6 +10,7 @@ from xtr_clock import SystemClock
 from xtr_logging_contracts import EXCEPTION_KEY, NullLogger
 from xtr_security_core.exception import InvalidArgumentError
 
+from xtr_security_http._text import safe_str
 from xtr_security_http.authenticator.passport.badge.user_badge import UserBadge
 from xtr_security_http.exception.invalid_access_token_error import InvalidAccessTokenError
 
@@ -296,7 +297,7 @@ class Oauth2TokenHandler:
         except Exception as error:
             self._log_failure(error)
             raise InvalidAccessTokenError(
-                f"An error occurred on the authorization server: {error}",
+                f"An error occurred on the authorization server: {safe_str(error)}",
             ) from error
 
     async def _badge_from(self, access_token: str) -> UserBadge:
@@ -457,7 +458,7 @@ class Oauth2TokenHandler:
         """Write the failure the authorization server's answer explains."""
         self._logger.error(
             "An error occurred on the authorization server.",
-            {"error": str(error), EXCEPTION_KEY: error},
+            {"error": safe_str(error), EXCEPTION_KEY: error},
         )
 
 

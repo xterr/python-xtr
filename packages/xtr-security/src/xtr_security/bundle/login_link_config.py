@@ -39,10 +39,14 @@ class LoginLinkConfig:
             or ``None`` for the default redirect by the target ladder.
         failure_handler: The application's own failure-handler service type,
             or ``None`` for the default answer of a failed login.
+        max_uses: How many times one link signs in, counted per link in the
+            application's rate-limiter ``StorageInterface`` service for as
+            long as the link lasts; ``None`` — the default — leaves a link
+            usable until it expires. ``1`` makes every link single-use.
 
     Raises:
         InvalidConfigurationError: When the check path or the link path is
-            empty.
+            empty, or ``max_uses`` is below one.
     """
 
     check_path: str
@@ -53,6 +57,7 @@ class LoginLinkConfig:
     signature_properties: Sequence[str] = ("password",)
     success_handler: type | None = None
     failure_handler: type | None = None
+    max_uses: int | None = None
 
     def __post_init__(self) -> None:
         """Refuse a check path or a link path that names nothing."""
@@ -65,4 +70,9 @@ class LoginLinkConfig:
         if self.path == "":
             raise InvalidConfigurationError(
                 "A login link needs the literal path every minted link leads to.",
+            )
+        if self.max_uses is not None and self.max_uses < 1:
+            raise InvalidConfigurationError(
+                f"The login link's max_uses is {self.max_uses}; a link must sign in at least "
+                "once, or leave max_uses at None for no limit.",
             )

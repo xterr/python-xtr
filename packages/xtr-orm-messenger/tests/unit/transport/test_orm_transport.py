@@ -3,7 +3,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from xtr_messenger import Envelope, ReceivedStamp, TransportInterface, TransportMessageIdStamp
+from xtr_messenger import (
+    Envelope,
+    ErrorDetailsStamp,
+    InvalidTransportOptionError,
+    ReceivedStamp,
+    RedeliveryStamp,
+    RetryingReceiverInterface,
+    TransportInterface,
+    TransportMessageIdStamp,
+)
 
 from tests.support.connections import connection_on
 from tests.support.database_errors import refusal
@@ -51,8 +60,10 @@ async def test_what_is_sent_is_received_and_acknowledged(
     assert await transport.count() == 0
 
 
-async def test_a_rejected_message_is_gone(engine: AsyncEngine, clock: MockClock) -> None:
-    transport = _transport(engine, clock, OrmOptions(redeliver_timeout=1))
+async def test_a_message_rejected_on_its_last_attempt_leaves_its_queue(
+    engine: AsyncEngine, clock: MockClock
+) -> None:
+    transport = _transport(engine, clock, OrmOptions(redeliver_timeout=1, max_attempts=1))
     _ = await transport.send(Envelope(OrderPlaced("o-1")))
 
     await transport.reject(await anext(transport.get()))
@@ -185,3 +196,80 @@ async def test_closing_a_transport_that_never_listened_does_nothing(
     engine: AsyncEngine, clock: MockClock
 ) -> None:
     await _transport(engine, clock).close()
+
+
+# ── retries and the failed queue ────────────────────────────────────────────
+
+
+def _failed_with(envelope: Envelope, reason: str = "boom") -> Envelope:
+    """``envelope`` as a worker rejects it: stamped with why it failed."""
+    return envelope.with_stamps(ErrorDetailsStamp("RuntimeError", reason))
+
+
+async def test_a_rejected_message_is_retried_after_its_delay(
+    engine: AsyncEngine, clock: MockClock
+) -> None:
+    transport = _transport(engine, clock, OrmOptions(base_delay_seconds=2))
+    _ = await transport.send(Envelope(OrderPlaced("o-1")))
+
+    await transport.reject(_failed_with(await anext(transport.get())))
+
+    assert await transport.count() == 0  # not due before its delay
+    clock.sleep(2)
+    again = await anext(transport.get())
+    assert again.message == OrderPlaced("o-1")
+    assert again.last(RedeliveryStamp) == RedeliveryStamp(1)
+    assert again.all(ErrorDetailsStamp) == (ErrorDetailsStamp("RuntimeError", "boom"),)
+
+
+async def test_the_delay_doubles_with_each_attempt(engine: AsyncEngine, clock: MockClock) -> None:
+    transport = _transport(engine, clock, OrmOptions(base_delay_seconds=2, max_attempts=3))
+    _ = await transport.send(Envelope(OrderPlaced("o-1")))
+    await transport.reject(_failed_with(await anext(transport.get()), "first"))
+    clock.sleep(2)
+
+    await transport.reject(_failed_with(await anext(transport.get()), "second"))
+
+    clock.sleep(3)
+    assert await transport.count() == 0
+    clock.sleep(1)
+    again = await anext(transport.get())
+    assert again.last(RedeliveryStamp) == RedeliveryStamp(2)
+    assert again.all(ErrorDetailsStamp) == (ErrorDetailsStamp("RuntimeError", "second"),)
+
+
+async def test_a_message_failing_every_attempt_lands_in_the_failed_queue(
+    engine: AsyncEngine, clock: MockClock
+) -> None:
+    transport = _transport(engine, clock, OrmOptions(base_delay_seconds=1, max_attempts=2))
+    failed = _transport(engine, clock, OrmOptions(queue="failed"))
+    _ = await transport.send(Envelope(OrderPlaced("o-1")))
+    await transport.reject(_failed_with(await anext(transport.get())))
+    clock.sleep(1)
+
+    await transport.reject(_failed_with(await anext(transport.get()), "last"))
+
+    clock.sleep(60)
+    assert await transport.count() == 0
+    kept = await anext(failed.get())
+    assert kept.message == OrderPlaced("o-1")
+    assert kept.all(ErrorDetailsStamp) == (ErrorDetailsStamp("RuntimeError", "last"),)
+
+
+async def test_the_transport_says_whether_a_failure_will_be_retried(
+    engine: AsyncEngine, clock: MockClock
+) -> None:
+    transport = _transport(engine, clock, OrmOptions(max_attempts=2))
+
+    assert transport.will_retry(Envelope(OrderPlaced("o-1"))) is True
+    assert transport.will_retry(Envelope(OrderPlaced("o-1"), (RedeliveryStamp(1),))) is False
+    assert isinstance(transport, RetryingReceiverInterface)
+
+
+@pytest.mark.parametrize(
+    "options",
+    [{"max_attempts": 0}, {"base_delay_seconds": -1}, {"failure_queue": ""}],
+)
+def test_retry_options_it_cannot_honour_are_refused(options: dict[str, object]) -> None:
+    with pytest.raises(InvalidTransportOptionError):
+        _ = OrmOptions(**options)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]

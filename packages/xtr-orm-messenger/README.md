@@ -83,17 +83,38 @@ handlers and deletes it. With a [container](#use-in-an-application) all of that 
 | Send | One row: the encoded envelope, its queue, `created_at`, and `available_at` — later by the delay, rounded up to a whole second |
 | Claim | In one transaction, the oldest row of the queue that is due and not handed out is selected `FOR UPDATE SKIP LOCKED` and stamped `delivered_at` |
 | Handle | The worker dispatches it; the envelope carries `OrmReceivedStamp` and `TransportMessageIdStamp`, both the row's id |
-| Settle | Acknowledged or rejected, the row is deleted |
-| Redeliver | A row handed out more than `redeliver_timeout` seconds ago is claimable again: its worker is taken for dead |
+| Keep alive | While the worker holds it, the row's `delivered_at` is renewed every half of `redeliver_timeout`, so a long handler keeps its message |
+| Settle | Acknowledged, the row is deleted. Rejected, it is retried or moved to the failure queue (see below) |
+| Redeliver | A row not renewed for `redeliver_timeout` seconds is claimable again: its worker is taken for dead. A handler must be idempotent: a worker frozen that long has its message handled twice |
+
+Due times and the redelivery window are measured on each worker's clock, not the database's:
+keep the workers' clocks synchronized. A clock running ahead claims delayed messages early and
+takes a live worker's message for abandoned.
+
+A rejected message gets `max_attempts` attempts in all, the first included. While it has
+attempts left its row is put back in its queue, due `base_delay_seconds` later, the delay
+doubling with each attempt; the envelope carries a `RedeliveryStamp` with the attempt count and
+an `ErrorDetailsStamp` with why the last one failed. Once its attempts run out the row moves to
+the `failure_queue` of the same table, `failed` unless named otherwise, where `count()`, `all()`
+and `find()` on a transport reading that queue show it, and a worker consuming it tries it
+again, with a fresh count. A message failing for good in the failure queue itself is deleted.
+The worker asks the transport before it announces a failure, so `WorkerMessageFailedEvent`
+carries `will_retry=True` for an attempt that will be made again.
 
 A worker that finds nothing due waits `poll_interval` seconds before asking again. On
 PostgreSQL through asyncpg it listens instead: every send announces itself on the table's
 channel, naming its queue, and the worker asks again at once — or after
 `check_delayed_interval`, for a delayed message falling due. Listening holds one connection of
 the pool for as long as the worker runs.
+If the database drops that connection, the wait under way ends and the next one listens on a
+fresh connection; while listening again fails, the worker polls every `poll_interval` and keeps
+trying. A claim whose worker is cancelled before it hears of it is handed back at once, not left
+until `redeliver_timeout`.
 
-SQLite has no row locks, so the lock clause is left out there. A second worker reaching for the
-row another is claiming gets "database is locked", which counts as a conflict and is tried again.
+SQLite has no row locks, so the lock clause is left out there, and SQLite is for development and
+tests. With the driver's default transaction mode two workers can claim one row; run one worker
+on SQLite, or pass `connect_args={"autocommit": False}` (Python 3.12+), under which the second
+gets "database is locked", which counts as a conflict and is tried again.
 
 Conflicts between workers — a deadlock, a lock wait that timed out — say nothing about the
 message. A poll sits through 3 in a row before it raises; an acknowledgement or a rejection
@@ -142,6 +163,9 @@ An unknown one is refused with `UnknownTransportOptionError`, a bad value with
 | `use_notify` | `true` | on PostgreSQL through asyncpg, wait for notifications instead of polling |
 | `check_delayed_interval` | `60000` | milliseconds a listening worker waits at most before asking anyway |
 | `get_notify_timeout` | `60000` | milliseconds one wait for a notification lasts at most |
+| `max_attempts` | `3` | attempts a message gets, the first included, before it moves to the failure queue |
+| `base_delay_seconds` | `1.0` | seconds before the second attempt; each later one waits twice as long |
+| `failure_queue` | `failed` | the queue of the same table a message is moved to once its attempts run out |
 
 `orm://` with no name uses the default connection. A name the application did not configure is
 refused with `InvalidOrmDsnError` when the transport is built.
@@ -153,6 +177,9 @@ command: any unit of work — is written in that unit's session and sent only wh
 commits. Run the `orm_transaction` middleware, or commit yourself: a session never commits on
 its own. Outside a unit of work the message is written in a transaction of its own, as it is
 without the option.
+A follow-up held back with `DispatchAfterCurrentBusStamp` in a worker goes out after the
+handled message's unit is over; with `transactional=true` it is written in the worker's session
+only when `orm_transaction` runs for it too, so keep that middleware on the bus the worker uses.
 
 ## Looking into a queue
 
@@ -170,7 +197,8 @@ await transport.setup()  # create the table ahead of time
 ```
 
 `keepalive` restarts a message's redelivery clock; `seconds` is how long until the next call,
-refused when longer than `redeliver_timeout`.
+refused when longer than `redeliver_timeout`. A worker already renews what it holds on its own;
+call it for a message held some other way.
 
 ## Use in an application
 
@@ -229,6 +257,11 @@ Everything this library raises derives from `OrmMessengerError`, itself a
 | --- | --- |
 | `TransportError` | the database refuses what a transport asked — sending, claiming, settling, listing — or an envelope settled here was not received here; the driver's error is its cause |
 | `InvalidOrmDsnError` | an `orm://` DSN names a connection the application does not configure; also a `LookupError` |
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-orm-messenger).
 
 ## Development
 

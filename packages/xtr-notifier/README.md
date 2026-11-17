@@ -143,7 +143,8 @@ point; the agent skill's `references/bridges.md` walks through it.
 ## Testing
 
 Record what was sent with a `NotificationLoggerListener` (the bundle registers one when the
-event dispatcher is active) and assert on it:
+event dispatcher is active and the kernel is in debug, as it is under `dev` and `test`) and
+assert on it:
 
 ```python
 from xtr_notifier.testing import assert_notification_count, assert_notification_subject_contains
@@ -217,7 +218,12 @@ def notifier() -> NotifierConfig:
 | `channel_policy` | `{}` | Channels by importance value, for a notification naming none |
 | `admin_recipients` | `()` | Who the application's own failures are reported to (`email` required) |
 | `notification_on_failed_messages` | `False` | Report a message the bus gave up on to the administrators |
+| `include_traceback` | `False` | Attach the error's traceback to such a report; off, since it may hold the message's data |
 | `http_client` | `None` | Qualifier of the HTTP client providers are reached through |
+
+The transport DSNs are left out of the configuration's `repr`: each carries its provider's
+credentials. A failed chat, SMS or push message — one the notifier queued itself — is not
+reported, since the report would go through the transport that just failed.
 
 What the bundle registers:
 
@@ -228,7 +234,8 @@ What the bundle registers:
 - With the messenger bundle: a message whose type the bus routes (by class, by its wire name, or
   `*`) is queued, and a handler sends it through the same transports; an unrouted one is sent at
   once. The texter queues only when both SMS and push messages are routed.
-- With the event dispatcher bundle: a `NotificationLoggerListener`, and every message announced.
+- With the event dispatcher bundle: every message announced, and in debug a
+  `NotificationLoggerListener` keeping them (never in production, where it would grow forever).
 - `notification_on_failed_messages=True` without the messenger or the event dispatcher bundle
   fails the build with `LogicError`.
 
@@ -257,6 +264,11 @@ Every error derives from `NotifierError`.
 | `LengthError` | A value is longer than the provider accepts |
 | `TransportError` | A provider could not be reached or refused a message (carries the response, when one came) |
 | `NotifierRuntimeError` | Every transport of a failover or round robin failed |
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-notifier).
 
 ## Development
 

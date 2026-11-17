@@ -487,6 +487,21 @@ wheels = [
 ]
 
 [[package]]
+name = "ast-grep-cli"
+version = "0.51.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/69/7dce459258997e24f0bc33d24b4e3c12dc019c4a90287bb3a824c9ed4458/ast_grep_cli-0.51.3.tar.gz", hash = "sha256:7c65ed276be0f90084637c1ec42e79b25b3ca0e44e895678990652b0da40c277", size = 301527, upload-time = "2026-11-16T04:16:49.406Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/14/7619860b72623b8254a300a5434f77151b021cac8b093e544920a1871da9/ast_grep_cli-0.51.3-py3-none-macosx_10_12_universal2.macosx_10_12_x86_64.macosx_11_0_arm64.whl", hash = "sha256:927f9f3e80935dad08081560dde6e5e33e0c3a3075273dcee3a3abb4232eebcf", size = 17446947, upload-time = "2026-11-16T04:16:31.006Z" },
+    { url = "https://files.pythonhosted.org/packages/de/46/3fea65141c00cd4bd048f4adaed514e381e9c10eb152eae364cdbd1bee8f/ast_grep_cli-0.51.3-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:681c955b4b62d2486d803f59c609b74263445b8d8d723df9a8b1dcf3a3c79744", size = 8753534, upload-time = "2026-11-16T04:16:33.992Z" },
+    { url = "https://files.pythonhosted.org/packages/87/a1/045a6ad3de14e517d1ee13f3ef71543414b12e733c604718717da3e51cba/ast_grep_cli-0.51.3-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:cd68636516f9d131b908016ab6514057fba31401f81022c8df7385fdd308ff89", size = 8571921, upload-time = "2026-11-16T04:16:36.268Z" },
+    { url = "https://files.pythonhosted.org/packages/27/68/3ca6c654dccc5ee792bec196e76fb419ed641cba98f165ff149e457d813b/ast_grep_cli-0.51.3-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:c66a670ec71850bbdd01d5c519f4dad4a1c42194226225a2ee600a9ea6a6bdc7", size = 8924557, upload-time = "2026-11-16T04:16:38.784Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/3f/dba0fe390e01062f3711859cdfd5df32c0b245fd45372f34c3fb210c3eef/ast_grep_cli-0.51.3-py3-none-win32.whl", hash = "sha256:b39b1bd33010e6f840848827f0cd5a036e1f8a333cf4f807aafaf3d0fbf09bbc", size = 16794202, upload-time = "2026-11-16T04:16:41.187Z" },
+    { url = "https://files.pythonhosted.org/packages/68/c7/dab5607ff18b72bf1a4c176e2f70a0cde5da98ad1de1e1de73593498d13c/ast_grep_cli-0.51.3-py3-none-win_amd64.whl", hash = "sha256:073f51f01daebaa74c28b62ef822d94c9a6285274a4084cc36c81656baee6c0a", size = 17915839, upload-time = "2026-11-16T04:16:44.202Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/6b/9b3e01290d9ea021d0df9b2aa018b5bec0ee7cedf7ba49bd3c053705c1cd/ast_grep_cli-0.51.3-py3-none-win_arm64.whl", hash = "sha256:6f9f59a07be81c2f4a4a15666d6731cd493dd9403553bf490ce09d8cf9d1eba7", size = 17148624, upload-time = "2026-11-16T04:16:46.894Z" },
+]
+
+[[package]]
 name = "async-timeout"
 version = "5.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1453,7 +1468,7 @@ lua = [
 
 [[package]]
 name = "fastapi"
-version = "0.162.5"
+version = "0.163.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -1464,9 +1479,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4e/7b/ae546e10f153fcf9a6afd8b9fe4730bdfeb8fdcb93178d54122973ef3f4c/fastapi-0.162.5.tar.gz", hash = "sha256:1ca37f64f61c99cebd38636e67525fb721c5e8c1169f07f2a35d73b0a63265d4", size = 531785, upload-time = "2026-11-11T22:29:53.177Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/62/19000d0f3699cacaeffe8a3c4cc7046d87aac3291163ffeb2ef08b82d859/fastapi-0.163.1.tar.gz", hash = "sha256:3d364b02a68b67292e833ff2dfed3b8dc3aeadf73e271c15316c6c166668792f", size = 544796, upload-time = "2026-11-15T09:51:31.271Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/19/5b9abfa67a29b862e509911eef40f4901f78aa48de32ad1f939b5c2b165e/fastapi-0.162.5-py3-none-any.whl", hash = "sha256:5303c67415fde762889ca337db79d27b755b8bd09cef314fa7a4340bb30bfd2b", size = 151782, upload-time = "2026-11-11T22:29:51.47Z" },
+    { url = "https://files.pythonhosted.org/packages/20/b6/2424da1e40825d3fc54539621811f34e21472499677c9490e4967270e38e/fastapi-0.163.1-py3-none-any.whl", hash = "sha256:68f2d8050f5c3583121c0d203046cc7def5c16a7d6c43a0e7707a8ea610fe2d3", size = 154541, upload-time = "2026-11-15T09:51:29.726Z" },
 ]
 
 [[package]]
@@ -5183,14 +5198,14 @@ wheels = [
 
 [[package]]
 name = "wireup"
-version = "2.12.0"
+version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/13/45337aac6078b2e800e8ec26b845eb4c4a76eabc243658da89676da6af23/wireup-2.12.0.tar.gz", hash = "sha256:e21bf35356d5c670a66ab4e349fffdf58ce3e272dd233f6085885137315325e9", size = 8773922, upload-time = "2026-07-09T22:23:53.104Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/79/6a8caa22b6dac621060624c4bc522705ed5549f5ee8a2d61ccc7a6162c58/wireup-2.13.1.tar.gz", hash = "sha256:bd32b93241628ade32d4b2b2e6eadde13f81cd898b00f282721b45b0c22d83a1", size = 1595449, upload-time = "2026-11-03T21:58:53.138Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/6b/330fda3bd0378b1e33738b30d47f25fafa9430ab4472ebb307a23f96d959/wireup-2.12.0-py3-none-any.whl", hash = "sha256:6d418626040e92dde7ecec0460d8712b97cf26466a24d962ed6b2e455739094b", size = 62187, upload-time = "2026-07-09T22:23:55.825Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/2c/6a84b9f24246d3e56d87eedfb8d854bb2f634351fc3b21a39b9ccd2b8cc1/wireup-2.13.1-py3-none-any.whl", hash = "sha256:0c5d9d19337797d6898f243e556a0a98b1041185c99fcdd04e867c097bff58db", size = 64600, upload-time = "2026-11-03T21:58:54.52Z" },
 ]
 
 [[package]]
@@ -5290,11 +5305,12 @@ wheels = [
 
 [[package]]
 name = "xtr"
-version = "6.8.1"
+version = "7.0.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "ast-grep-cli" },
     { name = "basedpyright" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -5312,6 +5328,7 @@ docs = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "ast-grep-cli", specifier = ">=0.39" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=8" },
@@ -5327,7 +5344,7 @@ docs = [
 
 [[package]]
 name = "xtr-ai"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-ai" }
 dependencies = [
     { name = "anyio" },
@@ -5423,7 +5440,7 @@ dev = [
 
 [[package]]
 name = "xtr-ai-orm-conversation-store"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-ai-orm-conversation-store" }
 dependencies = [
     { name = "pydantic-ai-slim" },
@@ -5437,6 +5454,7 @@ dependencies = [
 dev = [
     { name = "aiosqlite" },
     { name = "anyio" },
+    { name = "asyncpg" },
     { name = "basedpyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -5457,6 +5475,7 @@ requires-dist = [
 dev = [
     { name = "aiosqlite", specifier = ">=0.20" },
     { name = "anyio", specifier = ">=4.0" },
+    { name = "asyncpg", specifier = ">=0.29" },
     { name = "basedpyright", specifier = ">=1.21" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
@@ -5466,7 +5485,7 @@ dev = [
 
 [[package]]
 name = "xtr-amqp-messenger"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-amqp-messenger" }
 dependencies = [
     { name = "aio-pika" },
@@ -5511,7 +5530,7 @@ dev = [
 
 [[package]]
 name = "xtr-cache"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-cache" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5575,7 +5594,7 @@ dev = [
 
 [[package]]
 name = "xtr-cache-contracts"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-cache-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5610,7 +5629,7 @@ dev = [
 
 [[package]]
 name = "xtr-cli"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-cli" }
 dependencies = [
     { name = "xtr-console" },
@@ -5641,7 +5660,7 @@ dev = [
 
 [[package]]
 name = "xtr-clock"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-clock" }
 dependencies = [
     { name = "anyio" },
@@ -5685,7 +5704,7 @@ dev = [
 
 [[package]]
 name = "xtr-console"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-console" }
 dependencies = [
     { name = "cyclopts" },
@@ -5737,7 +5756,7 @@ dev = [
 
 [[package]]
 name = "xtr-dependency-injection"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-dependency-injection" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5785,7 +5804,7 @@ dev = [
 
 [[package]]
 name = "xtr-dotenv"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-dotenv" }
 dependencies = [
     { name = "anyio" },
@@ -5828,7 +5847,7 @@ dev = [
 
 [[package]]
 name = "xtr-event-dispatcher"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-event-dispatcher" }
 dependencies = [
     { name = "typing-extensions" },
@@ -5873,7 +5892,7 @@ dev = [
 
 [[package]]
 name = "xtr-event-dispatcher-contracts"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-event-dispatcher-contracts" }
 
 [package.dev-dependencies]
@@ -5900,7 +5919,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-client"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-http-client" }
 dependencies = [
     { name = "anyio" },
@@ -5966,7 +5985,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-client-contracts"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-http-client-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6014,10 +6033,11 @@ dev = [
 
 [[package]]
 name = "xtr-http-foundation"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-http-foundation" }
 dependencies = [
     { name = "typing-extensions" },
+    { name = "xtr-clock" },
     { name = "xtr-http-message-contracts" },
 ]
 
@@ -6042,6 +6062,7 @@ dev = [
 requires-dist = [
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-cache-contracts", marker = "extra == 'cache'", editable = "packages/xtr-cache-contracts" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
 ]
 provides-extras = ["cache"]
@@ -6060,7 +6081,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-kernel"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-http-kernel" }
 dependencies = [
     { name = "fastapi" },
@@ -6095,7 +6116,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.1" },
     { name = "python-multipart", specifier = ">=0.0.18" },
-    { name = "starlette", specifier = ">=1.3.1" },
+    { name = "starlette", specifier = ">=1.6" },
     { name = "typing-extensions", specifier = ">=4.4" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
@@ -6123,7 +6144,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-message"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-http-message" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6160,7 +6181,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-message-contracts"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-http-message-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6189,7 +6210,7 @@ dev = [
 
 [[package]]
 name = "xtr-lock"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-lock" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6243,7 +6264,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-logging" }
 dependencies = [
     { name = "msgspec" },
@@ -6286,7 +6307,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging-contracts"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-logging-contracts" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6315,7 +6336,7 @@ dev = [
 
 [[package]]
 name = "xtr-mailer"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-mailer" }
 dependencies = [
     { name = "aiosmtplib" },
@@ -6391,7 +6412,7 @@ dev = [
 
 [[package]]
 name = "xtr-maker"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-maker" }
 dependencies = [
     { name = "jinja2" },
@@ -6469,7 +6490,7 @@ dev = [
 
 [[package]]
 name = "xtr-messenger"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-messenger" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6535,7 +6556,7 @@ dev = [
 
 [[package]]
 name = "xtr-mime"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-mime" }
 dependencies = [
     { name = "email-validator" },
@@ -6599,7 +6620,7 @@ dev = [
 
 [[package]]
 name = "xtr-notifier"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-notifier" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6659,7 +6680,7 @@ dev = [
 
 [[package]]
 name = "xtr-orm"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-orm" }
 dependencies = [
     { name = "advanced-alchemy" },
@@ -6729,7 +6750,7 @@ dev = [
 
 [[package]]
 name = "xtr-orm-messenger"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-orm-messenger" }
 dependencies = [
     { name = "msgspec" },
@@ -6778,7 +6799,7 @@ dev = [
 
 [[package]]
 name = "xtr-password-hasher"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-password-hasher" }
 dependencies = [
     { name = "pwdlib", extra = ["argon2"] },
@@ -6824,7 +6845,7 @@ dev = [
 
 [[package]]
 name = "xtr-rate-limiter"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-rate-limiter" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6882,7 +6903,7 @@ dev = [
 
 [[package]]
 name = "xtr-recipes"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-recipes" }
 dependencies = [
     { name = "cryptography" },
@@ -6919,7 +6940,7 @@ dev = [
 
 [[package]]
 name = "xtr-remote-event"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-remote-event" }
 dependencies = [
     { name = "typing-extensions" },
@@ -6962,7 +6983,7 @@ dev = [
 
 [[package]]
 name = "xtr-scheduler"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-scheduler" }
 dependencies = [
     { name = "pydantic" },
@@ -7034,7 +7055,7 @@ dev = [
 
 [[package]]
 name = "xtr-security"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-security" }
 dependencies = [
     { name = "typing-extensions" },
@@ -7066,6 +7087,8 @@ dev = [
     { name = "ty" },
     { name = "xtr-console" },
     { name = "xtr-http-message" },
+    { name = "xtr-lock" },
+    { name = "xtr-logging" },
     { name = "xtr-password-hasher", extra = ["bcrypt"] },
 ]
 
@@ -7100,12 +7123,14 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
+    { name = "xtr-lock", editable = "packages/xtr-lock" },
+    { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-password-hasher", extras = ["bcrypt"], editable = "packages/xtr-password-hasher" },
 ]
 
 [[package]]
 name = "xtr-security-core"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-security-core" }
 dependencies = [
     { name = "typing-extensions" },
@@ -7146,7 +7171,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-csrf"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-security-csrf" }
 dependencies = [
     { name = "typing-extensions" },
@@ -7181,7 +7206,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-http"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-security-http" }
 dependencies = [
     { name = "anyio" },
@@ -7265,7 +7290,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-jwt"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-security-jwt" }
 dependencies = [
     { name = "joserfc" },
@@ -7326,7 +7351,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-oauth2-server"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-security-oauth2-server" }
 dependencies = [
     { name = "anyio" },
@@ -7401,7 +7426,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-oauth2-server-core"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-security-oauth2-server-core" }
 dependencies = [
     { name = "joserfc" },
@@ -7448,7 +7473,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-openid-connect-server"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-security-openid-connect-server" }
 dependencies = [
     { name = "fastapi" },
@@ -7529,7 +7554,7 @@ dev = [
 
 [[package]]
 name = "xtr-serializer"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-serializer" }
 dependencies = [
     { name = "pydantic" },
@@ -7572,7 +7597,7 @@ dev = [
 
 [[package]]
 name = "xtr-service-contracts"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-service-contracts" }
 
 [package.dev-dependencies]
@@ -7599,7 +7624,7 @@ dev = [
 
 [[package]]
 name = "xtr-slack-notifier"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-slack-notifier" }
 dependencies = [
     { name = "typing-extensions" },
@@ -7640,7 +7665,7 @@ dev = [
 
 [[package]]
 name = "xtr-storage"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-storage" }
 dependencies = [
     { name = "fsspec" },
@@ -7696,7 +7721,7 @@ dev = [
 
 [[package]]
 name = "xtr-telegram-notifier"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-telegram-notifier" }
 dependencies = [
     { name = "typing-extensions" },
@@ -7737,7 +7762,7 @@ dev = [
 
 [[package]]
 name = "xtr-webhook"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-webhook" }
 dependencies = [
     { name = "typing-extensions" },
@@ -7800,7 +7825,7 @@ dev = [
 
 [[package]]
 name = "xtr-workflow"
-version = "6.8.1"
+version = "7.0.0"
 source = { editable = "packages/xtr-workflow" }
 dependencies = [
     { name = "typing-extensions" },

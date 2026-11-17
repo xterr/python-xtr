@@ -1,6 +1,6 @@
 [project]
 name = "xtr"
-version = "6.8.1"
+version = "7.0.0"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
@@ -63,6 +63,8 @@ xtr-workflow             = { workspace = true }
 
 [dependency-groups]
 dev = [
+    # `uv run ast-grep scan` lints the libraries for the bug classes in lint/ast-grep.
+    "ast-grep-cli>=0.39",
     "basedpyright>=1.21",
     "pre-commit>=4.6.2",
     "pytest>=8",

@@ -54,9 +54,12 @@ configured.
 - **History.** A conversation's history is read in one recursive query.
 - **Deleting.** Deleting a conversation deletes the messages only it reaches. Messages a fork,
   or its origin, still reaches stay until the last of them is deleted.
-  - A fork saved while its origin is being deleted can lose the messages it shares with it,
-    except on SQLite, where writes take turns. Don't fork a conversation you are deleting.
+  - A delete locks the conversation and its family first, and a fork's save holds its origin
+    locked until it commits: a delete racing a fork waits for it and keeps what the fork shares,
+    and a fork of an origin deleted meanwhile raises `ConversationConflict`.
 - **Databases.** It runs on PostgreSQL, MySQL 8 and SQLite, through their async drivers.
+- **Scopes.** `read_records(scope=...)` reads one scope's conversations; with no scope it reads
+  every scope's — every tenant's, when scopes are tenants. Pass the caller's.
 
 ## Development
 

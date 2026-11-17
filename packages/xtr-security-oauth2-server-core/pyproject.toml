@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-oauth2-server-core"
-version = "6.8.1"
+version = "7.0.0"
 description = "The OAuth 2.0 authorization-server library: grants, servers, entities, response types and the resource server."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,11 +20,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-security-core>=6.0,<7",
-    "xtr-security-jwt>=6.0,<7",
-    "xtr-clock>=6.0,<7",
-    "xtr-event-dispatcher-contracts>=6.0,<7",
-    "xtr-http-message-contracts>=6.0,<7",
+    "xtr-security-core>=7.0,<8",
+    "xtr-security-jwt>=7.0,<8",
+    "xtr-clock>=7.0,<8",
+    "xtr-event-dispatcher-contracts>=7.0,<8",
+    "xtr-http-message-contracts>=7.0,<8",
     "joserfc>=1.7",
     "typing-extensions>=4.12",
 ]
@@ -39,7 +39,7 @@ dev = [
     "ty>=0.0.83",
     # The library speaks the message contracts; the tests need messages to hand
     # it, which is what the implementation is for.
-    "xtr-http-message>=6.0,<7",
+    "xtr-http-message>=7.0,<8",
 ]
 
 [build-system]

@@ -129,6 +129,9 @@ class AuthorizationServerMetadata:
                 document[f"{name}_auth_methods_supported"] = list(CLIENT_AUTH_METHODS)
         if self.code_challenge_methods:
             document["code_challenge_methods_supported"] = list(self.code_challenge_methods)
+        if "authorization_endpoint" in self.endpoints:
+            # Every redirect this server answers names it as ``iss`` (RFC 9207).
+            document["authorization_response_iss_parameter_supported"] = True
         for name, value in self.extra.items():
             _ = document.setdefault(name, value)
 

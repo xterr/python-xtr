@@ -65,6 +65,9 @@ Three things in that are worth saying out loud.
   the message stream over that same kept body.
 - **A response holds a connection until it is done with.** Leaving the `async with` block
   closes the body, which frees the connection; `await response.cancel()` does it mid-transfer.
+  A response that is neither read to the end nor closed is never freed for you — closing needs
+  an `await` no finalizer can make — so it keeps its connection, and enough of them exhaust the
+  pool. Always use the `async with`, or read the body.
 
 `get_content()` and `to_array()` are where an unsuccessful status *is* raised —
 `RedirectionError`, `ClientError`, `ServerError`. Pass `throw=False` to read the body a 4xx
@@ -111,8 +114,8 @@ the rest. An option this client does not know is refused with `InvalidArgumentEr
 the closest one it does, because an option spelled wrong that was quietly dropped is a setting
 that silently never applied.
 
-A host `resolve` pins to an address stays pinned for the requests after it; `reset()` forgets
-every pin and keeps the connections open.
+A host `resolve` pins to an address is pinned for that request only; the next request asks a
+resolver again unless it pins the host too. `reset()` keeps the connections open.
 
 A `body` mapping holding a file opened `"rb"` is uploaded as `multipart/form-data` — plain
 values as `data`, each file as a part named after its file and typed from that name — and a
@@ -164,8 +167,14 @@ async with HttpxHttpClient({"timeout": 5}, max_host_connections=4) as client:
 - Redirects are followed here rather than by the backend, for the one thing a backend cannot be
   told: an `Authorization` header belongs to the host it was meant for, so it is dropped the
   moment a chain leaves that host and put back only if the chain returns to it.
+  Only that header is: a custom credential header — `X-Api-Key`, say — follows a redirect to
+  another host, here and through `NoPrivateNetworkHttpClient` alike. Send such a request with
+  `max_redirects=0`, or put the credential in `Authorization`.
 - `aclose()` — or leaving the `async with` — closes every pool. Nothing is opened until a
   request is made.
+- Each event loop gets pools of its own, since a connection cannot move between loops: one
+  client can serve several `asyncio.run` calls, or threads each running a loop. `aclose()`
+  closes the pools of the loop it runs on; another loop's pools go with that loop.
 
 What it refuses, before anything is sent: an empty method or one that is not uppercase ASCII
 letters; `auth_basic` and `auth_bearer` together, or either in a shape credentials cannot be
@@ -206,10 +215,13 @@ client = RetryableHttpClient(inner, GenericRetryStrategy([500, 502, 503]), max_r
 ```
 
 `max_retries` is how many *further* attempts are allowed, so the request is made at most that
-many times plus one; a request may lower or raise it with the `max_retries` option. A
-`Retry-After` header wins over whatever delay the strategy names — a server saying when to come
-back is better informed than a client guessing. The response reports how many tries it took,
-under the `retry_count` entry of `get_info()`.
+many times plus one; a request may lower or raise it with the `max_retries` option. The
+strategy names the delay, from the answer it is handed: `GenericRetryStrategy` obeys a
+`Retry-After` header over its own backoff — a server saying when to come back is better
+informed than a client guessing — up to `max_delay_ms`, or up to `max_retry_after_ms` (a minute)
+when that sets no ceiling, so an answer cannot park the caller for as long as it likes. A
+strategy of your own reads `context.response` to do the same. The response reports how many
+tries it took, under the `retry_count` entry of `get_info()`.
 
 A body that cannot be produced twice is sent once: a second attempt would send a request that
 is not the one that failed. And when `base_uri` names several, each attempt moves one along
@@ -244,7 +256,13 @@ moment that booking is due; booking first and waiting after is what makes the pa
 concurrency, since requests then leave in the order they were asked for rather than all at
 once. Which requests share a pace is decided by which of them are given the same limiter — one
 per host, one per account, one for the whole application — and a copy made by `with_options()`
-shares it.
+shares it. `reset()` keeps the pace: the end of one unit of work forgets nothing counted
+against a rate every unit shares.
+
+A booking is never handed back: a request cancelled or timed out while it waits still counts
+against the pace, and later requests queue behind its turn. Bookings are not bounded either;
+under a burst, callers queue as far ahead as the limiter's rate dictates, so bound the wait
+itself (a timeout around the call) where waiting long is worse than failing.
 
 ### `TraceableHttpClient` — a record of every request made
 
@@ -267,7 +285,10 @@ reads the body. So a trace read mid-request says how far it has got rather than 
 The bodies are the costly half of a record and the half most likely to carry a credential, so
 `extra={"trace_content": False}` leaves them out: `body` and `json` are dropped from `options`
 and `content` is `False` rather than bytes. Pass `disabled=lambda: ...` to record nothing while
-it says so. There is one record per client and its copies; `reset()` clears it.
+it says so. `auth_basic`, `auth_bearer` and an `Authorization`, `Cookie` or
+`Proxy-Authorization` header are always recorded as `"***"`. There is one record per client and
+its copies, keeping the last `TraceableHttpClient.MAX_TRACES` (1000) requests; `reset()` clears
+it.
 
 ### `NoPrivateNetworkHttpClient` — refuse what leads inwards
 
@@ -288,13 +309,23 @@ so a name whose records change between the check and the connection reaches what
 nothing at all. Redirects are followed here too, because a hop nobody checked would walk
 straight past the guard.
 
+A redirect to another origin — another scheme, host or port — carries no credentials meant for
+the first: the `Authorization`, `Cookie` and `Proxy-Authorization` headers, the `auth_bearer`
+and `auth_basic` options and the `query` parameters (an API key travels there) are left behind.
+The hop sends the request's other headers and an empty `query`, and never the wrapped client's
+own default headers or query. A custom credential header — `X-Api-Key` — is one of the other
+headers and goes on: send it with `max_redirects=0`. A body a 307 or 308 keeps goes on, as the status asks. An
+address the checks cannot read is refused; one with a zone, `fe80::1%eth0`, is checked as the
+address it names.
+
 A refusal is `TransportError`: `Host "<host>" is blocked for "<url>".`, or `IP "<ip>" is
 blocked for "<url>".` for an address written out. With no `subnets` it refuses
 `IpUtils.PRIVATE_SUBNETS` from [xtr-http-foundation](../xtr-http-foundation) — loopback,
 private, link-local, carrier-grade NAT, unique-local, multicast, reserved and unspecified
 alike. `subnets` replaces that set and `allow_list` opens one receiver without opening the
 network it sits in; both take addresses or CIDR networks, never host names. What a host
-resolved to is remembered for the client's life, and `reset()` forgets it.
+resolved to is remembered for one request's chain of redirects, so hops back to the same host
+ask the resolver once; the next request asks again.
 
 xtr-http-foundation is not a dependency: install it beside this package (`uv add
 xtr-http-foundation`) to use the guard. Without it, building `NoPrivateNetworkHttpClient`
@@ -487,6 +518,11 @@ The hierarchy is the [contract's](../xtr-http-client-contracts#errors), re-expor
 
 An unsuccessful status names itself: `HTTP 404 returned for "<url>".`, the status line the
 server sent, or the `title` and `detail` of the body when that body is a JSON error document.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-http-client).
 
 ## Development
 

@@ -8,6 +8,8 @@ on — revocation, the opt-out, the taken identifier — do what the contract sa
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 
 from tests.support.entities import make_client, make_scope, make_user
@@ -140,8 +142,8 @@ async def test_a_redeemed_authorization_code_reports_itself_revoked() -> None:
     code.set_identifier("code-1")
     await repository.persist_new_auth_code(code)
 
-    await repository.revoke_auth_code("code-1")
-
+    assert await repository.revoke_auth_code("code-1") is True
+    assert await repository.revoke_auth_code("code-1") is False
     assert await repository.is_auth_code_revoked("code-1") is True
 
 
@@ -222,9 +224,37 @@ async def test_a_stored_device_code_is_found_by_its_identifier_and_can_be_revoke
     code.set_identifier("device-1")
     await repository.persist_device_code(code)
 
-    assert await repository.get_device_code_entity_by_device_code("device-1") is code
+    found = await repository.get_device_code_entity_by_device_code("device-1")
+    assert found is not None
+    assert found is not code
+    assert found.get_identifier() == "device-1"
     assert await repository.is_device_code_revoked("device-1") is False
 
-    await repository.revoke_device_code("device-1")
-
+    assert await repository.revoke_device_code("device-1") is True
+    assert await repository.revoke_device_code("device-1") is False
     assert await repository.is_device_code_revoked("device-1") is True
+
+
+@pytest.mark.anyio
+async def test_only_the_first_decision_on_a_device_code_is_recorded() -> None:
+    repository = InMemoryDeviceCodeRepository()
+    code = await repository.get_new_device_code()
+    code.set_identifier("device-1")
+    await repository.persist_device_code(code)
+
+    assert await repository.record_device_code_decision("device-1", "user-1", True) is True
+    assert await repository.record_device_code_decision("device-1", "user-2", True) is False
+    assert repository.codes["device-1"].get_user_identifier() == "user-1"
+
+
+@pytest.mark.anyio
+async def test_a_poll_is_recorded_only_against_the_poll_it_read() -> None:
+    repository = InMemoryDeviceCodeRepository()
+    code = await repository.get_new_device_code()
+    code.set_identifier("device-1")
+    await repository.persist_device_code(code)
+    first = datetime(2026, 1, 1, tzinfo=UTC)
+
+    assert await repository.record_device_code_poll("device-1", None, first) is True
+    assert await repository.record_device_code_poll("device-1", None, first) is False
+    assert await repository.record_device_code_poll("device-1", first, first) is True

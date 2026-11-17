@@ -31,7 +31,11 @@ def ai() -> AiConfig:
                 options={"function": echo_settings},
                 model_settings={"max_tokens": 7},
             ),
-            "keyed": PlatformConfig(provider="openai", api_key=env("AI_TEST_KEY")),
+            "keyed": PlatformConfig(
+                provider="openai",
+                api_key=env("AI_TEST_KEY"),
+                base_url="https://proxy-user:proxy-pw-sentinel@proxy.example/v1",
+            ),
         },
         agents={
             "chat": AgentConfig(

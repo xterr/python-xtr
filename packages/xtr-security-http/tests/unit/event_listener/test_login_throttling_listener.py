@@ -1,4 +1,4 @@
-"""The throttling listener: look ahead, count a failure, forget on success.
+"""The throttling listener: count every attempt before its password is checked, forget on success.
 
 The priorities are pinned too: the throttling check runs at 2080, above
 the provider listener's loader setup (2048), the credentials check's
@@ -9,12 +9,19 @@ refused before any other check spends anything on it.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, final
 
 import pytest
 from xtr_http_kernel.bridge import ResponseFactory
-from xtr_rate_limiter import RateLimit, RateLimitExceededEvent
+from xtr_rate_limiter import (
+    InMemoryStorage,
+    LimiterConfig,
+    RateLimit,
+    RateLimiterFactory,
+    RateLimitExceededEvent,
+)
 from xtr_security_core.exception import (
     InvalidArgumentError,
     TooManyLoginAttemptsAuthenticationError,
@@ -43,6 +50,7 @@ from xtr_security_http.event_listener.login_throttling_listener import (
 )
 from xtr_security_http.event_listener.user_checker_listener import PRE_PRIORITY
 from xtr_security_http.event_listener.user_provider_listener import PRIORITY as PROVIDER_PRIORITY
+from xtr_security_http.rate_limiter.default_login_rate_limiter import DefaultLoginRateLimiter
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes
 
 if TYPE_CHECKING:
@@ -50,10 +58,16 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
+_BURST = 50
+"""How many attempts arrive at once in the burst test."""
+
+_LIMIT = 3
+"""How many attempts an account is allowed in the burst test."""
+
 
 @final
-class _PeekableLimiter:
-    """A request limiter that records every call and answers a configured limit."""
+class _RecordingLimiter:
+    """A limiter that can look ahead, recording every call and answering a set limit."""
 
     def __init__(self, limit: RateLimit) -> None:
         self._limit = limit
@@ -67,23 +81,6 @@ class _PeekableLimiter:
 
     async def peek(self, request: ServerRequestInterface) -> RateLimit:
         self.peeks.append(request)
-        return self._limit
-
-    async def reset(self, request: ServerRequestInterface) -> None:
-        self.resets.append(request)
-
-
-@final
-class _CountingLimiter:
-    """A request limiter that cannot look ahead: it counts on every check."""
-
-    def __init__(self, limit: RateLimit) -> None:
-        self._limit = limit
-        self.consumes: list[object] = []
-        self.resets: list[object] = []
-
-    async def consume(self, request: ServerRequestInterface) -> RateLimit:
-        self.consumes.append(request)
         return self._limit
 
     async def reset(self, request: ServerRequestInterface) -> None:
@@ -120,16 +117,6 @@ def _success_event(request: ServerRequestInterface) -> LoginSuccessEvent:
     )
 
 
-def _failure_event(request: ServerRequestInterface) -> LoginFailureEvent:
-    return LoginFailureEvent(
-        TooManyLoginAttemptsAuthenticationError(),
-        _authenticator(),
-        request,
-        None,
-        "api",
-    )
-
-
 def _granted(remaining: int = 3, full: int = 5) -> RateLimit:
     return RateLimit(remaining, datetime.now(UTC), accepted=True, limit=full)
 
@@ -148,36 +135,43 @@ def test_the_throttling_check_runs_before_every_other_passport_check() -> None:
     assert PRIORITY > CREDENTIALS_PRIORITY  # 128: the credentials check.
 
 
-async def test_it_passes_an_attempt_with_a_token_left_without_counting_it() -> None:
-    limiter = _PeekableLimiter(_granted(remaining=3, full=5))
+async def test_the_check_counts_the_attempt_even_on_a_limiter_that_can_look_ahead() -> None:
+    limiter = _RecordingLimiter(_granted(remaining=3, full=5))
     listener = LoginThrottlingListener(limiter)
     bag: dict[str, object] = {}
 
     await listener.check_passport(_check_event(_request(bag)))
 
-    assert len(limiter.consumes) == 0
+    assert len(limiter.consumes) == 1
+    assert len(limiter.peeks) == 0
     assert security_state_of(bag).attributes.get(SecurityRequestAttributes.LAST_USERNAME) == "alice"
-    assert (
-        security_state_of(bag).attributes.get(SecurityRequestAttributes.LOGIN_THROTTLING_UNTOUCHED)
-        is False
+
+
+async def test_concurrent_attempts_beyond_the_limit_are_refused_before_the_password_check() -> None:
+    def factory(limit: int) -> RateLimiterFactory:
+        config = LimiterConfig("fixed_window", limit=limit, interval="1 minute")
+        return RateLimiterFactory(f"login-{limit}", config, InMemoryStorage())
+
+    listener = LoginThrottlingListener(
+        DefaultLoginRateLimiter(factory(_BURST * 2), factory(_LIMIT), "a-secret")
     )
 
+    answers = await asyncio.gather(
+        *(listener.check_passport(_check_event(_request({}))) for _ in range(_BURST)),
+        return_exceptions=True,
+    )
 
-async def test_it_remembers_a_full_window_as_untouched() -> None:
-    limiter = _PeekableLimiter(_granted(remaining=5, full=5))
-    listener = LoginThrottlingListener(limiter)
-    bag: dict[str, object] = {}
-
-    await listener.check_passport(_check_event(_request(bag)))
-
-    assert (
-        security_state_of(bag).attributes.get(SecurityRequestAttributes.LOGIN_THROTTLING_UNTOUCHED)
-        is True
+    passed = [answer for answer in answers if answer is None]
+    assert len(passed) == _LIMIT
+    assert all(
+        isinstance(answer, TooManyLoginAttemptsAuthenticationError)
+        for answer in answers
+        if answer is not None
     )
 
 
 async def test_it_refuses_an_over_the_limit_attempt_with_the_minutes_to_wait() -> None:
-    limiter = _PeekableLimiter(_refused(wait_minutes=12))
+    limiter = _RecordingLimiter(_refused(wait_minutes=12))
     listener = LoginThrottlingListener(limiter)
     bag: dict[str, object] = {}
 
@@ -188,7 +182,7 @@ async def test_it_refuses_an_over_the_limit_attempt_with_the_minutes_to_wait() -
 
 
 async def test_it_announces_the_refusal_as_an_exceeded_rate_limit() -> None:
-    limiter = _PeekableLimiter(_refused(wait_minutes=12))
+    limiter = _RecordingLimiter(_refused(wait_minutes=12))
     dispatcher = RecordingDispatcher()
     listener = LoginThrottlingListener(limiter, "login", dispatcher)
     bag: dict[str, object] = {}
@@ -203,90 +197,12 @@ async def test_it_announces_the_refusal_as_an_exceeded_rate_limit() -> None:
     assert not event.rate_limit.is_accepted()
 
 
-async def test_it_announces_a_look_ahead_that_found_no_token_left_as_a_refusal() -> None:
-    # A look ahead spends nothing, so it is accepted even with no token
-    # left: the event must report the refusal the caller is about to get.
-    limiter = _PeekableLimiter(
-        RateLimit(0, datetime.now(UTC) + timedelta(minutes=3), accepted=True, limit=5)
-    )
-    dispatcher = RecordingDispatcher()
-    listener = LoginThrottlingListener(limiter, "login", dispatcher)
-    bag: dict[str, object] = {}
-
-    with pytest.raises(TooManyLoginAttemptsAuthenticationError):
-        await listener.check_passport(_check_event(_request(bag)))
-
-    assert len(dispatcher.events) == 1
-    event = dispatcher.events[0]
-    assert isinstance(event, RateLimitExceededEvent)
-    assert not event.rate_limit.is_accepted()
-    assert event.rate_limit.remaining_tokens == 0
+async def test_a_failed_login_is_not_counted_a_second_time() -> None:
+    assert LoginFailureEvent not in LoginThrottlingListener.get_subscribed_events()
 
 
-async def test_a_limiter_that_cannot_look_ahead_counts_the_attempt_on_the_check() -> None:
-    limiter = _CountingLimiter(_granted())
-    listener = LoginThrottlingListener(limiter)
-    bag: dict[str, object] = {}
-
-    await listener.check_passport(_check_event(_request(bag)))
-
-    assert len(limiter.consumes) == 1
-
-
-async def test_a_limiter_that_cannot_look_ahead_is_refused_when_its_count_is() -> None:
-    limiter = _CountingLimiter(_refused(wait_minutes=7))
-    listener = LoginThrottlingListener(limiter)
-    bag: dict[str, object] = {}
-
-    with pytest.raises(TooManyLoginAttemptsAuthenticationError) as raised:
-        await listener.check_passport(_check_event(_request(bag)))
-
-    assert raised.value.threshold == 7
-
-
-async def test_it_counts_a_failed_login_when_it_left_the_count_to_here() -> None:
-    limiter = _PeekableLimiter(_granted())
-    listener = LoginThrottlingListener(limiter)
-    bag: dict[str, object] = {}
-
-    await listener.on_failed_login(_failure_event(_request(bag)))
-
-    assert len(limiter.consumes) == 1
-
-
-async def test_a_limiter_that_cannot_look_ahead_counts_no_failed_login_twice() -> None:
-    limiter = _CountingLimiter(_granted())
-    listener = LoginThrottlingListener(limiter)
-    bag: dict[str, object] = {}
-
-    await listener.on_failed_login(_failure_event(_request(bag)))
-
-    assert len(limiter.consumes) == 0
-
-
-async def test_a_successful_login_forgets_the_count() -> None:
-    limiter = _PeekableLimiter(_granted())
-    listener = LoginThrottlingListener(limiter)
-    bag: dict[str, object] = {}
-
-    await listener.on_successful_login(_success_event(_request(bag)))
-
-    assert len(limiter.resets) == 1
-
-
-async def test_a_successful_login_over_an_untouched_window_forgets_nothing() -> None:
-    limiter = _PeekableLimiter(_granted())
-    listener = LoginThrottlingListener(limiter)
-    bag: dict[str, object] = {}
-    security_state_of(bag).attributes[SecurityRequestAttributes.LOGIN_THROTTLING_UNTOUCHED] = True
-
-    await listener.on_successful_login(_success_event(_request(bag)))
-
-    assert len(limiter.resets) == 0
-
-
-async def test_a_successful_login_forgets_the_count_of_a_limiter_that_cannot_look_ahead() -> None:
-    limiter = _CountingLimiter(_granted())
+async def test_a_successful_login_resets_the_local_count() -> None:
+    limiter = _RecordingLimiter(_granted())
     listener = LoginThrottlingListener(limiter)
     bag: dict[str, object] = {}
 
@@ -296,7 +212,7 @@ async def test_a_successful_login_forgets_the_count_of_a_limiter_that_cannot_loo
 
 
 async def test_it_refuses_a_passport_check_that_carries_no_request() -> None:
-    limiter = _PeekableLimiter(_granted())
+    limiter = _RecordingLimiter(_granted())
     listener = LoginThrottlingListener(limiter)
 
     with pytest.raises(InvalidArgumentError):

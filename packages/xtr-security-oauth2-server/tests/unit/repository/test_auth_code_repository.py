@@ -81,17 +81,25 @@ async def test_it_withdraws_a_code_it_stored() -> None:
     repository, codes = await _repository()
     await repository.persist_new_auth_code(auth_code_entity())
 
-    await repository.revoke_auth_code("ac-1")
+    assert await repository.revoke_auth_code("ac-1") is True
 
     stored = await codes.find("ac-1")
     assert stored is not None
     assert stored.is_revoked() is True
 
 
-async def test_withdrawing_a_code_it_never_stored_is_no_error() -> None:
+async def test_withdrawing_a_code_it_never_stored_withdraws_nothing() -> None:
     repository, _ = await _repository()
 
-    await repository.revoke_auth_code("nope")
+    assert await repository.revoke_auth_code("nope") is False
+
+
+async def test_only_the_first_withdrawal_of_a_code_withdraws_it() -> None:
+    repository, _ = await _repository()
+    await repository.persist_new_auth_code(auth_code_entity())
+    _ = await repository.revoke_auth_code("ac-1")
+
+    assert await repository.revoke_auth_code("ac-1") is False
 
 
 async def test_a_code_it_never_stored_counts_as_withdrawn() -> None:
@@ -111,6 +119,6 @@ async def test_a_code_it_withdrew_reports_as_withdrawn() -> None:
     repository, _ = await _repository()
     await repository.persist_new_auth_code(auth_code_entity())
 
-    await repository.revoke_auth_code("ac-1")
+    _ = await repository.revoke_auth_code("ac-1")
 
     assert await repository.is_auth_code_revoked("ac-1") is True

@@ -41,7 +41,9 @@ class RememberMeConfig:
         path: The path the cookie answers on.
         domain: The domain the cookie answers on, or ``None`` for the
             request's own host.
-        secure: Whether the cookie travels over HTTPS only.
+        secure: Whether the cookie travels over HTTPS only; ``None``, the
+            default, makes it ``Secure`` exactly when the request came over
+            https.
         httponly: Whether the cookie is hidden from the page's scripts.
         samesite: The cross-site policy the cookie carries — ``"lax"``,
             ``"strict"``, ``"none"`` — or ``None`` for the browser's default.
@@ -70,7 +72,7 @@ class RememberMeConfig:
     lifetime: int = 31536000
     path: str = "/"
     domain: str | None = None
-    secure: bool = False
+    secure: bool | None = None
     httponly: bool = True
     samesite: str | None = None
     always_remember_me: bool = False

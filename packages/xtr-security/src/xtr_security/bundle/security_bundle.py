@@ -35,6 +35,7 @@ from xtr_security_core import (
 
 from xtr_security.access_token import OidcTokenHandlerFactory
 from xtr_security.bundle._core_services_wiring import register_core_security_services
+from xtr_security.bundle._csrf_wiring import with_csrf_settled
 from xtr_security.bundle.oidc_configs import OidcLoginConfig
 from xtr_security.bundle.security_config import SecurityConfig
 
@@ -160,9 +161,13 @@ class SecurityBundle(Bundle[SecurityConfig]):
 
         build_firewall_map(
             services,
-            self._bind_oidc_closeables(config),
+            # Every logout and switch left unset is decided here, once, so
+            # each wiring step reads the same answer.
+            with_csrf_settled(self._bind_oidc_closeables(config)),
+            builder=builder,
             clock_active=bundle_active(builder, "clock"),
             logging_active=bundle_active(builder, "logging"),
+            lock_active=bundle_active(builder, "lock"),
         )
 
         # The firewall runs the chain of the firewall each request matched,

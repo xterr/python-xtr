@@ -232,7 +232,12 @@ class AuthCodeGrant(AbstractAuthorizeGrant):
         response_type: ResponseTypeInterface,
         access_token_ttl: timedelta,
     ) -> ResponseTypeInterface:
-        """Redeem the code in ``request`` for a token pair, and spend the code.
+        """Redeem the code in ``request`` for a token pair, spending the code first.
+
+        The code is spent once every check on the request has passed and before
+        anything is issued, so of two redemptions at once only the one that
+        spends it is answered with tokens. Issuing that then fails leaves the
+        code spent: the client starts the authorization again.
 
         Raises:
             OAuthServerError: When the client cannot be authenticated, the
@@ -260,6 +265,8 @@ class AuthCodeGrant(AbstractAuthorizeGrant):
             auth_code_id,
         )
         self.validate_code_challenge(payload, self.get_request_parameter("code_verifier", request))
+        if not await self._auth_code_repository_or_fail().revoke_auth_code(auth_code_id):
+            raise OAuthServerError.invalid_grant()
         await self._issue_tokens(
             request,
             response_type,
@@ -268,7 +275,6 @@ class AuthCodeGrant(AbstractAuthorizeGrant):
             self._payload_text(payload, "user_id"),
             granted,
         )
-        await self._auth_code_repository_or_fail().revoke_auth_code(auth_code_id)
 
         return response_type
 
@@ -294,9 +300,9 @@ class AuthCodeGrant(AbstractAuthorizeGrant):
             raise OAuthServerError.invalid_request("code", "Authorization code malformed")
         expire_time = self._payload_whole_number(payload, "expire_time")
         if expire_time is None or int(self._clock.now().timestamp()) > expire_time:
-            raise OAuthServerError.invalid_grant("Authorization code has expired")
+            raise OAuthServerError.invalid_grant()
         if await self._auth_code_repository_or_fail().is_auth_code_revoked(auth_code_id):
-            raise OAuthServerError.invalid_grant("Authorization code has been revoked")
+            raise OAuthServerError.invalid_grant()
         if self._payload_text(payload, "client_id") != client.get_identifier():
             raise OAuthServerError.invalid_request(
                 "code",
@@ -353,4 +359,4 @@ class AuthCodeGrant(AbstractAuthorizeGrant):
         if verifier is None:
             raise OAuthServerError.server_error(f"Unsupported code challenge method `{method}`")
         if not verifier.verify_code_challenge(code_verifier, challenge):
-            raise OAuthServerError.invalid_grant("Failed to verify `code_verifier`.")
+            raise OAuthServerError.invalid_grant()

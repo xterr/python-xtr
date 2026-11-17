@@ -44,10 +44,12 @@ class _CountingStorage:
         session_id: str,
         data: Mapping[str, object],
         ttl: float | None,
-    ) -> None:
+        *,
+        must_exist: bool = False,
+    ) -> bool:
         """Record the write, then hand it to the inner storage."""
         self.writes.append(session_id)
-        await self.inner.write(session_id, data, ttl)
+        return await self.inner.write(session_id, data, ttl, must_exist=must_exist)
 
     async def delete(self, session_id: str) -> None:
         """Record the delete, then hand it to the inner storage."""
@@ -62,18 +64,20 @@ class _FailingStorage:
     __slots__ = ()
 
     async def read(self, session_id: str) -> Mapping[str, object] | None:
-        """Answer nothing: the entry never made it to the storage."""
+        """Answer an empty entry, so a reattached ID is kept and its write attempted."""
         del session_id
-        return None
+        return {}
 
     async def write(
         self,
         session_id: str,
         data: Mapping[str, object],
         ttl: float | None,
-    ) -> None:
+        *,
+        must_exist: bool = False,
+    ) -> bool:
         """Refuse the write: a session that cannot be kept is not quietly lost."""
-        del data, ttl
+        del data, ttl, must_exist
         raise SessionError(f"The storage refused to keep the session {session_id!r}.")
 
     async def delete(self, session_id: str) -> None:
@@ -148,24 +152,36 @@ async def test_a_used_fresh_session_is_saved_and_its_cookie_staged() -> None:
 
 async def test_a_reattached_session_saves_without_staging_a_cookie() -> None:
     storage = _CountingStorage()
+    _ = await storage.inner.write("a" * 48, {}, None)
     bag, session = _parking(storage, cookie_value="a" * 48)
     await session.set("a-key", "a-value")
     event, headers = _a_response_over(bag)
 
     await SaveSessionListener().on_kernel_response(event)
 
-    assert storage.writes == [session.get_id()]
+    assert storage.writes[-1] == session.get_id()
     assert headers.get("set-cookie") is None
 
 
 async def test_the_finish_half_saves_what_an_unanswered_request_wrote() -> None:
+    storage = _CountingStorage()
+    _ = await storage.inner.write("a" * 48, {}, None)
+    bag, session = _parking(storage, cookie_value="a" * 48)
+    await session.set("a-key", "a-value")
+
+    await SaveSessionListener().on_kernel_finish_request(_a_finish_over(bag))
+
+    assert storage.writes[-1] == session.get_id()
+
+
+async def test_a_failed_request_with_a_new_id_saves_nothing() -> None:
     storage = _CountingStorage()
     bag, session = _parking(storage)
     await session.set("a-key", "a-value")
 
     await SaveSessionListener().on_kernel_finish_request(_a_finish_over(bag))
 
-    assert storage.writes == [session.get_id()]
+    assert storage.writes == []
 
 
 async def test_the_finish_half_leaves_a_request_without_a_session_alone() -> None:
@@ -190,7 +206,7 @@ async def test_the_finish_half_skips_what_the_response_half_already_saved() -> N
 
 
 async def test_a_failed_save_leaves_the_request_unmarked_so_a_later_half_retries() -> None:
-    bag, session = _parking(_FailingStorage())
+    bag, session = _parking(_FailingStorage(), cookie_value="a" * 48)
     await session.set("a-key", "a-value")
     event, _headers = _a_response_over(bag)
     listener = SaveSessionListener()

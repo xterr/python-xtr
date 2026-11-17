@@ -8,6 +8,7 @@ def test_it_publishes_the_receiving_side() -> None:
         "AbstractRequestParser",
         "RequestParser",
         "RequestParserInterface",
+        "WebhookIdStoreInterface",
     ]
 
 

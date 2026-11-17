@@ -6,11 +6,13 @@ once with coroutines.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from xtr_event_dispatcher import EventDispatcher
 
+from tests.fixtures.subject import Subject
 from tests.support.definitions import (
     create_complex_workflow_definition,
     create_simple_workflow_definition,
@@ -44,10 +46,10 @@ from xtr_workflow.exception import (
     NotEnabledTransitionError,
     UndefinedTransitionError,
 )
-from xtr_workflow.marking_store import MethodMarkingStore
+from xtr_workflow.marking_store import CompareAndSetMarkingStoreInterface, MethodMarkingStore
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Awaitable, Callable, Mapping
 
 pytestmark = pytest.mark.anyio
 
@@ -1048,3 +1050,141 @@ async def test_get_enabled_transition_of_a_blocked_name_is_none(subject: AnySubj
     workflow = Workflow(create_complex_workflow_definition(), MethodMarkingStore())
 
     assert await workflow.get_enabled_transition(subject, "t1") is None
+
+
+# One transition at a time per subject.
+
+
+def _gated_guard(
+    gate: asyncio.Event, reached: list[object]
+) -> Callable[[GuardEvent], Awaitable[None]]:
+    """Return a guard that records the subject it weighs, then waits for ``gate``."""
+
+    async def guard(event: GuardEvent) -> None:
+        reached.append(event.get_subject())
+        _ = await gate.wait()
+
+    return guard
+
+
+async def _open_after_a_while(gate: asyncio.Event) -> None:
+    for _ in range(5):
+        await asyncio.sleep(0)
+    gate.set()
+
+
+async def test_two_concurrent_applies_of_one_transition_apply_it_once() -> None:
+    subject = Subject({"a": 1})
+    gate = asyncio.Event()
+    dispatcher = EventDispatcher()
+    dispatcher.add_listener(f"workflow.{NAME}.guard.t1", _gated_guard(gate, []))
+    completed: list[object] = []
+    dispatcher.add_listener(f"workflow.{NAME}.completed.t1", completed.append)
+    workflow = Workflow(create_simple_workflow_definition(), MethodMarkingStore(), dispatcher, NAME)
+
+    answers = await asyncio.gather(
+        workflow.apply(subject, "t1"),
+        workflow.apply(subject, "t1"),
+        _open_after_a_while(gate),
+        return_exceptions=True,
+    )
+
+    assert sum(isinstance(answer, Marking) for answer in answers) == 1
+    assert sum(isinstance(answer, NotEnabledTransitionError) for answer in answers) == 1
+    assert len(completed) == 1
+
+
+async def test_two_subjects_still_transition_concurrently() -> None:
+    first, second = Subject({"a": 1}), Subject({"a": 1})
+    gate = asyncio.Event()
+    reached: list[object] = []
+    dispatcher = EventDispatcher()
+    dispatcher.add_listener(f"workflow.{NAME}.guard.t1", _gated_guard(gate, reached))
+    workflow = Workflow(create_simple_workflow_definition(), MethodMarkingStore(), dispatcher, NAME)
+
+    applying = asyncio.gather(workflow.apply(first, "t1"), workflow.apply(second, "t1"))
+    for _ in range(5):
+        await asyncio.sleep(0)
+    weighed_at_once = len(reached)
+    gate.set()
+    _ = await applying
+
+    assert weighed_at_once == 2
+
+
+async def test_a_listener_applying_a_transition_to_the_same_subject_does_not_deadlock() -> None:
+    subject = Subject({"a": 1})
+    dispatcher = EventDispatcher()
+    workflow = Workflow(create_simple_workflow_definition(), MethodMarkingStore(), dispatcher, NAME)
+
+    async def advance(event: Event) -> None:
+        _ = await workflow.apply(event.get_subject(), "t2")
+
+    dispatcher.add_listener(f"workflow.{NAME}.completed.t1", advance)
+
+    async with asyncio.timeout(5):
+        _ = await workflow.apply(subject, "t1")
+
+    assert subject.get_marking() == {"c": 1}
+
+
+@final
+class _CompareAndSetStore:
+    """A marking store that writes only over the marking it is told to expect."""
+
+    def __init__(self, *, refuses: bool) -> None:
+        self._inner = MethodMarkingStore()
+        self._refuses = refuses
+        self.expected: list[dict[str, int]] = []
+
+    async def get_marking(self, subject: object) -> Marking:
+        return await self._inner.get_marking(subject)
+
+    async def set_marking(
+        self, subject: object, marking: Marking, context: Mapping[str, object] | None = None
+    ) -> None:
+        await self._inner.set_marking(subject, marking, context)
+
+    async def set_marking_if(
+        self,
+        subject: object,
+        marking: Marking,
+        expected: Marking,
+        context: Mapping[str, object] | None = None,
+    ) -> bool:
+        self.expected.append(expected.get_places())
+        if self._refuses:
+            return False
+        await self._inner.set_marking(subject, marking, context)
+        return True
+
+
+def test_a_store_that_writes_conditionally_is_a_compare_and_set_store() -> None:
+    assert isinstance(_CompareAndSetStore(refuses=False), CompareAndSetMarkingStoreInterface)
+    assert not isinstance(MethodMarkingStore(), CompareAndSetMarkingStoreInterface)
+
+
+async def test_a_compare_and_set_store_writes_over_the_marking_read_before_the_move() -> None:
+    subject = Subject({"a": 1})
+    store = _CompareAndSetStore(refuses=False)
+    workflow = Workflow(create_simple_workflow_definition(), store)
+
+    _ = await workflow.apply(subject, "t1")
+
+    assert store.expected == [{"a": 1}]
+    assert subject.get_marking() == {"b": 1}
+
+
+async def test_a_compare_and_set_store_refusing_the_write_refuses_the_transition() -> None:
+    subject = Subject({"a": 1})
+    store = _CompareAndSetStore(refuses=True)
+    dispatcher = EventDispatcher()
+    completed: list[object] = []
+    dispatcher.add_listener(f"workflow.{NAME}.completed.t1", completed.append)
+    workflow = Workflow(create_simple_workflow_definition(), store, dispatcher, NAME)
+
+    with pytest.raises(NotEnabledTransitionError):
+        _ = await workflow.apply(subject, "t1")
+
+    assert completed == []
+    assert subject.get_marking() == {"a": 1}

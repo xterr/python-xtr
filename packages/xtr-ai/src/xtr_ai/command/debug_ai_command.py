@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import final
+import re
+from typing import Final, final
 
 from xtr_console import ConsoleStyle, ExitCode, as_command, escape
 from xtr_dependency_injection import Injected, KernelInterface
@@ -14,6 +15,9 @@ from xtr_ai.bundle.toolset_configs import AgentToolRef
 from ._registry import AI_COMMANDS
 
 __all__ = ["DebugAiCommand"]
+
+_USERINFO: Final = re.compile(r"(?<=://)[^/@\s]+(?=@)")
+"""The credentials a URL may carry before its host."""
 
 
 @as_command("debug:ai", registry=AI_COMMANDS)
@@ -40,7 +44,7 @@ class DebugAiCommand:
                         escape(name),
                         _shown(platform.provider),
                         _key(platform.api_key),
-                        _shown(platform.base_url) if platform.base_url is not None else "",
+                        _url(platform.base_url) if platform.base_url is not None else "",
                     )
                     for name, platform in config.platforms.items()
                 ],
@@ -78,6 +82,13 @@ def _key(value: str | None) -> str:
     if isinstance(value, EnvPlaceholder):
         return escape(repr(value))
     return "set in the configuration"
+
+
+def _url(value: str) -> str:
+    """``value`` as written, with the credentials before its host masked."""
+    if isinstance(value, EnvPlaceholder):
+        return escape(repr(value))
+    return escape(_USERINFO.sub("[hidden]", value))
 
 
 def _capability(entry: object) -> str:

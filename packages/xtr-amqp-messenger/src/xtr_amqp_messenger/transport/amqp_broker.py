@@ -1,9 +1,8 @@
 """Building a RabbitMQ broker with retries, delays and dead-lettering wired up.
 
 Use this factory rather than constructing ``AioPikaBroker`` directly: it is
-where the retry ladder, the delayed-message exchange, real dead-lettering
-and single OpenTelemetry instrumentation are wired. A hand-built broker gets
-none of them.
+where the retry ladder, the delayed-message exchange and real dead-lettering
+are wired. A hand-built broker gets none of them.
 """
 
 from __future__ import annotations

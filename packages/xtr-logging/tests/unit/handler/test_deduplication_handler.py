@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime as dt
+import hashlib
 import os
 import stat
 import tempfile
@@ -68,7 +69,7 @@ def test_an_explicit_store_in_a_missing_directory_gets_a_private_one(tmp_path: P
     handler.flush()
 
     assert [record.message for record in spy.handled] == ["boom"]
-    assert store.read_text(encoding="utf-8").endswith(":ERROR:boom\n")
+    assert store.read_text(encoding="utf-8").endswith(f":ERROR:{_digest('boom')}\n")
     assert stat.S_IMODE(store.parent.stat().st_mode) == 0o700
 
 
@@ -150,7 +151,7 @@ def test_the_store_records_forwarded_entries(tmp_path: Path) -> None:
     _ = handler.handle(make_record(Level.ERROR, "boom"))
     handler.flush()
 
-    assert "ERROR:boom" in store.read_text(encoding="utf-8")
+    assert f"ERROR:{_digest('boom')}" in store.read_text(encoding="utf-8")
 
 
 def test_bubble_off_stops_the_record(tmp_path: Path) -> None:
@@ -239,3 +240,34 @@ def test_end_unit_flushes_the_units_buffer(tmp_path: Path) -> None:
     end_unit()
 
     assert [record.message for record in spy.handled] == ["boom"]
+
+
+def test_the_buffer_is_bounded_by_default(tmp_path: Path) -> None:
+    # A flood of one failure is what deduplication exists for; unbounded, it holds the flood.
+    spy = Spy()
+    handler = DeduplicationHandler(spy, store=tmp_path / "dedup.log", clock=MockClock(AT))
+    begin_unit()
+    for index in range(10_001):
+        _ = handler.handle(make_record(Level.INFO, f"line {index}"))
+    _ = handler.handle(make_record(Level.ERROR, "boom"))
+    end_unit()
+
+    assert len(spy.handled) == 10_000
+    assert spy.handled[0].message == "line 2"
+
+
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_the_store_holds_no_message_text(tmp_path: Path) -> None:
+    # The store sits on disk and outlives the process; a message may carry a user's data.
+    store = tmp_path / "dedup.log"
+    handler = DeduplicationHandler(Spy(), store=store, clock=MockClock(AT))
+
+    _ = handler.handle(make_record(Level.ERROR, "card 4111-1111 declined\nsecond line"))
+    handler.flush()
+
+    written = store.read_text(encoding="utf-8")
+    assert "4111" not in written
+    assert written.endswith(f":ERROR:{_digest('card 4111-1111 declined')}\n")

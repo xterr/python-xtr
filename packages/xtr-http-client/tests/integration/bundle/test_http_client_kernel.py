@@ -144,6 +144,6 @@ async def test_a_client_opting_out_of_the_mock_sends_through_the_real_transport(
 async def test_the_real_transport_is_closed_with_the_container() -> None:
     async with await _kernel().boot() as booted:
         transport = await booted.container.get(HttpxHttpClient)
-        pool, _ = transport._clients.for_options(transport._default_options)
+        pool = transport._clients.for_options(transport._default_options)
 
     assert pool.is_closed

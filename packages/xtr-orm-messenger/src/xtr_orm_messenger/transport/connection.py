@@ -5,18 +5,24 @@ deal in rows and never in SQL. A worker claims the oldest message of its queue
 that is due and not handed out, marking it handed out in the same transaction;
 a message handed out and never settled is handed out again once
 ``redeliver_timeout`` has passed, the worker holding it being taken for dead.
-Settling a message — handled or rejected — deletes it.
+A handled message is deleted; a rejected one is put back in line — in its own
+queue for another attempt, or in the failure queue — by rewriting its row.
 
 A claim selects the oldest due row ``FOR UPDATE SKIP LOCKED`` and marks it
 handed out, in one transaction, so concurrent workers each take a different row
 without waiting on each other. A database without row locks — SQLite — gets the
-same statements with the lock clause left out; its single writer then turns two
-workers reaching for one row into a "database is locked" error for the second,
-which the receiver treats as a conflict worth trying again.
+same statements with the lock clause left out. With the driver's own
+transaction mode, two workers can then claim one row; with its transaction
+control off (``autocommit=False``), its single writer turns the second into a
+"database is locked" error, which the receiver treats as a conflict worth
+trying again. SQLite is for development and tests.
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
+from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, TypeVar, cast, final
@@ -59,6 +65,9 @@ __all__ = ["LISTING_PAGE_SIZE", "Connection"]
 
 _T = TypeVar("_T")
 
+#: Through the messenger channel, beside the rest of the bus's output.
+_LOGGER: Final = logging.getLogger("messenger")
+
 LISTING_PAGE_SIZE: Final = 100
 """How many rows :meth:`Connection.all` reads per statement when it lists every message."""
 
@@ -79,6 +88,7 @@ class Connection:
         "_notifier",
         "_notifier_resolved",
         "_options",
+        "_relisten",
         "_session_factory",
         "_table",
     )
@@ -112,6 +122,7 @@ class Connection:
         self._auto_setup = options.auto_setup
         self._notifier: PostgreSqlNotifier | None = None
         self._notifier_resolved = False
+        self._relisten = False
 
     @property
     def options(self) -> OrmOptions:
@@ -134,15 +145,12 @@ class Connection:
         written in that unit's session and is sent only once the unit commits.
         """
         now = self._now()
-        available_at = now + timedelta(milliseconds=delay_ms)
-        if delay_ms > 0 and available_at.microsecond:
-            available_at = available_at.replace(microsecond=0) + timedelta(seconds=1)
         statement = insert(self._table).values(
             body=body,
             headers=msgspec.json.encode(dict(headers)).decode(),
             queue_name=self._options.queue,
             created_at=now,
-            available_at=available_at,
+            available_at=_due(now, delay_ms),
         )
         session = await self._unit_session()
         if session is not None:
@@ -163,12 +171,31 @@ class Connection:
         await self._with_setup(lambda: self._delete(message_id))
 
     async def reject(self, message_id: str) -> None:
-        """Forget the message ``message_id``: it failed for good.
-
-        The same as :meth:`ack`: whatever retries a message gets have run by
-        the time it is rejected, and keeping it would hand it out again.
-        """
+        """Forget the message ``message_id``: it failed for good, with nowhere left to go."""
         await self._with_setup(lambda: self._delete(message_id))
+
+    async def requeue(
+        self, message_id: str, *, queue: str, body: str, headers: Mapping[str, str], delay_ms: int
+    ) -> None:
+        """Put the message ``message_id`` back in line in ``queue``, due ``delay_ms`` from now.
+
+        Its body and headers are replaced, so what the failed attempt
+        learned — the attempt count, the reason — travels with it. The row
+        keeps its id and the time it was first sent.
+        """
+        table = self._table
+        statement = (
+            update(table)
+            .where(table.c.id == int(message_id))
+            .values(
+                queue_name=queue,
+                body=body,
+                headers=msgspec.json.encode(dict(headers)).decode(),
+                available_at=_due(self._now(), delay_ms),
+                delivered_at=None,
+            )
+        )
+        await self._with_setup(lambda: self._requeue(statement, queue))
 
     async def keepalive(self, message_id: str) -> None:
         """Mark the message ``message_id`` handed out now, restarting its redelivery clock.
@@ -262,9 +289,29 @@ class Connection:
         returns: a message sent between the poll that found nothing and the
         moment the listening started announced itself to nobody, so the worker
         asks once more before it waits for real.
+
+        A listening connection the database dropped is replaced the same way
+        on the next wait; while listening again fails, the worker waits its
+        ``poll_interval`` and tries again the time after.
         """
+        if self._notifier is not None and self._notifier.lost:
+            await self._drop_notifier()
+            self._relisten = True
         if not self._notifier_resolved:
-            await self._resolve_notifier()
+            try:
+                await self._resolve_notifier()
+            except (DBAPIError, OSError) as error:
+                if not self._relisten:
+                    raise
+                _LOGGER.warning(
+                    "could not listen on %r again (%s); polling until it can",
+                    self._options.table_name,
+                    type(error).__name__,
+                )
+                self._notifier_resolved = False
+                await self._clock.sleep_async(self._options.poll_interval)
+                return
+            self._relisten = False
             if self._notifier is not None:
                 return
         notifier = self._notifier
@@ -279,7 +326,19 @@ class Connection:
         notifier = self._notifier
         self._notifier = None
         self._notifier_resolved = False
+        self._relisten = False
         if notifier is not None:
+            await notifier.close()
+
+    async def _drop_notifier(self) -> None:
+        """Give back the connection of a notifier whose listening was dropped."""
+        notifier = self._notifier
+        self._notifier = None
+        self._notifier_resolved = False
+        if notifier is None:
+            return
+        # The connection is already gone; closing it may only report as much.
+        with suppress(DBAPIError, OSError):
             await notifier.close()
 
     async def _with_setup(self, operation: Callable[[], Awaitable[_T]]) -> _T:
@@ -323,13 +382,20 @@ class Connection:
                 _ = await connection.execute(self._notification())
         return _identifier(result)
 
-    def _notification(self) -> Executable:
+    def _notification(self, queue: str | None = None) -> Executable:
         """Announce a message on the table's channel, naming its queue.
 
         Sent in the transaction that wrote the message, so a listener hears it
         only once the message can be claimed.
         """
-        return select(func.pg_notify(self._options.table_name, self._options.queue))
+        return select(func.pg_notify(self._options.table_name, queue or self._options.queue))
+
+    async def _requeue(self, statement: Executable, queue: str) -> None:
+        engine = await self._engine_factory()
+        async with engine.begin() as connection:
+            _ = await connection.execute(statement)
+            if isinstance(connection.dialect, PGDialect):
+                _ = await connection.execute(self._notification(queue))
 
     async def _claim(self) -> StoredMessage | None:
         now = self._now()
@@ -342,15 +408,37 @@ class Connection:
             .with_for_update(skip_locked=True)
         )
         engine = await self._engine_factory()
-        async with engine.begin() as connection:
-            row = (await connection.execute(statement)).mappings().first()
-            if row is None:
-                return None
-            stored = _stored(row)
-            _ = await connection.execute(
-                update(table).where(table.c.id == int(stored.id)).values(delivered_at=now)
-            )
+        stored: StoredMessage | None = None
+        try:
+            async with engine.begin() as connection:
+                row = (await connection.execute(statement)).mappings().first()
+                if row is None:
+                    return None
+                stored = _stored(row)
+                _ = await connection.execute(
+                    update(table).where(table.c.id == int(stored.id)).values(delivered_at=now)
+                )
+        except asyncio.CancelledError:
+            if stored is not None:
+                await self._release_claim(stored.id, now)
+            raise
         return replace(stored, delivered_at=now)
+
+    async def _release_claim(self, message_id: str, delivered_at: datetime) -> None:
+        """Hand back a claim its caller was cancelled before it heard of.
+
+        The claim may have committed or not; the update only matches a row
+        still marked handed out by this claim, so it never releases another
+        worker's. Not shielded: a second cancellation leaves the row to
+        ``redeliver_timeout``.
+        """
+        table = self._table
+        statement = (
+            update(table)
+            .where(table.c.id == int(message_id), table.c.delivered_at == delivered_at)
+            .values(delivered_at=None)
+        )
+        await self._execute(statement)
 
     def _available(self, now: datetime) -> ColumnElement[bool]:
         """Select the queue's messages that are due and not held by a worker that is still alive."""
@@ -420,6 +508,19 @@ def _identifier(result: CursorResult[tuple[object, ...]]) -> str:
         raise RuntimeError(message)
     values = cast("Sequence[object]", key)
     return str(values[0])
+
+
+def _due(now: datetime, delay_ms: int) -> datetime:
+    """Return when a message delayed ``delay_ms`` from ``now`` falls due.
+
+    A positive delay is rounded up to a whole second: some databases keep a
+    datetime to the second, and dropping the fraction would make the message
+    due before the delay asked for.
+    """
+    available_at = now + timedelta(milliseconds=delay_ms)
+    if delay_ms > 0 and available_at.microsecond:
+        available_at = available_at.replace(microsecond=0) + timedelta(seconds=1)
+    return available_at
 
 
 def _stored(row: RowMapping) -> StoredMessage:

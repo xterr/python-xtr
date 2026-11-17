@@ -18,7 +18,7 @@ def test_the_defaults_are_the_signature_handler_and_its_cookie_shape() -> None:
     assert config.lifetime == 31536000
     assert config.path == "/"
     assert config.domain is None
-    assert config.secure is False
+    assert config.secure is None  # Secure when the request is https
     assert config.httponly is True
     assert config.samesite is None
     assert config.always_remember_me is False
@@ -35,6 +35,7 @@ def test_an_unknown_handler_is_refused() -> None:
 
 
 def test_the_options_carry_the_cookie_shape_the_handler_reads() -> None:
+    assert RememberMeConfig().to_options()["secure"] is None
     config = RememberMeConfig(name="app", lifetime=60, path="/", secure=True)
 
     options = config.to_options()

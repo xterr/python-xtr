@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from xtr_console import ExitCode
+from xtr_dependency_injection import unit_of_work
 from xtr_remote_event import ConsumerLocator, RemoteEvent
 from xtr_webhook.bundle import WebhookBundle, WebhookConfig
 from xtr_webhook.client import RequestParserInterface
@@ -87,11 +88,14 @@ async def test_the_consumer_is_registered_under_the_webhook_type(app: TemporaryA
     consumer = cast("type[object]", consumer_module.StripeWebhookConsumer)
     app.environ |= _SECRETS
 
-    async with await app.boot() as booted:
-        locator = await booted.container.get(ConsumerLocator)
-        built: object = await booted.container.get(consumer)
+    # The locator is built in the unit of the message it serves, as its handler is.
+    async with await app.boot() as booted, unit_of_work(booted.container) as unit:
+        locator = await unit.get(ConsumerLocator)
+        served: object = await locator.get("stripe")
+        built: object = await unit.get(consumer)
 
-    assert locator.provided_services()["stripe"] is consumer
+    assert "stripe" in locator.provided_services()
+    assert isinstance(served, consumer)
     assert isinstance(built, consumer)
 
 

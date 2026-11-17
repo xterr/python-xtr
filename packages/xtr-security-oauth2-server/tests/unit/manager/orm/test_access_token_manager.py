@@ -8,8 +8,15 @@ import pytest
 from sqlalchemy import select
 from xtr_clock import MockClock
 
-from tests.support.models import EARLIER, LATER, NOW, access_token_model, refresh_token_model
-from tests.support.orm import CONNECTION, connections_of, orm_driver, registered, selects, stored
+from tests.support.models import (
+    EARLIER,
+    LATER,
+    NOW,
+    access_token_model,
+    client_model,
+    refresh_token_model,
+)
+from tests.support.orm import CONNECTION, orm_driver, registered, selects, stored
 from xtr_security_oauth2_server.manager.access_token_manager_interface import (
     AccessTokenManagerInterface,
 )
@@ -20,24 +27,37 @@ from xtr_security_oauth2_server.value_object.scope import Scope
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from tests.support.orm import Database
 
 pytestmark = pytest.mark.anyio
 
 
-def _manager(session: AsyncSession, persist_access_token: bool = True) -> AccessTokenManager:
-    """Return a manager that reads and writes through ``session``.
+async def _manager(database: Database, persist_access_token: bool = True) -> AccessTokenManager:
+    """Return a manager reading and writing ``database``.
 
-    The manager is a singleton and holds no session: it asks the registry for
-    the one of the unit of work it is being used in, which is what a request
-    gives it and what this hands it.
+    The manager is a singleton and holds no session: every read and every
+    write opens a unit of work of its own, through the scope factory this
+    hands it — never the unit of whoever is calling.
     """
     return AccessTokenManager(
-        connections_of(session),
+        await database.scope_factory(),
         CONNECTION,
         MockClock(NOW),
         persist_access_token,
     )
+
+
+async def test_saving_a_token_leaves_the_requests_pending_work_alone(tmp_path: Path) -> None:
+    async with stored(tmp_path) as database:
+        unit = database.session()
+        client = await registered(unit)
+        unit.add(client_model("pending"))
+
+        await (await _manager(database)).save(access_token_model(client=client))
+        await unit.rollback()
+
+        assert await database.count("oauth2_access_token") == 1
+        assert await database.count("oauth2_client") == 1
 
 
 def test_it_declares_the_access_token_manager_contract() -> None:
@@ -46,9 +66,8 @@ def test_it_declares_the_access_token_manager_contract() -> None:
 
 async def test_it_finds_a_token_it_stored(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
-        manager = _manager(session)
+        client = await registered(database.session())
+        manager = await _manager(database)
         await manager.save(access_token_model(client=client, scopes=("read",)))
 
         found = await manager.find("at-1")
@@ -62,11 +81,9 @@ async def test_it_finds_a_token_it_stored(tmp_path: Path) -> None:
 
 async def test_it_reads_a_token_and_its_client_in_one_statement(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
-        manager = _manager(session)
+        client = await registered(database.session())
+        manager = await _manager(database)
         await manager.save(access_token_model(client=client))
-        session.expunge_all()
 
         with database.watching() as statements:
             _ = await manager.find("at-1")
@@ -79,11 +96,9 @@ async def test_reading_a_token_back_does_not_run_the_models_constructor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
-        manager = _manager(session)
+        client = await registered(database.session())
+        manager = await _manager(database)
         await manager.save(access_token_model(client=client))
-        session.expunge_all()
         monkeypatch.setattr(AccessToken, "__init__", _refuse)
         try:
             # Undone before the mapping is, so what the mapping put on the
@@ -95,14 +110,12 @@ async def test_reading_a_token_back_does_not_run_the_models_constructor(
 
 async def test_a_revoked_token_reads_back_revoked(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
-        manager = _manager(session)
+        client = await registered(database.session())
+        manager = await _manager(database)
         token = access_token_model(client=client)
         await manager.save(token)
 
         await manager.save(token.revoke())
-        session.expunge_all()
         found = await manager.find("at-1")
 
         assert found is not None
@@ -111,16 +124,15 @@ async def test_a_revoked_token_reads_back_revoked(tmp_path: Path) -> None:
 
 async def test_it_finds_nothing_under_an_unknown_identifier(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager = _manager(database.session())
+        manager = await _manager(database)
 
         assert await manager.find("nope") is None
 
 
 async def test_a_saved_token_is_committed_so_another_session_reads_it(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
-        manager = _manager(session)
+        client = await registered(database.session())
+        manager = await _manager(database)
 
         await manager.save(access_token_model(client=client))
 
@@ -129,9 +141,8 @@ async def test_a_saved_token_is_committed_so_another_session_reads_it(tmp_path: 
 
 async def test_it_sweeps_the_expired_tokens_and_counts_them(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
-        manager = _manager(session)
+        client = await registered(database.session())
+        manager = await _manager(database)
         await manager.save(access_token_model("expired", EARLIER, client))
         await manager.save(access_token_model("alive", LATER, client))
 
@@ -142,9 +153,8 @@ async def test_it_sweeps_the_expired_tokens_and_counts_them(tmp_path: Path) -> N
 
 async def test_a_token_expiring_this_very_instant_is_kept(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        session = database.session()
-        client = await registered(session)
-        manager = _manager(session)
+        client = await registered(database.session())
+        manager = await _manager(database)
         await manager.save(access_token_model("on-the-boundary", NOW, client))
 
         assert await manager.clear_expired() == 0
@@ -153,7 +163,7 @@ async def test_a_token_expiring_this_very_instant_is_kept(tmp_path: Path) -> Non
 
 async def test_sweeping_nothing_reports_nothing(tmp_path: Path) -> None:
     async with stored(tmp_path) as database:
-        manager = _manager(database.session())
+        manager = await _manager(database)
 
         assert await manager.clear_expired() == 0
 
@@ -164,7 +174,7 @@ async def test_a_refresh_token_loses_the_expired_token_it_was_issued_beside(
     async with stored(tmp_path) as database:
         session = database.session()
         client = await registered(session)
-        manager = _manager(session)
+        manager = await _manager(database)
         token = access_token_model("expired", EARLIER, client)
         await manager.save(token)
         session.add(refresh_token_model("rt-1", LATER, token))
@@ -182,9 +192,8 @@ async def test_it_stores_and_reads_nothing_where_tokens_are_not_persisted(
     tmp_path: Path,
 ) -> None:
     async with stored(tmp_path, orm_driver(persist_access_token=False)) as database:
-        session = database.session()
-        client = await registered(session)
-        manager = _manager(session, persist_access_token=False)
+        client = await registered(database.session())
+        manager = await _manager(database, persist_access_token=False)
 
         await manager.save(access_token_model(client=client))
 

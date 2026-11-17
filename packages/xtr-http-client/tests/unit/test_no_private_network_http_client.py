@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Final, NoReturn
 
 import pytest
 from xtr_http_message import Request
@@ -370,7 +370,69 @@ async def test_a_redirect_with_nowhere_to_go_is_the_answer() -> None:
         assert response.get_status_code() == 302
 
 
-async def test_what_a_host_resolves_to_is_asked_once() -> None:
+_CREDENTIALS: Final[RequestOptions] = {
+    "auth_bearer": "SECRET",
+    "query": {"api_key": "KEY"},
+    "headers": {
+        "Authorization": "Bearer SECRET",
+        "Cookie": "sid=1",
+        "Proxy-Authorization": "x",
+        "Accept": "a/b",
+    },
+}
+
+
+@pytest.mark.parametrize(
+    "location",
+    ["http://104.26.14.7/next", "https://104.26.14.6/next", "http://104.26.14.6:8080/next"],
+    ids=["another-host", "another-scheme", "another-port"],
+)
+async def test_a_redirect_to_another_origin_carries_no_credentials(location: str) -> None:
+    inner = MockHttpClient([_redirect(location, 307), MockResponse(b"foo")])
+    client = NoPrivateNetworkHttpClient(inner, resolver=_never_resolves)
+    request = Request("POST", "http://104.26.14.6/start").with_header(
+        "Authorization", "Bearer IN-REQUEST"
+    )
+
+    answer = await client.send_request(
+        request,
+        body=b"sent",
+        auth_bearer="SECRET",
+        query={"api_key": "KEY"},
+        headers=_CREDENTIALS["headers"],
+    )
+    async with _scripted(answer) as response:
+        options = response.get_request_options()
+        assert options["auth_bearer"] is None
+        assert options["auth_basic"] is None
+        assert options["query"] == {}
+        assert options["headers"] == {"Accept": "a/b"}
+        assert options["body"] == b"sent"
+
+
+async def test_a_redirect_within_the_origin_keeps_the_credentials() -> None:
+    inner = MockHttpClient([_redirect("http://104.26.14.6/next", 307), MockResponse(b"foo")])
+    client = NoPrivateNetworkHttpClient(inner, resolver=_never_resolves)
+
+    answer = await client.request("GET", "http://104.26.14.6/start", **_CREDENTIALS)
+    async with _scripted(answer) as response:
+        options = response.get_request_options()
+        assert options["auth_bearer"] == "SECRET"
+        assert options["query"] == {"api_key": "KEY"}
+        assert options["headers"] == _CREDENTIALS["headers"]
+
+
+@pytest.mark.parametrize("address", ["fe80::1%eth0", "not-an-address"])
+async def test_an_address_the_checks_cannot_read_is_refused(address: str) -> None:
+    client = NoPrivateNetworkHttpClient(
+        MockHttpClient(MockResponse(b"foo")), resolver=_resolving_to(address)
+    )
+
+    with pytest.raises(TransportError, match=_blocked('Host "service.test"')):
+        _ = await client.request("GET", "http://service.test/")
+
+
+async def test_two_requests_resolve_a_host_each() -> None:
     asked: list[str] = []
 
     async def resolve(host: str, port: int) -> Sequence[str]:
@@ -389,10 +451,10 @@ async def test_what_a_host_resolves_to_is_asked_once() -> None:
     async with await client.request("GET", "http://receiver.test/b"):
         pass
 
-    assert asked == ["receiver.test"]
+    assert asked == ["receiver.test", "receiver.test"]
 
 
-async def test_reset_forgets_what_every_host_resolved_to() -> None:
+async def test_a_redirect_chain_resolves_a_host_once() -> None:
     asked: list[str] = []
 
     async def resolve(host: str, port: int) -> Sequence[str]:
@@ -401,16 +463,13 @@ async def test_reset_forgets_what_every_host_resolved_to() -> None:
 
         return ["93.184.216.34"]
 
-    inner = MockHttpClient([MockResponse(b"one"), MockResponse(b"two")])
+    inner = MockHttpClient([_redirect("http://receiver.test/b"), MockResponse(b"two")])
     client = NoPrivateNetworkHttpClient(inner, resolver=resolve)
 
-    async with await client.request("GET", "http://receiver.test/a"):
-        pass
-    await client.reset()
-    async with await client.request("GET", "http://receiver.test/b"):
-        pass
+    async with await client.request("GET", "http://receiver.test/a") as response:
+        assert response.get_status_code() == 200
 
-    assert asked == ["receiver.test", "receiver.test"]
+    assert asked == ["receiver.test"]
 
 
 async def test_reset_resets_the_wrapped_client_too() -> None:
@@ -469,7 +528,7 @@ async def test_with_options_wraps_a_narrowed_client_and_keeps_the_guard() -> Non
         _ = await narrowed.request("GET", "http://104.26.14.7/")
 
 
-async def test_with_options_shares_the_address_cache_with_the_original() -> None:
+async def test_with_options_shares_no_address_cache_with_the_original() -> None:
     asked: list[str] = []
 
     async def resolve(host: str, port: int) -> Sequence[str]:
@@ -487,4 +546,4 @@ async def test_with_options_shares_the_address_cache_with_the_original() -> None
     async with await narrowed.request("GET", "http://receiver.test/b"):
         pass
 
-    assert asked == ["receiver.test"]
+    assert asked == ["receiver.test", "receiver.test"]

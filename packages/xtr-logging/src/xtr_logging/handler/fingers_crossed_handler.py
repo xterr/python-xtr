@@ -9,7 +9,7 @@ from typing_extensions import override
 from xtr_logging_contracts import Level
 from xtr_service_contracts import ResetInterface
 
-from xtr_logging.log_unit import unit_state
+from xtr_logging.log_unit import in_closed_unit, unit_state
 
 from ._lazy_handler import LazyHandler
 from ._processor_stack import ProcessorStack
@@ -116,18 +116,31 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
 
     @override
     def handle(self, record: LogRecord, /) -> bool:
-        """Buffer ``record``, or pass it through once the buffer has been released."""
+        """Buffer ``record``, or pass it through once the buffer has been released.
+
+        A record arriving in a unit of work that is over — replayed by a queue
+        once it ended — is handled at once as the unit's end would handle it:
+        passed on if it activates, or if the passthru floor keeps it, dropped
+        otherwise.
+        """
         record = self._process(record)
-        state = self._state()
-        if state.buffering:
-            with self._buffer_lock:
+        late = in_closed_unit()
+        state = _FingersCrossedState() if late else self._state()
+        # Read under the lock: a record arriving while another thread activates
+        # is passed through, never appended to a buffer that was just released.
+        with self._buffer_lock:
+            buffered = state.buffering
+            if buffered:
                 state.buffer.append(record)
                 if self._buffer_size > 0 and len(state.buffer) > self._buffer_size:
                     _ = state.buffer.pop(0)
+        if buffered:
             if self._activation_strategy.is_handler_activated(record):
-                self.activate()
+                self._activate(state)
         else:
             _ = self._resolve_handler(record).handle(record)
+        if late:
+            self._flush_state(state)
         return not self._bubble
 
     @override
@@ -138,7 +151,9 @@ class FingersCrossedHandler(ProcessorStack, LazyHandler, HandlerInterface, Reset
 
     def activate(self) -> None:
         """Release the buffer now, whatever the strategy would have said."""
-        state = self._state()
+        self._activate(self._state())
+
+    def _activate(self, state: _FingersCrossedState) -> None:
         with self._buffer_lock:
             if self._stop_buffering:
                 state.buffering = False

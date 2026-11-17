@@ -8,11 +8,12 @@ from typing_extensions import override
 from xtr_cache_contracts import (
     CacheInterface,  # noqa: TC002 -- a factory signature the container reads
 )
-from xtr_clock import ClockInterface  # noqa: TC002 -- a factory signature the container reads
-from xtr_dependency_injection import named_factory
+from xtr_clock import ClockInterface
+from xtr_dependency_injection import bundle_active, named_factory
 from xtr_http_client_contracts import (
     HttpClientInterface,
 )
+from xtr_logging_contracts import LoggerInterface
 from xtr_security_http.access_token.access_token_handler_interface import (
     AccessTokenHandlerInterface,
 )
@@ -67,11 +68,19 @@ class Oauth2TokenHandlerFactory(TokenHandlerFactoryInterface):
         service_id: str,
         config: object,
     ) -> ServiceKey:
-        """Register the introspection handler service and return its key."""
-        del builder
+        """Register the introspection handler service and return its key.
+
+        The handler writes the failures its server's answers explain to the
+        application's logger, and judges a token's times by the application's
+        clock, when the bundles providing them are active.
+        """
         settings = cast("Oauth2TokenHandlerConfig", config)
         factory = named_factory(
-            _oauth2_handler_factory(settings),
+            _oauth2_handler_factory(
+                settings,
+                logging_active=bundle_active(builder, "logging"),
+                clock_active=bundle_active(builder, "clock"),
+            ),
             f"oauth2_token_handler_{service_id}",
         )
         return services.set(factory, qualifier=service_id).key
@@ -79,14 +88,22 @@ class Oauth2TokenHandlerFactory(TokenHandlerFactoryInterface):
 
 def _oauth2_handler_factory(
     settings: Oauth2TokenHandlerConfig,
+    *,
+    logging_active: bool,
+    clock_active: bool,
 ) -> Callable[..., AccessTokenHandlerInterface]:
-    """Return a factory building the introspection handler from ``settings``."""
+    """Return a factory building the introspection handler from ``settings``.
+
+    The logger and the clock are asked for only while their bundles are
+    active; otherwise the handler keeps its own defaults.
+    """
 
     def oauth2_token_handler(
         client: HttpClientInterface,
         cache: CacheInterface | None = None,
         discovery_cache: CacheInterface | None = None,
         clock: ClockInterface | None = None,
+        logger: LoggerInterface | None = None,
     ) -> AccessTokenHandlerInterface:
         from xtr_security_http.access_token.oauth2 import (  # noqa: PLC0415 -- guarded behind the oidc extra
             Oauth2TokenHandler,
@@ -102,6 +119,7 @@ def _oauth2_handler_factory(
         )
         handler = Oauth2TokenHandler(
             scoped,
+            logger,
             audiences=tuple(settings.audiences),
             issuer=settings.issuer,
             claim=settings.claim,
@@ -132,6 +150,10 @@ def _oauth2_handler_factory(
         annotations["cache"] = settings.cache
     if settings.signed_response_discovery_cache is not None:
         annotations["discovery_cache"] = settings.signed_response_discovery_cache
+    if clock_active:
+        annotations["clock"] = ClockInterface
+    if logging_active:
+        annotations["logger"] = LoggerInterface
     oauth2_token_handler.__annotations__ = annotations
     return oauth2_token_handler
 

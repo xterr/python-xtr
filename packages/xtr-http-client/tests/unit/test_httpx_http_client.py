@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, cast
 
 import anyio
@@ -29,13 +30,13 @@ pytestmark = pytest.mark.anyio
 
 
 def _answering(client: HttpxHttpClient, handler: _Handler) -> None:
-    """Put a client answering from ``handler`` in the pool this client would reach for."""
+    """Put a client answering from ``handler`` in this loop's pool the client would reach for."""
     key = _key(client._default_options)
-    client._clients._clients[key] = httpx.AsyncClient(
+    pools = client._clients._clients.setdefault(asyncio.get_running_loop(), {})
+    pools[key] = httpx.AsyncClient(
         transport=httpx.MockTransport(handler),
         follow_redirects=False,
     )
-    client._clients._resolved[key] = {}
 
 
 # ── the URL a request is made to ────────────────────────────────────────────
@@ -119,7 +120,7 @@ async def test_a_head_that_outlasts_the_whole_duration_is_a_timeout() -> None:
 
 async def test_a_client_closes_its_connections_when_its_block_ends() -> None:
     async with HttpxHttpClient() as client:
-        pool, _ = client._clients.for_options(client._default_options)
+        pool = client._clients.for_options(client._default_options)
 
     assert pool.is_closed
 
@@ -180,7 +181,7 @@ async def test_an_unknown_option_is_refused_rather_than_quietly_obeyed() -> None
     await client.aclose()
 
 
-async def test_a_reset_forgets_the_address_a_host_was_pinned_to() -> None:
+async def test_one_requests_resolve_does_not_pin_the_next() -> None:
     seen: list[httpx.Request] = []
 
     async def record(request: httpx.Request) -> httpx.Response:
@@ -193,11 +194,26 @@ async def test_a_reset_forgets_the_address_a_host_was_pinned_to() -> None:
     pinned = {"example.test": "127.0.0.1"}
     async with await client.request("GET", "http://example.test/", resolve=pinned):
         pass
-
-    await client.reset()
     async with await client.request("GET", "http://example.test/"):
         pass
 
     assert [request.url.host for request in seen] == ["127.0.0.1", "example.test"]
+
+    await client.aclose()
+
+
+async def test_a_reset_keeps_every_pool_open() -> None:
+    async def answer(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(204)
+
+    client = HttpxHttpClient()
+    _answering(client, answer)
+    pool = client._clients.for_options(client._default_options)
+
+    await client.reset()
+
+    assert client._clients.for_options(client._default_options) is pool
+    assert not pool.is_closed
 
     await client.aclose()

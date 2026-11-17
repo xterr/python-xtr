@@ -58,7 +58,9 @@ def register_controllers(
         "enabled",
         server.enable_introspection_endpoint,
     )
-    _ = services.set(metadata_controller_factory(config))
+    # Scoped: the document names the paths the application being served has
+    # mounted, read off the request it is built for.
+    _ = services.set(metadata_controller_factory(config), lifetime="scoped")
     _ = services.set(jwks_controller_factory(server))
     # One contributor that adds nothing, so the collection is never empty.
     _ = services.set(NullMetadataContributor).add_tag(METADATA_TAG)

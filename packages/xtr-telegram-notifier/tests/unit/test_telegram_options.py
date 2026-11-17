@@ -1,11 +1,40 @@
 from __future__ import annotations
 
+import base64
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
+
 import pytest
 from xtr_notifier.message import MessageOptions, MessageOptionsInterface
 
 from xtr_telegram_notifier import TelegramOptions
 from xtr_telegram_notifier.reply.markup import InlineKeyboardMarkup
 from xtr_telegram_notifier.reply.markup.button import InlineKeyboardButton
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+_FIXTURE = Path(__file__).parents[1] / "fixtures" / "image.png"
+
+
+def test_an_upload_is_read_when_the_options_are_built() -> None:
+    # A path read on another worker names a file that worker may not have; the
+    # message carries the bytes, as text a bus serializer writes, and the name.
+    rendered = TelegramOptions().upload_photo(str(_FIXTURE)).to_options()
+
+    assert rendered.values == {
+        "upload": {
+            "photo": {
+                "name": "image.png",
+                "content": base64.b64encode(_FIXTURE.read_bytes()).decode(),
+            },
+        },
+    }
+
+
+def test_a_missing_upload_is_refused_when_the_options_are_built() -> None:
+    with pytest.raises(FileNotFoundError):
+        _ = TelegramOptions().upload_photo("/missing/file.png")
 
 
 @pytest.mark.parametrize("cache_time", [1, 2, 10])
@@ -154,24 +183,26 @@ def test_it_sets_the_remaining_scalar_options() -> None:
 
 
 def test_it_collects_uploads_by_option() -> None:
+    path = str(_FIXTURE)
     options = (
         TelegramOptions()
-        .upload_photo("photo.png")
-        .upload_document("doc.pdf")
-        .upload_video("video.mp4")
-        .upload_audio("audio.ogg")
-        .upload_animation("animation.gif")
-        .upload_sticker("sticker.webp", "🤖")
+        .upload_photo(path)
+        .upload_document(path)
+        .upload_video(path)
+        .upload_audio(path)
+        .upload_animation(path)
+        .upload_sticker(path, "🤖")
     )
+    read = {"name": "image.png", "content": base64.b64encode(_FIXTURE.read_bytes()).decode()}
 
     assert options.to_options().values == {
         "upload": {
-            "photo": "photo.png",
-            "document": "doc.pdf",
-            "video": "video.mp4",
-            "audio": "audio.ogg",
-            "animation": "animation.gif",
-            "sticker": "sticker.webp",
+            "photo": read,
+            "document": read,
+            "video": read,
+            "audio": read,
+            "animation": read,
+            "sticker": read,
         },
         "emoji": "🤖",
     }
@@ -208,12 +239,12 @@ def test_a_contact_carries_its_optional_fields_only_when_given() -> None:
 
 
 def test_the_rendered_options_do_not_change_with_the_builder() -> None:
-    options = TelegramOptions().upload_photo("a.png")
+    options = TelegramOptions().upload_photo(str(_FIXTURE))
     rendered = options.to_options()
 
-    _ = options.upload_video("b.mp4")
+    _ = options.upload_video(str(_FIXTURE))
 
-    assert rendered.values == {"upload": {"photo": "a.png"}}
+    assert list(cast("Mapping[str, object]", rendered.values["upload"])) == ["photo"]
 
 
 def test_the_options_given_are_copied() -> None:

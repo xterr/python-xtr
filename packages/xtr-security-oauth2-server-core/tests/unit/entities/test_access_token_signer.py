@@ -17,7 +17,7 @@ def test_its_reading_names_the_issuer_the_audience_and_the_key_id() -> None:
     reading = repr(make_signer("https://api.example.com"))
 
     assert ISSUER in reading
-    assert "https://api.example.com" in reading
+    assert "audience='https://api.example.com'" in reading
     assert KEY_ID in reading
 
 

@@ -39,8 +39,8 @@ async def _uploaded_body(options: TelegramOptions) -> _Upload:
         assert isinstance(body, dict)
         fields: dict[str, object] = dict(body)
         upload = fields.pop("photo")
-        assert isinstance(upload, io.BufferedReader)
-        seen.append((fields, (Path(upload.name).name, upload.read(), "image/png")))
+        assert isinstance(upload, io.BytesIO)
+        seen.append((fields, (Path(cast("str", upload.name)).name, upload.read(), "image/png")))
         return JsonMockResponse({"ok": True, "result": {"message_id": 1}})
 
     transport = TelegramTransport("1:T", "42", MockHttpClient(answer))

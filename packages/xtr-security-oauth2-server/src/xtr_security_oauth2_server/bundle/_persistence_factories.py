@@ -5,11 +5,10 @@ has to read and write through *the connection this deployment named*, and that
 name is configuration rather than a service.
 
 Each manager is a singleton, as every other service of this package is, and is
-handed the connection registry rather than a session: a session belongs to one
-request and a manager is asked by all of them. The registry answers with the
-session of the unit of work under way, which is the one the application's own
-work in that request is done in — so a token is written in the same
-transaction, and committed before the response is produced.
+handed the kernel's scope factory rather than a session: every read and write
+runs in a unit of work of its own, so storing a credential commits nothing the
+application has pending in the request's session, and is committed before the
+response is produced.
 """
 
 from __future__ import annotations
@@ -25,12 +24,12 @@ from typing import TYPE_CHECKING
 from xtr_clock import (
     ClockInterface,  # noqa: TC002 -- the container evaluates these annotations at runtime
 )
-from xtr_dependency_injection import named_factory
+from xtr_dependency_injection import (
+    ScopeFactoryInterface,
+    named_factory,
+)
 from xtr_event_dispatcher_contracts import (  # noqa: TC002 -- the container evaluates these annotations at runtime
     EventDispatcherInterface,
-)
-from xtr_orm import (
-    ConnectionRegistry,  # noqa: TC002 -- the container evaluates these annotations at runtime
 )
 
 from xtr_security_oauth2_server.manager.client_manager_interface import (  # noqa: TC001 -- the container evaluates these annotations at runtime
@@ -67,10 +66,10 @@ def access_token_manager_factory(
     """Return a factory building the access-token manager on ``connection``."""
 
     def oauth2_server_orm_access_token_manager(
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         clock: ClockInterface,
     ) -> AccessTokenManager:
-        return AccessTokenManager(connections, connection, clock, persist_access_token)
+        return AccessTokenManager(scope_factory, connection, clock, persist_access_token)
 
     return named_factory(
         oauth2_server_orm_access_token_manager,
@@ -84,10 +83,10 @@ def authorization_code_manager_factory(
     """Return a factory building the authorization-code manager on ``connection``."""
 
     def oauth2_server_orm_authorization_code_manager(
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         clock: ClockInterface,
     ) -> AuthorizationCodeManager:
-        return AuthorizationCodeManager(connections, connection, clock)
+        return AuthorizationCodeManager(scope_factory, connection, clock)
 
     return named_factory(
         oauth2_server_orm_authorization_code_manager,
@@ -99,10 +98,10 @@ def device_code_manager_factory(connection: str) -> Callable[..., DeviceCodeMana
     """Return a factory building the device-code manager on ``connection``."""
 
     def oauth2_server_orm_device_code_manager(
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         clock: ClockInterface,
     ) -> DeviceCodeManager:
-        return DeviceCodeManager(connections, connection, clock)
+        return DeviceCodeManager(scope_factory, connection, clock)
 
     return named_factory(
         oauth2_server_orm_device_code_manager,
@@ -114,10 +113,10 @@ def refresh_token_manager_factory(connection: str) -> Callable[..., RefreshToken
     """Return a factory building the refresh-token manager on ``connection``."""
 
     def oauth2_server_orm_refresh_token_manager(
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         clock: ClockInterface,
     ) -> RefreshTokenManager:
-        return RefreshTokenManager(connections, connection, clock)
+        return RefreshTokenManager(scope_factory, connection, clock)
 
     return named_factory(
         oauth2_server_orm_refresh_token_manager,
@@ -132,10 +131,10 @@ def client_manager_factory(
     """Return a factory building the client manager for ``client_class``."""
 
     def oauth2_server_orm_client_manager(
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         dispatcher: EventDispatcherInterface,
     ) -> ClientManager:
-        return ClientManager(connections, connection, dispatcher, client_class)
+        return ClientManager(scope_factory, connection, dispatcher, client_class)
 
     return named_factory(
         oauth2_server_orm_client_manager,
@@ -151,11 +150,11 @@ def credentials_revoker_factory(
     """Return a factory building what withdraws everything issued to one client."""
 
     def oauth2_server_orm_credentials_revoker(
-        connections: ConnectionRegistry,
+        scope_factory: ScopeFactoryInterface,
         client_manager: ClientManagerInterface,
     ) -> OrmCredentialsRevoker:
         return OrmCredentialsRevoker(
-            connections,
+            scope_factory,
             connection,
             client_manager,
             persist_access_token,

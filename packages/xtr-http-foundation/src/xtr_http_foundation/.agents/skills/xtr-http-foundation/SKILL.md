@@ -37,7 +37,8 @@ an ID cookie, kept in whatever storage the application points at.
   `await session.get/set/has/remove/clear(...)`, `await session.migrate(destroy_old=False)`,
   `await session.invalidate()`, `await session.save()`, `session.get_id()`,
   `session.staged_set_cookie()`, `session.is_started()`. `SessionCookieConfig()` is the
-  cookie's shape, and `MemorySessionStorage` the storage that needs nothing else.
+  cookie's shape — `secure` unset means `Secure` on https requests, resolved by
+  `Session.from_request` — and `MemorySessionStorage` the storage that needs nothing else.
 
 ## Claim the requests that are yours
 
@@ -222,6 +223,10 @@ staged = session.staged_set_cookie()  # the Set-Cookie value, or None when the I
 - Nothing is read from the storage until the first attribute is asked for; `save()` on a
   session that was never started does nothing, and a save of an empty session deletes the
   stored entry.
+- Only an ID the storage knows is reattached (48 lowercase hex): an unknown one is replaced
+  at start and its cookie staged. `save()` writes only when the attributes differ from what
+  was loaded (in-place changes count) or the ID is new, and a reattached session writes with
+  `must_exist=True`, so a session a logout deleted stays deleted.
 - `is_started()` reports that loading: `True` once the first attribute was read or written,
   `False` while the session was never touched — what a save-every-response pass asks before
   writing, so an untouched session saves nothing and mints no cookie.
@@ -233,9 +238,8 @@ staged = session.staged_set_cookie()  # the Set-Cookie value, or None when the I
   `CachePoolSessionStorage` (the `cache` extra, reached by name from
   `xtr_http_foundation.session.storage.cache_pool_session_storage`) keeps them in any
   xtr-cache-contracts pool, as JSON, expiring by the item's own expiry.
-- Values must round-trip through the storage's format — JSON for the cache-pool storage: a
-  string, a number, a boolean, `None`, a list or a dictionary of them. Anything else raises
-  at `save()`.
+- Values must round-trip through JSON on both storages: a string, a number, a boolean,
+  `None`, a list or a dictionary of them. Anything else raises at `save()`.
 - The response listener — `await session.save()`, then place `staged_set_cookie()` on the
   response — is wiring this package does not ship; it lands with the security wiring that owns
   the response event.
@@ -294,8 +298,9 @@ Everything derives from `HttpFoundationError`. There are two. `InvalidArgumentEr
 `ValueError`, is raised for an expression that does not read as one, by `is_private_ip` and
 `anonymize` for text that is no address, by the cookie builder for a name it cannot write, a
 `samesite` that is none of the three, or a `path` or `domain` an attribute cannot carry, by
-`SessionCookieConfig` for an empty name, a `samesite` that is none of the three or a negative
-lifetime, and by the cache-pool session storage at `save()` for a value JSON cannot give back
+`SessionCookieConfig` for an empty name, a `samesite` that is none of the three, a negative
+lifetime, or `secure=False` with `samesite="none"` or a `__Host-`/`__Secure-` name, and by the
+cache-pool session storage at `save()` for a value JSON cannot give back
 as it was given. `SessionError` is raised when the storage a session persists through fails to
 load, keep or remove an entry.
 
@@ -317,7 +322,7 @@ load, keep or remove an entry.
 - Do not build a `Set-Cookie` value by hand: the encoding, the dual `expires`/`Max-Age`, and
   the prefix rules are what make a browser keep the cookie — `cookie_header_value` carries
   them.
-- Do not store a value the storage cannot round-trip and expect `save()` to keep it — the
-  cache-pool storage refuses it there, loudly; serialise to a JSON type first.
+- Do not store a value the storage cannot round-trip and expect `save()` to keep it — both
+  storages refuse it there, loudly; serialise to a JSON type first.
 - Do not call a session's data members without awaiting them — every member that can reach
   the storage is async.

@@ -114,6 +114,7 @@ graph LR
     httpkernel --> httpmsg
     httpkernel --> httpmsgcon
     httpfoundation[xtr-http-foundation] --> httpmsgcon
+    httpfoundation --> clock
     httpclientcon[xtr-http-client-contracts] --> httpmsgcon
     httpclient[xtr-http-client] --> httpclientcon
     httpclient -. optional .-> httpfoundation
@@ -302,30 +303,33 @@ uv add "xtr-scheduler[cron]"
 
 Every package shares one version and is released together, even one that did not change — any
 two `xtr-*` packages at the same version are known to work together. Packages require their
-siblings by major version (`xtr-logging-contracts>=6.0,<7`).
+siblings by major version (`xtr-logging-contracts>=7.0,<8`).
 
 [`scripts/release.py`](scripts/release.py) keeps that consistent:
 
 ```sh
 uv run scripts/release.py check        # every package, this README and the docs on one version (CI runs this)
-uv run scripts/release.py bump 6.8.1   # move every package, this README and the docs; on a new major, rewrite the ranges
+uv run scripts/release.py bump 7.0.0   # move every package, this README and the docs; on a new major, rewrite the ranges
 ```
 
 A package classified `Private :: Do Not Upload` moves with the rest but is never published or
 split.
 
+What changes between major versions, package by package, and how to keep the old behaviour where
+that is still possible, is in [UPGRADING.md](UPGRADING.md).
+
 ## Releasing
 
 ```sh
-uv run scripts/release.py bump 6.8.1
-git commit -am "bump: 6.8.1" && git push
-git tag 6.8.1 && git push origin 6.8.1
+uv run scripts/release.py bump 7.0.0
+git commit -am "bump: 7.0.0" && git push
+git tag 7.0.0 && git push origin 7.0.0
 ```
 
 The tag starts the [release workflow](.github/workflows/release.yml): it waits for CI to pass on
 the tagged commit's push to `main` — nothing is released otherwise — checks the tag against the
 packages' version, publishes every package to PyPI through trusted publishing, and tags each
-read-only repository `6.8.1`.
+read-only repository `7.0.0`.
 
 ## Repositories
 
@@ -349,8 +353,10 @@ uv sync --all-packages
 uv run pre-commit install
 ```
 
-The pre-commit hook runs ruff on what you commit and the tests of every package you touched.
-[CI](.github/workflows/ci.yml) runs everything, for every package, on Python 3.11 and 3.14.
+The pre-commit hook runs ruff on what you commit, basedpyright, ty and the tests of every package
+you touched, and the repository's own tests (`tests/`). Those run only there: they import every
+package, while CI checks each package on its own.
+[CI](.github/workflows/ci.yml) runs every package's tests and types, on Python 3.11 and 3.14.
 
 Work inside a package directory; each carries its own pytest, ruff, basedpyright and ty settings:
 
@@ -422,7 +428,7 @@ packages/xtr-<name>/
 ```toml
 [project]
 name = "xtr-<name>"
-version = "6.8.1"
+version = "7.0.0"
 description = "<one-line pitch, on this project's own terms>."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -456,7 +462,7 @@ dev = [
     "pytest-cov>=5",
     "anyio>=4.0",
     "ty>=0.0.83",
-    "xtr-dependency-injection>=6.0,<7",
+    "xtr-dependency-injection>=7.0,<8",
 ]
 
 [build-system]

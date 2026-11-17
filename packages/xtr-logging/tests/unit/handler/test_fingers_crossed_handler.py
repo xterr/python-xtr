@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, final
+import contextvars
+import threading
+from typing import TYPE_CHECKING, cast, final
 
 import anyio
 import anyio.lowlevel
@@ -332,6 +334,39 @@ def test_end_unit_flushes_the_units_passthru_floor() -> None:
     assert [record.message for record in spy.handled] == ["warning"]
 
 
+def test_a_record_arriving_after_the_unit_ended_is_not_stranded() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(
+        spy, activation_strategy=Level.ERROR, passthru_level=Level.WARNING
+    )
+    begin_unit()
+    _ = handler.handle(make_record(Level.INFO, "in time"))
+    # What a queue worker replays for the unit once it is over.
+    late = contextvars.copy_context()
+    end_unit()
+
+    def log_late() -> None:
+        _ = handler.handle(make_record(Level.INFO, "late info"))
+        _ = handler.handle(make_record(Level.WARNING, "late warning"))
+
+    late.run(log_late)
+    handler.activate()
+
+    assert [record.message for record in spy.handled] == ["late warning"]
+
+
+def test_an_activating_record_arriving_after_the_unit_ended_is_forwarded() -> None:
+    spy = Spy()
+    handler = FingersCrossedHandler(spy, activation_strategy=Level.ERROR)
+    begin_unit()
+    late = contextvars.copy_context()
+    end_unit()
+
+    _ = late.run(handler.handle, make_record(Level.ERROR, "late error"))
+
+    assert [record.message for record in spy.handled] == ["late error"]
+
+
 def test_a_quiet_unit_never_builds_the_lazy_wrapped_handler() -> None:
     factory = CountingFactory(TestHandler())
     handler = FingersCrossedHandler(factory, Level.ERROR)
@@ -381,3 +416,37 @@ def test_the_buffer_is_bounded_by_default() -> None:
     # The default size drops the oldest once full, so the first record is gone.
     assert len(spy.handled) == 10_000
     assert spy.handled[0].message == "1"
+
+
+@final
+class _ActivatingFirst:
+    """A lock that, the first time it is taken, lets another thread activate the handler first."""
+
+    def __init__(self, handler: FingersCrossedHandler) -> None:
+        self._lock = threading.Lock()
+        self._handler = handler
+        self._raced = False
+
+    def __enter__(self) -> bool:
+        if not self._raced:
+            self._raced = True
+            racing = threading.Thread(target=self._handler.activate)
+            racing.start()
+            racing.join()
+        return self._lock.__enter__()
+
+    def __exit__(self, *exc: object) -> None:
+        self._lock.__exit__(None, None, None)
+
+
+def test_activation_racing_a_record_never_strands_it() -> None:
+    # The buffering flag is read under the lock: a record arriving as another
+    # thread activates is passed through, not left in a buffer nothing flushes.
+    spy = Spy()
+    handler = FingersCrossedHandler(spy)
+    # The race, made deterministic: the lock lets another thread activate first.
+    handler._buffer_lock = cast("threading.Lock", cast("object", _ActivatingFirst(handler)))  # pyright: ignore[reportPrivateUsage] -- the lock under test
+
+    _ = handler.handle(make_record(Level.INFO, "racing"))
+
+    assert [record.message for record in spy.handled] == ["racing"]

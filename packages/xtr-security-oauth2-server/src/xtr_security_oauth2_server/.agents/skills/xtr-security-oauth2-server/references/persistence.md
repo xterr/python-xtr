@@ -8,8 +8,8 @@
 | `ClientManagerInterface` | `find(identifier)`, `save(client)`, `remove(client)`, `list(client_filter)` |
 | `AccessTokenManagerInterface` | `find`, `save`, `clear_expired() -> int` |
 | `RefreshTokenManagerInterface` | `find`, `save`, `revoke(identifier) -> bool` (true only for the call that revoked it), `clear_expired` |
-| `AuthorizationCodeManagerInterface` | `find`, `save`, `clear_expired` |
-| `DeviceCodeManagerInterface` | `find`, `find_by_user_code(code)`, `save`, `clear_expired` |
+| `AuthorizationCodeManagerInterface` | `find`, `save`, `revoke(identifier) -> bool` (true only for the call that spent it; a redemption spends the code before tokens are issued), `clear_expired` |
+| `DeviceCodeManagerInterface` | `find`, `find_by_user_code(code)`, `save`, `revoke(identifier) -> bool` (spent before tokens are issued), `record_decision(identifier, user_identifier, *, user_approved) -> bool` (only the first decision on a live code), `record_poll(identifier, last_polled_at, polled_at) -> bool` (only if no other poll since the one read; a loss answers `slow_down`), `clear_expired` |
 | `CredentialsRevokerInterface` (`xtr_security_oauth2_server.service`) | `revoke_credentials_for_user(user)`, `revoke_credentials_for_client(client)` |
 
 `ClientFilter.create().add_grant_criteria(...).add_redirect_uri_criteria(...).add_scope_criteria(...)`
@@ -50,6 +50,9 @@ persistence = OrmPersistenceConfig()  # connection="default", table_prefix="oaut
   shipped `Client`. Credentials reference the client's `identifier` with `ON DELETE CASCADE`.
 - Every write commits before the endpoint answers, refusals included (a device's last poll, a
   revoked code), so a token is never handed out that was not stored.
+- Every read and write runs in a unit of work of the store's own, never the request's: storing a
+  credential commits nothing the application has pending in its session, and a rollback of the
+  request takes back no credential already handed out.
 - SQLite enforces the cascade only with `PRAGMA foreign_keys=ON`.
 
 ## The application's own client class

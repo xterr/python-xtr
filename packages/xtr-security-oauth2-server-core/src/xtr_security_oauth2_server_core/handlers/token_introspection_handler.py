@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from typing_extensions import override
 
+from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
+from xtr_security_oauth2_server_core.request_event import RequestEvent
 from xtr_security_oauth2_server_core.response_types.introspection_response import (
     IntrospectionResponse,
 )
@@ -59,10 +61,15 @@ class TokenIntrospectionHandler(AbstractTokenHandler):
 
         Raises:
             OAuthServerError: ``invalid_client`` when the client cannot be
-                authenticated, and ``invalid_request`` when the request names
-                no token.
+                authenticated or is a public client, which proves nothing
+                about itself (RFC 7662 section 2.1), and ``invalid_request``
+                when the request names no token.
         """
         client = await self.validate_client(request)
+        if not client.is_confidential():
+            await self._announce(RequestEvent.CLIENT_AUTHENTICATION_FAILED, request)
+
+            raise OAuthServerError.invalid_client(request)
         token = await self.validate_token(request, client)
         response_type = self._response_type_for_request()
         if token is None:

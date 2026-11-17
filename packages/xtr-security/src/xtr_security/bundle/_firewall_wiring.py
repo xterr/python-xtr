@@ -50,7 +50,7 @@ from xtr_security.factory.oidc_login_factory import oidc_token_refresh_listener_
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping, Sequence
 
-    from xtr_dependency_injection import ServiceConfigurator
+    from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
     from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
     from xtr_security_core import AccessDecisionManagerInterface, TokenStorageInterface
     from xtr_security_http.authentication.authenticator_manager_interface import (
@@ -59,17 +59,20 @@ if TYPE_CHECKING:
 
     from xtr_security.bundle.security_config import SecurityConfig
     from xtr_security.firewall_config import FirewallConfig
+    from xtr_security.logout_config import LogoutConfig
     from xtr_security.switch_user_config import SwitchUserConfig
 
 __all__ = ["build_firewall_map"]
 
 
-def build_firewall_map(
+def build_firewall_map(  # noqa: PLR0913 -- the bundle's whole build, keyed by what it reads
     services: ServiceConfigurator,
     config: SecurityConfig,
     *,
+    builder: ContainerBuilder,
     clock_active: bool,
     logging_active: bool = False,
+    lock_active: bool = False,
 ) -> None:
     """Register a firewall context per firewall and the HTTP edge's firewall map.
 
@@ -106,7 +109,7 @@ def build_firewall_map(
         register_remember_me_response_listener(services)
 
     matchers: dict[str, RequestMatcherInterface] = {}
-    logout_registrations: dict[str, tuple[str, str | None]] = {}
+    logout_registrations: dict[str, tuple[str, str | None, LogoutConfig]] = {}
     switch_user_registrations: dict[str, SwitchUserConfig] = {}
     for name, firewall in config.firewalls.items():
         matchers[name] = firewall.to_matcher()
@@ -116,8 +119,10 @@ def build_firewall_map(
             name,
             firewall,
             logout_registrations,
+            builder=builder,
             csrf_wired=csrf_wired,
             logging_active=logging_active,
+            lock_active=lock_active,
         )
         if firewall.security and firewall.switch_user is not None:
             switch_user_registrations[name] = firewall.switch_user
@@ -139,10 +144,12 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
     config: SecurityConfig,
     name: str,
     firewall: FirewallConfig,
-    logout_registrations: dict[str, tuple[str, str | None]],
+    logout_registrations: dict[str, tuple[str, str | None, LogoutConfig]],
     *,
+    builder: ContainerBuilder,
     csrf_wired: bool,
     logging_active: bool = False,
+    lock_active: bool = False,
 ) -> None:
     """Register everything one firewall needs: its dispatcher, authenticators and context."""
     if not firewall.security:
@@ -154,7 +161,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
         provider_qualifier = firewall.provider
         register_dispatcher(services, name)
         auth_qualifiers, entry_point_qualifier = register_authenticators(
-            services, config, name, firewall, provider_qualifier
+            services, config, name, firewall, provider_qualifier, builder=builder
         )
         access_map = AccessMap()
         channel_rules = False
@@ -183,12 +190,15 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
             logout_registrations[name] = (
                 firewall.logout.path,
                 logout_context_key(name, firewall),
+                firewall.logout,
             )
         remember_me = remember_me_settings_of(firewall.authenticators)
         if remember_me is not None:
             register_remember_me_listeners(services, name, remember_me)
         if firewall.login_throttling is not None:
-            register_login_throttling(services, name, firewall.login_throttling)
+            register_login_throttling(
+                services, name, firewall.login_throttling, lock_active=lock_active
+            )
         extra_listeners = (
             (oidc_token_refresh_listener_name(name),)
             if any(

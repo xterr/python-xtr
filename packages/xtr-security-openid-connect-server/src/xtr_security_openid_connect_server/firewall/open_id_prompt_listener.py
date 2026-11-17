@@ -257,6 +257,9 @@ class OpenIdPromptListener(AbstractListener):
 
     async def _refusal(self, error: OAuthServerError) -> ResponseInterface:
         """Return ``error`` answered as the authorization endpoint answers a refusal."""
+        # Named as the endpoint names its own (RFC 9207): a relying party told
+        # the provider sends ``iss`` refuses a callback without it.
+        error.carry_issuer(self._authorization_server.get_issuer())
         redirect_uri = error.get_redirect_uri() or ""
 
         return await error.generate_http_response(

@@ -11,6 +11,7 @@ import pytest
 from joserfc import jwt
 from joserfc.jwk import OctKey
 from joserfc.jws import serialize_compact
+from typing_extensions import override
 from xtr_cache import ArrayAdapter, CacheItem
 from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient
@@ -1082,3 +1083,26 @@ def test_a_non_url_issuer_is_refused_by_the_metadata_url() -> None:
 
     with pytest.raises(BadMethodCallError):
         _ = _metadata_url("issuer.example")
+
+
+class _UnprintableError(Exception):
+    @override
+    def __str__(self) -> str:
+        raise ValueError("cannot say")
+
+
+@pytest.mark.anyio
+async def test_the_token_handler_names_an_unprintable_error_by_its_class() -> None:
+    def unprintable(method: str, url: str, options: object) -> MockResponse:
+        del method, url, options
+        raise _UnprintableError
+
+    logger = RecordingLogger()
+    handler = _handler(MockHttpClient(unprintable, base_uri=_INTROSPECTION_URI), logger=logger)
+
+    with pytest.raises(InvalidAccessTokenError) as raised:
+        _ = await handler.get_user_badge_from("the-token")
+
+    assert "_UnprintableError" in str(raised.value)
+    _, _, context = logger.records[0]
+    assert "_UnprintableError" in str(context["error"])

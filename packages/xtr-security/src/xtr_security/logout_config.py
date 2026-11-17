@@ -37,8 +37,10 @@ class LogoutConfig:
             by default.
         enable_csrf: Whether a logout request must prove itself with a
             cross-site request forgery token. A logout acts on the caller's
-            behalf, so a firewall reachable from a browser should ask for
-            the proof.
+            behalf, so ``None`` — the default — asks for the proof on a
+            stateful firewall, the one a browser's cookie authenticates,
+            and not on a stateless one, which keeps no session to store a
+            token in.
         csrf_parameter: The name the request carries the forgery token under,
             in its submitted form or its query string.
         csrf_token_id: The id the forgery token is stored under.
@@ -59,7 +61,7 @@ class LogoutConfig:
 
     path: str = "/logout"
     target_path: str = "/"
-    enable_csrf: bool = False
+    enable_csrf: bool | None = None
     csrf_parameter: str = "_csrf_token"
     csrf_token_id: str = "logout"  # noqa: S105 -- the default id of the logout's forgery token, not a credential
     clear_site_data: Sequence[str] | None = None

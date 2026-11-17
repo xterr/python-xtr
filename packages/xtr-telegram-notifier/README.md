@@ -111,10 +111,12 @@ poll), `ReplyKeyboardRemove` and `ForceReply`.
 
 ## Uploads
 
-`upload_photo(path)` and its siblings keep the file's **path**, so a message stays plain data and
-can be queued on a message bus. The transport opens each file when it sends the message, sends
-the fields as a form body — which the HTTP client sends as `multipart/form-data`, the file named
-after its path — and closes the files once the request is made, whether it succeeded or not.
+`upload_photo(path)` and its siblings read the file **when the option is set**, keeping its name
+and its bytes in base64, so a message stays plain data a message bus can carry — and the worker
+that sends it needs no access to the file (a missing one raises `FileNotFoundError` right there).
+The transport rebuilds each file in memory, sends the fields as a form body — which the HTTP
+client sends as `multipart/form-data`, the file named as it was — and closes the files once the
+request is made, whether it succeeded or not.
 A field holding an object or a list, such as a reply markup, goes in that body as JSON text, the
 way the bot API reads it. A message without an upload is sent as JSON.
 
@@ -127,7 +129,7 @@ way the bot API reads it. A message without an upload is sent as JSON.
 | `UnsupportedMessageTypeError` | The transport was handed a message that is not a `ChatMessage` |
 | `MultipleExclusiveOptionsUsedError` | The options pick more than one kind of message |
 | `LogicError` | An edit replaces a media with a file to upload |
-| `TransportError` | `Unable to post the Telegram message: <description> (code <n>).` (or `edit`, `answer callback query`), or `Could not reach the remote Telegram server.` |
+| `TransportError` | `Unable to post the Telegram message: <description> (code <n>).` (or `edit`, `answer callback query`), or `Could not reach the remote Telegram server (<error class>).` — raised with nothing chained, since the client's error names the URL and the URL carries the bot token |
 
 Every one of them is xtr-notifier's; `TransportError` is what failover moves on from.
 
@@ -151,6 +153,11 @@ undoes. It ships no bundle: the notifier's bundle finds its factory by the DSN s
 
 Everything else — the bundle, the channel policy, queuing through the message bus — is
 xtr-notifier's.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-telegram-notifier).
 
 ## Development
 

@@ -3,8 +3,8 @@
 The same deployment the in-process applications describe, with one line of
 configuration changed: ``persistence=OrmPersistenceConfig()``. That is the whole
 point of it — every flow has to come out the same against a database, and the
-managers that read and write it are singletons that ask the connection registry
-for the session of the request being served.
+managers that read and write it are singletons that open a unit of work of
+their own for every read and write, never the one of the request being served.
 """
 
 from __future__ import annotations

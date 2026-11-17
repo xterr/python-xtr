@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
@@ -175,3 +176,38 @@ async def test_the_offline_token_is_dropped_once_the_decision_ends() -> None:
     _ = await checker.is_granted_for_user(InMemoryUser("bob", roles=["ROLE_ADMIN"]), "ROLE_ADMIN")
 
     assert await checker.is_granted("ROLE_ADMIN") is False
+
+
+@pytest.mark.anyio
+async def test_a_task_outliving_the_decision_for_a_user_does_not_see_its_token() -> None:
+    storage = TokenStorage()
+    storage.set_token(UsernamePasswordToken(InMemoryUser("alice"), "api", ["ROLE_USER"]))
+    checkers: list[AuthorizationChecker] = []
+    gate = asyncio.Event()
+    outliving: list[asyncio.Task[bool]] = []
+
+    async def later_on() -> bool:
+        _ = await gate.wait()
+        return await checkers[0].is_granted("ROLE_ADMIN")
+
+    class _Spawning:
+        async def vote(
+            self,
+            token: TokenInterface,
+            subject: object,
+            attributes: Sequence[object],
+            vote: Vote | None = None,
+        ) -> Access:
+            del token, subject, vote
+            if list(attributes) == ["ANY"]:
+                outliving.append(asyncio.create_task(later_on()))
+            return Access.ABSTAIN
+
+    checker = AuthorizationChecker(storage, AccessDecisionManager([_Spawning(), RoleVoter()]))
+    checkers.append(checker)
+
+    _ = await checker.is_granted_for_user(InMemoryUser("bob", roles=["ROLE_ADMIN"]), "ANY")
+    gate.set()
+
+    # Decided against alice's token in the storage, not bob's, whose decision is over.
+    assert await outliving[0] is False

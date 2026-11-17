@@ -1,0 +1,42 @@
+id: task-without-context
+snapshots:
+  asyncio.create_task(work()):
+    labels:
+    - source: asyncio.create_task(work())
+      style: primary
+      start: 0
+      end: 27
+    - source: asyncio.create_task
+      style: secondary
+      start: 0
+      end: 19
+  asyncio.ensure_future(anext(stream)):
+    labels:
+    - source: asyncio.ensure_future(anext(stream))
+      style: primary
+      start: 0
+      end: 36
+    - source: asyncio.ensure_future
+      style: secondary
+      start: 0
+      end: 21
+  asyncio.get_running_loop().create_task(work()):
+    labels:
+    - source: asyncio.get_running_loop().create_task(work())
+      style: primary
+      start: 0
+      end: 46
+    - source: asyncio.get_running_loop().create_task
+      style: secondary
+      start: 0
+      end: 38
+  "loop.create_task(work(), name=\"worker\")":
+    labels:
+    - source: loop.create_task(work(), name="worker")
+      style: primary
+      start: 0
+      end: 39
+    - source: loop.create_task
+      style: secondary
+      start: 0
+      end: 16

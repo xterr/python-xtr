@@ -138,7 +138,8 @@ class NotifierBundle(Bundle[NotifierConfig]):
             _register_channel(services, "push")
             if messenger:
                 services.load(_TEXT_HANDLER)
-        if bundle_active(builder, "event_dispatcher"):
+        # It keeps every message sent, which a long-lived production process must not.
+        if bundle_active(builder, "event_dispatcher") and builder.get_parameter("kernel.debug"):
             _register_logger_listener(services)
         if config.notification_on_failed_messages:
             _register_failed_message_listener(services, builder)

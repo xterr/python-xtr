@@ -4,7 +4,11 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import UsageLimits
 
 from xtr_ai.agent_tool import agent_toolset
 
@@ -44,3 +48,30 @@ async def test_the_agent_is_looked_up_only_when_first_called() -> None:
 
     assert looked_up == ["research"]
     assert toolset.tools["research"].description == "Research things."
+
+
+async def test_a_delegated_run_uses_the_callers_usage_limits() -> None:
+    # Without them the delegate runs under its own default limits, so a caller's
+    # request_limit no longer bounds what one prompt can cost.
+    asked: list[int] = []
+
+    def looping(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        del messages, info
+        asked.append(1)
+        return ModelResponse(parts=[ToolCallPart("again", {})])
+
+    research = Agent(FunctionModel(looping), name="research")
+
+    @research.tool_plain
+    def again() -> str:
+        return "keep going"
+
+    chat = Agent(
+        TestModel(call_tools=["research"]),
+        toolsets=[agent_toolset(research, name="research")],
+    )
+
+    with pytest.raises(UsageLimitExceeded):
+        _ = await chat.run("look it up", usage_limits=UsageLimits(request_limit=3))
+
+    assert len(asked) == 2  # one by chat, two by research: three in all
