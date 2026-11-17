@@ -198,3 +198,19 @@ async def test_reset_drops_the_recorded_authenticators() -> None:
     listener.reset()
 
     assert listener.get_authenticators_info() == ()
+
+
+async def test_a_recorder_is_handed_each_recording_wrapper_in_the_order_asked() -> None:
+    skipped = _Authenticator(supports=False)
+    supporter = _Authenticator()
+    recorded: list[TraceableAuthenticator] = []
+    listener = TraceableAuthenticatorManagerListener(
+        _wrapped(_Manager(skipped=(skipped,), supporters=(supporter,))), recorded.append
+    )
+    bag: dict[str, object] = {}
+
+    _ = await listener.supports(_asked(bag))
+
+    assert [wrapper.get_authenticator() for wrapper in recorded] == [skipped, supporter]
+    reparked = security_state_of(bag).attributes[SecurityRequestAttributes.AUTHENTICATORS]
+    assert reparked == (recorded[1],)

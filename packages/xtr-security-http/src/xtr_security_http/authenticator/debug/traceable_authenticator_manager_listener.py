@@ -11,7 +11,7 @@ from xtr_security_http.security_request_attributes import SecurityRequestAttribu
 from .traceable_authenticator import TraceableAuthenticator
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from xtr_http_kernel.event.request_event import RequestEvent
     from xtr_http_message_contracts import ServerRequestInterface
@@ -40,13 +40,28 @@ class TraceableAuthenticatorManagerListener(AbstractListener):
 
     The wrapped listener is stored as given, never unwrapped here:
     :meth:`get_authenticator_manager_listener` is the only door.
+
+    A ``recorder`` is handed each recording wrapper as the supports pass
+    records it, so tooling that keeps its own record of the request — the
+    profiler's — reads what the authenticator answered once it has run.
     """
 
-    __slots__ = ("_authenticators", "_listener")
+    __slots__ = ("_authenticators", "_listener", "_recorder")
 
-    def __init__(self, listener: AuthenticatorManagerListener) -> None:
-        """Wrap ``listener`` with nothing recorded yet."""
+    def __init__(
+        self,
+        listener: AuthenticatorManagerListener,
+        recorder: Callable[[TraceableAuthenticator], None] | None = None,
+    ) -> None:
+        """Wrap ``listener`` with nothing recorded yet.
+
+        Args:
+            listener: The manager listener the chain runs.
+            recorder: Called with each recording wrapper, in the order asked,
+                or ``None`` to keep them here alone.
+        """
         self._listener = listener
+        self._recorder = recorder
         self._authenticators: list[TraceableAuthenticator] = []
 
     @override
@@ -65,6 +80,9 @@ class TraceableAuthenticatorManagerListener(AbstractListener):
         recorded_supported = _traceable(supported)
         self._authenticators.extend(recorded_skipped)
         self._authenticators.extend(recorded_supported)
+        if self._recorder is not None:
+            for authenticator in (*recorded_skipped, *recorded_supported):
+                self._recorder(authenticator)
         state.attributes[SecurityRequestAttributes.AUTHENTICATORS] = recorded_supported
         return supports
 
