@@ -130,6 +130,8 @@ other keys.
 A dictionary. Values are stored serialized by default, so what a caller gets back is a copy it can
 change freely; `store_serialized=False` stores the objects themselves. `max_items` drops the least
 recently used beyond a count, `max_lifetime` caps every value's lifetime.
+Unbounded by default (`max_items=0`): it often holds live rate-limit counts and sessions, which
+silent eviction would reset, so set `max_items` where keys come from callers.
 
 ### `FilesystemAdapter`
 

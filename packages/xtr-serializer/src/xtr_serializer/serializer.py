@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from types import NoneType
+from types import MappingProxyType, NoneType
 from typing import TYPE_CHECKING, Final, TypeVar, cast, final, overload
 
 from typing_extensions import override
@@ -229,8 +229,14 @@ class Serializer(
         return self._encoders.decodes(format)
 
     def _merged(self, context: Context | None) -> Context:
-        """Give ``context`` over the default one, which it wins key by key."""
-        return {**self._default_context, **context} if context else self._default_context
+        """Give ``context`` over the default one, which it wins key by key.
+
+        Without one, a read-only view of the default: a step writing to the
+        context it was handed must not change every later call's.
+        """
+        if context:
+            return {**self._default_context, **context}
+        return MappingProxyType(self._default_context)
 
     def _normalize(
         self,

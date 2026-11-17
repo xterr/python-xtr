@@ -1079,7 +1079,9 @@ cold when there is no stamp (the first start, or the first after `cache:clear --
 when the stamp names another build: another environment or debug flag, or a warmer added,
 removed, or whose module was written since — an upgrade, or an edit. Anything else a warmer reads
 is not tracked: run `cache:clear` when it changes. One process at a time warms, under a file lock
-in the cache directory; another starting meanwhile waits, then finds the cache warm. An
+in the cache directory (`async with WarmedCache.lock()`, waiting without blocking the event loop,
+and cancellable); another starting meanwhile waits, then finds the cache warm. `cache:clear`
+holds the same lock across clearing, removing and warming. An
 application without warmers touches nothing.
 
 The console bundle's `cache:warmup` and `cache:clear` commands run the warmers on demand — as a

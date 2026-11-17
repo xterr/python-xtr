@@ -271,7 +271,7 @@ class KernelBundle(Bundle):
             return
         cache_dir = Path(str(container.get_parameter("kernel.cache_dir")))
         build_dir = Path(str(container.get_parameter("kernel.build_dir")))
-        with cache.lock():
+        async with cache.lock():
             if cache.is_fresh():
                 return
             _create(build_dir)

@@ -274,3 +274,17 @@ def test_it_remembers_which_normalizer_handles_a_type_whose_answer_rests_on_it_a
     _ = [serializer.normalize(Point(index, index)) for index in range(3)]
 
     assert normalizer.asked == 1
+
+
+def test_a_normalizer_cannot_change_the_default_context() -> None:
+    # Handed the default dict itself, one call's write would reach every later call.
+    normalizer = CountingNormalizer("n", EVERYTHING)
+    serializer = Serializer([normalizer], default_context={"a": 1})
+
+    _ = serializer.normalize(Point(1, 2), MEMORY)
+    handed = normalizer.calls[0][0]
+    with pytest.raises(TypeError):
+        handed["a"] = 2  # pyright: ignore[reportIndexIssue, reportOptionalSubscript] -- the write under test  # ty: ignore[invalid-assignment]
+    _ = serializer.normalize(Point(1, 2), MEMORY)
+
+    assert normalizer.calls[1][0] == {"a": 1}
