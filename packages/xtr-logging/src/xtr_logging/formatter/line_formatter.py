@@ -35,7 +35,8 @@ _TRAILING_SPACE: Final = re.compile(r"[ \t]+(?=\n|$)")
 # controls: an escape sequence like ``\x1b[2J`` could clear a terminal or
 # forge a line, so it is stripped unless the caller opts to keep it. So are the
 # bidirectional embeddings, overrides and isolates, which reorder what a reader sees.
-_CONTROL: Final = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
+# A raw string: the ranges reach the regex as escapes, which say which code points they mean.
+_CONTROL: Final = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
 
 
 class LineFormatter(FormatterInterface):
