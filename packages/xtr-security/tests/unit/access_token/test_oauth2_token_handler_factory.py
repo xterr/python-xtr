@@ -9,6 +9,7 @@ import pytest
 from xtr_http_client import MockHttpClient
 from xtr_http_client.response import MockResponse
 
+from tests.support.builders import NO_PEERS
 from xtr_security.bundle import (
     Oauth2TokenHandlerConfig,
     Oauth2TokenHandlerFactory,
@@ -70,7 +71,7 @@ async def test_it_builds_a_handler_that_introspects_a_token() -> None:
 
     _ = Oauth2TokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_oauth2",
         config,
     )
@@ -109,7 +110,7 @@ async def test_it_scopes_the_application_client_with_the_endpoint_and_credential
     recorder = _Recorder()
     _ = Oauth2TokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_oauth2",
         config,
     )
@@ -143,7 +144,7 @@ async def test_a_configured_cache_keeps_the_introspection_responses() -> None:
     recorder = _Recorder()
     _ = Oauth2TokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_oauth2",
         config,
     )
@@ -209,7 +210,7 @@ async def test_a_pinned_keyset_verifies_a_signed_response() -> None:
     recorder = _Recorder()
     _ = Oauth2TokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_oauth2",
         config,
     )
@@ -245,7 +246,7 @@ async def test_a_client_service_is_used_as_it_was_registered() -> None:
     recorder = _Recorder()
     _ = Oauth2TokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_oauth2",
         config,
     )
@@ -276,7 +277,7 @@ async def test_signed_responses_without_a_pinned_keyset_wait_on_discovery() -> N
     recorder = _Recorder()
     _ = Oauth2TokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_oauth2",
         config,
     )
@@ -310,7 +311,7 @@ async def test_a_discovery_cache_reads_the_verifying_keys_from_the_metadata() ->
     recorder = _Recorder()
     _ = Oauth2TokenHandlerFactory().create(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "api_oauth2",
         config,
     )
@@ -329,3 +330,20 @@ async def test_a_discovery_cache_reads_the_verifying_keys_from_the_metadata() ->
     assert isinstance(handler, Oauth2TokenHandler)
     badge = await handler.get_user_badge_from("s3cret")
     assert badge.get_user_identifier() == "alice"
+
+
+def test_the_logger_and_the_clock_are_asked_for_only_while_their_bundles_are_active() -> None:
+    from xtr_clock import ClockInterface
+    from xtr_logging_contracts import LoggerInterface
+
+    from xtr_security.access_token.oauth2_token_handler_factory import _oauth2_handler_factory
+
+    config = Oauth2TokenHandlerConfig(introspection_base_uri="https://as.example/introspect")
+
+    with_both = _oauth2_handler_factory(config, logging_active=True, clock_active=True)
+    with_neither = _oauth2_handler_factory(config, logging_active=False, clock_active=False)
+
+    assert with_both.__annotations__["logger"] is LoggerInterface
+    assert with_both.__annotations__["clock"] is ClockInterface
+    assert "logger" not in with_neither.__annotations__
+    assert "clock" not in with_neither.__annotations__

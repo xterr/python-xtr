@@ -50,7 +50,7 @@ from xtr_security.factory.oidc_login_factory import oidc_token_refresh_listener_
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping, Sequence
 
-    from xtr_dependency_injection import ServiceConfigurator
+    from xtr_dependency_injection import ContainerBuilder, ServiceConfigurator
     from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
     from xtr_security_core import AccessDecisionManagerInterface, TokenStorageInterface
     from xtr_security_http.authentication.authenticator_manager_interface import (
@@ -65,10 +65,11 @@ if TYPE_CHECKING:
 __all__ = ["build_firewall_map"]
 
 
-def build_firewall_map(
+def build_firewall_map(  # noqa: PLR0913 -- the bundle's whole build, keyed by what it reads
     services: ServiceConfigurator,
     config: SecurityConfig,
     *,
+    builder: ContainerBuilder,
     clock_active: bool,
     logging_active: bool = False,
     lock_active: bool = False,
@@ -118,6 +119,7 @@ def build_firewall_map(
             name,
             firewall,
             logout_registrations,
+            builder=builder,
             csrf_wired=csrf_wired,
             logging_active=logging_active,
             lock_active=lock_active,
@@ -144,6 +146,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
     firewall: FirewallConfig,
     logout_registrations: dict[str, tuple[str, str | None, LogoutConfig]],
     *,
+    builder: ContainerBuilder,
     csrf_wired: bool,
     logging_active: bool = False,
     lock_active: bool = False,
@@ -158,7 +161,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
         provider_qualifier = firewall.provider
         register_dispatcher(services, name)
         auth_qualifiers, entry_point_qualifier = register_authenticators(
-            services, config, name, firewall, provider_qualifier
+            services, config, name, firewall, provider_qualifier, builder=builder
         )
         access_map = AccessMap()
         channel_rules = False

@@ -7071,6 +7071,7 @@ dev = [
     { name = "xtr-console" },
     { name = "xtr-http-message" },
     { name = "xtr-lock" },
+    { name = "xtr-logging" },
     { name = "xtr-password-hasher", extra = ["bcrypt"] },
 ]
 
@@ -7106,6 +7107,7 @@ dev = [
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
     { name = "xtr-lock", editable = "packages/xtr-lock" },
+    { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-password-hasher", extras = ["bcrypt"], editable = "packages/xtr-password-hasher" },
 ]
 

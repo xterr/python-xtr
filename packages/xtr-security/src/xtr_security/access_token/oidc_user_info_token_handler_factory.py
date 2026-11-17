@@ -8,10 +8,11 @@ from typing_extensions import override
 from xtr_cache_contracts import (
     CacheInterface,  # noqa: TC002 -- a factory signature the container reads
 )
-from xtr_dependency_injection import named_factory
+from xtr_dependency_injection import bundle_active, named_factory
 from xtr_http_client_contracts import (
     HttpClientInterface,
 )
+from xtr_logging_contracts import LoggerInterface
 from xtr_security_http.access_token.access_token_handler_interface import (
     AccessTokenHandlerInterface,
 )
@@ -59,11 +60,16 @@ class OidcUserInfoTokenHandlerFactory(TokenHandlerFactoryInterface):
         service_id: str,
         config: object,
     ) -> ServiceKey:
-        """Register the userinfo handler service and return its key."""
-        del builder
+        """Register the userinfo handler service and return its key.
+
+        The handler writes the failures its server's answers explain to the
+        application's logger when the logging bundle is active.
+        """
         settings = cast("OidcUserInfoTokenHandlerConfig", config)
         factory = named_factory(
-            _oidc_user_info_handler_factory(settings),
+            _oidc_user_info_handler_factory(
+                settings, logging_active=bundle_active(builder, "logging")
+            ),
             f"oidc_user_info_token_handler_{service_id}",
         )
         return services.set(factory, qualifier=service_id).key
@@ -71,12 +77,18 @@ class OidcUserInfoTokenHandlerFactory(TokenHandlerFactoryInterface):
 
 def _oidc_user_info_handler_factory(
     settings: OidcUserInfoTokenHandlerConfig,
+    *,
+    logging_active: bool,
 ) -> Callable[..., AccessTokenHandlerInterface]:
-    """Return a factory building the userinfo handler from ``settings``."""
+    """Return a factory building the userinfo handler from ``settings``.
+
+    The logger is asked for only while the logging bundle is active.
+    """
 
     def oidc_user_info_token_handler(
         client: HttpClientInterface,
         cache: CacheInterface | None = None,
+        logger: LoggerInterface | None = None,
     ) -> AccessTokenHandlerInterface:
         from xtr_security_http.access_token.oidc import (  # noqa: PLC0415 -- guarded behind the oidc extra
             OidcUserInfoTokenHandler,
@@ -84,6 +96,7 @@ def _oidc_user_info_handler_factory(
 
         handler = OidcUserInfoTokenHandler(
             client.with_options(base_uri=settings.userinfo_base_uri),
+            logger,
             claim=settings.claim,
         )
         if cache is not None:
@@ -97,5 +110,7 @@ def _oidc_user_info_handler_factory(
     }
     if settings.discovery_cache is not None:
         annotations["cache"] = settings.discovery_cache
+    if logging_active:
+        annotations["logger"] = LoggerInterface
     oidc_user_info_token_handler.__annotations__ = annotations
     return oidc_user_info_token_handler

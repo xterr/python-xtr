@@ -71,6 +71,8 @@ dev = [
     "xtr-http-message>=6.0,<7",
     # The throttling wiring locks through the lock bundle when it is active.
     "xtr-lock>=6.0,<7",
+    # The token handlers' wiring is tested with the logging bundle active.
+    "xtr-logging>=6.0,<7",
 ]
 
 [build-system]

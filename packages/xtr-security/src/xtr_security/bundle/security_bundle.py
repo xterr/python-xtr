@@ -169,6 +169,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
                     self._bind_oidc_closeables(config), bundle_active(builder, "lock")
                 )
             ),
+            builder=builder,
             clock_active=bundle_active(builder, "clock"),
             logging_active=bundle_active(builder, "logging"),
             lock_active=bundle_active(builder, "lock"),

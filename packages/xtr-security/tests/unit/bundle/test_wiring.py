@@ -36,6 +36,7 @@ from xtr_security_http import (
 )
 from xtr_security_http.firewall.exception_listener import ExceptionListener
 
+from tests.support.builders import NO_PEERS
 from tests.support.messages import make_message
 from xtr_security.bundle import (
     AccessControlConfig,
@@ -482,6 +483,7 @@ def _register(
         "api",
         firewall,
         firewall.provider,
+        builder=NO_PEERS,
     )
     return services, needy, stateless
 
@@ -821,6 +823,7 @@ def test_an_oidc_login_firewall_parks_its_refresh_listener_in_the_chain() -> Non
             ),
         ),
         {},
+        builder=NO_PEERS,
         csrf_wired=False,
     )
 
@@ -855,6 +858,7 @@ def test_a_stateful_firewall_parks_its_context_listener_ahead_of_the_manager() -
         "main",
         firewall,
         {},
+        builder=NO_PEERS,
         csrf_wired=False,
     )
 
@@ -875,6 +879,7 @@ def test_a_stateless_firewall_registers_no_context_listener() -> None:
         "main",
         _http_basic_config(),
         {},
+        builder=NO_PEERS,
         csrf_wired=False,
     )
 
@@ -900,6 +905,7 @@ def test_a_stateful_firewall_registers_its_session_strategy() -> None:
         "main",
         firewall,
         {},
+        builder=NO_PEERS,
         csrf_wired=False,
     )
 
@@ -928,6 +934,7 @@ def test_a_stateful_firewall_hands_its_strategy_the_clearable_storage_when_csrf_
         "main",
         firewall,
         {},
+        builder=NO_PEERS,
         csrf_wired=True,
     )
 
@@ -958,6 +965,7 @@ def test_a_configured_logout_parks_its_listener_on_the_contexts_slot() -> None:
         "main",
         firewall,
         {},
+        builder=NO_PEERS,
         csrf_wired=False,
     )
 
@@ -986,6 +994,7 @@ def test_a_logout_asking_for_a_csrf_check_on_a_stateless_firewall_fails_the_buil
             "main",
             firewall,
             {},
+            builder=NO_PEERS,
             csrf_wired=False,
         )
 
@@ -1009,6 +1018,7 @@ def test_a_logout_asking_for_a_csrf_check_wires_the_manager_into_its_listener() 
         "main",
         firewall,
         {},
+        builder=NO_PEERS,
         csrf_wired=True,
     )
 
@@ -1042,6 +1052,7 @@ def test_a_switch_asking_for_a_csrf_check_wires_the_manager_into_its_listener() 
         "main",
         firewall,
         {},
+        builder=NO_PEERS,
         csrf_wired=True,
     )
 
@@ -1100,6 +1111,7 @@ def test_a_backchannel_logout_on_a_stateless_firewall_fails_the_build() -> None:
             "api",
             firewall,
             {},
+            builder=NO_PEERS,
             csrf_wired=False,
         )
 
