@@ -228,6 +228,8 @@ async def _next_unless_stopped(
     if stopped.is_set():
         return None
     fetch = asyncio.get_running_loop().create_task(_next(collected), context=collecting)
+    # Waiting on an event reads no context; it is cancelled before this returns.
+    # ast-grep-ignore: task-without-context
     halt = asyncio.ensure_future(stopped.wait())
     try:
         _ = await asyncio.wait((fetch, halt), return_when=asyncio.FIRST_COMPLETED)

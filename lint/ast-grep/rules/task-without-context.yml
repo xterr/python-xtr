@@ -1,0 +1,26 @@
+id: task-without-context
+language: python
+severity: error
+message: A task started without saying which context it runs in.
+note: |
+  A task copies the context it is started from. Started inside a unit of work, it would carry that
+  unit - its scoped services, its log unit, the messages it holds back - past the unit's end. Pass
+  `context=` (a `Context()`, `detached_context()` or the one the work belongs to), or, when copying
+  the current context is right, say why on the line above with
+  `# ast-grep-ignore: task-without-context` after a comment giving the reason.
+files:
+  - packages/*/src/**/*.py
+rule:
+  kind: call
+  all:
+    - has:
+        field: function
+        regex: (^|\.)(create_task|ensure_future)$
+    - not:
+        has:
+          field: arguments
+          has:
+            kind: keyword_argument
+            has:
+              field: name
+              regex: ^context$

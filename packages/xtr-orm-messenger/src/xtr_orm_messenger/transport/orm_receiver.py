@@ -223,6 +223,9 @@ class OrmReceiver(ReceiverInterface):
 
     def _hold(self, message_id: str) -> None:
         """Keep the claim on ``message_id`` alive until it is released."""
+        # The current context is right: it is the receiver's own, where the worker collects
+        # messages, never a unit of work; the renewals are cancelled when the claim is released.
+        # ast-grep-ignore: task-without-context
         self._held[message_id] = asyncio.get_running_loop().create_task(
             self._keep_alive(message_id)
         )

@@ -33,3 +33,10 @@ repos:
       files: ^(packages/[^/]+/src/.+\.py|tests/test_context_vars\.py)$
       pass_filenames: false
       entry: uv run --frozen pytest -q -p no:cacheprovider tests/test_context_vars.py
+    # Every task a library starts says which context it runs in (lint/ast-grep/rules).
+    - id: ast-grep
+      name: ast-grep (task-without-context)
+      language: system
+      files: ^(packages/[^/]+/src/.+\.py|lint/ast-grep/.+|sgconfig\.yml)$
+      pass_filenames: false
+      entry: bash -c 'uv run --frozen ast-grep scan && uv run --frozen ast-grep test'

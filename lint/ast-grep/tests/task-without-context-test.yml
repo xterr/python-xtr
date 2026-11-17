@@ -1,0 +1,14 @@
+id: task-without-context
+valid:
+  - asyncio.get_running_loop().create_task(work(), context=Context())
+  - |
+    loop.create_task(
+        work(), context=detached_context()
+    )
+  - asyncio.run(work())
+  - tasks.create(work())
+invalid:
+  - asyncio.create_task(work())
+  - asyncio.get_running_loop().create_task(work())
+  - asyncio.ensure_future(anext(stream))
+  - loop.create_task(work(), name="worker")

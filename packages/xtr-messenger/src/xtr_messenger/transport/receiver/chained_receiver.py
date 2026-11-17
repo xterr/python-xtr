@@ -181,4 +181,7 @@ class ChainedReceiver(ReceiverInterface):
 
 def _fetch(stream: AsyncIterator[Envelope]) -> _Fetch:
     """Start waiting for ``stream``'s next message."""
+    # The current context is right: the worker steps every receiver in the one context it
+    # collects messages in, never a unit of work. (``ensure_future`` takes no context.)
+    # ast-grep-ignore: task-without-context
     return asyncio.ensure_future(anext(stream))
