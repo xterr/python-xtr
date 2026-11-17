@@ -28,6 +28,9 @@ client, so the calling code sees one type however deep the stack is.
   `MockHttpClient`.
 - Options are the contract's `RequestOptions`. An option it does not know is refused, never
   ignored.
+- With xtr-http-kernel's profiler on (the web profiler turns it on in dev), `HttpClientBundle`
+  registers the `http_client` panel (`HttpClientDataCollector`) and traces every client into it:
+  each request a profiled request made, credentials masked. With the profiler off it costs nothing.
 - In an application, with xtr-dependency-injection installed beside the package (it is not a
   dependency): activate `HttpClientBundle` and inject `HttpClientInterface`. Without the
   container, build the clients yourself; only `xtr_http_client.bundle` needs it.

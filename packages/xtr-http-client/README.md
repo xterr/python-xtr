@@ -387,6 +387,24 @@ client's, filled in when the client issues it. Reading one no client issued rais
 `InvalidArgumentError`, and `get_request_method()`, `get_request_url()` and
 `get_request_options()` are what a test asserts the issued half on.
 
+## Profiler panel
+
+With [xtr-http-kernel](../xtr-http-kernel)'s profiler on — the web profiler turns it on in
+development — the bundle registers an `http_client` panel, `HttpClientDataCollector`, and traces
+every client it builds into it. For each outgoing request a profiled request made, the panel shows
+the client service it went through (`http_client`, or `http_client_<name>` for a scoped client),
+the method, the URL, the status, how long the answer took to arrive, the error when none did, the
+request's headers and body, the response's headers and the size of the body read — with the
+request count, the failures (an error, or a 4xx or 5xx) and the total time on top. Credentials —
+`Authorization`, `Proxy-Authorization`, cookies, `X-Api-Key`, and any header or body field named
+like a password, a secret, a token or an API key — are kept as `******`, and a request made with
+`extra={"trace_content": False}` keeps no bodies.
+
+The records belong to the request being profiled, so requests served at once never mix. A client
+that is traced only for the panel (`tracing` left off) records nothing outside a profiled request.
+With the profiler off, nothing is registered and the clients are built exactly as configured:
+the panel costs nothing.
+
 ## Use in an application
 
 Everything adding this package to an application on

@@ -12,6 +12,10 @@ Every client shares one transport — :class:`~xtr_http_client.HttpxHttpClient`,
 :class:`~xtr_http_client.MockHttpClient` for a client answering from a script — so
 they share its connections. Nothing is opened until a request is made, and the
 connections are closed with the container.
+
+While the http kernel's profiler is on, every client is traced into the
+``http_client`` profiler panel as well, which shows the requests a profiled
+request made.
 """
 
 from __future__ import annotations
@@ -55,9 +59,12 @@ class HttpClientBundle(Bundle[HttpClientConfig]):
                 the rate limiter bundle is not active.
         """
         pacing = bundle_active(builder, "rate_limiter")
+        profiled = _register_profiler(services, builder)
         defaults = config.default_options
         _check_pace("The default HTTP client", defaults.rate_limiter, pacing)
-        register_client(services, None, defaults, mocked=config.mock_response_factory)
+        register_client(
+            services, None, defaults, mocked=config.mock_response_factory, profiled=profiled
+        )
 
         mocked = [config.mock_response_factory]
         for name, scoped in config.scoped_clients.items():
@@ -65,9 +72,26 @@ class HttpClientBundle(Bundle[HttpClientConfig]):
             mock = scoped.mock_response_factory
             mocked.append(config.mock_response_factory if mock is None else mock)
             _check_pace(f'The "{name}" HTTP client', client.rate_limiter, pacing)
-            register_client(services, name, client, mocked=mocked[-1])
+            register_client(services, name, client, mocked=mocked[-1], profiled=profiled)
 
         register_transports(services, mocked)
+
+
+def _register_profiler(services: ServiceConfigurator, builder: ContainerBuilder) -> bool:
+    """Register the profiler panel when the http kernel profiles requests, and say whether."""
+    if bundle_active(builder, "http_kernel"):
+        from xtr_http_kernel.bundle import (  # noqa: PLC0415 — xtr-http-kernel is optional; its bundle being active proves it installed
+            profiling_active,
+        )
+
+        if profiling_active(builder):
+            from ._profiler import (  # noqa: PLC0415 — imports xtr-http-kernel, optional
+                register_profiler,
+            )
+
+            register_profiler(services)
+            return True
+    return False
 
 
 def _check_pace(owner: str, rate_limiter: str | None, pacing: bool) -> None:

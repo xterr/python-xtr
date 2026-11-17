@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from xtr_http_message import Request
 
@@ -7,6 +9,9 @@ from tests.support.fake_client import FakeClient
 from tests.support.fake_stream import FakeStream
 from xtr_http_client import MockHttpClient, MockResponse, TraceableHttpClient
 from xtr_http_client.exception import ClientError, TransportError
+
+if TYPE_CHECKING:
+    from xtr_http_client import TracedRequest
 
 pytestmark = pytest.mark.anyio
 
@@ -234,6 +239,51 @@ async def test_resetting_forgets_every_request_written_down() -> None:
     await client.reset()
 
     assert client.get_traced_requests() == []
+
+
+async def test_the_recorder_is_handed_the_live_record_as_it_is_written() -> None:
+    handed: list[TracedRequest] = []
+    client = TraceableHttpClient(MockHttpClient(MockResponse(b"hello")), recorder=handed.append)
+
+    async with await client.request("GET", _URL) as response:
+        assert handed[0]["info"]["http_code"] == 200
+        assert handed[0]["content"] is None
+        _ = await response.get_content()
+
+    assert handed == client.get_traced_requests()
+    assert handed[0]["content"] == b"hello"
+
+
+async def test_a_narrowed_client_hands_its_records_to_the_recorder_too() -> None:
+    handed: list[TracedRequest] = []
+    client = TraceableHttpClient(MockHttpClient(), recorder=handed.append)
+    narrowed = client.with_options(headers={"X-Kind": "thing"})
+
+    async with await narrowed.request("GET", _URL):
+        pass
+
+    assert [trace["url"] for trace in handed] == [_URL]
+
+
+async def test_a_request_nobody_is_recording_is_not_handed_to_the_recorder() -> None:
+    handed: list[TracedRequest] = []
+    client = TraceableHttpClient(MockHttpClient(), lambda: True, handed.append)
+
+    async with await client.request("GET", _URL):
+        pass
+
+    assert handed == []
+
+
+async def test_resetting_leaves_records_already_handed_to_the_recorder() -> None:
+    handed: list[TracedRequest] = []
+    client = TraceableHttpClient(MockHttpClient(), recorder=handed.append)
+
+    async with await client.request("GET", _URL):
+        pass
+    await client.reset()
+
+    assert len(handed) == 1
 
 
 async def test_resetting_forgets_what_a_narrowed_client_wrote_down_too() -> None:

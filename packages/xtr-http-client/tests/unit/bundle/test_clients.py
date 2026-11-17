@@ -9,9 +9,16 @@ from xtr_http_client import (
     MockHttpClient,
     RetryableHttpClient,
     ScopingHttpClient,
+    TraceableHttpClient,
 )
 from xtr_http_client.bundle import HttpClientConfig, RetryFailedConfig, ScopedClientConfig
-from xtr_http_client.bundle._clients import _generic_strategy, _httpx_transport, _scoped
+from xtr_http_client.bundle._clients import (
+    _client_factory,
+    _generic_strategy,
+    _httpx_transport,
+    _scoped,
+)
+from xtr_http_client.data_collector import HttpClientDataCollector
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -21,6 +28,69 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.anyio
 
 _BASE_URI = "https://primary.test/"
+_URL = "https://api.test/orders"
+
+
+def _profiled_client(collector: HttpClientDataCollector, *, tracing: bool) -> TraceableHttpClient:
+    client = _client_factory(None)(
+        HttpClientConfig(tracing=tracing), MockHttpClient(), None, None, collector
+    )
+    assert isinstance(client, TraceableHttpClient)
+    return client
+
+
+async def _get(client: TraceableHttpClient) -> None:
+    async with await client.request("GET", _URL):
+        pass
+
+
+def _clients_recorded(collector: HttpClientDataCollector) -> list[object]:
+    requests = cast("list[dict[str, object]]", collector._read()["requests"])
+    return [entry["client"] for entry in requests]
+
+
+def test_an_unprofiled_untraced_client_is_left_unwrapped() -> None:
+    transport = MockHttpClient()
+
+    client = _client_factory(None)(HttpClientConfig(), transport, None, None, None)
+
+    assert client is transport
+
+
+async def test_a_client_traced_for_the_profiler_alone_keeps_only_profiled_requests() -> None:
+    collector = HttpClientDataCollector()
+    client = _profiled_client(collector, tracing=False)
+
+    await _get(client)
+    collector.begin_request()
+    await _get(client)
+
+    assert len(client.get_traced_requests()) == 1
+    assert _clients_recorded(collector) == ["http_client"]
+
+
+async def test_a_traced_client_profiled_too_keeps_every_request_and_hands_on_the_profiled() -> None:
+    collector = HttpClientDataCollector()
+    client = _profiled_client(collector, tracing=True)
+
+    await _get(client)
+    collector.begin_request()
+    await _get(client)
+
+    assert len(client.get_traced_requests()) == 2
+    assert _clients_recorded(collector) == ["http_client"]
+
+
+async def test_a_scoped_client_is_recorded_under_its_service_name() -> None:
+    collector = HttpClientDataCollector()
+    config = HttpClientConfig(scoped_clients={"github": ScopedClientConfig(base_uri=_BASE_URI)})
+    client = _client_factory("github")(config, MockHttpClient(), None, None, collector)
+    collector.begin_request()
+
+    async with await client.request("GET", "repos"):
+        pass
+
+    assert _clients_recorded(collector) == ["http_client_github"]
 
 
 async def test_the_real_transport_is_closed_when_its_factory_is() -> None:

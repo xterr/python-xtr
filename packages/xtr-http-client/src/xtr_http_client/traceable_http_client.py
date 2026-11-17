@@ -99,17 +99,23 @@ class TraceableHttpClient(HttpClientInterface, ResetInterface):
     The record keeps the last :attr:`MAX_TRACES` requests, so a client that
     is never reset does not grow without bound, and it never keeps a
     credential as it was sent.
+
+    A ``recorder`` is handed each record the moment it is written — the live
+    record, filled in afterwards like the one in the list — so whoever keeps
+    records elsewhere, a profiler keeping each request's own, sees them as they
+    are made without reading the list. Copies hand theirs to it too.
     """
 
     MAX_TRACES: Final[int] = 1000
     """How many requests the record keeps, the oldest dropped first."""
 
-    __slots__ = ("_client", "_disabled", "_traces")
+    __slots__ = ("_client", "_disabled", "_recorder", "_traces")
 
     def __init__(
         self,
         client: HttpClientInterface,
         disabled: Callable[[], bool] | None = None,
+        recorder: Callable[[TracedRequest], None] | None = None,
     ) -> None:
         """Write down what ``client`` is asked to send, unless ``disabled`` says not to.
 
@@ -117,9 +123,12 @@ class TraceableHttpClient(HttpClientInterface, ResetInterface):
             client: The client every request is handed to.
             disabled: Asked before each request whether to record it. ``None``
                 records every one.
+            recorder: Handed every record as it is written. ``None`` hands
+                them to nobody.
         """
         self._client = client
         self._disabled = disabled
+        self._recorder = recorder
         self._traces: deque[TracedRequest] = deque(maxlen=self.MAX_TRACES)
 
     @override
@@ -206,7 +215,7 @@ class TraceableHttpClient(HttpClientInterface, ResetInterface):
         Raises:
             InvalidArgumentError: When an option is invalid.
         """
-        narrowed = type(self)(self._client.with_options(**options), self._disabled)
+        narrowed = type(self)(self._client.with_options(**options), self._disabled, self._recorder)
         narrowed._traces = self._traces  # noqa: SLF001 — same class, sharing the one record
 
         return narrowed
@@ -239,6 +248,8 @@ class TraceableHttpClient(HttpClientInterface, ResetInterface):
             "content": None if kept else False,
         }
         self._traces.append(trace)
+        if self._recorder is not None:
+            self._recorder(trace)
 
         return trace
 
