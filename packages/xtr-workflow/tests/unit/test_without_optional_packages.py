@@ -2,8 +2,9 @@
 
 The dev group installs every optional package, so every other test runs with
 them there. Only a fresh interpreter that cannot import them shows that the
-modules outside the bundle, the console command, the guard listener and the
-recipe load none of them, and that the bundle is the place that needs one.
+modules outside the bundle, the console command, the guard listener, the
+profiler panel and the recipe load none of them, that the bundle is the place
+that needs one, and that it does not need the http kernel.
 """
 
 from __future__ import annotations
@@ -11,7 +12,13 @@ from __future__ import annotations
 import subprocess
 import sys
 
-BLOCKED = ("xtr_dependency_injection", "xtr_console", "xtr_security_core", "xtr_security")
+BLOCKED = (
+    "xtr_dependency_injection",
+    "xtr_console",
+    "xtr_security_core",
+    "xtr_security",
+    "xtr_http_kernel",
+)
 
 BLOCK_OPTIONAL_PACKAGES = f"""
 import sys
@@ -42,6 +49,7 @@ from xtr_workflow.marking_store import MethodMarkingStore
 EXCLUDED = (
     "xtr_workflow.bundle",
     "xtr_workflow.command",
+    "xtr_workflow.data_collector",
     "xtr_workflow.event_listener.guard_listener",
     "xtr_workflow.recipe",
 )
@@ -111,6 +119,19 @@ else:
 
 MARKER = "IMPORTED"
 
+BUNDLE_WITHOUT_HTTP_KERNEL = """
+import sys
+
+sys.modules["xtr_http_kernel"] = None
+
+import anyio
+from xtr_dependency_injection.testing import assert_zero_config
+
+from xtr_workflow.bundle import WorkflowBundle
+
+anyio.run(assert_zero_config, WorkflowBundle)
+"""
+
 
 def _run(script: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603 -- a fixed script on sys.executable, nothing untrusted
@@ -130,5 +151,11 @@ def test_every_module_outside_the_optional_ones_runs_without_them() -> None:
 
 def test_the_bundle_is_where_the_dependency_injection_package_is_needed() -> None:
     completed = _run(BUNDLE_NEEDS_DEPENDENCY_INJECTION)
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_the_bundle_builds_and_boots_without_the_http_kernel() -> None:
+    completed = _run(BUNDLE_WITHOUT_HTTP_KERNEL)
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
