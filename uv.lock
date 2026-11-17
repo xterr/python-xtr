@@ -56,6 +56,7 @@ members = [
     "xtr-stopwatch",
     "xtr-storage",
     "xtr-telegram-notifier",
+    "xtr-web-profiler",
     "xtr-webhook",
     "xtr-workflow",
 ]
@@ -5434,6 +5435,7 @@ dependencies = [
     { name = "advanced-alchemy" },
     { name = "alembic" },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "xtr-clock" },
     { name = "xtr-logging-contracts" },
 ]
 
@@ -5459,6 +5461,7 @@ dev = [
     { name = "ty" },
     { name = "xtr-console" },
     { name = "xtr-dependency-injection" },
+    { name = "xtr-http-kernel" },
     { name = "xtr-logging" },
     { name = "xtr-messenger" },
     { name = "xtr-orm-messenger" },
@@ -5473,6 +5476,7 @@ requires-dist = [
     { name = "asyncmy", marker = "extra == 'mysql'", specifier = ">=0.2.12" },
     { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.31" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
 ]
 provides-extras = ["postgres", "sqlite", "mysql"]
@@ -5488,6 +5492,7 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
     { name = "xtr-orm-messenger", editable = "packages/xtr-orm-messenger" },
@@ -6497,6 +6502,57 @@ dev = [
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-http-client", editable = "packages/xtr-http-client" },
     { name = "xtr-recipes", editable = "packages/xtr-recipes" },
+]
+
+[[package]]
+name = "xtr-web-profiler"
+version = "6.8.1"
+source = { editable = "packages/xtr-web-profiler" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "jinja2" },
+    { name = "markupsafe" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-http-kernel" },
+    { name = "xtr-http-message-contracts" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "anyio" },
+    { name = "basedpyright" },
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-logging" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.143.1" },
+    { name = "jinja2", specifier = ">=3.1" },
+    { name = "markupsafe", specifier = ">=2.1" },
+    { name = "starlette", specifier = ">=1.3.1" },
+    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
+    { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "anyio", specifier = ">=4.0" },
+    { name = "basedpyright", specifier = ">=1.21" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.8" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-logging", editable = "packages/xtr-logging" },
 ]
 
 [[package]]
