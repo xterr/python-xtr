@@ -340,6 +340,11 @@ Every error derives from `AiError`. pydantic-ai's own are raised as pydantic-ai 
 - **The provider SDKs own HTTP.** No xtr-http-client is used. Timeouts and retries go in a
   platform's or agent's `model_settings`.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-ai).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

@@ -310,6 +310,11 @@ typed attributes rather than only a message.
 | `ReserveNotSupportedError` | `reserve()` on a compound limiter |
 | `RateLimiterStorageError` | the Redis server failed or could not be reached |
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-rate-limiter).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

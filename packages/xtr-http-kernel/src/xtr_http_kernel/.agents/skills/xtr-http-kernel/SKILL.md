@@ -65,9 +65,9 @@ the environment are read at that moment. Then it wraps two seams:
 
 Serve it with any ASGI server: `uvicorn --reset-contextvars app.web:app` (uvicorn 0.45 or
 later). The flag starts each request in a context of its own; without it a request on a
-kept-alive connection can start with the context variables an earlier one set. The kernel's own
-per-request state is safe either way; the application's, and that of the libraries it uses, is
-only safe with it.
+kept-alive connection can start with the context variables an earlier one set. What the xtr
+libraries keep per request is safe either way (`setup()` serves each connection in a detached
+context); the application's own context variables are only safe with it.
 
 ## Routes
 
@@ -264,7 +264,8 @@ own task with a copy of the request's context, within 30 seconds; `ResponseEvent
 ## What ships already
 
 The bundle registers `RequestIdListener` and `DisallowRobotsIndexingListener` always,
-`LogUnitListener` and `ErrorLoggingListener` when the logging bundle is active, and
+`ErrorLoggingListener` when the logging bundle is active (whose `LogUnitParticipant` opens the
+per-request logging unit with the request's unit of work), and
 `RateLimitHeadersListener` when the rate limiter bundle is. So a request id, a per-request
 logging unit, an uncaught exception written to the log, a noindex header and the
 `X-RateLimit-*` headers are all already done: configure them rather than writing your own. See

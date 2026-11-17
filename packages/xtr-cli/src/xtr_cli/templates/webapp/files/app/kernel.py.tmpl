@@ -28,9 +28,6 @@ kernel: Final = Kernel(
     # served from this very kernel: scanning it would import it while the kernel builds.
     # The pattern is relative to this package, and adds to the default excludes.
     exclude=(".web.app",),
-    # Concurrent requests each keep their own scoped services — the security token storage
-    # among them.
-    concurrent_scoped_access=True,
 )
 
 

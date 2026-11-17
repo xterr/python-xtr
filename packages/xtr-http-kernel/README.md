@@ -93,13 +93,13 @@ uv run --with 'uvicorn>=0.45' uvicorn --reset-contextvars --app-dir . app:app
 
 `--reset-contextvars` starts each request in a context of its own. A server gives no promise
 about the context a request's task starts with: on a kept-alive connection it can be a copy of
-an earlier request's, taken while that request was being served. What this package keeps per
-request — the scope its services live in, the request a service is handed — is found on the
-request's own connection and is its own either way. A context variable the application sets,
-or one a library it uses sets, has no such anchor: only the server can keep it from reaching
-the next request, and the flag is how it is asked to. With it on, a context variable set
-before the server started is not seen by a request; pass such a value through the
-application's state.
+an earlier request's, taken while that request was being served. What the xtr libraries keep
+per request is safe either way: `setup()` serves every connection in a detached context, in
+which every context variable a library registered as per-request state is set back. A context
+variable the application itself sets has no such registration: only the server can keep it
+from reaching the next request, and the flag is how it is asked to. With it on, a context
+variable set before the server started is not seen by a request; pass such a value through the
+application's state. Middleware added after `setup()` runs outside the request's unit of work.
 
 ```console
 $ curl -i localhost:8000/books/0262510871
@@ -373,13 +373,13 @@ The bundle registers these; which ones depend on what is installed and active:
 |---|---|---|---|
 | `RequestIdListener` | `RequestEvent`, `ResponseEvent` | always | mints a `uuid4().hex` — or keeps a well-formed incoming id, where `trust_request_id` says to — puts it on the request's state bag, binds it to the log context when logging is around, and echoes it on the response |
 | `DisallowRobotsIndexingListener` | `ResponseEvent` | always | stamps `X-Robots-Tag: noindex` on every response, when the config turns it on |
-| `LogUnitListener` | `RequestEvent`, `TerminateEvent` | logging bundle active | opens a [logging unit of work](../xtr-logging#units-of-work) per request and closes it once all was sent |
 | `ErrorLoggingListener` | `ExceptionEvent` | logging bundle active | writes every uncaught exception to the request channel — `info` for a cancellation, an interrupt or an exit, and for a status below 500 (the caller's doing, so a scanner cannot flood the error log), `critical` otherwise — leaving the response to whoever answers it |
 | `RateLimitHeadersListener` | `ResponseEvent` | rate limiter bundle active | writes the `X-RateLimit-*` headers of the [rate limit](#rate-limits) that speaks for the response — the one a route's limit left on the request's state bag — and makes it private |
 
-The two logging listeners join only when the logging bundle is active, and open and close the
-unit of work outside everything else so every record made while handling carries the request's
-id. The request id settles right after the unit opens, for the same reason.
+The request's [logging unit of work](../xtr-logging#units-of-work) is not a listener: the
+logging bundle's `LogUnitParticipant` opens it with the request's unit of work and closes it
+with that unit, so every record made while handling — the request id included — belongs to the
+request.
 
 ## Rate limits
 
@@ -819,6 +819,11 @@ xtr_http_kernel/
 ├── exception/                      HttpKernelError, the root of everything this library raises
 └── bundle/                         HttpKernelBundle and HttpKernelConfig
 ```
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-http-kernel).
 
 ## Development
 

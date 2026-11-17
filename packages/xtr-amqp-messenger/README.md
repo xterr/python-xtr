@@ -165,6 +165,11 @@ Everything raised derives from xtr-messenger's `MessageBusError`:
 | `MixedDsnError` | One worker is asked to serve transports on two servers |
 | `MissingSerializerError` | The factory is discovered with no envelope serializer to build it with |
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-amqp-messenger).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

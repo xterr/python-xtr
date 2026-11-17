@@ -363,10 +363,15 @@ wrapped: it reaches the code that dispatched the event.
 |---|---|
 | `ListenerSignatureError` (`TypeError`) | A listener requires more than the event, its name and the dispatcher |
 | `InvalidSubscriberError` (`ValueError`) | A subscriber's declaration has no known shape, names a method it lacks, or orders without a priority on a plain dispatcher |
-| `InvalidListenerError` (`ValueError`) | While the container is built: no event to read, a missing method, an unknown dispatcher, ordering constraints that cannot be met |
+| `InvalidListenerError` (`ValueError`) | While the container is built: no event to read, a missing method, an unknown dispatcher, ordering constraints that cannot be met, a listener service that is not a singleton |
 | `BadMethodCallError` (`RuntimeError`) | A change to an immutable or compiled dispatcher |
 | `ArgumentNotFoundError` (`KeyError`) | A `GenericEvent` has no such argument |
 | `InvalidArgumentError` (`ValueError`) | An `EventDispatcherConfig` cannot be read |
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-event-dispatcher).
 
 ## Development
 

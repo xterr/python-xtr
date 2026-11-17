@@ -406,6 +406,11 @@ Every error derives from `LockError` and carries its data as typed attributes.
 | `InvalidTtlError` | A store given a lifetime of zero or less |
 | `UnserializableKeyError` | Pickling a key its store keeps process-only state on |
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-lock).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

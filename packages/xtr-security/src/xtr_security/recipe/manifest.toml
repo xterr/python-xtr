@@ -22,7 +22,6 @@ lines = []
 
 [notes]
 steps = [
-  "Build the kernel with concurrent_scoped_access=True, so concurrent requests keep their own token storage.",
   "Call setup(app, kernel) where the application is built.",
   "Name the firewalls, their authenticators and their access rules in config/packages/security.py: with no configuration nothing is protected.",
 ]

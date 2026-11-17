@@ -315,6 +315,9 @@ uv run scripts/release.py bump 6.8.1   # move every package, this README and the
 A package classified `Private :: Do Not Upload` moves with the rest but is never published or
 split.
 
+What changes between major versions, package by package, and how to keep the old behaviour where
+that is still possible, is in [UPGRADING.md](UPGRADING.md).
+
 ## Releasing
 
 ```sh

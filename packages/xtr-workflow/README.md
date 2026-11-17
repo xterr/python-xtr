@@ -689,6 +689,11 @@ Everything the library raises derives from `WorkflowError` (`xtr_workflow.except
 
 `Transition` raises a plain `TypeError` for an arc that is neither a place name nor an `Arc`.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-workflow).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

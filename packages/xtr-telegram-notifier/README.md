@@ -154,6 +154,11 @@ undoes. It ships no bundle: the notifier's bundle finds its factory by the DSN s
 Everything else — the bundle, the channel policy, queuing through the message bus — is
 xtr-notifier's.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-telegram-notifier).
+
 ## Development
 
 ```sh

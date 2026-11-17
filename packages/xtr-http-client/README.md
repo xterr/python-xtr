@@ -515,6 +515,11 @@ The hierarchy is the [contract's](../xtr-http-client-contracts#errors), re-expor
 An unsuccessful status names itself: `HTTP 404 returned for "<url>".`, the status line the
 server sent, or the `title` and `detail` of the body when that body is a JSON error document.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-http-client).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

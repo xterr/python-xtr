@@ -326,6 +326,8 @@ With `replicas`, a session reads from a replica picked at random, and goes to th
 sees what it wrote. It stays there for the rest of its unit of work, unless `keep_replica`
 sends it back to the replicas once it commits. Each unit of work starts on the replicas,
 whatever the one before wrote. Migrations and the database commands always use the primary.
+The bundle's `StickinessParticipant` keeps that per unit: a unit's writes stick only that unit to
+the primary, and a child task's writes do not stick its parent, whose context it only copied.
 
 A block can be sent elsewhere with advanced-alchemy's `primary_context()` and
 `replica_context()`, from `advanced_alchemy.routing`.
@@ -604,6 +606,11 @@ Every error derives from `OrmError`.
   alone only where the database stays consistent — see [Migrations](#migrations). The history
   table records every one.
 - **Async only**: engines and sessions are async; there is no sync counterpart.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-orm).
 
 ## Development
 

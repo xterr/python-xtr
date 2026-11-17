@@ -195,9 +195,10 @@ logger = Logger("app", [FingersCrossedHandler(StreamHandler("var/log/app.log"), 
 ```
 
 `ChannelLevelActivationStrategy` sets a different trigger per channel, `buffer_size` caps the
-buffer, and `passthru_level` keeps records at that level even when nothing triggered. Await
-`reset()` between the requests or messages of a long-running process so one unit of work does not
-bleed into the next.
+buffer, and `passthru_level` keeps records at that level even when nothing triggered. Under a
+container, each unit of work's own log unit holds and flushes its records; outside one, await
+`reset()` between the requests or messages of a long-running process so one unit of work does
+not bleed into the next.
 
 ## Processors
 
@@ -657,6 +658,11 @@ Everything the library raises derives from `LoggingError` and carries typed attr
 | `UnknownServiceError` | Configuration names a service that was not supplied |
 | `NotProcessableHandlerError` | A processor targets a handler that runs none |
 | `CaptureConflictError` | A `stdlib` handler is configured while capture is on |
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-logging).
 
 ## Development
 

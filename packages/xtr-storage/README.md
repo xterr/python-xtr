@@ -465,6 +465,11 @@ mistake to fix rather than to retry. No message ever repeats a credential.
 | `InvalidStreamError` | A write stream is of a type the storage cannot read (also a `TypeError`) |
 | `InvalidArgumentError` | An argument or option is invalid (also a `ValueError`) |
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-storage).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo,

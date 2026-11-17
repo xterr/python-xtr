@@ -732,6 +732,11 @@ private-network guard refuses with a `TransportError` too.
 A payload the serializer cannot write raises its `NotNormalizableValueError`, and a payload that
 contains itself its `CircularReferenceError` — both unwrapped, before anything is sent.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-webhook).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

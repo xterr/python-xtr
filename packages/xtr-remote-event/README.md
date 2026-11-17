@@ -358,6 +358,11 @@ Everything this library raises derives from `RemoteEventError`, with one excepti
 An event that cannot be written or read is refused by what carries it, not here: on a bus,
 `MessageEncodingFailedError` and `MessageDecodingFailedError` from xtr-messenger.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-remote-event).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

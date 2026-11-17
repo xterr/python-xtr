@@ -369,6 +369,11 @@ on [xtr-dependency-injection](../xtr-dependency-injection); see that package's
 [Use in an application](../xtr-security#use-in-an-application). A class implementing
 `VoterInterface` is gathered into the decision manager by the bundle's `security.voter` tag.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security-core).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

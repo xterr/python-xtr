@@ -172,6 +172,7 @@ independent.
 | `exclude` | `()` | `fnmatch` patterns of modules never imported, added to `DEFAULT_EXCLUDES`. One starting with `.` is relative to `package` — `".web.app"` is `"<package>.web.app"` — even when `resources` names other modules |
 | `default_excludes` | `True` | `False` drops `DEFAULT_EXCLUDES`, leaving `exclude` alone |
 | `allowed_envs` | `None` | Refuse any other environment, and any environment folder named after another |
+| `concurrent_scoped_access` | `True` | Two tasks of one unit asking for the same scoped service get one instance. `False` drops the lock that guarantees it, for a unit that never overlaps its own work |
 
 The kernel's `package` property is the dotted package (a module given is known by its
 `__name__`), and so are `KernelInterface.package` and the `kernel.package` parameter.
@@ -939,11 +940,29 @@ async with unit_of_work(container) as unit:
   one of its own rather than being handed services the unit has already released.
 - A call `bind_callable` bound without `per_call_scope` joins the unit its container has open
   where it is made: its `Injected[...]` scoped parameters, and a class target, come from the
-  unit. Outside one it behaves as it always has. A `per_call_scope=True` call keeps a scope of
+  unit. Outside one, the call is a unit of work of its own. A `per_call_scope=True` call keeps a scope of
   its own, inside a unit or not, and that scope is the unit of what the call starts — a message
   a command dispatches shares the command's scoped services. So is a request's scope, for what
   the request starts. A message a worker receives is not something the command running that
   worker started: the worker handles it apart, and nothing it does joins the command's unit.
+- A unit's container refuses to resolve once its unit has exited (`UnitOfWorkClosedError`);
+  every container refuses once its kernel has shut down (`KernelShutDownError`).
+- `open_unit_of(container)` returns the unit `container` has open in this context, or `None` —
+  never a unit another kernel opened.
+- Closing a unit is shielded from cancellation and bounded at 30 seconds
+  (`ScopeTeardownTimeoutError` when nothing else is being raised). A cleanup that fails or runs
+  out of time while the unit raised is a note on the unit's own error; either way it is also
+  logged once, as a warning on the `xtr_dependency_injection` standard-library logger.
+- State kept for one unit is a `UnitParticipantInterface` participant (from
+  `xtr-service-contracts`, tagged `kernel.unit_participant`): `unit_began()` runs as each unit
+  opens and `unit_ended(token)` as it closes. A context variable that must not reach a new
+  connection is registered with `register_detached_variable(var, value)`
+  (`xtr_dependency_injection.integration`); `detached_context()` is the context a server serves
+  a new connection in. Registering one variable twice with different values raises
+  `DetachedVariableConflictError`.
+- In a debug kernel, a singleton factory reading `current_unit_of_work()` or
+  `current_connection()` raises `UnitReadDuringSingletonBuildError`: the singleton would keep
+  whichever unit happened to build it.
 
 A library opens a unit around what it runs for one piece of work — the message bus does, per
 message — and a service that needs "the one for this unit" resolves it from
@@ -1012,7 +1031,9 @@ build()     environment → bundles → early scan → build() of every bundle �
             compiler passes by stage → compile
 boot()      bundle.boot() in order — the kernel's first, warming a cold cache →
             @on_boot (priority, then scan order)
-shutdown()  @on_shutdown → bundle.shutdown() in reverse → container.close()
+shutdown()  @on_shutdown → wait for the open units (up to 30 s, a warning naming how many) →
+            bundle.shutdown() in reverse → container.close(); every get after it raises
+            KernelShutDownError
 ```
 
 Hooks are injected: `Injected[...]` parameters are filled, sync or async. A boot that fails
@@ -1026,7 +1047,8 @@ because wireup throws a scope's error into the generator.
 
 ### `kernel.reset`
 
-Reset between messages. The core bundle calls
+Reset between messages — built singletons only: a scoped or transient service ends with its
+unit, so it is never reset and never tracked. The core bundle calls
 `builder.register_for_autoconfiguration(ResetInterface).add_tag("kernel.reset", method="reset")`,
 so any service explicitly inheriting `ResetInterface` (from `xtr-service-contracts`) is reset
 by `ServicesResetter` between messages. A service opts in explicitly with
@@ -1034,11 +1056,7 @@ by `ServicesResetter` between messages. A service opts in explicitly with
 `ResettableServicePass` fails the build when the service has no such method; only *built*
 services are tracked and reset. A tagged method may be sync or async: `ResetInterface.reset` is
 awaited, and a method named by an explicit tag is awaited when it returns an awaitable, so a
-service whose state is its own can clear it synchronously. Tracking holds an instance weakly,
-so a `scoped` or `transient`
-resettable service must accept weak references — with `__slots__`, list `"__weakref__"`. A class
-that does not fails the build; what a factory builds, which the build cannot see, fails with an
-`InvalidDefinitionError` when it is first built.
+service whose state is its own can clear it synchronously.
 
 ```python
 from xtr_service_contracts import ResetInterface
@@ -1343,7 +1361,7 @@ Everywhere else, the public API stays behind `ContainerInterface`.
 | Decoration | `@as_decorator(T, priority=, on_invalid=OnInvalid.*)` + `Annotated[T, AutowireDecorated()]` | Wrap a service and receive the original |
 | Parameter and target injection | `Autowire(param=...)` / `Target(name)` | Inject a parameter, or select a qualified service |
 | Tag collections | `Sequence[T]` / `Mapping[Hashable, T]` / `ServiceLocator[T]` | Inject every tagged service — eagerly, or lazily by name |
-| Reset between messages | `builder.register_for_autoconfiguration(ResetInterface).add_tag("kernel.reset", method="reset")` | Rebind stateful services per message |
+| Reset between messages | `builder.register_for_autoconfiguration(ResetInterface).add_tag("kernel.reset", method="reset")` | Reset built singletons between messages; scoped services end with their unit |
 | Cache warm-up and clearing | `CacheWarmerInterface` / `CacheClearerInterface`, run by `CacheWarmerAggregate` / `ChainCacheClearer` | Fill the cache ahead of use; empty caches outside `kernel.cache_dir` |
 | Lifecycle | `async Bundle.boot()` / `async Bundle.shutdown()` reading `self.container`; `@on_boot` / `@on_shutdown` | Async startup and cleanup |
 | Unit of work | `unit_of_work(container)` / `current_unit_of_work()` | One scope shared by everything done for one piece of work |
@@ -1416,6 +1434,11 @@ Every error derives from `DependencyInjectionError` and carries its data as type
 | `BuilderPhaseError` / `BuilderFrozenError` | A builder operation in the wrong phase / after compilation |
 | `KernelAlreadyBootedError` | A compiled kernel booted twice |
 | `UnknownLocatorKeyError` | `ServiceLocator.get` with an unknown name (`LookupError`) |
+| `UnitOfWorkClosedError` | A unit's container asked for a service after its unit exited |
+| `KernelShutDownError` | A container asked for a service after its kernel shut down |
+| `ScopeTeardownTimeoutError` | A unit's scoped services did not finish closing within 30 seconds, and nothing else was being raised |
+| `UnitReadDuringSingletonBuildError` | A singleton factory read the open unit or connection, in a debug kernel |
+| `DetachedVariableConflictError` | One context variable registered as detached twice, with different values |
 | `FastapiIntegrationError` | A route resolves with no kernel attached or no open request scope, the current connection is read outside a served request, or a second kernel is attached to an application one already serves |
 
 ## Known limitations
@@ -1435,6 +1458,11 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   placeholder per distinct `env()` expression.
 - **Numbers and strings stand in for their placeholder while building**: validation sees the
   `default`, else `0` or the token.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-dependency-injection).
 
 ## Development
 

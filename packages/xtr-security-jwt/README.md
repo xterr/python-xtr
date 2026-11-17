@@ -137,7 +137,7 @@ async def me(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, str]:
     return {"user": user.get_user_identifier()}
 
 
-kernel = Kernel("app", concurrent_scoped_access=True)
+kernel = Kernel("app")
 setup(app, kernel)
 ```
 
@@ -304,8 +304,8 @@ removing it undoes.
   `secrets/jwt.pem` when no file is there, and adds `/secrets/*.pem` and `/secrets/*.jwks.json` to
   `.gitignore`. It prints the `setup` and firewall steps, which a recipe cannot make for you.
 - **Activate** — `JwtBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported from
-  `xtr_security_jwt.bundle`. Then build the kernel with `concurrent_scoped_access=True` and call
-  `setup(app, kernel)` where the application is served, as the security family requires.
+  `xtr_security_jwt.bundle`. Then call `setup(app, kernel)` where the application is served, as
+  the security family requires.
 - **Brings along** — the [security bundle](../xtr-security), the
   [clock](../xtr-clock) and the [event dispatcher](../xtr-event-dispatcher) always, because this
   bundle requires them; the [console](../xtr-console) bundle when xtr-console is installed, for

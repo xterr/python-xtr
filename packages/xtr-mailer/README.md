@@ -696,6 +696,11 @@ walks through it.
   of them runs first is not defined: a recorded email may show the envelope either before or
   after the override. It matters to a test reading the recorder, never to the mail sent.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-mailer).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

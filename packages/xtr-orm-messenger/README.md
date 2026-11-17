@@ -254,6 +254,11 @@ Everything this library raises derives from `OrmMessengerError`, itself a
 | `TransportError` | the database refuses what a transport asked — sending, claiming, settling, listing — or an envelope settled here was not received here; the driver's error is its cause |
 | `InvalidOrmDsnError` | an `orm://` DSN names a connection the application does not configure; also a `LookupError` |
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-orm-messenger).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

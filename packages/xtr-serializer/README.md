@@ -644,6 +644,11 @@ their typed fields and no `from` clause.
   the class in one line; any other exception is printed in that hook's words, and an integer
   default over 4300 digits stops it with Python's own error.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-serializer).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

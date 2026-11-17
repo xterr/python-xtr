@@ -1010,8 +1010,10 @@ TickReceiver()})`. One worker may drain registered receivers and configured tran
 together, except a transport that brings its own worker, which cannot share it
 (`IncompatibleReceiversError`).
 
-Between messages a worker calls `ServicesResetter.reset()`, so services opting in with
-`ResetInterface` — or explicitly tagged `kernel.reset` — are cleared per unit of work.
+Between messages a worker calls `ServicesResetter.reset()`, so built singletons opting in with
+`ResetInterface` — or explicitly tagged `kernel.reset` — are cleared; scoped services end with
+the message's own unit of work. A reset that fails is logged on the `messenger` logger and
+never changes a message's outcome.
 
 ## Layout
 
@@ -1062,6 +1064,11 @@ xtr_messenger/
   from untrusted producers.
 - Stamps come back grouped by class: the order among stamps of one class is kept, the order
   between classes is not.
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-messenger).
 
 ## Development
 

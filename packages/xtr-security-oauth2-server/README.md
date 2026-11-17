@@ -249,7 +249,7 @@ async def invoices(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, s
     return {"caller": user.get_user_identifier()}
 
 
-kernel = Kernel("app", concurrent_scoped_access=True)
+kernel = Kernel("app")
 setup(app, kernel)
 ```
 
@@ -526,8 +526,8 @@ removing it undoes.
   what has expired, and the revision a database store takes.
 - **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
   from `xtr_security_oauth2_server.bundle` — and `JwtBundle` beside it when the end user signs in
-  with a self-issued token. Then build the kernel with `concurrent_scoped_access=True` and call
-  `setup(app, kernel)`, as the security family requires: it adds this server's endpoints. The
+  with a self-issued token. Then call `setup(app, kernel)`, as the security family requires: it
+  adds this server's endpoints. The
   firewalls the configuration matches run as the firewall — a subscriber the security bundle
   registers over the kernel lifecycle's events — so the endpoints carry no dependency of their
   own: the `login` firewall is what establishes the resource owner on `/authorize`.
@@ -661,6 +661,11 @@ xtr_security_oauth2_server/
 ├── recipe/                     what recipes:sync applies
 └── bundle/                     OAuth2ServerBundle, its configuration and its passes
 ```
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security-oauth2-server-core-and-xtr-security-oauth2-server).
 
 ## Development
 

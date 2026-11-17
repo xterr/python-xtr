@@ -831,6 +831,11 @@ xtr_console/
     └── xtr_logging.py    xtr-logging's console handlers following each command
 ```
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-console).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

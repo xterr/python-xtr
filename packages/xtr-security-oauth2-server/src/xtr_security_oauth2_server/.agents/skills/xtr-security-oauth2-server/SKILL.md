@@ -146,7 +146,7 @@ async def invoices(user: Annotated[UserInterface, CurrentUser()]) -> dict[str, s
     return {"caller": user.get_user_identifier()}
 
 
-kernel = Kernel("app", concurrent_scoped_access=True)
+kernel = Kernel("app")
 setup(app, kernel)
 ```
 
@@ -345,8 +345,7 @@ async def test_a_service_is_issued_a_token(tmp_path, monkeypatch) -> None:
    the rest: the issuer, `setup`, the
    three firewalls, the consent listener, a client, the scheduled sweep, the revision.
 3. **Activate** — `OAuth2ServerBundle: {"all": True}` in `BUNDLES` (and `JwtBundle` when the end
-   user signs in with a self-issued token); `Kernel(..., concurrent_scoped_access=True)` and
-   `setup(app, kernel)`, which adds the endpoints.
+   user signs in with a self-issued token); `setup(app, kernel)`, which adds the endpoints.
 4. **Brings along** — the security, clock, event-dispatcher and HTTP-kernel bundles always; the
    logging and console bundles when installed.
 5. **Configure** — `issuer`, `private_key`, `encryption_key`, `scopes.available`, `persistence` in

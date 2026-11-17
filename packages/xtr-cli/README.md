@@ -166,9 +166,8 @@ project), `bin/console` (the executable `uv run <name>` wrapper), `src/<app>/ker
 `src/<app>/config/packages/dotenv.py` (the one description of the `.env` cascade),
 `src/<app>/__main__.py`, an example `app:hello` command and a test that builds the kernel.
 `webapp` adds `src/<app>/web/` — the
-FastAPI application served with `setup(app, kernel)`, its routes and a uvicorn entry point — a
-kernel built with `concurrent_scoped_access=True` for the security bundle, and a test that
-requests the home page.
+FastAPI application served with `setup(app, kernel)`, its routes and a uvicorn entry point — and
+a test that requests the home page.
 
 Each package's recipe configures it: the `webapp` project starts with a `compose.yaml` running
 PostgreSQL — published on `5432` by `compose.override.yaml` — that `DATABASE_URL` points at,

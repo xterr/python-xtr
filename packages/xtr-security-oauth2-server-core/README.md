@@ -357,6 +357,11 @@ xtr_security_oauth2_server_core/
 └── exception/                      OAuth2Error and the errors under it
 ```
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security-oauth2-server-core-and-xtr-security-oauth2-server).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

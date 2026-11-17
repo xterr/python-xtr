@@ -372,6 +372,11 @@ cannot use — an interval, a date, an unknown schedule), `SchedulerLogicError` 
 not move forward, a message added twice, a transport asked to send) and `SchedulerRuntimeError`
 (state that could not be saved).
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-scheduler).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

@@ -379,8 +379,8 @@ it undoes.
   the firewall in front of `/userinfo`, the scopes, the issuer, and the consent listener.
 - **Activate** — `OpenIdConnectServerBundle: {"all": True}` in `BUNDLES` in
   `<app>/config/bundles.py`, imported from `xtr_security_openid_connect_server.bundle`. The
-  authorization server's own `setup(app, kernel)` and `concurrent_scoped_access=True` already
-  apply; this package adds no step there.
+  authorization server's own `setup(app, kernel)` already applies; this package adds no step
+  there.
 - **Brings along** — the [OAuth 2.0 authorization server](../xtr-security-oauth2-server) and,
   through it and on its own account, the [security bundle](../xtr-security), the
   [clock](../xtr-clock), the [event dispatcher](../xtr-event-dispatcher) and the
@@ -485,6 +485,11 @@ xtr_security_openid_connect_server/
 ├── recipe/                     what recipes:sync applies
 └── bundle/                     OpenIdConnectServerBundle, its configuration and PROMPT_LISTENER
 ```
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security-openid-connect-server).
 
 ## Development
 

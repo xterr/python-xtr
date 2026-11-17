@@ -1777,6 +1777,11 @@ authenticators, the access map, the exception listener, the `Firewall` subscribe
 firewalls written as configuration. See that package's
 [Use in an application](../xtr-security#use-in-an-application).
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security-http).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

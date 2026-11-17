@@ -265,6 +265,11 @@ Every error derives from `NotifierError`.
 | `TransportError` | A provider could not be reached or refused a message (carries the response, when one came) |
 | `NotifierRuntimeError` | Every transport of a failover or round robin failed |
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-notifier).
+
 ## Development
 
 ```sh

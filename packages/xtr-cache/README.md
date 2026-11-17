@@ -415,6 +415,11 @@ backend failing is never one of them: it is logged, and the call misses or retur
 | `LogicError` | An item of a pool without tags is tagged |
 | `MarshallingError` | A marshaller cannot decode stored bytes — caught by pools, which read a miss |
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-cache).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

@@ -277,8 +277,7 @@ async def test_a_sign_in_is_answered_an_id_token(app) -> None:  # app calls setu
    the document at the root. It prints the rest: the identity provider, the prompt step, the
    userinfo firewall, the scopes, the issuer, the consent listener.
 3. **Activate** — `OpenIdConnectServerBundle: {"all": True}` in `BUNDLES` in
-   `<app>/config/bundles.py`. The authorization server's `setup(app, kernel)` and
-   `concurrent_scoped_access=True` already apply.
+   `<app>/config/bundles.py`. The authorization server's `setup(app, kernel)` already applies.
 4. **Brings along** — the OAuth 2.0 authorization server, and the security, clock, event-dispatcher
    and HTTP-kernel bundles, all required.
 5. **Configure** — `identity_provider`, `login_path` and `login_firewall` in

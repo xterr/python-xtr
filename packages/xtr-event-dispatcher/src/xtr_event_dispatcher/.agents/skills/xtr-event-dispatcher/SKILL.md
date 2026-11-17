@@ -271,7 +271,7 @@ wrapped**: it reaches whoever dispatched the event, and the listeners after it d
 | --- | --- |
 | `ListenerSignatureError` (`TypeError`) | `add_listener` is given something needing more than the event, its name and the dispatcher |
 | `InvalidSubscriberError` (`ValueError`) | A subscriber's declaration has no known shape, names a method it lacks, or orders without a priority on a plain dispatcher |
-| `InvalidListenerError` (`ValueError`) | While the container is built: no event to read, a missing method, an unknown dispatcher, ordering that cannot be satisfied |
+| `InvalidListenerError` (`ValueError`) | While the container is built: no event to read, a missing method, an unknown dispatcher, ordering that cannot be satisfied, a listener service that is not a singleton |
 | `BadMethodCallError` (`RuntimeError`) | A change to an immutable or compiled dispatcher |
 | `ArgumentNotFoundError` (`KeyError`) | A `GenericEvent` has no such argument |
 | `InvalidArgumentError` (`ValueError`) | An `EventDispatcherConfig` cannot be read |

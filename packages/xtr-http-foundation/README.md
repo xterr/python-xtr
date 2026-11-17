@@ -403,6 +403,11 @@ lifetime, and by either session storage at `save()` for a value JSON cannot give
 was given. `SessionError` is raised when the storage a session persists through fails to
 load, keep or remove an entry.
 
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-http-foundation).
+
 ## Development
 
 Developed in the [python-xtr](https://github.com/xterr/python-xtr) monorepo, under

@@ -138,7 +138,7 @@ async def books() -> list[str]: ...
 async def delete_book(isbn: str) -> None: ...
 
 
-kernel = Kernel("app", concurrent_scoped_access=True)
+kernel = Kernel("app")
 setup(app, kernel)
 ```
 
@@ -810,12 +810,11 @@ removing it undoes.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate* and *Configure* steps below:
   it lists `SecurityBundle`, which brings the event dispatcher and http-kernel bundles with it,
   and writes `<app>/config/packages/security.py` with the bundle's own defaults. There is no
-  environment or ignore line to write; it prints the `concurrent_scoped_access=True`,
-  `setup(app, kernel)` and firewall steps, which a recipe cannot make for you.
+  environment or ignore line to write; it prints the `setup(app, kernel)` and firewall steps,
+  which a recipe cannot make for you.
 - **Activate** — `SecurityBundle: {"all": True}` in `BUNDLES` in `<app>/config/bundles.py`, imported
-  from `xtr_security.bundle`. Then call `setup(app, kernel)` where the application is built, and
-  build the kernel with `concurrent_scoped_access=True` so concurrent requests keep their own
-  token storage.
+  from `xtr_security.bundle`. Then call `setup(app, kernel)` where the application is built.
+  Concurrent requests keep their own token storage on the kernel's defaults.
 - **Brings along** — the [event dispatcher](../xtr-event-dispatcher) and
   [http-kernel](../xtr-http-kernel) bundles always, because the firewalls dispatch through the
   one and answer on the other's exception event; the [clock](../xtr-clock) bundle, installed
@@ -939,6 +938,11 @@ xtr_security/
     ├── sort_firewall_listeners_pass.py  orders each firewall's listener chain
     └── *_configs.py           the configs an application writes, incl. password_hasher_configs
 ```
+
+## Upgrading
+
+What changes for an application moving to 7.0, and how to keep the old behaviour where that is
+still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-security).
 
 ## Development
 
