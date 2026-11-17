@@ -353,8 +353,10 @@ uv sync --all-packages
 uv run pre-commit install
 ```
 
-The pre-commit hook runs ruff on what you commit and the tests of every package you touched.
-[CI](.github/workflows/ci.yml) runs everything, for every package, on Python 3.11 and 3.14.
+The pre-commit hook runs ruff on what you commit, basedpyright, ty and the tests of every package
+you touched, and the repository's own tests (`tests/`). Those run only there: they import every
+package, while CI checks each package on its own.
+[CI](.github/workflows/ci.yml) runs every package's tests and types, on Python 3.11 and 3.14.
 
 Work inside a package directory; each carries its own pytest, ruff, basedpyright and ty settings:
 
