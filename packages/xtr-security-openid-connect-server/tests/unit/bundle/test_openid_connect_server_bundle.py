@@ -25,12 +25,15 @@ from tests.fixtures.openid_app.config import (
     BEARER_ANSWER_ENV,
     ED448_ENV,
     ED25519_ENV,
+    FORM_LOGIN_ENV,
+    HMAC_ENV,
     ID_TOKEN_TTL,
     IDENTITY_PROVIDER_ENV,
     NO_METADATA_ENV,
     NO_SCOPES_ENV,
     SCOPED_IDENTITY_PROVIDER_ENV,
     SHORT_ID_TOKEN_ENV,
+    UNLISTED_PROMPT_ENV,
 )
 from tests.fixtures.openid_app.services import ScopedIdentityProvider
 from tests.support.identity_provider import InMemoryIdentityProvider
@@ -186,3 +189,21 @@ def test_putting_another_token_answer_back_fails_the_build() -> None:
 def test_turning_the_servers_description_off_fails_the_build() -> None:
     with pytest.raises(InvalidConfigurationError, match="enable_metadata_endpoint"):
         _ = openid_kernel(NO_METADATA_ENV).build()
+
+
+def test_an_hmac_algorithm_is_refused() -> None:
+    # An ID token signed with a shared secret can be minted by every client
+    # holding that secret, so none of them can trust one.
+    with pytest.raises(InvalidConfigurationError, match="HS256"):
+        _ = openid_kernel(HMAC_ENV).build()
+
+
+def test_a_login_firewall_without_the_prompt_step_fails_the_build() -> None:
+    # Without the step, ``max_age`` and ``prompt=login`` would go unenforced
+    # while the provider says it honours them.
+    with pytest.raises(InvalidConfigurationError, match="PROMPT_LISTENER"):
+        _ = openid_kernel(UNLISTED_PROMPT_ENV).build()
+
+
+def test_a_login_firewall_listing_the_prompt_step_builds() -> None:
+    _ = openid_kernel(FORM_LOGIN_ENV).build()

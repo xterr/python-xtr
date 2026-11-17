@@ -6,7 +6,9 @@ import json
 from html import escape
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, Self
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlsplit
+
+from xtr_security_oauth2_server_core.redirect_uri import redirect_uri_carrying
 
 from .oauth2_error import OAuth2Error
 
@@ -260,6 +262,24 @@ class OAuthServerError(OAuth2Error):
     def get_redirect_uri(self) -> str | None:
         """Return where the refusal is to be delivered, if anywhere."""
         return self._redirect_uri
+
+    def carry_issuer(self, issuer: str) -> None:
+        """Have a redirected refusal name ``issuer`` as ``iss``, as every redirect does.
+
+        RFC 9207 puts the issuer on refusals as on successes, so a client
+        talking to several servers can tell which one sent the browser back. A
+        refusal a grant built already names it and is left as it is; one
+        answered as a document goes to no redirect and carries nothing.
+        """
+        redirect_uri = self._redirect_uri
+        if redirect_uri is None:
+            return
+        delimiter = "#" if "#" in redirect_uri else "?"
+        parts = urlsplit(redirect_uri)
+        carried = parts.fragment if delimiter == "#" else parts.query
+        if "iss" in parse_qs(carried, keep_blank_values=True):
+            return
+        self._redirect_uri = redirect_uri_carrying(redirect_uri, {"iss": issuer}, delimiter)
 
     def get_payload(self) -> Mapping[str, str]:
         """Return what the answer says, as a read-only view.

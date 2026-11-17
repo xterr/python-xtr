@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 from xtr_http_message import Response
@@ -15,7 +15,7 @@ from tests.support.grants import Storage, wire
 from tests.support.messages import server_request
 from tests.support.repositories import InMemoryScopeRepository
 from tests.support.response_types import RecordingResponseType
-from tests.support.signing import FROZEN_NOW, make_clock
+from tests.support.signing import FROZEN_NOW, ISSUER, make_clock
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server_core.grant.implicit_grant import ImplicitGrant
@@ -166,7 +166,10 @@ async def test_an_unknown_scope_is_refused_into_the_fragment() -> None:
             ),
         )
 
-    assert refusal.value.get_redirect_uri() == f"{_CALLBACK}#state=xyz"
+    assert (
+        refusal.value.get_redirect_uri()
+        == f"{_CALLBACK}#{urlencode({'state': 'xyz', 'iss': ISSUER})}"
+    )
 
 
 @pytest.mark.anyio
@@ -183,6 +186,17 @@ async def test_an_approved_request_hands_the_token_back_in_the_fragment() -> Non
     assert fragment["expires_in"] == ["3600"]
     assert fragment["state"] == ["xyz"]
     assert fragment["access_token"][0].count(".") == 2
+
+
+@pytest.mark.anyio
+async def test_the_fragment_names_the_server_that_sent_it() -> None:
+    storage = Storage()
+    _registered(storage)
+    grant, _ = _grant(storage)
+
+    location = await _approved(grant, state="xyz")
+
+    assert parse_qs(urlsplit(location).fragment)["iss"] == [ISSUER]
 
 
 @pytest.mark.anyio
@@ -238,7 +252,10 @@ async def test_a_refused_request_sends_the_browser_back_with_the_refusal() -> No
         )
 
     assert refusal.value.get_error_type() == "access_denied"
-    assert refusal.value.get_redirect_uri() == f"{_CALLBACK}#state=xyz"
+    assert (
+        refusal.value.get_redirect_uri()
+        == f"{_CALLBACK}#{urlencode({'state': 'xyz', 'iss': ISSUER})}"
+    )
 
 
 @pytest.mark.anyio

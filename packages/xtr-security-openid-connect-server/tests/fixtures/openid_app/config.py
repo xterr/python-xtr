@@ -62,6 +62,7 @@ __all__ = [
     "ED448_ENV",
     "ED25519_ENV",
     "FORM_LOGIN_ENV",
+    "HMAC_ENV",
     "IDENTITY_PROVIDER_ENV",
     "ID_TOKEN_TTL",
     "NO_METADATA_ENV",
@@ -74,6 +75,7 @@ __all__ = [
     "SECOND_USER_PASSWORD",
     "SHORT_ID_TOKEN_ENV",
     "STATELESS_PROMPT_ENV",
+    "UNLISTED_PROMPT_ENV",
     "USERINFO_ENV",
     "USERINFO_SCOPES",
     "USER_IDENTIFIER",
@@ -123,6 +125,8 @@ BEARER_ANSWER_ENV: Final[str] = "bearer_answer"
 NO_METADATA_ENV: Final[str] = "no_metadata"
 NO_SCOPES_ENV: Final[str] = "no_scopes"
 FORM_LOGIN_ENV: Final[str] = "form_login"
+UNLISTED_PROMPT_ENV: Final[str] = "unlisted_prompt"
+HMAC_ENV: Final[str] = "hmac"
 USERINFO_ENV: Final[str] = "userinfo"
 SCOPED_IDENTITY_PROVIDER_ENV: Final[str] = "scoped_identity_provider"
 PROMPT_ENV: Final[str] = "prompt"
@@ -341,7 +345,17 @@ def reading_claims_with_access_tokens(config: SecurityConfig) -> SecurityConfig:
 
 
 @configure
-@when(FORM_LOGIN_ENV, PROMPT_ENV)
+@when(HMAC_ENV)
+def signing_with_a_shared_secret(config: OAuth2ServerConfig) -> OAuth2ServerConfig:
+    """Sign with an HMAC algorithm, which a relying party could forge ID tokens with."""
+    return replace(
+        config,
+        authorization_server=replace(config.authorization_server, signature_algorithm="HS256"),
+    )
+
+
+@configure
+@when(FORM_LOGIN_ENV, PROMPT_ENV, UNLISTED_PROMPT_ENV)
 def signing_in_with_a_form(config: SecurityConfig) -> SecurityConfig:
     """Have the end-user sign in with a form, which records when they proved a password.
 
@@ -376,7 +390,7 @@ def signing_in_with_a_form(config: SecurityConfig) -> SecurityConfig:
 
 
 @configure
-@when(PROMPT_ENV)
+@when(FORM_LOGIN_ENV, PROMPT_ENV)
 def deciding_the_prompt_at_the_form_login(config: SecurityConfig) -> SecurityConfig:
     """List the prompt step in the form login's firewall, which covers ``/login_check`` too."""
     main = config.firewalls["main"]

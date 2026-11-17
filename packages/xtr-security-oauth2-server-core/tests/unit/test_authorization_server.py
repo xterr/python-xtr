@@ -16,7 +16,7 @@ from tests.support.grants import Storage
 from tests.support.messages import MultiValuedForm, document_of, server_request
 from tests.support.response_types import RecordingResponseType
 from tests.support.servers import make_server
-from tests.support.signing import FROZEN_NOW, make_clock
+from tests.support.signing import FROZEN_NOW, ISSUER, make_clock
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server_core.grant.abstract_grant import AbstractGrant
@@ -584,3 +584,7 @@ def test_its_reading_says_a_key_is_held_and_never_which() -> None:
 
     assert "AuthorizationServer" in shown
     assert ENCRYPTION_KEY not in shown
+
+
+def test_it_names_the_issuer_its_tokens_claim() -> None:
+    assert _server().get_issuer() == ISSUER

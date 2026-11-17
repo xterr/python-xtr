@@ -15,7 +15,6 @@ from xtr_security_oauth2_server.value_object.redirect_uri import RedirectUri
         "https://client.example.com",
         "http://127.0.0.1:8080/callback",
         "https://client.example.com/callback?next=1",
-        "https://client.example.com/callback#done",
         "com.example.app:/oauth2redirect",
         "myapp:",
     ],
@@ -38,6 +37,18 @@ def test_it_accepts_a_uri(uri: str) -> None:
 )
 def test_it_refuses_what_is_not_a_uri(uri: str) -> None:
     with pytest.raises(InvalidArgumentError, match="not a valid URI"):
+        _ = RedirectUri(uri)
+
+
+@pytest.mark.parametrize(
+    "uri",
+    ["https://client.example.com/callback#done", "https://client.example.com/callback#"],
+)
+def test_a_fragment_is_refused(uri: str) -> None:
+    # RFC 6749 §3.1.2: the endpoint URI must not include a fragment, because
+    # the server puts what it answers there, and a registered one would be
+    # overwritten or read by script on the client's page.
+    with pytest.raises(InvalidArgumentError, match="fragment"):
         _ = RedirectUri(uri)
 
 

@@ -153,8 +153,12 @@ class AuthorizationController:
             asking = await posted_form_as_query(request)
             authorization_request = await self._server.validate_authorization_request(asking)
             await self._refuse_plain_pkce_unless_allowed(authorization_request)
+            await self._refuse_unregistered_scopes(authorization_request)
             answered = await self._resolve(asking, authorization_request, response)
         except OAuthServerError as error:
+            # Every authorization response names the server that sent it
+            # (RFC 9207), the refusals this endpoint makes itself included.
+            error.carry_issuer(self._server.get_issuer())
             # A flow answering in the fragment has to be refused in the
             # fragment too, or the refusal lands in a query the client never
             # reads.
@@ -232,6 +236,35 @@ class AuthorizationController:
                 "code_challenge_method",
                 "Plain code challenge method is not allowed for this client",
             )
+
+    async def _refuse_unregistered_scopes(
+        self,
+        authorization_request: AuthorizationRequestInterface,
+    ) -> None:
+        """Refuse a scope the client's registration does not allow, before anyone is asked.
+
+        The token endpoint refuses it anyway; refusing it here keeps the
+        resource owner from being asked to consent to a scope no token can
+        carry. A client registered for no scope may ask for any.
+
+        Raises:
+            OAuthServerError: ``invalid_scope``, delivered to the client with
+                its state, naming the first scope it is not registered for.
+        """
+        client = await self._client_manager.find(
+            authorization_request.get_client().get_identifier()
+        )
+        if client is None or not client.get_scopes():
+            # A client the manager cannot find is reported by the consent
+            # event, which names the disagreement between the two stores.
+            return
+        allowed = {str(scope) for scope in client.get_scopes()}
+        for scope in authorization_request.get_scopes():
+            if scope.get_identifier() not in allowed:
+                raise OAuthServerError.invalid_scope(
+                    scope.get_identifier(),
+                    _answered_at(authorization_request),
+                )
 
     def _report_nobody_to_ask(
         self,

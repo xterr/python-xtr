@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Final, final
 
 from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
+from xtr_security.bundle import SecurityConfig
 from xtr_security_http.firewall import FirewallListenerInterface
 from xtr_security_oauth2_server.bundle import GRANT_TAG, METADATA_TAG, OAuth2ServerConfig
 
@@ -45,6 +46,9 @@ _OPENID_SCOPE: Final = "openid"
 
 #: Where the authorization server's settings are written, and so overridden.
 _SERVER_CONFIG_FILE: Final = "<app>/config/packages/oauth2_server.py"
+
+#: Where the application's firewalls are configured, named in a refusal.
+_SECURITY_CONFIG_FILE: Final = "<app>/config/packages/security.py"
 
 #: What an application lists in its login firewall's ``listeners`` to have
 #: ``prompt`` and ``max_age`` decided there. Published, because only the
@@ -171,10 +175,22 @@ class OpenIdConnectServerBundle(Bundle[OpenIdConnectServerConfig]):
         Raises:
             InvalidConfigurationError: When the authorization server runs its
                 shipped redirect flow, answers with something that cannot
-                carry an ID token, or does not describe itself.
+                carry an ID token, does not describe itself, or signs with a
+                shared secret; or when the login firewall exists and does not
+                list the prompt step.
         """
         server = builder.get_extension_config(OAuth2ServerConfig).authorization_server
         refusals = _refusals(server)
+        login_firewall = builder.get_extension_config(OpenIdConnectServerConfig).login_firewall
+        firewall = builder.get_extension_config(SecurityConfig).firewalls.get(login_firewall)
+        if firewall is not None and PROMPT_LISTENER not in firewall.listeners:
+            # Without the step, ``max_age`` and ``prompt=login`` would go
+            # unenforced while the provider claims to honour them.
+            refusals.append(
+                f'The login firewall "{login_firewall}" does not list PROMPT_LISTENER in its '
+                "listeners, so max_age and prompt=login would never be enforced; add it to "
+                f"listeners=(PROMPT_LISTENER,) on that firewall in {_SECURITY_CONFIG_FILE}.",
+            )
         if refusals:
             raise InvalidConfigurationError(" ".join(refusals))
 
@@ -230,6 +246,13 @@ def _refusals(server: AuthorizationServerConfig) -> list[str]:
             "The setting authorization_server.enable_metadata_endpoint is False, so this "
             "server would not describe itself and no client could discover the OpenID "
             f"Connect provider; turn it back on in {_SERVER_CONFIG_FILE}.",
+        )
+    if server.signature_algorithm.upper().startswith("HS"):
+        refusals.append(
+            f"The setting authorization_server.signature_algorithm is "
+            f"{server.signature_algorithm}, a shared-secret algorithm: every client holding "
+            "the secret could mint ID tokens in this provider's name. Sign with a key pair, "
+            f"such as RS256, ES256 or EdDSA, in {_SERVER_CONFIG_FILE}.",
         )
 
     return refusals

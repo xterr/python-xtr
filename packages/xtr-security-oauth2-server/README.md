@@ -212,6 +212,13 @@ async def register_demo_clients(
 A request is denied until a listener approves it. With a database store, register clients with
 `oauth2-server:create-client` instead, which prints the secret once and stores only its hash.
 
+A redirect URI may not carry a fragment (`#…`): the server writes implicit answers there, so one is
+refused when it is registered — and when a stored client holding one is read back, so remove the
+fragment from any registration made before. A client registered for some scopes that asks for
+another is answered `invalid_scope` at its redirect URI before anyone is asked to consent. Every
+redirect the authorization endpoint answers, success or refusal, names this server as `iss`
+(RFC 9207), and the description says so with `authorization_response_iss_parameter_supported`.
+
 ### 5. Serve it
 
 ```python

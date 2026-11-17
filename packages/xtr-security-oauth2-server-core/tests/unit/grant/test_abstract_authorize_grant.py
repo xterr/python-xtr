@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, final
+from urllib.parse import urlencode
 
 from typing_extensions import override
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entities import make_client
-from tests.support.signing import make_clock
+from tests.support.signing import ISSUER, make_clock, make_signer
 from xtr_security_oauth2_server_core.grant.abstract_authorize_grant import AbstractAuthorizeGrant
 from xtr_security_oauth2_server_core.request_types.authorization_request_interface import (
     AuthorizationRequestInterface,
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
     )
 
 _CALLBACK = "https://client.example.com/callback"
+#: What every redirect ends with: the server naming itself (RFC 9207).
+_ISS = urlencode({"iss": ISSUER})
 
 
 @final
@@ -45,53 +48,56 @@ class _PlainAuthorizeGrant(AbstractAuthorizeGrant):
 
 
 def _grant() -> _PlainAuthorizeGrant:
-    return _PlainAuthorizeGrant(RecordingEventDispatcher(), make_clock())
+    grant = _PlainAuthorizeGrant(RecordingEventDispatcher(), make_clock())
+    grant.set_private_key(make_signer())
+
+    return grant
 
 
 def test_it_appends_the_parameters_as_a_query() -> None:
     built = _grant().make_redirect_uri(_CALLBACK, {"code": "abc"})
 
-    assert built == f"{_CALLBACK}?code=abc"
+    assert built == f"{_CALLBACK}?code=abc&{_ISS}"
 
 
 def test_it_joins_on_to_a_uri_that_already_carries_a_query() -> None:
     built = _grant().make_redirect_uri(f"{_CALLBACK}?kept=1", {"code": "abc"})
 
-    assert built == f"{_CALLBACK}?kept=1&code=abc"
+    assert built == f"{_CALLBACK}?kept=1&code=abc&{_ISS}"
 
 
 def test_it_leaves_out_a_parameter_that_has_no_value() -> None:
     built = _grant().make_redirect_uri(_CALLBACK, {"code": "abc", "state": None})
 
-    assert built == f"{_CALLBACK}?code=abc"
+    assert built == f"{_CALLBACK}?code=abc&{_ISS}"
 
 
 def test_it_encodes_what_a_query_cannot_carry_as_it_stands() -> None:
     built = _grant().make_redirect_uri(_CALLBACK, {"state": "a b&c"})
 
-    assert built == f"{_CALLBACK}?state=a+b%26c"
+    assert built == f"{_CALLBACK}?state=a+b%26c&{_ISS}"
 
 
 def test_it_can_be_told_to_build_a_fragment_instead() -> None:
     built = _grant().make_redirect_uri(_CALLBACK, {"access_token": "abc"}, "#")
 
-    assert built == f"{_CALLBACK}#access_token=abc"
+    assert built == f"{_CALLBACK}#access_token=abc&{_ISS}"
 
 
 def test_it_joins_on_to_a_uri_that_already_carries_a_fragment() -> None:
     built = _grant().make_redirect_uri(f"{_CALLBACK}#kept", {"access_token": "abc"}, "#")
 
-    assert built == f"{_CALLBACK}#kept&access_token=abc"
+    assert built == f"{_CALLBACK}#kept&access_token=abc&{_ISS}"
 
 
-def test_it_still_marks_the_query_when_there_is_nothing_to_put_in_it() -> None:
-    assert _grant().make_redirect_uri(_CALLBACK) == f"{_CALLBACK}?"
+def test_with_nothing_else_to_carry_it_still_names_the_server() -> None:
+    assert _grant().make_redirect_uri(_CALLBACK) == f"{_CALLBACK}?{_ISS}"
 
 
 def test_it_writes_a_number_out_as_a_parameter() -> None:
     built = _grant().make_redirect_uri(_CALLBACK, {"expires_in": 3600})
 
-    assert built == f"{_CALLBACK}?expires_in=3600"
+    assert built == f"{_CALLBACK}?expires_in=3600&{_ISS}"
 
 
 def test_it_starts_a_fresh_authorization_request_each_time() -> None:

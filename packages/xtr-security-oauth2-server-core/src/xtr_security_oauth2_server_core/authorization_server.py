@@ -146,6 +146,10 @@ class AuthorizationServer:
         self._enabled_grant_types[grant_type.get_identifier()] = grant_type
         self._grant_type_access_token_ttl[grant_type.get_identifier()] = ttl
 
+    def get_issuer(self) -> str:
+        """Return the origin this server's tokens claim, which its redirects name as ``iss``."""
+        return self._private_key.issuer
+
     def set_default_scope(self, default_scope: str) -> None:
         """Read a request asking for no scope as asking for ``default_scope``.
 

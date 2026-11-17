@@ -7,7 +7,7 @@ import base64
 import hashlib
 from datetime import timedelta
 from typing import TYPE_CHECKING, final
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 from typing_extensions import override
@@ -24,7 +24,7 @@ from tests.support.repositories import (
     InMemoryScopeRepository,
 )
 from tests.support.response_types import RecordingResponseType
-from tests.support.signing import FROZEN_NOW, make_clock
+from tests.support.signing import FROZEN_NOW, ISSUER, make_clock
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server_core.grant.auth_code_grant import AuthCodeGrant
@@ -266,7 +266,10 @@ async def test_an_unknown_scope_is_refused_to_the_client_with_its_state() -> Non
         )
 
     assert refusal.value.get_error_type() == "invalid_scope"
-    assert refusal.value.get_redirect_uri() == f"{_CALLBACK}?state=xyz"
+    assert (
+        refusal.value.get_redirect_uri()
+        == f"{_CALLBACK}?{urlencode({'state': 'xyz', 'iss': ISSUER})}"
+    )
 
 
 @pytest.mark.anyio
@@ -412,6 +415,44 @@ async def test_the_state_is_handed_back_unchanged() -> None:
 
 
 @pytest.mark.anyio
+async def test_the_browser_is_sent_back_naming_the_server_that_sent_it() -> None:
+    # RFC 9207: a client talking to several servers tells by ``iss`` which one
+    # answered, so a response another server forged is not taken for this one's.
+    storage = Storage()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    authorization_request = await grant.validate_authorization_request(
+        _authorize_request(response_type="code", client_id="client-1", state="xyz"),
+    )
+    authorization_request.set_user(make_user("user-1"))
+    authorization_request.set_authorization_approved(True)
+
+    answered = await grant.complete_authorization_request(
+        _authorize_request(),
+        authorization_request,
+    )
+    answer = await answered.generate_http_response(Response())
+
+    assert parse_qs(urlsplit(answer.get_header_line("location")).query)["iss"] == [ISSUER]
+
+
+@pytest.mark.anyio
+async def test_a_refusal_names_the_server_that_sent_it_too() -> None:
+    storage = _known_scopes()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = await grant.validate_authorization_request(
+            _authorize_request(response_type="code", client_id="client-1", scope="delete"),
+        )
+
+    redirect_uri = refusal.value.get_redirect_uri()
+    assert redirect_uri is not None
+    assert parse_qs(urlsplit(redirect_uri).query)["iss"] == [ISSUER]
+
+
+@pytest.mark.anyio
 async def test_the_code_carries_the_scopes_and_the_challenge_it_was_asked_with() -> None:
     storage = _known_scopes()
     _confidential(storage)
@@ -458,7 +499,10 @@ async def test_a_refused_request_sends_the_browser_back_with_the_refusal() -> No
         )
 
     assert refusal.value.get_error_type() == "access_denied"
-    assert refusal.value.get_redirect_uri() == f"{_CALLBACK}?state=xyz"
+    assert (
+        refusal.value.get_redirect_uri()
+        == f"{_CALLBACK}?{urlencode({'state': 'xyz', 'iss': ISSUER})}"
+    )
 
 
 @pytest.mark.anyio

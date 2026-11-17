@@ -120,6 +120,21 @@ def test_no_proof_key_methods_means_the_field_is_left_out() -> None:
     assert "code_challenge_methods_supported" not in AuthorizationServerMetadata(_ISSUER).to_dict()
 
 
+def test_a_server_that_redirects_says_its_redirects_name_it() -> None:
+    # RFC 9207: a client reads this to know a redirect without ``iss`` is not this server's.
+    document = AuthorizationServerMetadata(
+        _ISSUER, {"authorization_endpoint": _AUTHORIZE}
+    ).to_dict()
+
+    assert document["authorization_response_iss_parameter_supported"] is True
+
+
+def test_a_server_that_redirects_nobody_says_nothing_about_its_redirects() -> None:
+    document = AuthorizationServerMetadata(_ISSUER, {"token_endpoint": _TOKEN}).to_dict()
+
+    assert "authorization_response_iss_parameter_supported" not in document
+
+
 def test_a_field_an_extension_contributes_is_carried() -> None:
     document = AuthorizationServerMetadata(
         _ISSUER,

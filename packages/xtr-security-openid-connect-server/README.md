@@ -206,7 +206,8 @@ def security() -> SecurityConfig:
 `PROMPT_LISTENER` is the qualifier of the step that decides `prompt` and `max_age`. Only the
 application knows which firewall signs end-users in, so only it can list the step there — and that
 firewall must keep a session, because the authorization request waits in it while the end-user
-signs in again.
+signs in again. A configured `login_firewall` that does not list it fails the build, since
+`max_age` and `prompt=login` would otherwise go unenforced.
 
 ### 4. Sign in
 
@@ -243,6 +244,9 @@ claims (never the request's `Host`), and `authorization_server.signature_algorit
 token is signed with — the same key, signer and `kid` as an access token. `EdDSA` names no digest
 for the `at_hash`, so the curve of that key decides it — SHA-512 over Ed25519, SHAKE256 over Ed448
 — read off the key the first time it is needed, never while the application builds.
+A shared-secret algorithm (`HS256`, `HS384`, `HS512`) fails the build: every client holding the
+secret could mint ID tokens. The `login_required` and `consent_required` refusals carry `iss` like
+every other redirect.
 
 Three settings of that server this bundle puts in place itself, and refuses to be undone:
 `enable_auth_code_grant=False` (this package registers the flow answering that grant type),
@@ -432,8 +436,9 @@ other bundle requires it, so it only arrives by being listed. It:
   `METADATA_TAG`, and the prompt step under `openid_connect_server#prompt_listener`;
 - loads the listener recording the sign-in time on the authorization server's consent event;
 - fails the build when the resolved authorization server runs the shipped redirect flow, answers
-  with something that cannot carry an ID token, or does not describe itself — each named, because
-  an application transform runs after this bundle's prepend and can undo it.
+  with something that cannot carry an ID token, does not describe itself, or signs with a shared
+  secret, or when the `login_firewall` exists without `PROMPT_LISTENER` in its `listeners` — each
+  named, because an application transform runs after this bundle's prepend and can undo it.
 
 The authorization server knows nothing of this bundle: everything above goes through seams it
 publishes for an add-on. It reads no key, user or issuer while building, so it builds and boots
