@@ -138,10 +138,12 @@ class Session(SessionInterface):
         """
         return cls(
             storage,
+            # Settled only to True: an unset one over plain http stays unset and writes no
+            # Secure, so a cookie whose name needs Secure is refused only if one is written.
             cookie=(
-                cookie
-                if cookie.secure is not None
-                else replace(cookie, secure=request.get_uri().get_scheme() == "https")
+                replace(cookie, secure=True)
+                if cookie.secure is None and request.get_uri().get_scheme() == "https"
+                else cookie
             ),
             cookie_value=request.get_cookie_params().get(cookie.name),
         )
@@ -343,7 +345,7 @@ class Session(SessionInterface):
             expires=expires,
             path=self._cookie.path,
             domain=self._cookie.domain,
-            # Unset only on a session built by hand, not from a request: no scheme to go by.
+            # Unset: over plain http, or on a session built by hand with no scheme to go by.
             secure=self._cookie.secure is True,
             httponly=self._cookie.httponly,
             samesite=self._cookie.samesite,

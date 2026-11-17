@@ -371,6 +371,17 @@ def test_a_cookie_said_insecure_stays_so_on_https() -> None:
     assert "secure" not in staged.lower().split("; ")
 
 
+def test_a_prefixed_cookie_name_still_builds_the_session_on_plain_http() -> None:
+    cookie = SessionCookieConfig(name="__Host-sid")
+    request = ServerRequest("GET", "http://shop.test/").with_cookie_params({"__Host-sid": _ID})
+
+    session = Session.from_request(request, SpyStorage(), cookie=cookie)
+
+    # The request is served; only writing a new cookie over plain http is refused.
+    assert session.get_id() == _ID
+    assert session.staged_set_cookie() is None
+
+
 def test_it_reads_the_cookie_the_config_names() -> None:
     request = ServerRequest("GET", "/").with_cookie_params({"app_session": _ID})
     cookie = SessionCookieConfig(name="app_session")
