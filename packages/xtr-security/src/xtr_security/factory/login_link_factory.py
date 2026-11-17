@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Annotated, cast, final
 
 from typing_extensions import override
 from xtr_clock import ClockInterface
-from xtr_dependency_injection import Target
+from xtr_dependency_injection import Target, bundle_active
 from xtr_rate_limiter import LimiterConfig, RateLimiterFactory
 from xtr_rate_limiter.storage.storage_interface import StorageInterface
 from xtr_security_core import SignatureHasher
@@ -61,20 +61,11 @@ class LoginLinkFactory(AuthenticatorFactoryInterface):
     authenticator itself never challenges: a request that follows no link
     has nothing to spend, so it is no entry point.
 
-    Built with ``lock_active`` when the lock bundle is active — the security
-    bundle hands that over through :meth:`with_lock` — so a link's uses are
-    counted under the lock every worker shares.
+    With the lock bundle active, a link's uses are counted under the lock
+    every worker shares.
     """
 
-    __slots__ = ("_lock_active",)
-
-    def __init__(self, *, lock_active: bool = False) -> None:
-        """Count a link's uses under the shared lock when ``lock_active``."""
-        self._lock_active = lock_active
-
-    def with_lock(self, lock_active: bool) -> LoginLinkFactory:
-        """Return a copy that counts uses under the lock bundle's lock when it is active."""
-        return LoginLinkFactory(lock_active=lock_active)
+    __slots__ = ()
 
     @property
     @override
@@ -126,7 +117,7 @@ class LoginLinkFactory(AuthenticatorFactoryInterface):
             firewall_name,
             settings,
             user_provider,
-            lock_active=self._lock_active,
+            lock_active=bundle_active(builder, "lock"),
         )
         success_key = _register_success_handler(services, firewall_name, settings)
         failure_key = _register_failure_handler(services, firewall_name, settings)
@@ -185,8 +176,8 @@ def _register_handler(
     def login_link_handler(
         provider: UserProviderInterface,
         clock: ClockInterface | None = None,
-        storage: object | None = None,
-        lock_factory: object | None = None,
+        storage: StorageInterface | None = None,
+        lock_factory: LockFactory | None = None,
     ) -> LoginLinkHandler:
         """Build the handler signing links until a lifetime from their minting."""
         if not settings.secret:
@@ -204,8 +195,9 @@ def _register_handler(
                     limit=settings.max_uses,
                     interval=f"{settings.lifetime} seconds",
                 ),
+                # Required whenever max_uses is set: the annotations below name it then.
                 cast("StorageInterface", storage),
-                cast("LockFactory | None", lock_factory),
+                lock_factory,
                 clock=clock,
             )
         return LoginLinkHandler(

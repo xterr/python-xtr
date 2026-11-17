@@ -38,7 +38,6 @@ from xtr_security.bundle._core_services_wiring import register_core_security_ser
 from xtr_security.bundle._csrf_wiring import with_csrf_settled
 from xtr_security.bundle.oidc_configs import OidcLoginConfig
 from xtr_security.bundle.security_config import SecurityConfig
-from xtr_security.factory.login_link_factory import LoginLinkFactory
 
 from ._wiring import VOTER_TAG, build_firewall_map
 from .make_firewalls_event_dispatcher_traceable_pass import (
@@ -164,11 +163,7 @@ class SecurityBundle(Bundle[SecurityConfig]):
             services,
             # Every logout and switch left unset is decided here, once, so
             # each wiring step reads the same answer.
-            with_csrf_settled(
-                _locking_login_links(
-                    self._bind_oidc_closeables(config), bundle_active(builder, "lock")
-                )
-            ),
+            with_csrf_settled(self._bind_oidc_closeables(config)),
             builder=builder,
             clock_active=bundle_active(builder, "clock"),
             logging_active=bundle_active(builder, "logging"),
@@ -285,22 +280,4 @@ def _has_oidc_token_generators(config: SecurityConfig) -> bool:
         isinstance(authenticator, OidcLoginConfig) and authenticator.token_generator is not None
         for firewall in config.firewalls.values()
         for authenticator in firewall.authenticators
-    )
-
-
-def _locking_login_links(config: SecurityConfig, lock_active: bool) -> SecurityConfig:
-    """Return ``config`` with every login-link factory told whether the lock bundle is active.
-
-    A factory receives no builder, so the bundle, which reads the build, hands
-    it the one fact it needs: whether a link's uses can be counted under the
-    lock every worker shares.
-    """
-    if not lock_active:
-        return config
-    return replace(
-        config,
-        authenticator_factories=tuple(
-            factory.with_lock(lock_active) if isinstance(factory, LoginLinkFactory) else factory
-            for factory in config.authenticator_factories
-        ),
     )

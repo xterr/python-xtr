@@ -17,6 +17,7 @@ from xtr_security_http import (
     X509Authenticator,
 )
 
+from tests.support.builders import NO_PEERS, with_peers
 from xtr_security.bundle import (
     LoginLinkConfig,
     RememberMeConfig,
@@ -173,7 +174,7 @@ def test_a_login_link_wraps_the_application_handlers_it_is_given() -> None:
 
     _ = LoginLinkFactory().create_authenticator(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "main",
         LoginLinkConfig(
             check_path="/login_link",
@@ -213,7 +214,7 @@ def test_the_login_link_factory_registers_handler_and_authenticator() -> None:
 
     keys = LoginLinkFactory().create_authenticator(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "main",
         LoginLinkConfig(check_path="/login_link", path="/login", secret="signed"),
         _PROVIDER,
@@ -235,7 +236,7 @@ def test_the_login_link_handler_fails_naming_the_secret_when_it_is_absent() -> N
 
     _ = LoginLinkFactory().create_authenticator(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "main",
         LoginLinkConfig(check_path="/login_link", path="/login"),
         _PROVIDER,
@@ -252,7 +253,7 @@ def test_a_login_link_limited_in_uses_counts_them_in_the_applications_storage() 
 
     _ = LoginLinkFactory().create_authenticator(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "main",
         LoginLinkConfig(check_path="/login_link", path="/login", secret="signed", max_uses=1),
         _PROVIDER,
@@ -269,16 +270,12 @@ def test_with_the_lock_bundle_a_links_uses_are_counted_under_its_lock() -> None:
 
     recorder = _Recorder()
 
-    _ = (
-        LoginLinkFactory()
-        .with_lock(True)  # noqa: FBT003 -- the one fact the method takes
-        .create_authenticator(
-            recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            "main",
-            LoginLinkConfig(check_path="/login_link", path="/login", secret="signed", max_uses=1),
-            _PROVIDER,
-        )
+    _ = LoginLinkFactory().create_authenticator(
+        recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        with_peers("lock"),
+        "main",
+        LoginLinkConfig(check_path="/login_link", path="/login", secret="signed", max_uses=1),
+        _PROVIDER,
     )
 
     # Required: an optional parameter with a default would be left at None by the container.
@@ -290,7 +287,7 @@ def test_a_login_link_without_a_limit_asks_for_no_storage() -> None:
 
     _ = LoginLinkFactory().create_authenticator(
         recorder,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        NO_PEERS,
         "main",
         LoginLinkConfig(check_path="/login_link", path="/login", secret="signed"),
         _PROVIDER,
@@ -354,7 +351,7 @@ def test_a_login_link_without_a_user_provider_fails_the_build() -> None:
     with pytest.raises(InvalidConfigurationError, match="user provider"):
         _ = LoginLinkFactory().create_authenticator(
             _Recorder(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            None,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            NO_PEERS,
             "main",
             LoginLinkConfig(check_path="/login_link", path="/login"),
             None,
