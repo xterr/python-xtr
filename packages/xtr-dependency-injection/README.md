@@ -53,8 +53,8 @@ bundle imports that, since the container brings it along:
 ```toml
 [dependency-groups]
 dev = [
-    "xtr-dependency-injection>=6.0,<7",
-    "xtr-service-contracts>=6.0,<7",
+    "xtr-dependency-injection>=7.0,<8",
+    "xtr-service-contracts>=7.0,<8",
 ]
 ```
 

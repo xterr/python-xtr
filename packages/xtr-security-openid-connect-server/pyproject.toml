@@ -1,6 +1,6 @@
 [project]
 name = "xtr-security-openid-connect-server"
-version = "6.8.1"
+version = "7.0.0"
 description = "OpenID Connect for the xtr OAuth 2.0 authorization server: ID tokens, userinfo and discovery."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,21 +22,21 @@ classifiers = [
 dependencies = [
     # The authorization server this package makes an OpenID Connect provider,
     # and the protocol library under it.
-    "xtr-security-oauth2-server>=6.0,<7",
-    "xtr-security-oauth2-server-core>=6.0,<7",
-    "xtr-security-core>=6.0,<7",
-    "xtr-security-http>=6.0,<7",
-    "xtr-security>=6.0,<7",
+    "xtr-security-oauth2-server>=7.0,<8",
+    "xtr-security-oauth2-server-core>=7.0,<8",
+    "xtr-security-core>=7.0,<8",
+    "xtr-security-http>=7.0,<8",
+    "xtr-security>=7.0,<8",
     # The ID token is signed with the authorization server's own key; the curve
     # an EdDSA one is on, which decides the at_hash, is read through the key
     # layer that loads it.
-    "xtr-security-jwt>=6.0,<7",
-    "xtr-clock>=6.0,<7",
-    "xtr-event-dispatcher-contracts>=6.0,<7",
-    "xtr-event-dispatcher>=6.0,<7",
-    "xtr-dependency-injection>=6.0,<7",
-    "xtr-http-message-contracts>=6.0,<7",
-    "xtr-http-kernel>=6.0,<7",
+    "xtr-security-jwt>=7.0,<8",
+    "xtr-clock>=7.0,<8",
+    "xtr-event-dispatcher-contracts>=7.0,<8",
+    "xtr-event-dispatcher>=7.0,<8",
+    "xtr-dependency-injection>=7.0,<8",
+    "xtr-http-message-contracts>=7.0,<8",
+    "xtr-http-kernel>=7.0,<8",
     # The userinfo and discovery endpoints are framework routes, contributed to
     # the application's table.
     "fastapi>=0.143.1",
@@ -69,9 +69,9 @@ dev = [
     "joserfc>=1.7",
     # The library speaks the message contracts; the tests need messages to hand
     # it, which is what the implementation is for.
-    "xtr-http-message>=6.0,<7",
-    "xtr-console>=6.0,<7",
-    "xtr-orm>=6.0,<7",
+    "xtr-http-message>=7.0,<8",
+    "xtr-console>=7.0,<8",
+    "xtr-orm>=7.0,<8",
     # The authorization server can keep its clients and credentials in a
     # database: a SQLite file in the test's own directory, which needs an async
     # driver for it.
@@ -79,12 +79,12 @@ dev = [
     # The relying party the provider is checked against: discovery, the key
     # set, the ID token's claims and the userinfo answer, read from the served
     # documents through a mock client and an in-memory cache.
-    "xtr-security-http[oidc]>=6.0,<7",
-    "xtr-http-client>=6.0,<7",
-    "xtr-cache>=6.0,<7",
+    "xtr-security-http[oidc]>=7.0,<8",
+    "xtr-http-client>=7.0,<8",
+    "xtr-cache>=7.0,<8",
     # The deployment that signs the end-user in with a form keeps the login in
     # a session, held in memory for the test.
-    "xtr-http-foundation>=6.0,<7",
+    "xtr-http-foundation>=7.0,<8",
 ]
 
 [build-system]
