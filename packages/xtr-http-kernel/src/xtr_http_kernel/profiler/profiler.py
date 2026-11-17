@@ -13,6 +13,9 @@ from xtr_clock import SystemClock
 from xtr_http_kernel.data_collector.late_data_collector_interface import (
     LateDataCollectorInterface,
 )
+from xtr_http_kernel.data_collector.tracing_data_collector_interface import (
+    TracingDataCollectorInterface,
+)
 
 from .profile import Profile
 
@@ -92,6 +95,18 @@ class Profiler:
     def begin_request(self) -> None:
         """Start the calling context's request from the configured default."""
         _ = self._switch.set(_Switch(self._enabled))
+
+    def begin_tracing(self) -> None:
+        """Start every tracing collector recording the calling context's request, when profiled.
+
+        Called once whether the request is profiled has been decided; an
+        unprofiled request starts nothing, so its instrumentation records nothing.
+        """
+        if not self.is_enabled():
+            return
+        for collector in self._collectors.values():
+            if isinstance(collector, TracingDataCollectorInterface):
+                collector.begin_request()
 
     def is_enabled(self) -> bool:
         """Tell whether the current request is profiled."""

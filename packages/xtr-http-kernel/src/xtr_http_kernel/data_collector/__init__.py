@@ -15,6 +15,8 @@ from .data_collector_tag import DATA_COLLECTOR_TAG
 from .data_collector_templates import DataCollectorTemplates
 from .late_data_collector_interface import LateDataCollectorInterface
 from .profiled_request import ProfiledRequest
+from .request_trace import RequestTrace
+from .tracing_data_collector_interface import TracingDataCollectorInterface
 
 __all__ = [
     "DATA_COLLECTOR_TAG",
@@ -22,5 +24,7 @@ __all__ = [
     "DataCollectorTemplates",
     "LateDataCollectorInterface",
     "ProfiledRequest",
+    "RequestTrace",
+    "TracingDataCollectorInterface",
     "clone_var",
 ]

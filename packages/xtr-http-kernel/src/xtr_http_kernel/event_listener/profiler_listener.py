@@ -108,6 +108,7 @@ class ProfilerListener:
                 self._profiler.enable()
             elif asked is False:
                 self._profiler.disable()
+        self._profiler.begin_tracing()
         self._stopwatch.reset()
         self._stopwatch.open_section()
 

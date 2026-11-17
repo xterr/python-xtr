@@ -322,6 +322,12 @@ services.set(CartCollector).add_tag(
 - `collect` returns plain data and keeps nothing on the collector: requests run at once.
 - What settles after the response started goes in `late_collect(data, profiled)`
   (`LateDataCollectorInterface`).
+- Work done during the request (queries, calls, dispatches) records into a `RequestTrace`
+  (`RequestTrace("cart_added")`); the collector implements `TracingDataCollectorInterface`, whose
+  `begin_request()` calls `trace.begin()`, and reads `trace.entries()` in `collect`. Outside a
+  profiled request `record` does nothing.
+- Register a library's collector only when `profiling_active(builder)` (from
+  `xtr_http_kernel.bundle`) is true, imported after `bundle_active(builder, "http_kernel")`.
 - Read profiles with the `Profiler` service (`load_profile`, `load_profile_from_response`,
   `find`) or `FileProfilerStorage(folder)` in a test; `ProfilerConfig.storage_path` moves them.
 - `collect=False` + `collect_parameter="profile"` profiles only `?profile=1`;

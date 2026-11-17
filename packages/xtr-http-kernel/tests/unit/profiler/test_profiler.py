@@ -182,3 +182,41 @@ async def test_a_profile_without_a_logger_collector_has_no_logged_errors(tmp_pat
     _ = await profiler.save_profile(profile, profiled)
 
     assert not profile.has_errors
+
+
+@final
+class _Tracing:
+    def __init__(self) -> None:
+        self.begun = 0
+
+    @property
+    def name(self) -> str:
+        return "tracing"
+
+    def begin_request(self) -> None:
+        self.begun += 1
+
+    def collect(self, profiled: ProfiledRequest) -> dict[str, object]:
+        del profiled
+        return {}
+
+
+async def test_a_profiled_request_starts_every_tracing_collector(tmp_path: Path) -> None:
+    tracing = _Tracing()
+    profiler = Profiler(FileProfilerStorage(tmp_path), [_MethodCollector(), tracing])
+    profiler.begin_request()
+
+    profiler.begin_tracing()
+
+    assert tracing.begun == 1
+
+
+async def test_an_unprofiled_request_starts_no_tracing_collector(tmp_path: Path) -> None:
+    tracing = _Tracing()
+    profiler = Profiler(FileProfilerStorage(tmp_path), [tracing])
+    profiler.begin_request()
+    profiler.disable()
+
+    profiler.begin_tracing()
+
+    assert tracing.begun == 0

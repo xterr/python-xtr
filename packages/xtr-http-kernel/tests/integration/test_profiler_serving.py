@@ -80,7 +80,9 @@ async def test_a_profiled_response_names_its_profile(folder: Path) -> None:
     profile = _stored(folder, token)
     assert (profile.method, profile.status_code) == ("GET", 200)
     assert profile.url == "http://served.test/books/42?q=dune"
-    assert list(profile.collectors) == [
+    # A peer bundle active here (the cache, through the rate limiter) adds its own panel;
+    # only the kernel's panels and their order are under test.
+    core = [
         "request",
         "time",
         "memory",
@@ -91,6 +93,7 @@ async def test_a_profiled_response_names_its_profile(folder: Path) -> None:
         "router",
         "config",
     ]
+    assert [name for name in profile.collectors if name in core] == core
 
 
 async def test_the_request_panel_keeps_the_head_and_masks_credentials(folder: Path) -> None:

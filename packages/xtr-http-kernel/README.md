@@ -572,6 +572,53 @@ The tag names the collector, the template showing its panel, and a `priority` �
 in the toolbar and in the menu; `request` is `335`, `config` is `-255`. The web profiler's README
 says [how a panel template is written](../xtr-web-profiler#writing-a-panel).
 
+#### Recording while the request is handled
+
+A library whose work happens during the request — statements run, messages dispatched, calls
+made — records it into a `RequestTrace` and has its collector read the trace back. One process
+serves many requests at once, so the trace keeps each request's entries in that request's own
+context, a worker thread running a synchronous endpoint included; outside a profiled request,
+`record` does nothing, and the instrumentation costs a lookup.
+
+The collector implements `TracingDataCollectorInterface` as well: the profiler calls its
+`begin_request()` once it has decided the request is profiled, and that starts the trace afresh.
+
+```python
+from xtr_http_kernel.data_collector import ProfiledRequest, RequestTrace
+
+
+class CartCollector:
+    def __init__(self) -> None:
+        self._added: RequestTrace[str] = RequestTrace("cart_added")
+
+    @property
+    def name(self) -> str:
+        return "cart"
+
+    def begin_request(self) -> None:
+        self._added.begin()
+
+    def record(self, sku: str) -> None:  # called by the cart while the request is handled
+        self._added.record(sku)
+
+    def collect(self, profiled: ProfiledRequest) -> dict[str, object]:
+        return {"added": list(self._added.entries())}
+```
+
+A bundle registers such a collector only when requests are profiled. `profiling_active(builder)`
+answers it from `load_extension`, whatever order the bundles load in; import it only once the
+http kernel's bundle is active, so the library keeps working without the http kernel installed:
+
+```python
+from xtr_dependency_injection import bundle_active
+
+if bundle_active(builder, "http_kernel"):
+    from xtr_http_kernel.bundle import profiling_active
+
+    if profiling_active(builder):
+        register_profiler(services)
+```
+
 ## Use in an application
 
 Everything adding this package to an application on
