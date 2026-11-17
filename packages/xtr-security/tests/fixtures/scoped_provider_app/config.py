@@ -112,8 +112,10 @@ def security() -> SecurityConfig:
                 stateless=False,
                 provider="users",
                 user_checker=ScopedUserChecker,
-                logout=LogoutConfig(),
-                switch_user=SwitchUserConfig(),
+                # About the request-scoped provider and checker, not the forgery
+                # check a stateful firewall asks for by default.
+                logout=LogoutConfig(enable_csrf=False),
+                switch_user=SwitchUserConfig(enable_csrf=False),
                 authenticators=(
                     FormLoginConfig(login_path="/login", post_only=False),
                     JsonLoginConfig(check_path="/json_login"),

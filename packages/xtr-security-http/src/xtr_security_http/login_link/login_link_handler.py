@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
     from xtr_clock import ClockInterface
     from xtr_http_message_contracts import ServerRequestInterface
+    from xtr_rate_limiter import RateLimiterFactoryInterface
     from xtr_security_core.signature.signature_hasher import SignatureHasher
     from xtr_security_core.user.user_interface import UserInterface
     from xtr_security_core.user.user_provider_interface import UserProviderInterface
@@ -118,15 +119,18 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
         "_signature_hasher",
         "_uri_builder",
         "_user_provider",
+        "_uses_limiter_factory",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- the handler's collaborators, each optional past the hasher
         self,
         user_provider: UserProviderInterface,
         signature_hasher: SignatureHasher,
         options: Mapping[str, object] | None = None,
         uri_builder: Callable[[str, ServerRequestInterface | None], str] | None = None,
         clock: ClockInterface | None = None,
+        *,
+        uses_limiter_factory: RateLimiterFactoryInterface | None = None,
     ) -> None:
         """Record the provider, the hasher, the options, the builder and the clock.
 
@@ -143,6 +147,11 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
                 the path itself while ``None``.
             clock: Reads the current instant, for the moment each new
                 link counts until; the system clock when ``None``.
+            uses_limiter_factory: Counts each link's uses, keyed by its
+                hash, refusing one past the limit the factory sets — a
+                window as long as the link's lifetime makes the limit hold
+                for as long as the link does. ``None`` leaves a link usable
+                any number of times until it expires.
 
         Raises:
             InvalidArgumentError: When ``options`` carries no ``path``, or
@@ -167,6 +176,7 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
         self._lifetime = lifetime if isinstance(lifetime, int) else int(str(lifetime))
         self._uri_builder = _plain_path if uri_builder is None else uri_builder
         self._clock = clock if clock is not None else SystemClock()
+        self._uses_limiter_factory = uses_limiter_factory
 
     @override
     async def create_login_link(
@@ -223,7 +233,8 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
         Raises:
             InvalidLoginLinkError: When a parameter is missing or
                 malformed, the hash verifies under no secret, or the
-                provider knows no such user.
+                provider knows no such user, or the link has been used as
+                many times as the uses limiter allows.
             ExpiredLoginLinkError: When the link's moment has passed.
         """
         user_identifier = await required_parameter_of(request, "user", digits=False)
@@ -245,6 +256,13 @@ class LoginLinkHandler(LoginLinkHandlerInterface):
             raise ExpiredLoginLinkError(_as_login_link_message(error)) from error
         except InvalidSignatureError as error:
             raise InvalidLoginLinkError(_as_login_link_message(error)) from error
+        # Counted only once the link verifies, so a forged or tampered one
+        # spends none of the real link's uses; the limiter's lock makes two
+        # concurrent presentations of one link count as two.
+        if self._uses_limiter_factory is not None:
+            spent = await self._uses_limiter_factory.create(hash_value).consume()
+            if not spent.is_accepted():
+                raise InvalidLoginLinkError("This login link has already been used.")
         _ = parameters.pop("hash_parameters", None)
         security_state_of(state_bag_of(request)).attributes[
             SecurityRequestAttributes.LOGIN_LINK_PARAMETERS

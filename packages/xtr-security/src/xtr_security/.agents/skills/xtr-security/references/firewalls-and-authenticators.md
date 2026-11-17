@@ -379,7 +379,7 @@ identity and your store carries the roles — usually what you want.
 
 ## Logout
 
-`LogoutConfig(path="/logout", target_path="/", enable_csrf=False, csrf_parameter="_csrf_token",
+`LogoutConfig(path="/logout", target_path="/", enable_csrf=None, csrf_parameter="_csrf_token",
 csrf_token_id="logout", clear_site_data=None, cookie_clearing={}, invalidate_session=True,
 clear_csrf_tokens=False)` parks a logout step on the firewall's context: the request asking
 for `path` is logged out, its token cleared, and the `LogoutEvent` it announces is answered on
@@ -387,9 +387,10 @@ the firewall's own dispatcher by the listeners the configuration turns on — th
 redirect to `target_path`, the `Clear-Site-Data` header, the configured cookies cleared (each
 a `ClearedCookie` from `xtr_security_http`), and the session invalidated on a stateful
 firewall. `enable_csrf` has the step prove the request with the forgery-token manager before
-it logs out; `clear_csrf_tokens` drops every token the request's session minted. Both need
-the session the tokens are stored in, so a stateless firewall asking for either fails the
-build saying so.
+it logs out — `None` asks on a stateful firewall and not on a stateless one, and the
+`LogoutUrlGenerator` renders the address carrying the token; `clear_csrf_tokens` drops every
+token the request's session minted. Both need the session the tokens are stored in, so a
+stateless firewall asking for either fails the build saying so.
 
 One `LogoutUrlGenerator` service (from `xtr_security_http`) carries every firewall's
 registration, so whatever renders a page asks for a logout's address by the firewall's name —
@@ -398,13 +399,14 @@ request, so what one request named never answers for the next.
 
 ## Switch user
 
-`SwitchUserConfig(role="ROLE_ALLOWED_TO_SWITCH", parameter="_switch_user", enable_csrf=False,
+`SwitchUserConfig(role="ROLE_ALLOWED_TO_SWITCH", parameter="_switch_user", enable_csrf=None,
 csrf_parameter="_csrf_token", csrf_token_id="switch_user", path=None)` parks the switch step
 on the firewall's chain: a caller holding the `role` (weighed against the target user as the
 subject) becomes another user by carrying `parameter` — on any page the firewall claims, or
 on the dedicated `path` — and steps back out with the same parameter carrying `_exit`.
-`enable_csrf` asks for a forgery token under `csrf_parameter` and `csrf_token_id`, refused on
-a stateless firewall, which has no session to keep the tokens in. The bundle hands the step
+`enable_csrf` asks for a forgery token under `csrf_parameter` and `csrf_token_id` — `None`
+asks on a stateful firewall and not on a stateless one — and `True` is refused on a stateless
+firewall, which has no session to keep the tokens in. The bundle hands the step
 the firewall's own dispatcher, so the `SwitchUserEvent` it announces — before a switch
 settles, and before an exit restores the original token — reaches the listeners of
 `firewall_dispatcher_name(firewall)` beside the firewall's other events. One scoped

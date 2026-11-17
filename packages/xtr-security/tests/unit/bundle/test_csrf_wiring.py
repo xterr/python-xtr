@@ -23,8 +23,10 @@ from xtr_security.bundle._csrf_wiring import (
     firewall_asks_for_csrf,
     form_login_asks_for_csrf,
     register_csrf_token_manager,
+    with_csrf_settled,
 )
 from xtr_security.bundle.authenticator_configs import FormLoginConfig
+from xtr_security.bundle.security_config import SecurityConfig
 from xtr_security.firewall_config import FirewallConfig
 from xtr_security.logout_config import LogoutConfig
 from xtr_security.switch_user_config import SwitchUserConfig
@@ -191,6 +193,59 @@ def test_a_form_login_asks_only_when_its_form_carries_a_token() -> None:
     assert not form_login_asks_for_csrf(
         FirewallConfig(authenticators=(FormLoginConfig(login_path="/login"),))
     )
+
+
+def _settled(firewall: FirewallConfig) -> FirewallConfig:
+    return with_csrf_settled(SecurityConfig(firewalls={"main": firewall})).firewalls["main"]
+
+
+def test_a_stateful_firewalls_logout_and_switch_ask_for_a_token_by_default() -> None:
+    # Both act on the caller's behalf from a link a foreign page can embed.
+    settled = _settled(
+        FirewallConfig(
+            stateless=False,
+            authenticators=(_an_authenticator(),),
+            logout=LogoutConfig(),
+            switch_user=SwitchUserConfig(),
+        ),
+    )
+
+    assert settled.logout is not None
+    assert settled.logout.enable_csrf is True
+    assert settled.switch_user is not None
+    assert settled.switch_user.enable_csrf is True
+
+
+def test_a_stateless_firewall_asks_for_none_by_default() -> None:
+    # It keeps no session to store a token in, and no browser cookie rides along.
+    settled = _settled(
+        FirewallConfig(
+            authenticators=(_an_authenticator(),),
+            logout=LogoutConfig(),
+            switch_user=SwitchUserConfig(),
+        ),
+    )
+
+    assert settled.logout is not None
+    assert settled.logout.enable_csrf is False
+    assert settled.switch_user is not None
+    assert settled.switch_user.enable_csrf is False
+
+
+def test_a_choice_the_application_wrote_is_kept() -> None:
+    settled = _settled(
+        FirewallConfig(
+            stateless=False,
+            authenticators=(_an_authenticator(),),
+            logout=LogoutConfig(enable_csrf=False),
+            switch_user=SwitchUserConfig(enable_csrf=False),
+        ),
+    )
+
+    assert settled.logout is not None
+    assert settled.logout.enable_csrf is False
+    assert settled.switch_user is not None
+    assert settled.switch_user.enable_csrf is False
 
 
 def _an_authenticator() -> object:

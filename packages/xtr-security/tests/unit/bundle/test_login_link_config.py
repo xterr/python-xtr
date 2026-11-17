@@ -19,6 +19,14 @@ def test_the_defaults_are_the_link_shape_the_handler_reads() -> None:
     assert config.secret is None
     assert config.success_handler is None
     assert config.failure_handler is None
+    # Unlimited until the application opts in.
+    assert config.max_uses is None
+
+
+@pytest.mark.parametrize("max_uses", [0, -1])
+def test_a_link_usable_no_times_is_refused(max_uses: int) -> None:
+    with pytest.raises(InvalidConfigurationError, match="max_uses"):
+        _ = LoginLinkConfig(check_path="/login_link", path="/login", max_uses=max_uses)
 
 
 def test_an_empty_check_path_is_refused() -> None:

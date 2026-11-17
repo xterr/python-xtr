@@ -44,6 +44,10 @@ def security() -> SecurityConfig:
                     target_path="/",
                     clear_site_data=("cache",),
                     cookie_clearing={"rememberme": ClearedCookie(path="/")},
+                    # About the logout's wiring, read outside any request; the
+                    # forgery check a stateful logout asks for by default is the
+                    # form login's fixture to pin.
+                    enable_csrf=False,
                 ),
                 authenticators=(
                     OidcLoginConfig(

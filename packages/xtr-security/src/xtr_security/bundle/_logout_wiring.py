@@ -161,7 +161,7 @@ def register_logout(
 
 def register_logout_url_generator(
     services: ServiceConfigurator,
-    registrations: Mapping[str, tuple[str, str | None]],
+    registrations: Mapping[str, tuple[str, str | None, LogoutConfig]],
 ) -> None:
     """Register the one generator, every firewall's logout registered on it.
 
@@ -172,22 +172,43 @@ def register_logout_url_generator(
     is scoped like the token storage it reads: the current firewall a
     keyless generation resolves over is the request's own, and what one
     request named does not answer for the next.
+
+    A logout that asks for a forgery token is registered with its id and its
+    parameter, and the generator is handed the request's manager, so the
+    address a page renders carries the token the logout step checks.
     """
     from xtr_security_http import (  # noqa: PLC0415 -- the family's logout import
         LogoutUrlGenerator,
     )
 
-    def logout_url_generator(token_storage: TokenStorageInterface) -> LogoutUrlGenerator:
+    def logout_url_generator(
+        token_storage: TokenStorageInterface,
+        csrf_token_manager: object | None = None,
+    ) -> LogoutUrlGenerator:
         """Build the generator with every firewall's logout registered on it."""
         generator = LogoutUrlGenerator(token_storage=token_storage)
-        for firewall_name, (path, context) in registrations.items():
-            generator.register_listener(firewall_name, path, None, None, None, context)
+        manager = cast("CsrfTokenManagerInterface | None", csrf_token_manager)
+        for firewall_name, (path, context, logout) in registrations.items():
+            if logout.enable_csrf:
+                generator.register_listener(
+                    firewall_name,
+                    path,
+                    logout.csrf_token_id,
+                    logout.csrf_parameter,
+                    manager,
+                    context,
+                )
+            else:
+                generator.register_listener(firewall_name, path, None, None, None, context)
         return generator
 
-    logout_url_generator.__annotations__ = {
+    annotations: dict[str, object] = {
         "token_storage": TokenStorageInterface,
         "return": LogoutUrlGenerator,
     }
+    if any(logout.enable_csrf for _, _, logout in registrations.values()):
+        annotations["csrf_token_manager"] = CsrfTokenManagerInterface
+    logout_url_generator.__annotations__ = annotations
     _ = services.set(logout_url_generator, lifetime="scoped")
 
 

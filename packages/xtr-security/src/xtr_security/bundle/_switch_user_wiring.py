@@ -198,7 +198,8 @@ class _FirewallConfigLookup(SwitchUserConfigLookupInterface):
             return None
         return SwitchUserConfig(
             parameter=settings.parameter,
-            enable_csrf=settings.enable_csrf,
+            # Settled by the bundle before the lookup is built: never None here.
+            enable_csrf=settings.enable_csrf is True,
             csrf_parameter=settings.csrf_parameter,
             csrf_token_id=settings.csrf_token_id,
             path=settings.path,

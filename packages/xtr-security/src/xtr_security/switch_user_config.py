@@ -26,8 +26,9 @@ class SwitchUserConfig:
             switched to.
         parameter: The name a request carries the user to switch to under.
         enable_csrf: Whether a switch asks for a cross-site request forgery
-            token — meaningful on a stateful firewall only, where the
-            session keeps the tokens.
+            token. ``None`` — the default — asks on a stateful firewall,
+            where the session keeps the tokens and a browser's cookie
+            authenticates the switch, and not on a stateless one.
         csrf_parameter: The name a request carries the forgery token under.
         csrf_token_id: The id the forgery token is stored under.
         path: The dedicated path a switch is asked at, or ``None`` to read
@@ -36,7 +37,7 @@ class SwitchUserConfig:
 
     role: str = "ROLE_ALLOWED_TO_SWITCH"
     parameter: str = "_switch_user"
-    enable_csrf: bool = False
+    enable_csrf: bool | None = None
     csrf_parameter: str = "_csrf_token"
     csrf_token_id: str = "switch_user"  # noqa: S105 -- the token's id, not a credential
     path: str | None = None

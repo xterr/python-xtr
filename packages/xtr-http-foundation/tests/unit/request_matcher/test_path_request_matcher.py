@@ -66,3 +66,29 @@ async def test_it_matches_the_whole_path_where_the_application_is_mounted_at_the
 def test_it_refuses_an_expression_that_does_not_read_as_one() -> None:
     with pytest.raises(InvalidArgumentError, match=r'"\(unclosed" is not a valid'):
         _ = PathRequestMatcher("(unclosed")
+
+
+@pytest.mark.anyio
+async def test_root_path_is_stripped_on_a_segment_boundary_only() -> None:
+    # ``/appsecret`` is not under ``/app``: read as ``secret`` it would slip
+    # past a rule like ``^/secret`` written for another path entirely.
+    matcher = PathRequestMatcher("^/appsecret$")
+    request = ServerRequest("GET", "/appsecret", server_params={"root_path": "/app"})
+
+    assert await matcher.matches(request) is True
+
+
+@pytest.mark.anyio
+async def test_a_path_sharing_only_a_prefix_with_the_mount_is_not_read_below_it() -> None:
+    matcher = PathRequestMatcher("^secret")
+    request = ServerRequest("GET", "/appsecret", server_params={"root_path": "/app"})
+
+    assert await matcher.matches(request) is False
+
+
+@pytest.mark.anyio
+async def test_the_mount_itself_is_the_applications_empty_path() -> None:
+    matcher = PathRequestMatcher("^$")
+    request = ServerRequest("GET", "/app", server_params={"root_path": "/app"})
+
+    assert await matcher.matches(request) is True

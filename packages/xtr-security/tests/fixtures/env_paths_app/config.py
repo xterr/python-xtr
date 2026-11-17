@@ -32,7 +32,13 @@ def security() -> SecurityConfig:
                 pattern=r"^/",
                 stateless=False,
                 provider="users",
-                logout=LogoutConfig(path=env("LOGOUT_PATH"), target_path=env("WEB_APP_ORIGIN")),
+                # About the paths a value names, not the forgery check a stateful
+                # firewall's logout asks for by default; that is the form login's.
+                logout=LogoutConfig(
+                    path=env("LOGOUT_PATH"),
+                    target_path=env("WEB_APP_ORIGIN"),
+                    enable_csrf=False,
+                ),
                 authenticators=(
                     FormLoginConfig(
                         login_path=env("LOGIN_PATH"),

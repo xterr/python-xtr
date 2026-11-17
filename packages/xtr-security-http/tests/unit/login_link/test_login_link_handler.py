@@ -7,6 +7,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from xtr_clock import MockClock
+from xtr_rate_limiter import InMemoryStorage, LimiterConfig, RateLimiterFactory
 from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.signature.signature_hasher import SignatureHasher
 from xtr_security_core.user.in_memory_user import InMemoryUser
@@ -63,6 +64,7 @@ def _handler(
     *,
     options: dict[str, object] | None = None,
     uri_builder: Callable[[str, ServerRequestInterface | None], str] | None = None,
+    uses_limiter_factory: RateLimiterFactory | None = None,
 ) -> tuple[LoginLinkHandler, RecordingUserProvider]:
     """Build the handler over a frozen clock, its user registered with the provider."""
     provider = RecordingUserProvider({user.get_user_identifier(): user})
@@ -74,6 +76,7 @@ def _handler(
             {"path": "/login-link", **(options or {})},
             uri_builder=uri_builder,
             clock=clock,
+            uses_limiter_factory=uses_limiter_factory,
         ),
         provider,
     )
@@ -541,3 +544,62 @@ async def test_the_refusals_wear_the_marker_the_flow_catches() -> None:
 
     with pytest.raises(InvalidLoginLinkErrorInterface):
         _ = await handler.consume_login_link(_request())
+
+
+def _uses(clock: MockClock, max_uses: int) -> RateLimiterFactory:
+    """Count each link's uses, at most ``max_uses`` across its whole lifetime."""
+    return RateLimiterFactory(
+        "login_link_uses",
+        LimiterConfig("fixed_window", limit=max_uses, interval="1 hour"),
+        # The storage expires states by its own clock, so it reads the frozen one too.
+        InMemoryStorage(clock),
+        clock=clock,
+    )
+
+
+async def test_a_link_limited_to_one_use_works_once() -> None:
+    clock = _frozen()
+    user = InMemoryUser("ada", password=_HASHED)
+    handler, _provider = _handler(clock, user, uses_limiter_factory=_uses(clock, 1))
+    link = await _link_of(handler, user)
+
+    first = await handler.consume_login_link(_presenting(link.get_url()))
+
+    assert first is user
+    with pytest.raises(InvalidLoginLinkError, match="already been used"):
+        _ = await handler.consume_login_link(_presenting(link.get_url()))
+
+
+async def test_each_link_counts_its_own_uses() -> None:
+    clock = _frozen()
+    user = InMemoryUser("ada", password=_HASHED)
+    handler, _provider = _handler(clock, user, uses_limiter_factory=_uses(clock, 1))
+    first = await _link_of(handler, user)
+    second = await handler.create_login_link(user, parameters={"next": "/account"})
+
+    _ = await handler.consume_login_link(_presenting(first.get_url()))
+
+    assert await handler.consume_login_link(_presenting(second.get_url())) is user
+
+
+async def test_a_tampered_link_spends_none_of_the_real_ones_uses() -> None:
+    # A use is counted only once the link verifies, so a guess cannot burn it.
+    clock = _frozen()
+    user = InMemoryUser("ada", password=_HASHED)
+    handler, _provider = _handler(clock, user, uses_limiter_factory=_uses(clock, 1))
+    link = await _link_of(handler, user)
+
+    with pytest.raises(InvalidLoginLinkError):
+        _ = await handler.consume_login_link(_presenting(link.get_url(), hash="forged"))
+
+    assert await handler.consume_login_link(_presenting(link.get_url())) is user
+
+
+async def test_without_a_uses_limiter_a_link_works_until_it_expires() -> None:
+    user = InMemoryUser("ada", password=_HASHED)
+    handler, _provider = _handler(_frozen(), user)
+    link = await _link_of(handler, user)
+
+    _ = await handler.consume_login_link(_presenting(link.get_url()))
+
+    assert await handler.consume_login_link(_presenting(link.get_url())) is user

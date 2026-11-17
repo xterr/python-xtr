@@ -59,6 +59,7 @@ if TYPE_CHECKING:
 
     from xtr_security.bundle.security_config import SecurityConfig
     from xtr_security.firewall_config import FirewallConfig
+    from xtr_security.logout_config import LogoutConfig
     from xtr_security.switch_user_config import SwitchUserConfig
 
 __all__ = ["build_firewall_map"]
@@ -107,7 +108,7 @@ def build_firewall_map(
         register_remember_me_response_listener(services)
 
     matchers: dict[str, RequestMatcherInterface] = {}
-    logout_registrations: dict[str, tuple[str, str | None]] = {}
+    logout_registrations: dict[str, tuple[str, str | None, LogoutConfig]] = {}
     switch_user_registrations: dict[str, SwitchUserConfig] = {}
     for name, firewall in config.firewalls.items():
         matchers[name] = firewall.to_matcher()
@@ -141,7 +142,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
     config: SecurityConfig,
     name: str,
     firewall: FirewallConfig,
-    logout_registrations: dict[str, tuple[str, str | None]],
+    logout_registrations: dict[str, tuple[str, str | None, LogoutConfig]],
     *,
     csrf_wired: bool,
     logging_active: bool = False,
@@ -186,6 +187,7 @@ def _build_firewall_context(  # noqa: PLR0913 -- a wiring call gathering one fir
             logout_registrations[name] = (
                 firewall.logout.path,
                 logout_context_key(name, firewall),
+                firewall.logout,
             )
         remember_me = remember_me_settings_of(firewall.authenticators)
         if remember_me is not None:

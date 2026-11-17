@@ -1057,19 +1057,26 @@ def test_a_switch_asking_for_a_csrf_check_wires_the_manager_into_its_listener() 
 
 
 def test_the_logout_url_generator_registers_every_configured_firewall() -> None:
+    from xtr_security_csrf.csrf_token_manager_interface import CsrfTokenManagerInterface
     from xtr_security_http import LogoutUrlGenerator
 
+    from xtr_security.bundle import LogoutConfig
     from xtr_security.bundle._logout_wiring import register_logout_url_generator
 
     services = _RecordingConfigurator()
 
     register_logout_url_generator(
         cast("ServiceConfigurator", cast("object", services)),
-        {"main": ("/sign-out", "main"), "api": ("/logout", None)},
+        {
+            "main": ("/sign-out", "main", LogoutConfig(path="/sign-out", enable_csrf=True)),
+            "api": ("/logout", None, LogoutConfig(enable_csrf=False)),
+        },
     )
 
     generator = cast("Callable[..., object]", services.set_targets[-1])
     assert generator.__annotations__["return"] is LogoutUrlGenerator
+    # A logout asking for a token is rendered carrying one, minted by the request's manager.
+    assert generator.__annotations__["csrf_token_manager"] is CsrfTokenManagerInterface
 
 
 def test_a_backchannel_logout_on_a_stateless_firewall_fails_the_build() -> None:

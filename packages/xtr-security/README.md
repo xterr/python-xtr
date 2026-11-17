@@ -490,6 +490,17 @@ environment the way [Secrets](#secrets) shows — never generated. The success a
 handlers follow the form login's pattern — the default pair, or the application's own
 named by service type.
 
+A link is usable any number of times until it expires, unless `max_uses` says otherwise:
+`max_uses=1` makes every link single-use. The uses are counted per link — keyed by its hash,
+and only once the link has verified, so a forged one spends none — in the application's
+`StorageInterface` service from [xtr-rate-limiter](../xtr-rate-limiter), over a window as long
+as the link's `lifetime`; workers sharing that storage share the count. Two links minted for
+one user in the same second, with the same parameters, are the same link and share its uses.
+
+After any login, the target the interrupted request saved on the session is followed only
+when it is a path or URL of the request's own origin, like the `_target_path` parameter and
+the referer; a foreign one is dropped and the default target answers.
+
 ### Login throttling
 
 A firewall's `login_throttling` block counts its login attempts: `global_limit` per
@@ -518,8 +529,10 @@ block's `role` (`ROLE_ALLOWED_TO_SWITCH` by default, weighed against the target 
 subject) becomes another user by carrying `parameter` (`_switch_user`) — on any page the
 firewall claims, or on the dedicated `path` — and steps back out with the same parameter
 carrying `_exit`. `enable_csrf` asks for a forgery token under `csrf_parameter` and
-`csrf_token_id` (`switch_user`), refused on a stateless firewall, which has no session to
-keep the tokens in. One scoped `ImpersonateUrlGenerator` service renders the addresses a
+`csrf_token_id` (`switch_user`). Left at `None`, it asks on a stateful firewall — the session
+cookie a browser sends on its own authenticates the switch — and not on a stateless one;
+`True` on a stateless firewall is refused, which has no session to keep the tokens in. One
+scoped `ImpersonateUrlGenerator` service renders the addresses a
 page switches by — the impersonation and exit paths, URLs and forms — reading the
 request's firewall's block through a lookup built from the firewall map.
 
@@ -597,7 +610,8 @@ The cross-site request forgery checks a logout can ask for are wired with the ma
 `enable_csrf` has the step prove the request with the manager before it logs out, and
 `clear_csrf_tokens` drops every token the request's session minted on the logout event. Both
 need the session the tokens are stored in, so a stateless firewall asking for either fails the
-build saying so.
+build saying so. `enable_csrf` left at `None` asks on a stateful firewall and not on a
+stateless one; the `LogoutUrlGenerator` then renders the logout address carrying the token.
 
 ### The OIDC back channel
 

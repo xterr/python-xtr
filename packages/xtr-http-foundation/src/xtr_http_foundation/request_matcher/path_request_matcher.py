@@ -28,13 +28,23 @@ def _path_below_the_application(request: ServerRequestInterface) -> str:
     and a rule is written about its own: moving the mount must not rewrite every
     matcher. The server reports the mount among the environment parameters.
 
+    The mount is a whole number of segments: ``/appsecret`` is not below
+    ``/app``, so it is matched as it stands, the way the router serving it reads
+    it — otherwise it would be judged as ``secret`` by rules written for
+    another path entirely.
+
     The escapes are undone so that a rule is written about the characters that
     were asked for rather than about one of the several ways of writing them;
     ``/admin/fo o`` therefore matches ``/admin/fo%20o``.
     """
     path = request.get_uri().get_path()
     mounted_at = request.get_server_params().get(_ROOT_PATH)
-    if isinstance(mounted_at, str) and mounted_at and path.startswith(mounted_at):
+    if (
+        isinstance(mounted_at, str)
+        and mounted_at
+        and path.startswith(mounted_at)
+        and (len(path) == len(mounted_at) or path[len(mounted_at)] == "/")
+    ):
         path = path[len(mounted_at) :]
 
     return unquote(path)

@@ -55,7 +55,9 @@ def security() -> SecurityConfig:
                 pattern=r"^/",
                 stateless=False,
                 provider="users",
-                switch_user=SwitchUserConfig(),
+                # About the switch's role and the remembered login, not its forgery
+                # check, which the form login's fixture pins.
+                switch_user=SwitchUserConfig(enable_csrf=False),
                 login_throttling=LoginThrottlingConfig(
                     secret="counting-secret", global_limit=50, local_limit=50
                 ),
