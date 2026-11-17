@@ -8,8 +8,10 @@ from xtr_http_client_contracts import HttpClientInterface
 from xtr_serializer import SerializerInterface
 
 from tests.fixtures.app_guarded.config import GUARDED_CLIENT
+from tests.fixtures.app_id_store.config import ID_TTL
 from tests.fixtures.app_webhook.config import APP_CLIENT, PARSED_TYPE, PLAIN_TYPE
 from tests.fixtures.app_webhook.services import LISTED_TYPE
+from tests.support.in_memory_webhook_id_store import InMemoryWebhookIdStore
 from tests.support.secret_header_request_parser import SecretHeaderRequestParser
 from xtr_webhook.bundle import WebhookBundle
 from xtr_webhook.client import RequestParser
@@ -88,7 +90,9 @@ async def test_with_no_client_named_the_transport_sends_through_the_default_one(
         default = await booted.container.get(HttpClientInterface)
 
     assert isinstance(transport, Transport)
-    assert transport._client is default
+    # Behind the private-network guard, on by default.
+    assert isinstance(transport._client, NoPrivateNetworkHttpClient)
+    assert transport._client._client is default
 
 
 async def test_a_named_client_is_the_one_the_transport_sends_through() -> None:
@@ -97,7 +101,24 @@ async def test_a_named_client_is_the_one_the_transport_sends_through() -> None:
         named = await booted.container.get(HttpClientInterface, APP_CLIENT)
 
     assert isinstance(transport, Transport)
-    assert transport._client is named
+    assert isinstance(transport._client, NoPrivateNetworkHttpClient)
+    assert transport._client._client is named
+
+
+async def test_the_controller_remembers_ids_in_the_store_the_application_named() -> None:
+    async with await Kernel("tests.fixtures.app_id_store", env="test").boot() as booted:
+        controller = await booted.container.get(WebhookController)
+        store = await booted.container.get(InMemoryWebhookIdStore)
+
+    assert controller._id_store is store
+    assert controller._id_ttl == ID_TTL
+
+
+async def test_without_a_store_named_every_webhook_is_handed_on() -> None:
+    async with await _bundle_alone().boot() as booted:
+        controller = await booted.container.get(WebhookController)
+
+    assert controller._id_store is None
 
 
 async def test_the_guard_wraps_the_client_the_transport_sends_through() -> None:
@@ -120,13 +141,12 @@ async def test_without_the_http_client_the_transport_stays_out_but_the_controlle
         assert booted.container.has(WebhookController)
 
 
-def test_without_the_http_client_the_guard_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_receive_only_application_builds_with_the_guard_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Without the client nothing is sent, so there is nothing for the guard to wrap.
     monkeypatch.setattr("xtr_webhook.bundle.webhook_bundle.find_spec", _finds_nothing)
 
-    with pytest.raises(LogicError) as caught:
-        _ = Kernel(GUARDED_APP, env="test").build()
-
-    assert str(caught.value) == (
-        'Configuring "no_private_network" requires xtr-http-client; '
-        "install it with uv add xtr-http-client."
-    )
+    async with await Kernel(GUARDED_APP, env="test").boot() as booted:
+        assert not booted.container.has(TransportInterface)
+        assert booted.container.has(WebhookController)

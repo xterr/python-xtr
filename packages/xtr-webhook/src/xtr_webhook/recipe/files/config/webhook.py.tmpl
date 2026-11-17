@@ -29,5 +29,5 @@ def webhook() -> WebhookConfig:
         # "legacy", "standard" or "transitional" — both ends must agree. Only
         # the Standard Webhooks signature covers the timestamp, so only it is
         # bounded by timestamp_tolerance.
-        signature_format="legacy",
+        signature_format="standard",
     )

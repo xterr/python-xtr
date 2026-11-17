@@ -169,6 +169,7 @@ does not exist.
 | Answer | When |
 |---|---|
 | `202` | the webhook was read, and every event it carried is on the bus |
+| `202` | the webhook's id is one the configured `id_store` already remembers: a retry, acknowledged and not handed on again |
 | `404` | nothing is routed to that type |
 | `406` | the parser refused it: a signature that does not match, a timestamp outside the window, a body that will not decode, a request the matcher does not claim |
 | whatever the refusal carries | a parser raising `RejectWebhookError` with its own status and headers |
@@ -246,8 +247,9 @@ a rule may be about the body.
 
 `IsJsonRequestMatcher` reads the body, not the `Content-Type` header: a sender that announces
 nothing still sent JSON, and one that announces `application/json` and sent something else did
-not — so that request is refused by the matcher, with `Request does not match.`, before the
-parser is handed anything.
+not. The bundle's own `RequestParser` does not use it: its matcher is `MethodRequestMatcher("POST")`
+alone, so nothing an unauthenticated sender posts is decoded — the body is read as JSON only once
+its signature verified, and one that is not JSON is then refused as `Request body is malformed.`
 
 ### Signature formats
 
@@ -407,7 +409,7 @@ Header names and the legacy digest are all configurable:
 | `timestamp_header_name` | `"Webhook-Timestamp"` |
 | `signature_header_name` | `"Webhook-Signature"` |
 | `signing_algorithm` | `"sha256"` |
-| `signature_format` | `SignatureFormat.LEGACY` |
+| `signature_format` | `SignatureFormat.STANDARD` |
 | `timestamp_tolerance` | `300` |
 
 An algorithm this runtime cannot make is refused where it is configured, not at the first
@@ -486,10 +488,12 @@ WebhookConfig(
 )
 ```
 
-Naming `subnets` or an `allow_list` while `enabled` is `False` is refused rather than silently
-ignored — a configuration that looks like protection and is not. Turning it on without
-xtr-http-client installed is refused too, with `LogicError`, when the container is built: there
-is no client for it to wrap.
+The guard is on by default: a subscriber's URL is data, so by default no webhook may be sent into
+this network. `NoPrivateNetworkConfig(enabled=False)` turns it off for a receiver that lives
+there. Naming `subnets` or an `allow_list` while `enabled` is `False` is refused rather than
+silently ignored — a configuration that looks like protection and is not. Without xtr-http-client
+installed nothing is sent, so there is nothing to guard and a receive-only application builds as
+it is.
 
 ## Testing your parsers
 
@@ -590,8 +594,7 @@ removing it undoes.
   the bundle runs on arrives through [xtr-http-kernel](../xtr-http-kernel), which serves the
   endpoint. xtr-http-client is what sends — the client, the guard and the client's bundle.
   Without it, no transport and no send handler are registered, dispatching `SendWebhookMessage`
-  fails with the bus's no-handler error, and turning `no_private_network` on is refused with
-  `LogicError`.
+  fails with the bus's no-handler error, and the guard has nothing to wrap.
 - **Recipe** — `uv run xtr-recipes recipes:sync` does the *Activate*, *Configure* and
   *Environment* steps below: it lists `WebhookBundle`, writes a starting
   `<app>/config/packages/webhook.py` with one route, `<app>/config/routes/webhook.py` serving the
@@ -675,7 +678,7 @@ def http_client() -> HttpClientConfig:
 | Field | Default | What it sets |
 |---|---|---|
 | `routing` | `{}` | what the endpoint does with each type, by the type in the URL |
-| `signature_format` | `SignatureFormat.LEGACY` | the scheme both ends share; a string is accepted |
+| `signature_format` | `SignatureFormat.STANDARD` | the scheme both ends share; a string is accepted |
 | `timestamp_tolerance` | `300` | seconds either side of now a signed timestamp may be; `0` turns the bound off |
 | `signing_algorithm` | `"sha256"` | the digest the legacy signature is made with |
 | `event_header_name` | `"Webhook-Event"` | where the event's name travels, where the scheme sends one |
@@ -683,7 +686,9 @@ def http_client() -> HttpClientConfig:
 | `timestamp_header_name` | `"Webhook-Timestamp"` | where the send time travels |
 | `signature_header_name` | `"Webhook-Signature"` | where the signature entries travel |
 | `http_client` | `None` | the qualifier of the `HttpClientInterface` webhooks are sent through — a scoped client's name; `None` means the default client |
-| `no_private_network` | `NoPrivateNetworkConfig()` | whether that client is wrapped in the guard refusing to deliver inwards, and what counts as inwards |
+| `no_private_network` | `NoPrivateNetworkConfig()` | whether that client is wrapped in the guard refusing to deliver inwards — on by default — and what counts as inwards |
+| `id_store` | `None` | the application's `WebhookIdStoreInterface` class, built by the container; a webhook id it already remembers (per type) is answered `202` and not handed on again |
+| `id_ttl` | `86400` | seconds an id is remembered, as long as a sender may retry |
 
 `RouteConfig(parser=None, secret="")`: `parser` is the class reading that type's webhooks, built
 by the container with its dependencies on the first webhook for it; `None` means the bundle's

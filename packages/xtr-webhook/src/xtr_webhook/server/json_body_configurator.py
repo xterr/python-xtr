@@ -49,7 +49,7 @@ class JsonBodyConfigurator(RequestConfiguratorInterface):
     def __init__(
         self,
         serializer: SerializerInterface,
-        signature_format: SignatureFormat | str = SignatureFormat.LEGACY,
+        signature_format: SignatureFormat | str = SignatureFormat.STANDARD,
     ) -> None:
         """Configure what writes the payload, and under which format.
 

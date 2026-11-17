@@ -17,9 +17,16 @@ def test_the_defaults_mirror_the_senders_and_the_parsers() -> None:
     assert config.timestamp_header_name == "Webhook-Timestamp"
     assert config.signature_header_name == "Webhook-Signature"
     assert config.signing_algorithm == "sha256"
-    assert config.signature_format is SignatureFormat.LEGACY
+    assert config.signature_format is SignatureFormat.STANDARD
     assert config.timestamp_tolerance == 300
     assert config.routing == {}
+    assert config.id_store is None
+    assert config.id_ttl == 86_400
+
+
+def test_an_id_ttl_below_a_second_is_refused() -> None:
+    with pytest.raises(InvalidArgumentError, match="id_ttl"):
+        _ = WebhookConfig(id_ttl=0)
 
 
 def test_routing_keys_are_kept_verbatim() -> None:

@@ -47,7 +47,7 @@ class HeadersConfigurator(RequestConfiguratorInterface):
         id_header_name: str = "Webhook-Id",
         timestamp_header_name: str = "Webhook-Timestamp",
         clock: ClockInterface | None = None,
-        signature_format: SignatureFormat | str = SignatureFormat.LEGACY,
+        signature_format: SignatureFormat | str = SignatureFormat.STANDARD,
     ) -> None:
         """Configure the names and the format this sends under.
 

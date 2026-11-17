@@ -20,18 +20,21 @@ sees HTTP. Sending is the same problem from the other side.
   `async do_parse(request, secret)`. `RequestParser` is the built-in one: once a signature
   verified it builds `RemoteEvent(name, id, payload)` from the headers and the JSON object body.
   The matchers are `xtr_http_foundation`'s, and `IsJsonRequestMatcher` reads the body rather than
-  the `Content-Type` header.
+  the `Content-Type` header. `RequestParser` claims every `POST` and decodes the body only after
+  the signature verified.
 - Send — `await bus.dispatch(SendWebhookMessage(Subscriber(url, secret), event))`. Needs
   xtr-http-client installed beside this package; `Transport` posts through any
   `HttpClientInterface`. The body is the event's payload, written by
   `JsonBodyConfigurator(serializer, signature_format)`; the name and id go in headers. An event
   class of your own crosses the bus as itself, but only its payload is posted.
-- Formats — `SignatureFormat.LEGACY` (default), `STANDARD`, `TRANSITIONAL`. Members are their
+- Formats — `SignatureFormat.STANDARD` (default), `LEGACY`, `TRANSITIONAL`. Members are their
   strings. Only `STANDARD` signs the timestamp, so only it bounds replays.
-- Guard — `NoPrivateNetworkConfig(enabled=True)` in the bundle, or
-  `NoPrivateNetworkHttpClient(client)` by hand. Opt-in, off by default.
-- Answers — `202` read, `404` unknown type, `406` refused, `5xx` something behind the endpoint
-  failed.
+- Guard — on by default in the bundle (`NoPrivateNetworkConfig(enabled=False)` turns it off), or
+  `NoPrivateNetworkHttpClient(client)` by hand.
+- Retries — `WebhookConfig(id_store=YourStore)` names a `WebhookIdStoreInterface` class; an id it
+  already remembers (per type) is answered `202` and not handed on again.
+- Answers — `202` read (or a remembered retry), `404` unknown type, `406` refused, `5xx`
+  something behind the endpoint failed.
 - Test — `parser_cases`, `ParserCase`, `assert_parses` from `xtr_webhook.testing`.
 - Every error derives from `WebhookError`.
 
@@ -212,7 +215,7 @@ literal requests each format emits — is in
 
 ## Guard outbound requests
 
-Opt-in, off by default. A subscriber URL is data, so without it a webhook is a way to make this
+On by default. A subscriber URL is data, so without it a webhook is a way to make this
 process fetch an address only this process can see.
 
 In the bundle, around the client `http_client` names (the default one when unset):

@@ -15,7 +15,7 @@ handler it cannot build; without xtr-http-client installed, dispatching a
 from __future__ import annotations
 
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Annotated, Final, final
+from typing import TYPE_CHECKING, Annotated, Final, cast, final
 
 from typing_extensions import override
 from xtr_dependency_injection import (
@@ -38,7 +38,6 @@ from xtr_serializer.bundle import SerializerBundle
 from xtr_webhook.client.request_parser import RequestParser
 from xtr_webhook.client.request_parser_interface import RequestParserInterface
 from xtr_webhook.controller.webhook_controller import WebhookController
-from xtr_webhook.exception import LogicError
 from xtr_webhook.server.header_signature_configurator import HeaderSignatureConfigurator
 from xtr_webhook.server.headers_configurator import HeadersConfigurator
 from xtr_webhook.server.json_body_configurator import JsonBodyConfigurator
@@ -51,6 +50,8 @@ from .webhook_config import WebhookConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from xtr_webhook.client.webhook_id_store_interface import WebhookIdStoreInterface
 
 __all__ = ["WebhookBundle"]
 
@@ -83,9 +84,9 @@ class WebhookBundle(Bundle[WebhookConfig]):
         The format is converted once, here: the configurators and the parser
         take a member, and every factory below is handed the same one.
 
-        Raises:
-            LogicError: When the private-network guard is turned on while
-                xtr-http-client, whose client it wraps, is not installed.
+        Without xtr-http-client nothing is sent, so the private-network guard —
+        on by default — has nothing to wrap and is simply not built: a
+        receive-only application builds as it is.
         """
         del builder
         fmt = SignatureFormat.parse(config.signature_format)
@@ -115,7 +116,9 @@ class WebhookBundle(Bundle[WebhookConfig]):
                 target_qualifier=None if route.parser is not None else _WEBHOOK,
             )
 
-        _ = services.set(named_factory(_webhook_controller, "webhook_controller"))
+        if config.id_store is not None:
+            _ = services.set(config.id_store)
+        _ = services.set(named_factory(_webhook_controller(config.id_store), "webhook_controller"))
         # The route resource: scanned so the http kernel carries it to setup(),
         # which hands it to the application's routes files to include.
         services.load(_ROUTES_MODULE)
@@ -127,11 +130,6 @@ class WebhookBundle(Bundle[WebhookConfig]):
             # registered with the bus only here: a container must never hold a
             # handler it cannot build.
             services.load(_SEND_HANDLER_MODULE)
-        elif config.no_private_network.enabled:
-            raise LogicError(
-                'Configuring "no_private_network" requires xtr-http-client; '
-                "install it with uv add xtr-http-client."
-            )
 
 
 def _custom_parsers(config: WebhookConfig) -> tuple[type[RequestParserInterface], ...]:
@@ -251,21 +249,44 @@ def _request_parser(fmt: SignatureFormat) -> Callable[[WebhookConfig], RequestPa
 
 
 def _webhook_controller(
-    config: WebhookConfig,
-    bus: MessageBusInterface,
-    parsers: ServiceLocator[RequestParserInterface],
-    serializer: SerializerInterface,
-) -> WebhookController:
-    """Build the endpoint's controller over the parsers the routing names.
+    id_store: type[WebhookIdStoreInterface] | None,
+) -> Callable[..., WebhookController]:
+    """Return the factory of the endpoint's controller over the parsers the routing names.
 
     The container injects a locator over every parser; only the routed types
     are handed on, each under the qualifier its route was aliased with, so a
     route's parser is built — with its dependencies — the first time a webhook
     for it arrives. A route naming no parser reads with the bundle's own.
     The serializer is the serializer bundle's, the one the messenger bundle writes messages
-    with.
+    with. The id store is asked for only when the application named one.
     """
-    secrets = {name: route.secret for name, route in config.routing.items()}
-    return WebhookController(
-        RoutedParsers(parsers, tuple(config.routing)), secrets, bus, serializer
-    )
+
+    def build(
+        config: WebhookConfig,
+        bus: MessageBusInterface,
+        parsers: ServiceLocator[RequestParserInterface],
+        serializer: SerializerInterface,
+        store: object | None = None,
+    ) -> WebhookController:
+        secrets = {name: route.secret for name, route in config.routing.items()}
+        return WebhookController(
+            RoutedParsers(parsers, tuple(config.routing)),
+            secrets,
+            bus,
+            serializer,
+            id_store=cast("WebhookIdStoreInterface | None", store),
+            id_ttl=config.id_ttl,
+        )
+
+    annotations: dict[str, object] = {
+        "config": WebhookConfig,
+        "bus": MessageBusInterface,
+        "parsers": ServiceLocator[RequestParserInterface],
+        "serializer": SerializerInterface,
+        "return": WebhookController,
+    }
+    if id_store is not None:
+        annotations["store"] = id_store
+    build.__annotations__ = annotations
+
+    return build

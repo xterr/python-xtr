@@ -42,20 +42,24 @@ def _signed() -> OutgoingRequest:
     return OutgoingRequest(headers={"Webhook-Timestamp": _TIMESTAMP}, body=_BODY)
 
 
-def test_the_legacy_format_is_the_default() -> None:
-    request = OutgoingRequest(body=_BODY)
+def test_the_standard_format_is_the_default() -> None:
+    # The one whose signature covers the timestamp, so the one that bounds a replay.
+    request = _signed()
 
     HeaderSignatureConfigurator().configure(_event(), _WHSEC, request)
 
-    assert request.headers["Webhook-Signature"] == _legacy()
+    assert request.headers["Webhook-Signature"] == _standard()
 
 
 def test_the_legacy_signature_covers_the_name_then_the_id_then_the_body() -> None:
     request = OutgoingRequest(body=_BODY)
     swapped = hmac.new(b"s3cr3t", b"event-id" + b"event-name" + _BODY, "sha256").hexdigest()
 
-    HeaderSignatureConfigurator().configure(_event(), _WHSEC, request)
+    HeaderSignatureConfigurator(signature_format=SignatureFormat.LEGACY).configure(
+        _event(), _WHSEC, request
+    )
 
+    assert request.headers["Webhook-Signature"] == _legacy()
     assert request.headers["Webhook-Signature"] != f"sha256={swapped}"
 
 
@@ -138,7 +142,9 @@ def test_the_timestamp_header_name_is_configurable() -> None:
 def test_the_signature_header_name_is_configurable() -> None:
     request = OutgoingRequest(body=_BODY)
 
-    HeaderSignatureConfigurator(signature_header_name="X-Signature").configure(
+    HeaderSignatureConfigurator(
+        signature_header_name="X-Signature", signature_format=SignatureFormat.LEGACY
+    ).configure(
         _event(),
         _WHSEC,
         request,
@@ -150,7 +156,9 @@ def test_the_signature_header_name_is_configurable() -> None:
 def test_another_algorithm_signs_and_names_itself() -> None:
     request = OutgoingRequest(body=_BODY)
 
-    HeaderSignatureConfigurator(algorithm="sha512").configure(_event(), _WHSEC, request)
+    HeaderSignatureConfigurator(
+        algorithm="sha512", signature_format=SignatureFormat.LEGACY
+    ).configure(_event(), _WHSEC, request)
 
     assert request.headers["Webhook-Signature"] == _legacy(algorithm="sha512")
 
@@ -188,7 +196,9 @@ def test_a_request_with_no_body_cannot_be_signed(signature_format: SignatureForm
 def test_an_empty_body_is_a_body_and_is_signed() -> None:
     request = OutgoingRequest(body=b"")
 
-    HeaderSignatureConfigurator().configure(_event(), _WHSEC, request)
+    HeaderSignatureConfigurator(signature_format=SignatureFormat.LEGACY).configure(
+        _event(), _WHSEC, request
+    )
 
     digest = hmac.new(b"s3cr3t", b"event-name" + b"event-id", "sha256").hexdigest()
     assert request.headers["Webhook-Signature"] == f"sha256={digest}"

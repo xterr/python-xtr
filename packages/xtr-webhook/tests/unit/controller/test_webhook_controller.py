@@ -11,6 +11,7 @@ from xtr_remote_event import RemoteEvent
 from xtr_remote_event.messenger import ConsumeRemoteEventMessage
 from xtr_serializer import JsonEncoder, NotNormalizableValueError, PydanticNormalizer, Serializer
 
+from tests.support.in_memory_webhook_id_store import InMemoryWebhookIdStore
 from tests.support.recording_message_bus import RecordingMessageBus
 from xtr_webhook.client.abstract_request_parser import AbstractRequestParser
 from xtr_webhook.controller import WebhookController
@@ -78,12 +79,15 @@ def _controller(
     parser: _ScriptedRequestParser,
     bus: RecordingMessageBus,
     secrets: dict[str, str] | None = None,
+    id_store: InMemoryWebhookIdStore | None = None,
 ) -> WebhookController:
     return WebhookController(
         {"acme": parser},
         {"acme": _WHSEC} if secrets is None else secrets,
         bus,
         _SERIALIZER,
+        id_store=id_store,
+        id_ttl=600,
     )
 
 
@@ -261,3 +265,61 @@ async def test_it_leaves_the_response_it_was_handed_as_it_was() -> None:
 
     assert handed.get_status_code() == 200
     assert handed.has_header("Content-Type") is False
+
+
+@pytest.mark.anyio
+async def test_a_webhook_id_seen_before_is_acknowledged_and_not_dispatched_again() -> None:
+    # A sender retries a 202 it never received; refusing it would retry forever.
+    event = RemoteEvent("name", "id-1", {})
+    bus = RecordingMessageBus()
+    store = InMemoryWebhookIdStore()
+    controller = _controller(_ScriptedRequestParser(parsed=event), bus, id_store=store)
+
+    first = await controller.index_action("acme", _arrived(), Response())
+    second = await controller.index_action("acme", _arrived(), Response())
+
+    assert (first.get_status_code(), second.get_status_code()) == (202, 202)
+    assert bus.messages == [ConsumeRemoteEventMessage("acme", event)]
+    assert store.ttls == {"acme:id-1": 600}
+
+
+@pytest.mark.anyio
+async def test_only_the_events_not_seen_before_are_dispatched() -> None:
+    seen = RemoteEvent("name", "id-1", {})
+    fresh = RemoteEvent("name", "id-2", {})
+    bus = RecordingMessageBus()
+    store = InMemoryWebhookIdStore()
+    _ = await store.remember("acme:id-1", 600)
+
+    _ = await _controller(
+        _ScriptedRequestParser(parsed=[seen, fresh]), bus, id_store=store
+    ).index_action("acme", _arrived(), Response())
+
+    assert bus.messages == [ConsumeRemoteEventMessage("acme", fresh)]
+
+
+@pytest.mark.anyio
+async def test_an_id_whose_dispatch_failed_is_forgotten_so_the_retry_is_handled() -> None:
+    bus = RecordingMessageBus(raises=NoHandlerForMessageError(ConsumeRemoteEventMessage, ()))
+    store = InMemoryWebhookIdStore()
+    parser = _ScriptedRequestParser(parsed=RemoteEvent("name", "id-1", {}))
+
+    with pytest.raises(NoHandlerForMessageError):
+        _ = await _controller(parser, bus, id_store=store).index_action(
+            "acme", _arrived(), Response()
+        )
+
+    assert store.ttls == {}
+
+
+@pytest.mark.anyio
+async def test_the_same_id_from_two_types_is_two_webhooks() -> None:
+    store = InMemoryWebhookIdStore()
+    _ = await store.remember("other:id-1", 600)
+    bus = RecordingMessageBus()
+
+    _ = await _controller(
+        _ScriptedRequestParser(parsed=RemoteEvent("name", "id-1", {})), bus, id_store=store
+    ).index_action("acme", _arrived(), Response())
+
+    assert len(bus.messages) == 1

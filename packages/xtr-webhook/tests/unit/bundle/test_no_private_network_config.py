@@ -6,10 +6,11 @@ from xtr_webhook.bundle import NoPrivateNetworkConfig
 from xtr_webhook.exception import InvalidArgumentError
 
 
-def test_the_guard_is_off_by_default() -> None:
+def test_the_guard_is_on_by_default() -> None:
+    # A webhook URL is the subscriber's to choose: by default none may point inside this network.
     config = NoPrivateNetworkConfig()
 
-    assert config.enabled is False
+    assert config.enabled is True
     assert config.subnets is None
     assert config.allow_list == ()
 
@@ -25,7 +26,7 @@ def test_enabled_with_subnets_and_an_allow_list_builds() -> None:
 
 def test_subnets_without_enabled_are_refused() -> None:
     with pytest.raises(InvalidArgumentError) as caught:
-        _ = NoPrivateNetworkConfig(subnets=("10.0.0.0/8",))
+        _ = NoPrivateNetworkConfig(enabled=False, subnets=("10.0.0.0/8",))
 
     assert str(caught.value) == (
         "no_private_network.subnets and allow_list take effect only with enabled=True."
@@ -34,7 +35,7 @@ def test_subnets_without_enabled_are_refused() -> None:
 
 def test_an_allow_list_without_enabled_is_refused() -> None:
     with pytest.raises(InvalidArgumentError) as caught:
-        _ = NoPrivateNetworkConfig(allow_list=("10.1.2.3",))
+        _ = NoPrivateNetworkConfig(enabled=False, allow_list=("10.1.2.3",))
 
     assert str(caught.value) == (
         "no_private_network.subnets and allow_list take effect only with enabled=True."
