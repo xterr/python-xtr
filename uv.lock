@@ -4857,6 +4857,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "python-multipart" },
     { name = "starlette" },
+    { name = "xtr-clock" },
     { name = "xtr-dependency-injection" },
     { name = "xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts" },
@@ -4864,6 +4865,7 @@ dependencies = [
     { name = "xtr-http-message-contracts" },
     { name = "xtr-logging-contracts" },
     { name = "xtr-service-contracts" },
+    { name = "xtr-stopwatch" },
 ]
 
 [package.dev-dependencies]
@@ -4886,6 +4888,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.143.1" },
     { name = "python-multipart", specifier = ">=0.0.21" },
     { name = "starlette", specifier = ">=1.6" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-event-dispatcher", editable = "packages/xtr-event-dispatcher" },
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
@@ -4893,6 +4896,7 @@ requires-dist = [
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+    { name = "xtr-stopwatch", editable = "packages/xtr-stopwatch" },
 ]
 
 [package.metadata.requires-dev]
