@@ -105,11 +105,14 @@ does accept, and a value it cannot use — `prefetch_count=lots` — with
 
 The bus's own worker makes one attempt per message; here taskiq's worker runs the message, and
 the transport decides what a failure means. A failed message is retried until `max_attempts`,
-the n-th retry waiting `base_delay_seconds × n` seconds, at most 60; then it is republished to
+each retry waiting n times as long as the one before it — `base_delay_seconds`, then twice
+that, then three times the second, at most 60 seconds; then it is republished to
 `taskiq.dlq` — or the
 `dead_letter_queue` you name — in its original wire format, so it can be inspected and
 replayed. A handler asking for the envelope reads which attempt it is on in its
 `RedeliveryStamp`.
+A message sent with a `DelayStamp` carries that delay into its retries: its first retry waits as
+long as the stamp asked, not `base_delay_seconds`.
 A retry is a new copy published before the failed delivery is acked, so a worker dying between
 the two leaves both: handlers must be idempotent.
 

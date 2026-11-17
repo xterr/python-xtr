@@ -548,6 +548,8 @@ distinguished name when the email is not there — `emailAddress` also answers i
 spelling `1.2.840.113549.1.9.1`, a custom identifier is matched anywhere in the name, and the
 value read out of a name is trimmed. A request carrying neither key, or a name without the
 identifier, is refused.
+Both read the request's server parameters, which an ASGI server served through the HTTP kernel
+never fills with these keys: there, neither signs anyone in.
 
 ### Listeners
 

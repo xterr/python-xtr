@@ -952,7 +952,9 @@ and every handler of a message share one
 database session — is built once per message, handed to each handler asking for it, and
 released when the message is done with, even when a handler raised. A message dispatched while
 another is handled — or while a request or a command runs — joins that unit; a message a worker
-received is always a unit of its own, even when a command runs the worker. A message held back
+received is always a unit of its own, even when a command runs the worker. A handler of a message
+that joined a request's unit sees that request's security token; the same message handled by a
+worker sees none. Authorize from what the message carries, not from the current user. A message held back
 is dispatched once the unit of the one that held it back is over: in a worker it is a unit of
 its own, and where a request or a command dispatched that message it joins theirs, as anything
 they dispatch does. A middleware needing the message's instance resolves it from

@@ -555,6 +555,11 @@ distinguished name under `credentials_key` when there is no email. Both need a u
 provider and both run at priority `100`; neither answers a challenge, so a request they
 cannot read goes on anonymous to the next authenticator.
 
+Neither signs anyone in when the application is served by the HTTP kernel: an ASGI server hands
+the application no `REMOTE_USER` or `SSL_CLIENT_*` entries, and the kernel passes on only the
+connection's own (`method`, `path`, `client`, …), so every request reads as carrying no user.
+They are for an application that builds its requests from such an environment itself.
+
 ### Form login
 
 A `FormLoginConfig` builds the form login: the form rendered at `login_path`, submitted to

@@ -157,8 +157,8 @@ No package ships a database migration for 7.0: no table gains or loses a column.
 ### xtr-amqp-messenger
 
 - See xtr-messenger: the bridge module moved here.
-- No behaviour change, but the README now states the retry delay (the n-th retry waits
-  `base_delay_seconds × n` seconds, at most 60) and how to bound `taskiq.dlq`: with a RabbitMQ
+- No behaviour change, but the README now states the retry delay (each retry waits n times the
+  one before it, from `base_delay_seconds`, at most 60 seconds) and how to bound `taskiq.dlq`: with a RabbitMQ
   policy, since declaring limits on the existing queue fails with `PRECONDITION_FAILED`.
 
 ### xtr-orm

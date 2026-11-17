@@ -100,6 +100,9 @@ variable the application itself sets has no such registration: only the server c
 from reaching the next request, and the flag is how it is asked to. With it on, a context
 variable set before the server started is not seen by a request; pass such a value through the
 application's state. Middleware added after `setup()` runs outside the request's unit of work.
+So does the framework's own handler for an uncaught exception or a 500: it runs after
+`TerminateEvent`, cannot resolve scoped services, and its response gets no `ResponseEvent` — no
+request id header, no session cookie. Answer an error from an `ExceptionEvent` listener instead.
 
 ```console
 $ curl -i localhost:8000/books/0262510871

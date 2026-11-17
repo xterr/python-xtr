@@ -214,6 +214,8 @@ Tagging an item of any other pool raises `LogicError`.
   computation — and its result: they all get the very object computed, so copy it before changing
   it; what is cached is not affected. If it fails or is cancelled, the others compute for
   themselves, side by side.
+  Do not compute ORM entities bound to the caller's session: the session closes with the first
+  caller's unit, and every other caller gets entities it cannot load. Cache plain values.
 - **One computation per key across processes**, with a `LockRegistry`. Keys are spread over
   `slots` locks (20 by default); the caller that takes a key's slot computes and saves, the others
   wait for it and read what was saved — or compute themselves after `wait` seconds (30), so a stuck

@@ -168,8 +168,8 @@ async with HttpxHttpClient({"timeout": 5}, max_host_connections=4) as client:
   told: an `Authorization` header belongs to the host it was meant for, so it is dropped the
   moment a chain leaves that host and put back only if the chain returns to it.
   Only that header is: a custom credential header — `X-Api-Key`, say — follows a redirect to
-  another host. Send such a request with `max_redirects=0`, or put the credential in
-  `Authorization`.
+  another host, here and through `NoPrivateNetworkHttpClient` alike. Send such a request with
+  `max_redirects=0`, or put the credential in `Authorization`.
 - `aclose()` — or leaving the `async with` — closes every pool. Nothing is opened until a
   request is made.
 - Each event loop gets pools of its own, since a connection cannot move between loops: one
@@ -311,9 +311,10 @@ straight past the guard.
 
 A redirect to another origin — another scheme, host or port — carries no credentials meant for
 the first: the `Authorization`, `Cookie` and `Proxy-Authorization` headers, the `auth_bearer`
-and `auth_basic` options and the `query` parameters (an API key travels there) are left behind,
-and the hop sends empty `headers` and `query` options, so the wrapped client's own defaults
-for them are not sent there either. A body a 307 or 308 keeps goes on, as the status asks. An
+and `auth_basic` options and the `query` parameters (an API key travels there) are left behind.
+The hop sends the request's other headers and an empty `query`, and never the wrapped client's
+own default headers or query. A custom credential header — `X-Api-Key` — is one of the other
+headers and goes on: send it with `max_redirects=0`. A body a 307 or 308 keeps goes on, as the status asks. An
 address the checks cannot read is refused; one with a zone, `fe80::1%eth0`, is checked as the
 address it names.
 
