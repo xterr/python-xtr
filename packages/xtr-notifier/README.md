@@ -157,6 +157,27 @@ A provider library checks its transport and factory with `TransportCases` /
 `assert_transport_cases` and `FactoryCases` / `assert_factory_cases`, which report every case
 that fails at once. None of it imports a test framework.
 
+## Profiler panel
+
+With the http kernel's profiler on — [xtr-web-profiler](../xtr-web-profiler) turns it on in
+development — the bundle registers a `notifier` panel, `NotifierDataCollector`, that lists every
+message a profiled request sent or queued, in the order they left:
+
+- the message's class, its channel (`chat`, `sms` or `push`), the transport it names, its
+  subject, its recipient and its options, with any value named like a credential (a token, a
+  secret, a password, an authorization header) shown as `******`;
+- its status — `queued`, `pending`, `sent` or `failed` — and, once its transport reports, the
+  transport that sent it, the provider's message id or the error, and how long the send took;
+- the counts of messages queued, sent and failed, and per named transport.
+
+A failover transport announces each attempt, so a message that fell over shows as a failed
+attempt followed by the one that went through. A message queued on a bus shows as `queued`; when
+a `sync://` transport sends it in the same request, its send follows as a message of its own.
+
+The panel records from the message events, so it is registered only with the event dispatcher
+bundle active as well; without it there is no panel. With the profiler off nothing is
+registered and nothing is recorded: the panel costs nothing.
+
 ## Use in an application
 
 Everything adding this package to an application on

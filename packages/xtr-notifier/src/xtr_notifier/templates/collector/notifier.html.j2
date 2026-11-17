@@ -1,0 +1,228 @@
+{#
+  Every notification message the request sent or queued, and what came of each.
+
+  A message is recorded as it is announced — about to go out, or handed to a
+  message bus — so the rows keep the order the messages left in, and the
+  record is completed when its transport reports it sent or failed. A
+  transport that falls back to another announces every attempt, so one message
+  the caller sent reads as one row per attempt: the failed try first, then the
+  one that got through. The options were cloned and masked as they were
+  recorded, and the message itself never reaches the profile.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set count = collector.data.get("count") or 0 %}
+{% set failed = collector.data.get("failed") or 0 %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4.4 11.2V7.3a3.6 3.6 0 0 1 7.2 0v3.9"></path>
+  <path d="M2.9 11.2h10.2"></path>
+  <path d="M6.6 13.1a1.6 1.6 0 0 0 2.8 0"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ count }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Messages</dt><dd>{{ count }}</dd>
+  <dt>Sent</dt><dd>{{ collector.data.get("sent") or 0 }}</dd>
+  <dt>Queued</dt><dd>{{ collector.data.get("queued") or 0 }}</dd>
+  <dt>Failed</dt><dd>{{ failed }}</dd>
+  <dt>Transports</dt><dd>{{ (collector.data.get("by_transport") or {})|length }}</dd>
+</dl>
+<p class="xtr-toolbar-note">Every message this request announced, one sent while the body streamed included; a fallback counts each attempt.</p>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status="red" if failed else "normal") }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4.4 11.2V7.3a3.6 3.6 0 0 1 7.2 0v3.9"></path>
+  <path d="M2.9 11.2h10.2"></path>
+  <path d="M6.6 13.1a1.6 1.6 0 0 0 2.8 0"></path>
+</svg>
+<span class="xtr-menu-label">Notifications</span>
+{% if collector.data.get("failed") %}
+<span class="xtr-menu-count xtr-menu-count-red" title="sends that failed">{{ collector.data.get("failed") }}</span>
+{% else %}
+<span class="xtr-menu-count">{{ collector.data.get("count") or 0 }}</span>
+{% endif %}
+{% endblock %}
+
+{% block panel %}
+{% set messages = collector.data.get("messages") or [] %}
+{% set by_transport = collector.data.get("by_transport") or {} %}
+{% set sent_rows = [] %}
+{% set queued_rows = [] %}
+{% set failed_rows = [] %}
+{% set pending_rows = [] %}
+{% for notified in messages %}
+{% if notified.get("status") == "sent" %}
+{% set _ = sent_rows.append(notified) %}
+{% elif notified.get("status") == "queued" %}
+{% set _ = queued_rows.append(notified) %}
+{% elif notified.get("status") == "failed" %}
+{% set _ = failed_rows.append(notified) %}
+{% else %}
+{% set _ = pending_rows.append(notified) %}
+{% endif %}
+{% endfor %}
+{% macro message_table(tag, rows, nothing) %}
+{% set tones = {"sent": "green", "queued": "blue", "failed": "red"} %}
+<div class="xtr-toolstrip">
+  <input class="xtr-filter" type="search" placeholder="Filter these messages…" aria-label="Filter the messages shown" data-xtr-filter="xtr-notifier-{{ tag }}" data-xtr-filter-count="xtr-notifier-{{ tag }}-count">
+  <span class="xtr-card-note" id="xtr-notifier-{{ tag }}-count">{{ rows|length }} of {{ rows|length }}</span>
+</div>
+{% if rows %}
+<div class="xtr-scroll">
+  <table class="xtr-table" id="xtr-notifier-{{ tag }}">
+    <thead>
+      <tr>
+        <th scope="col">Channel</th>
+        <th scope="col">Message</th>
+        <th scope="col">Recipient</th>
+        <th scope="col">Transport</th>
+        <th scope="col">Status</th>
+        <th scope="col">Options</th>
+        <th scope="col">Took</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for notified in rows %}
+      {% set status = notified.get("status") or "pending" %}
+      {% set tone = tones.get(status, "") %}
+      <tr>
+        <td class="xtr-cell-tight">
+          {% if notified.get("channel") %}
+          <span class="xtr-badge">{{ notified.get("channel") }}</span>
+          {% else %}
+          <span class="xtr-dump-null">a kind of its own</span>
+          {% endif %}
+        </td>
+        <td class="xtr-break">
+          {{ notified.get("subject") or "(no text)" }}
+          <div class="xtr-card-note xtr-break">{{ notified.get("message_class") or "?" }}</div>
+        </td>
+        <td class="xtr-cell-mono xtr-break">
+          {% if notified.get("recipient") %}
+          {{ notified.get("recipient") }}
+          {% else %}
+          <span class="xtr-dump-null">the transport's own</span>
+          {% endif %}
+        </td>
+        <td class="xtr-cell-mono xtr-break">
+          {% if notified.get("transport") %}
+          {{ notified.get("transport") }}
+          {% else %}
+          <span class="xtr-dump-null">the first that can</span>
+          {% endif %}
+          {% if notified.get("sent_through") %}
+          <div class="xtr-card-note xtr-break">through {{ notified.get("sent_through") }}</div>
+          {% endif %}
+        </td>
+        <td>
+          <span class="xtr-badge{% if tone %} xtr-badge-{{ tone }}{% endif %}">{{ status }}</span>
+          {% if notified.get("error") %}
+          <div class="xtr-break">{{ notified.get("error") }}</div>
+          {% elif notified.get("sent_message_id") %}
+          <div class="xtr-card-note xtr-break">id {{ notified.get("sent_message_id") }}</div>
+          {% elif notified.get("queued") %}
+          <div class="xtr-card-note">on a message bus</div>
+          {% endif %}
+        </td>
+        <td>
+          {% if notified.get("options") %}
+          <details class="xtr-dump">
+            <summary><span class="xtr-dump-type">options</span></summary>
+            <ul><li>{{ notified.get("options")|profiler_dump }}</li></ul>
+          </details>
+          {% else %}
+          <span class="xtr-dump-null">none</span>
+          {% endif %}
+        </td>
+        <td class="xtr-cell-num">{{ notified.get("duration_ms")|format_ms }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="xtr-empty">{{ nothing }}</p>
+{% endif %}
+{% endmacro %}
+<h1 class="xtr-panel-title">Notifications</h1>
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Messages</td><td class="xtr-cell-mono">{{ collector.data.get("count") or 0 }}</td></tr>
+        <tr><td>Sent</td><td class="xtr-cell-mono">{{ collector.data.get("sent") or 0 }}</td></tr>
+        <tr><td>Queued</td><td class="xtr-cell-mono">{{ collector.data.get("queued") or 0 }}</td></tr>
+        <tr><td>Failed</td><td class="xtr-cell-mono">{{ collector.data.get("failed") or 0 }}</td></tr>
+        <tr><td>Still waiting</td><td class="xtr-cell-mono">{{ pending_rows|length }}</td></tr>
+      </tbody>
+    </table>
+    <p class="xtr-card-note">
+      A queued message was handed to a message bus and is sent by whoever
+      consumes it, so no transport reports on it here. One still waiting was
+      announced and neither reported sent nor reported failed by the time the
+      profile was written. A failed attempt that a fallback then got through is
+      counted here as both a failure and a send, since each attempt is a
+      message of its own.
+    </p>
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush xtr-tabs">
+  <div class="xtr-tablist" role="tablist" aria-label="Which messages to show">
+    <button type="button" class="xtr-tab xtr-on" data-xtr-tab="all" role="tab" aria-selected="true">All<span class="xtr-tab-count">{{ messages|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="sent" role="tab" aria-selected="false">Sent<span class="xtr-tab-count">{{ sent_rows|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="queued" role="tab" aria-selected="false">Queued<span class="xtr-tab-count">{{ queued_rows|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="failed" role="tab" aria-selected="false">Failed<span class="xtr-tab-count">{{ failed_rows|length }}</span></button>
+  </div>
+  <section class="xtr-pane xtr-pane-flush xtr-on" data-xtr-pane="all" role="tabpanel">
+    {{ message_table("all", messages, "This request sent and queued nothing.") }}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="sent" role="tabpanel">
+    {{ message_table("sent", sent_rows, "No transport reported a message of this request sent.") }}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="queued" role="tabpanel">
+    {{ message_table("queued", queued_rows, "No message of this request was handed to a message bus.") }}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="failed" role="tabpanel">
+    {{ message_table("failed", failed_rows, "Every attempt of this request got through.") }}
+  </section>
+</section>
+<section class="xtr-card xtr-card-flush">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">Transports</h2>
+    <span class="xtr-card-note">the transport each message named, by name</span>
+  </header>
+  <div class="xtr-card-body">
+    {% if by_transport %}
+    <table class="xtr-table">
+      <thead>
+        <tr>
+          <th scope="col">Transport</th>
+          <th scope="col">Messages</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for name, total in by_transport.items() %}
+        <tr>
+          <td class="xtr-cell-mono xtr-break">{{ name }}</td>
+          <td class="xtr-cell-num">{{ total }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="xtr-card-note">
+      This is the transport a message asked for, not the one that sent it: a
+      message naming none is left out, and a fallback's own name stands for
+      every attempt it made. What actually sent a message is in the Transport
+      column above.
+    </p>
+    {% else %}
+    <p class="xtr-empty">No message of this request named a transport.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

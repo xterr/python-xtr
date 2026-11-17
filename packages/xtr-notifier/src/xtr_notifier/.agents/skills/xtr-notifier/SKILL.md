@@ -26,6 +26,9 @@ their own, found by their DSN scheme.
 - Messages are frozen: `with_transport`, `with_options`, `with_subject` return copies.
 - Bus — `xtr_notifier.messenger.MessageHandler(transport)`; importing `xtr_notifier.messenger`
   declares the messages' wire names.
+- Profiler — with the http kernel's profiler on and the event dispatcher bundle active, the
+  bundle registers `xtr_notifier.data_collector.NotifierDataCollector` (panel `notifier`): every
+  message a request sent or queued, its status, transport, recipient and masked options.
 - Every error derives from `NotifierError`.
 
 ## Send a notification
