@@ -10,7 +10,8 @@ The peers are optional, each wired only when its bundle is active: the HTTP clie
 transports talk through, the event dispatcher the listeners hear every email on, the message
 bus email is queued on, the rate limiters capping the transports, the logging channel
 ``mailer`` the transports and the listeners write to, and the console the ``mailer:test``
-command runs in.
+command runs in. When the http kernel profiles requests, the profiler's mailer panel is
+registered too.
 """
 
 from __future__ import annotations
@@ -113,6 +114,13 @@ class MailerBundle(Bundle[MailerConfig]):
             services.load("xtr_mailer.bundle._send_email_message_handler")
         if bundle_active(builder, "console"):
             services.load("xtr_mailer.command")
+        if bundle_active(builder, "http_kernel"):
+            from xtr_http_kernel.bundle import profiling_active  # noqa: PLC0415 -- optional peer
+
+            if profiling_active(builder):
+                from ._profiler import register_profiler  # noqa: PLC0415 -- imports the peer
+
+                register_profiler(services, builder)
 
     @override
     def process(self, builder: ContainerBuilder) -> None:

@@ -1,0 +1,247 @@
+{#
+  Every email the request sent or queued, and how each send ended.
+
+  Each email is recorded as it is announced — before any other listener, so
+  one a listener rejects is here too — and completed when its transport
+  reports it sent or failed. Everything shown is read once the response has
+  left, so the panel adds no work to a send; a body the email reads from a
+  file is left unread for the same reason, since reading it here could leave
+  nothing for the send itself. Credential-named headers are already masked.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set count = collector.data.get("count") or 0 %}
+{% set failed = collector.data.get("failed") or 0 %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="1.8" y="3.6" width="12.4" height="8.8" rx="1.3"></rect>
+  <path d="M2.6 4.6L8 8.9l5.4-4.3"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ count }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Emails</dt><dd>{{ count }}</dd>
+  <dt>Sent</dt><dd>{{ collector.data.get("sent") or 0 }}</dd>
+  <dt>Queued</dt><dd>{{ collector.data.get("queued") or 0 }}</dd>
+  <dt>Failed</dt><dd>{{ failed }}</dd>
+</dl>
+<p class="xtr-toolbar-note">What this request handed to a transport or to a message bus, an email sent after the response included.</p>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status="red" if failed else "normal") }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="1.8" y="3.6" width="12.4" height="8.8" rx="1.3"></rect>
+  <path d="M2.6 4.6L8 8.9l5.4-4.3"></path>
+</svg>
+<span class="xtr-menu-label">Emails</span>
+{% if collector.data.get("failed") %}
+<span class="xtr-menu-count xtr-menu-count-red" title="sends that failed">{{ collector.data.get("failed") }}</span>
+{% else %}
+<span class="xtr-menu-count">{{ collector.data.get("count") or 0 }}</span>
+{% endif %}
+{% endblock %}
+
+{% block panel %}
+{% set messages = collector.data.get("messages") or [] %}
+{% set count = collector.data.get("count") or 0 %}
+{% set tones = {"sent": "green", "queued": "blue", "failed": "red", "rejected": "yellow"} %}
+{% set rejected = [] %}
+{% set pending = [] %}
+{% for email in messages %}
+{% if email.get("status") == "rejected" %}
+{% set _ = rejected.append(email) %}
+{% endif %}
+{% if email.get("status") == "pending" %}
+{% set _ = pending.append(email) %}
+{% endif %}
+{% endfor %}
+<h1 class="xtr-panel-title">Emails</h1>
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Emails</td><td class="xtr-cell-mono">{{ count }}</td></tr>
+        <tr><td>Sent</td><td class="xtr-cell-mono">{{ collector.data.get("sent") or 0 }}</td></tr>
+        <tr><td>Queued</td><td class="xtr-cell-mono">{{ collector.data.get("queued") or 0 }}</td></tr>
+        <tr><td>Failed</td><td class="xtr-cell-mono">{{ collector.data.get("failed") or 0 }}</td></tr>
+        <tr><td>Rejected</td><td class="xtr-cell-mono">{{ rejected|length }}</td></tr>
+        <tr><td>Still waiting</td><td class="xtr-cell-mono">{{ pending|length }}</td></tr>
+      </tbody>
+    </table>
+    <p class="xtr-card-note">
+      A queued email was handed to a message bus and is sent by whoever
+      consumes it, so it has no result here. A rejected one was refused by a
+      listener and never reached a transport. One still waiting was announced
+      and neither reported sent nor reported failed by the time the profile
+      was written.
+    </p>
+  </div>
+</section>
+{% if not messages %}
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    {% if count %}
+    <p class="xtr-empty">The emails of this request are added once the response has left; only their counts were kept so far.</p>
+    {% else %}
+    <p class="xtr-empty">This request sent no email.</p>
+    {% endif %}
+  </div>
+</section>
+{% else %}
+<section class="xtr-card xtr-card-flush">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">Transports</h2>
+    <span class="xtr-card-note">where each email was handed over, as it is configured</span>
+  </header>
+  <div class="xtr-card-body">
+    <table class="xtr-table">
+      <thead>
+        <tr>
+          <th scope="col">Transport</th>
+          <th scope="col">Emails</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for transport, group in messages|groupby("transport") %}
+        <tr>
+          <td class="xtr-cell-mono xtr-break">{{ transport or "—" }}</td>
+          <td class="xtr-cell-num">{{ group|length }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% for email in messages %}
+{% set status = email.get("status") or "pending" %}
+{% set tone = tones.get(status, "") %}
+{% set attachments = email.get("attachments") or [] %}
+{% set headers = email.get("headers") or {} %}
+<section class="xtr-card xtr-tabs">
+  <header class="xtr-card-head">
+    <span class="xtr-badge{% if tone %} xtr-badge-{{ tone }}{% endif %}">{{ status }}</span>
+    <h2 class="xtr-card-title">{{ email.get("subject") or "(no subject)" }}</h2>
+    <div class="xtr-card-tail">
+      <span class="xtr-card-note">{{ email.get("transport") or "no transport" }}</span>
+      <span class="xtr-card-note">{{ email.get("size")|format_bytes }}</span>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr>
+          <td>Status</td>
+          <td><span class="xtr-badge{% if tone %} xtr-badge-{{ tone }}{% endif %}">{{ status }}</span></td>
+        </tr>
+        <tr><td>Transport</td><td class="xtr-cell-mono xtr-break">{{ email.get("transport") or "—" }}</td></tr>
+        <tr><td>Queued</td><td class="xtr-cell-mono">{{ "yes" if email.get("queued") else "no" }}</td></tr>
+        <tr><td>Subject</td><td class="xtr-break">{{ email.get("subject") or "—" }}</td></tr>
+        {% for caption, written in [("From", email.get("from") or []), ("To", email.get("to") or []), ("Cc", email.get("cc") or []), ("Bcc", email.get("bcc") or []), ("Reply-To", email.get("reply_to") or [])] %}
+        <tr><td>{{ caption }}</td><td class="xtr-cell-mono xtr-break">{{ written|join(", ") if written else "—" }}</td></tr>
+        {% endfor %}
+        <tr><td>Message id</td><td class="xtr-cell-mono xtr-break">{{ email.get("message_id") or "—" }}</td></tr>
+        <tr><td>Size</td><td class="xtr-cell-mono">{{ email.get("size")|format_bytes }}</td></tr>
+        <tr><td>Attachments</td><td class="xtr-cell-mono">{{ attachments|length }}</td></tr>
+      </tbody>
+    </table>
+    {% if email.get("error") %}
+    <h3 class="xtr-section-title">Error</h3>
+    <p class="xtr-chain-message">{{ email.get("error") }}</p>
+    {% endif %}
+    {% if not headers and not email.get("from") and not email.get("to") %}
+    <p class="xtr-card-note">
+      This message has no fields to read: it is raw content, or it was signed
+      as a whole, so it is described by its transport, its status and its size
+      alone.
+    </p>
+    {% endif %}
+  </div>
+  <div class="xtr-tablist" role="tablist" aria-label="What this email carried">
+    <button type="button" class="xtr-tab xtr-on" data-xtr-tab="text" role="tab" aria-selected="true">Text</button>
+    <button type="button" class="xtr-tab" data-xtr-tab="html" role="tab" aria-selected="false">HTML</button>
+    <button type="button" class="xtr-tab" data-xtr-tab="headers" role="tab" aria-selected="false">Headers<span class="xtr-tab-count">{{ headers|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="attachments" role="tab" aria-selected="false">Attachments<span class="xtr-tab-count">{{ attachments|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="transcript" role="tab" aria-selected="false">Transcript</button>
+  </div>
+  <section class="xtr-pane xtr-on" data-xtr-pane="text" role="tabpanel">
+    {% if email.get("text") %}
+    <pre class="xtr-code">{{ email.get("text") }}</pre>
+    {% else %}
+    <p class="xtr-empty">This email carries no text body.</p>
+    {% endif %}
+  </section>
+  <section class="xtr-pane" data-xtr-pane="html" role="tabpanel">
+    {% if email.get("html") %}
+    <p class="xtr-card-note">The markup as it was written, shown as text: nothing here is rendered as a page.</p>
+    <pre class="xtr-code">{{ email.get("html") }}</pre>
+    {% else %}
+    <p class="xtr-empty">This email carries no HTML body.</p>
+    {% endif %}
+  </section>
+  <section class="xtr-pane" data-xtr-pane="headers" role="tabpanel">
+    {% if headers %}
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        {% for name, value in headers.items() %}
+        <tr>
+          <td>{{ name }}</td>
+          <td class="xtr-cell-mono">
+            {% for line in (value|string).split("\n") %}
+            <div class="xtr-break">{{ line }}</div>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="xtr-empty">No header was read off this message.</p>
+    {% endif %}
+  </section>
+  <section class="xtr-pane" data-xtr-pane="attachments" role="tabpanel">
+    {% if attachments %}
+    <table class="xtr-table">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Type</th>
+          <th scope="col">Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for part in attachments %}
+        <tr>
+          <td class="xtr-cell-mono xtr-break">{{ part.get("filename") or "(unnamed)" }}</td>
+          <td class="xtr-cell-mono xtr-break">{{ part.get("content_type") or "—" }}</td>
+          <td class="xtr-cell-num">{{ part.get("size")|format_bytes }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="xtr-card-note">
+      A size reading <code class="xtr-mono">n/a</code> could no longer be
+      measured: the attachment is read after the send, and its file may have
+      gone or its stream been closed.
+    </p>
+    {% else %}
+    <p class="xtr-empty">This email carries no attachment.</p>
+    {% endif %}
+  </section>
+  <section class="xtr-pane" data-xtr-pane="transcript" role="tabpanel">
+    {% if email.get("debug") %}
+    <div class="xtr-toolstrip">
+      <span class="xtr-card-note">What the transport logged; it carries no credential.</span>
+      <button type="button" class="xtr-button xtr-button-quiet" data-xtr-copy="xtr-mailer-transcript-{{ loop.index }}">Copy</button>
+    </div>
+    <pre class="xtr-code" id="xtr-mailer-transcript-{{ loop.index }}">{{ email.get("debug") }}</pre>
+    {% else %}
+    <p class="xtr-empty">The transport logged nothing for this email.</p>
+    {% endif %}
+  </section>
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}
