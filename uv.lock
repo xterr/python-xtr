@@ -4623,6 +4623,11 @@ dependencies = [
     { name = "xtr-logging-contracts" },
 ]
 
+[package.optional-dependencies]
+stopwatch = [
+    { name = "xtr-stopwatch" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "anyio" },
@@ -4635,13 +4640,16 @@ dev = [
     { name = "xtr-dependency-injection" },
     { name = "xtr-logging" },
     { name = "xtr-service-contracts" },
+    { name = "xtr-stopwatch" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "xtr-event-dispatcher-contracts", editable = "packages/xtr-event-dispatcher-contracts" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-stopwatch", marker = "extra == 'stopwatch'", editable = "packages/xtr-stopwatch" },
 ]
+provides-extras = ["stopwatch"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4655,6 +4663,7 @@ dev = [
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+    { name = "xtr-stopwatch", editable = "packages/xtr-stopwatch" },
 ]
 
 [[package]]

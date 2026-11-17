@@ -12,6 +12,7 @@ from xtr_dependency_injection import Kernel
 from xtr_dependency_injection.integration import detached_context
 from xtr_event_dispatcher_contracts import Listener
 from xtr_logging_contracts import LoggerInterface
+from xtr_stopwatch import Stopwatch
 
 from tests.fixtures.app_events.events import OrderPlaced, OrderShipped
 from tests.fixtures.app_events.journal import Journal
@@ -158,6 +159,23 @@ async def test_in_debug_the_dispatcher_is_traced_to_the_event_channel() -> None:
         "tests.fixtures.app_events.listeners.Shipping.on_order_shipped",
         "tests.fixtures.app_events.listeners.audit",
     }
+
+
+async def test_in_debug_every_listener_is_timed_on_the_stopwatch() -> None:
+    async with await _kernel(debug=True).boot() as booted:
+        dispatcher = await booted.container.get(EventDispatcherInterface)
+        stopwatch = await booted.container.get(Stopwatch)
+
+        stopwatch.reset()
+        _ = await dispatcher.dispatch(OrderShipped(7))
+
+    timed = stopwatch.get_section_events("__root__")
+    assert timed["tests.fixtures.app_events.listeners.audit"].category == "event_listener"
+
+
+async def test_outside_debug_no_stopwatch_is_registered() -> None:
+    async with await _kernel().boot() as booted:
+        assert not booted.container.has(Stopwatch)
 
 
 async def test_an_abstract_or_excluded_base_lends_its_listeners_without_listening() -> None:
