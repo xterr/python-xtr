@@ -73,7 +73,7 @@ class DeduplicationHandler(BufferHandler):
         bubble: bool = True,
         *,
         clock: ClockInterface | None = None,
-        buffer_limit: int = 0,
+        buffer_limit: int = 10_000,
         flush_on_overflow: bool = False,
         name: str = "",
     ) -> None:
@@ -90,8 +90,9 @@ class DeduplicationHandler(BufferHandler):
             bubble: Whether buffered records still reach later handlers.
             clock: Where "now" is read from, for expiry; the clock in force
                 by default.
-            buffer_limit: The most records held until a flush; ``0`` holds
-                them all.
+            buffer_limit: The most records held until a flush — ten thousand
+                by default, so one failure flooding the logs cannot fill the
+                memory; ``0`` holds them all.
             flush_on_overflow: Forward the held records when ``buffer_limit``
                 is reached, rather than dropping the oldest.
             name: Tells the default store apart from that of another handler

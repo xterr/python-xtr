@@ -239,3 +239,17 @@ def test_end_unit_flushes_the_units_buffer(tmp_path: Path) -> None:
     end_unit()
 
     assert [record.message for record in spy.handled] == ["boom"]
+
+
+def test_the_buffer_is_bounded_by_default(tmp_path: Path) -> None:
+    # A flood of one failure is what deduplication exists for; unbounded, it holds the flood.
+    spy = Spy()
+    handler = DeduplicationHandler(spy, store=tmp_path / "dedup.log", clock=MockClock(AT))
+    begin_unit()
+    for index in range(10_001):
+        _ = handler.handle(make_record(Level.INFO, f"line {index}"))
+    _ = handler.handle(make_record(Level.ERROR, "boom"))
+    end_unit()
+
+    assert len(spy.handled) == 10_000
+    assert spy.handled[0].message == "line 2"

@@ -5,6 +5,7 @@ from xtr_logging_contracts import InvalidLevelError
 
 from xtr_logging.config import (
     BufferHandlerConfig,
+    DeduplicationHandlerConfig,
     FilterHandlerConfig,
     FingersCrossedHandlerConfig,
     GroupHandlerConfig,
@@ -34,6 +35,8 @@ def test_buffers_are_bounded_by_default() -> None:
     assert FingersCrossedHandlerConfig(handler="file").buffer_size == 10_000
     assert BufferHandlerConfig(handler="file").buffer_size == 10_000
     assert QueueHandlerConfig(handler="file").max_size == 10_000
+    # A flood of one failure is what deduplication exists for; unbounded, it holds the flood.
+    assert DeduplicationHandlerConfig(handler="file").buffer_limit == 10_000
 
 
 def test_a_queue_config_has_no_bubble_field_but_carries_on_error() -> None:

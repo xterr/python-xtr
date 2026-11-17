@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import queue
+import sys
 import threading
 import traceback
 from contextvars import copy_context
@@ -92,6 +93,9 @@ class QueueHandler(HandlerInterface, ResetInterface):
         self._worker: threading.Thread | None = None
         self._closing: bool = False
         self._putting: int = 0
+        # Only the worker reads or writes it: whether it is already writing a
+        # record it logged itself, so a second turn is cut rather than looped.
+        self._reentered: bool = False
 
     @override
     def is_handling(self, record: LogRecord, /) -> bool:
@@ -118,7 +122,17 @@ class QueueHandler(HandlerInterface, ResetInterface):
 
         Always returns ``False``: the record is only queued, so it must still
         reach the handlers after this one.
+
+        A record logged from the worker itself — a wrapped handler that logs
+        about what it does — is written there and then, not queued: the
+        worker is the queue's only reader, so putting into a full queue from
+        it would wait forever. A record logged while such a record is being
+        written goes to standard error, so a handler logging about its own
+        logging cannot loop.
         """
+        if threading.current_thread() is self._worker:
+            self._write_from_worker(record)
+            return False
         with self._state:
             # The worker logging into its own queue while stopping must not
             # wait for the stop it is holding up.
@@ -235,6 +249,20 @@ class QueueHandler(HandlerInterface, ResetInterface):
                     self._write(*item)
             finally:
                 self._queue.task_done()
+
+    def _write_from_worker(self, record: LogRecord) -> None:
+        """Write a record the worker logged itself, or print it when it is a second turn."""
+        if self._reentered:
+            head = f"[{record.datetime.isoformat()}] {record.channel}.{record.level_name}:"
+            _ = sys.stderr.write(f"{head} {record.message}\n")
+            return
+        self._reentered = True
+        try:
+            _ = self._handler.handle(record)
+        except Exception as error:  # noqa: BLE001 — one broken record must not kill the worker
+            self._report(error, record)
+        finally:
+            self._reentered = False
 
     def _report(self, error: Exception, record: LogRecord) -> None:
         """Hand ``error`` to ``on_error``; print it, and ``on_error``'s own failure, otherwise."""

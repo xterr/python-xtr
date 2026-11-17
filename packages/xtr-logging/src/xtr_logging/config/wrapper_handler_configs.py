@@ -124,7 +124,7 @@ class DeduplicationHandlerConfig(
     store: str | None = None
     deduplication_level: Level | str = Level.ERROR
     time: int = 60
-    buffer_limit: int = 0
+    buffer_limit: int = 10_000
     flush_on_overflow: bool = False
 
     @override

@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 from pathlib import PurePosixPath
@@ -139,3 +139,16 @@ def test_a_value_whose_str_raises_is_described_rather_than_failing() -> None:
     assert Normalizer().normalize({"v": _Hostile()}) == {
         "v": f"[unprintable {_Hostile.__module__}._Hostile]"
     }
+
+
+@dataclass
+class _Credentials:
+    user: str
+    password: str = field(repr=False)
+
+
+def test_a_field_hidden_from_repr_is_left_out() -> None:
+    # A field the class keeps out of its own repr is one it means never to print.
+    normalized = Normalizer().normalize(_Credentials("bob", "hunter2"))
+
+    assert normalized == {f"{_Credentials.__module__}._Credentials": {"user": "bob"}}

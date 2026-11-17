@@ -15,6 +15,7 @@ with a fresh context — still sees the clock the application chose.
 
 from __future__ import annotations
 
+import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, ClassVar, Self, final
@@ -54,7 +55,13 @@ class Clock:
         "xtr_clock_current",
         default=None,
     )
-    _fallback: ClassVar[ClockInterface | None] = None
+    # What a context that installed nothing reads: the innermost install still
+    # active, else what :meth:`set` put in force. A stack rather than one slot,
+    # so installs that end out of the order they began — concurrent tasks —
+    # leave the fallback on the one still running, never on a finished one.
+    _base: ClassVar[ClockInterface | None] = None
+    _active: ClassVar[list[_Installed]] = []
+    _active_lock: ClassVar[threading.Lock] = threading.Lock()
 
     __slots__ = ("_clock", "_timezone")
 
@@ -98,10 +105,12 @@ class Clock:
         if scoped is not None:
             return scoped
 
-        if Clock._fallback is None:
-            Clock._fallback = SystemClock()
-
-        return Clock._fallback
+        with Clock._active_lock:
+            if Clock._active:
+                return Clock._active[-1].clock
+            if Clock._base is None:
+                Clock._base = SystemClock()
+            return Clock._base
 
     @classmethod
     def set(cls, clock: SupportsNow) -> None:
@@ -113,8 +122,15 @@ class Clock:
         Prefer :meth:`using` in a test: this one has no end, and a test that
         forgets to undo it hands the next one a clock it never asked for.
         """
-        Clock._fallback = _adapt(clock)
-        _ = Clock._current.set(Clock._fallback)
+        resolved = _adapt(clock)
+        with Clock._active_lock:
+            # Inside an open scope it replaces that scope's clock, which the
+            # scope's end then takes away — as a test's ``with`` undoes it.
+            if Clock._active:
+                Clock._active[-1].clock = resolved
+            else:
+                Clock._base = resolved
+        _ = Clock._current.set(resolved)
 
     @classmethod
     def install(cls, clock: SupportsNow) -> Callable[[], None]:
@@ -136,15 +152,14 @@ class Clock:
         # Marked inactive rather than reset, so the restore reaches the context
         # that installed it from wherever it is called.
         installed = _Installed(resolved, Clock._current.get())
-        previous = Clock._fallback
         _ = Clock._current.set(installed)
-        Clock._fallback = resolved
+        Clock._push(installed)
 
         def restore() -> None:
             if not installed.active:
                 return
             installed.active = False
-            Clock._fallback = previous
+            Clock._pop(installed)
 
         return restore
 
@@ -155,9 +170,9 @@ class Clock:
 
         The previous clock comes back on the way out, including when the
         block raises. For the context it runs in, scopes nest exactly. The
-        process-wide fallback a thread started later reads is put back as
-        this block found it: blocks in concurrent tasks that end out of the
-        order they began leave it on the last one's view.
+        process-wide fallback a thread started later reads is the innermost
+        block still open, whichever context opened it: blocks in concurrent
+        tasks may end in any order.
 
         Args:
             clock: The clock to install. An object that only answers
@@ -168,19 +183,32 @@ class Clock:
             to be wrapped.
         """
         resolved = _adapt(clock)
-        previous = Clock._fallback
         token = Clock._current.set(resolved)
-        Clock._fallback = resolved
+        entry = _Installed(resolved, None)
+        Clock._push(entry)
         try:
             yield resolved
         finally:
             Clock._current.reset(token)
-            Clock._fallback = previous
+            entry.active = False
+            Clock._pop(entry)
 
     @property
     def timezone(self) -> tzinfo | None:
         """The zone readings are pinned to, or ``None`` to follow the clock read."""
         return self._timezone
+
+    @staticmethod
+    def _push(entry: _Installed) -> None:
+        """Make ``entry`` the innermost clock a context that installed nothing reads."""
+        with Clock._active_lock:
+            Clock._active.append(entry)
+
+    @staticmethod
+    def _pop(entry: _Installed) -> None:
+        """Take ``entry`` away, wherever it sits: installs may end in any order."""
+        with Clock._active_lock:
+            Clock._active[:] = [kept for kept in Clock._active if kept is not entry]
 
     def now(self) -> DatePoint:
         """Return the current instant, as the clock being read tells it."""

@@ -374,7 +374,7 @@ The bundle registers these; which ones depend on what is installed and active:
 | `RequestIdListener` | `RequestEvent`, `ResponseEvent` | always | mints a `uuid4().hex` — or keeps a well-formed incoming id, where `trust_request_id` says to — puts it on the request's state bag, binds it to the log context when logging is around, and echoes it on the response |
 | `DisallowRobotsIndexingListener` | `ResponseEvent` | always | stamps `X-Robots-Tag: noindex` on every response, when the config turns it on |
 | `LogUnitListener` | `RequestEvent`, `TerminateEvent` | logging bundle active | opens a [logging unit of work](../xtr-logging#units-of-work) per request and closes it once all was sent |
-| `ErrorLoggingListener` | `ExceptionEvent` | logging bundle active | writes every uncaught exception to the request channel — `info` for a cancellation, an interrupt or an exit, `error` below a 500 status, `critical` otherwise — leaving the response to whoever answers it |
+| `ErrorLoggingListener` | `ExceptionEvent` | logging bundle active | writes every uncaught exception to the request channel — `info` for a cancellation, an interrupt or an exit, and for a status below 500 (the caller's doing, so a scanner cannot flood the error log), `critical` otherwise — leaving the response to whoever answers it |
 | `RateLimitHeadersListener` | `ResponseEvent` | rate limiter bundle active | writes the `X-RateLimit-*` headers of the [rate limit](#rate-limits) that speaks for the response — the one a route's limit left on the request's state bag — and makes it private |
 
 The two logging listeners join only when the logging bundle is active, and open and close the

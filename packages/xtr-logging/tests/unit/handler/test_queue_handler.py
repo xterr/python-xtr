@@ -467,3 +467,64 @@ def test_a_record_the_worker_logs_while_stopping_is_written_before_the_wrapped_h
     assert _closes_in_time(handler)
 
     assert inner.closed_after == ["first", "trigger", "echo"]
+
+
+@final
+class _Echoing(AbstractHandler):
+    """Logs three more records through its own queue whenever it handles one named ``trigger``."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.owner: QueueHandler | None = None
+        self.handled: list[str] = []
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        self.handled.append(record.message)
+        if record.message == "trigger" and self.owner is not None:
+            for index in range(3):
+                _ = self.owner.handle(make_record(message=f"echo {index}"))
+        return False
+
+
+def test_a_handler_logging_from_the_worker_does_not_deadlock() -> None:
+    # The worker is the queue's only reader: putting into a full queue from it waits forever.
+    inner = _Echoing()
+    handler = QueueHandler(inner, max_size=1)
+    inner.owner = handler
+
+    _ = handler.handle(make_record(message="trigger"))
+
+    assert _closes_in_time(handler)
+    assert inner.handled == ["trigger", "echo 0", "echo 1", "echo 2"]
+
+
+@final
+class _Recursing(AbstractHandler):
+    """Logs through its own queue for every record it handles: a loop, cut at the first turn."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.owner: QueueHandler | None = None
+        self.handled: list[str] = []
+
+    @override
+    def handle(self, record: LogRecord, /) -> bool:
+        self.handled.append(record.message)
+        if self.owner is not None:
+            _ = self.owner.handle(make_record(message=f"after {record.message}"))
+        return False
+
+
+def test_a_handler_logging_about_its_own_logging_goes_to_stderr_not_round_again(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    inner = _Recursing()
+    handler = QueueHandler(inner, max_size=1)
+    inner.owner = handler
+
+    _ = handler.handle(make_record(message="first"))
+
+    assert _closes_in_time(handler)
+    assert inner.handled == ["first", "after first"]
+    assert "after after first" in capsys.readouterr().err

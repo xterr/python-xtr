@@ -28,12 +28,14 @@ _PLACEHOLDER_PATTERN: Final = (
 )
 _TOKEN: Final = re.compile(_PLACEHOLDER_PATTERN)
 """Every token of a format, with the space before it — dropped with an empty bag's token."""
-_LINE_BREAK: Final = re.compile(r"\r\n|\r|\n")
+# The Unicode line and paragraph separators break a line in many viewers too.
+_LINE_BREAK: Final = re.compile("\r\n|\r|\n|\u2028|\u2029")
 _TRAILING_SPACE: Final = re.compile(r"[ \t]+(?=\n|$)")
 # C0 controls (bar tab and the line breaks handled above), DEL, and C1
 # controls: an escape sequence like ``\x1b[2J`` could clear a terminal or
-# forge a line, so it is stripped unless the caller opts to keep it.
-_CONTROL: Final = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+# forge a line, so it is stripped unless the caller opts to keep it. So are the
+# bidirectional embeddings, overrides and isolates, which reorder what a reader sees.
+_CONTROL: Final = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
 
 
 class LineFormatter(FormatterInterface):
@@ -44,12 +46,15 @@ class LineFormatter(FormatterInterface):
     plus ``%context.KEY%`` and ``%extra.KEY%`` for one entry, which is then
     left out of the JSON so it is not printed twice.
 
-    Line breaks inside values become spaces unless
-    ``allow_inline_line_breaks``, so one record stays one line and a log
-    can be read with ``grep``. Other control characters — an escape sequence
-    that could clear a terminal or forge a line — are stripped unless
-    ``allow_control_characters``. An exception in context prints as
-    ``[object] (Class: message at file:line)``.
+    Line breaks inside values — the Unicode line and paragraph separators
+    included — become spaces unless ``allow_inline_line_breaks``, so one
+    record stays one line and a log can be read with ``grep``. With
+    ``include_stacktraces`` an exception printed by ``%context.KEY%`` or
+    ``%extra.KEY%`` keeps the breaks of its traceback, and only it: a value
+    some caller supplied never gets to start a line. Other control characters
+    — an escape sequence that could clear a terminal or forge a line, a
+    bidirectional override — are stripped unless ``allow_control_characters``.
+    An exception in context prints as ``[object] (Class: message at file:line)``.
     """
 
     SIMPLE_FORMAT: Final = "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n"
@@ -59,6 +64,7 @@ class LineFormatter(FormatterInterface):
         "_allow_inline_line_breaks",
         "_format",
         "_ignore_empty",
+        "_include_stacktraces",
         "_normalizer",
     )
 
@@ -87,7 +93,8 @@ class LineFormatter(FormatterInterface):
             ignore_empty_context_and_extra: Print nothing, rather than ``[]``,
                 for an empty ``%context%`` or ``%extra%``.
             include_stacktraces: Print an exception's traceback after it. Turns
-                on ``allow_inline_line_breaks``, which a traceback needs.
+                on line breaks for that one keyed value, which a traceback
+                needs; every other value stays on its line.
             max_depth: How deeply a nested value is rendered before it is cut;
                 the normalizer's default when omitted.
             max_items: How many items of one collection are rendered; the
@@ -100,7 +107,8 @@ class LineFormatter(FormatterInterface):
             max_depth=max_depth,
             max_items=max_items,
         )
-        self._allow_inline_line_breaks: bool = allow_inline_line_breaks or include_stacktraces
+        self._allow_inline_line_breaks: bool = allow_inline_line_breaks
+        self._include_stacktraces: bool = include_stacktraces
         self._allow_control_characters: bool = allow_control_characters
         self._ignore_empty: bool = ignore_empty_context_and_extra
 
@@ -110,6 +118,7 @@ class LineFormatter(FormatterInterface):
         context = _as_dict(self._normalizer.normalize(record.context))
         extra = _as_dict(self._normalizer.normalize(record.extra))
         bags = {"context": context, "extra": extra}
+        sources = {"context": record.context, "extra": record.extra}
 
         # A keyed entry leaves its bag before the bag is printed; one named
         # twice, or not there at all, prints nothing.
@@ -118,7 +127,14 @@ class LineFormatter(FormatterInterface):
             bag = match.group("bag")
             if bag is not None:
                 source, key = bags[bag], match.group("key")
-                keyed.append(self._stringify(source.pop(key)) if key in source else "")
+                if key not in source:
+                    keyed.append("")
+                    continue
+                # Only a traceback the formatter wrote itself may span lines.
+                multiline = self._include_stacktraces and isinstance(
+                    sources[bag].get(key), BaseException
+                )
+                keyed.append(self._stringify(source.pop(key), keep_line_breaks=multiline))
 
         values: dict[str, str] = {
             "datetime": self._normalizer.format_datetime(record.datetime),
@@ -160,11 +176,11 @@ class LineFormatter(FormatterInterface):
             return "" if self._ignore_empty else "[]"
         return self._stringify(values)
 
-    def _stringify(self, value: Normalized) -> str:
+    def _stringify(self, value: Normalized, *, keep_line_breaks: bool = False) -> str:
         text = value if isinstance(value, str) else msgspec.json.encode(value).decode()
         if not self._allow_control_characters:
             text = _CONTROL.sub("", text)
-        if self._allow_inline_line_breaks:
+        if self._allow_inline_line_breaks or keep_line_breaks:
             return text
         return _LINE_BREAK.sub(" ", text)
 
@@ -191,7 +207,8 @@ class _LineNormalizer(Normalizer):
 def _describe(error: BaseException) -> str:
     frames = traceback.extract_tb(error.__traceback__)
     origin = f" at {frames[-1].filename}:{frames[-1].lineno}" if frames else ""
-    return f"{class_name(error)}: {safe_str(error)}{origin}"
+    # The message is the caller's text: it never breaks the lines the traceback keeps.
+    return f"{class_name(error)}: {_LINE_BREAK.sub(' ', safe_str(error))}{origin}"
 
 
 def _as_dict(value: Normalized) -> dict[str, Normalized]:

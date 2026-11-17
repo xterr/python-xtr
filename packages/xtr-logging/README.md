@@ -176,7 +176,7 @@ deep, with a warning, rather than recursing until the stack overflows.
 | `WhatFailureGroupHandler` | A group where a failing member never stops the others |
 | `FallbackGroupHandler` | Tries members in order until one does not raise — a member below its level counts as done |
 | `FilterHandler` | Passes a level range, or a list of levels, to the handler it wraps |
-| `DeduplicationHandler` | Drops a buffered batch whose errors were all written in the last `time` seconds |
+| `DeduplicationHandler` | Drops a buffered batch whose errors were all written in the last `time` seconds; holds at most `buffer_limit` (10 000) records |
 | `SamplingHandler` | Passes one record in `factor` |
 | `QueueHandler` | Writes on a background thread, so logging never waits on I/O |
 | `StdlibHandler` | Hands records to a standard-library logger |
@@ -253,9 +253,13 @@ runs first.
 | `ConsoleFormatter` | A short line with the level coloured |
 
 `LineFormatter` also knows `%level%` and `%context.KEY%` / `%extra.KEY%` for one entry. It keeps
-each record on one line unless `allow_inline_line_breaks` is set, and prints tracebacks when
-`include_stacktraces` is set. `Normalizer`, which both formatters build on, reduces any value to
-plain data, cutting nesting and collections short at a limit.
+each record on one line unless `allow_inline_line_breaks` is set — the Unicode line and paragraph
+separators count as breaks, and bidirectional controls are stripped with the other control
+characters. `include_stacktraces` prints a traceback across lines only for an exception named by
+`%context.KEY%` (or `%extra.KEY%`); every other value, a caller's text above all, stays on its
+line, so it cannot forge another record. `Normalizer`, which both formatters build on, reduces any
+value to plain data, cutting nesting and collections short at a limit, and leaves out a dataclass
+field declared `repr=False`.
 
 ## Configuration
 

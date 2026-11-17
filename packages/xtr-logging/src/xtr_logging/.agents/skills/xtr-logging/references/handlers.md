@@ -80,8 +80,9 @@ instantiates a decorated *class* as a service.
 | `ConsoleFormatter` | A short line with the level coloured |
 
 `LineFormatter` also knows `%level%` and `%context.KEY%` / `%extra.KEY%` for a single entry. It
-keeps each record on one line unless `allow_inline_line_breaks` is set, and prints tracebacks
-when `include_stacktraces` is set.
+keeps each record on one line unless `allow_inline_line_breaks` is set (U+2028/U+2029 count as
+breaks; bidi controls are stripped), and with `include_stacktraces` prints a traceback across
+lines only for an exception named by `%context.KEY%` — every other value stays on its line.
 
 `Normalizer`, which both build on, reduces any value to plain `Normalized` data, cutting nesting
 and collections short at a limit — so a value that cannot be serialised is described rather than
