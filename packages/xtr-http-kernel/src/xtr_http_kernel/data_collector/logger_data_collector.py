@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Final, final
 
 from xtr_logging_contracts import Level
 
+from ._masking import MASK, is_sensitive_field
 from .clone_var import clone_var
 
 if TYPE_CHECKING:
@@ -24,7 +25,9 @@ class LoggerDataCollector:
 
     Read once everything has been sent, so what was logged while the body
     streamed is there too: each record's time, channel, level, message and
-    context, and the counts a toolbar shows.
+    context, and the counts a toolbar shows. A context entry named like a
+    credential — a password, a secret, a token — is kept as ``******``, as
+    the request's own fields are.
     """
 
     __slots__ = ("_handler",)
@@ -59,7 +62,11 @@ class LoggerDataCollector:
                     "priority": int(record.level),
                     "message": record.message,
                     "context": {
-                        str(name): clone_var(value, max_depth=3)
+                        str(name): (
+                            clone_var(MASK)
+                            if is_sensitive_field(str(name))
+                            else clone_var(value, max_depth=3)
+                        )
                         for name, value in record.context.items()
                     },
                 }

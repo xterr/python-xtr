@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import cast
 
 from xtr_logging import DebugHandler, LogRecord, begin_unit, end_unit
 from xtr_logging_contracts import Level
@@ -39,3 +40,28 @@ def test_the_units_records_and_their_counts_are_kept() -> None:
         for level, message in ((Level.INFO, "a"), (Level.WARNING, "b"), (Level.ERROR, "c"))
     ]
     assert collector.name == "logger"
+
+
+def test_a_context_entry_named_like_a_credential_is_masked() -> None:
+    handler = DebugHandler()
+    collector = LoggerDataCollector(handler)
+    record = LogRecord(
+        datetime(2026, 1, 1, tzinfo=UTC),
+        "app",
+        Level.INFO,
+        "signed in",
+        {"user": "ana", "password": "hunter2", "api_token": "abc"},
+    )
+    begin_unit()
+    try:
+        _ = handler.handle(record)
+        data = collector.late_collect({}, profiled())
+    finally:
+        end_unit()
+
+    (kept,) = cast("list[dict[str, object]]", data["records"])
+    assert kept["context"] == {
+        "user": {"kind": "str", "type": "str", "value": "ana", "truncated": 0},
+        "password": {"kind": "str", "type": "str", "value": "******", "truncated": 0},
+        "api_token": {"kind": "str", "type": "str", "value": "******", "truncated": 0},
+    }

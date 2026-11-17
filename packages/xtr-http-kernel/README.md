@@ -531,7 +531,7 @@ The core collectors, each a panel of the web profiler:
 | `memory` | the process's peak memory |
 | `ajax` | nothing: the browser lists the page's background requests |
 | `exception` | the exception, its chain of causes, and each frame's source and local variables |
-| `logger` | every record of the request — in debug mode, with the logging bundle active |
+| `logger` | every record of the request — in debug mode, with the logging bundle active. A context entry named like a credential is kept as `******` |
 | `events` | the listeners called and not called, and the events nobody heard — in debug mode, where the dispatcher is traced |
 | `router` | the route that answered, and a redirect's target |
 | `config` | the Python version, the environment, the active bundles, the xtr packages installed |
