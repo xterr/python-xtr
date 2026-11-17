@@ -218,6 +218,24 @@ async def test_a_request_naming_no_token_is_refused() -> None:
 
 
 @pytest.mark.anyio
+async def test_a_public_client_cannot_introspect() -> None:
+    storage = Storage()
+    storage.clients.add(make_client("public-1", confidential=False), "")
+    handler = _handler(storage)
+    request = server_request(
+        "POST",
+        "https://authorization.example.com/introspect",
+        parsed_body={"client_id": "public-1", "token": "token-1"},
+    )
+
+    # RFC 7662 §2.1: the endpoint requires the caller to authenticate.
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = await handler.respond_to_request(request, Response())
+
+    assert refusal.value.get_error_type() == "invalid_client"
+
+
+@pytest.mark.anyio
 async def test_a_real_live_access_token_is_answered_with_what_it_says() -> None:
     handler = _handler(_registered())
 

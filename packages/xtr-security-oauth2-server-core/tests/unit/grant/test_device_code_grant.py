@@ -521,7 +521,7 @@ async def test_a_device_code_cannot_be_exchanged_twice() -> None:
         )
 
     assert refusal.value.get_error_type() == "invalid_grant"
-    assert "revoked" in str(refusal.value.get_hint())
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 def _racing(storage: Storage) -> None:
@@ -684,4 +684,4 @@ async def test_a_device_code_issued_to_another_client_is_refused() -> None:
         )
 
     assert refusal.value.get_error_type() == "invalid_grant"
-    assert "not issued to this client" in str(refusal.value.get_hint())
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason

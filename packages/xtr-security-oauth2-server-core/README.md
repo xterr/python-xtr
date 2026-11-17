@@ -328,7 +328,9 @@ Everything the library raises derives from `OAuth2Error`
 | `InvalidArgumentError` | `OAuth2Error`, `ValueError` | One of the library's objects used wrongly — a reserved extra claim, an unreadable encryption key, a grant asked to work before it was enabled |
 
 A refresh token that is invalid, expired or spent is `invalid_grant` with status `400`, as RFC
-6749 §5.2 names it.
+6749 §5.2 names it — with no hint, the same answer whatever the reason. A response type keeps the
+scopes `set_refresh_token_scopes()` gives the refresh token it seals (a refresh keeps the spent
+token's scope); a custom `ResponseTypeInterface` implements it too.
 
 ## Layout
 

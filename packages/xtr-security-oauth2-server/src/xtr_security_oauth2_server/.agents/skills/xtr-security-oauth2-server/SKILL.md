@@ -382,6 +382,11 @@ All derive from `OAuth2Error`.
 - Do not `app.include_router(...)` these endpoints yourself: `setup` adds them.
 - Do not put a firewall in front of `/token`, `/revoke`, `/introspect` or `/device-code`: the
   server authenticates the client there.
+- Do not send Basic credentials and a body `client_secret` together (`invalid_request`), or call
+  `/introspect` as a public client (`invalid_client`). Basic halves are form-decoded.
+- Do not expect a reason in an `invalid_grant`: every unredeemable code or token gets the same
+  answer. A refresh keeps the refresh token's original scope; a user named like the client gets
+  no token through it.
 - Do not approve every authorization request in a listener for third-party clients; show a page
   and protect its form against cross-site posts.
 - Do not store a client secret in plaintext, or compare one with `==`.

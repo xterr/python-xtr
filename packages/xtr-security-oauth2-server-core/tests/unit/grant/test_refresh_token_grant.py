@@ -254,7 +254,7 @@ async def test_a_refresh_token_this_server_did_not_seal_is_refused() -> None:
         )
 
     assert refusal.value.get_error_type() == "invalid_grant"
-    assert "decrypt" in str(refusal.value.get_hint())
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio
@@ -284,7 +284,8 @@ async def test_an_expired_refresh_token_is_refused() -> None:
             _AN_HOUR,
         )
 
-    assert "expired" in str(refusal.value.get_hint())
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio
@@ -298,7 +299,8 @@ async def test_a_refresh_token_whose_expiry_is_not_an_instant_is_refused() -> No
             _AN_HOUR,
         )
 
-    assert "expired" in str(refusal.value.get_hint())
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio
@@ -352,7 +354,8 @@ async def test_a_refresh_token_already_revoked_is_refused() -> None:
             _AN_HOUR,
         )
 
-    assert "revoked" in str(refusal.value.get_hint())
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio
@@ -413,3 +416,19 @@ async def test_a_request_may_not_ask_for_a_scope_the_old_token_did_not_have() ->
 
     assert refusal.value.get_error_type() == "invalid_scope"
     assert "delete" in str(refusal.value.get_hint())
+
+
+@pytest.mark.anyio
+async def test_a_narrowed_refresh_keeps_the_original_scopes_on_the_new_refresh_token() -> None:
+    storage = _known_scopes()
+    grant, _ = _grant(storage)
+    response_type = RecordingResponseType()
+
+    _ = await grant.respond_to_access_token_request(
+        _token_request(refresh_token=_sealed(), scope="read"), response_type, _AN_HOUR
+    )
+
+    # RFC 6749 §6: the new refresh token's scope is identical to the one presented.
+    assert response_type.refresh_token_scopes == ("read", "write")
+    assert response_type.access_token is not None
+    assert [scope.get_identifier() for scope in response_type.access_token.get_scopes()] == ["read"]

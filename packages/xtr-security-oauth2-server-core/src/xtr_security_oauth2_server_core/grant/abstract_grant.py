@@ -426,10 +426,17 @@ class AbstractGrant(AbstractHandler, GrantTypeInterface, ABC):
     ) -> AccessTokenEntityInterface:
         """Mint, sign and store an access token for ``client``.
 
+        A user named like the client it signs in through gets none: a resource
+        server tells a client's own token by its subject being the client's
+        identifier, so such a user's token would be read as the client's.
+
         Raises:
+            OAuthServerError: ``invalid_grant`` for a user named like the client.
             UniqueTokenIdentifierConstraintViolationError: When no free
                 identifier was found.
         """
+        if user_identifier is not None and user_identifier == client.get_identifier():
+            raise OAuthServerError.invalid_grant()
         repository = self._access_token_repository_or_fail()
         access_token = await repository.get_new_token(client, scopes, user_identifier)
         access_token.set_expiry_date_time(self._clock.now() + access_token_ttl)

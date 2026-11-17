@@ -13,6 +13,8 @@ from xtr_security_oauth2_server_core.exception.invalid_argument_error import Inv
 from .response_type_interface import ResponseTypeInterface
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from xtr_http_message_contracts import ResponseInterface
 
     from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
@@ -52,6 +54,9 @@ class AbstractResponseType(CryptTrait, ResponseTypeInterface, ABC):
     #: rather than through an accessor that would refuse.
     _refresh_token: RefreshTokenEntityInterface | None = None
 
+    #: The scopes the refresh token is sealed with when they are not the access token's.
+    _refresh_token_scopes: tuple[str, ...] | None = None
+
     @override
     def set_access_token(self, access_token: AccessTokenEntityInterface) -> None:
         """Carry ``access_token`` in the answer."""
@@ -61,6 +66,11 @@ class AbstractResponseType(CryptTrait, ResponseTypeInterface, ABC):
     def set_refresh_token(self, refresh_token: RefreshTokenEntityInterface) -> None:
         """Carry ``refresh_token`` in the answer, beside the access token."""
         self._refresh_token = refresh_token
+
+    @override
+    def set_refresh_token_scopes(self, scopes: Sequence[str]) -> None:
+        """Seal ``scopes`` into the refresh token, rather than the access token's."""
+        self._refresh_token_scopes = tuple(scopes)
 
     @abstractmethod
     @override

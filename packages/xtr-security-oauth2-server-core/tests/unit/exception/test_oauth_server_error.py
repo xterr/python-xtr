@@ -107,7 +107,7 @@ def _token_request(authorization: str | None = None) -> ServerRequestInterface:
                 None,
             ),
         ),
-        (OAuthServerError.invalid_grant(), _Answer("invalid_grant", 10, 400, _BAD_GRANT, "")),
+        (OAuthServerError.invalid_grant(), _Answer("invalid_grant", 10, 400, _BAD_GRANT, None)),
         (
             OAuthServerError.expired_token(),
             _Answer(
@@ -397,7 +397,7 @@ def test_it_keeps_the_error_it_was_raised_from() -> None:
     cause = ValueError("the payload could not be decrypted")
 
     with pytest.raises(OAuthServerError) as raised:
-        raise OAuthServerError.invalid_refresh_token("Cannot decrypt the refresh token") from cause
+        raise OAuthServerError.invalid_refresh_token() from cause
 
     assert raised.value.__cause__ is cause
 

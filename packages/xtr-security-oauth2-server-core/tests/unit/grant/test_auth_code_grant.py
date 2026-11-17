@@ -555,7 +555,7 @@ async def test_a_code_cannot_be_redeemed_twice() -> None:
         )
 
     assert refusal.value.get_error_type() == "invalid_grant"
-    assert "revoked" in str(refusal.value.get_hint())
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio
@@ -654,7 +654,58 @@ async def test_an_expired_code_is_refused() -> None:
             _AN_HOUR,
         )
 
-    assert "expired" in str(refusal.value.get_hint())
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
+
+
+@pytest.mark.anyio
+async def test_a_refresh_token_is_not_accepted_as_a_code() -> None:
+    storage = Storage()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    refresh = seal(
+        {
+            "client_id": "client-1",
+            "refresh_token_id": "refresh-1",
+            "access_token_id": "access-1",
+            "scopes": [],
+            "user_id": "user-1",
+            "expire_time": int((FROZEN_NOW + timedelta(days=1)).timestamp()),
+        },
+    )
+
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = await grant.respond_to_access_token_request(
+            _token_request(code=refresh), RecordingResponseType(), _AN_HOUR
+        )
+
+    assert refusal.value.get_error_type() == "invalid_request"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("case", ["revoked", "expired"])
+async def test_failures_share_one_hint(case: str) -> None:
+    storage = Storage()
+    _confidential(storage)
+    grant, _ = _grant(storage)
+    code = await _approved_code(grant)
+    if case == "revoked":
+        _ = await grant.respond_to_access_token_request(
+            _token_request(code=code), RecordingResponseType(), _AN_HOUR
+        )
+    else:
+        code = seal(
+            {**unseal(code), "expire_time": int((FROZEN_NOW - timedelta(seconds=1)).timestamp())}
+        )
+
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = await grant.respond_to_access_token_request(
+            _token_request(code=code), RecordingResponseType(), _AN_HOUR
+        )
+
+    # One answer whatever the reason, as the error promises: a client learns nothing from it.
+    assert refusal.value.get_error_type() == "invalid_grant"
+    assert refusal.value.get_hint() is None
 
 
 @pytest.mark.anyio
@@ -763,7 +814,7 @@ async def test_another_verifier_does_not_redeem_the_code() -> None:
         )
 
     assert refusal.value.get_error_type() == "invalid_grant"
-    assert "code_verifier" in str(refusal.value.get_hint())
+    assert refusal.value.get_hint() is None  # one answer, whatever the reason
 
 
 @pytest.mark.anyio

@@ -26,7 +26,7 @@ from xtr_security_oauth2_server_core.response_types.bearer_token_response import
 from xtr_security_oauth2_server_core.response_types.device_code_response import DeviceCodeResponse
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from xtr_clock import ClockInterface
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
@@ -61,6 +61,9 @@ class _LocationResponseType:
 
     def set_refresh_token(self, refresh_token: RefreshTokenEntityInterface) -> None:
         del refresh_token
+
+    def set_refresh_token_scopes(self, scopes: Sequence[str]) -> None:
+        del scopes
 
     def set_encryption_key(self, key: str, key_type: Literal["plain", "key"]) -> None:
         del key, key_type

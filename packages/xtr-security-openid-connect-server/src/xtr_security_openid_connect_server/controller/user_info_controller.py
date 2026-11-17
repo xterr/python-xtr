@@ -9,6 +9,7 @@ from typing_extensions import override
 from xtr_security_core.authentication.token.storage.token_storage_interface import (  # noqa: TC002 -- container hydrates this constructor at runtime
     TokenStorageInterface,
 )
+from xtr_security_core.exception import UserNotFoundError
 from xtr_security_oauth2_server.security.authentication.token.oauth2_token import OAuth2Token
 from xtr_security_oauth2_server.security.user.client_credentials_user import (
     ClientCredentialsUser,
@@ -117,7 +118,11 @@ class UserInfoController:
         if client is None:
             return await _refused(response, 401, "invalid_token", _NO_END_USER)
         subject = token.get_user_identifier()
-        user = await self._identity_provider.get_user_entity_by_identifier(subject, client)
+        try:
+            user = await self._identity_provider.get_user_entity_by_identifier(subject, client)
+        except UserNotFoundError:
+            # The token outlived its end-user: it stands for nobody now.
+            return await _refused(response, 401, "invalid_token", _NO_END_USER)
         claims = self._claim_extractor.extract(scopes, await user.get_claims())
         document = {"sub": subject} | {
             name: value for name, value in claims.items() if name != "sub"

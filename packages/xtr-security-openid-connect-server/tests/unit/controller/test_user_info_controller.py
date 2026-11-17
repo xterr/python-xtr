@@ -13,6 +13,7 @@ import pytest
 from xtr_http_kernel.bridge import Response
 from xtr_http_message import ServerRequest
 from xtr_security_core.authentication.token.storage.token_storage import TokenStorage
+from xtr_security_core.exception import UserNotFoundError
 from xtr_security_core.user.in_memory_user import InMemoryUser
 from xtr_security_http.authenticator.token.post_authentication_token import (
     PostAuthenticationToken,
@@ -161,6 +162,28 @@ async def test_a_token_issued_to_a_client_no_longer_registered_is_refused() -> N
 
     assert answered.get_status_code() == 401
     assert document["error"] == "invalid_token"
+
+
+async def test_a_token_whose_end_user_is_gone_is_refused_as_invalid() -> None:
+    answered, document = await _answer(
+        _controller(_oauth2_token(("openid",)), identity_provider=_Nobody())
+    )
+
+    assert answered.get_status_code() == 401
+    assert document["error"] == "invalid_token"
+
+
+@final
+class _Nobody:
+    """An identity provider whose every end-user is gone."""
+
+    async def get_user_entity_by_identifier(
+        self,
+        identifier: str,
+        client: ClientEntityInterface,
+    ) -> UserClaimsEntityInterface:
+        del client
+        raise UserNotFoundError(identifier)
 
 
 async def test_a_form_posted_with_a_charset_is_read_as_a_form() -> None:

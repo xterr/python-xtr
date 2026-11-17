@@ -241,7 +241,7 @@ class DeviceCodeGrant(AbstractGrant):
             owner,
         )
         if not await self._device_code_repository.revoke_device_code(device_code.get_identifier()):
-            raise OAuthServerError.invalid_grant("Device code has been revoked")
+            raise OAuthServerError.invalid_grant()
         await self._issue_tokens(request, response_type, access_token_ttl, client, owner, granted)
 
         return response_type
@@ -276,9 +276,9 @@ class DeviceCodeGrant(AbstractGrant):
         if self._clock.now().timestamp() > stored.get_expiry_date_time().timestamp():
             raise OAuthServerError.expired_token("device_code")
         if await self._device_code_repository.is_device_code_revoked(stored_as):
-            raise OAuthServerError.invalid_grant("Device code has been revoked")
+            raise OAuthServerError.invalid_grant()
         if stored.get_client().get_identifier() != client.get_identifier():
-            raise OAuthServerError.invalid_grant("Device code was not issued to this client")
+            raise OAuthServerError.invalid_grant()
 
         return stored
 

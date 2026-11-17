@@ -187,18 +187,42 @@ def test_asking_an_ordinary_grant_for_a_pre_filled_uri_says_it_cannot() -> None:
         grant.set_include_verification_uri_complete(True)
 
 
-def test_credentials_in_the_body_win_over_the_ones_in_the_header() -> None:
+def test_a_body_naming_another_client_than_the_header_is_refused() -> None:
     grant, _, _ = _grant()
     request = _request(_basic("header-client", "header-secret"), client_id="body", secret="x")
 
-    assert grant.get_client_credentials(request)[0] == "body"
+    # RFC 6749 §2.3: a client uses one way of authenticating per request.
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = grant.get_client_credentials(request)
+
+    assert refusal.value.get_error_type() == "invalid_request"
 
 
-def test_a_body_secret_wins_over_the_one_in_the_header() -> None:
+def test_a_body_secret_beside_the_header_is_refused() -> None:
     grant, _, _ = _grant()
     request = _request(_basic("c", "header-secret"), client_secret="body-secret")
 
-    assert grant.get_client_credentials(request) == ("c", "body-secret")
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = grant.get_client_credentials(request)
+
+    assert refusal.value.get_error_type() == "invalid_request"
+
+
+def test_a_body_repeating_the_header_s_client_is_read_from_the_header() -> None:
+    grant, _, _ = _grant()
+
+    assert grant.get_client_credentials(_request(_basic("c", "s"), client_id="c")) == ("c", "s")
+
+
+def test_form_encoded_basic_credentials_are_decoded() -> None:
+    grant, _, _ = _grant()
+    encoded = base64.b64encode(b"c%2Blient:s%25e%2Bcret+x").decode()
+
+    # RFC 6749 §2.3.1: each half is form-encoded before the pair is base64-encoded.
+    assert grant.get_client_credentials(_request({"Authorization": f"Basic {encoded}"})) == (
+        "c+lient",
+        "s%e+cret x",
+    )
 
 
 def test_the_header_is_read_when_the_body_names_no_client() -> None:
@@ -215,6 +239,27 @@ def test_a_request_naming_no_client_at_all_is_refused() -> None:
 
     assert refusal.value.get_error_type() == "invalid_request"
     assert "client_id" in str(refusal.value.get_hint())
+
+
+@pytest.mark.anyio
+async def test_a_user_token_for_a_user_named_like_its_client_is_not_issued() -> None:
+    grant, _, _ = _grant()
+
+    # A resource server tells a client's own token by `sub == client_id`: a user named like
+    # the client would be taken for the client.
+    with pytest.raises(OAuthServerError) as refusal:
+        _ = await grant.issue_access_token(_AN_HOUR, make_client("ada"), "ada", ())
+
+    assert refusal.value.get_error_type() == "invalid_grant"
+
+
+@pytest.mark.anyio
+async def test_a_client_s_own_token_still_names_no_user() -> None:
+    grant, _, _ = _grant()
+
+    token = await grant.issue_access_token(_AN_HOUR, make_client("ada"), None, ())
+
+    assert token.get_user_identifier() is None
 
 
 def test_a_client_that_sent_no_secret_is_read_as_having_none() -> None:

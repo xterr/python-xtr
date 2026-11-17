@@ -13,6 +13,7 @@ import base64
 import binascii
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Final, TypeVar, cast
+from urllib.parse import unquote_plus
 
 from xtr_security_oauth2_server_core._repeated_parameter import refuse_if_repeated
 from xtr_security_oauth2_server_core.crypt_trait import CryptTrait
@@ -213,14 +214,23 @@ class AbstractHandler(CryptTrait):
     def get_client_credentials(self, request: ServerRequestInterface) -> tuple[str, str]:
         """Return the client identifier and secret the request carries.
 
-        The body is read first and the header is only its default, so a client
-        sending both is taken at the word of its body — which is what RFC 6749
-        section 2.3.1 expects of a server that accepts either.
+        A client authenticates one way per request (RFC 6749 section 2.3): with
+        HTTP Basic, the body may repeat the client's identifier but neither
+        name another client nor carry a secret of its own.
 
         Raises:
-            OAuthServerError: When the request names no client at all.
+            OAuthServerError: When the request names no client at all, or
+                authenticates both with Basic and in its body.
         """
         basic_user, basic_password = self.get_basic_auth_credentials(request)
+        if basic_user is not None:
+            body_id = self.get_request_parameter("client_id", request)
+            if self.get_request_parameter("client_secret", request) is not None or (
+                body_id is not None and body_id != basic_user
+            ):
+                raise OAuthServerError.invalid_request(
+                    "client_secret", "Authenticate the client one way only: Basic or the body"
+                )
         client_id = self.get_request_parameter("client_id", request, basic_user)
         if client_id is None:
             raise OAuthServerError.invalid_request("client_id")
@@ -238,7 +248,8 @@ class AbstractHandler(CryptTrait):
         that is not base64 or not text, no colon, an empty name — answers the
         same pair of ``None``, because a header that does not carry credentials
         is not an attempt to authenticate and the request may still carry them
-        in its body.
+        in its body. Each half is form-decoded, as RFC 6749 section 2.3.1 has a
+        client encode them before joining them.
         """
         header = request.get_header_line("Authorization")
         if header[:_BASIC_PREFIX_LENGTH].lower() != "basic ":
@@ -253,7 +264,7 @@ class AbstractHandler(CryptTrait):
         if separator == "" or username == "":
             return (None, None)
 
-        return (username, password)
+        return (unquote_plus(username), unquote_plus(password))
 
     def get_request_parameter(
         self,
@@ -340,22 +351,20 @@ class AbstractHandler(CryptTrait):
         try:
             payload = self.decrypt(encrypted_refresh_token)
         except OAuth2Error as error:
-            raise OAuthServerError.invalid_refresh_token(
-                "Cannot decrypt the refresh token",
-            ) from error
+            raise OAuthServerError.invalid_refresh_token() from error
         if self._payload_text(payload, "client_id") != client_id:
             await self._announce(RequestEvent.REFRESH_TOKEN_CLIENT_FAILED, request)
 
-            raise OAuthServerError.invalid_refresh_token("Token is not linked to client")
+            raise OAuthServerError.invalid_refresh_token()
         expire_time = self._payload_whole_number(payload, "expire_time")
         if expire_time is None or expire_time < int(self._clock.now().timestamp()):
-            raise OAuthServerError.invalid_refresh_token("Token has expired")
+            raise OAuthServerError.invalid_refresh_token()
         identifier = self._payload_text(payload, "refresh_token_id")
         if identifier is None:
-            raise OAuthServerError.invalid_refresh_token("Token is malformed")
+            raise OAuthServerError.invalid_refresh_token()
         repository = self._refresh_token_repository_or_fail()
         if await repository.is_refresh_token_revoked(identifier):
-            raise OAuthServerError.invalid_refresh_token("Token has been revoked")
+            raise OAuthServerError.invalid_refresh_token()
 
         return payload
 

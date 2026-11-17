@@ -35,7 +35,7 @@ class OAuthServerError(OAuth2Error):
     each one fixes the error name the protocol uses, the status the answer
     carries and the number the error is catalogued under, and that triple is
     the contract a client reads. Chain the cause the usual way —
-    ``raise OAuthServerError.invalid_refresh_token(hint) from cause`` — so the
+    ``raise OAuthServerError.invalid_refresh_token() from cause`` — so the
     traceback keeps what actually went wrong without the answer naming it.
 
     An error carrying a redirect URI is answered as a redirect rather than as
@@ -145,9 +145,14 @@ class OAuthServerError(OAuth2Error):
         return cls(message, 7, "server_error", 500)
 
     @classmethod
-    def invalid_refresh_token(cls, hint: str | None = None) -> Self:
-        """The refresh token could not be read, or is no longer usable."""
-        return cls("The refresh token is invalid.", 8, "invalid_grant", hint=hint)
+    def invalid_refresh_token(cls) -> Self:
+        """The refresh token could not be read, or is no longer usable.
+
+        One answer for every reason — unreadable, another client's, expired,
+        revoked, already spent — so a client learns nothing about a token it
+        should not hold; the reason stays in the server's traceback.
+        """
+        return cls("The refresh token is invalid.", 8, "invalid_grant")
 
     @classmethod
     def access_denied(cls, hint: str | None = None, redirect_uri: str | None = None) -> Self:
@@ -157,12 +162,13 @@ class OAuthServerError(OAuth2Error):
         return cls(message, 9, "access_denied", 401, hint, redirect_uri)
 
     @classmethod
-    def invalid_grant(cls, hint: str = "") -> Self:
+    def invalid_grant(cls) -> Self:
         """The grant presented is not one this client can redeem now.
 
         The catch-all for a code or refresh token that is unknown, expired,
         revoked, bound to another redirect URI or issued to another client —
-        deliberately one answer for all of them, so a client cannot tell which.
+        deliberately one answer for all of them, with no hint, so a client
+        cannot tell which.
         """
         message = (
             "The provided authorization grant (e.g., authorization code, resource owner "
@@ -170,7 +176,7 @@ class OAuthServerError(OAuth2Error):
             "redirection URI used in the authorization request, or was issued to another client."
         )
 
-        return cls(message, 10, "invalid_grant", hint=hint)
+        return cls(message, 10, "invalid_grant")
 
     @classmethod
     def expired_token(cls, hint: str | None = None) -> Self:
