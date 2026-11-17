@@ -54,6 +54,14 @@ class WebDebugToolbarMiddleware:
 
     The profiler's own pages run under no content security policy; any
     other page drawn into has the toolbar's nonces added to its policy.
+
+    A compressed body cannot be drawn into, and a browser always accepts one.
+    So a request that may get the toolbar — one accepting HTML, or anything,
+    that is not a background request — reaches the application without its
+    ``Accept-Encoding``: the application's own compression leaves that page as
+    it is, and the answers to background requests and to clients asking for
+    something else stay compressed. This runs only where the profiler does,
+    in development.
     """
 
     __slots__ = ("_app", "_config", "_csp", "_manager")
@@ -84,6 +92,15 @@ class WebDebugToolbarMiddleware:
         if cast("str", scope["type"]) != "http":
             await self._app(scope, receive, send)
             return
+        if self._config.toolbar and _wants_a_page(Headers(scope=scope)):
+            scope = {
+                **scope,
+                "headers": [
+                    (name, value)
+                    for name, value in cast("list[tuple[bytes, bytes]]", scope["headers"])
+                    if name.lower() != b"accept-encoding"
+                ],
+            }
         await self._app(scope, receive, _Exchange(self, scope, send).send)
 
     def snippet(self, scope: Scope, token: str, nonces: dict[str, str]) -> bytes | None:
@@ -247,6 +264,12 @@ def _is_background(headers: Headers) -> bool:
         return True
     destination = headers.get("sec-fetch-dest")
     return destination is not None and destination not in _DOCUMENTS
+
+
+def _wants_a_page(headers: Headers) -> bool:
+    """Tell whether the request may be answered with a page the toolbar is drawn into."""
+    accept = headers.get("accept", "*/*")
+    return ("text/html" in accept or "*/*" in accept) and not _is_background(headers)
 
 
 def _drawable(status: int, headers: MutableHeaders) -> bool:

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, cast, final
 
 import httpx
 from fastapi import FastAPI
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from xtr_dependency_injection import Kernel
 from xtr_http_kernel import setup
@@ -24,8 +25,12 @@ PAGE = "<html><head><title>Shop</title></head><body><h1>Books</h1></body></html>
 """What the page route answers, before any toolbar."""
 
 
-def application(*overrides: str, env: str = "dev") -> FastAPI:
-    """Build the fixture application on a kernel of ``env``, with the given override modules."""
+def application(*overrides: str, env: str = "dev", compress: bool = False) -> FastAPI:
+    """Build the fixture application on a kernel of ``env``, with the given override modules.
+
+    ``compress`` adds the framework's gzip middleware, as an application usually does —
+    before ``setup``, so inside the kernel's middleware.
+    """
     kernel = Kernel(
         "tests.fixtures.shop",
         env=env,
@@ -73,6 +78,8 @@ def application(*overrides: str, env: str = "dev") -> FastAPI:
         message = "the shelf collapsed"
         raise RuntimeError(message)
 
+    if compress:
+        app.add_middleware(GZipMiddleware, minimum_size=10)
     setup(app, kernel)
     return app
 

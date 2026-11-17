@@ -8,7 +8,7 @@
   makes afterwards, so each one is listed in the toolbar with the profile its
   response names.
 #}
-<div id="xtr-wdt-{{ token }}" class="xtr-wdt" data-xtr-token="{{ token }}" style="display:none"></div>
+<div id="xtr-wdt-{{ token }}" class="xtr-wdt" data-xtr-token="{{ token }}" hidden></div>
 <link rel="stylesheet" href="{{ stylesheet_url }}">
 <script nonce="{{ csp_script_nonce }}">
 (function () {
@@ -119,7 +119,9 @@
   function draw(holder, html) {
     holder.innerHTML = html;
     runScripts(holder);
-    holder.style.display = "";
+    // The hidden attribute rather than a style attribute: a page's policy forbids inline
+    // style attributes, whatever nonce it allows.
+    holder.hidden = false;
     bindToolbar(holder);
     renderAjax();
   }
@@ -316,7 +318,8 @@
     }
     holder.id = "xtr-wdt-" + token;
     holder.setAttribute("data-xtr-token", token);
-    holder.removeAttribute("data-xtr-bound");
+    // The holder keeps its click listener, which reads whatever bar it holds: binding it
+    // again would toggle twice on every click.
     holder.innerHTML = "";
     loadToolbar(token, toolbarUrlFor(token));
   }

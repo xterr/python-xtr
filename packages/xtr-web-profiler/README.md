@@ -66,7 +66,7 @@ A response that is not a page — JSON from an API — carries the same two head
 | Memory | the peak memory of the process serving the request |
 | AJAX | the background requests the page made, listed in its toolbar |
 | Exception | what handling raised: class, message, chain of causes, and each frame with its source and local variables |
-| Logs | every record the request logged, by level, with its context — when [xtr-logging](../xtr-logging) is active |
+| Logs | every record the request logged, by level, with its context — when [xtr-logging](../xtr-logging) is active. Context entries named like credentials are kept as `******` too |
 | Events | the listeners called, how often and for how long, those not called, and the events nobody listened to |
 | Routing | the route that answered — name, path template, methods, endpoint, parameters — a redirect's target, and how every route of the application matched the request |
 | Config | the Python version, the environment, the active bundles and every xtr package installed |
@@ -87,6 +87,12 @@ as it was.
 What goes into the page is small: a placeholder and a script. The script fetches the toolbar from
 `/_wdt/<token>` — retrying a moment later when the profile has not been written yet, since it is
 written once the response has left — and remembers whether you minimised it.
+
+A compressed body cannot be drawn into, and a browser always accepts one. So a request that may get
+the toolbar — one accepting HTML, or anything, that is not a background request — reaches the
+application without its `Accept-Encoding`: an application compressing its responses, with the
+framework's `GZipMiddleware` say, leaves its pages uncompressed in development, and its other
+responses compressed.
 
 ### Background requests
 

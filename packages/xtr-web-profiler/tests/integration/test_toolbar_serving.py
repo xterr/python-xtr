@@ -102,6 +102,15 @@ async def test_a_page_with_a_policy_lets_the_toolbars_nonces_through() -> None:
     assert f'nonce="{nonce}"' in response.text
 
 
+async def test_what_is_drawn_carries_no_style_attribute_a_policy_would_block() -> None:
+    # A nonce allows a <style> or <script> element, never a style="" attribute.
+    async with serving(application()) as client:
+        response = await client.get("/protected")
+
+    assert 'style="' not in response.text
+    assert "hidden" in response.text
+
+
 async def test_the_profilers_own_pages_carry_no_policy_and_are_not_profiled() -> None:
     async with serving(application()) as client:
         response = await client.get("/_profiler/latest")
@@ -118,3 +127,24 @@ async def test_without_the_profiler_routes_a_response_says_so() -> None:
     assert "x-debug-token" in response.headers
     assert response.headers["x-debug-error"] == "the profiler routes are not included"
     assert response.text == PAGE
+
+
+async def test_a_compressing_application_still_gets_the_toolbar_on_its_pages() -> None:
+    browser = {"accept": "text/html,application/xhtml+xml", "accept-encoding": "gzip"}
+    async with serving(application(compress=True)) as client:
+        page = await client.get("/page", headers=browser)
+        data = await client.get("/data", headers={"accept-encoding": "gzip"})
+        background = await client.get(
+            "/page", headers={**browser, "x-requested-with": "XMLHttpRequest"}
+        )
+        json_only = await client.get(
+            "/data", headers={"accept": "application/json", "accept-encoding": "gzip"}
+        )
+        anything = await client.get("/page", headers={"accept": "*/*", "accept-encoding": "gzip"})
+
+    assert "content-encoding" not in page.headers
+    assert f'id="xtr-wdt-{page.headers["x-debug-token"]}"' in page.text
+    assert "content-encoding" not in data.headers
+    assert background.headers["content-encoding"] == "gzip"
+    assert json_only.headers["content-encoding"] == "gzip"
+    assert "xtr-wdt-" in anything.text
