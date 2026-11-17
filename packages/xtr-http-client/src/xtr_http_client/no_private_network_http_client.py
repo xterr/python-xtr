@@ -34,6 +34,8 @@ _TO_GET: Final = (301, 302)
 _SEE_OTHER: Final = 303
 _HOPS: Final = 20
 _BODY: Final = ("body", "json")
+_CREDENTIAL_HEADERS: Final = frozenset({"authorization", "cookie", "proxy-authorization"})
+"""What a hop to another origin is not handed: credentials meant for the first one."""
 
 
 @final
@@ -163,6 +165,8 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
             await response.cancel()
             if following.get_method() != outgoing.get_method():
                 given = {name: value for name, value in given.items() if name not in _BODY}
+            if _origin(following) != _origin(outgoing):
+                given, following = _without_credentials(given, following)
             outgoing = following
             hops += 1
 
@@ -268,12 +272,20 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
         """Whether ``address`` may not be connected to.
 
         The allow list is read first, so one internal receiver is opened
-        without opening the network it sits in.
+        without opening the network it sits in. An address the checks cannot
+        read is refused: the network it lies in is unknown. One with a zone —
+        ``fe80::1%eth0`` — is checked as the address it names.
         """
-        if self._allow_list and self._ip_utils.check_ip(address, self._allow_list):
+        bare = address.partition("%")[0]
+        try:
+            _ = ip_address(bare)
+        except ValueError:
+            return True
+
+        if self._allow_list and self._ip_utils.check_ip(bare, self._allow_list):
             return False
 
-        return self._ip_utils.check_ip(address, self._subnets)
+        return self._ip_utils.check_ip(bare, self._subnets)
 
 
 def _ip_utils() -> type[IpUtils]:
@@ -346,6 +358,41 @@ def _literal(host: str) -> str | None:
         return str(ip_address(text))
     except ValueError:
         return None
+
+
+def _origin(request: RequestInterface) -> tuple[str, str, int]:
+    """The scheme, host and port ``request`` goes to: what credentials are meant for."""
+    uri = request.get_uri()
+    scheme = uri.get_scheme()
+    return scheme, uri.get_host().lower(), uri.get_port() or _PORTS.get(scheme, 0)
+
+
+def _without_credentials(
+    given: dict[str, object], following: RequestInterface
+) -> tuple[dict[str, object], RequestInterface]:
+    """The options and request of a hop to another origin, every credential left behind.
+
+    The authentication options, the query parameters (an API key travels there) and the
+    credential headers go: they were meant for the origin that redirected. The headers and
+    query are set empty rather than left out, so the wrapped client's own defaults for them
+    are not sent there either.
+    """
+    sent = given.get("headers")
+    headers: Mapping[str, object] = (
+        cast("Mapping[str, object]", sent) if isinstance(sent, Mapping) else {}
+    )
+    kept = {
+        name: value for name, value in headers.items() if name.lower() not in _CREDENTIAL_HEADERS
+    }
+    for name in _CREDENTIAL_HEADERS:
+        following = following.without_header(name)
+    return {
+        **given,
+        "auth_bearer": None,
+        "auth_basic": None,
+        "query": {},
+        "headers": kept,
+    }, following
 
 
 def _entries(value: str | Sequence[str]) -> tuple[str, ...]:

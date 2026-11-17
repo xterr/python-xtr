@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Final, final
 from typing_extensions import override
 
 from xtr_http_client.exception import InvalidArgumentError
+from xtr_http_client.internal.retry_delay import retry_after_ms
 
 from .retry_strategy_interface import RetryStrategyInterface
 
@@ -31,6 +32,9 @@ IDEMPOTENT_METHODS: Final[Sequence[str]] = (
     "QUERY",
 )
 """The methods a server answers the same way however often they are sent."""
+
+_MAX_RETRY_AFTER_MS: Final = 60_000
+"""The longest a server's ``Retry-After`` may park a caller, with no ``max_delay_ms`` set."""
 
 DEFAULT_RETRY_STATUS_CODES: Final[Mapping[int, Sequence[str] | None]] = {
     # Nothing came back at all, which is what `0` stands for everywhere a
@@ -77,6 +81,7 @@ class GenericRetryStrategy(RetryStrategyInterface):
         "_delay_ms",
         "_jitter",
         "_max_delay_ms",
+        "_max_retry_after_ms",
         "_multiplier",
         "_random",
         "_status_codes",
@@ -90,6 +95,8 @@ class GenericRetryStrategy(RetryStrategyInterface):
         max_delay_ms: int = 0,
         jitter: float = 0.1,
         random: Callable[[float, float], float] = uniform,
+        *,
+        max_retry_after_ms: int = _MAX_RETRY_AFTER_MS,
     ) -> None:
         """Retry what ``status_codes`` lists, backing off between attempts.
 
@@ -108,6 +115,10 @@ class GenericRetryStrategy(RetryStrategyInterface):
                 the delay.
             random: Where a number between two bounds comes from. Only worth
                 passing to make a test's delays repeatable.
+            max_retry_after_ms: The longest wait a server's ``Retry-After``
+                may ask for, when ``max_delay_ms`` sets no ceiling of its own:
+                a minute by default, so an answer cannot park the caller for
+                as long as it likes.
 
         Raises:
             InvalidArgumentError: When a delay is negative, the multiplier is
@@ -129,6 +140,11 @@ class GenericRetryStrategy(RetryStrategyInterface):
             )
         if jitter < 0 or jitter > 1:
             raise InvalidArgumentError(f'Jitter must be between 0 and 1: "{jitter}" given.')
+        if max_retry_after_ms < 0:
+            raise InvalidArgumentError(
+                "Max retry-after must be greater than or equal to zero: "
+                f'"{max_retry_after_ms}" given.'
+            )
 
         self._status_codes = _listed(status_codes)
         self._delay_ms = delay_ms
@@ -136,6 +152,7 @@ class GenericRetryStrategy(RetryStrategyInterface):
         self._max_delay_ms = max_delay_ms
         self._jitter = jitter
         self._random = random
+        self._max_retry_after_ms = max_retry_after_ms
 
     @override
     async def should_retry(
@@ -177,7 +194,10 @@ class GenericRetryStrategy(RetryStrategyInterface):
         content: bytes | None,
         error: TransportError | None,
     ) -> int:
-        """Return the delay for the next attempt, grown and spread out.
+        """Return the delay for the next attempt: the server's ``Retry-After``, or a growing one.
+
+        A wait the answer asks for is obeyed up to ``max_delay_ms`` — or up
+        to ``max_retry_after_ms`` when that sets no ceiling.
 
         Args:
             context: The attempt just made, whose ``retry_count`` is the
@@ -190,6 +210,10 @@ class GenericRetryStrategy(RetryStrategyInterface):
             unless that is ``0``.
         """
         del content, error
+
+        asked = None if context.response is None else retry_after_ms(context.response)
+        if asked is not None:
+            return min(asked, self._max_delay_ms or self._max_retry_after_ms)
 
         delay = self._delay_ms * self._multiplier**context.retry_count
         if self._jitter > 0:

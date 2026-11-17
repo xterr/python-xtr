@@ -206,10 +206,13 @@ client = RetryableHttpClient(inner, GenericRetryStrategy([500, 502, 503]), max_r
 ```
 
 `max_retries` is how many *further* attempts are allowed, so the request is made at most that
-many times plus one; a request may lower or raise it with the `max_retries` option. A
-`Retry-After` header wins over whatever delay the strategy names — a server saying when to come
-back is better informed than a client guessing. The response reports how many tries it took,
-under the `retry_count` entry of `get_info()`.
+many times plus one; a request may lower or raise it with the `max_retries` option. The
+strategy names the delay, from the answer it is handed: `GenericRetryStrategy` obeys a
+`Retry-After` header over its own backoff — a server saying when to come back is better
+informed than a client guessing — up to `max_delay_ms`, or up to `max_retry_after_ms` (a minute)
+when that sets no ceiling, so an answer cannot park the caller for as long as it likes. A
+strategy of your own reads `context.response` to do the same. The response reports how many
+tries it took, under the `retry_count` entry of `get_info()`.
 
 A body that cannot be produced twice is sent once: a second attempt would send a request that
 is not the one that failed. And when `base_uri` names several, each attempt moves one along
@@ -291,6 +294,14 @@ sent. The request is then pinned to the address that was checked, through the `r
 so a name whose records change between the check and the connection reaches what was vetted or
 nothing at all. Redirects are followed here too, because a hop nobody checked would walk
 straight past the guard.
+
+A redirect to another origin — another scheme, host or port — carries no credentials meant for
+the first: the `Authorization`, `Cookie` and `Proxy-Authorization` headers, the `auth_bearer`
+and `auth_basic` options and the `query` parameters (an API key travels there) are left behind,
+and the hop sends empty `headers` and `query` options, so the wrapped client's own defaults
+for them are not sent there either. A body a 307 or 308 keeps goes on, as the status asks. An
+address the checks cannot read is refused; one with a zone, `fe80::1%eth0`, is checked as the
+address it names.
 
 A refusal is `TransportError`: `Host "<host>" is blocked for "<url>".`, or `IP "<ip>" is
 blocked for "<url>".` for an address written out. With no `subnets` it refuses
