@@ -40,6 +40,10 @@ Everything is judged against the **declared** type, not the runtime one.
 - In an application, with xtr-dependency-injection installed beside the package, activate
   `SerializerBundle` and inject `SerializerInterface`. Only `xtr_serializer.bundle` needs the
   container; `xtr_serializer.command` needs xtr-console.
+- Profiler panel: with the http kernel's profiler on, the five interfaces give a
+  `TraceableSerializer` (`xtr_serializer.data_collector`) recording each `serialize`,
+  `deserialize`, `normalize`, `denormalize`, `encode` and `decode` of a profiled request for the
+  `serializer` panel; inject an interface, not the `Serializer` class, or the call goes unrecorded.
 
 ## Round-trip a value
 

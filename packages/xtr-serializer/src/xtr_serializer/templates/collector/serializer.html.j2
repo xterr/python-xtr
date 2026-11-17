@@ -1,0 +1,181 @@
+{#
+  Every call this request made to a serializer: which one, what it was handed,
+  what it was asked for, how long it took and what it raised.
+
+  Nothing a call carried is kept — only the name of the type handed in, the
+  type asked for, the format and the keys of the context — so a profile never
+  holds the data itself. A nested value goes through the serializer the
+  normalizer writing it was built with, so one `serialize` is one row however
+  deep it went.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set calls = collector.data.get("calls") or [] %}
+{% set errors = collector.data.get("errors") or 0 %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M6.4 2.6C4.8 2.6 5 7.2 3.2 8c1.8.8 1.6 5.4 3.2 5.4"></path>
+  <path d="M9.6 2.6c1.6 0 1.4 4.6 3.2 5.4-1.8.8-1.6 5.4-3.2 5.4"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ collector.data.get("count") or calls|length }}</span>
+<span class="xtr-toolbar-sep">·</span>
+<span class="xtr-toolbar-value">{{ collector.data.get("duration_ms")|format_ms }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Calls</dt><dd>{{ collector.data.get("count") or calls|length }}</dd>
+  <dt>Took</dt><dd>{{ collector.data.get("duration_ms")|format_ms }}</dd>
+  <dt>Errors</dt><dd>{{ errors }}</dd>
+  {% for method, made in (collector.data.get("by_method") or {})|dictsort %}
+  <dt>{{ method }}</dt><dd>{{ made }}</dd>
+  {% endfor %}
+</dl>
+<p class="xtr-toolbar-note">What the request asked a serializer for; the value itself is never kept.</p>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status="red" if errors else "normal") }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M6.4 2.6C4.8 2.6 5 7.2 3.2 8c1.8.8 1.6 5.4 3.2 5.4"></path>
+  <path d="M9.6 2.6c1.6 0 1.4 4.6 3.2 5.4-1.8.8-1.6 5.4-3.2 5.4"></path>
+</svg>
+<span class="xtr-menu-label">Serializer</span>
+{% if collector.data.get("errors") %}
+<span class="xtr-menu-count xtr-menu-count-red" title="errors">{{ collector.data.get("errors") }}</span>
+{% else %}
+<span class="xtr-menu-count">{{ collector.data.get("count") or (collector.data.get("calls") or [])|length }}</span>
+{% endif %}
+{% endblock %}
+
+{% block panel %}
+{% set data = collector.data %}
+{% set calls = data.get("calls") or [] %}
+{% set by_method = data.get("by_method") or {} %}
+{% set failed = [] %}
+{% for call in calls %}
+{% if call.get("error") %}
+{% set _ = failed.append(call) %}
+{% endif %}
+{% endfor %}
+{% macro calls_table(tag, rows, nothing) %}
+{% if rows %}
+<div class="xtr-toolstrip">
+  <input class="xtr-filter" type="search" placeholder="Filter these calls…" aria-label="Filter the calls shown" data-xtr-filter="xtr-serializer-{{ tag }}" data-xtr-filter-count="xtr-serializer-{{ tag }}-count">
+  <span class="xtr-card-note" id="xtr-serializer-{{ tag }}-count">{{ rows|length }} of {{ rows|length }}</span>
+</div>
+<div class="xtr-scroll">
+  <table class="xtr-table" id="xtr-serializer-{{ tag }}">
+    <thead>
+      <tr>
+        <th scope="col">Serializer</th>
+        <th scope="col">Call</th>
+        <th scope="col">Types</th>
+        <th scope="col">Format</th>
+        <th scope="col">Context</th>
+        <th scope="col">Error</th>
+        <th scope="col">Took</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for call in rows %}
+      <tr>
+        <td class="xtr-cell-mono xtr-break">{{ call.get("serializer") or "?" }}</td>
+        <td class="xtr-cell-mono">{{ call.get("method") or "?" }}</td>
+        <td class="xtr-cell-mono xtr-break">
+          {{ call.get("data_type") or "?" }}
+          {% if call.get("target_type") %}
+          <span class="xtr-dump-arrow">⇒</span> {{ call.get("target_type") }}
+          {% endif %}
+        </td>
+        <td class="xtr-cell-mono">{{ call.get("format") or "—" }}</td>
+        <td class="xtr-cell-mono xtr-break">{{ (call.get("context") or [])|join(", ") or "—" }}</td>
+        <td class="xtr-break">
+          {% if call.get("error") %}
+          <details class="xtr-dump">
+            <summary><span class="xtr-dump-type">{{ call.get("error").get("class") or "error" }}</span></summary>
+            <ul>
+              <li><span class="xtr-dump-str">{{ call.get("error").get("message") or "no message" }}</span></li>
+            </ul>
+          </details>
+          {% else %}
+          <span class="xtr-dump-null">none</span>
+          {% endif %}
+        </td>
+        <td class="xtr-cell-num">{{ call.get("duration_ms")|format_ms }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="xtr-empty">{{ nothing }}</p>
+{% endif %}
+{% endmacro %}
+<h1 class="xtr-panel-title">Serializer</h1>
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Calls</td><td class="xtr-cell-mono">{{ data.get("count") or calls|length }}</td></tr>
+        <tr><td>Took</td><td class="xtr-cell-mono">{{ data.get("duration_ms")|format_ms }}</td></tr>
+        <tr><td>Errors</td><td class="xtr-cell-mono">{{ data.get("errors") or failed|length }}</td></tr>
+      </tbody>
+    </table>
+    <p class="xtr-card-note">
+      The time is the sum of what the calls took, so work one call did inside
+      another is counted in both.
+    </p>
+  </div>
+</section>
+<section class="xtr-card">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">What was asked for</h2>
+    <span class="xtr-card-note">by call, and by the serializer that answered</span>
+  </header>
+  <div class="xtr-card-body">
+    <h3 class="xtr-section-title">By call</h3>
+    {% if by_method %}
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        {% for method, made in by_method|dictsort %}
+        <tr>
+          <td>{{ method }}</td>
+          <td class="xtr-cell-mono">{{ made }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="xtr-card-note">Nothing was asked of a serializer.</p>
+    {% endif %}
+    <h3 class="xtr-section-title">By serializer</h3>
+    {% if calls %}
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        {% for name, group in calls|groupby("serializer") %}
+        <tr>
+          <td>{{ name }}</td>
+          <td class="xtr-cell-mono">{{ group|length }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="xtr-card-note">No serializer was called.</p>
+    {% endif %}
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush xtr-tabs">
+  <div class="xtr-tablist" role="tablist" aria-label="Which calls to show">
+    <button type="button" class="xtr-tab xtr-on" data-xtr-tab="all" role="tab" aria-selected="true">All<span class="xtr-tab-count">{{ calls|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="errors" role="tab" aria-selected="false">Errors<span class="xtr-tab-count">{{ failed|length }}</span></button>
+  </div>
+  <section class="xtr-pane xtr-pane-flush xtr-on" data-xtr-pane="all" role="tabpanel">
+    {{ calls_table("all", calls, "This request asked no serializer for anything.") }}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="errors" role="tabpanel">
+    {{ calls_table("errors", failed, "No call raised.") }}
+  </section>
+</section>
+{% endblock %}

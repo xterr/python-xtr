@@ -6283,6 +6283,7 @@ version = "7.0.0"
 source = { editable = "packages/xtr-serializer" }
 dependencies = [
     { name = "pydantic" },
+    { name = "xtr-clock" },
 ]
 
 [package.dev-dependencies]
@@ -6294,13 +6295,16 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "ty" },
-    { name = "xtr-clock" },
     { name = "xtr-console" },
     { name = "xtr-dependency-injection" },
+    { name = "xtr-http-kernel" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.12,<3" }]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -6311,9 +6315,9 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.1" },
     { name = "ruff", specifier = ">=0.14.7" },
     { name = "ty", specifier = ">=0.0.83" },
-    { name = "xtr-clock", editable = "packages/xtr-clock" },
     { name = "xtr-console", editable = "packages/xtr-console" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-http-kernel", editable = "packages/xtr-http-kernel" },
 ]
 
 [[package]]
