@@ -4,6 +4,7 @@ import anyio
 import anyio.lowlevel
 import anyio.to_thread
 import pytest
+from xtr_dependency_injection.integration import detached_context
 
 from xtr_http_kernel.data_collector import RequestTrace
 
@@ -36,6 +37,15 @@ def test_beginning_again_starts_from_nothing() -> None:
     trace.begin()
 
     assert trace.entries() == ()
+
+
+def test_a_new_connection_starts_outside_the_request_it_was_copied_from() -> None:
+    trace: RequestTrace[str] = RequestTrace("detached")
+    trace.begin()
+    trace.record("mid-request")
+
+    assert not detached_context().run(trace.is_recording)
+    assert trace.entries() == ("mid-request",)
 
 
 @pytest.mark.anyio

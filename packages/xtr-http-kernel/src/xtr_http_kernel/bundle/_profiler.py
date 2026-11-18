@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
 from xtr_dependency_injection import ServiceKey, bundle_active
+from xtr_dependency_injection.integration import register_detached_variable
 from xtr_event_dispatcher import (
     EventDispatcherInterface,  # noqa: TC002 — read at runtime by the container
 )
@@ -142,8 +143,13 @@ def _register_collectors(services: ServiceConfigurator, builder: ContainerBuilde
 
 
 def _stopwatch() -> Stopwatch:
-    """Build the stopwatch on its own monotonic clock, never the application's."""
-    return Stopwatch()
+    """Build the stopwatch on its own monotonic clock, never the application's.
+
+    Every new connection starts with nothing timed.
+    """
+    stopwatch = Stopwatch()
+    register_detached_variable(*stopwatch.detached_variable)
+    return stopwatch
 
 
 async def _profiler(
@@ -157,7 +163,10 @@ async def _profiler(
         cast("DataCollectorInterface", await container.get(provided, qualifier))
         for provided, qualifier in keys
     ]
-    return Profiler(storage, collectors, enabled=enabled)
+    profiler = Profiler(storage, collectors, enabled=enabled)
+    # A new connection starts undecided, whatever a request it was copied from decided.
+    register_detached_variable(*profiler.detached_variable)
+    return profiler
 
 
 def _templates(entries: tuple[tuple[str, str], ...]) -> DataCollectorTemplates:

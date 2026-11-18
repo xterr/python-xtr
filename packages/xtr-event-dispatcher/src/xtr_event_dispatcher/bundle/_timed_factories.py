@@ -27,8 +27,11 @@ def stopwatch() -> Stopwatch:
 
     A factory rather than the class, so the container never hands it the
     application's clock: a wall clock would let a correction bend a duration.
+    Every new connection starts with nothing timed.
     """
-    return Stopwatch()
+    timer = Stopwatch()
+    register_detached_variable(*timer.detached_variable)
+    return timer
 
 
 def timed_traceable_event_dispatcher_factory(

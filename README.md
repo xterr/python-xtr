@@ -83,6 +83,7 @@ graph LR
     messenger[xtr-messenger] --> logcon
     messenger --> eventcon
     messenger --> serializer
+    messenger --> clock
     lock[xtr-lock] --> clock
     lock --> logcon
     cachecon[xtr-cache-contracts] --> clock
@@ -134,6 +135,7 @@ graph LR
     httpclient -. optional .-> di
     httpclient -. optional .-> ratelimiter
     orm[xtr-orm] --> logcon
+    orm --> clock
     orm -. optional .-> di
     orm -. optional .-> svccon
     orm -. optional .-> console
@@ -281,6 +283,7 @@ graph LR
     workflow --> logcon
     workflow --> svccon
     serializer[xtr-serializer] -. optional .-> di
+    serializer --> clock
     serializer -. optional .-> console
     mime[xtr-mime] --> clock
     mailer[xtr-mailer] --> mime

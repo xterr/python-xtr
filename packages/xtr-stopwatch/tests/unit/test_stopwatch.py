@@ -133,6 +133,18 @@ def test_a_reset_forgets_what_the_context_timed(clock: MockClock) -> None:
     assert repr(stopwatch) == "Stopwatch(open_sections=0)"
 
 
+def test_setting_the_detached_variable_back_forgets_what_the_context_timed(
+    clock: MockClock,
+) -> None:
+    stopwatch = Stopwatch(clock)
+    stopwatch.open_section()
+    variable, value = stopwatch.detached_variable
+
+    _ = variable.set(value)
+
+    assert repr(stopwatch) == "Stopwatch(open_sections=0)"
+
+
 def test_an_event_handed_out_before_a_reset_still_stops(clock: MockClock) -> None:
     stopwatch = Stopwatch(clock)
     event = stopwatch.start("listener")

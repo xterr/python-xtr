@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, final
+from typing import TYPE_CHECKING, ClassVar, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, Kernel, as_bundle
 from xtr_dependency_injection.bundle.bundle import AnyBundle
 

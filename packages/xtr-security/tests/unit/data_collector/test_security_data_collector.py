@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import anyio
 import pytest
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_http_kernel.data_collector import (
     LateDataCollectorInterface,

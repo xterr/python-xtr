@@ -68,7 +68,7 @@ dev = [
     # The make:* commands write application code while developing; MakerBundle is listed
     # for dev only, so no other environment has them.
     "xtr-maker",
-    "xtr-web-profiler>=6.8.1",
+    "xtr-web-profiler>=7.0.0",
 ]
 
 [build-system]

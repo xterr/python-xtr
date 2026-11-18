@@ -66,7 +66,7 @@ class Profiler:
     at the same time.
     """
 
-    __slots__ = ("_clock", "_collectors", "_enabled", "_storage", "_switch")
+    __slots__ = ("_clock", "_collectors", "_enabled", "_storage", "_switch", "detached_variable")
 
     def __init__(
         self,
@@ -91,6 +91,8 @@ class Profiler:
         self._clock: ClockInterface = clock if clock is not None else SystemClock()
         self._enabled = enabled
         self._switch: ContextVar[_Switch | None] = ContextVar("profiler_switch", default=None)
+        self.detached_variable: tuple[ContextVar[_Switch | None], None] = (self._switch, None)
+        """The variable a new connection must start without, and the value it starts from."""
 
     def begin_request(self) -> None:
         """Start the calling context's request from the configured default."""

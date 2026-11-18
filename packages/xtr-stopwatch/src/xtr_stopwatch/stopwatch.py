@@ -72,7 +72,7 @@ class Stopwatch:
     unit of work begins with nothing timed.
     """
 
-    __slots__ = ("_activity", "_clock")
+    __slots__ = ("_activity", "_clock", "detached_variable")
 
     def __init__(self, clock: ClockInterface | None = None) -> None:
         """Make a stopwatch reading ``clock``.
@@ -86,6 +86,13 @@ class Stopwatch:
         self._activity: ContextVar[_Activity | None] = ContextVar(
             "stopwatch_activity", default=None
         )
+        self.detached_variable: tuple[ContextVar[_Activity | None], None] = (self._activity, None)
+        """The variable a new connection must start without, and the value it starts from.
+
+        A server may start a connection from a copy of another's context taken
+        mid-request; whoever builds the stopwatch for a container registers
+        this, so that request's timing never reaches the new one.
+        """
 
     def open_section(self, section_id: str | None = None) -> None:
         """Open a section inside the current one, or reopen the child named ``section_id``.

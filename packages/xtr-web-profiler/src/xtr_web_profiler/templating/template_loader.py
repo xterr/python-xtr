@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import importlib.resources
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 from jinja2 import BaseLoader, TemplateNotFound
-from typing_extensions import override
 
 if TYPE_CHECKING:
     from collections.abc import Callable

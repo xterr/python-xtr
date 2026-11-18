@@ -158,6 +158,18 @@ async def test_enabling_is_decided_per_request(profiler: Profiler) -> None:
     assert profiler.is_enabled()
 
 
+async def test_setting_the_detached_variable_back_forgets_the_requests_decision(
+    profiler: Profiler,
+) -> None:
+    profiler.begin_request()
+    profiler.disable()
+    variable, value = profiler.detached_variable
+
+    _ = variable.set(value)
+
+    assert profiler.is_enabled()
+
+
 async def test_profiling_is_off_by_default_when_configured_off(tmp_path: Path) -> None:
     profiler = Profiler(FileProfilerStorage(tmp_path), enabled=False)
 

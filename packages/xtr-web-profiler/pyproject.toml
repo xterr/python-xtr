@@ -1,9 +1,9 @@
 [project]
 name = "xtr-web-profiler"
-version = "6.8.1"
+version = "7.0.0"
 description = "A development toolbar on every page and a profile of every request: timing, logs, events, routing, the request and the response."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14.4"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -13,9 +13,6 @@ keywords = ["profiler", "debug", "toolbar", "development", "fastapi", "timeline"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Debuggers",
     "Typing :: Typed",
@@ -24,11 +21,10 @@ dependencies = [
     "fastapi>=0.143.1",
     "jinja2>=3.1",
     "markupsafe>=2.1",
-    "starlette>=1.3.1",
-    "typing-extensions>=4.4",
-    "xtr-dependency-injection>=6.0,<7",
-    "xtr-http-kernel>=6.0,<7",
-    "xtr-http-message-contracts>=6.0,<7",
+    "starlette>=1.6",
+    "xtr-dependency-injection>=7.0,<8",
+    "xtr-http-kernel>=7.0,<8",
+    "xtr-http-message-contracts>=7.0,<8",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -42,15 +38,15 @@ web_profiler = "xtr_web_profiler.recipe"
 
 [dependency-groups]
 dev = [
-    "anyio>=4.0",
-    "basedpyright>=1.21",
+    "anyio>=4.10",
+    "basedpyright>=1.31.7",
     "httpx>=0.27",
-    "ruff>=0.8",
-    "pytest>=8",
-    "pytest-cov>=5",
+    "ruff>=0.14.7",
+    "pytest>=8.4",
+    "pytest-cov>=7.1",
     "ty>=0.0.83",
     # The log panel's tests log through it.
-    "xtr-logging>=6.0,<7",
+    "xtr-logging>=7.0,<8",
 ]
 
 [build-system]
@@ -62,7 +58,7 @@ build-backend = "uv_build"
 # ─────────────────────────────────────────────────────────────────
 [tool.basedpyright]
 typeCheckingMode = "all"
-pythonVersion = "3.11"
+pythonVersion = "3.14"
 pythonPlatform = "All"
 include = ["src", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
@@ -73,9 +69,6 @@ reportUnusedVariable = "error"
 reportMissingParameterType = "error"
 reportPrivateUsage = "error"
 
-# `@override` landed in typing in 3.12; on 3.11 we import from typing_extensions
-# only when the class actually derives from a base with matching methods.
-reportImplicitOverride = "none"
 # An error message long enough to be useful has to wrap, and a 100-column
 # limit puts the break inside the string.
 reportImplicitStringConcatenation = "none"
@@ -84,7 +77,7 @@ reportImplicitStringConcatenation = "none"
 # ruff — select = ["ALL"], minimal justified ignores
 # ─────────────────────────────────────────────────────────────────
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 100
 src = ["src", "tests"]
 

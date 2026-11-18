@@ -12,10 +12,9 @@ from __future__ import annotations
 import warnings
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 from jinja2 import Environment  # noqa: TC002 — read at runtime by the container
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 from xtr_http_kernel import MIDDLEWARE_TAG
 from xtr_http_kernel.bundle import HttpKernelBundle, HttpKernelConfig
