@@ -59,6 +59,9 @@ def clone_function(fn: Callable[..., object]) -> types.FunctionType:
     Built from the same code object, so a coroutine, generator or async
     generator function stays one: wireup decides whether to await a factory
     and whether it cleans up by the kind of function it is given.
+
+    The engine keys the clone by its return annotation, so a return written
+    with a ``type`` alias is stored expanded — the key ``key_type`` reads.
     """
     original = cast("types.FunctionType", fn)
     clone = types.FunctionType(
@@ -77,7 +80,12 @@ def clone_function(fn: Callable[..., object]) -> types.FunctionType:
     )
     clone.__type_params__ = original.__type_params__
     # Rewrite our Autowire/Target markers to wireup's before the engine reads the clone.
-    _set(clone, __signature__=to_engine_signature(evaluated_signature(clone)))
+    signature = evaluated_signature(clone)
+    returned = cast("object", signature.return_annotation)
+    if returned != inspect.signature(clone, eval_str=True).return_annotation:
+        # Only a return holding an alias reads differently once expanded.
+        clone.__annotations__["return"] = returned
+    _set(clone, __signature__=to_engine_signature(signature))
     return clone
 
 

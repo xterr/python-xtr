@@ -31,6 +31,7 @@ from types import UnionType
 from typing import Annotated, TypeAlias, TypeVar, cast, get_args, get_origin
 
 from xtr_dependency_injection.exception import InvalidArgumentError
+from xtr_dependency_injection.exception._type_aliases import without_type_aliases
 
 from ._dependency_base import DependencyBase, set_dependency
 from .target import Target
@@ -104,7 +105,11 @@ def is_container_supplied(annotation: object) -> bool:
     library that calls a user's callable — a command, a message handler — asks
     this to tell the parameters it passes itself from the ones the container
     fills, so every such library agrees on what a marker is.
+
+    A ``type`` alias reads as what it stands for: ``type Mailer = Injected[Smtp]``
+    is container-supplied, as ``Injected[Smtp]`` is.
     """
+    annotation = without_type_aliases(annotation)
     return any(
         _marks_injection(member) or _is_service_locator(member)
         for member in _union_members(annotation)
@@ -153,7 +158,7 @@ def bare_service_locator(annotation: object) -> bool:
     already carries those. A caller that injects into a bound callable marks a
     bare locator itself, because the engine fills only marked parameters there.
     """
-    members = _union_members(annotation)
+    members = _union_members(without_type_aliases(annotation))
     return any(_is_service_locator(member) for member in members) and not any(
         _marks_injection(member) for member in members
     )
