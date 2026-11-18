@@ -16,6 +16,7 @@ from xtr_console.exception import CommandSignatureError
 from xtr_console.global_options import is_global_flag
 from xtr_console.style import ConsoleStyle
 
+from ._standard_input import as_given
 from .command_arguments import CommandArguments
 from .command_descriptor import call_of, function_of
 
@@ -272,13 +273,15 @@ def _parser_validator(validator: Validator) -> tuple[Callable[[object, object], 
 
     ``None`` never reaches it: the parser hands over the default of an ``X | None``
     parameter left out, and there is nothing to validate there.
+
+    A bare ``-`` reaches it as ``-``, never as the marker it crosses the parser as.
     """
     check = cast("Callable[[object], object]", validator)
 
     def validate(type_: object, value: object) -> None:
         del type_
         if value is not None:  # an ``X | None`` left out: nothing to validate
-            _ = check(value)
+            _ = check(as_given(value))
 
     return (validate,)
 

@@ -269,6 +269,11 @@ $ acme copy --source a.txt        # refused: an argument is not an option
 | `target: Path \| None = None` | optional, after the required ones | `None` when left out |
 | `*files: Path` | any number, collected | `(Path("a"), Path("b"))`, or `()` |
 
+A bare `-` is a value, as it is to most command-line tools: `read -` hands `"-"` to a text
+argument — or `Path("-")` to a path, or to an option's value with `--output -` — for the command
+to read standard input. A `-` that lands anywhere else, an `int` argument say, is refused as an
+unknown option, as before; after `--`, every token is a value as written.
+
 ### Options
 
 | Declaration | Command line | Received |

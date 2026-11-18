@@ -205,6 +205,30 @@ async def test_a_dash_reads_the_password_from_standard_input(
     assert _value(out.getvalue(), "Password hash") == "secret"
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["security:hash-password", "-"],
+        ["security:hash-password", "-", _USER],
+        ["security:hash-password", "--empty-salt", "-"],
+    ],
+    ids=" ".join,
+)
+async def test_a_dash_on_the_command_line_reads_the_password_from_standard_input(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> None:
+    # Through the console's own parser, which once refused a bare "-" as an unknown option.
+    monkeypatch.setattr(sys, "stdin", io.StringIO("secret\n"))
+    tester = _tester(_command(_argon2()))
+
+    code = await tester.execute(argv, interactive=False)
+
+    hashed = _value(tester.display, "Password hash")
+    assert code == ExitCode.SUCCESS, tester.display
+    assert hashed is not None
+    assert _argon2().verify(hashed, "secret")
+
+
 async def test_an_empty_standard_input_fails_without_interaction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
