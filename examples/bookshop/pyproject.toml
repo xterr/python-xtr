@@ -68,6 +68,7 @@ dev = [
     # The make:* commands write application code while developing; MakerBundle is listed
     # for dev only, so no other environment has them.
     "xtr-maker",
+    "xtr-web-profiler>=6.8.1",
 ]
 
 [build-system]
@@ -108,6 +109,7 @@ xtr-scheduler            = { path = "../../packages/xtr-scheduler", editable = t
 xtr-serializer           = { path = "../../packages/xtr-serializer", editable = true }
 xtr-service-contracts    = { path = "../../packages/xtr-service-contracts", editable = true }
 xtr-storage              = { path = "../../packages/xtr-storage", editable = true }
+xtr-stopwatch            = { path = "../../packages/xtr-stopwatch", editable = true }
 xtr-security             = { path = "../../packages/xtr-security", editable = true }
 xtr-security-core        = { path = "../../packages/xtr-security-core", editable = true }
 xtr-security-http        = { path = "../../packages/xtr-security-http", editable = true }
@@ -115,6 +117,7 @@ xtr-security-jwt         = { path = "../../packages/xtr-security-jwt", editable 
 xtr-password-hasher      = { path = "../../packages/xtr-password-hasher", editable = true }
 xtr-webhook              = { path = "../../packages/xtr-webhook", editable = true }
 xtr-maker                = { path = "../../packages/xtr-maker", editable = true }
+xtr-web-profiler         = { path = "../../packages/xtr-web-profiler", editable = true }
 
 [tool.basedpyright]
 typeCheckingMode = "all"
