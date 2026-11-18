@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, Final, final
-
-from typing_extensions import override
+from typing import ClassVar, Final, final, override
 
 from xtr_mime import MimeTypeGuesserInterface
 

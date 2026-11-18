@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import msgspec
-from typing_extensions import override
 
 from .formatter_interface import FormatterInterface
 from .json_batch_mode import JsonBatchMode

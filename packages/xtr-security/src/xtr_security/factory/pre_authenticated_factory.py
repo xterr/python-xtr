@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast, final
+from typing import TYPE_CHECKING, Annotated, cast, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Target
 from xtr_security_core import TokenStorageInterface
 from xtr_security_core.user.user_provider_interface import (

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, TypeAlias, final
+from typing import Annotated, TypeAlias, final, override
 
 from pydantic import PlainSerializer, PlainValidator
-from typing_extensions import override
 
 from xtr_serializer import discriminator_map, discriminator_name
 

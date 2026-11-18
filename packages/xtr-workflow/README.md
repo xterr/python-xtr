@@ -4,7 +4,7 @@
 
 **Move objects through workflows and state machines — weighted places and transitions, guards, events at every step, definitions in code, config or on a class, dumped as Graphviz, PlantUML or Mermaid.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="asyncio" src="https://img.shields.io/badge/asyncio-native-1f6feb">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -55,15 +55,15 @@ uv add xtr-logging                             # beside it: the audit trail's wo
 ```
 
 The package depends on [xtr-event-dispatcher](../xtr-event-dispatcher) and its contracts,
-[xtr-logging-contracts](../xtr-logging-contracts), [xtr-service-contracts](../xtr-service-contracts),
-[xtr-clock](../xtr-clock) and `typing-extensions`. There are no extras, and the container is not a
+[xtr-logging-contracts](../xtr-logging-contracts), [xtr-service-contracts](../xtr-service-contracts)
+and [xtr-clock](../xtr-clock). There are no extras, and the container is not a
 dependency: [xtr-dependency-injection](../xtr-dependency-injection) is used when it is installed
 beside the package — see [Kernel / bundle](#kernel--bundle) — and definitions, workflows, guards
 and dumpers work without it, as the [Quick start](#quick-start) shows. Only
 `xtr_workflow.bundle` imports the container, only `xtr_workflow.command` imports xtr-console, and
 only `xtr_workflow.event_listener.guard_listener` imports xtr-security-core.
 
-Requires Python 3.11+.
+Requires Python 3.14.4+.
 
 ## Quick start
 

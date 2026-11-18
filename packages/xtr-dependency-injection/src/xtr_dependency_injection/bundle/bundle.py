@@ -16,9 +16,7 @@ around the container's life — the last two taking their container from
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Final, Generic, TypeAlias, final
-
-from typing_extensions import TypeVar
+from typing import TYPE_CHECKING, Any, Final, Generic, TypeAlias, TypeVar, final
 
 from xtr_dependency_injection.exception import BundleDefinitionError
 from xtr_dependency_injection.exception._naming import qualified_name

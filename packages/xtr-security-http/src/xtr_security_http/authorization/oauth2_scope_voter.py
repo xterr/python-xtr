@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Final, cast, final
+from typing import TYPE_CHECKING, ClassVar, Final, cast, final, override
 
-from typing_extensions import override
 from xtr_security_core.authorization.voter.access import Access
 from xtr_security_core.authorization.voter.cacheable_voter_interface import CacheableVoterInterface
 from xtr_security_core.exception import InvalidArgumentError

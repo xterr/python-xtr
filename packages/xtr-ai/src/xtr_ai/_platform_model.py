@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import merge_model_settings
-from typing_extensions import override
 
 if TYPE_CHECKING:
     from pydantic_ai.models import Model

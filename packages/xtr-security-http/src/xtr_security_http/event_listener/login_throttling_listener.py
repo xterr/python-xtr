@@ -9,9 +9,8 @@ the account's count, over a limiter that builds its own keys.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_rate_limiter import RateLimit, RateLimitExceededEvent

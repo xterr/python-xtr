@@ -9,16 +9,13 @@ unless its source shows it does: then the class cannot be read.
 
 from __future__ import annotations
 
-import inspect
+import annotationlib
 import sys
 from collections.abc import Mapping
 from typing import ClassVar, Final, NamedTuple, cast, get_args, get_origin
 
 from xtr_workflow.decorator._workflow_name import class_name
 from xtr_workflow.exception import LogicError
-
-if sys.version_info >= (3, 14):
-    import annotationlib  # pyright: ignore[reportUnreachable] -- checked as 3.11, run from 3.14 on
 
 __all__ = ["MarkedConstant", "marked_constants"]
 
@@ -71,53 +68,43 @@ def marked_constants(class_: type) -> list[MarkedConstant]:
     return found
 
 
-if sys.version_info >= (3, 14):
+def _annotations(owner: type) -> dict[str, object]:
+    """Return the annotations ``owner`` declares itself, each evaluated on its own.
 
-    def _annotations(owner: type) -> dict[str, object]:  # pyright: ignore[reportUnreachable] -- checked as 3.11, run from 3.14 on
-        """Return the annotations ``owner`` declares itself, each evaluated on its own.
+    One that cannot be evaluated is an ``_Unreadable`` in its place.
+    """
+    try:
+        declared = annotationlib.get_annotations(owner)
+    except NameError:
+        return _deferred_annotations(owner)
+    return _each_evaluated(owner, declared)
 
-        One that cannot be evaluated is an ``_Unreadable`` in its place.
-        """
+
+def _deferred_annotations(owner: type) -> dict[str, object]:
+    """Return the annotations ``owner`` defers, of which some cannot be evaluated.
+
+    A module not importing ``annotations`` from ``__future__`` defers them,
+    and reading them evaluates them all at once, failing on the first that
+    cannot be. Each is evaluated as far as it can be instead; whether it
+    can be in full is told by evaluating alone the source it was written
+    as, since a name it lacks may hide deep in what was evaluated — in a
+    marker's places, say.
+    """
+    values = cast(
+        "dict[str, object]",
+        annotationlib.get_annotations(owner, format=annotationlib.Format.FORWARDREF),
+    )
+    sources = annotationlib.get_annotations(owner, format=annotationlib.Format.STRING)
+    read: dict[str, object] = {}
+    for attribute, value in values.items():
         try:
-            declared = annotationlib.get_annotations(owner)
-        except NameError:
-            return _deferred_annotations(owner)
-        return _each_evaluated(owner, declared)
-
-    def _deferred_annotations(owner: type) -> dict[str, object]:
-        """Return the annotations ``owner`` defers, of which some cannot be evaluated.
-
-        A module not importing ``annotations`` from ``__future__`` defers them,
-        and reading them evaluates them all at once, failing on the first that
-        cannot be. Each is evaluated as far as it can be instead; whether it
-        can be in full is told by evaluating alone the source it was written
-        as, since a name it lacks may hide deep in what was evaluated — in a
-        marker's places, say.
-        """
-        values = cast(
-            "dict[str, object]",
-            annotationlib.get_annotations(owner, format=annotationlib.Format.FORWARDREF),
-        )
-        sources = annotationlib.get_annotations(owner, format=annotationlib.Format.STRING)
-        read: dict[str, object] = {}
-        for attribute, value in values.items():
-            try:
-                evaluated = _evaluated(owner, sources[attribute])
-            except SyntaxError:
-                # Its source holds a value no source stands for, such as a lambda:
-                # it tells nothing, and what was evaluated is read as is.
-                evaluated = value
-            read[attribute] = evaluated if isinstance(evaluated, _Unreadable) else value
-        return read
-
-else:
-
-    def _annotations(owner: type) -> dict[str, object]:
-        """Return the annotations ``owner`` declares itself, each evaluated on its own.
-
-        One that cannot be evaluated is an ``_Unreadable`` in its place.
-        """
-        return _each_evaluated(owner, inspect.get_annotations(owner))
+            evaluated = _evaluated(owner, sources[attribute])
+        except SyntaxError:
+            # Its source holds a value no source stands for, such as a lambda:
+            # it tells nothing, and what was evaluated is read as is.
+            evaluated = value
+        read[attribute] = evaluated if isinstance(evaluated, _Unreadable) else value
+    return read
 
 
 def _each_evaluated(owner: type, declared: Mapping[str, object]) -> dict[str, object]:

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, Unpack, cast, final, override
 from urllib.parse import urljoin, urlsplit
 
-from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_message import Uri
 from xtr_service_contracts import ResetInterface

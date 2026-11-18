@@ -5,10 +5,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 from sqlalchemy.exc import DBAPIError
-from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_messenger import (
     EncodedEnvelope,

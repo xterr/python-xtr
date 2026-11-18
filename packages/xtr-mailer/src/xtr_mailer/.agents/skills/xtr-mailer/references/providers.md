@@ -26,7 +26,7 @@ packages/xtr-acme-mailer/
 └── tests/
 ```
 
-Dependencies: `xtr-mailer`, `xtr-mime`, `xtr-http-client-contracts`, `typing-extensions`. The
+Dependencies: `xtr-mailer`, `xtr-mime`, `xtr-http-client-contracts`. The
 dev group adds `xtr-http-client`, for `MockHttpClient`. **A provider library ships no bundle**:
 its factory is found by the DSN's scheme.
 
@@ -67,9 +67,7 @@ subject word — still reaches an API. Subclass it for a provider that takes fie
 
 ```python
 from http import HTTPStatus
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, override
 
 from xtr_mailer.exception import HttpTransportError
 from xtr_mailer.transport import AbstractApiTransport
@@ -160,9 +158,7 @@ class AcmeApiTransport(AbstractApiTransport):
 
 ```python
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, override
 
 from xtr_mailer.exception import UnsupportedSchemeError
 from xtr_mailer.transport import AbstractTransportFactory

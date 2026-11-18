@@ -5,9 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from .code_challenge_verifier_interface import CodeChallengeVerifierInterface
 

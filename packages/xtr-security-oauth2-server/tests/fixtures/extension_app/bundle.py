@@ -14,9 +14,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import timedelta
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 
 from xtr_security_oauth2_server.bundle import (

@@ -122,7 +122,7 @@ def _lenient_decode(match: re.Match[str]) -> str | None:
             raw = encoded.replace("_", " ").encode("ascii")
             data = _QUOTED_BYTE.sub(lambda byte: bytes.fromhex(byte[1].decode()), raw)
         return data.decode(charset or "ascii", "replace")
-    except (binascii.Error, LookupError, UnicodeError):
+    except binascii.Error, LookupError, UnicodeError:
         return None
 
 

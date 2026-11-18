@@ -35,7 +35,7 @@ def build_settings(
         directory=directory,
         name=ProjectName.parse(directory.name),
         template=TemplateCatalog.default().load(template),
-        python="3.13",
+        python="3.14",
         git=git,
         local_packages=local_packages,
     )

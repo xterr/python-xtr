@@ -108,7 +108,7 @@ async def _payload_value(request: Request, token_key: str) -> str | None:
     """Read the value from the request payload: the JSON body, else the parsed form."""
     try:
         payload = cast("object", await request.json())
-    except (ValueError, RecursionError):
+    except ValueError, RecursionError:
         # A body that is not JSON is not an error: the form is the payload then.
         # Nesting deeper than the parser goes is a RecursionError, not a ValueError,
         # and is the same body that does not decode.

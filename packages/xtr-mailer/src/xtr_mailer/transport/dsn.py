@@ -17,10 +17,8 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, TypeAlias, TypeVar, final, overload
+from typing import TYPE_CHECKING, TypeAlias, TypeVar, final, overload, override
 from urllib.parse import parse_qsl, unquote, urlsplit
-
-from typing_extensions import override
 
 from xtr_mailer._error_text import option_value
 from xtr_mailer.exception import InvalidArgumentError

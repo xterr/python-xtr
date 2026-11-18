@@ -36,7 +36,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from functools import partial
 from importlib.util import find_spec
 from operator import contains
-from typing import Annotated, Final, TypeVar, cast, final
+from typing import Annotated, Final, TypeVar, cast, final, override
 
 from advanced_alchemy.base import metadata_registry
 from advanced_alchemy.config import AsyncSessionConfig, EngineConfig, SQLAlchemyAsyncConfig
@@ -45,7 +45,6 @@ from advanced_alchemy.config.routing import RoutingConfig, RoutingStrategy
 from advanced_alchemy.routing import RoutingAsyncSessionMaker
 from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-from typing_extensions import override
 from xtr_dependency_injection import (
     UNIT_PARTICIPANT_TAG,
     Autowire,

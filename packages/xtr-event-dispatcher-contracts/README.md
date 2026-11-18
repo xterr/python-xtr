@@ -4,7 +4,7 @@
 
 **The event dispatching contract, and nothing else — so a library that emits events installs nothing else.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="asyncio" src="https://img.shields.io/badge/asyncio-native-1f6feb">
 <img alt="core dependencies: 0" src="https://img.shields.io/badge/core%20deps-0-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
@@ -52,7 +52,7 @@ class Worker:
 uv add xtr-event-dispatcher-contracts
 ```
 
-Requires Python 3.11+.
+Requires Python 3.14.4+.
 
 ## Who installs what
 

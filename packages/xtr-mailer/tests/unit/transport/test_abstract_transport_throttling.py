@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_logging_contracts import AbstractLogger, Level
 from xtr_mime import Address, RawMessage

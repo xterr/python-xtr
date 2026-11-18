@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_http_foundation import Session, SessionCookieConfig, SessionStorageInterface
 from xtr_logging_contracts import NullLogger
 from xtr_security_core.authentication.authentication_trust_resolver import (

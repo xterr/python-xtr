@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping
-from typing import TYPE_CHECKING, Self, TypeVar, final
+from typing import TYPE_CHECKING, Self, TypeVar, final, override
 from urllib.parse import parse_qsl
 
-from typing_extensions import override
 from xtr_http_message_contracts import ServerRequestInterface
 
 from ._connected_trait import ConnectedTrait

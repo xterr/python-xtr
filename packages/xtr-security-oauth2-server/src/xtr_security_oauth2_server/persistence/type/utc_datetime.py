@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 from sqlalchemy import DateTime
 from sqlalchemy.types import TypeDecorator
-from typing_extensions import override
 from xtr_clock import DatePoint
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 

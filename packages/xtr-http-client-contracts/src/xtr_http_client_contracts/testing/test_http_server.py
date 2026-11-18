@@ -183,7 +183,7 @@ class TestHttpServer:
                 await respond(request, writer)
             writer.close()
             await writer.wait_closed()
-        except (OSError, EOFError):
+        except OSError, EOFError:
             pass  # the client hung up mid-exchange, which several routes exist to provoke
         finally:
             # However the exchange ended — cut short by a cancelled route included — the socket

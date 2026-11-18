@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, override
 
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 

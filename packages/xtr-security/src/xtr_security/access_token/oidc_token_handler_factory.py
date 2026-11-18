@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Protocol, cast, final, runtime_checkable
+from typing import TYPE_CHECKING, Annotated, Protocol, cast, final, override, runtime_checkable
 
-from typing_extensions import override
 from xtr_dependency_injection import Target, named_factory
 
 # The container keys the handler service by this factory's evaluated return type,

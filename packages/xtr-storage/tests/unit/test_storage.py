@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from io import BytesIO, StringIO
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
 from fsspec.asyn import (  # pyright: ignore[reportMissingTypeStubs] -- fsspec ships no type information; imported only to shape the copy-then-delete fake below
     AsyncFileSystem,
 )
-from typing_extensions import override
 
 from tests.support.scripted_adapter import (
     ChecksumScriptedAdapter,

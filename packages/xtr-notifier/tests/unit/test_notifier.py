@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from typing import override
+
 import pytest
-from typing_extensions import override
 
 from tests.support.channel_provider import ChannelProvider
 from tests.support.fake_transport import FakeTransport

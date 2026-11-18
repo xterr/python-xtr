@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Final, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, cast, final, override
 
 from xtr_security_http._form_content_type import is_form_content_type
 

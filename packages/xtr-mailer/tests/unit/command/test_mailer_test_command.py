@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import base64
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_console import (
     Application,
     CommandInvokerInterface,

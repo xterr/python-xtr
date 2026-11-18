@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 from pydantic_ai.conversation_store import ConversationConflict, ConversationStore
 from sqlalchemy import MetaData, delete, func, insert, literal, or_, select, update
 from sqlalchemy.exc import IntegrityError
-from typing_extensions import override
 
 from ._rows import entry_from_row, entry_row, record_from_row, record_row
 from .conversation_tables import DEFAULT_TABLE_PREFIX, ConversationTables

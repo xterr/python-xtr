@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import anyio
-from typing_extensions import override
 
 from tests.support.fake_transport import FakeTransport
 

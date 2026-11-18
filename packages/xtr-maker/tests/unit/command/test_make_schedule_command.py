@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 from xtr_console import ExitCode
@@ -60,6 +60,7 @@ class Foreign:
 
 
 class ShopSchedule(ScheduleProviderInterface):
+    @override
     def get_schedule(self) -> Schedule:
         return Schedule()
 

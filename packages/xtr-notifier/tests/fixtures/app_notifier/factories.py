@@ -6,9 +6,8 @@ application's own factory would be found: it serves both the chatter and the tex
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_http_client import MockResponse
 
 from xtr_notifier.exception import TransportError, UnsupportedSchemeError

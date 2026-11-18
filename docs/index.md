@@ -35,7 +35,7 @@ connects the packages, and each package gives a bundle that configures it.
 
 ## Requirements
 
-- Python 3.11 or a later version.
+- Python 3.14.4 or a later version.
 - [uv](https://docs.astral.sh/uv/), to install the packages and to run the
   commands.
 

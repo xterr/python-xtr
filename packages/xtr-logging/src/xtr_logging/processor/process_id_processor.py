@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from .processor_interface import ProcessorInterface
 

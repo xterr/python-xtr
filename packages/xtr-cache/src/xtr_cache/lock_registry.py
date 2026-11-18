@@ -5,9 +5,8 @@ from __future__ import annotations
 import asyncio
 import zlib
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Final, TypeVar, cast, final
+from typing import TYPE_CHECKING, Final, TypeVar, cast, final, override
 
-from typing_extensions import override
 from xtr_clock import MonotonicClock
 from xtr_logging_contracts import LoggerAware
 

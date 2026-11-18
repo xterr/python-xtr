@@ -18,11 +18,10 @@ import struct
 import sys
 import zlib
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 from fsspec.asyn import AsyncFileSystem
-from typing_extensions import override
 
 from xtr_storage.adapter.gcs_adapter import GcsAdapter
 from xtr_storage.config import Config

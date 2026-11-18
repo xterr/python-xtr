@@ -4,7 +4,7 @@
 
 **Build email messages — addresses, headers, text and HTML bodies, attachments and inline images — rendered to standard MIME by Python's own email package, signed with DKIM or S/MIME when asked.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -309,7 +309,8 @@ has its methods joins once tagged:
 
 ```python
 # app/services/upload_guesser.py
-from typing_extensions import override
+from typing import override
+
 from xtr_dependency_injection import as_service
 from xtr_mime import MimeTypeGuesserInterface
 
@@ -390,11 +391,6 @@ Every error derives from `MimeError`, importable from `xtr_mime` and `xtr_mime.e
   markup's own lines do, not at its elements: `<p>One</p><p>Two</p>` on one line reads `OneTwo`.
   Where the text must keep the body's characters as written, use a converter of your own
   implementing `HtmlToTextConverterInterface`.
-- **Untrusted HTML needs an interpreter with the 2025 `html.parser` fixes.** The converter reads
-  HTML with the standard library's parser, which before CPython 3.11.14, 3.12.12 and 3.13.6
-  takes time growing with the square of the input on markup left unclosed, and loses the text
-  after a `<script>` or `<style>` that is never closed. Convert HTML you do not write on one of
-  those releases or a later one; every 3.14 release has the fixes.
 - **The configured extra map is the container's alone.** `MimeConfig.extra_map` shapes the
   container's `MimeTypes` service; a `File` attachment reads `MimeTypes.get_default()`, which
   the bundle leaves as it is. Pass a `content_type`, or set the default yourself as

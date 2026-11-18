@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, Self, cast
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, Self, cast, override
 
 from xtr_security_core._session_state import mapping_field, strings_field
 from xtr_security_core.exception import InvalidArgumentError

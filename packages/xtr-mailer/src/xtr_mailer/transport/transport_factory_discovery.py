@@ -129,7 +129,7 @@ class TransportFactoryDiscovery:
         load: Callable[[], object] = entry.load
         try:
             advertised = load()
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             return None
         if not (inspect.isclass(advertised) and issubclass(advertised, TransportFactoryInterface)):
             return None

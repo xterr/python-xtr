@@ -7,12 +7,11 @@ import binascii
 import hashlib
 import json
 import re
-from typing import TYPE_CHECKING, Final, Literal, assert_never, cast
+from typing import TYPE_CHECKING, Final, Literal, assert_never, cast, override
 
 from joserfc import jwe
 from joserfc.errors import JoseError
 from joserfc.jwk import OctKey
-from typing_extensions import override
 
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 from xtr_security_oauth2_server_core.exception.oauth2_error import OAuth2Error
@@ -230,7 +229,7 @@ def _refuse_a_header_that_is_no_object(token: str) -> None:
     segment = token.partition(".")[0]
     try:
         header = cast("object", json.loads(base64.urlsafe_b64decode(f"{segment}==")))
-    except (ValueError, RecursionError):
+    except ValueError, RecursionError:
         return
     if not isinstance(header, dict):
         raise OAuth2Error(_UNREADABLE)

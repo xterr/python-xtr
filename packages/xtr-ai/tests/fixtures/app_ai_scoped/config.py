@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, override
 
 from pydantic_ai.capabilities import AbstractCapability
-from typing_extensions import override
 from xtr_dependency_injection import as_service, configure
 
 from xtr_ai.bundle import AgentConfig, AiConfig, PlatformConfig

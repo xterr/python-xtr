@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, cast, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, bundle_active, required_bundle
 from xtr_security_oauth2_server_core.grant.grant_type_interface import GrantTypeInterface
 

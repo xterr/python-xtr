@@ -102,7 +102,7 @@ def verifies(sent: bytes, trusted: x509.Certificate) -> bool:
     """Tell whether the signed message ``sent`` verifies against the CA ``trusted``."""
     try:
         _check(*signed_parts(sent), trusted)
-    except (_UnverifiedError, InvalidSignature, ValueError, IndexError, StopIteration):
+    except _UnverifiedError, InvalidSignature, ValueError, IndexError, StopIteration:
         return False
     return True
 

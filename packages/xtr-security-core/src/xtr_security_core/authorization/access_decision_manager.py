@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_security_core.exception import InvalidArgumentError
 
@@ -147,7 +145,7 @@ class AccessDecisionManager(AccessDecisionManagerInterface):
         attribute_list: Sequence[object],
         subject: object,
         access_decision: AccessDecision,
-    ) -> AsyncGenerator[Access, None]:
+    ) -> AsyncGenerator[Access]:
         """Yield each applicable voter's answer, running it only when pulled."""
         for index, voter in enumerate(self._voters):
             if not self._supports(index, voter, attribute, subject):

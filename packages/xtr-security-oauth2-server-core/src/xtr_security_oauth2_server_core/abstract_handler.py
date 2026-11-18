@@ -258,7 +258,7 @@ class AbstractHandler(CryptTrait):
             decoded = base64.b64decode(header[_BASIC_PREFIX_LENGTH:], validate=True).decode(
                 "utf-8",
             )
-        except (binascii.Error, UnicodeDecodeError, ValueError):
+        except binascii.Error, UnicodeDecodeError, ValueError:
             return (None, None)
         username, separator, password = decoded.partition(":")
         if separator == "" or username == "":

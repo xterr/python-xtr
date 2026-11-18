@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import base64
 import secrets
-from typing import Final, final
-
-from typing_extensions import override
+from typing import Final, final, override
 
 from xtr_security_csrf.exception import InvalidArgumentError
 

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import hmac
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Final, Self, final
+from typing import TYPE_CHECKING, Final, Self, final, override
 
-from typing_extensions import override
 from xtr_password_hasher import PasswordAuthenticatedUserInterface
 
 from xtr_security_core._session_state import (

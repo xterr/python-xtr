@@ -289,7 +289,7 @@ async def test_a_body_can_be_read_from_a_file(tmp_path: Path) -> None:
    file, no environment variable, no path to ignore.
 3. **Activate** — nothing to activate. Build a class where you need one, or take `HttpFactory`
    as a dependency.
-4. **Brings along** — `xtr-http-message-contracts`, `typing-extensions` and `uritools`. No web
+4. **Brings along** — `xtr-http-message-contracts` and `uritools`. No web
    framework, no container.
 5. **Configure** — nothing to configure.
 6. **Environment** — nothing to set.

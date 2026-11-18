@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import io
-from typing import TYPE_CHECKING, NoReturn
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, NoReturn, override
 
 if TYPE_CHECKING:
     from _typeshed import ReadableBuffer

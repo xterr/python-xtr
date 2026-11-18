@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import AsyncIterable, Awaitable, Iterable
-from typing import TYPE_CHECKING, TypeAlias, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, TypeAlias, final, override
 
 from .message_provider_interface import MessageProviderInterface
 

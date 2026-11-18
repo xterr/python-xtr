@@ -10,6 +10,41 @@ possible. A package not listed changes nothing you can observe.
 
 No package ships a database migration for 7.0: no table gains or loses a column.
 
+### Every package
+
+- Python 3.14.4 or later is required (`requires-python = ">=3.14.4"`). Python 3.14.0 to 3.14.3
+  are left out: their email header folding never returns for some subjects — words mixed with
+  long runs of spaces — which would hang xtr-mime and everything that sends mail through it.
+- `typing-extensions` is no longer a dependency of any package. Import `override`, `Self`,
+  `TypeIs`, `Unpack` and `TypedDict` from `typing`; xtr-maker's generated code does.
+- Third-party dependencies need at least the first release that supports Python 3.14, and that
+  every package's tests pass on:
+
+  | Dependency | Was | Now | Used by |
+  |---|---|---|---|
+  | `aio-pika` | 9.4 | 9.6 | xtr-amqp-messenger |
+  | `aiosmtplib` | 5.1 | 5.1.3 | xtr-mailer — earlier releases let a line break into a command and whitespace into the local hostname |
+  | `anyio` | 4.0 | 4.10 | every package that depends on it |
+  | `asyncmy` | 0.2.9 | 0.2.12 | xtr-orm `mysql` |
+  | `asyncpg` | 0.29 | 0.31 | xtr-orm `postgres` |
+  | `cryptography` | 43, 45 | 46 | xtr-mime `dkim` and `smime`, xtr-recipes |
+  | `email-validator` | 2.3 | 2.4 | xtr-mime |
+  | `fastapi` | 0.121.3 | 0.143.1 | xtr-dependency-injection `fastapi`, as every package serving requests already required |
+  | `idna` | 3.10 | 3.11 | xtr-mime |
+  | `libcst` | 1.4 | 1.8.6 | xtr-maker |
+  | `msgspec` | 0.18 | 0.20 | xtr-logging, xtr-orm-messenger |
+  | `pydantic-settings` | 2.4 | 2.12 | xtr-dotenv |
+  | `pynacl` | 1.5 | 1.6 | xtr-cache `sodium` |
+  | `python-dotenv` | 1.0 | 1.2.2 | xtr-dotenv |
+  | `python-multipart` | 0.0.9, 0.0.18 | 0.0.21 | xtr-http-kernel, xtr-security-oauth2-server, xtr-security-openid-connect-server |
+  | `redis` | 5.0 | 7.1 | xtr-cache, xtr-lock and xtr-rate-limiter `redis` |
+  | `rich` | 13.6 | 15.0 | xtr-console — earlier releases warn instead of answering empty when a hidden question meets input that has ended |
+  | `sqlalchemy` | 2.0.41 | 2.0.52 | xtr-orm, xtr-orm-messenger, xtr-ai-orm-conversation-store |
+  | `starlette` | 1.3.1 | 1.6 | xtr-security-http, as xtr-http-kernel already required |
+  | `taskiq-aio-pika` | 0.6.0 | 0.6.1 | xtr-amqp-messenger |
+
+  Every other floor already supported Python 3.14 and stays as it was.
+
 ### xtr-dependency-injection
 
 - `Kernel(concurrent_scoped_access=...)` defaults to `True`, and `create_container()` compiles the

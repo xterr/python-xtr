@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Literal, final, override
 
 from xtr_security_oauth2_server_core.authorization_validators.bearer_token_validator import (
     BearerTokenValidator,

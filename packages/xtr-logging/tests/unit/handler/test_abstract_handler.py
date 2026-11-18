@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record

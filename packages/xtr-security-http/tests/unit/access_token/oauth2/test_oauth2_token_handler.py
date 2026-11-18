@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import TYPE_CHECKING, Final, TypeVar, final
+from typing import TYPE_CHECKING, Final, TypeVar, final, override
 
 import pytest
 from joserfc import jwt
 from joserfc.jwk import OctKey
 from joserfc.jws import serialize_compact
-from typing_extensions import override
 from xtr_cache import ArrayAdapter, CacheItem
 from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient

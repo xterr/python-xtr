@@ -9,9 +9,8 @@ carries the previous token's proofs over while the user is the same.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_security_core.authentication.authentication_method import AuthenticationMethod

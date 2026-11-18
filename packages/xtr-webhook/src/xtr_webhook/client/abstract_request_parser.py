@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from contextlib import suppress
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, TypeVar, override
 
-from typing_extensions import override
 from xtr_http_message_contracts import ResponseInterface
 from xtr_serializer import JsonEncoder, NotEncodableValueError
 

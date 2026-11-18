@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Final, cast, final, get_origin
+from typing import TYPE_CHECKING, Final, cast, final, get_origin, override
 
 from pydantic_ai.agent import AbstractAgent
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.conversation_store import ConversationStore
 from pydantic_ai.toolsets import AbstractToolset
-from typing_extensions import override
 from xtr_dependency_injection import (
     Bundle,
     ContainerBuilder,

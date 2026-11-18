@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 __all__ = ["Grant"]

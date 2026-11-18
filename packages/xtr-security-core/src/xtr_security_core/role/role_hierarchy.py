@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import OrderedDict, deque
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_security_core.exception import InvalidArgumentError
 

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_http_foundation import cleared_cookie_header_value
 

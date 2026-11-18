@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import unicodedata
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from xtr_storage.exception import CorruptedPathDetectedError, PathTraversalDetectedError
 

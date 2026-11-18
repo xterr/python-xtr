@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_security_oauth2_server.metadata_contributor_interface import (
     MetadataContributorInterface,

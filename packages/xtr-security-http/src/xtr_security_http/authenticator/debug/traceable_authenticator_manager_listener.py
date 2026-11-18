@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, cast, final, override
 
 from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.firewall.abstract_listener import AbstractListener

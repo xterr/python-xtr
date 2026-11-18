@@ -4,7 +4,7 @@
 
 **A new xtr application — a console application or a web application — ready to run in one command, and served in another.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -40,7 +40,7 @@ uv tool install xtr-cli
 xtr new shop
 ```
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) on the `PATH`, and `git` unless
+Requires Python 3.14.4+ and [uv](https://docs.astral.sh/uv/) on the `PATH`, and `git` unless
 `--no-git` is given.
 
 ## Quick start
@@ -52,7 +52,7 @@ shop — the webapp template
 --------------------------
 
  • directory: /home/ada/shop
- • python:    3.13
+ • python:    3.14
 
 write pyproject.toml
 …
@@ -83,7 +83,7 @@ xtr server:start [options]              # alias: serve — run the project's web
 |---|---|---|
 | `--webapp` | | a web application rather than a console application — see [Templates](#templates) |
 | `--name` | the directory's name | the distribution and console script; dashes become underscores for the import package |
-| `--python` | the Python running this tool | the `3.<minor>` the project is pinned to; 3.11 or later |
+| `--python` | the Python running this tool | the `3.<minor>` the project is pinned to; 3.14 or later |
 | `--no-git` | | do not run `git init`; `init` never re-initialises an existing repository |
 | `--dry-run` | | print every file and command, and write nothing |
 | `--local-packages` | | install the xtr packages, editable, from a directory of their sources |

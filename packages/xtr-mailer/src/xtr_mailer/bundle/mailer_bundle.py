@@ -16,9 +16,8 @@ command runs in.
 from __future__ import annotations
 
 from importlib.util import find_spec
-from typing import Final, final
+from typing import Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import (
     Bundle,
     ContainerBuilder,

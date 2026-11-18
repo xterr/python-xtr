@@ -4,7 +4,7 @@
 
 **The security bundle for xtr applications: the family facade and the container wiring that configures it.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -42,7 +42,7 @@ uv add xtr-console                     # beside it: debug:firewall and security:
 uv add "xtr-security-http[oidc]"       # + verifying third-party OIDC issuers' tokens
 ```
 
-Requires Python 3.11+. The core, http-edge and password-hasher libraries come with the package;
+Requires Python 3.14.4+. The core, http-edge and password-hasher libraries come with the package;
 [xtr-console](../xtr-console), installed beside it, adds the commands. The forgery-token library
 comes with the package too — the bundle builds its manager itself where a firewall asks for a
 token — and so does the [rate limiter](../xtr-rate-limiter), whose factories a throttled

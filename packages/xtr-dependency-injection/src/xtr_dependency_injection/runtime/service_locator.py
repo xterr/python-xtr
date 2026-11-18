@@ -10,9 +10,8 @@ asked for by name. It implements :class:`ServiceCollectionInterface` from
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Generic, TypeVar, cast, final
+from typing import TYPE_CHECKING, Generic, TypeVar, cast, final, override
 
-from typing_extensions import override
 from xtr_service_contracts import ServiceCollectionInterface
 
 from xtr_dependency_injection.exception import UnknownLocatorKeyError

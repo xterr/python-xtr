@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, override
 
 from ._events_to_dispatch import events_to_dispatch_from
 from ._subject_locks import SubjectLocks

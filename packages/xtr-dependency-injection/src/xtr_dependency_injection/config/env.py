@@ -27,8 +27,7 @@ from .env_placeholder import MISSING, Missing, placeholder
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from typing_extensions import TypeIs
+    from typing import TypeIs
 
 __all__ = ["MISSING", "Missing", "env"]
 

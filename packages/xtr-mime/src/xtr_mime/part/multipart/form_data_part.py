@@ -7,9 +7,7 @@ import binascii
 import copy
 import re
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, TypeAlias, cast, final, override
 
 from xtr_mime._engine import parse
 from xtr_mime.exception import InvalidArgumentError, RfcComplianceError

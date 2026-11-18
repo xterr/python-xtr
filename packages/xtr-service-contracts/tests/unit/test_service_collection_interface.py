@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 
@@ -14,20 +14,25 @@ class FakeCollection(ServiceCollectionInterface[str]):
     def __init__(self) -> None:
         self.services: dict[Hashable, str] = {}
 
+    @override
     async def get(self, name: Hashable, /) -> str:
         if name not in self.services:
             raise LookupError(name)
         return self.services[name]
 
+    @override
     def has(self, name: Hashable, /) -> bool:
         return name in self.services
 
+    @override
     def provided_services(self) -> Mapping[Hashable, type[object]]:
         return dict.fromkeys(self.services, str)
 
+    @override
     def __len__(self) -> int:
         return len(self.services)
 
+    @override
     def __aiter__(self) -> AsyncIterator[tuple[Hashable, str]]:
         return self._iterate()
 

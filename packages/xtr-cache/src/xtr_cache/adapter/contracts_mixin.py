@@ -6,10 +6,9 @@ import asyncio
 import math
 from abc import ABC, abstractmethod
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Final, TypeVar, cast, final
+from typing import TYPE_CHECKING, Final, TypeVar, cast, final, override
 from weakref import WeakKeyDictionary
 
-from typing_extensions import override
 from xtr_cache_contracts import CacheMixin
 from xtr_clock import Clock
 from xtr_logging_contracts import LoggerAware

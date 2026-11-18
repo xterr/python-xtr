@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_mailer.exception import UnsupportedSchemeError
 from xtr_mailer.transport.abstract_transport_factory import AbstractTransportFactory

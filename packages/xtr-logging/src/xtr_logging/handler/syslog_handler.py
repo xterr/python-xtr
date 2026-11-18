@@ -6,9 +6,8 @@ import contextlib
 import logging
 import socket
 from logging.handlers import SysLogHandler as _StdlibSysLogHandler
-from typing import TYPE_CHECKING, ClassVar, Final, final
+from typing import TYPE_CHECKING, ClassVar, Final, final, override
 
-from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError

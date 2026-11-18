@@ -12,9 +12,7 @@ carries the rest.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Self
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, Self, override
 
 from ._request_trait import RequestTrait
 from .lazy_stream import LazyStream

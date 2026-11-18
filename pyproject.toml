@@ -2,7 +2,7 @@
 name = "xtr"
 version = "7.0.0"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14.4"
 dependencies = []
 
 [tool.uv.workspace]
@@ -65,10 +65,10 @@ xtr-workflow             = { workspace = true }
 dev = [
     # `uv run ast-grep scan` lints the libraries for the bug classes in lint/ast-grep.
     "ast-grep-cli>=0.39",
-    "basedpyright>=1.21",
+    "basedpyright>=1.31.7",
     "pre-commit>=4.6.2",
-    "pytest>=8",
-    "ruff>=0.8",
+    "pytest>=8.4",
+    "ruff>=0.14.7",
     "ty>=0.0.83",
     # tests/test_recipes.py parses every package's manifest with the library's own parser.
     "xtr-recipes",
@@ -85,7 +85,7 @@ docs = [
 # packages' standard; each package's configuration covers the package.
 [tool.basedpyright]
 typeCheckingMode = "all"
-pythonVersion = "3.11"
+pythonVersion = "3.14"
 pythonPlatform = "All"
 include = ["scripts", "tests"]
 exclude = ["**/__pycache__", "**/.venv", ".tmp"]
@@ -97,13 +97,19 @@ reportExplicitAny = "none"
 reportImplicitStringConcatenation = "none"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 100
 src = ["scripts", "tests"]
 
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
+    # Aliases and type variables keep the spelling the container, the configuration
+    # reader and pydantic read at run time; a `type` statement or inline type
+    # parameters would change what they are handed.
+    "UP040",
+    "UP046",
+    "UP047",
     "COM812", "ISC001", "D203", "D213", "CPY001", "FBT001", "FBT002", "TD002", "TD003", "FIX002",
     # A command-line script reports on standard output and exits with a message.
     "T201",

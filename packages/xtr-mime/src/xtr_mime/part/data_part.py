@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import TYPE_CHECKING, BinaryIO, ClassVar
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, BinaryIO, ClassVar, override
 
 from xtr_mime.exception import InvalidArgumentError
 

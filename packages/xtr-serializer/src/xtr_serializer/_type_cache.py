@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from threading import RLock, get_ident
-from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast, final, get_args
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast, final, get_args, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable

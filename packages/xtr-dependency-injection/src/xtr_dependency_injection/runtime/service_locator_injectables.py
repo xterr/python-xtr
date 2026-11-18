@@ -128,7 +128,7 @@ def _requested_types(definitions: Sequence[Definition]) -> Iterator[type]:
             continue
         try:
             signature = evaluated_signature(provider)
-        except (NameError, TypeError, ValueError):
+        except NameError, TypeError, ValueError:
             continue
         for parameter in signature.parameters.values():
             yield from _service_locator_arguments(cast("object", parameter.annotation))

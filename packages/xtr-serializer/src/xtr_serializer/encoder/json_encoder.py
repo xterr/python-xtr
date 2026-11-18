@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError, from_json, to_json
-from typing_extensions import override
 
 from xtr_serializer._loc_path import render_path
 from xtr_serializer._plain_data import PLAIN_DATA

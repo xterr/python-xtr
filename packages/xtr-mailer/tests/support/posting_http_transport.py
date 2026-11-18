@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, override
 
 from xtr_mailer import HttpTransportError
 from xtr_mailer.transport import AbstractHttpTransport

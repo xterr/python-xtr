@@ -7,9 +7,8 @@ sorting pass orders the chain the firewall's configuration parks.
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_alias, as_service
 from xtr_security_http.decorator.firewall_listener_order import FirewallListenerOrder
 from xtr_security_http.firewall.abstract_listener import AbstractListener

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 from sqlalchemy import Text, or_, select
 from sqlalchemy import cast as as_text
 from sqlalchemy.exc import IntegrityError
-from typing_extensions import override
 from xtr_dependency_injection import (
     ScopeFactoryInterface,  # noqa: TC002 — read at runtime by the container
 )

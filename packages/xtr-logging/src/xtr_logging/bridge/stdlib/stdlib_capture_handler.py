@@ -13,9 +13,8 @@ and dropped, so wiring both directions does not send a record round in circles.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_clock import DatePoint, local_timezone
 from xtr_logging_contracts import EXCEPTION_KEY
 

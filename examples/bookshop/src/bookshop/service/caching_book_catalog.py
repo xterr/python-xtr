@@ -13,9 +13,8 @@ and ``on_invalid`` is left at ``OnInvalid.EXCEPTION``: the catalog must exist.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, final
+from typing import TYPE_CHECKING, Annotated, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import AutowireDecorated, as_decorator
 from xtr_service_contracts import ResetInterface
 

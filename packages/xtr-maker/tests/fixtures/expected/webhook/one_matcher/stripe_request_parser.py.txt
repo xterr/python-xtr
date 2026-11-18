@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from hmac import compare_digest
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_http_foundation import MethodRequestMatcher
 from xtr_remote_event import RemoteEvent
 from xtr_webhook.client import AbstractRequestParser

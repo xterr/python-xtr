@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, ClassVar, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, Final, final, override
 
 from xtr_mime._engine import Parameterized
 from xtr_mime._error_text import escaped

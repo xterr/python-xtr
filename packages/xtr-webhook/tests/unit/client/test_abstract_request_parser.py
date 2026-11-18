@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import io
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_foundation import ChainRequestMatcher, RequestMatcherInterface
 from xtr_http_message import Response, ServerRequest
 from xtr_remote_event import RemoteEvent

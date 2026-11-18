@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import zlib
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 from urllib.parse import quote
-
-from typing_extensions import override
 
 from xtr_storage.exception import InvalidArgumentError
 from xtr_storage.path.path_prefixer import PathPrefixer

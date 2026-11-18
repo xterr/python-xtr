@@ -138,7 +138,7 @@ def decoded(data: object, path: str) -> bytes:
     if type(data) is str:
         try:
             return base64.b64decode(data, validate=True)
-        except (binascii.Error, ValueError):
+        except binascii.Error, ValueError:
             pass
     refuse(path, "is not base64")
 

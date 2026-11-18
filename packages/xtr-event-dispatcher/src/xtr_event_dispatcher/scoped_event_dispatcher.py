@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, TypeVar, final, overload
+from typing import TYPE_CHECKING, TypeVar, final, overload, override
 
-from typing_extensions import override
 from xtr_event_dispatcher_contracts import event_name_of
 
 from ._prioritized_listeners import prioritized_listeners

@@ -155,7 +155,7 @@ def _own_call_of(handler_type: type) -> Callable[..., object] | None:
 def _hints_of(target: object) -> dict[str, object]:
     try:
         return dict(get_type_hints(target, include_extras=True))
-    except (NameError, TypeError):
+    except NameError, TypeError:
         return _each_hint_of(target)
 
 
@@ -180,7 +180,7 @@ def _each_hint_of(target: object) -> dict[str, object]:
         try:
             # What get_type_hints does with a string annotation, one at a time.
             hints[parameter] = eval(annotation, namespace)  # noqa: S307 — a declared annotation
-        except (NameError, AttributeError, TypeError, SyntaxError):
+        except NameError, AttributeError, TypeError, SyntaxError:
             continue
     return hints
 

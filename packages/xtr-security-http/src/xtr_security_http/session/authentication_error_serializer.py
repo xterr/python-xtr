@@ -58,5 +58,5 @@ def authentication_error_from_session(value: object) -> AuthenticationError | No
     error_class = loaded_kind(AuthenticationError, kind) or AuthenticationError
     try:
         return error_class.from_session(message_key, keyed)
-    except (InvalidArgumentError, TypeError, KeyError, ValueError):
+    except InvalidArgumentError, TypeError, KeyError, ValueError:
         return None

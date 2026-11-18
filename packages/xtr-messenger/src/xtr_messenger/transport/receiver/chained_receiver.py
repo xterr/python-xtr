@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 from itertools import count
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_messenger.stamp import AckReceiptStamp, ReceivedStamp
 

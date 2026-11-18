@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from typing import TYPE_CHECKING, Final, Literal, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, Literal, final, override
 
 from xtr_password_hasher.exception import InvalidArgumentError
 from xtr_password_hasher.password_hasher_interface import PasswordHasherInterface
@@ -187,7 +185,7 @@ def _make_bcrypt_backend(cost: int) -> _Backend | None:
     try:
         # pwdlib raises HasherNotAvailable (not ImportError) at import when bcrypt is absent.
         from pwdlib.hashers.bcrypt import BcryptHasher  # noqa: PLC0415 — optional extra
-    except (ImportError, HasherNotAvailable):
+    except ImportError, HasherNotAvailable:
         return None
 
     hasher = BcryptHasher(rounds=cost)

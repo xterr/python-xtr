@@ -14,12 +14,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Final, TypeAlias, final
+from typing import TYPE_CHECKING, Final, TypeAlias, final, override
 
 from taskiq import AckableMessage
 from taskiq.receiver import Receiver
 from taskiq.utils import maybe_awaitable
-from typing_extensions import override
 
 if TYPE_CHECKING:
     from taskiq import AsyncBroker

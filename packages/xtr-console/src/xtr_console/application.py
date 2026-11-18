@@ -406,7 +406,7 @@ async def _call(hook: Hook) -> None:
 
 
 @contextmanager
-def _cancelled_on_sigterm() -> Generator[threading.Event, None, None]:
+def _cancelled_on_sigterm() -> Generator[threading.Event]:
     """Cancel the running task on SIGTERM while the block runs; say whether it did.
 
     Installed with ``signal.signal`` rather than the loop's own handler, so a

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import codecs
 from collections.abc import Callable, Mapping
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import EnvVarProcessorInterface, as_service
 
 __all__ = ["Rot13Processor"]

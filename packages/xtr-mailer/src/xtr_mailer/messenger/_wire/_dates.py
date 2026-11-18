@@ -59,7 +59,7 @@ def _date(instant_text: str, zone_name: str | None) -> datetime | None:
             return instant
         zone = ZoneInfo(zone_name)
     # A name the zone database lacks, or one of a directory of zones: the error quotes it.
-    except (ValueError, KeyError, OSError):
+    except ValueError, KeyError, OSError:
         return None
     offset = instant.utcoffset()
     if offset is None:

@@ -65,7 +65,7 @@ class RawMessage:
             return self._message
         return b"".join(self.to_iterable()).decode("utf-8", "surrogateescape")
 
-    def to_iterable(self) -> Generator[bytes, None, None]:
+    def to_iterable(self) -> Generator[bytes]:
         """Yield the message in the pieces it is held in, as a mail server receives them.
 
         Closing the generator before its end leaves a message held as a generator unreadable.
@@ -111,7 +111,7 @@ class _ReadOnce:
         self._chunks: Iterator[bytes] | None = chunks
         self._content: bytes | None = None
 
-    def read(self) -> Generator[bytes, None, None]:
+    def read(self) -> Generator[bytes]:
         if self._content is not None:
             yield self._content
             return

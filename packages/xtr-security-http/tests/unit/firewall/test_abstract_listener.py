@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_security_http.firewall.abstract_listener import AbstractListener
 from xtr_security_http.firewall.firewall_listener_interface import FirewallListenerInterface

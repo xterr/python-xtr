@@ -14,9 +14,8 @@ hasher, so a login also asks the provider to store the rehash.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_service
 from xtr_http_foundation import MemorySessionStorage, SessionStorageInterface
 from xtr_password_hasher import Pbkdf2PasswordHasher

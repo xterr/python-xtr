@@ -5,9 +5,7 @@ from __future__ import annotations
 from collections.abc import (
     Iterable,  # noqa: TC003 -- container hydrates this constructor at runtime
 )
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from xtr_security_oauth2_server.manager.scope_manager_interface import ScopeManagerInterface
 from xtr_security_oauth2_server.value_object.scope import Scope

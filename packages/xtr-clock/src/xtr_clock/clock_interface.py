@@ -11,7 +11,7 @@ thing a time-sensitive class needs to do with it.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, Self, override, runtime_checkable
 
 if TYPE_CHECKING:
     from datetime import datetime, tzinfo
@@ -50,6 +50,7 @@ class ClockInterface(SupportsNow, Protocol):
     returns and the other is awaited.
     """
 
+    @override
     def now(self) -> DatePoint:
         """Return the current instant, always timezone-aware."""
         ...

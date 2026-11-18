@@ -9,12 +9,11 @@ inspected and replayed instead of disappearing.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 from aio_pika import DeliveryMode, Message
 from taskiq import TaskiqMiddleware
 from taskiq_aio_pika import AioPikaBroker
-from typing_extensions import override
 from xtr_messenger.bridge.taskiq.labels import retries_from
 
 if TYPE_CHECKING:

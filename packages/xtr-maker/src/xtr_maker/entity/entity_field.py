@@ -145,7 +145,7 @@ class EntityField:
         module, _, name = dotted.strip().rpartition(".")
         try:
             found: object = getattr(importlib.import_module(module), name) if module else None
-        except (ImportError, AttributeError, ValueError):
+        except ImportError, AttributeError, ValueError:
             found = None
         if not isinstance(found, type) or not issubclass(found, Enum) or found.__name__ != name:
             raise InvalidArgumentError(

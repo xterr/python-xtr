@@ -179,7 +179,7 @@ def request_scope(app: Starlette, connection_scope: Scope) -> AbstractAsyncConte
 
 
 @asynccontextmanager
-async def _request_scope(app: Starlette, connection_scope: Scope) -> AsyncGenerator[None, None]:
+async def _request_scope(app: Starlette, connection_scope: Scope) -> AsyncGenerator[None]:
     attached = attached_kernel(app)
     if attached is None:
         raise FastapiIntegrationError(NO_KERNEL)

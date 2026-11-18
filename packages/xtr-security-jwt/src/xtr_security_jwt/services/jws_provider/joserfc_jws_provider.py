@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 from contextlib import suppress
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 from joserfc import jws, jwt
 from joserfc.errors import JoseError
-from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_jwt.exception.missing_key_error import MissingKeyError
@@ -182,7 +181,7 @@ class JoserfcJwsProvider(JwsProviderInterface):
         """Tell whether ``token``'s signature verifies against ``key``, its payload undecoded."""
         try:
             _ = jws.deserialize_compact(token, key, algorithms=[self._signature_algorithm])
-        except (JoseError, ValueError):
+        except JoseError, ValueError:
             return False
         except TypeError as error:
             # A header member of the wrong shape (a ``crit`` that is no list of

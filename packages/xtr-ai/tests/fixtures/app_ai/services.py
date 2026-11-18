@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
@@ -14,7 +14,6 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
-from typing_extensions import override
 from xtr_dependency_injection import as_service
 
 from xtr_ai import as_tool

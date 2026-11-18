@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 __all__ = ["build_runner", "build_scaffolder", "default_python", "scaffold"]
 
 _PYTHON = re.compile(r"^3\.(?P<minor>\d+)$")
-_OLDEST_MINOR = 11
+_OLDEST_MINOR = 14
 _CONSOLE_TEMPLATE = "cli"
 _WEB_TEMPLATE = "webapp"
 

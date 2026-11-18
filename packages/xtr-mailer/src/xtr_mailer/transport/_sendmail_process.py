@@ -76,7 +76,7 @@ async def _write(process: asyncio.subprocess.Process, message: bytes) -> bool:
     try:
         stdin.write(message)
         await stdin.drain()
-    except (BrokenPipeError, ConnectionResetError):
+    except BrokenPipeError, ConnectionResetError:
         return True
     finally:
         stdin.close()

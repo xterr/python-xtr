@@ -11,9 +11,8 @@ carrying none of it looks like.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
-from typing_extensions import override
 from xtr_security_core.authentication.token.pre_authenticated_token import PreAuthenticatedToken
 from xtr_security_core.exception import BadCredentialsError
 

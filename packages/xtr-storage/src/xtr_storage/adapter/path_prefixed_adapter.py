@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_storage.adapter.storage_adapter_interface import StorageAdapterInterface
 from xtr_storage.checksum_provider_interface import ChecksumProviderInterface

@@ -5,9 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from ._class_discriminator_registry import REGISTRY
 

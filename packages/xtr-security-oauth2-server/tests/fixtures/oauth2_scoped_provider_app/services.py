@@ -8,9 +8,8 @@ recorded in :data:`LOADS` with the identity of the instance that answered.
 
 from __future__ import annotations
 
-from typing import Final, final
+from typing import Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_service
 from xtr_security_core.exception import UserNotFoundError
 from xtr_security_core.user.in_memory_user import InMemoryUser

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, override
 
 import pytest
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, Kernel, Target, as_bundle
 from xtr_http_kernel.bridge import ResponseFactory
 from xtr_http_message_contracts.factory import ResponseFactoryInterface

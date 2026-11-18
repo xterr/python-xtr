@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, TypeAlias, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, TypeAlias, cast, final, override
 
 from xtr_messenger.exception import InvalidMiddlewareArgumentsError, UnknownMiddlewareError
 

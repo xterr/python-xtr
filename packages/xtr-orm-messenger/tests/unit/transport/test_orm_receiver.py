@@ -410,7 +410,7 @@ async def test_closing_the_receiver_stops_every_keepalive(
     connection = connection_on(engine, clock, _HELD)
     _ = await _send(connection, Envelope(OrderPlaced("o-1")))
     # What a worker stopping does to the receiver it was reading from.
-    receiving = cast("AsyncGenerator[Envelope, None]", _receiver(connection, clock).get())
+    receiving = cast("AsyncGenerator[Envelope]", _receiver(connection, clock).get())
     _ = await anext(receiving)
     calls = failing(monkeypatch, "keepalive", [])
 

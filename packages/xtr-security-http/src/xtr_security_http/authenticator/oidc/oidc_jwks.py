@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Protocol, cast, final, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, cast, final, override, runtime_checkable
 
 from joserfc.errors import JoseError
 from joserfc.jwk import KeySet
-from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 if TYPE_CHECKING:

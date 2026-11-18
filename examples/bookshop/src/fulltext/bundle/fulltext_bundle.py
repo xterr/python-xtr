@@ -17,9 +17,8 @@ Hook                   What this bundle does there
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Annotated, cast, final
+from typing import Annotated, cast, final, override
 
-from typing_extensions import override
 from xtr_clock import ClockInterface
 from xtr_clock.bundle import ClockBundle
 from xtr_dependency_injection import (

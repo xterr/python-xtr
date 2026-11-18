@@ -10,10 +10,9 @@ driven by the integration suite.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast, final
+from typing import TYPE_CHECKING, Annotated, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_dependency_injection import Target
 from xtr_http_kernel.bridge import ResponseFactory, StarletteHttpFactory
 from xtr_password_hasher import PasswordHasherFactoryInterface, UserPasswordHasherInterface

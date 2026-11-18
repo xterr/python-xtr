@@ -4,7 +4,7 @@
 
 **The async HTTP client contract, and nothing else — so a library that calls out installs no backend.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="asyncio" src="https://img.shields.io/badge/asyncio-native-1f6feb">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -30,7 +30,7 @@ uv add xtr-http-client-contracts
 uv add --dev "xtr-http-client-contracts[testing]"   # + what the conformance suite runs on
 ```
 
-Requires Python 3.11+. The only runtime dependency beyond `typing-extensions` is
+Requires Python 3.14.4+. The only runtime dependency is
 [xtr-http-message-contracts](../xtr-http-message-contracts): a client response is an HTTP
 response before it is anything else.
 

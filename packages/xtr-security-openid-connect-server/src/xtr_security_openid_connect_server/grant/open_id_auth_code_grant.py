@@ -7,9 +7,8 @@ import re
 # Every name the constructor below reads is imported at runtime: the container
 # evaluates those annotations when it builds this grant.
 from datetime import timedelta  # noqa: TC003 -- read by the container at runtime
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_clock import ClockInterface  # noqa: TC002 -- read by the container at runtime
 from xtr_event_dispatcher_contracts import (
     EventDispatcherInterface,  # noqa: TC002 -- read by the container at runtime

@@ -4,7 +4,7 @@
 
 **Small, typed, async-ready building blocks for Python applications — one repository, one package each.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="managed with uv" src="https://img.shields.io/badge/managed%20with-uv-DE5FE9">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -356,7 +356,8 @@ uv run pre-commit install
 The pre-commit hook runs ruff on what you commit, basedpyright, ty and the tests of every package
 you touched, and the repository's own tests (`tests/`). Those run only there: they import every
 package, while CI checks each package on its own.
-[CI](.github/workflows/ci.yml) runs every package's tests and types, on Python 3.11 and 3.14.
+[CI](.github/workflows/ci.yml) runs every package's tests on Python 3.14.4 and the latest 3.14, and
+checks their types.
 
 Work inside a package directory; each carries its own pytest, ruff, basedpyright and ty settings:
 
@@ -431,7 +432,7 @@ name = "xtr-<name>"
 version = "7.0.0"
 description = "<one-line pitch, on this project's own terms>."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14.4"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -441,9 +442,6 @@ keywords = ["<name>"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 ]
@@ -471,7 +469,7 @@ build-backend = "uv_build"
 
 [tool.basedpyright]
 typeCheckingMode = "all"
-pythonVersion = "3.11"
+pythonVersion = "3.14"
 pythonPlatform = "All"
 include = ["src", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
@@ -482,7 +480,7 @@ reportMissingParameterType = "error"
 reportPrivateUsage = "error"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 100
 src = ["src", "tests"]
 
@@ -577,9 +575,8 @@ class <Name>Config:
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, ContainerBuilder, ServiceConfigurator, as_bundle
 
 from .<name>_config import <Name>Config

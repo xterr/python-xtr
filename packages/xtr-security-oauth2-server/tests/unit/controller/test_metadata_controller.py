@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_kernel.bridge import Response
 
 from tests.support.messages import document_of, server_request

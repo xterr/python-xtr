@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_http_foundation.ip_utils import IpUtils
 from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface

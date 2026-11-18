@@ -5,9 +5,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import re
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_clock import Clock
 from xtr_http_foundation import MethodRequestMatcher
 from xtr_remote_event import RemoteEvent

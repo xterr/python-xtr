@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import io
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.dkim_extra import require_dkim_extra
 

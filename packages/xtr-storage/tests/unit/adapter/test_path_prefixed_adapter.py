@@ -12,10 +12,9 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, ClassVar, TypeAlias
+from typing import TYPE_CHECKING, ClassVar, TypeAlias, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.scripted_adapter import (
     ChecksumScriptedAdapter,

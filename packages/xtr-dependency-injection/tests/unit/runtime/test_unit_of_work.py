@@ -9,12 +9,11 @@ from collections.abc import (
     AsyncIterator,  # noqa: TC003 — the engine reads the factory's return annotation
 )
 from contextlib import AsyncExitStack
-from typing import TYPE_CHECKING, TypeVar, final
+from typing import TYPE_CHECKING, TypeVar, final, override
 
 import anyio
 import pytest
 import wireup
-from typing_extensions import override
 from xtr_service_contracts import ContainerInterface
 
 from tests.fixtures import app_hung_teardown, app_slow_scoped, app_unit_producer

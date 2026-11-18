@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, BinaryIO, ClassVar, TypeAlias
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, BinaryIO, ClassVar, TypeAlias, override
 
 from ._email_body import NO_BODY, assemble_body
 from ._email_headers import (

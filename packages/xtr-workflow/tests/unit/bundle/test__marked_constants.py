@@ -2,14 +2,13 @@
 
 An annotation naming what its module imports only for the type checker cannot
 be evaluated at runtime: it is read as carrying no marker, unless its source
-shows it carries some — then the class is refused. From 3.14 on, the same holds
-of the annotations a module defers.
+shows it carries some — then the class is refused. The same holds of the
+annotations a module defers.
 """
 
 from __future__ import annotations
 
 import importlib
-import sys
 from typing import cast
 
 import pytest
@@ -22,13 +21,9 @@ from xtr_workflow.exception import LogicError
 _DECLARED = declared.__name__
 _DEFERRED = "tests.fixtures.deferred_declared_workflows"
 
-deferred_annotations = pytest.mark.skipif(
-    sys.version_info < (3, 14), reason="a module's annotations are deferred from 3.14 on"
-)
-
 
 def _deferred(name: str) -> type:
-    """Return a class of the module whose annotations are deferred, imported from 3.14 on only."""
+    """Return a class of the module whose annotations are deferred, imported only when asked for."""
     return cast("type", vars(importlib.import_module(_DEFERRED))[name])
 
 
@@ -58,7 +53,6 @@ def test_an_annotation_only_the_type_checker_can_read_carries_no_marker() -> Non
     ]
 
 
-@deferred_annotations
 def test_a_deferred_annotation_only_the_type_checker_can_read_carries_no_marker() -> None:
     current, _, _ = marked_constants(_deferred("DeferredTaskQueueWorkflow"))
 
@@ -67,7 +61,6 @@ def test_a_deferred_annotation_only_the_type_checker_can_read_carries_no_marker(
     )
 
 
-@deferred_annotations
 def test_beside_it_a_deferred_marker_is_read_as_evaluated_even_holding_a_lambda() -> None:
     _, queue, _ = marked_constants(_deferred("DeferredTaskQueueWorkflow"))
 
@@ -76,7 +69,6 @@ def test_beside_it_a_deferred_marker_is_read_as_evaluated_even_holding_a_lambda(
     assert (marker.froms, marker.tos, callable(marker.guard)) == ("new", "queued", True)
 
 
-@deferred_annotations
 def test_a_deferred_marker_naming_what_only_the_type_checker_imports_is_refused() -> None:
     with pytest.raises(LogicError) as raised:
         _ = marked_constants(_deferred("DeferredTaskStepWorkflow"))

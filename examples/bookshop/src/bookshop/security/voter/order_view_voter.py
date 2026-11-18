@@ -8,9 +8,8 @@ user is that order's owner — the ``email`` the order was placed under.
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_service
 from xtr_security_core import Vote, Voter
 from xtr_security_core.authentication.token.token_interface import TokenInterface

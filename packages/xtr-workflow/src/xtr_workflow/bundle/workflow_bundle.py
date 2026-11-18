@@ -19,9 +19,8 @@ draws any of them.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Final, Never, cast, final
+from typing import TYPE_CHECKING, Final, Never, cast, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import (
     Bundle,
     ContainerBuilder,

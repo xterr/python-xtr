@@ -9,10 +9,8 @@ without logging in at all.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 from urllib.parse import unquote
-
-from typing_extensions import override
 
 from xtr_security_http.entry_point.authentication_entry_point_interface import (
     AuthenticationEntryPointInterface,

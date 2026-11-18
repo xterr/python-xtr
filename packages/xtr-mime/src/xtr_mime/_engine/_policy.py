@@ -16,9 +16,7 @@ from email.headerregistry import (
     UnstructuredHeader,
 )
 from email.policy import EmailPolicy
-from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, TypeAlias, cast, final, override
 
 from xtr_mime.exception import RfcComplianceError
 

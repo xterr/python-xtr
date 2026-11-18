@@ -14,11 +14,10 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 from fsspec.implementations.memory import MemoryFileSystem
-from typing_extensions import override
 
 from xtr_storage.adapter._fsspec_bridge import FsspecBridge
 from xtr_storage.adapter.fsspec_adapter import FsspecAdapter

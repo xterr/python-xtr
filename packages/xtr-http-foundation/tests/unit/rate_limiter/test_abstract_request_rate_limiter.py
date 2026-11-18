@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import sys
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_message import ServerRequest
 
 from xtr_http_foundation import (

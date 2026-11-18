@@ -281,7 +281,7 @@ def _began_here(unit: _Unit) -> bool:
     """Tell whether the current context began ``unit``, the one time it ends it."""
     try:
         _BEGUN.reset(unit.begun)
-    except (ValueError, RuntimeError):
+    except ValueError, RuntimeError:
         # The mark was made in another context, or this one already spent it.
         return False
     return True

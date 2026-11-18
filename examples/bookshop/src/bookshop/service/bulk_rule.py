@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import ClassVar, final
+from typing import ClassVar, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_alias, as_tagged_item
 
 from bookshop.service.book import Book

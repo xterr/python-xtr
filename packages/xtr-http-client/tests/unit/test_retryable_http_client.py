@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_message import Request
 from xtr_logging_contracts import AbstractLogger
 
@@ -170,7 +169,7 @@ def _answer(status_code: int, body: bytes = b"") -> MockResponse:
     return MockResponse(body, {"http_code": status_code})
 
 
-async def _produced() -> AsyncGenerator[bytes, None]:
+async def _produced() -> AsyncGenerator[bytes]:
     yield b"piece"
 
 

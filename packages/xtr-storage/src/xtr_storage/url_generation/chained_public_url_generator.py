@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_storage.exception import UnableToGeneratePublicUrlError
 from xtr_storage.url_generation.public_url_generator_interface import PublicUrlGeneratorInterface

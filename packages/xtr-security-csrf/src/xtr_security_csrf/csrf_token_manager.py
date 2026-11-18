@@ -6,9 +6,7 @@ import base64
 import hashlib
 import hmac
 import secrets
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from .csrf_token import CsrfToken
 from .csrf_token_manager_interface import CsrfTokenManagerInterface

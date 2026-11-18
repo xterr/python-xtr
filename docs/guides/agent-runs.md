@@ -95,7 +95,7 @@ each tool call.
    from pydantic_ai.messages import ToolCallPart
    from pydantic_ai.models import ModelRequestContext
    from pydantic_ai.tools import ToolDefinition
-   from typing_extensions import override
+   from typing import override
 
    __all__ = ["StopWhen"]
 

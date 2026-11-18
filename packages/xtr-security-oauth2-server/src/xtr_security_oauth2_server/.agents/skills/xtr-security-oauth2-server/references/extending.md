@@ -14,9 +14,8 @@ clock.
 ```python
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_service
 from xtr_security_oauth2_server_core.grant.abstract_grant import AbstractGrant
 
@@ -65,7 +64,7 @@ it exists. This is the shape the package's own add-on test drives:
 from dataclasses import replace
 from datetime import timedelta
 
-from typing_extensions import override
+from typing import override
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 from xtr_security_oauth2_server.bundle import (
     GRANT_TAG,
@@ -141,7 +140,7 @@ refresh_token_repository, auth_code_ttl)`; call `set_refresh_token_ttl(...)` and
 ```python
 from collections.abc import Mapping
 
-from typing_extensions import override
+from typing import override
 from xtr_clock import ClockInterface
 from xtr_security_oauth2_server_core.entities.access_token_entity_interface import (
     AccessTokenEntityInterface,
@@ -173,7 +172,7 @@ reads them at runtime.
 ```python
 from collections.abc import Mapping
 
-from typing_extensions import override
+from typing import override
 from xtr_security_oauth2_server.metadata_contributor_interface import MetadataContributorInterface
 
 

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_security_csrf.token_storage.clearable_token_storage_interface import (  # noqa: TC002 -- the container reads this constructor parameter's type at runtime
     ClearableTokenStorageInterface,

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import PurePath
-from typing import TYPE_CHECKING, ClassVar, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, final, override
 
 from ._readable_file import ensure_readable_file
 from .magic_mime_type_guesser import MagicMimeTypeGuesser

@@ -5,9 +5,8 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from random import random
-from typing import TYPE_CHECKING, Final, TypeVar, cast
+from typing import TYPE_CHECKING, Final, TypeVar, cast, override
 
-from typing_extensions import override
 from xtr_clock import now
 
 from .cache_interface import CacheInterface

@@ -14,9 +14,8 @@ plain schedule with no saved state and no lock.
 
 from __future__ import annotations
 
-from typing import Annotated, final
+from typing import Annotated, final, override
 
-from typing_extensions import override
 from xtr_cache_contracts import CacheInterface
 from xtr_dependency_injection import Target
 from xtr_lock import LockFactory

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, final
+from typing import TYPE_CHECKING, TypeVar, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_dependency_injection import Reference
 from xtr_service_contracts import ContainerInterface
 

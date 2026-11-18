@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
-from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_jwt.exception.missing_key_error import MissingKeyError
@@ -134,13 +133,8 @@ def _file_at(value: str | None) -> Path | None:
     if value is None:
         return None
     path = Path(value)
-    try:
-        is_file = path.is_file()
-    except OSError:
-        # Older Pythons raise for a value too long to be a file name (inline key
-        # text) instead of reporting it as not a file.
-        return None
-    return path if is_file else None
+    # Inline key text, too long to be a file name, reads as not a file.
+    return path if path.is_file() else None
 
 
 def _key_id_of(file: Path) -> str:

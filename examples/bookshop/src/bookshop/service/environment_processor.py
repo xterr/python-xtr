@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated, final
+from typing import Annotated, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Autowire
 from xtr_logging import LogRecord, ProcessorInterface, as_processor
 

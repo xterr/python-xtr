@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
 

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, ClassVar, Final, override
 
-from typing_extensions import override
 from xtr_event_dispatcher_contracts import Event
 
 if TYPE_CHECKING:

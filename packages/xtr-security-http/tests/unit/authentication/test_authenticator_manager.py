@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, TypeVar, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.authentication.token.storage.token_storage import TokenStorage

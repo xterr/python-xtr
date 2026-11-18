@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, Self, final
+from typing import TYPE_CHECKING, Final, Self, final, override
 
-from typing_extensions import override
 from xtr_http_message_contracts import ResponseInterface
 
 from ._message_trait import MessageTrait

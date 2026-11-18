@@ -21,9 +21,8 @@ from __future__ import annotations
 
 import importlib.util
 from collections.abc import AsyncIterator, Callable
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import (
     Bundle,
     ContainerBuilder,

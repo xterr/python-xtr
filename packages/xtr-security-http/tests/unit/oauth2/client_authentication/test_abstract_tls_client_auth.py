@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from xtr_security_http.oauth2.client_authentication import AbstractTlsClientAuth
 

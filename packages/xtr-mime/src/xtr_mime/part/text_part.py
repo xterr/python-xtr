@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, BinaryIO, ClassVar, Final, Literal, TypeAlias
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, BinaryIO, ClassVar, Final, Literal, TypeAlias, override
 
 from xtr_mime._engine import BinaryLeaf, TextLeaf, build_binary, build_text, set_fields
 from xtr_mime._error_text import body_charset_error, check_charset, escaped
@@ -201,9 +199,8 @@ def _parse_encoding(encoding: str | None) -> _Encoding | None:
 
 
 def _check_readable(path: str) -> None:
-    # os.path answers False for a path it cannot even stat, where Path raises a
-    # PermissionError before 3.14.
-    if os.path.isdir(path) or (os.path.isfile(path) and not os.access(path, os.R_OK)):  # noqa: PTH112, PTH113 — see above.
+    file = Path(path)
+    if file.is_dir() or (file.is_file() and not os.access(path, os.R_OK)):
         raise InvalidArgumentError(f'Path "{escaped(path)}" is not readable.')
 
 

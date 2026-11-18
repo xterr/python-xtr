@@ -5,12 +5,11 @@ from __future__ import annotations
 import base64
 import json
 import secrets
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
 from joserfc import jws
 from joserfc.jwk import ECKey, KeySet, OctKey, RSAKey
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_security.bundle import InvalidConfigurationError
 from xtr_security_core.exception import InvalidArgumentError

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias, TypeVar, final, overload
+from typing import TYPE_CHECKING, TypeAlias, TypeVar, final, overload, override
 
-from typing_extensions import override
 from xtr_event_dispatcher_contracts import StoppableEventInterface, event_name_of
 
 from ._listener_call import call_listener, positional_arity

@@ -14,9 +14,8 @@ the firewall that matched each request, before routing.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import (
     Bundle,
     PassStage,

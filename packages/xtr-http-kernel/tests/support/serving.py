@@ -66,7 +66,7 @@ class ServerStateBridge:
 async def serving(
     app: FastAPI,
     on_response_sent: Callable[[], None] | None = None,
-) -> AsyncGenerator[httpx.AsyncClient, None]:
+) -> AsyncGenerator[httpx.AsyncClient]:
     """Serve ``app`` for one application life and yield a client driving it."""
     async with app.router.lifespan_context(app) as state:
         bridge = ServerStateBridge(
@@ -78,7 +78,7 @@ async def serving(
 
 
 @asynccontextmanager
-async def driving(app: FastAPI) -> AsyncGenerator[Drive, None]:
+async def driving(app: FastAPI) -> AsyncGenerator[Drive]:
     """Serve ``app`` for one application life and yield a driver of raw connections.
 
     What the driver returns is the messages the application sent, so a test

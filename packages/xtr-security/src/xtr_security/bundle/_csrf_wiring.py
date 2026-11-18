@@ -12,9 +12,8 @@ checks travel in the session of the request it answers.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_security_csrf.csrf_token_manager import CsrfTokenManager
 from xtr_security_csrf.csrf_token_manager_interface import CsrfTokenManagerInterface
 from xtr_security_csrf.token_storage.clearable_token_storage_interface import (

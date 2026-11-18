@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import io
 import sys
+from typing import override
 
 import pytest
 from pydantic import TypeAdapter
 from pydantic_core import PydanticSerializationError
-from typing_extensions import override
 from xtr_mime import Address, Email, RawMessage
 from xtr_serializer import JsonEncoder, NotNormalizableValueError, PydanticNormalizer, Serializer
 

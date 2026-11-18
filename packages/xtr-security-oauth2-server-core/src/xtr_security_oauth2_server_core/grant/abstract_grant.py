@@ -7,9 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from datetime import timedelta
 from functools import partial
-from typing import TYPE_CHECKING, Final, cast
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, cast, override
 
 # Every grant inherits this class's constructor, and a deployment may register
 # one as a class for the grant pass to collect, so the two names it reads have

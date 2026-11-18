@@ -289,7 +289,7 @@ def _headers_from(raw: object, task_name: str) -> dict[str, str]:
         return {"type": task_name}
     try:
         parsed = cast("object", json.loads(raw))
-    except (ValueError, RecursionError):
+    except ValueError, RecursionError:
         parsed = None
     if isinstance(parsed, dict):
         items = cast("dict[object, object]", parsed).items()

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
 from dataclasses import dataclass, field
-from typing import Literal, TypeAlias
-
-from typing_extensions import override
+from typing import Literal, TypeAlias, override
 
 from .on_invalid import OnInvalid
 

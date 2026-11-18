@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, TypeGuard, final
+from typing import TYPE_CHECKING, TypeGuard, final, override
 from urllib.parse import unquote
 
-from typing_extensions import override
 from xtr_security_core.authentication.authentication_method import AuthenticationMethod
 from xtr_security_core.authentication.token.username_password_token import UsernamePasswordToken
 from xtr_security_core.exception import BadCredentialsError

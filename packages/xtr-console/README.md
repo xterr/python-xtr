@@ -4,7 +4,7 @@
 
 **Async-native console applications for Python — commands as functions or classes, declared once, wired by a container.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -60,7 +60,7 @@ uv add xtr-console xtr-dependency-injection  # + the container, for the ConsoleB
 uv add xtr-logging                           # beside it: log handlers following each command's verbosity
 ```
 
-Requires Python 3.11+. Depends on `cyclopts`, `rich` and `typing-extensions` — not on the
+Requires Python 3.14.4+. Depends on `cyclopts` and `rich` — not on the
 container: the bundle is used when [xtr-dependency-injection](../xtr-dependency-injection) is
 installed beside the package, never as an extra, and commands run without it.
 

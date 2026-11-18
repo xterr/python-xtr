@@ -7,9 +7,8 @@ import sys
 import threading
 import traceback
 from contextvars import copy_context
-from typing import TYPE_CHECKING, Final, TypeAlias, final
+from typing import TYPE_CHECKING, Final, TypeAlias, final, override
 
-from typing_extensions import override
 from xtr_service_contracts import ResetInterface
 
 from xtr_logging.log_context import current_context

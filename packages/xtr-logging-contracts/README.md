@@ -4,8 +4,8 @@
 
 **The logging contract, and nothing else — so a library that logs installs nothing else.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: 1" src="https://img.shields.io/badge/core%20deps-1-3FB950">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
+<img alt="core dependencies: 0" src="https://img.shields.io/badge/core%20deps-0-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -28,7 +28,7 @@ that dependency, reduced to what the seam is actually made of:
 - 🕳️ **`NullLogger`** — what makes logging optional for your callers.
 - 🪜 **`Level`** — the eight RFC 5424 severities, comparable as integers.
 - 🗂️ **`Context`** — the mapping every method takes, and the key an exception goes under.
-- 🪶 **One dependency** — `typing-extensions`, for `@override` on 3.11.
+- 🪶 **No dependencies** — the standard library alone.
 
 ```python
 from xtr_logging_contracts import LoggerInterface, NullLogger
@@ -48,7 +48,7 @@ class Checkout:
 uv add xtr-logging-contracts
 ```
 
-Requires Python 3.11+.
+Requires Python 3.14.4+.
 
 ## Who installs what
 

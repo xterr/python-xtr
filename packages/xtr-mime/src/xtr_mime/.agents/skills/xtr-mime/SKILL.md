@@ -142,7 +142,6 @@ only where the markup's lines do.
 - Do not change a message after signing it; sign last, DKIM after S/MIME.
 - Do not put untrusted text of unbounded length in a header: folding long non-ASCII text is
   slow, and a line over 998 octets is refused.
-- Do not convert untrusted HTML on an interpreter older than CPython 3.11.14, 3.12.12 or 3.13.6.
 - Do not expect `MagicMimeTypeGuesser` to read content without libmagic installed; it declines
   and the extension decides.
 - Do not register `MimeTypes` yourself in a container next to the bundle; configure

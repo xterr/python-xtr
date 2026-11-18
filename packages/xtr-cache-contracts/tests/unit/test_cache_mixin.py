@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, TypeVar, final
+from typing import TYPE_CHECKING, TypeVar, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_clock.testing import mock_time
 
 from tests.support.in_memory_pool import InMemoryItem, InMemoryPool

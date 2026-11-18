@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import MutableMapping
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
-from typing_extensions import override
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_http_foundation import Session
 

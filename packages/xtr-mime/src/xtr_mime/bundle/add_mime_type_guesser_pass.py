@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Final, final
+from typing import Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import CompilerPassInterface, ContainerBuilder, ServiceKey
 
 from xtr_mime.exception import LogicError

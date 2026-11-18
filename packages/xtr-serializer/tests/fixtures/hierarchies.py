@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import ClassVar
+from typing import ClassVar, override
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import override
 
 from xtr_serializer import ZonedDateTime, discriminator_map, discriminator_name
 

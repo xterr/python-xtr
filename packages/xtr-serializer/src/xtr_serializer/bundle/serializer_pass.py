@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Final, cast, final
+from typing import Final, cast, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import CompilerPassInterface, ContainerBuilder, ServiceKey
 
 from xtr_serializer._type_names import qualified_name_of

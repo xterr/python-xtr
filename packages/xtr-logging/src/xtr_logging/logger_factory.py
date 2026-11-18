@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NamedTuple, Self, final
+from typing import TYPE_CHECKING, NamedTuple, Self, final, override
 
-from typing_extensions import override
 from xtr_service_contracts import ResetInterface
 
 from .bridge.stdlib.stdlib_capture import StdlibCapture

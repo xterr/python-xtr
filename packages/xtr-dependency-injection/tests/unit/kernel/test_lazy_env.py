@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, TypeVar
+from typing import TYPE_CHECKING, Annotated, TypeVar, override
 
 import pytest
-from typing_extensions import override
 from wireup import AsyncContainer
 
 from tests.fixtures.app_env import (

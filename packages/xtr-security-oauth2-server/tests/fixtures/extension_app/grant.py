@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import (  # noqa: TC003 -- container hydrates this constructor at runtime
     timedelta,
 )
-from typing import TYPE_CHECKING, Final, final
 
 # Every name the constructor below reads is imported at runtime: the container
 # evaluates those annotations when it hydrates this grant.
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
+
 from xtr_clock import ClockInterface
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_security_oauth2_server_core.grant.auth_code_grant import AuthCodeGrant

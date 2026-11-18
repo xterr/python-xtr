@@ -7,10 +7,9 @@ import importlib
 import json
 import sys
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Protocol, Self, cast, final
+from typing import TYPE_CHECKING, Protocol, Self, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.authentication.token.pre_authenticated_token import PreAuthenticatedToken
 from xtr_security_core.authentication.token.remember_me_token import RememberMeToken

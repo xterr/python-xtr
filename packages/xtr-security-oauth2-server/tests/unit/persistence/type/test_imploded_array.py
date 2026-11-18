@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
 from sqlalchemy import Text
 from sqlalchemy.dialects import sqlite
-from typing_extensions import override
 
 from tests.support.orm import round_trip
 from xtr_security_oauth2_server.persistence.type.imploded_array import ImplodedArray

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Sized
-from typing import TYPE_CHECKING, ClassVar, Final, Self, cast
+from typing import TYPE_CHECKING, ClassVar, Final, Self, cast, override
 
-from typing_extensions import override
 from xtr_notifier.exception import LogicError
 from xtr_notifier.message import MessageOptions, MessageOptionsInterface
 

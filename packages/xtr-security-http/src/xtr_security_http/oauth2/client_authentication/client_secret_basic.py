@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 from urllib.parse import quote
 
-from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 from .client_authentication_interface import ClientAuthenticationInterface

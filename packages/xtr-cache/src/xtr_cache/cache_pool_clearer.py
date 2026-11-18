@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias, final
+from typing import TYPE_CHECKING, TypeAlias, final, override
 
-from typing_extensions import override
 from xtr_cache_contracts import (
     CacheItemPoolInterface,
     InvalidArgumentError,

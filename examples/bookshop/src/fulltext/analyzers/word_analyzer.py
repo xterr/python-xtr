@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Final, cast, final
-
-from typing_extensions import override
+from typing import Final, cast, final, override
 
 from fulltext.analyzer_interface import AnalyzerInterface
 from fulltext.decorator import as_analyzer

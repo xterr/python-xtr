@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 from urllib.parse import urlencode
-
-from typing_extensions import override
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entities import make_client

@@ -7,9 +7,7 @@ import dataclasses
 import re
 from collections.abc import Mapping
 from dataclasses import replace
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_logging.formatter._text import class_name, describe, safe_str
 

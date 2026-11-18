@@ -21,9 +21,8 @@ releases it.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_messenger.bridge.taskiq.binding import bind_bus
 from xtr_messenger.bridge.taskiq.started_brokers import StartedBrokers
 from xtr_messenger.bridge.taskiq.taskiq_sender import TaskiqSender

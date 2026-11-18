@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import anyio.to_thread
-from typing_extensions import override
 from xtr_password_hasher import (
     PasswordHasherInterface,  # noqa: TC002 -- container hydrates this constructor at runtime
 )

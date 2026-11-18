@@ -194,7 +194,7 @@ def _import_class(io: ConsoleStyle, user_class: str) -> type | None:
         found = cast("object", module)
         for name in class_name.split("."):
             found = cast("object", getattr(found, name))
-    except (ImportError, AttributeError, ValueError):
+    except ImportError, AttributeError, ValueError:
         io.error(f'Could not import "{escape(user_class)}".')
         return None
     if not isinstance(found, type):

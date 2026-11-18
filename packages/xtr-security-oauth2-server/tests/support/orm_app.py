@@ -62,7 +62,7 @@ def orm_kernel(tmp_path: Path) -> Kernel:
 
 
 @contextmanager
-def unmapped() -> Generator[None, None, None]:
+def unmapped() -> Generator[None]:
     """Take back, on the way out, whatever mapping a built container installed.
 
     The mapping lives on the model classes, which the whole process shares.
@@ -105,7 +105,7 @@ def _dispose_registries() -> None:
 
 
 @asynccontextmanager
-async def stored_tables(tmp_path: Path) -> AsyncGenerator[None, None]:
+async def stored_tables(tmp_path: Path) -> AsyncGenerator[None]:
     """Create the tables the bundle's driver mapped, and unmap them afterwards.
 
     The definitions are the ones the mappings pass loaded into this

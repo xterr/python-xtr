@@ -6,6 +6,7 @@ from typing import (
     TYPE_CHECKING,
     Final,
     NamedTuple,
+    TypeAliasType,
     cast,
     final,
 )
@@ -19,7 +20,6 @@ from pydantic.errors import (
 )
 from pydantic_core import SchemaError, SchemaValidator
 from pydantic_core.core_schema import CoreConfig
-from typing_extensions import TypeAliasType
 
 from xtr_serializer._type_cache import TypeCache
 from xtr_serializer._type_names import name_of
@@ -141,7 +141,7 @@ def build_adapter(type_: object) -> Adapter | str:
         return f"pydantic refuses the schema of {written_name_of(type_)!r}"
     # How pydantic refuses a type declared in a way it cannot build, as its versions word it, and
     # how building one nested too deep stops.
-    except (TypeError, PydanticUserError, RecursionError):
+    except TypeError, PydanticUserError, RecursionError:
         return f"pydantic cannot build a schema for {written_name_of(type_)!r}"
     except Exception as error:  # noqa: BLE001 - whatever the type's own code raises leaves it unbuilt
         # A hierarchy refusing its classes as registered says why, in this package's words.

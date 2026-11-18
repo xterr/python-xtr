@@ -11,9 +11,8 @@ at once.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from xtr_logging.handler.abstract_handler import AbstractHandler

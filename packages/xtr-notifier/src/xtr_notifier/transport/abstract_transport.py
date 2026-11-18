@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, ClassVar, Self
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, Self, override
 
 from xtr_notifier.event import FailedMessageEvent, MessageEvent, SentMessageEvent
 

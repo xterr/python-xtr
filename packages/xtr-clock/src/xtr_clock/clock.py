@@ -18,7 +18,7 @@ from __future__ import annotations
 import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, ClassVar, Self, final
+from typing import TYPE_CHECKING, ClassVar, Self, final, override
 
 from .clock_interface import ClockInterface, SupportsNow
 from .date_point import DatePoint
@@ -165,7 +165,7 @@ class Clock:
 
     @classmethod
     @contextmanager
-    def using(cls, clock: SupportsNow) -> Generator[ClockInterface, None, None]:
+    def using(cls, clock: SupportsNow) -> Generator[ClockInterface]:
         """Install ``clock`` for the duration of a ``with`` block.
 
         The previous clock comes back on the way out, including when the
@@ -255,6 +255,7 @@ class Clock:
         # itself what time it is, and never come back.
         return SystemClock() if current is self else current
 
+    @override
     def __repr__(self) -> str:
         """Return a reading that names what is wrapped and any pinned zone."""
         pinned = f", {self._timezone!s}" if self._timezone is not None else ""

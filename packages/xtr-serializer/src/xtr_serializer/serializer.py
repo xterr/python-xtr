@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType, NoneType
-from typing import TYPE_CHECKING, Final, TypeVar, cast, final, overload
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, TypeVar, cast, final, overload, override
 
 from ._dispatch import Dispatch
 from ._type_names import qualified_name_of

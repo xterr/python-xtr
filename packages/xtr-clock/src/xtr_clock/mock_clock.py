@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Self, final
+from typing import TYPE_CHECKING, Self, final, override
 
 from anyio.lowlevel import checkpoint
 
@@ -136,6 +136,7 @@ class MockClock:
 
         self._now = DatePoint.from_datetime(moved.astimezone(zone))
 
+    @override
     def __repr__(self) -> str:
         """Return a reading that shows where the clock is frozen."""
         return f"{type(self).__name__}({self._now.isoformat()!r})"

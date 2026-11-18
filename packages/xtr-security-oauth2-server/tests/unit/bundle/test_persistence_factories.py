@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final, TypeVar, final
+from typing import TYPE_CHECKING, Final, TypeVar, final, override
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_dependency_injection.exception import ServiceNotFoundError
 from xtr_service_contracts import ContainerInterface
@@ -119,7 +118,7 @@ class _RecordingScopeFactory:
         self.asked: list[Asked] = []
 
     @asynccontextmanager
-    async def unit_of_work(self, *, join: bool = True) -> AsyncGenerator[ContainerInterface, None]:
+    async def unit_of_work(self, *, join: bool = True) -> AsyncGenerator[ContainerInterface]:
         """Note the ``join`` a unit is opened with, and hand out one noting what it is asked."""
         self.joins.append(join)
         yield _RecordingUnit(self.asked)

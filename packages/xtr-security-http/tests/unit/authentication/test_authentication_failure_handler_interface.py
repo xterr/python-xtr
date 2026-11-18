@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_http_kernel.bridge import ResponseFactory
 
 from xtr_security_http.authentication.authentication_failure_handler_interface import (

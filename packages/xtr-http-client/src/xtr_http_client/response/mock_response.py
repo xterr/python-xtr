@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, override
 
-from typing_extensions import override
 from xtr_http_client_contracts import HttpResponseInterface
 
 from xtr_http_client.exception import InvalidArgumentError, TransportError

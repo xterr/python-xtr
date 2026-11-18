@@ -8,10 +8,9 @@ one of them, and that `skipped_tests` takes them all out of the way.
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 import pytest
-from typing_extensions import override
 
 from xtr_http_client_contracts.testing import HttpClientTestCase
 

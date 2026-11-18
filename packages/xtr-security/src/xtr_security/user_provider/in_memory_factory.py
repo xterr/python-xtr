@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
-from typing_extensions import override
 from xtr_security_core import InMemoryUserProvider
 
 from xtr_security.bundle.user_provider_configs import InMemoryUserProviderConfig

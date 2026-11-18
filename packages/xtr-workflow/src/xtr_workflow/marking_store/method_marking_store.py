@@ -6,9 +6,7 @@ import inspect
 import sys
 import types
 from enum import Enum
-from typing import TYPE_CHECKING, assert_never, cast, final, get_args, get_origin
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, assert_never, cast, final, get_args, get_origin, override
 
 from xtr_workflow.exception import LogicError
 from xtr_workflow.marking import Marking
@@ -283,8 +281,8 @@ def _evaluated(annotation: object, namespace: dict[str, object], label: str) -> 
 def _enum_named_by(annotation: object) -> type[Enum] | None:
     """Return the enum ``annotation`` names, on its own or or-ed with ``None``."""
     origin = cast("object", get_origin(annotation))
-    # ``A | None``, and the ``Optional[A]`` spelling, which has an origin of its own before 3.14.
-    union = origin is types.UnionType or repr(origin) == "typing.Union"
+    # ``A | None``, and the ``Optional[A]`` spelling, which shares its origin.
+    union = origin is types.UnionType
     members = cast("tuple[object, ...]", get_args(annotation)) if union else (annotation,)
     match [member for member in members if member is not type(None)]:
         case [type() as named] if issubclass(named, Enum):

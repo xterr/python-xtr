@@ -75,10 +75,7 @@ def clone_function(fn: Callable[..., object]) -> types.FunctionType:
     clone.__dict__.update(
         {key: value for key, value in original.__dict__.items() if key != REGISTRATION_ATTRIBUTE}
     )
-    type_params = cast("tuple[object, ...] | None", getattr(original, "__type_params__", None))
-    if type_params:
-        # PEP 695 (3.12+); absent from the 3.11 stubs this package is checked against.
-        _set(clone, __type_params__=type_params)
+    clone.__type_params__ = original.__type_params__
     # Rewrite our Autowire/Target markers to wireup's before the engine reads the clone.
     _set(clone, __signature__=to_engine_signature(evaluated_signature(clone)))
     return clone
@@ -222,8 +219,8 @@ def _guarded_coroutine(
 def _guarded_generator(
     factory: Callable[..., Any], guard: Callable[[], AbstractContextManager[object]]
 ) -> Callable[..., object]:
-    def generator(**kwargs: object) -> Generator[object, None, None]:
-        inner = cast("Generator[object, None, None]", factory(**kwargs))
+    def generator(**kwargs: object) -> Generator[object]:
+        inner = cast("Generator[object]", factory(**kwargs))
         with guard():
             value = next(inner)
         try:
@@ -242,8 +239,8 @@ def _guarded_generator(
 def _guarded_async_generator(
     factory: Callable[..., Any], guard: Callable[[], AbstractContextManager[object]]
 ) -> Callable[..., object]:
-    async def async_generator(**kwargs: object) -> AsyncGenerator[object, None]:
-        inner = cast("AsyncGenerator[object, None]", factory(**kwargs))
+    async def async_generator(**kwargs: object) -> AsyncGenerator[object]:
+        inner = cast("AsyncGenerator[object]", factory(**kwargs))
         with guard():
             value = await inner.__anext__()
         try:
@@ -482,16 +479,16 @@ async def _rebound(fn: Callable[..., object], container: WireupContainer) -> Cal
 
 def _resolving_async_generator(
     prepare: Callable[[dict[str, object]], Awaitable[_Call]],
-) -> Callable[..., AsyncGenerator[object, None]]:
+) -> Callable[..., AsyncGenerator[object]]:
     """Wrap an async generator ``factory``, forwarding the scope's error into it.
 
     Delegated by hand, not through ``async for``: wireup throws a scope's error
     into the wrapper, and ``factory`` must see it as it would unwrapped.
     """
 
-    async def delegating(**kwargs: object) -> AsyncGenerator[object, None]:
+    async def delegating(**kwargs: object) -> AsyncGenerator[object]:
         call, arguments = await prepare(kwargs)
-        inner = cast("AsyncGenerator[object, None]", call(**arguments))
+        inner = cast("AsyncGenerator[object]", call(**arguments))
         value = await inner.__anext__()
         try:
             yield value
@@ -508,12 +505,12 @@ def _resolving_async_generator(
 
 def _resolving_generator(
     prepare: Callable[[dict[str, object]], Awaitable[_Call]],
-) -> Callable[..., AsyncGenerator[object, None]]:
+) -> Callable[..., AsyncGenerator[object]]:
     """Wrap a generator ``factory`` as an async one, forwarding the scope's error into it."""
 
-    async def delegating(**kwargs: object) -> AsyncGenerator[object, None]:
+    async def delegating(**kwargs: object) -> AsyncGenerator[object]:
         call, arguments = await prepare(kwargs)
-        inner = cast("Generator[object, None, None]", call(**arguments))
+        inner = cast("Generator[object]", call(**arguments))
         value = next(inner)
         try:
             yield value
@@ -617,8 +614,8 @@ def _generator_wrapper(
     arguments: Callable[[dict[str, object]], Mapping[str, object]],
     result: Callable[[Any], object],
 ) -> Callable[..., object]:
-    def generator(**kwargs: object) -> Generator[object, None, None]:
-        inner = cast("Generator[object, None, None]", factory(**arguments(kwargs)))
+    def generator(**kwargs: object) -> Generator[object]:
+        inner = cast("Generator[object]", factory(**arguments(kwargs)))
         value = next(inner)
         try:
             mapped = result(value)
@@ -643,8 +640,8 @@ def _async_generator_wrapper(
     arguments: Callable[[dict[str, object]], Mapping[str, object]],
     result: Callable[[Any], object],
 ) -> Callable[..., object]:
-    async def async_generator(**kwargs: object) -> AsyncGenerator[object, None]:
-        inner = cast("AsyncGenerator[object, None]", factory(**arguments(kwargs)))
+    async def async_generator(**kwargs: object) -> AsyncGenerator[object]:
+        inner = cast("AsyncGenerator[object]", factory(**arguments(kwargs)))
         value = await inner.__anext__()
         try:
             mapped = result(value)
@@ -664,7 +661,7 @@ def _async_generator_wrapper(
     return async_generator
 
 
-def _throw(inner: Generator[object, None, None], error: BaseException) -> None:
+def _throw(inner: Generator[object], error: BaseException) -> None:
     """Throw ``error`` into ``inner``, as wireup would have; its own error propagates."""
     try:
         _ = inner.throw(error)
@@ -672,7 +669,7 @@ def _throw(inner: Generator[object, None, None], error: BaseException) -> None:
         return
 
 
-async def _athrow(inner: AsyncGenerator[object, None], error: BaseException) -> None:
+async def _athrow(inner: AsyncGenerator[object], error: BaseException) -> None:
     """Throw ``error`` into ``inner``, as wireup would have; its own error propagates."""
     try:
         _ = await inner.athrow(error)

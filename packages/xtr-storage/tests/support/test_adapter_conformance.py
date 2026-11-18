@@ -14,11 +14,10 @@ catch a backend that lied.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 import pytest
 from fsspec.implementations.memory import MemoryFileSystem
-from typing_extensions import override
 
 from tests.support.adapter_conformance import AdapterConformance
 from xtr_storage.adapter.fsspec_adapter import FsspecAdapter

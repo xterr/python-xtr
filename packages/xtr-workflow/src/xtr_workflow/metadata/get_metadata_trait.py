@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, override
 
 from xtr_workflow.exception import InvalidArgumentError
 from xtr_workflow.transition import Transition

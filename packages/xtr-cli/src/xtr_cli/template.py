@@ -51,8 +51,9 @@ class Template:
         next = ["uv run ${name} list"]   # printed once the project is made
 
     Destinations, file contents and notes substitute ``${name}`` (the
-    distribution), ``${app}`` (the import name), ``${python}`` (``3.13``) and
-    ``${minor}`` (``13``) with :meth:`string.Template.substitute`; a literal
+    distribution), ``${app}`` (the import name), ``${python}`` (``3.14``),
+    ``${minor}`` (``14``) and ``${requires_python}`` (``3.14.4``) with
+    :meth:`string.Template.substitute`; a literal
     ``$`` is written ``$$``.
 
     Attributes:

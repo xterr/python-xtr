@@ -9,10 +9,9 @@ them.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 from urllib.parse import urlsplit
 
-from typing_extensions import override
 from xtr_messenger import PublisherClosingInterface, TransportFactoryInterface
 
 from xtr_orm_messenger.exception import InvalidOrmDsnError

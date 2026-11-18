@@ -22,7 +22,7 @@ packages/xtr-acme-notifier/
 └── tests/
 ```
 
-Dependencies: `xtr-notifier`, `xtr-http-client-contracts`, `typing-extensions`. The dev group
+Dependencies: `xtr-notifier`, `xtr-http-client-contracts`. The dev group
 adds `xtr-http-client`, for `MockHttpClient`. A bridge ships no bundle.
 
 ## Advertise the factory
@@ -43,9 +43,8 @@ it under `CHATTER_TRANSPORT_FACTORY_TAG` or `TEXTER_TRANSPORT_FACTORY_TAG`.
 ## The transport
 
 ```python
-from typing import ClassVar
+from typing import ClassVar, override
 
-from typing_extensions import override
 from xtr_http_client_contracts.exception import TransportError as HttpTransportError
 
 from xtr_notifier.exception import TransportError, UnsupportedMessageTypeError
@@ -105,7 +104,7 @@ class AcmeTransport(AbstractTransport):
 ```python
 from collections.abc import Sequence
 
-from typing_extensions import override
+from typing import override
 
 from xtr_notifier.exception import UnsupportedSchemeError
 from xtr_notifier.transport import AbstractTransportFactory, Dsn

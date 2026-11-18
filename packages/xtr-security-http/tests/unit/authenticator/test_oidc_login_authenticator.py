@@ -6,13 +6,12 @@ import json
 from base64 import urlsafe_b64encode
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, TypeVar, cast, final, override
 from urllib.parse import parse_qsl, urlsplit
 
 import pytest
 from joserfc import jwt
 from joserfc.jwk import RSAKey
-from typing_extensions import override
 from xtr_cache import ArrayAdapter
 from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient

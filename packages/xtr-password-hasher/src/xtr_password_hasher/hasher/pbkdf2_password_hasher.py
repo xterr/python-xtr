@@ -6,9 +6,7 @@ import base64
 import hashlib
 import hmac
 import math
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from xtr_password_hasher.exception import InvalidArgumentError
 from xtr_password_hasher.legacy_password_hasher_interface import LegacyPasswordHasherInterface

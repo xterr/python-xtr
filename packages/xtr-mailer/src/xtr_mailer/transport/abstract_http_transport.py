@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_http_client_contracts.exception import DecodingError, HttpClientError, HttpError
 
 from xtr_mailer.exception import HttpTransportError, TransportError

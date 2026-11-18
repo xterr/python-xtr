@@ -9,11 +9,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 from pydantic import BaseModel, PrivateAttr, RootModel, TypeAdapter
-from typing_extensions import override
 from xtr_clock import DatePoint
 
 from tests.fixtures.containers import Identical, Levelled, Members, Numbered, Rows

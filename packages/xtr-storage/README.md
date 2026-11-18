@@ -4,7 +4,7 @@
 
 **Files on local disk, in memory or in object stores, behind one async interface.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="asyncio" src="https://img.shields.io/badge/asyncio-native-1f6feb">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -56,7 +56,7 @@ uv add "xtr-storage[gcs]"                     # GcsAdapter, on the gcsfs backend
 uv add xtr-storage xtr-dependency-injection   # + the container, for the StorageBundle
 ```
 
-Requires Python 3.11+. Every adapter is built on `fsspec`, a required
+Requires Python 3.14.4+. Every adapter is built on `fsspec`, a required
 dependency; the S3 and Google Cloud backends are the optional extras above. An
 adapter whose extra is missing raises `MissingBackendError` naming the extra to
 install, rather than failing on an obscure import.

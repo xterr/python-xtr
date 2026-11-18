@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, TypeVar, cast, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import ServiceLocator
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_security_core.user.attributes_based_user_provider_interface import (

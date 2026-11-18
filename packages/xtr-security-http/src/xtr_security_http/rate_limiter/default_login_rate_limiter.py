@@ -14,9 +14,8 @@ import base64
 import hmac
 from collections.abc import MutableMapping, Sequence
 from hashlib import sha256
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, cast, final, override
 
-from typing_extensions import override
 from xtr_http_foundation import AbstractRequestRateLimiter, RateLimiterInterface
 from xtr_security_core.exception import InvalidArgumentError
 

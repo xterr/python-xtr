@@ -7,9 +7,8 @@ multi-event webhook out can get wrong.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_messenger import Envelope, MessageBusInterface
 
 if TYPE_CHECKING:

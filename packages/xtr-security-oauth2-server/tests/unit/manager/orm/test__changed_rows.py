@@ -24,7 +24,7 @@ _TABLE = Table(
 )
 
 
-async def _three(tmp_path: Path) -> AsyncGenerator[AsyncSession, None]:
+async def _three(tmp_path: Path) -> AsyncGenerator[AsyncSession]:
     """Yield a session over a table holding three rows, two of them flagged."""
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'rows.sqlite'}")
     try:

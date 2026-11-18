@@ -7,10 +7,9 @@ header overriding the default overrides ``encrypt``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
-from typing_extensions import override
 from xtr_logging_contracts import AbstractLogger, Level
 from xtr_mime import Address, Message
 from xtr_mime.header import Headers

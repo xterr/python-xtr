@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, TypeVar, cast, final, overload
+from typing import TYPE_CHECKING, TypeVar, cast, final, overload, override
 
 from pydantic import ValidationError
 from pydantic_core import to_json
-from typing_extensions import override
 
 from xtr_serializer._type_names import name_of, qualified_name_of
 from xtr_serializer.exception import (

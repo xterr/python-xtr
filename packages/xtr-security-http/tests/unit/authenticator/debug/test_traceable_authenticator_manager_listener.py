@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_kernel import RequestEvent
 from xtr_http_kernel.bridge import StarletteHttpFactory
 from xtr_http_message import Response as PureResponse

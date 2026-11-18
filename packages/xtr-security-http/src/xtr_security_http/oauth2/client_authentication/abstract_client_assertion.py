@@ -10,9 +10,8 @@ pair — live in modules that import nothing of the sort.
 from __future__ import annotations
 
 import secrets
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_security_core.exception import InvalidArgumentError
 

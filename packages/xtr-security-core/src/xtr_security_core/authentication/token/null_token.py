@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, NoReturn, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, NoReturn, final, override
 
 from xtr_security_core.exception import BadMethodCallError
 

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from random import uniform
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_http_client.exception import InvalidArgumentError
 from xtr_http_client.internal.retry_delay import retry_after_ms

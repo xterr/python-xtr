@@ -59,7 +59,7 @@ def _read(value: object) -> datetime:
             zoned = instant.astimezone(zone) if offset is not None else None
         # A name the zone database lacks, a path or a directory of zones: the error quotes it.
         # An instant in the first or the last year shown in the zone may fall outside them.
-        except (ValueError, KeyError, OSError, OverflowError):
+        except ValueError, KeyError, OSError, OverflowError:
             pass
         else:
             # Zone rules other than the writer's would show the same instant at another time.

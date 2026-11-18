@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, override
 
-from typing_extensions import override
 from xtr_clock import (
     ClockInterface,  # noqa: TC002 -- container hydrates this constructor at runtime
 )

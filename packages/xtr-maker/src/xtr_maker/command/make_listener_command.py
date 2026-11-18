@@ -316,7 +316,7 @@ def _context(
     }
     if subscriber:
         context["mapping"] = imports.add("collections.abc", "Mapping", type_checking=True)
-        context["override"] = imports.add("typing_extensions", "override")
+        context["override"] = imports.add("typing", "override")
         context["interface"] = imports.add("xtr_event_dispatcher", "EventSubscriberInterface")
         context["subscribed_events"] = imports.add(
             "xtr_event_dispatcher", "SubscribedEvents", type_checking=True

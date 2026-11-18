@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable
-
-from typing_extensions import Unpack
+from typing import TYPE_CHECKING, Protocol, Self, Unpack, runtime_checkable
 
 if TYPE_CHECKING:
     from xtr_http_message_contracts import RequestInterface

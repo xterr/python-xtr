@@ -3,12 +3,11 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import threading
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import anyio
 import anyio.lowlevel
 import pytest
-from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from tests.support.records import make_record

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 from urllib.parse import urlsplit
 
-from typing_extensions import override
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 if TYPE_CHECKING:

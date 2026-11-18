@@ -101,7 +101,7 @@ def _stop_on_sigterm(
         return (False, None)
     try:
         loop.add_signal_handler(signal.SIGTERM, worker.stop)
-    except (NotImplementedError, RuntimeError):
+    except NotImplementedError, RuntimeError:
         return (False, None)
     return (True, previous)
 

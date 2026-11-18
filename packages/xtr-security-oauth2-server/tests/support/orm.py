@@ -131,7 +131,7 @@ class Database:
             return counted.scalar_one()
 
     @contextmanager
-    def watching(self) -> Generator[list[str], None, None]:
+    def watching(self) -> Generator[list[str]]:
         """Collect the statements the database runs while the block is open."""
         self._statements.clear()
         try:
@@ -188,7 +188,7 @@ async def stored(
     tmp_path: Path,
     driver: Driver | None = None,
     metadata: MetaData | None = None,
-) -> AsyncGenerator[Database, None]:
+) -> AsyncGenerator[Database]:
     """Create ``driver``'s tables in a SQLite file under ``tmp_path``, then clean up.
 
     The driver's registry is disposed on the way out: the mapping it installs

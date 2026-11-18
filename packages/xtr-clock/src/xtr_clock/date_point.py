@@ -31,7 +31,7 @@ interfaces.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, ClassVar, Self, TypeVar
+from typing import TYPE_CHECKING, ClassVar, Self, TypeVar, override
 
 from .modifier import apply_modifier
 from .timezone import local_timezone, resolve_timezone
@@ -93,6 +93,7 @@ class DatePoint(datetime):
             fold=fold,
         )
 
+    @override
     @classmethod
     def now(cls, tz: tzinfo | None = None) -> Self:
         """Return the current instant, read from the clock in force.
@@ -213,10 +214,9 @@ class DatePoint(datetime):
         TIME ZONE`` column holding UTC — and its driver wants exactly a naive
         :class:`~datetime.datetime`: one refuses an aware value, another
         converts the offset it is handed, a third does not recognise a
-        subclass at all. ``replace(tzinfo=None)`` does not give that value: on
-        Python 3.12 and later it answers with a ``DatePoint`` the local zone
-        was attached to again, and on 3.11 with a naive ``DatePoint``, still
-        not a plain ``datetime``. This is the one reading that does.
+        subclass at all. ``replace(tzinfo=None)`` does not give that value: it
+        answers with a ``DatePoint`` the local zone was attached to again. This
+        is the one reading that does.
 
         A naive ``DatePoint`` — one built around this class's constructor —
         is read as local time, as this class reads every naive reading.
@@ -235,6 +235,7 @@ class DatePoint(datetime):
         # zone to the result, which is exactly what must not happen here.
         return datetime.combine(utc.date(), utc.time())
 
+    @override
     def __reduce_ex__(
         self, protocol: SupportsIndex
     ) -> tuple[Callable[..., Self], tuple[object, ...]]:
@@ -246,6 +247,7 @@ class DatePoint(datetime):
         """
         return self.__reduce__()
 
+    @override
     def __reduce__(self) -> tuple[Callable[..., Self], tuple[object, ...]]:
         """Pickle by field rather than by packed state.
 

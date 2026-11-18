@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
-from typing_extensions import override
 from xtr_http_message_contracts import UploadError
 from xtr_http_message_contracts.factory import (
     RequestFactoryInterface,

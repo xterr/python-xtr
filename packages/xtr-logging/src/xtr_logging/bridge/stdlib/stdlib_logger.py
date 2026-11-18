@@ -11,9 +11,8 @@ handlers and formatters see exactly what they would from a native call.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_logging_contracts import EXCEPTION_KEY, AbstractLogger, Level
 
 from .level_mapping import register_level_names, to_stdlib

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_security_core.user.password_upgrader_interface import PasswordUpgraderInterface
 
 from xtr_security_http.authenticator.passport.badge.password_upgrade_badge import (

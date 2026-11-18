@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_orm import MappingDriverInterface
 
 from .conversation_tables import DEFAULT_TABLE_PREFIX, ConversationTables

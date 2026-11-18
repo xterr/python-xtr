@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import Final, final
+from typing import Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_alias, as_service
 from xtr_logging import LogRecord, ProcessorInterface
 

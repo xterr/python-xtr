@@ -7,9 +7,8 @@ It is the only place a wireup container is wrapped for the public
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, TypeVar, cast, final, override
 
-from typing_extensions import override
 from wireup.errors import UnknownParameterError
 from xtr_service_contracts import ContainerInterface
 

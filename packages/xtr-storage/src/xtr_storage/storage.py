@@ -185,7 +185,7 @@ class Storage:
         try:
             async for entry in self._adapter.list_contents(path, deep):
                 yield entry
-        except (UnableToListContentsError, FeatureNotSupportedError):
+        except UnableToListContentsError, FeatureNotSupportedError:
             raise
         except Exception as error:
             raise UnableToListContentsError(location, deep=deep) from error

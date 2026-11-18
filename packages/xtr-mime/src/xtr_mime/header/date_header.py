@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import ClassVar, final
-
-from typing_extensions import override
+from typing import ClassVar, final, override
 
 from .abstract_header import AbstractHeader
 

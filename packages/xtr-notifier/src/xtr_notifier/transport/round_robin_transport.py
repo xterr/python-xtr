@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 
 from xtr_notifier.exception import LogicError, NotifierRuntimeError, TransportError

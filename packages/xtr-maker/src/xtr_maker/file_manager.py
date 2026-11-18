@@ -67,7 +67,7 @@ class FileManager:
             found = importlib.util.find_spec(self._root_package)
         # A missing parent package raises ImportError; a module whose
         # ``__spec__`` is None raises ValueError: neither is a package to write into.
-        except (ImportError, ValueError):
+        except ImportError, ValueError:
             found = None
         locations = found.submodule_search_locations if found is not None else None
         location = next(iter(locations or ()), None)

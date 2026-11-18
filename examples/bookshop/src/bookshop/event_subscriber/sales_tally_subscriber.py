@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_event_dispatcher import EventSubscriberInterface, SubscribedEvents
 
 from bookshop.event.order_placed import OrderPlaced

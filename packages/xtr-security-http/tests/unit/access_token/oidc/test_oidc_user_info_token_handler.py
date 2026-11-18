@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, TypeVar, final
+from typing import TYPE_CHECKING, TypeVar, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_cache import ArrayAdapter, CacheItem
 from xtr_http_client import MockHttpClient
 from xtr_http_client.response import MockResponse

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 from decimal import Decimal
+from typing import override
 
 import pytest
-from typing_extensions import override
 
 from xtr_workflow.dumper._escaping import addslashes, escape_html, text_of
 

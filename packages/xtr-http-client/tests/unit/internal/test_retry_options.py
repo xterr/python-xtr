@@ -45,7 +45,7 @@ def _request(size: int | None, seekable: bool) -> RequestInterface:
     return cast("RequestInterface", cast("object", _Carrying(_Body(size, seekable))))
 
 
-async def _produced() -> AsyncGenerator[bytes, None]:
+async def _produced() -> AsyncGenerator[bytes]:
     yield b"piece"
 
 

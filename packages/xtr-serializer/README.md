@@ -4,7 +4,7 @@
 
 **Turn objects into JSON and back exactly — dataclasses, models, class hierarchies and dates arrive as they left, or are refused — through a chain of normalizers and encoders.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -72,7 +72,7 @@ uv add xtr-serializer xtr-dependency-injection  # + the container, for the Seria
 uv add xtr-console                              # beside it: debug:serializer
 ```
 
-Requires Python 3.11+. Depends on `pydantic` and `typing-extensions` — not on the container: the
+Requires Python 3.14.4+. Depends on `pydantic` — not on the container: the
 bundle is used when xtr-dependency-injection is installed beside the package, and nothing outside
 `xtr_serializer.bundle` and `xtr_serializer.command` needs it.
 

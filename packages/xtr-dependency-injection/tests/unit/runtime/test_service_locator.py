@@ -7,10 +7,9 @@ isinstance and unknown-name errors are container-agnostic.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, TypeVar, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_service_contracts import (
     ContainerInterface,
     ServiceCollectionInterface,

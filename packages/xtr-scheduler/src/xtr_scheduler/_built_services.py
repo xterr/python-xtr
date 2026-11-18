@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Generic, TypeVar, final
+from typing import TYPE_CHECKING, Generic, TypeVar, final, override
 
-from typing_extensions import override
 from xtr_service_contracts import ServiceProviderInterface
 
 from .exception import InvalidArgumentError

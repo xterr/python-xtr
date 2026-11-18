@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TypeVar, final
+from typing import TypeVar, final, override
 
-from typing_extensions import override
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 
 __all__ = ["EventDispatcherSpy"]

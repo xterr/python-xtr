@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.dispatchers import RecordingDispatcher
 from xtr_security_core.authentication.token import UsernamePasswordToken

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
@@ -46,10 +46,8 @@ class LogRecord:
     channel: str
     level: Level
     message: str
-    # A factory, not a shared default: before 3.12 a mappingproxy is unhashable,
-    # and dataclasses refuse unhashable defaults.
-    context: Context = field(default_factory=lambda: _EMPTY)
-    extra: Context = field(default_factory=lambda: _EMPTY)
+    context: Context = _EMPTY
+    extra: Context = _EMPTY
 
     def __post_init__(self) -> None:
         """Freeze private copies of ``context`` and ``extra``."""

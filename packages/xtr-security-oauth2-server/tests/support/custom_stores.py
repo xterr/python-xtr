@@ -13,9 +13,8 @@ nothing registers them, which is how the refusal is reached.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_clock import ClockInterface
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 

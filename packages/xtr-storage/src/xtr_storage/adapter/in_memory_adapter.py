@@ -15,12 +15,11 @@ backend that stores it for real.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 from fsspec.implementations.memory import (  # pyright: ignore[reportMissingTypeStubs] -- fsspec ships no type information
     MemoryFileSystem,
 )
-from typing_extensions import override
 
 from xtr_storage.adapter.fsspec_adapter import FsspecAdapter
 from xtr_storage.config import Config

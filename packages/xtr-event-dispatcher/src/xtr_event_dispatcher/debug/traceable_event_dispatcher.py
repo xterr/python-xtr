@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import replace
-from typing import TYPE_CHECKING, TypeVar, final, overload
+from typing import TYPE_CHECKING, TypeVar, final, overload, override
 
-from typing_extensions import override
 from xtr_event_dispatcher_contracts import StoppableEventInterface, event_name_of
 
 from xtr_event_dispatcher._prioritized_listeners import prioritized_listeners

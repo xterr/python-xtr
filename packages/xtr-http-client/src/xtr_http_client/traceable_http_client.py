@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Final, TypedDict, cast, final
+from typing import TYPE_CHECKING, Final, TypedDict, Unpack, cast, final, override
 
-from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface, HttpResponseInterface
 from xtr_service_contracts import ResetInterface
 

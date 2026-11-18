@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Self, runtime_checkable
-
-from typing_extensions import override
+from typing import Protocol, Self, override, runtime_checkable
 
 __all__ = ["UriInterface"]
 

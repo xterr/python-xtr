@@ -9,9 +9,8 @@ challenged as a request, not answered as a 404.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_http_kernel import ExceptionEvent, FinishRequestEvent, RequestEvent
 

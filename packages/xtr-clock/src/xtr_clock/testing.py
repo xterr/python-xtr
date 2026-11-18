@@ -24,7 +24,7 @@ __all__ = ["mock_time"]
 def mock_time(
     when: datetime | str | None = None,
     timezone: str | tzinfo | None = None,
-) -> Generator[MockClock, None, None]:
+) -> Generator[MockClock]:
     """Install a frozen clock for the duration of a ``with`` block.
 
     Everything that asks :meth:`~xtr_clock.clock.Clock.get` — including

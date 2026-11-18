@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import operator
-from typing import TYPE_CHECKING, Annotated, Literal, NoReturn, cast
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Literal,
+    NoReturn,
+    TypeAliasType,
+    TypedDict,
+    cast,
+    override,
+)
 
 from pydantic import Field
 from pydantic.errors import PydanticUserError
-from typing_extensions import (  # pydantic reads typing's TypedDict from 3.12
-    TypeAliasType,
-    TypedDict,
-    override,
-)
 
 if TYPE_CHECKING:
     from collections.abc import Callable

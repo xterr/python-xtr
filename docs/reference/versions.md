@@ -34,8 +34,9 @@ this format.
 
 ## Python versions
 
-Each package supports Python 3.11 and later versions. The tests of each package
-run on Python 3.11 and on Python 3.14.
+Each package supports Python 3.14.4 and later versions. The tests of each package
+run on Python 3.14.4 and on the latest Python 3.14. Python 3.14.0 to 3.14.3 are
+not supported: their email header folding never returns for some subjects.
 
 ## Where to find a release
 

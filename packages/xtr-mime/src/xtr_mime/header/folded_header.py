@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, final
-
-from typing_extensions import override
+from typing import ClassVar, final, override
 
 from xtr_mime._engine import check_folded
 

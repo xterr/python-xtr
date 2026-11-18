@@ -8,10 +8,9 @@ as it is.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_console import Application, ApplicationTester, CommandTester, ExitCode
 from xtr_console.command import CommandInvokerInterface
 from xtr_console.exception import MissingContainerError
