@@ -1,4 +1,4 @@
-"""A stateful firewall whose form login and logout paths are environment variables."""
+"""A stateful firewall whose paths, and its user's password, are environment variables."""
 
 from __future__ import annotations
 
@@ -23,7 +23,13 @@ def security() -> SecurityConfig:
     return SecurityConfig(
         providers={
             "users": InMemoryUserProviderConfig(
-                users={"alice": {"password": "secret", "roles": ["ROLE_USER"], "enabled": True}}
+                users={
+                    "alice": {
+                        "password": env("ALICE_PASSWORD"),
+                        "roles": ["ROLE_USER"],
+                        "enabled": True,
+                    }
+                }
             )
         },
         password_hashers={InMemoryUser: PlaintextHasherConfig()},

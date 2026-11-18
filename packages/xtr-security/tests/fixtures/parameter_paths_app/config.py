@@ -1,7 +1,8 @@
 """A stateful firewall whose form login and logout paths are parameter references.
 
 The login paths are parameters written as values; the logout target is a
-parameter reading the environment, the way a deployment names its other origin.
+parameter reading the environment, the way a deployment names its other origin, and so
+is the user's password, the way a deployment keeps its secrets.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ def app_parameters() -> Mapping[str, object]:
             "check_path": CHECK_PATH,
             "logout_path": LOGOUT_PATH,
             "web_app_origin": "%env(WEB_APP_ORIGIN)%",
+            "alice_password": "%env(ALICE_PASSWORD)%",
         }
     }
 
@@ -46,7 +48,13 @@ def security() -> SecurityConfig:
     return SecurityConfig(
         providers={
             "users": InMemoryUserProviderConfig(
-                users={"alice": {"password": "secret", "roles": ["ROLE_USER"], "enabled": True}}
+                users={
+                    "alice": {
+                        "password": "%app.alice_password%",
+                        "roles": ["ROLE_USER"],
+                        "enabled": True,
+                    }
+                }
             )
         },
         password_hashers={InMemoryUser: PlaintextHasherConfig()},
