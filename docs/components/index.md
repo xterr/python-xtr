@@ -19,12 +19,14 @@ To use a package alone, install it with `uv add` and read its README.
 | [xtr-dotenv](https://github.com/xterr/python-xtr/tree/main/packages/xtr-dotenv) | Loads layers of `.env` files into the environment. It also gives the same layers as a typed settings model. | [API](https://xterr.github.io/python-xtr/api/xtr_dotenv/) |
 | [xtr-logging](https://github.com/xterr/python-xtr/tree/main/packages/xtr-logging) | Channels, handlers, processors and formatters behind one logger interface. | [API](https://xterr.github.io/python-xtr/api/xtr_logging/) |
 | [xtr-clock](https://github.com/xterr/python-xtr/tree/main/packages/xtr-clock) | A clock that the container gives to your code, a date and time with a time zone, and a frozen clock for tests. | [API](https://xterr.github.io/python-xtr/api/xtr_clock/) |
+| [xtr-stopwatch](https://github.com/xterr/python-xtr/tree/main/packages/xtr-stopwatch) | Measures named events in sections. Each request that runs at the same time keeps its own events. | [API](https://xterr.github.io/python-xtr/api/xtr_stopwatch/) |
 
 ## HTTP
 
 | Package | What it does | API |
 |---|---|---|
 | [xtr-http-kernel](https://github.com/xterr/python-xtr/tree/main/packages/xtr-http-kernel) | Serves a FastAPI application from the kernel. Events turn each request into a response. | [API](https://xterr.github.io/python-xtr/api/xtr_http_kernel/) |
+| [xtr-web-profiler](https://github.com/xterr/python-xtr/tree/main/packages/xtr-web-profiler) | In development, shows a toolbar on each page and a profile of each request: time, logs, events, route and errors. | [API](https://xterr.github.io/python-xtr/api/xtr_web_profiler/) |
 | [xtr-http-foundation](https://github.com/xterr/python-xtr/tree/main/packages/xtr-http-foundation) | Matchers for a request, tools for IP networks, and the session of a request. | [API](https://xterr.github.io/python-xtr/api/xtr_http_foundation/) |
 | [xtr-http-message](https://github.com/xterr/python-xtr/tree/main/packages/xtr-http-message) | HTTP requests, responses, streams, URIs and uploaded files, with one factory for all of them. | [API](https://xterr.github.io/python-xtr/api/xtr_http_message/) |
 | [xtr-http-client](https://github.com/xterr/python-xtr/tree/main/packages/xtr-http-client) | An async HTTP client with typed options, scoped clients, retries, a guard for private networks and a mock client for tests. | [API](https://xterr.github.io/python-xtr/api/xtr_http_client/) |

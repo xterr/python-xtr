@@ -140,6 +140,7 @@ class NotifierBundle(Bundle[NotifierConfig]):
         # It keeps every message sent, which a long-lived production process must not.
         if bundle_active(builder, "event_dispatcher") and builder.get_parameter("kernel.debug"):
             _register_logger_listener(services)
+            _register_profiler(services, builder)
         if config.notification_on_failed_messages:
             _register_failed_message_listener(services, builder)
 
@@ -207,6 +208,23 @@ def _register_logger_listener(services: ServiceConfigurator) -> None:
         method="on_notification",
         priority=NotificationLoggerListener.PRIORITY,
     )
+
+
+def _register_profiler(services: ServiceConfigurator, builder: ContainerBuilder) -> None:
+    """Register the profiler panel while the http kernel profiles requests.
+
+    Called only with the event dispatcher bundle active: the panel records
+    from the message events, so without them it would always be empty.
+    """
+    if not bundle_active(builder, "http_kernel"):
+        return
+    # xtr-http-kernel is optional; its bundle being active proves it installed.
+    from xtr_http_kernel.bundle import profiling_active  # noqa: PLC0415 — optional peer
+
+    if profiling_active(builder):
+        from ._profiler import register_profiler  # noqa: PLC0415 — needs the optional peer
+
+        register_profiler(services)
 
 
 def _register_failed_message_listener(

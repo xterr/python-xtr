@@ -20,6 +20,8 @@ from xtr_workflow.debug import TraceableWorkflow
 from xtr_workflow.exception import LogicError
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from xtr_event_dispatcher_contracts import EventDispatcherInterface
 
 pytestmark = pytest.mark.anyio
@@ -274,3 +276,32 @@ def test_get_inner_returns_the_wrapped_workflow() -> None:
 
 def test_calls_are_timed_by_a_monotonic_clock_unless_given_another() -> None:
     assert isinstance(TraceableWorkflow(_workflow())._clock, MonotonicClock)
+
+
+async def test_the_recorder_is_handed_each_record_as_its_call_ends() -> None:
+    handed: list[Mapping[str, object]] = []
+    traceable = TraceableWorkflow(_workflow(), MockClock(), recorder=handed.append)
+    subject = Subject()
+
+    _ = await traceable.can(subject, "publish")
+
+    assert handed == traceable.get_calls()
+
+
+async def test_the_recorder_is_handed_a_call_that_raised_too() -> None:
+    handed: list[Mapping[str, object]] = []
+    traceable = TraceableWorkflow(_workflow(), MockClock(), recorder=handed.append)
+
+    with pytest.raises(LogicError) as raised:
+        _ = await traceable.can(object(), "publish")
+
+    assert [call["exception"] for call in handed] == [raised.value]
+
+
+async def test_a_call_made_while_disabled_is_not_handed_to_the_recorder() -> None:
+    handed: list[Mapping[str, object]] = []
+    traceable = TraceableWorkflow(_workflow(), MockClock(), lambda: True, recorder=handed.append)
+
+    _ = await traceable.can(Subject(), "publish")
+
+    assert handed == []

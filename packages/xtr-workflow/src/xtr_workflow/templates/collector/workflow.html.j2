@@ -1,0 +1,264 @@
+{#
+  Every call this request made to a workflow, and the workflows it could make
+  them to.
+
+  A call is turned into plain data the moment it ends, so a marking is the one
+  the subject held then and not where it has moved since. A blocked call is an
+  answer, not a failure: the marking or a guard refused the transition, and
+  what refused it is kept as the call's result. A call that raised anything
+  else keeps its error instead.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set counts = collector.data.get("counts") or {} %}
+{% set calls = collector.data.get("calls") or [] %}
+{% set tally = namespace(errors=0) %}
+{% for call in calls %}
+{% if call.get("error") and not call.get("blocked") %}
+{% set tally.errors = tally.errors + 1 %}
+{% endif %}
+{% endfor %}
+{% set blocked = counts.get("blocked") or 0 %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="3.6" cy="4" r="1.8"></circle>
+  <circle cx="12.4" cy="4" r="1.8"></circle>
+  <circle cx="8" cy="12.2" r="1.8"></circle>
+  <path d="M5.4 4h5.2M4.4 5.6l2.6 5M11.6 5.6L9 10.6"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ counts.get("calls") or calls|length }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Calls</dt><dd>{{ counts.get("calls") or calls|length }}</dd>
+  <dt>Applied</dt><dd>{{ counts.get("applied") or 0 }}</dd>
+  <dt>Blocked</dt><dd>{{ blocked }}</dd>
+  <dt>Errors</dt><dd>{{ tally.errors }}</dd>
+  <dt>Defined</dt><dd>{{ (collector.data.get("workflows") or [])|length }}</dd>
+</dl>
+<p class="xtr-toolbar-note">Every call this request's unit of work made, those made while a body streamed included.</p>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status="red" if tally.errors else ("yellow" if blocked else "normal")) }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="3.6" cy="4" r="1.8"></circle>
+  <circle cx="12.4" cy="4" r="1.8"></circle>
+  <circle cx="8" cy="12.2" r="1.8"></circle>
+  <path d="M5.4 4h5.2M4.4 5.6l2.6 5M11.6 5.6L9 10.6"></path>
+</svg>
+<span class="xtr-menu-label">Workflow</span>
+{% set counts = collector.data.get("counts") or {} %}
+{% set calls = collector.data.get("calls") or [] %}
+{% set tally = namespace(errors=0) %}
+{% for call in calls %}
+{% if call.get("error") and not call.get("blocked") %}
+{% set tally.errors = tally.errors + 1 %}
+{% endif %}
+{% endfor %}
+{% if tally.errors %}
+<span class="xtr-menu-count xtr-menu-count-red" title="errors">{{ tally.errors }}</span>
+{% elif counts.get("blocked") %}
+<span class="xtr-menu-count xtr-menu-count-yellow" title="blocked">{{ counts.get("blocked") }}</span>
+{% else %}
+<span class="xtr-menu-count">{{ counts.get("calls") or calls|length }}</span>
+{% endif %}
+{% endblock %}
+
+{% block panel %}
+{% set data = collector.data %}
+{% set counts = data.get("counts") or {} %}
+{% set calls = data.get("calls") or [] %}
+{% set workflows = data.get("workflows") or [] %}
+{% set kinds = {"workflow": "blue", "state_machine": "violet"} %}
+{% set stopped = [] %}
+{% set failed = [] %}
+{% for call in calls %}
+{% if call.get("blocked") %}
+{% set _ = stopped.append(call) %}
+{% elif call.get("error") %}
+{% set _ = failed.append(call) %}
+{% endif %}
+{% endfor %}
+{% macro marking(call) %}
+{% set before = call.get("previous_marking") %}
+{% set after = call.get("marking") %}
+{% if before is not none and after is not none %}
+{{ before|join(", ") or "nowhere" }} <span class="xtr-dump-arrow">⇒</span> {{ after|join(", ") or "nowhere" }}
+{% elif after is not none %}
+{{ after|join(", ") or "nowhere" }}
+{% elif before is not none %}
+{{ before|join(", ") or "nowhere" }} <span class="xtr-dump-arrow">⇒</span> unchanged
+{% else %}
+—
+{% endif %}
+{% endmacro %}
+{% macro outcome(call) %}
+{% set result = call.get("result") %}
+{% set error = call.get("error") %}
+{% set listed = result if (result is sequence and result is not string) else none %}
+{% if call.get("blocked") %}
+<span class="xtr-badge xtr-badge-yellow">blocked</span>
+{% elif error %}
+<span class="xtr-badge xtr-badge-red">error</span>
+{% elif call.get("method") == "apply" %}
+<span class="xtr-badge xtr-badge-green">applied</span>
+{% elif result is sameas true %}
+<span class="xtr-badge xtr-badge-green">yes</span>
+{% elif result is sameas false %}
+<span class="xtr-badge xtr-badge-red">no</span>
+{% else %}
+<span class="xtr-badge">answered</span>
+{% endif %}
+{% if listed is not none %}
+{% if not listed %}
+<span class="xtr-dump-null">nothing</span>
+{% elif listed[0] is mapping %}
+<details class="xtr-dump">
+  <summary><span class="xtr-dump-type">blockers</span> <span class="xtr-dump-count">({{ listed|length }})</span></summary>
+  <ul>
+    {% for blocker in listed %}
+    <li>
+      <span class="xtr-dump-str">{{ blocker.get("message") or "no message" }}</span>
+      <span class="xtr-dump-arrow">⇒</span>
+      <span class="xtr-dump-key">{{ blocker.get("code") or "no code" }}</span>
+      {% if blocker.get("expression") %}
+      <span class="xtr-dump-scalar">{{ blocker.get("expression") }}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% else %}
+<details class="xtr-dump">
+  <summary><span class="xtr-dump-type">transitions</span> <span class="xtr-dump-count">({{ listed|length }})</span></summary>
+  <ul>
+    {% for name in listed %}
+    <li><span class="xtr-dump-str">{{ name }}</span></li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+{% endif %}
+{% if error %}
+<details class="xtr-dump">
+  <summary><span class="xtr-dump-type">{{ error.get("class") or "error" }}</span></summary>
+  <ul>
+    <li><span class="xtr-dump-str">{{ error.get("message") or "no message" }}</span></li>
+  </ul>
+</details>
+{% endif %}
+{% endmacro %}
+{% macro calls_table(tag, rows, nothing) %}
+{% if rows %}
+<div class="xtr-toolstrip">
+  <input class="xtr-filter" type="search" placeholder="Filter these calls…" aria-label="Filter the calls shown" data-xtr-filter="xtr-workflow-{{ tag }}" data-xtr-filter-count="xtr-workflow-{{ tag }}-count">
+  <span class="xtr-card-note" id="xtr-workflow-{{ tag }}-count">{{ rows|length }} of {{ rows|length }}</span>
+</div>
+<div class="xtr-scroll">
+  <table class="xtr-table" id="xtr-workflow-{{ tag }}">
+    <thead>
+      <tr>
+        <th scope="col">Workflow</th>
+        <th scope="col">Call</th>
+        <th scope="col">Transition</th>
+        <th scope="col">Subject</th>
+        <th scope="col">Marking</th>
+        <th scope="col">Result</th>
+        <th scope="col">Took</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for call in rows %}
+      <tr>
+        <td class="xtr-cell-mono xtr-break">{{ call.get("workflow") or "?" }}</td>
+        <td class="xtr-cell-mono">{{ call.get("method") or "?" }}</td>
+        <td class="xtr-cell-mono xtr-break">{{ call.get("transition") or "—" }}</td>
+        <td class="xtr-cell-mono xtr-break">{{ call.get("subject") or "?" }}</td>
+        <td class="xtr-cell-mono xtr-break">{{ marking(call) }}</td>
+        <td class="xtr-break">{{ outcome(call) }}</td>
+        <td class="xtr-cell-num">{{ call.get("duration_ms")|format_ms }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="xtr-empty">{{ nothing }}</p>
+{% endif %}
+{% endmacro %}
+<h1 class="xtr-panel-title">Workflow</h1>
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Calls</td><td class="xtr-cell-mono">{{ counts.get("calls") or calls|length }}</td></tr>
+        <tr><td>Applied</td><td class="xtr-cell-mono">{{ counts.get("applied") or 0 }}</td></tr>
+        <tr><td>Blocked</td><td class="xtr-cell-mono">{{ counts.get("blocked") or stopped|length }}</td></tr>
+        <tr><td>Errors</td><td class="xtr-cell-mono">{{ failed|length }}</td></tr>
+        <tr><td>Defined</td><td class="xtr-cell-mono">{{ workflows|length }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush xtr-tabs">
+  <div class="xtr-tablist" role="tablist" aria-label="Which calls to show">
+    <button type="button" class="xtr-tab xtr-on" data-xtr-tab="all" role="tab" aria-selected="true">All<span class="xtr-tab-count">{{ calls|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="blocked" role="tab" aria-selected="false">Blocked<span class="xtr-tab-count">{{ stopped|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="errors" role="tab" aria-selected="false">Errors<span class="xtr-tab-count">{{ failed|length }}</span></button>
+    <button type="button" class="xtr-tab" data-xtr-tab="defined" role="tab" aria-selected="false">Defined<span class="xtr-tab-count">{{ workflows|length }}</span></button>
+  </div>
+  <section class="xtr-pane xtr-pane-flush xtr-on" data-xtr-pane="all" role="tabpanel">
+    {{ calls_table("all", calls, "This request asked no workflow anything.") }}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="blocked" role="tabpanel">
+    {{ calls_table("blocked", stopped, "Nothing this request asked for was refused.") }}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="errors" role="tabpanel">
+    {{ calls_table("errors", failed, "No call raised.") }}
+  </section>
+  <section class="xtr-pane xtr-pane-flush" data-xtr-pane="defined" role="tabpanel">
+    {% if workflows %}
+    <div class="xtr-toolstrip">
+      <input class="xtr-filter" type="search" placeholder="Filter these workflows…" aria-label="Filter the workflows shown" data-xtr-filter="xtr-workflow-defined" data-xtr-filter-count="xtr-workflow-defined-count">
+      <span class="xtr-card-note" id="xtr-workflow-defined-count">{{ workflows|length }} of {{ workflows|length }}</span>
+    </div>
+    <div class="xtr-scroll">
+      <table class="xtr-table" id="xtr-workflow-defined">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Kind</th>
+            <th scope="col">Supports</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for workflow in workflows %}
+          {% set tone = kinds.get(workflow.get("type"), "") %}
+          <tr>
+            <td class="xtr-cell-mono xtr-break">{{ workflow.get("name") or "?" }}</td>
+            <td class="xtr-cell-tight">
+              {% if workflow.get("type") %}
+              <span class="xtr-badge{% if tone %} xtr-badge-{{ tone }}{% endif %}">{{ workflow.get("type")|replace("_", " ") }}</span>
+              {% else %}
+              <span class="xtr-badge">not reported</span>
+              {% endif %}
+            </td>
+            <td class="xtr-cell-mono xtr-break">{{ (workflow.get("supports") or [])|join(", ") or "—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="xtr-card-foot">
+      Every workflow the container was built with. A workflow tagged by hand
+      may name nothing but itself, and reads <span class="xtr-badge">not
+      reported</span> here.
+    </p>
+    {% else %}
+    <p class="xtr-empty">No workflow is defined.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

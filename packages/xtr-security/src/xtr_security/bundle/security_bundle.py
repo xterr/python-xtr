@@ -25,7 +25,7 @@ from xtr_dependency_injection import (
 )
 from xtr_dependency_injection.kernel.kernel import BUNDLE_PASS_PRIORITY
 from xtr_event_dispatcher.bundle import EventDispatcherBundle
-from xtr_http_kernel.bundle import HttpKernelBundle
+from xtr_http_kernel.bundle import HttpKernelBundle, profiling_active
 from xtr_security_core import (
     AccessDecisionManager,
     AccessDecisionStrategyInterface,
@@ -38,6 +38,7 @@ from xtr_security.bundle._csrf_wiring import with_csrf_settled
 from xtr_security.bundle.oidc_configs import OidcLoginConfig
 from xtr_security.bundle.security_config import SecurityConfig
 
+from ._profiler import register_profiler
 from ._wiring import VOTER_TAG, build_firewall_map
 from .make_firewalls_event_dispatcher_traceable_pass import (
     MakeFirewallsEventDispatcherTraceablePass,
@@ -149,6 +150,10 @@ class SecurityBundle(Bundle[SecurityConfig]):
             else bool(builder.get_parameter("kernel.debug"))
         )
         self._strategy = config.access_decision_manager.build()
+
+        # The panel is registered first, so the decorations wired below report to it.
+        if profiling_active(builder):
+            register_profiler(services, builder, votes_traced=self._trace_votes)
 
         register_core_security_services(
             services,

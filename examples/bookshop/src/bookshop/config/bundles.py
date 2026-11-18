@@ -42,6 +42,11 @@ What each entry brings:
   webhook carried are handed to.
 - ``SecurityBundle`` — what ``JwtBundle`` requires: the firewalls, and the token storage
   the api firewall's jwt authenticator registers into.
+- ``WebProfilerBundle`` — dev only, like the dependency it comes from: profiles every request
+  the http kernel serves, draws the debug toolbar at the foot of every HTML page — ``/docs``,
+  say — and serves each profile under ``/_profiler``, which ``config/routes/dev/web_profiler.py``
+  registers. Where the development dependencies are not installed, the kernel stands in for it,
+  inactive there, as for ``MakerBundle``.
 
 Not listed, and active anyway:
 
@@ -68,6 +73,7 @@ from xtr_scheduler.bundle import SchedulerBundle
 from xtr_security.bundle import SecurityBundle
 from xtr_security_jwt.bundle import JwtBundle
 from xtr_storage.bundle import StorageBundle
+from xtr_web_profiler.bundle import WebProfilerBundle
 from xtr_webhook.bundle import WebhookBundle
 
 from bookshop.dev_tools import DevToolsBundle
@@ -96,4 +102,5 @@ BUNDLES = {
     ClockBundle: {"all": True},
     RemoteEventBundle: {"all": True},
     SecurityBundle: {"all": True},
+    WebProfilerBundle: {"dev": True},
 }

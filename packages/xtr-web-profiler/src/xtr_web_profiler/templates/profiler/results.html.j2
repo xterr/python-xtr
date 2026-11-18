@@ -1,0 +1,75 @@
+{#
+  The profiles the search found, newest first.
+#}
+{% extends "@xtr_web_profiler/profiler/base.html.j2" %}
+
+{% block title %}
+{% if results %}{{ results|length }} profiles{% else %}No profile{% endif %} — Profiler
+{% endblock %}
+
+{% block topbar_tail %}
+<div class="xtr-fact">
+  <span class="xtr-fact-label">Found</span>
+  <span class="xtr-fact-value">{{ results|length }}</span>
+</div>
+{% endblock %}
+
+{% block shell_class %}xtr-shell-wide{% endblock %}
+
+{% block main %}
+<section class="xtr-card xtr-card-flush">
+  <header class="xtr-card-head">
+    <h1 class="xtr-card-title">Stored profiles</h1>
+    <span class="xtr-card-note">newest first</span>
+    <div class="xtr-card-tail">
+      <input class="xtr-filter" type="search" placeholder="Filter these rows…" aria-label="Filter the profiles shown" data-xtr-filter="xtr-results-table" data-xtr-filter-count="xtr-results-count">
+      <span class="xtr-card-note" id="xtr-results-count">{{ results|length }} of {{ results|length }}</span>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    {% if results %}
+    <div class="xtr-scroll">
+      <table class="xtr-table" id="xtr-results-table">
+        <thead>
+          <tr>
+            <th scope="col">Status</th>
+            <th scope="col">Method</th>
+            <th scope="col">URL</th>
+            <th scope="col">IP</th>
+            <th scope="col">Profiled</th>
+            <th scope="col">Kind</th>
+            <th scope="col">Token</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in results %}
+          {% set code = result.status_code %}
+          {% set tone = "green" if 200 <= code < 300 else ("yellow" if 300 <= code < 400 else ("red" if code >= 400 else "blue")) %}
+          <tr>
+            <td class="xtr-cell-tight">
+              <span class="xtr-badge xtr-badge-{{ tone }}">{{ code }}</span>
+              {% if result.has_errors %}
+              <span class="xtr-errors-mark" title="Handling raised, or an error was logged">errors</span>
+              {% endif %}
+            </td>
+            <td class="xtr-cell-tight"><span class="xtr-method">{{ result.method }}</span></td>
+            <td class="xtr-cell-mono"><a href="{{ url('_profiler', token=result.token) }}" title="{{ result.url }}">{{ result.url }}</a></td>
+            <td class="xtr-cell-mono">{{ result.ip or "—" }}</td>
+            <td class="xtr-cell-mono">{{ result.time|format_time }}</td>
+            <td class="xtr-cell-mono">{{ result.virtual_type }}</td>
+            <td class="xtr-cell-mono"><a href="{{ url('_profiler', token=result.token) }}">{{ result.token }}</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="xtr-empty">
+      No stored profile matches these filters.
+      Send a request to the application, then
+      <a href="{{ url('_profiler_search_results', token='empty') }}">look again</a>.
+    </p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

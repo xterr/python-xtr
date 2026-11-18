@@ -1,0 +1,60 @@
+{#
+  The peak memory of the process that served the request.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set peak = collector.data.get("peak_bytes") %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="2.5" y="4.5" width="11" height="7" rx="1.4"></rect>
+  <path d="M5.5 2.5v2M8 2.5v2M10.5 2.5v2M5.5 11.5v2M8 11.5v2M10.5 11.5v2"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ peak|format_bytes }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Peak</dt><dd>{{ peak|format_bytes }}</dd>
+  <dt>Scope</dt><dd>{{ collector.data.get("scope") or "process" }}</dd>
+</dl>
+<p class="xtr-toolbar-note">
+  The peak of the whole process, not of this request alone: one process
+  serves many requests at once, and memory is not counted per request.
+</p>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name)) }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="2.5" y="4.5" width="11" height="7" rx="1.4"></rect>
+  <path d="M5.5 2.5v2M8 2.5v2M10.5 2.5v2M5.5 11.5v2M8 11.5v2M10.5 11.5v2"></path>
+</svg>
+<span class="xtr-menu-label">Memory</span>
+<span class="xtr-menu-count">{{ collector.data.get("peak_bytes")|format_bytes }}</span>
+{% endblock %}
+
+{% block panel %}
+<h1 class="xtr-panel-title">Memory</h1>
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Peak</td><td class="xtr-cell-mono">{{ collector.data.get("peak_bytes")|format_bytes }}</td></tr>
+        <tr><td>In bytes</td><td class="xtr-cell-mono">{{ collector.data.get("peak_bytes") if collector.data.get("peak_bytes") is not none else "not reported" }}</td></tr>
+        <tr><td>Scope</td><td class="xtr-cell-mono">{{ collector.data.get("scope") or "process" }}</td></tr>
+      </tbody>
+    </table>
+    <p class="xtr-card-note">
+      This is the highest resident memory the whole process had reached by the
+      time the response left — not what this request itself used. One process
+      serves many requests at once and the platform counts memory per
+      process, so read the figure as a ceiling the process has touched, and
+      watch it across many profiles rather than in one.
+    </p>
+    <p class="xtr-card-note">
+      Where the platform reports no figure at all, it reads
+      <code class="xtr-mono">n/a</code>.
+    </p>
+  </div>
+</section>
+{% endblock %}

@@ -367,6 +367,29 @@ serializer.serialize(Point(3, 4), "json")  # '[3,4]'
 - Take `SerializerAwareInterface`, `NormalizerAwareInterface` or `DenormalizerAwareInterface` and
   the serializer hands itself over, for values nested inside yours.
 
+## Profiler panel
+
+The **serializer** panel lists every serializer call a profiled request made, in order: which
+serializer (`default`, or its configured name), the method — `serialize`, `deserialize`,
+`normalize`, `denormalize`, `encode` or `decode` — the class of the value handed in, the type
+asked for when reading, the format, the keys of the context passed, how long it took in
+milliseconds, and what it raised. Above the list: the number of calls, their total time, the
+errors among them, and the calls per method. Only names are kept — never the value, the text or
+a context value — so a profile never holds what the data carried.
+
+The bundle registers it when the http kernel's profiler is on — the web profiler turns it on in
+development. Then every interface the bundle registers (`SerializerInterface`,
+`NormalizerInterface`, `DenormalizerInterface`, `EncoderInterface`, `DecoderInterface`, for each
+serializer) gives a `TraceableSerializer` wrapping the serializer, which records each of those
+calls made on it while a profiled request is handled. What is recorded is the calls made on the
+interfaces: a nested value a normalizer writes goes through the serializer itself, so one
+`serialize` is one entry, and the `supports_*` questions are not recorded. A service asking for
+the `Serializer` class itself gets the untraced one.
+
+With the profiler off it costs nothing: neither the panel nor the traced serializer is
+registered, and the interfaces give the `Serializer` as they always do. With it on, a call made
+outside a profiled request goes straight through, untimed.
+
 ## Use in an application
 
 Everything adding this package to an application on

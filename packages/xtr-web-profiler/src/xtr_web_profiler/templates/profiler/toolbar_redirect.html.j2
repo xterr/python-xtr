@@ -1,0 +1,167 @@
+{#
+  A redirect, held back so the request that made it can be read first.
+
+  The response carried a location and nothing to look at; this page stands in
+  for it, with the toolbar of the profile the redirect belongs to. Following
+  the link goes where the redirect pointed.
+
+  This page is rendered without nonces — the context carries none — so it
+  brings no inline behaviour of its own; the toolbar snippet below carries
+  the nonces it was rendered with.
+#}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ status_code }} redirect — Profiler</title>
+<style>
+:root {
+  color-scheme: light dark;
+
+  --xtr-bg: #f7f8fa;
+  --xtr-surface: #ffffff;
+  --xtr-surface-2: #f1f3f7;
+  --xtr-line: #dcdfe6;
+  --xtr-fg: #15171d;
+  --xtr-fg-dim: #5b6472;
+  --xtr-fg-faint: #868f9e;
+  --xtr-accent: #2f5de0;
+  --xtr-yellow: #9a5b00;
+  --xtr-yellow-soft: #fdf0d5;
+  --xtr-space-3: 8px;
+  --xtr-space-4: 12px;
+  --xtr-space-5: 16px;
+  --xtr-space-6: 24px;
+  --xtr-space-7: 32px;
+  --xtr-radius: 10px;
+  --xtr-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --xtr-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --xtr-bg: #0e1014;
+    --xtr-surface: #16191f;
+    --xtr-surface-2: #1c2027;
+    --xtr-line: #2c313b;
+    --xtr-fg: #e7eaf0;
+    --xtr-fg-dim: #9aa3b2;
+    --xtr-fg-faint: #6c7483;
+    --xtr-accent: #7cc5ff;
+    --xtr-yellow: #fbbf24;
+    --xtr-yellow-soft: #33260a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: var(--xtr-space-7) var(--xtr-space-5) 80px;
+  background: var(--xtr-bg);
+  color: var(--xtr-fg);
+  font-family: var(--xtr-font);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.xtr-redirect {
+  max-width: 680px;
+  margin: 0 auto;
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius);
+  background: var(--xtr-surface);
+  overflow: hidden;
+}
+
+.xtr-redirect-head {
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-3);
+  padding: var(--xtr-space-4) var(--xtr-space-6);
+  border-bottom: 1px solid var(--xtr-line);
+  background: var(--xtr-surface-2);
+}
+
+.xtr-redirect-head h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.xtr-redirect-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--xtr-yellow-soft);
+  color: var(--xtr-yellow);
+  font-family: var(--xtr-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.xtr-redirect-body {
+  padding: var(--xtr-space-6);
+}
+
+.xtr-redirect-body p {
+  margin: 0 0 var(--xtr-space-4);
+}
+
+.xtr-redirect-body p:last-child {
+  margin-bottom: 0;
+}
+
+.xtr-redirect-target {
+  display: block;
+  padding: var(--xtr-space-4);
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius);
+  background: var(--xtr-surface-2);
+  color: var(--xtr-accent);
+  font-family: var(--xtr-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.xtr-redirect-note {
+  color: var(--xtr-fg-dim);
+  font-size: 13px;
+}
+
+.xtr-redirect-go {
+  display: inline-block;
+  padding: var(--xtr-space-3) var(--xtr-space-5);
+  border-radius: 7px;
+  background: var(--xtr-accent);
+  color: var(--xtr-surface);
+  font-weight: 600;
+  text-decoration: none;
+}
+</style>
+</head>
+<body>
+<main class="xtr-redirect">
+  <header class="xtr-redirect-head">
+    <span class="xtr-redirect-badge">{{ status_code }}</span>
+    <h1>This request redirected</h1>
+  </header>
+  <div class="xtr-redirect-body">
+    <p>
+      This request redirected with status {{ status_code }} to
+      <a class="xtr-redirect-target" href="{{ location }}">{{ location }}</a>
+    </p>
+    <p class="xtr-redirect-note">
+      The redirect was held back so the request behind it can be read in the
+      toolbar below. Turn this off with the profiler's
+      <code>intercept_redirects</code> setting.
+    </p>
+    <p><a class="xtr-redirect-go" href="{{ location }}">Follow the redirect</a></p>
+  </div>
+</main>
+{{ toolbar }}
+</body>
+</html>

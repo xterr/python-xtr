@@ -36,6 +36,9 @@ step through xtr-event-dispatcher; see the `xtr-event-dispatcher` skill for list
   `config/bundles.py`: it never comes along with the workflow bundle.
 - Draw it: `GraphvizDumper`, `StateMachineGraphvizDumper`, `PlantUmlDumper`, `MermaidDumper` from
   `xtr_workflow.dumper`, or the `workflow:dump` command.
+- See what a request did: with the http kernel's profiler on (`ProfilerConfig(enabled=True)`) in
+  debug mode, the `workflow` profiler panel (`WorkflowDataCollector`) lists the defined workflows
+  and every `can` / `apply` / … call the profiled request made, with places before and after.
 - In an application, with xtr-dependency-injection installed beside the package (it is not a
   dependency): activate `WorkflowBundle` and configure `WorkflowConfig`. Without the container,
   everything above works; only `xtr_workflow.bundle` imports it.

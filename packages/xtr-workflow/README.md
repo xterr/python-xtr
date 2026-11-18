@@ -440,6 +440,28 @@ arrows, with no node to list them on. PlantUML titles the diagram with the workf
 reads none of the three; Mermaid reads no option at all. The command writes the source unchanged,
 so piping it to `dot`, PlantUML or a file is the point.
 
+## Profiler panel
+
+With the [http kernel's profiler](../xtr-http-kernel#profiler) on — `ProfilerConfig(enabled=True)`
+— in debug mode, the bundle registers a `workflow` panel (`WorkflowDataCollector`, from
+`xtr_workflow.data_collector`). It shows:
+
+- every workflow the application defines — configured or declared on a class — with its type and
+  the classes it supports;
+- every call a profiled request made to one: the workflow, the method, the subject's class, the
+  transition asked for, the places the subject was in before an `apply` and after it, what came
+  back (the answer of `can`, the blockers of a blocker list or of a blocked `apply`, the names of
+  the enabled transitions), how long it took and what it raised;
+- how many calls there were, how many applied a transition, and how many were blocked — a `can`
+  answering no, or an `apply` refused by its blockers.
+
+The calls belong to the request being profiled: two served at once each see their own, and a call
+made outside a profiled request is not kept. Debug mode is required because the panel reads the
+calls the traced workflows record, and workflows are traced in debug mode only.
+
+With the profiler off, or outside debug mode, nothing is registered and a workflow call pays
+nothing for the panel. With it on, a call made outside a profiled request costs one context lookup.
+
 ## Use in an application
 
 Everything adding this package to an application on
@@ -663,9 +685,9 @@ dump, compare the string.
   or `is_valid(...)` expression to write in configuration, and no expression cache.
 - **No `is_valid()` guard.** There is no validator component to call.
 - **No shell completion** for `workflow:dump`, and no place list given as a class-and-glob string.
-- **No profiler collector yet.** `TraceableWorkflow` records the calls and the listener listing is
-  built, but nothing presents them in a profiler; `workflow:dump --with-listeners` is what reads
-  them today.
+- **The profiler panel lists no listeners.** It shows the calls a profiled request made, but who
+  listens to each transition is still read with `workflow:dump --with-listeners`. It shows a guard
+  only through the blocker it adds.
 - **`announce` re-runs every guard** after each `apply`, to find what is enabled next. With async
   guards that is visible latency; `DISABLE_ANNOUNCE_EVENT`, or `events_to_dispatch`, turns it off.
 

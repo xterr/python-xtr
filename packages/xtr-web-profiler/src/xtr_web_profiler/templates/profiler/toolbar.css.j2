@@ -1,0 +1,584 @@
+/*
+ * The development toolbar.
+ *
+ * Every rule is scoped under .xtr-wdt, and every value comes from the token
+ * layer below, so the page the toolbar is drawn into keeps its own styling
+ * and nothing here leaks out of the bar.
+ */
+
+.xtr-wdt {
+  /* colour */
+  --xtr-bg: #15171d;
+  --xtr-bg-raised: #1d2027;
+  --xtr-bg-sunken: #0f1115;
+  --xtr-bg-hover: #262a33;
+  --xtr-line: #2d323c;
+  --xtr-line-soft: #23272f;
+  --xtr-fg: #e7eaf0;
+  --xtr-fg-dim: #99a2b2;
+  --xtr-fg-faint: #6c7483;
+  --xtr-accent: #7cc5ff;
+  --xtr-green: #4ade80;
+  --xtr-yellow: #fbbf24;
+  --xtr-red: #fb7185;
+  --xtr-violet: #c4b5fd;
+
+  /* space */
+  --xtr-space-1: 2px;
+  --xtr-space-2: 4px;
+  --xtr-space-3: 6px;
+  --xtr-space-4: 10px;
+  --xtr-space-5: 14px;
+  --xtr-space-6: 20px;
+
+  /* shape */
+  --xtr-radius-sm: 4px;
+  --xtr-radius: 7px;
+  --xtr-bar: 32px;
+  --xtr-pop-width: 420px;
+  --xtr-pop-height: 62vh;
+  --xtr-shadow: 0 -1px 0 rgba(255, 255, 255, 0.05), 0 -10px 30px rgba(0, 0, 0, 0.45);
+  --xtr-pop-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+
+  /* type */
+  --xtr-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --xtr-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --xtr-text-xs: 10px;
+  --xtr-text-sm: 11px;
+  --xtr-text-md: 12px;
+  --xtr-text-lg: 13px;
+
+  /* layer */
+  --xtr-layer: 2147483000;
+
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--xtr-layer);
+  margin: 0;
+  padding: 0;
+  color: var(--xtr-fg);
+  font-family: var(--xtr-font);
+  font-size: var(--xtr-text-md);
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  direction: ltr;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+.xtr-wdt *,
+.xtr-wdt *::before,
+.xtr-wdt *::after {
+  box-sizing: border-box;
+}
+
+/* ---------------------------------------------------------------- the bar */
+
+.xtr-wdt-bar {
+  display: flex;
+  align-items: stretch;
+  height: var(--xtr-bar);
+  background: linear-gradient(180deg, var(--xtr-bg-raised), var(--xtr-bg));
+  border-top: 1px solid var(--xtr-line);
+  box-shadow: var(--xtr-shadow);
+}
+
+.xtr-wdt-items {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+
+.xtr-wdt-items::-webkit-scrollbar {
+  display: none;
+}
+
+.xtr-wdt-tail {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  border-left: 1px solid var(--xtr-line);
+  background: var(--xtr-bg-sunken);
+}
+
+.xtr-wdt-token {
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-2);
+  padding: 0 var(--xtr-space-4);
+  color: var(--xtr-fg-dim);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.xtr-wdt-token:hover,
+.xtr-wdt-token:focus-visible {
+  background: var(--xtr-bg-hover);
+  color: var(--xtr-accent);
+  outline: none;
+  text-decoration: none;
+}
+
+.xtr-wdt-token svg {
+  flex: 0 0 auto;
+  opacity: 0.65;
+}
+
+.xtr-wdt-errors {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--xtr-red);
+  box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.18);
+}
+
+.xtr-wdt-toggle,
+.xtr-wdt-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 var(--xtr-space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--xtr-fg-faint);
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.xtr-wdt-toggle:hover,
+.xtr-wdt-toggle:focus-visible {
+  background: var(--xtr-bg-hover);
+  color: var(--xtr-fg);
+  outline: none;
+}
+
+/* ------------------------------------------------------------- minimised */
+
+.xtr-wdt-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: none;
+  width: 30px;
+  height: 22px;
+  border: 1px solid var(--xtr-line);
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: var(--xtr-radius-sm);
+  background: var(--xtr-bg-raised);
+  box-shadow: var(--xtr-shadow);
+}
+
+.xtr-wdt-handle:hover,
+.xtr-wdt-handle:focus-visible {
+  color: var(--xtr-accent);
+  outline: none;
+}
+
+.xtr-wdt-closed .xtr-wdt-bar {
+  display: none;
+}
+
+.xtr-wdt-closed .xtr-wdt-handle {
+  display: flex;
+}
+
+/* ----------------------------------------------------------- one block */
+
+.xtr-toolbar-block {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  border-right: 1px solid var(--xtr-line-soft);
+}
+
+.xtr-toolbar-handle {
+  display: flex;
+  align-items: center;
+  gap: var(--xtr-space-2);
+  height: 100%;
+  padding: 0 var(--xtr-space-4);
+  border: 0;
+  background: transparent;
+  color: var(--xtr-fg);
+  font: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.xtr-toolbar-handle:hover,
+.xtr-toolbar-handle:focus-visible {
+  background: var(--xtr-bg-hover);
+  color: var(--xtr-fg);
+  outline: none;
+  text-decoration: none;
+}
+
+.xtr-toolbar-handle svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  color: var(--xtr-fg-faint);
+}
+
+.xtr-toolbar-value {
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.xtr-toolbar-label {
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.xtr-toolbar-sep {
+  color: var(--xtr-fg-faint);
+  opacity: 0.5;
+}
+
+/* a block's state tints its value and draws a hairline above it */
+
+.xtr-toolbar-block::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: transparent;
+}
+
+.xtr-toolbar-status-green .xtr-toolbar-value {
+  color: var(--xtr-green);
+}
+
+.xtr-toolbar-status-yellow .xtr-toolbar-value {
+  color: var(--xtr-yellow);
+}
+
+.xtr-toolbar-status-red .xtr-toolbar-value {
+  color: var(--xtr-red);
+}
+
+.xtr-toolbar-status-yellow::before {
+  background: var(--xtr-yellow);
+}
+
+.xtr-toolbar-status-red::before {
+  background: var(--xtr-red);
+}
+
+.xtr-toolbar-status-red .xtr-toolbar-handle svg,
+.xtr-toolbar-status-red .xtr-toolbar-handle {
+  color: var(--xtr-red);
+}
+
+/* ------------------------------------------------------------- popover */
+
+/* Fixed, not absolute: the strip of blocks scrolls sideways, and a scrolling box clips what
+   is drawn outside it, a popover above the bar included. The toolbar's script sets
+   --xtr-pop-left to the hovered block's edge, kept on screen. */
+.xtr-toolbar-popover {
+  position: fixed;
+  bottom: var(--xtr-bar);
+  left: var(--xtr-pop-left, var(--xtr-space-3));
+  z-index: 1;
+  display: none;
+  width: max-content;
+  min-width: 260px;
+  max-width: min(var(--xtr-pop-width), calc(100vw - var(--xtr-space-6)));
+  max-height: var(--xtr-pop-height);
+  margin-bottom: var(--xtr-space-1);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--xtr-line);
+  border-radius: var(--xtr-radius);
+  background: var(--xtr-bg-raised);
+  box-shadow: var(--xtr-pop-shadow);
+  text-align: left;
+}
+
+.xtr-toolbar-block:hover > .xtr-toolbar-popover,
+.xtr-toolbar-block:focus-within > .xtr-toolbar-popover {
+  display: block;
+}
+
+.xtr-toolbar-popover-head {
+  position: sticky;
+  top: 0;
+  padding: var(--xtr-space-3) var(--xtr-space-4);
+  border-bottom: 1px solid var(--xtr-line-soft);
+  background: var(--xtr-bg-sunken);
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.xtr-toolbar-popover-body {
+  padding: var(--xtr-space-3) var(--xtr-space-4) var(--xtr-space-4);
+}
+
+/* -------------------------------------------------- popover furniture */
+
+.xtr-toolbar-rows {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--xtr-space-2) var(--xtr-space-4);
+  align-items: baseline;
+}
+
+.xtr-toolbar-rows dt {
+  margin: 0;
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.xtr-toolbar-rows dd {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.xtr-toolbar-note {
+  margin: var(--xtr-space-3) 0 0;
+  color: var(--xtr-fg-dim);
+  font-size: var(--xtr-text-sm);
+  line-height: 1.5;
+}
+
+.xtr-toolbar-note:first-child {
+  margin-top: 0;
+}
+
+.xtr-toolbar-popover a {
+  color: var(--xtr-accent);
+  text-decoration: none;
+}
+
+.xtr-toolbar-popover a:hover {
+  text-decoration: underline;
+}
+
+.xtr-toolbar-popover table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--xtr-text-sm);
+}
+
+.xtr-toolbar-popover th {
+  padding: var(--xtr-space-2) var(--xtr-space-3);
+  border-bottom: 1px solid var(--xtr-line);
+  color: var(--xtr-fg-faint);
+  font-size: var(--xtr-text-xs);
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.xtr-toolbar-popover td {
+  padding: var(--xtr-space-2) var(--xtr-space-3);
+  border-bottom: 1px solid var(--xtr-line-soft);
+  font-family: var(--xtr-mono);
+  vertical-align: top;
+}
+
+.xtr-toolbar-popover tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.xtr-toolbar-popover tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.xtr-toolbar-empty td {
+  color: var(--xtr-fg-faint);
+  font-family: var(--xtr-font);
+  font-style: italic;
+}
+
+.xtr-ajax-url {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xtr-s-ok {
+  color: var(--xtr-green);
+}
+
+.xtr-s-warn {
+  color: var(--xtr-yellow);
+}
+
+.xtr-s-error {
+  color: var(--xtr-red);
+}
+
+.xtr-wdt code {
+  padding: 0 var(--xtr-space-1);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+}
+
+/* ---------------------------------------------------- a dumped value */
+
+.xtr-wdt .xtr-dump {
+  margin: var(--xtr-space-1) 0;
+  font-family: var(--xtr-mono);
+  font-size: var(--xtr-text-sm);
+  line-height: 1.6;
+}
+
+.xtr-wdt .xtr-dump > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--xtr-fg-dim);
+}
+
+.xtr-wdt .xtr-dump > summary::-webkit-details-marker {
+  display: none;
+}
+
+.xtr-wdt .xtr-dump > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--xtr-fg-dim);
+}
+
+.xtr-wdt .xtr-dump[open] > summary::before {
+  content: "▾";
+}
+
+.xtr-wdt .xtr-dump > ul {
+  margin: 0;
+  padding: 0 0 0 var(--xtr-space-5);
+  border-left: 1px solid var(--xtr-line);
+  list-style: none;
+}
+
+.xtr-wdt .xtr-dump > ul > li {
+  margin: 0;
+  padding: 0;
+}
+
+/* A value that is itself a tree stays on the line of the key it belongs to. */
+.xtr-wdt .xtr-dump li > .xtr-dump {
+  display: inline-block;
+  vertical-align: top;
+}
+
+.xtr-wdt .xtr-dump-type {
+  color: var(--xtr-violet);
+}
+
+.xtr-wdt .xtr-dump-count {
+  color: var(--xtr-fg-faint);
+}
+
+.xtr-wdt .xtr-dump-key {
+  color: var(--xtr-accent);
+}
+
+.xtr-wdt .xtr-dump-arrow {
+  color: var(--xtr-fg-faint);
+}
+
+.xtr-wdt .xtr-dump-str {
+  color: var(--xtr-green);
+  overflow-wrap: anywhere;
+}
+
+.xtr-wdt .xtr-dump-bytes {
+  color: var(--xtr-yellow);
+  overflow-wrap: anywhere;
+}
+
+.xtr-wdt .xtr-dump-number {
+  color: var(--xtr-accent);
+}
+
+.xtr-wdt .xtr-dump-bool {
+  color: var(--xtr-violet);
+}
+
+.xtr-wdt .xtr-dump-null {
+  color: var(--xtr-fg-faint);
+  font-style: italic;
+}
+
+.xtr-wdt .xtr-dump-scalar {
+  color: var(--xtr-fg);
+}
+
+.xtr-wdt .xtr-dump-cut {
+  color: var(--xtr-red);
+  font-style: italic;
+}
+
+.xtr-wdt .xtr-dump-more {
+  color: var(--xtr-fg-faint);
+  font-style: italic;
+}
+
+/* --------------------------------------------------------- narrow views */
+
+@media (max-width: 720px) {
+  .xtr-wdt .xtr-toolbar-popover {
+    position: fixed;
+    right: var(--xtr-space-3);
+    bottom: var(--xtr-bar);
+    left: var(--xtr-space-3);
+    width: auto;
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xtr-wdt * {
+    transition: none !important;
+  }
+}
+
+@media print {
+  .xtr-wdt {
+    display: none !important;
+  }
+}

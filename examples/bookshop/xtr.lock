@@ -29,7 +29,7 @@
     "env": [],
     "files": {},
     "gitignore": [],
-    "recipe": "15ab94d6b6675f86139a670c56b4ca288adde40a5f35b7dcedddeecbe789720a"
+    "recipe": "e6bb565be1d2be43f4da00ab31546e557318d3d07a1dafb318adc06d40e1ed97"
   },
   "xtr-dotenv": {
     "bundles": {
@@ -215,6 +215,20 @@
       "/var/storage/"
     ],
     "recipe": "ee91d0d685fcbead4303f4c9383a2f15fe2a270b6b0dcec582f69458227af982"
+  },
+  "xtr-web-profiler": {
+    "bundles": {
+      "xtr_web_profiler.bundle:WebProfilerBundle": "listed"
+    },
+    "env": [],
+    "files": {
+      "src/bookshop/config/routes/dev/web_profiler.py": {
+        "adopted": false,
+        "sha256": "86590b1f05ea091c2e68d9a3f96ab5642774745ff854ef6bc34bfcbf86c4d22e"
+      }
+    },
+    "gitignore": [],
+    "recipe": "7f55bf4ca96d5203c3d9faae8e211989abe6255a1c3538f29b0b2acd532b2f29"
   },
   "xtr-webhook": {
     "bundles": {

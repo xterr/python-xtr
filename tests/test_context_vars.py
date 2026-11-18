@@ -43,6 +43,10 @@ CLASSIFIED: dict[str, Kind] = {
     "xtr_event_dispatcher.debug.traceable_event_dispatcher:TraceableEventDispatcher._unit": (
         "per-unit"
     ),
+    # The entries a library's collector records for the profiled request under way.
+    "xtr_http_kernel.data_collector.request_trace:RequestTrace._current": "per-unit",
+    # Whether the request under way is profiled.
+    "xtr_http_kernel.profiler.profiler:Profiler._switch": "per-unit",
     # The logging context bound to the unit it was bound in.
     "xtr_logging.log_context:_CONTEXT": "per-unit",
     # The log unit open in this context.
@@ -68,6 +72,8 @@ CLASSIFIED: dict[str, Kind] = {
     # Set and reset with its token around one mapping declaration or one refusal collection.
     "xtr_serializer.mapping._declaration_sites:_DECLARING": "per-call",
     "xtr_serializer.mapping._deferred_refusals:_KEPT": "per-call",
+    # What the unit of work under way has timed.
+    "xtr_stopwatch.stopwatch:Stopwatch._activity": "per-unit",
     # The subjects whose locks the call under way holds, set and reset with its token.
     "xtr_workflow._subject_locks:_HELD": "per-call",
 }
@@ -139,8 +145,12 @@ def _imports(tree: ast.Module) -> dict[str, str]:
     return names
 
 
-_INSTANCE = "an instance's detached_variable"
-"""Where a per-instance declaration is said to live: only one class declares one."""
+type _Function = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _instance(class_name: str) -> str:
+    """Where the ``detached_variable`` every instance of ``class_name`` declares is said to live."""
+    return f"an instance of {class_name}"
 
 
 def _declarations(module: str, tree: ast.Module, imported: Mapping[str, str]) -> dict[str, str]:
@@ -151,7 +161,12 @@ def _declarations(module: str, tree: ast.Module, imported: Mapping[str, str]) ->
         if name not in _DECLARED_NAMES or not isinstance(value, ast.Tuple) or not value.elts:
             continue
         first = value.elts[0]
-        where = _INSTANCE if name == "detached_variable" else module
+        if name == "detached_variable":
+            if owner is None:
+                continue
+            where = _instance(owner)
+        else:
+            where = module
         if isinstance(first, ast.Name):
             declared[where] = imported.get(first.id, f"{module}:{first.id}")
         elif isinstance(first, ast.Attribute) and owner is not None:
@@ -162,12 +177,14 @@ def _declarations(module: str, tree: ast.Module, imported: Mapping[str, str]) ->
 def _registrations(module: str, tree: ast.Module, imported: Mapping[str, str]) -> Iterator[str]:
     """Yield what each ``register_detached_variable`` call of ``tree`` registers.
 
-    A variable it names, or where the declaration it star-unpacks lives.
+    A variable it names — ``self.<name>`` inside a class naming that class's own —, or where
+    the declaration it star-unpacks lives: a module's ``DETACHED_VARIABLE``, or the
+    ``detached_variable`` of an instance whose class the enclosing function names, by the
+    parameter's annotation or the call building it.
     """
-    for node in ast.walk(tree):
+    for owner, function, node in _calls(tree):
         if not (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
+            isinstance(node.func, ast.Name)
             and node.func.id == "register_detached_variable"
             and node.args
         ):
@@ -175,12 +192,58 @@ def _registrations(module: str, tree: ast.Module, imported: Mapping[str, str]) -
         argument = node.args[0]
         if isinstance(argument, ast.Name):
             yield imported.get(argument.id, f"{module}:{argument.id}")
+        elif (
+            isinstance(argument, ast.Attribute)
+            and isinstance(argument.value, ast.Name)
+            and argument.value.id == "self"
+            and owner is not None
+        ):
+            yield f"{module}:{owner}.{argument.attr}"
         elif isinstance(argument, ast.Starred) and isinstance(argument.value, ast.Attribute):
             held = argument.value
-            if held.attr == "detached_variable":
-                yield _INSTANCE
+            if held.attr == "detached_variable" and isinstance(held.value, ast.Name):
+                class_name = None if function is None else _class_of(function, held.value.id)
+                if class_name is not None:
+                    yield _instance(class_name)
             elif held.attr == "DETACHED_VARIABLE" and isinstance(held.value, ast.Name):
                 yield imported.get(held.value.id, held.value.id).replace(":", ".")
+
+
+def _calls(tree: ast.Module) -> Iterator[tuple[str | None, _Function | None, ast.Call]]:
+    """Yield ``(enclosing class, enclosing function, call)`` for every call in ``tree``."""
+
+    def walk(
+        node: ast.AST, owner: str | None, function: _Function | None
+    ) -> Iterator[tuple[str | None, _Function | None, ast.Call]]:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                yield from walk(child, child.name, None)
+                continue
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                yield from walk(child, owner, child)
+                continue
+            if isinstance(child, ast.Call):
+                yield owner, function, child
+            yield from walk(child, owner, function)
+
+    return walk(tree, None, None)
+
+
+def _class_of(function: _Function, name: str) -> str | None:
+    """Name the class ``name`` holds in ``function``: its annotation, or the call building it."""
+    arguments = function.args
+    for argument in (*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs):
+        if argument.arg == name and isinstance(argument.annotation, ast.Name):
+            return argument.annotation.id
+    for node in ast.walk(function):
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and any(isinstance(target, ast.Name) and target.id == name for target in node.targets)
+        ):
+            return node.value.func.id
+    return None
 
 
 def collect(root: Path) -> tuple[set[str], set[str]]:
@@ -276,6 +339,58 @@ def test_a_registered_declaration_makes_its_variable_detached(tmp_path: Path) ->
     found, detached = collect(tmp_path)
 
     assert problems(found, detached, {"xtr_scratch.state:_unit": "per-unit"}) == []
+
+
+_TWO_CLASSES = (
+    "from contextvars import ContextVar\n"
+    "class First:\n"
+    "    def __init__(self):\n"
+    '        self._unit = ContextVar("f", default=None)\n'
+    "        self.detached_variable = (self._unit, None)\n"
+    "class Second:\n"
+    "    def __init__(self):\n"
+    '        self._unit = ContextVar("s", default=None)\n'
+    "        self.detached_variable = (self._unit, None)\n"
+)
+
+
+def test_an_instance_declaration_is_detached_by_a_registration_naming_its_class(
+    tmp_path: Path,
+) -> None:
+    _tree(tmp_path, "xtr_scratch.state", _TWO_CLASSES)
+    _tree(
+        tmp_path,
+        "xtr_scratch.bundle",
+        "from xtr_scratch.state import First\n"
+        "def first(built: First):\n"
+        "    register_detached_variable(*built.detached_variable)\n",
+    )
+
+    found, detached = collect(tmp_path)
+
+    classified: dict[str, Kind] = {
+        "xtr_scratch.state:First._unit": "per-unit",
+        "xtr_scratch.state:Second._unit": "per-unit",
+    }
+    assert problems(found, detached, classified) == [
+        "per-unit but not detached: xtr_scratch.state:Second._unit"
+    ]
+
+
+def test_a_class_registering_its_own_variable_detaches_it(tmp_path: Path) -> None:
+    _tree(
+        tmp_path,
+        "xtr_scratch.state",
+        "from contextvars import ContextVar\n"
+        "class Trace:\n"
+        "    def __init__(self):\n"
+        '        self._unit = ContextVar("t", default=None)\n'
+        "        register_detached_variable(self._unit, None)\n",
+    )
+
+    found, detached = collect(tmp_path)
+
+    assert problems(found, detached, {"xtr_scratch.state:Trace._unit": "per-unit"}) == []
 
 
 def test_a_stale_entry_fails(tmp_path: Path) -> None:

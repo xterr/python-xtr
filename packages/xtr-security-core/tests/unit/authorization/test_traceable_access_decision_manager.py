@@ -20,7 +20,7 @@ from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user import InMemoryUser
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from xtr_security_core.authentication.token.token_interface import TokenInterface
     from xtr_security_core.authorization.voter import Vote
@@ -202,3 +202,57 @@ async def test_a_decision_asked_during_one_is_logged_and_joins_its_record() -> N
     assert [entry["attributes"] for entry in log] == [("ROLE_USER",), ("OUTER",)]
     # The nested decision's grant — affirmative stops there — then the asking voter's own.
     assert len(decision.votes) == 2
+
+
+@pytest.mark.anyio
+async def test_a_recorder_hears_each_finished_decision_with_its_votes_and_strategy() -> None:
+    voter = _ReportingVoter()
+    recorded: list[Mapping[str, object]] = []
+    traceable = TraceableAccessDecisionManager(AccessDecisionManager([voter]), recorded.append)
+    voter.traceable = traceable
+
+    _ = await traceable.decide(_token(), ["ROLE_ADMIN"], "subject")
+
+    assert recorded == [
+        {
+            "attributes": ("ROLE_ADMIN",),
+            "object": "subject",
+            "voter_details": [
+                {
+                    "voter": voter,
+                    "attributes": ("ROLE_ADMIN",),
+                    "vote": Access.DENIED,
+                    "reasons": ("a reason",),
+                },
+            ],
+            "result": False,
+            "strategy": "affirmative",
+        },
+    ]
+
+
+@pytest.mark.anyio
+async def test_a_recorder_hears_a_failed_decision_without_a_result() -> None:
+    recorded: list[Mapping[str, object]] = []
+    traceable = TraceableAccessDecisionManager(
+        AccessDecisionManager([RoleVoter()]), recorded.append
+    )
+
+    with pytest.raises(InvalidArgumentError):
+        _ = await traceable.decide(_token(), ["ROLE_A", "ROLE_B"])
+
+    (entry,) = recorded
+    assert "result" not in entry
+
+
+@pytest.mark.anyio
+async def test_a_recorder_leaves_the_log_unchanged() -> None:
+    recorded: list[Mapping[str, object]] = []
+    traceable = TraceableAccessDecisionManager(
+        AccessDecisionManager([RoleVoter()]), recorded.append
+    )
+
+    _ = await traceable.decide(_token(), ["ROLE_USER"])
+
+    (entry,) = traceable.get_decision_log()
+    assert "strategy" not in entry

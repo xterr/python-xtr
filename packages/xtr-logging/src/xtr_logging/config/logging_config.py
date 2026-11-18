@@ -179,6 +179,21 @@ class LoggingConfig(msgspec.Struct, frozen=True, kw_only=True, forbid_unknown_fi
             return self
         return msgspec.structs.replace(self, channels=(*self.channels, *added))
 
+    def with_handler(self, name: str, handler: HandlerConfig) -> LoggingConfig:
+        """Return a copy that holds ``handler`` under ``name`` as well.
+
+        A name the application already gave a handler is left to the
+        application's: the copy is this very config. This is how a bundle adds
+        a handler of its own from ``prepend_extension``::
+
+            builder.prepend_extension_config(
+                LoggingConfig, lambda c: c.with_handler("audit", ServiceHandlerConfig(id="audit"))
+            )
+        """
+        if name in self.handlers:
+            return self
+        return msgspec.structs.replace(self, handlers={**self.handlers, name: handler})
+
     @property
     def all_channels(self) -> tuple[str, ...]:
         """Every declared channel: the default, the listed, then those named by handlers."""

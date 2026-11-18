@@ -75,6 +75,7 @@ def test_it_reads_every_entry_an_application_lists() -> None:
         "xtr_clock.bundle:ClockBundle",
         "xtr_remote_event.bundle:RemoteEventBundle",
         "xtr_security.bundle:SecurityBundle",
+        "xtr_web_profiler.bundle:WebProfilerBundle",
     ]
 
 

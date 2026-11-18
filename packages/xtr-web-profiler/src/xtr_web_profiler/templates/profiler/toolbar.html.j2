@@ -1,0 +1,64 @@
+{#
+  The toolbar itself, fetched by the loader and put into its placeholder.
+
+  Every collector's own `toolbar` block is already rendered, in panel order;
+  the tail links to the full profile and minimises the bar. Whether the bar
+  is open is remembered in the browser, so it stays as it was left from page
+  to page.
+#}
+<div class="xtr-wdt-bar" data-xtr-toolbar role="region" aria-label="Development toolbar">
+  <div class="xtr-wdt-items">
+    {% for item in items %}
+    {{ item.html }}
+    {% endfor %}
+  </div>
+  <div class="xtr-wdt-tail">
+    <a class="xtr-wdt-token" href="{{ profiler_url }}" title="{{ profile.method }} {{ profile.url }} — open the profile {{ token }}">
+      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 8h3l1.6-4 2.8 8L11 8h3"></path>
+      </svg>
+      <span>{{ token }}</span>
+      {% if profile.has_errors %}
+      <span class="xtr-wdt-errors" title="Something raised, or an error was logged"></span>
+      {% endif %}
+    </a>
+    <button type="button" class="xtr-wdt-toggle" data-xtr-toggle aria-expanded="true" aria-label="Minimise the development toolbar" title="Minimise the development toolbar">
+      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6l4 4 4-4"></path>
+      </svg>
+    </button>
+  </div>
+</div>
+<button type="button" class="xtr-wdt-handle" data-xtr-toggle aria-expanded="false" aria-label="Show the development toolbar" title="Show the development toolbar">
+  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 10l4-4 4 4"></path>
+  </svg>
+</button>
+<script nonce="{{ csp_script_nonce }}">
+(function () {
+  "use strict";
+  var token = {{ token|tojson }};
+  var root = document.querySelector('.xtr-wdt[data-xtr-token="' + token + '"]');
+  if (!root) {
+    return;
+  }
+  if (window.XtrProfiler) {
+    window.XtrProfiler.bindToolbar(root);
+    window.XtrProfiler.renderAjax();
+    return;
+  }
+  /* Fetched on its own, with no loader on the page: the bar still folds away. */
+  if (root.getAttribute("data-xtr-bound") === "1") {
+    return;
+  }
+  root.setAttribute("data-xtr-bound", "1");
+  root.addEventListener("click", function (event) {
+    var button = event.target && event.target.closest ? event.target.closest("[data-xtr-toggle]") : null;
+    if (!button || !root.contains(button)) {
+      return;
+    }
+    event.preventDefault();
+    root.classList.toggle("xtr-wdt-closed");
+  });
+})();
+</script>

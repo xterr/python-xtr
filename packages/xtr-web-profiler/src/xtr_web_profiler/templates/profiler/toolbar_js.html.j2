@@ -1,0 +1,454 @@
+{#
+  What is drawn into every profiled page, just before its closing body tag.
+
+  It leaves an empty placeholder behind, loads the toolbar's stylesheet, and
+  fetches the toolbar itself once the page is up — the profile is written a
+  moment after the response starts, so a missing one is asked for again on a
+  short, widening schedule. The same script watches the requests the page
+  makes afterwards, so each one is listed in the toolbar with the profile its
+  response names.
+#}
+<div id="xtr-wdt-{{ token }}" class="xtr-wdt" data-xtr-token="{{ token }}" hidden></div>
+{# The style nonce: a page whose policy names nonces ignores 'unsafe-inline' and 'self'
+   alone does not cover every policy, so the stylesheet carries the nonce it was given. #}
+<link rel="stylesheet" href="{{ stylesheet_url }}"{% if csp_style_nonce %} nonce="{{ csp_style_nonce }}"{% endif %}>
+<script nonce="{{ csp_script_nonce }}">
+(function () {
+  "use strict";
+
+  var TOKEN = {{ token|tojson }};
+  var TOOLBAR_URL = {{ toolbar_url|tojson }};
+  var CONFIG = {
+    profilerUrl: {{ profiler_url|tojson }},
+    stylesheetUrl: {{ stylesheet_url|tojson }},
+    scriptNonce: {{ csp_script_nonce|tojson }},
+    styleNonce: {{ csp_style_nonce|tojson }},
+    excludedAjaxPaths: {{ excluded_ajax_paths|tojson }},
+    ajaxReplace: {{ ajax_replace|tojson }}
+  };
+
+  var STATE_KEY = "xtr/profiler/toolbar";
+  var SCRIPT_NONCE_HEADER = "X-Profiler-Script-Nonce";
+  var STYLE_NONCE_HEADER = "X-Profiler-Style-Nonce";
+  var TOKEN_HEADER = "x-debug-token";
+  var LINK_HEADER = "x-debug-token-link";
+  var REPLACE_HEADER = "x-debug-toolbar-replace";
+  var RETRY_DELAYS = [250, 750, 1250, 1750];
+  var RETRY_AFTERWARDS = 1000;
+  var MAX_TRIES = 10;
+  var NOT_FOUND = 404;
+  var CLIENT_ERROR = 400;
+  var REDIRECTION = 300;
+
+  if (!window.XtrProfiler) {
+    window.XtrProfiler = buildApi();
+  }
+  if (!window.XtrProfilerRequestStack) {
+    window.XtrProfilerRequestStack = [];
+    watchRequests();
+  }
+  window.XtrProfiler.loadToolbar(TOKEN, TOOLBAR_URL);
+
+  /* ------------------------------------------------------------- the api */
+
+  function buildApi() {
+    var api = {
+      config: CONFIG,
+      /* The window's own fetch, kept before it is wrapped, so loading the
+         toolbar is never listed as one of the page's own requests. */
+      fetch: typeof window.fetch === "function" ? window.fetch.bind(window) : null,
+      excluded: null,
+      loadToolbar: loadToolbar,
+      renderAjax: renderAjax,
+      bindToolbar: bindToolbar,
+      applyState: applyState,
+      readState: readState,
+      writeState: writeState,
+      toolbarUrlFor: toolbarUrlFor
+    };
+    try {
+      api.excluded = new RegExp(CONFIG.excludedAjaxPaths);
+    } catch (error) {
+      api.excluded = null;
+    }
+    return api;
+  }
+
+  /* -------------------------------------------------- loading the toolbar */
+
+  function loadToolbar(token, toolbarUrl) {
+    var holder = document.getElementById("xtr-wdt-" + token);
+    var tries = 0;
+    if (!holder || !window.XtrProfiler.fetch) {
+      return;
+    }
+
+    function retry() {
+      if (tries >= MAX_TRIES) {
+        return;
+      }
+      var index = tries - 1;
+      var delay = index < RETRY_DELAYS.length ? RETRY_DELAYS[index] : RETRY_AFTERWARDS;
+      window.setTimeout(attempt, delay);
+    }
+
+    function attempt() {
+      var headers = {};
+      headers[SCRIPT_NONCE_HEADER] = CONFIG.scriptNonce;
+      headers[STYLE_NONCE_HEADER] = CONFIG.styleNonce;
+      tries = tries + 1;
+      window.XtrProfiler.fetch(toolbarUrl, {
+        headers: headers,
+        credentials: "same-origin"
+      }).then(function (response) {
+        if (response.status === NOT_FOUND) {
+          retry();
+          return null;
+        }
+        return response.ok ? response.text() : null;
+      }).then(function (html) {
+        if (typeof html === "string") {
+          draw(holder, html);
+        }
+      }).catch(function () {
+        retry();
+      });
+    }
+
+    attempt();
+  }
+
+  function draw(holder, html) {
+    holder.innerHTML = html;
+    runScripts(holder);
+    // The hidden attribute rather than a style attribute: a page's policy forbids inline
+    // style attributes, whatever nonce it allows.
+    holder.hidden = false;
+    bindToolbar(holder);
+    renderAjax();
+  }
+
+  /* A script put in place as markup never runs: each one is replaced by a
+     fresh element carrying the page's nonce, which does. */
+  function runScripts(root) {
+    var found = root.getElementsByTagName("script");
+    var scripts = [];
+    var index;
+    for (index = 0; index < found.length; index = index + 1) {
+      scripts.push(found[index]);
+    }
+    for (index = 0; index < scripts.length; index = index + 1) {
+      var stale = scripts[index];
+      var fresh = document.createElement("script");
+      if (CONFIG.scriptNonce) {
+        fresh.setAttribute("nonce", CONFIG.scriptNonce);
+        fresh.nonce = CONFIG.scriptNonce;
+      }
+      if (stale.type) {
+        fresh.type = stale.type;
+      }
+      fresh.textContent = stale.textContent;
+      if (stale.parentNode) {
+        stale.parentNode.replaceChild(fresh, stale);
+      }
+    }
+  }
+
+  /* ------------------------------------------------------ open or minimised */
+
+  function readState() {
+    try {
+      return window.localStorage.getItem(STATE_KEY) === "closed" ? "closed" : "open";
+    } catch (error) {
+      return "open";
+    }
+  }
+
+  function writeState(state) {
+    try {
+      window.localStorage.setItem(STATE_KEY, state === "closed" ? "closed" : "open");
+    } catch (error) {
+      return;
+    }
+  }
+
+  function applyState(root, state) {
+    var closed = state === "closed";
+    var buttons = root.querySelectorAll("[data-xtr-toggle]");
+    var index;
+    if (closed) {
+      root.classList.add("xtr-wdt-closed");
+    } else {
+      root.classList.remove("xtr-wdt-closed");
+    }
+    for (index = 0; index < buttons.length; index = index + 1) {
+      buttons[index].setAttribute("aria-expanded", closed ? "false" : "true");
+    }
+  }
+
+  function bindToolbar(root) {
+    if (!root || root.getAttribute("data-xtr-bound") === "1") {
+      applyState(root, readState());
+      return;
+    }
+    root.setAttribute("data-xtr-bound", "1");
+    root.addEventListener("click", function (event) {
+      var target = event.target;
+      var button = target && target.closest ? target.closest("[data-xtr-toggle]") : null;
+      if (!button || !root.contains(button)) {
+        return;
+      }
+      event.preventDefault();
+      var next = root.classList.contains("xtr-wdt-closed") ? "open" : "closed";
+      writeState(next);
+      applyState(root, next);
+    });
+    root.addEventListener("mouseover", placePopover);
+    root.addEventListener("focusin", placePopover);
+    applyState(root, readState());
+  }
+
+  /* A popover is drawn fixed above the bar; it is moved under the block it
+     belongs to, as far as the window allows. A custom property set from here
+     is not a style attribute, so a page's policy lets it through. */
+  function placePopover(event) {
+    var target = event.target;
+    var block = target && target.closest ? target.closest(".xtr-toolbar-block") : null;
+    var popover = block ? block.querySelector(".xtr-toolbar-popover") : null;
+    if (!popover) {
+      return;
+    }
+    var margin = 12;
+    var left = block.getBoundingClientRect().left;
+    var width = popover.getBoundingClientRect().width;
+    var widest = document.documentElement.clientWidth - width - margin;
+    popover.style.setProperty("--xtr-pop-left", Math.max(margin, Math.min(left, widest)) + "px");
+  }
+
+  /* --------------------------------------- the requests the page makes */
+
+  function watchRequests() {
+    var nativeFetch = window.fetch;
+    var prototype = window.XMLHttpRequest ? window.XMLHttpRequest.prototype : null;
+
+    if (typeof nativeFetch === "function") {
+      window.fetch = function (input, init) {
+        var url = typeof input === "string" ? input : (input && input.url) || String(input);
+        var method = (init && init.method) || (input && input.method) || "GET";
+        if (!isTracked(url)) {
+          return nativeFetch.apply(this, arguments);
+        }
+        var record = beginRecord(method, url);
+        return nativeFetch.apply(this, arguments).then(function (response) {
+          endRecord(record, response.status, function (name) {
+            try {
+              return response.headers.get(name);
+            } catch (error) {
+              return null;
+            }
+          });
+          return response;
+        }, function (error) {
+          failRecord(record);
+          throw error;
+        });
+      };
+    }
+
+    if (prototype && typeof prototype.open === "function") {
+      var nativeOpen = prototype.open;
+      var nativeSend = prototype.send;
+      prototype.open = function (method, url) {
+        this.XtrProfilerPending = { method: method, url: url };
+        return nativeOpen.apply(this, arguments);
+      };
+      prototype.send = function () {
+        var pending = this.XtrProfilerPending;
+        var xhr = this;
+        if (pending && isTracked(pending.url)) {
+          var record = beginRecord(pending.method, pending.url);
+          xhr.addEventListener("loadend", function () {
+            if (!xhr.status) {
+              failRecord(record);
+              return;
+            }
+            endRecord(record, xhr.status, function (name) {
+              try {
+                return xhr.getResponseHeader(name);
+              } catch (error) {
+                return null;
+              }
+            });
+          });
+        }
+        return nativeSend.apply(this, arguments);
+      };
+    }
+  }
+
+  function isTracked(url) {
+    var excluded = window.XtrProfiler ? window.XtrProfiler.excluded : null;
+    var path;
+    try {
+      path = new URL(String(url), window.location.href).pathname;
+    } catch (error) {
+      path = String(url);
+    }
+    return !(excluded && excluded.test(path));
+  }
+
+  function beginRecord(method, url) {
+    var record = {
+      method: String(method || "GET").toUpperCase(),
+      url: String(url),
+      start: Date.now(),
+      duration: null,
+      status: 0,
+      error: false,
+      profile: null,
+      token: null
+    };
+    window.XtrProfilerRequestStack.push(record);
+    renderAjax();
+    return record;
+  }
+
+  function endRecord(record, status, header) {
+    record.status = status;
+    record.duration = Date.now() - record.start;
+    record.profile = header(LINK_HEADER);
+    record.token = header(TOKEN_HEADER);
+    renderAjax();
+    if (CONFIG.ajaxReplace && header(REPLACE_HEADER) === "1" && record.token) {
+      replaceToolbar(record.token);
+    }
+  }
+
+  function failRecord(record) {
+    record.error = true;
+    record.duration = Date.now() - record.start;
+    renderAjax();
+  }
+
+  /* The toolbar of the page is swapped for the one of the profile a
+     background request's response named, so the bar shows that request. */
+  function replaceToolbar(token) {
+    var holder = document.querySelector(".xtr-wdt[data-xtr-token]");
+    if (!holder || holder.getAttribute("data-xtr-token") === token) {
+      return;
+    }
+    holder.id = "xtr-wdt-" + token;
+    holder.setAttribute("data-xtr-token", token);
+    // The holder keeps its click listener, which reads whatever bar it holds: binding it
+    // again would toggle twice on every click.
+    holder.innerHTML = "";
+    loadToolbar(token, toolbarUrlFor(token));
+  }
+
+  function toolbarUrlFor(token) {
+    try {
+      var parsed = new URL(TOOLBAR_URL, window.location.href);
+      var parts = parsed.pathname.split("/");
+      parts[parts.length - 1] = encodeURIComponent(token);
+      parsed.pathname = parts.join("/");
+      return parsed.toString();
+    } catch (error) {
+      return TOOLBAR_URL;
+    }
+  }
+
+  /* ------------------------------------------- the list in the toolbar */
+
+  function renderAjax() {
+    var stack = window.XtrProfilerRequestStack || [];
+    var counters = document.querySelectorAll("[data-xtr-ajax-count]");
+    var lists = document.querySelectorAll("[data-xtr-ajax-list]");
+    var blocks = document.querySelectorAll('[data-xtr-panel="ajax"]');
+    var failed = false;
+    var index;
+    for (index = 0; index < stack.length; index = index + 1) {
+      if (stack[index].error || stack[index].status >= CLIENT_ERROR) {
+        failed = true;
+      }
+    }
+    for (index = 0; index < counters.length; index = index + 1) {
+      counters[index].textContent = String(stack.length);
+    }
+    for (index = 0; index < lists.length; index = index + 1) {
+      fillList(lists[index], stack);
+    }
+    for (index = 0; index < blocks.length; index = index + 1) {
+      blocks[index].classList.toggle("xtr-toolbar-status-red", failed);
+      blocks[index].classList.toggle("xtr-toolbar-status-normal", !failed);
+    }
+  }
+
+  function fillList(list, stack) {
+    var index;
+    list.textContent = "";
+    if (!stack.length) {
+      list.appendChild(emptyRow());
+      return;
+    }
+    for (index = stack.length - 1; index >= 0; index = index - 1) {
+      list.appendChild(buildRow(stack[index]));
+    }
+  }
+
+  function emptyRow() {
+    var row = document.createElement("tr");
+    var cell = document.createElement("td");
+    row.className = "xtr-toolbar-empty";
+    cell.colSpan = 5;
+    cell.textContent = "No request was sent after the page loaded.";
+    row.appendChild(cell);
+    return row;
+  }
+
+  function buildRow(record) {
+    var row = document.createElement("tr");
+    var url = cell(record.url, "");
+    var status = cell(record.error ? "ERR" : String(record.status || "…"), tone(record));
+    var link = document.createElement("td");
+    row.appendChild(cell(record.method, ""));
+    row.appendChild(status);
+    url.firstChild.className = "xtr-ajax-url";
+    url.firstChild.title = record.url;
+    row.appendChild(url);
+    row.appendChild(cell(record.duration === null ? "…" : record.duration + " ms", ""));
+    if (record.profile) {
+      var anchor = document.createElement("a");
+      anchor.href = record.profile;
+      anchor.target = "_blank";
+      anchor.rel = "noreferrer";
+      anchor.textContent = record.token ? record.token.slice(0, 6) : "profile";
+      link.appendChild(anchor);
+    } else {
+      link.textContent = "—";
+    }
+    row.appendChild(link);
+    return row;
+  }
+
+  function cell(text, className) {
+    var holder = document.createElement("td");
+    var span = document.createElement("span");
+    span.textContent = String(text);
+    if (className) {
+      span.className = className;
+    }
+    holder.appendChild(span);
+    return holder;
+  }
+
+  function tone(record) {
+    if (record.error || record.status >= CLIENT_ERROR) {
+      return "xtr-s-error";
+    }
+    if (record.status >= REDIRECTION) {
+      return "xtr-s-warn";
+    }
+    return "xtr-s-ok";
+  }
+})();
+</script>

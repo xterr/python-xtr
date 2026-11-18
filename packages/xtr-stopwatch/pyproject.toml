@@ -1,0 +1,136 @@
+[project]
+name = "xtr-stopwatch"
+version = "7.0.0"
+description = "Times what code does, in named events grouped by category and nested in sections, kept apart for every concurrent unit of work."
+readme = "README.md"
+requires-python = ">=3.14.4"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Xterr", email = "me@xterr.dev" }
+]
+keywords = ["stopwatch", "timing", "profiling", "performance", "timeline"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Debuggers",
+    "Typing :: Typed",
+]
+dependencies = [
+    "xtr-clock>=7.0,<8",
+]
+
+[dependency-groups]
+dev = [
+    "anyio>=4.10",
+    "basedpyright>=1.31.7",
+    "ruff>=0.14.7",
+    "pytest>=8.4",
+    "pytest-cov>=7.1",
+    "ty>=0.0.83",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+# ─────────────────────────────────────────────────────────────────
+# basedpyright — typeCheckingMode = "all" sets every report flag to error
+# ─────────────────────────────────────────────────────────────────
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.14"
+pythonPlatform = "All"
+include = ["src", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
+
+reportUnusedCallResult = "warning"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnusedVariable = "error"
+reportMissingParameterType = "error"
+reportPrivateUsage = "error"
+
+# An error message long enough to be useful has to wrap, and a 100-column
+# limit puts the break inside the string.
+reportImplicitStringConcatenation = "none"
+
+# ─────────────────────────────────────────────────────────────────
+# ruff — select = ["ALL"], minimal justified ignores
+# ─────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Formatter conflicts (ruff documents these)
+    "COM812",
+    "ISC001",
+    # Mutually-exclusive docstring conventions; keep the modern one
+    "D203",
+    "D213",
+    # Project-specific noise
+    "CPY001",
+    "FBT001",
+    "FBT002",
+    "TD002",
+    "TD003",
+    "FIX002",
+    # Exceptions compose their own messages from typed fields; the string at a
+    # raise site is a `reason` data field. See xtr_stopwatch/exception/.
+    "TRY003",
+    "EM101",
+    "EM102",
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",    # assert is the point of pytest
+    "ARG",     # fixtures look unused
+    "PLR2004", # magic numbers in test data
+    "SLF001",  # tests reach into privates
+    "D",       # test names are the docs
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+# ─────────────────────────────────────────────────────────────────
+# ty — a second opinion on the source
+# ─────────────────────────────────────────────────────────────────
+[tool.ty.src]
+include = ["src", "tests"]
+
+# ─────────────────────────────────────────────────────────────────
+# pytest
+# ─────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-config", "--strict-markers"]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+# CI runs the tests with --cov; a change taking coverage below this fails there.
+fail_under = 97
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "^\\s*\\.\\.\\.$",
+]

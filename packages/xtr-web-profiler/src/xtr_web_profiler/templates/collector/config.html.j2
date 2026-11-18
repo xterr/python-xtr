@@ -1,0 +1,167 @@
+{#
+  What the application runs on: the interpreter, the kernel's settings, the
+  bundles it listed and the packages installed beside them.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set environment = collector.data.get("environment") or "?" %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M6.6 2.4h2.8a2 2 0 0 1 2 2v2.4h-6V4.4a2 2 0 0 1 1.2-2z"></path>
+  <path d="M9.4 13.6H6.6a2 2 0 0 1-2-2V9.2h6v2.4a2 2 0 0 1-1.2 2z"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ collector.data.get("python_version") or "?" }}</span>
+<span class="xtr-toolbar-sep">·</span>
+<span class="xtr-toolbar-value">{{ environment }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Version</dt><dd>{{ collector.data.get("python_version") or "—" }}</dd>
+  <dt>Built as</dt><dd>{{ collector.data.get("python_implementation") or "—" }}</dd>
+  <dt>Platform</dt><dd>{{ collector.data.get("platform") or "—" }}</dd>
+  <dt>Environment</dt><dd>{{ environment }}</dd>
+  <dt>Debug</dt><dd>{{ "on" if collector.data.get("debug") else "off" }}</dd>
+  <dt>Bundles</dt><dd>{{ (collector.data.get("bundles") or {})|length }}</dd>
+</dl>
+{% if environment == "prod" %}
+<p class="xtr-toolbar-note">
+  This is the production environment: every profile holds the headers,
+  cookies and state of a request, readable by whoever reaches these pages.
+</p>
+{% endif %}
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status="yellow" if environment == "prod" else "normal") }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M6.6 2.4h2.8a2 2 0 0 1 2 2v2.4h-6V4.4a2 2 0 0 1 1.2-2z"></path>
+  <path d="M9.4 13.6H6.6a2 2 0 0 1-2-2V9.2h6v2.4a2 2 0 0 1-1.2 2z"></path>
+</svg>
+<span class="xtr-menu-label">Configuration</span>
+<span class="xtr-menu-count">{{ (collector.data.get("packages") or {})|length }}</span>
+{% endblock %}
+
+{% block panel %}
+{% set data = collector.data %}
+{% set environment = data.get("environment") or "?" %}
+{% set server = data.get("server") %}
+<h1 class="xtr-panel-title">Configuration</h1>
+<section class="xtr-card">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">Runtime</h2>
+  </header>
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Version</td><td class="xtr-cell-mono">{{ data.get("python_version") or "—" }}</td></tr>
+        <tr><td>Built as</td><td class="xtr-cell-mono">{{ data.get("python_implementation") or "—" }}</td></tr>
+        <tr><td>Platform</td><td class="xtr-cell-mono">{{ data.get("platform") or "—" }}</td></tr>
+        <tr>
+          <td>Served from</td>
+          <td class="xtr-cell-mono">{{ server|join(":") if server else "not reported" }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="xtr-card">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">Kernel</h2>
+    {% if environment == "prod" %}
+    <span class="xtr-badge xtr-badge-yellow">production</span>
+    {% endif %}
+  </header>
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Environment</td><td class="xtr-cell-mono">{{ environment }}</td></tr>
+        <tr>
+          <td>Debug</td>
+          <td>
+            {% if data.get("debug") %}
+            <span class="xtr-badge xtr-badge-green">on</span>
+            {% else %}
+            <span class="xtr-badge">off</span>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    {% if environment == "prod" %}
+    <p class="xtr-card-note">
+      The profiler is active in the production environment. Every profile
+      holds a request's headers, cookies and state, readable by whoever
+      reaches these pages — list this bundle for the development environment
+      only.
+    </p>
+    {% endif %}
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">Bundles</h2>
+    <div class="xtr-card-tail">
+      <input class="xtr-filter" type="search" placeholder="Filter these bundles…" aria-label="Filter the bundles shown" data-xtr-filter="xtr-config-bundles" data-xtr-filter-count="xtr-config-bundles-count">
+      <span class="xtr-card-note" id="xtr-config-bundles-count">{{ (data.get("bundles") or {})|length }} of {{ (data.get("bundles") or {})|length }}</span>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    {% if data.get("bundles") %}
+    <div class="xtr-scroll">
+      <table class="xtr-table" id="xtr-config-bundles">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Class</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for name, klass in (data.get("bundles")|dictsort) %}
+          <tr>
+            <td class="xtr-cell-mono">{{ name }}</td>
+            <td class="xtr-cell-mono xtr-break">{{ klass }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="xtr-empty">No bundle was listed.</p>
+    {% endif %}
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">Packages</h2>
+    <div class="xtr-card-tail">
+      <input class="xtr-filter" type="search" placeholder="Filter these packages…" aria-label="Filter the packages shown" data-xtr-filter="xtr-config-packages" data-xtr-filter-count="xtr-config-packages-count">
+      <span class="xtr-card-note" id="xtr-config-packages-count">{{ (data.get("packages") or {})|length }} of {{ (data.get("packages") or {})|length }}</span>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    {% if data.get("packages") %}
+    <div class="xtr-scroll">
+      <table class="xtr-table" id="xtr-config-packages">
+        <thead>
+          <tr>
+            <th scope="col">Package</th>
+            <th scope="col">Version</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for name, version in (data.get("packages")|dictsort) %}
+          <tr>
+            <td class="xtr-cell-mono">{{ name }}</td>
+            <td class="xtr-cell-mono">{{ version }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="xtr-empty">No package of the framework was found installed.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -285,10 +285,11 @@ is handed — the `token`, its `user`, `is_granted(...)` for a nested question, 
 `is_authenticated()`, `is_authenticated_fully()`, `is_authenticated_recently()`,
 `is_authenticated_very_recently()` and `is_impersonator()` shortcuts.
 
-**`TraceableAccessDecisionManager(manager)`** decorates a decision manager to log every decision:
+**`TraceableAccessDecisionManager(manager, recorder=None)`** decorates a decision manager to log every decision:
 its attributes, subject, result, and the votes fed to it through `add_voter_vote(...)`; read them
 back with `get_decision_log()`, `get_voters()` and `get_strategy()`, and `reset()` between units
-of work.
+of work. A `recorder`, when given, is called with each decision as it finishes — its log entry
+plus the `strategy` that decided it — so tooling can keep the decisions elsewhere.
 
 ### Role hierarchy and wildcards
 

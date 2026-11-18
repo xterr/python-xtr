@@ -209,7 +209,9 @@ modules = [
   "packages/xtr-service-contracts/src/xtr_service_contracts",
   "packages/xtr-slack-notifier/src/xtr_slack_notifier",
   "packages/xtr-storage/src/xtr_storage",
+  "packages/xtr-stopwatch/src/xtr_stopwatch",
   "packages/xtr-telegram-notifier/src/xtr_telegram_notifier",
+  "packages/xtr-web-profiler/src/xtr_web_profiler",
   "packages/xtr-webhook/src/xtr_webhook",
   "packages/xtr-workflow/src/xtr_workflow",
 ]

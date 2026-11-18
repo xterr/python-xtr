@@ -68,6 +68,12 @@ always wins: `APP_ENV=prod uv run bookshop di:show`, `APP_ENV=test uv run booksh
 same markers a command uses. `uv run fastapi dev src/bookshop/web/app.py` serves the very same
 application with reloading and `/docs`, once the framework's `standard` extra is installed.
 
+In `dev`, xtr-web-profiler profiles every request: the debug toolbar sits at the foot of every
+HTML page — open <http://127.0.0.1:8080/docs> — each response names its profile in
+`X-Debug-Token-Link`, and <http://127.0.0.1:8080/_profiler/latest> shows the last request's
+profile, with the search for the others. It is a development dependency, listed for `dev` only,
+so no other environment has it.
+
 ```sh
 curl -i localhost:8080/health          # every response carries an X-Request-Id
 curl 'localhost:8080/books?genre=history'
@@ -308,6 +314,7 @@ own, keep every secret out of the repository too.
 | scheduler | `PostRunEvent`, `FailureEvent` heard application-wide | `event_listener/report_run_listener.py`, `event_listener/report_failed_run_listener.py` |
 | scheduler | `SchedulerConfig` | `config/packages/scheduler.py` |
 | http-kernel | `setup(app, kernel)` — one kernel per application life, one scope per request | `web/app.py` |
+| web-profiler | the debug toolbar and the profiler's pages, routed in `dev` alone | `config/bundles.py`, `config/routes/dev/web_profiler.py` |
 | http-kernel | `HttpKernelConfig(app=)`, read by `debug:router` and `router:match` | `config/packages/http_kernel.py` |
 | http-kernel | the request lifecycle listed as a bundle: a fresh `X-Request-Id` per request, an uncaught exception on the `request` channel | `config/bundles.py` |
 | http-kernel | `RateLimited` on a router, as a decorator, in a route's `dependencies`; `TooManyRequestsError` reshaped by an exception handler | `web/routes.py`, `web/app.py` |

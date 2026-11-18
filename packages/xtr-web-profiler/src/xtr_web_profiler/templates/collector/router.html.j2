@@ -1,0 +1,147 @@
+{#
+  Which route answered the request, and how every other route read its path.
+
+  A route is `full` when the path and the method both fit, `method` when the
+  path fits but the method was refused, and `none` when the path never
+  matched at all.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set matched = collector.data.get("matched") %}
+{% set name = collector.data.get("name") %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="3.6" cy="3.6" r="1.9"></circle>
+  <circle cx="12.4" cy="12.4" r="1.9"></circle>
+  <path d="M3.6 5.5v3.3a3.3 3.3 0 0 0 3.3 3.3h3.6"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ name if (matched and name) else "no route" }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Name</dt><dd>{{ name or "—" }}</dd>
+  <dt>Path</dt><dd>{{ collector.data.get("path") or "—" }}</dd>
+  <dt>Methods</dt><dd>{{ (collector.data.get("methods") or [])|join(", ") or "—" }}</dd>
+  <dt>Endpoint</dt><dd>{{ collector.data.get("endpoint") or "—" }}</dd>
+  {% if collector.data.get("redirect") %}
+  <dt>Redirect</dt><dd>{{ collector.data.get("redirect") }}</dd>
+  {% endif %}
+</dl>
+{% if not matched %}
+<p class="xtr-toolbar-note">No route matched this request.</p>
+{% endif %}
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status="normal" if matched else "yellow") }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="3.6" cy="3.6" r="1.9"></circle>
+  <circle cx="12.4" cy="12.4" r="1.9"></circle>
+  <path d="M3.6 5.5v3.3a3.3 3.3 0 0 0 3.3 3.3h3.6"></path>
+</svg>
+<span class="xtr-menu-label">Routing</span>
+{% if route_traces %}
+<span class="xtr-menu-count">{{ route_traces|length }}</span>
+{% endif %}
+{% endblock %}
+
+{% block panel %}
+{% set data = collector.data %}
+{% set tones = {"full": "green", "method": "yellow"} %}
+<h1 class="xtr-panel-title">Routing</h1>
+<section class="xtr-card">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">The route that answered</h2>
+    {% if data.get("matched") %}
+    <span class="xtr-badge xtr-badge-green">matched</span>
+    {% else %}
+    <span class="xtr-badge xtr-badge-yellow">no match</span>
+    {% endif %}
+  </header>
+  <div class="xtr-card-body">
+    {% if data.get("matched") %}
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Name</td><td class="xtr-cell-mono">{{ data.get("name") or "—" }}</td></tr>
+        <tr><td>Path</td><td class="xtr-cell-mono xtr-break">{{ data.get("path") or "—" }}</td></tr>
+        <tr><td>Methods</td><td class="xtr-cell-mono">{{ (data.get("methods") or [])|join(", ") or "—" }}</td></tr>
+        <tr><td>Endpoint</td><td class="xtr-cell-mono xtr-break">{{ data.get("endpoint") or "—" }}</td></tr>
+      </tbody>
+    </table>
+    {% else %}
+    <p class="xtr-empty">
+      No route matched this request, so nothing of a route was kept. The
+      response came from whatever answers an unrouted path.
+    </p>
+    {% endif %}
+    {% if data.get("redirect") %}
+    <h3 class="xtr-section-title">Redirect</h3>
+    <p>
+      The response pointed at
+      <a class="xtr-mono xtr-break" href="{{ data.get('redirect') }}">{{ data.get("redirect") }}</a>.
+    </p>
+    {% endif %}
+    <h3 class="xtr-section-title">Path parameters</h3>
+    {% if data.get("path_params") %}
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        {% for name, value in data.get("path_params").items() %}
+        <tr>
+          <td>{{ name }}</td>
+          <td class="xtr-cell-mono xtr-break">{{ value }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="xtr-card-note">The path carried no parameters.</p>
+    {% endif %}
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">How every route read this path</h2>
+    <div class="xtr-card-tail">
+      <input class="xtr-filter" type="search" placeholder="Filter these routes…" aria-label="Filter the routes shown" data-xtr-filter="xtr-router-table" data-xtr-filter-count="xtr-router-count">
+      <span class="xtr-card-note" id="xtr-router-count">{{ route_traces|length }} of {{ route_traces|length }}</span>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    {% if route_traces %}
+    <div class="xtr-scroll">
+      <table class="xtr-table" id="xtr-router-table">
+        <thead>
+          <tr>
+            <th scope="col">Match</th>
+            <th scope="col">Name</th>
+            <th scope="col">Path</th>
+            <th scope="col">Methods</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for trace in route_traces %}
+          {% set tone = tones.get(trace.get("match"), "") %}
+          <tr>
+            <td class="xtr-cell-tight">
+              <span class="xtr-badge{% if tone %} xtr-badge-{{ tone }}{% endif %}">{{ trace.get("match") or "none" }}</span>
+            </td>
+            <td class="xtr-cell-mono">{{ trace.get("name") or "—" }}</td>
+            <td class="xtr-cell-mono xtr-break">{{ trace.get("path") or "—" }}</td>
+            <td class="xtr-cell-mono">{{ (trace.get("methods") or [])|join(", ") or "any" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="xtr-card-foot">
+      <span class="xtr-badge xtr-badge-green">full</span> the path and the method both fit.
+      <span class="xtr-badge xtr-badge-yellow">method</span> the path fit and the method was refused.
+      <span class="xtr-badge">none</span> the path never matched.
+    </p>
+    {% else %}
+    <p class="xtr-empty">The application's routes could not be read for this profile.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

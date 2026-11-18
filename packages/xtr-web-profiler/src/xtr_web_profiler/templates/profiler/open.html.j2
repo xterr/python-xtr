@@ -1,0 +1,59 @@
+{#
+  A source file of the project, the line that was asked for marked.
+
+  This is where a frame of a traceback leads when no editor link is
+  configured, so the code around a failure is readable without leaving the
+  browser.
+#}
+{% extends "@xtr_web_profiler/profiler/base.html.j2" %}
+
+{% block title %}{{ file }}:{{ line }} — Profiler{% endblock %}
+
+{% block search %}{% endblock %}
+
+{% block shell_class %}xtr-shell-wide{% endblock %}
+
+{% block topbar_tail %}
+<div class="xtr-fact">
+  <span class="xtr-fact-label">Line</span>
+  <span class="xtr-fact-value">{{ line }}</span>
+</div>
+{% endblock %}
+
+{% block main %}
+<section class="xtr-card xtr-card-flush">
+  <header class="xtr-card-head">
+    <h1 class="xtr-card-title xtr-mono xtr-break" id="xtr-open-file">{{ file }}</h1>
+    <div class="xtr-card-tail">
+      <span class="xtr-card-note">{{ lines|length }} lines</span>
+      <button type="button" class="xtr-button xtr-button-quiet" data-xtr-copy="xtr-open-file">Copy path</button>
+      <a class="xtr-button xtr-button-quiet" href="#xtr-line-{{ line }}">Jump to line {{ line }}</a>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    {% if lines %}
+    <div class="xtr-lines xtr-scroll" id="xtr-open-lines">
+      {% for row in lines %}
+      <div class="xtr-line{% if row.number == line %} xtr-line-on{% endif %}" id="xtr-line-{{ row.number }}"><span class="xtr-line-number">{{ row.number }}</span><span class="xtr-line-text">{{ row.text }}</span></div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="xtr-empty">This file is empty.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block body_tail %}
+<script nonce="{{ csp_script_nonce }}">
+(function () {
+  "use strict";
+  var target = document.getElementById({{ ("xtr-line-" ~ line)|tojson }});
+  var holder = document.getElementById("xtr-open-lines");
+  if (!target || !holder) {
+    return;
+  }
+  holder.scrollTop = Math.max(0, target.offsetTop - holder.clientHeight / 2);
+})();
+</script>
+{% endblock %}

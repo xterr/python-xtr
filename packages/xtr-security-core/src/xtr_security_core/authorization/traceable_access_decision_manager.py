@@ -9,7 +9,7 @@ from .access_decision import AccessDecision
 from .access_decision_manager_interface import AccessDecisionManagerInterface
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from xtr_security_core.authentication.token.token_interface import TokenInterface
 
@@ -57,18 +57,41 @@ class TraceableAccessDecisionManager(AccessDecisionManagerInterface):
     A decision a closure asks for is made by the decorated manager directly,
     so it is not logged as a decision of its own; the votes it collects are
     still fed into the decision in progress.
+
+    A ``recorder`` hears of every decision as it finishes, its votes in: the
+    log is this manager's, while a recorder keeps the decisions wherever the
+    tooling reads them from — the profiler's record of the request, say.
     """
 
-    __slots__: tuple[str, ...] = ("_decision_log", "_manager", "_strategy", "_voters")
+    __slots__: tuple[str, ...] = (
+        "_decision_log",
+        "_manager",
+        "_recorder",
+        "_strategy",
+        "_voters",
+    )
 
     _manager: AccessDecisionManagerInterface
+    _recorder: Callable[[Mapping[str, object]], None] | None
     _strategy: str | None
     _voters: dict[type, VoterInterface]
     _decision_log: list[dict[str, object]]
 
-    def __init__(self, manager: AccessDecisionManagerInterface) -> None:
-        """Wrap ``manager``, starting with an empty log."""
+    def __init__(
+        self,
+        manager: AccessDecisionManagerInterface,
+        recorder: Callable[[Mapping[str, object]], None] | None = None,
+    ) -> None:
+        """Wrap ``manager``, starting with an empty log.
+
+        Args:
+            manager: The manager that decides.
+            recorder: Called with each finished decision — its log entry plus
+                the ``strategy`` that decided it — or ``None`` to keep the
+                log alone.
+        """
         self._manager = manager
+        self._recorder = recorder
         self._strategy = None
         self._voters = {}
         self._decision_log = []
@@ -107,6 +130,8 @@ class TraceableAccessDecisionManager(AccessDecisionManagerInterface):
             if decided:
                 current_log["result"] = access_decision.is_granted
             self._decision_log.append(current_log)
+            if self._recorder is not None:
+                self._recorder({**current_log, "strategy": access_decision.strategy})
 
     def add_voter_vote(
         self,

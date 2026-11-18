@@ -29,6 +29,9 @@ it.
   `MessengerTransportListener`, `SmimeSignedMessageListener`, `SmimeEncryptedMessageListener`,
   `DkimSignedMessageListener`, `EnvelopeListener`, `MessageLoggerListener`.
 - Headers, from `xtr_mailer.header`: `TagHeader`, `MetadataHeader`, `TrackingHeader`.
+- Profiler panel: with the http kernel's profiler on (and the event dispatcher bundle), the
+  bundle registers `xtr_mailer.data_collector.MailerDataCollector` as the `mailer` panel,
+  recording every email a profiled request sends or queues; nothing to configure.
 - Tests: `xtr_mailer.testing` — `assert_email_count`, `assert_queued_email_count`,
   `FactoryCases`.
 - Errors derive from `MailerError` — and read

@@ -1,0 +1,33 @@
+{#
+  Nothing is stored under the token that was asked for.
+
+  A profile is written a moment after its response starts, and old ones are
+  swept, so a token can be too new or long gone.
+#}
+{% extends "@xtr_web_profiler/profiler/base.html.j2" %}
+
+{% block title %}No profile — Profiler{% endblock %}
+
+{% block search %}{% endblock %}
+
+{% block shell_class %}xtr-shell-wide{% endblock %}
+
+{% block main %}
+<section class="xtr-card">
+  <header class="xtr-card-head">
+    <h1 class="xtr-card-title">No profile found</h1>
+  </header>
+  <div class="xtr-card-body">
+    <p>Nothing is stored under <code class="xtr-mono">{{ token }}</code>.</p>
+    <p class="xtr-card-note">
+      A profile is written just after its response starts, so a token taken
+      from a response that is still streaming may need another moment. Older
+      profiles are swept as new ones arrive.
+    </p>
+    <p>
+      <a class="xtr-button" href="{{ url('_profiler', token='latest') }}">Open the latest profile</a>
+      <a class="xtr-button xtr-button-quiet" href="{{ url('_profiler_search_results', token='empty') }}">Search the stored profiles</a>
+    </p>
+  </div>
+</section>
+{% endblock %}

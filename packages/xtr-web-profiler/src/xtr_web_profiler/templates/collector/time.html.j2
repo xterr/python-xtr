@@ -1,0 +1,388 @@
+{#
+  How long the request took, and where the time went.
+
+  Every event of the request's section is measured from one origin, so they
+  all sit on a single axis and can be drawn as a timeline. The event spanning
+  the section itself is the total, and is left out of the rows.
+#}
+{% block toolbar %}
+{% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+{% set events = collector.data.get("events") or {} %}
+{% set section = events.get("__section__") %}
+{% set total = (section.duration if section else none) or collector.data.get("duration_ms") %}
+{% set status = "red" if (total is not none and total > 1000) else ("yellow" if (total is not none and total > 500) else "normal") %}
+{% set icon %}
+<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="8" cy="8.6" r="5.6"></circle>
+  <path d="M8 5.4v3.2l2 1.4M6 1.6h4"></path>
+</svg>
+<span class="xtr-toolbar-value">{{ total|format_ms }}</span>
+{% endset %}
+{% set text %}
+<dl class="xtr-toolbar-rows">
+  <dt>Total</dt><dd>{{ total|format_ms }}</dd>
+  <dt>Started</dt><dd>{{ collector.data.get("start_time")|format_time }}</dd>
+  <dt>Events</dt><dd>{{ events|length }}</dd>
+</dl>
+<p class="xtr-toolbar-note">The whole request, body included, as its section timed it.</p>
+{% endset %}
+{{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name), status=status) }}
+{% endblock %}
+
+{% block menu %}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="8" cy="8.6" r="5.6"></circle>
+  <path d="M8 5.4v3.2l2 1.4M6 1.6h4"></path>
+</svg>
+<span class="xtr-menu-label">Time</span>
+{% set section = (collector.data.get("events") or {}).get("__section__") %}
+<span class="xtr-menu-count">{{ ((section.duration if section else none) or collector.data.get("duration_ms"))|format_ms }}</span>
+{% endblock %}
+
+{% block panel %}
+{% set events = collector.data.get("events") or {} %}
+{% set section = events.get("__section__") %}
+{% set total = (section.duration if section else none) or collector.data.get("duration_ms") or 0 %}
+{% set gathered = [] %}
+{% for name, event in events.items() %}
+{% if name != "__section__" and name != "__section__.child" %}
+{% set _ = gathered.append(event) %}
+{% endif %}
+{% endfor %}
+{% set ordered = gathered|sort(attribute="start") %}
+<h1 class="xtr-panel-title">Time</h1>
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <table class="xtr-table xtr-table-key">
+      <tbody>
+        <tr><td>Total</td><td class="xtr-cell-mono">{{ total|format_ms }}</td></tr>
+        <tr>
+          <td>Started</td>
+          <td class="xtr-cell-mono">
+            {% if collector.data.get("start_time") is not none %}
+            {{ collector.data.get("start_time")|format_time }}
+            {% else %}
+            not recorded
+            {% endif %}
+          </td>
+        </tr>
+        <tr><td>Events</td><td class="xtr-cell-mono">{{ ordered|length }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% if ordered %}
+<section class="xtr-card">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">Timeline</h2>
+    <span class="xtr-card-note">every event of the request's section, on one axis</span>
+    <div class="xtr-card-tail">
+      <label class="xtr-field xtr-field-narrow" for="xtr-timeline-threshold">
+        <span>Threshold (ms)</span>
+        <input id="xtr-timeline-threshold" type="number" min="0" step="1" value="0" data-xtr-threshold>
+      </label>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    <div class="xtr-legend" id="xtr-timeline-legend" data-xtr-legend role="group" aria-label="Show or hide a category"></div>
+    <div class="xtr-timeline" id="xtr-timeline" data-xtr-timeline data-xtr-total="{{ total }}" role="img" aria-label="Where the request spent its time"></div>
+  </div>
+</section>
+<section class="xtr-card xtr-card-flush">
+  <header class="xtr-card-head">
+    <h2 class="xtr-card-title">Events</h2>
+    <div class="xtr-card-tail">
+      <input class="xtr-filter" type="search" placeholder="Filter these events…" aria-label="Filter the events shown" data-xtr-filter="xtr-time-table" data-xtr-filter-count="xtr-time-count">
+      <span class="xtr-card-note" id="xtr-time-count">{{ ordered|length }} of {{ ordered|length }}</span>
+    </div>
+  </header>
+  <div class="xtr-card-body">
+    <div class="xtr-scroll">
+      <table class="xtr-table" id="xtr-time-table">
+        <thead>
+          <tr>
+            <th scope="col">Event</th>
+            <th scope="col">Category</th>
+            <th scope="col">Start</th>
+            <th scope="col">Duration</th>
+            <th scope="col">Periods</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in ordered %}
+          <tr>
+            <td class="xtr-cell-mono xtr-break">{{ event.name }}</td>
+            <td class="xtr-cell-mono">{{ event.category }}</td>
+            <td class="xtr-cell-num">{{ event.start|format_ms }}</td>
+            <td class="xtr-cell-num">{{ event.duration|format_ms }}</td>
+            <td class="xtr-cell-num">{{ (event.periods or [])|length }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+<script type="application/json" id="xtr-time-events">{{ events|tojson }}</script>
+<script nonce="{{ csp_script_nonce }}">
+(function () {
+  "use strict";
+
+  var SECTION = "__section__";
+  var SECTION_CHILD = "__section__.child";
+  var NS = "http://www.w3.org/2000/svg";
+  var ROW = 30;
+  var BAR = 14;
+  var HEAD = 26;
+  var PAD = 8;
+  var TAIL = 68;
+  var MIN_BAR = 2;
+  var TICKS = 5;
+  var CHAR = 6.3;
+  var PALETTE = {
+    section: "#8b5cf6",
+    event_listener: "#2f9e6e",
+    controller: "#2f5de0",
+    template: "#d97706",
+    orm: "#0891b2",
+    http_client: "#db2777",
+    default: "#64748b"
+  };
+
+  var holder = document.getElementById("xtr-timeline");
+  var source = document.getElementById("xtr-time-events");
+  var legend = document.getElementById("xtr-timeline-legend");
+  var threshold = document.getElementById("xtr-timeline-threshold");
+  if (!holder || !source) {
+    return;
+  }
+
+  var raw = {};
+  try {
+    raw = JSON.parse(source.textContent || "{}");
+  } catch (error) {
+    return;
+  }
+
+  var events = [];
+  var total = Number(holder.getAttribute("data-xtr-total")) || 0;
+  var hidden = {};
+  var minimum = 0;
+  var pending = null;
+  var key;
+
+  for (key in raw) {
+    if (!Object.prototype.hasOwnProperty.call(raw, key)) {
+      continue;
+    }
+    if (key === SECTION || key === SECTION_CHILD) {
+      continue;
+    }
+    var item = raw[key] || {};
+    events.push({
+      name: String(item.name || key),
+      category: String(item.category || "default"),
+      start: Number(item.start) || 0,
+      end: Number(item.end) || 0,
+      duration: Number(item.duration) || 0,
+      periods: item.periods && item.periods.length ? item.periods : null
+    });
+  }
+  events.sort(function (left, right) {
+    return left.start - right.start;
+  });
+  if (total <= 0) {
+    events.forEach(function (event) {
+      total = Math.max(total, event.end, event.start + event.duration);
+    });
+  }
+  if (total <= 0) {
+    total = 1;
+  }
+
+  buildLegend();
+  draw();
+  window.addEventListener("resize", function () {
+    window.clearTimeout(pending);
+    pending = window.setTimeout(draw, 120);
+  });
+  if (threshold) {
+    threshold.addEventListener("input", function () {
+      minimum = Number(threshold.value) || 0;
+      draw();
+    });
+  }
+
+  /* ------------------------------------------------------------ drawing */
+
+  function draw() {
+    var width = holder.clientWidth || 900;
+    var gutter = Math.min(320, Math.max(150, Math.round(width * 0.3)));
+    /* The room kept on the right is where each row's duration is written. */
+    var track = Math.max(80, width - gutter - PAD - TAIL);
+    var shown = events.filter(function (event) {
+      return !hidden[event.category] && event.duration >= minimum;
+    });
+    var height = HEAD + Math.max(shown.length, 1) * ROW + PAD;
+    var svg = make("svg", { width: width, height: height, viewBox: "0 0 " + width + " " + height });
+
+    drawAxis(svg, gutter, track, height);
+    shown.forEach(function (event, index) {
+      drawRow(svg, event, HEAD + index * ROW, gutter, track, width);
+    });
+    if (!shown.length) {
+      var note = make("text", { x: PAD, y: HEAD + ROW / 2, class: "xtr-tl-duration" });
+      note.textContent = "Every event is hidden by the threshold or the legend.";
+      svg.appendChild(note);
+    }
+    holder.textContent = "";
+    holder.appendChild(svg);
+  }
+
+  function drawAxis(svg, gutter, track, height) {
+    var index;
+    for (index = 0; index <= TICKS; index = index + 1) {
+      var at = gutter + (track * index) / TICKS;
+      svg.appendChild(make("line", { x1: at, y1: HEAD - 8, x2: at, y2: height - PAD, class: "xtr-tl-grid" }));
+      var last = index === TICKS;
+      var tick = make("text", {
+        x: last ? at - 3 : at + 3,
+        y: 12,
+        "text-anchor": last ? "end" : "start",
+        class: "xtr-tl-tick"
+      });
+      tick.textContent = format((total * index) / TICKS);
+      svg.appendChild(tick);
+    }
+  }
+
+  function drawRow(svg, event, y, gutter, track, width) {
+    var middle = y + ROW / 2;
+    var row = make("rect", { x: 0, y: y, width: width, height: ROW, class: "xtr-tl-row" });
+    var hint = make("title", {});
+    hint.textContent = event.name + " · " + event.category + " · " + format(event.duration);
+    row.appendChild(hint);
+    svg.appendChild(row);
+
+    var label = make("text", { x: PAD, y: middle + 4, class: "xtr-tl-label" });
+    label.textContent = clip(event.name, gutter - PAD * 2);
+    svg.appendChild(label);
+
+    var periods = event.periods || [{ start: event.start, duration: event.duration }];
+    periods.forEach(function (period) {
+      var from = Number(period.start) || 0;
+      var length = Number(period.duration) || 0;
+      svg.appendChild(make("rect", {
+        x: gutter + (from / total) * track,
+        y: middle - BAR / 2,
+        width: Math.max(MIN_BAR, (length / total) * track),
+        height: BAR,
+        rx: 2,
+        fill: colour(event.category),
+        class: "xtr-tl-bar"
+      }));
+    });
+
+    var after = gutter + (Math.max(event.end, event.start + event.duration) / total) * track + 6;
+    var tail = make("text", { y: middle + 3.5, class: "xtr-tl-duration" });
+    if (after > width - TAIL) {
+      tail.setAttribute("x", gutter + (event.start / total) * track - 6);
+      tail.setAttribute("text-anchor", "end");
+    } else {
+      tail.setAttribute("x", after);
+    }
+    tail.textContent = format(event.duration);
+    svg.appendChild(tail);
+  }
+
+  /* ------------------------------------------------------------ the legend */
+
+  function buildLegend() {
+    var categories = [];
+    if (!legend) {
+      return;
+    }
+    events.forEach(function (event) {
+      if (categories.indexOf(event.category) === -1) {
+        categories.push(event.category);
+      }
+    });
+    categories.sort();
+    legend.textContent = "";
+    categories.forEach(function (category) {
+      legend.appendChild(legendButton(category));
+    });
+  }
+
+  function legendButton(category) {
+    var button = document.createElement("button");
+    var swatch = document.createElement("span");
+    button.type = "button";
+    button.setAttribute("data-xtr-category", category);
+    button.setAttribute("aria-pressed", "true");
+    swatch.className = "xtr-legend-swatch";
+    swatch.style.color = colour(category);
+    button.appendChild(swatch);
+    button.appendChild(document.createTextNode(category));
+    button.addEventListener("click", function () {
+      var off = !hidden[category];
+      hidden[category] = off;
+      button.classList.toggle("xtr-off", off);
+      button.setAttribute("aria-pressed", off ? "false" : "true");
+      draw();
+    });
+    return button;
+  }
+
+  /* ------------------------------------------------------------- helpers */
+
+  function make(name, attributes) {
+    var element = document.createElementNS(NS, name);
+    var attribute;
+    for (attribute in attributes) {
+      if (Object.prototype.hasOwnProperty.call(attributes, attribute)) {
+        element.setAttribute(attribute, String(attributes[attribute]));
+      }
+    }
+    return element;
+  }
+
+  /* A category the collector does not know keeps one colour of its own. */
+  function colour(category) {
+    var hash = 0;
+    var index;
+    if (PALETTE[category]) {
+      return PALETTE[category];
+    }
+    for (index = 0; index < category.length; index = index + 1) {
+      hash = (hash * 31 + category.charCodeAt(index)) % 360;
+    }
+    return "hsl(" + hash + ", 58%, 52%)";
+  }
+
+  function clip(text, room) {
+    var fits = Math.max(6, Math.floor(room / CHAR));
+    return text.length > fits ? text.slice(0, fits - 1) + "…" : text;
+  }
+
+  /* Rounds half to even, as the formatter the table below is written with
+     does, so a bar and its row never read two numbers for one event. */
+  function format(milliseconds) {
+    var tenths = milliseconds * 10;
+    var whole = Math.floor(tenths);
+    var rest = tenths - whole;
+    if (rest > 0.5 || (rest === 0.5 && whole % 2 !== 0)) {
+      whole = whole + 1;
+    }
+    return (whole / 10).toFixed(1) + " ms";
+  }
+})();
+</script>
+{% else %}
+<section class="xtr-card">
+  <div class="xtr-card-body">
+    <p class="xtr-empty">No events were timed for this request.</p>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

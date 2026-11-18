@@ -87,7 +87,9 @@ class SerializerBundle(Bundle[SerializerConfig]):
     ) -> None:
         """Register the built-in normalizer and encoder, a serializer per name, and the command.
 
-        The command joins in debug mode only, when a console bundle is active.
+        The command joins in debug mode only, when a console bundle is active. When the http
+        kernel profiles requests, the interfaces give a traced serializer, and the profiler's
+        panel joins.
         """
         self._config = config
         _ = services.set(_pydantic_normalizer).add_tag(
@@ -101,10 +103,22 @@ class SerializerBundle(Bundle[SerializerConfig]):
             name: {**config.default_context, **named.default_context}
             for name, named in config.named_serializers.items()
         }
+        serving: type = Serializer
+        if bundle_active(builder, "http_kernel"):
+            from xtr_http_kernel.bundle import (  # noqa: PLC0415 — xtr-http-kernel is optional; its active bundle proves it installed
+                profiling_active,
+            )
+
+            if profiling_active(builder):
+                from ._profiler import (  # noqa: PLC0415 — imports xtr-http-kernel, which is optional
+                    register_profiler,
+                )
+
+                serving = register_profiler(services, tuple(contexts))
         for name, context in contexts.items():
             _ = services.set(Serializer, qualifier=name).set_argument("default_context", context)
             for interface in _INTERFACES:
-                services.alias(interface, Serializer, alias_qualifier=name, target_qualifier=name)
+                services.alias(interface, serving, alias_qualifier=name, target_qualifier=name)
         if builder.get_parameter("kernel.debug") and bundle_active(builder, "console"):
             services.load("xtr_serializer.command")
 

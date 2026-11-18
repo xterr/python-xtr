@@ -236,3 +236,19 @@ def test_urls_with_passwords_are_masked_by_default() -> None:
     config = LoggingConfig()
 
     assert config.processors == (RedactingProcessorConfig(values=DEFAULT_VALUE_PATTERNS),)
+
+
+def test_with_handler_adds_the_handler_under_its_name() -> None:
+    config = LoggingConfig(handlers={"main": StreamHandlerConfig()})
+    added = NullHandlerConfig()
+
+    copy = config.with_handler("profiler", added)
+
+    assert copy.handlers == {"main": StreamHandlerConfig(), "profiler": added}
+    assert config.handlers == {"main": StreamHandlerConfig()}
+
+
+def test_with_handler_leaves_a_name_the_application_took() -> None:
+    config = LoggingConfig(handlers={"profiler": StreamHandlerConfig()})
+
+    assert config.with_handler("profiler", NullHandlerConfig()) is config

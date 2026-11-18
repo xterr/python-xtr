@@ -13,7 +13,9 @@ is moving the subject. The event dispatcher, logging and console bundles come
 along whenever their packages are installed; the security bundle never does,
 as it brings an HTTP kernel with it, so an application with guards lists it.
 In debug mode, every workflow is traced. With a console, ``workflow:dump``
-draws any of them.
+draws any of them. While the http kernel's profiler is on in debug mode, the
+``workflow`` profiler panel shows the defined workflows and every call a
+profiled request makes to them.
 """
 
 from __future__ import annotations
@@ -102,10 +104,20 @@ class WorkflowBundle(Bundle[WorkflowConfig]):
             registrar.register(services, name, workflow)
         if bundle_active(builder, "console"):
             services.load("xtr_workflow.command")
+        if _profiled(builder):
+            from ._profiler import (  # noqa: PLC0415 — imports xtr-http-kernel, optional
+                register_profiler,
+            )
+
+            register_profiler(services)
 
     @override
     def process(self, builder: ContainerBuilder) -> None:
-        """Build the dump command, with a console, from the workflows and any active dispatcher.
+        """Wire the profiler panel when it is registered; build the dump command with a console.
+
+        The panel is handed every workflow defined, and every traced workflow
+        the panel, once the scan has added the declared ones and the debug
+        pass has wrapped them all.
 
         The console registers the command as its class, whose constructor
         takes the workflows behind the service provider contract, and a
@@ -113,6 +125,12 @@ class WorkflowBundle(Bundle[WorkflowConfig]):
         taking the workflows' locator, and the dispatcher their listeners are
         on only when the event dispatcher bundle is active.
         """
+        if _profiled(builder):
+            from ._profiler import (  # noqa: PLC0415 — imports xtr-http-kernel, optional
+                wire_profiler,
+            )
+
+            wire_profiler(builder)
         if not bundle_active(builder, "console"):
             return
         from xtr_workflow.command import WorkflowDumpCommand  # noqa: PLC0415 -- only with a console
@@ -128,6 +146,17 @@ def _add_event_aliases(config: EventDispatcherConfig) -> EventDispatcherConfig:
     """Let a listener declare a workflow event by its class, as it is dispatched by name."""
     aliases: dict[str | type, str | type] = dict(WorkflowEvents.ALIASES.items())
     return config.with_event_aliases(aliases)
+
+
+def _profiled(builder: ContainerBuilder) -> bool:
+    """Tell whether the http kernel profiles requests in debug mode, where workflows are traced."""
+    if not builder.get_parameter("kernel.debug") or not bundle_active(builder, "http_kernel"):
+        return False
+    from xtr_http_kernel.bundle import (  # noqa: PLC0415 — xtr-http-kernel is optional; its bundle being active proves it installed
+        profiling_active,
+    )
+
+    return profiling_active(builder)
 
 
 def _add_workflow_channel(config: object) -> object:

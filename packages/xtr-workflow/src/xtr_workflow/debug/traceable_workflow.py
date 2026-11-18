@@ -55,13 +55,17 @@ class TraceableWorkflow(WorkflowInterface, ResetInterface):
     The records grow with every call until :meth:`reset`, which a
     long-running process calls between units of work. While ``disabled``
     answers true, a call goes straight to the wrapped workflow, unrecorded.
+    A ``recorder`` is handed each record as well, the moment its call ends:
+    the profiler keeps the calls of the request being profiled that way,
+    apart from those of every other request this shared instance serves.
     """
 
-    __slots__: tuple[str, ...] = ("_calls", "_clock", "_disabled", "_workflow")
+    __slots__: tuple[str, ...] = ("_calls", "_clock", "_disabled", "_recorder", "_workflow")
 
     _workflow: WorkflowInterface
     _clock: ClockInterface
     _disabled: Callable[[], bool] | None
+    _recorder: Callable[[Mapping[str, object]], None] | None
     _calls: list[dict[str, object]]
 
     def __init__(
@@ -69,6 +73,8 @@ class TraceableWorkflow(WorkflowInterface, ResetInterface):
         workflow: WorkflowInterface,
         clock: ClockInterface | None = None,
         disabled: Callable[[], bool] | None = None,
+        *,
+        recorder: Callable[[Mapping[str, object]], None] | None = None,
     ) -> None:
         """Record the calls made to ``workflow``.
 
@@ -79,10 +85,13 @@ class TraceableWorkflow(WorkflowInterface, ResetInterface):
                 look shorter or longer than it was.
             disabled: Asked before each call whether to leave it unrecorded;
                 ``None`` records every call.
+            recorder: Handed each record once its call ends, besides keeping
+                it; ``None`` only keeps it.
         """
         self._workflow = workflow
         self._clock = clock if clock is not None else MonotonicClock()
         self._disabled = disabled
+        self._recorder = recorder
         self._calls = []
 
     @override
@@ -194,15 +203,16 @@ class TraceableWorkflow(WorkflowInterface, ResetInterface):
         previous_marking = await self._marking_before(arguments[0]) if method == "apply" else None
 
         def record(outcome: str, value: object) -> None:
-            self._calls.append(
-                {
-                    "method": method,
-                    "duration": (self._clock.now() - started) / _MILLISECOND,
-                    "args": arguments,
-                    "previous_marking": previous_marking,
-                    outcome: value,
-                }
-            )
+            entry: dict[str, object] = {
+                "method": method,
+                "duration": (self._clock.now() - started) / _MILLISECOND,
+                "args": arguments,
+                "previous_marking": previous_marking,
+                outcome: value,
+            }
+            self._calls.append(entry)
+            if self._recorder is not None:
+                self._recorder(entry)
 
         try:
             returned = await call()

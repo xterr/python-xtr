@@ -1,0 +1,27 @@
+# The recipe for xtr-web-profiler: what *Use in an application* in the README
+# takes, as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+# For development only: a profile holds every request's headers, cookies and
+# state. Listing it turns the http kernel's profiler on in the same environment.
+"xtr_web_profiler.bundle:WebProfilerBundle" = { dev = true }
+
+[files]
+# Destination under the application package = template under this recipe.
+# A routes file of the dev environment's folder: scanned in dev alone, so the
+# toolbar and the profiler's pages exist nowhere else. Deleting it takes them down.
+"config/routes/dev/web_profiler.py" = "files/config/routes/dev/web_profiler.py.tmpl"
+
+# No [env] and no [gitignore]: the profiles are kept under the kernel's cache
+# directory, which a project already leaves out of its repository.
+
+[notes]
+steps = [
+  "Call setup(app, kernel) where the application is built, as the http kernel requires: the toolbar is drawn by the middleware it composes, and config/routes/dev/web_profiler.py registers the pages under /_wdt and /_profiler.",
+]
+check = [
+  "<script> debug:bundles — web_profiler is listed and active in dev, http_kernel and event_dispatcher required",
+  "Open any HTML page of the application in dev — the toolbar is at its foot",
+  "GET /_profiler/latest — the profile of the last request",
+]

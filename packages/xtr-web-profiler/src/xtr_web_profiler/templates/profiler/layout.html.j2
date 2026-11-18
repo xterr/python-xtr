@@ -1,0 +1,65 @@
+{#
+  One profile: its summary, the menu of its panels, and the panel chosen.
+
+  Each collector contributed its own menu entry and its own panel, already
+  rendered; this page only frames them and keeps the search within reach.
+#}
+{% extends "@xtr_web_profiler/profiler/base.html.j2" %}
+
+{% block title %}{{ profile.method }} {{ profile.url }} — Profiler{% endblock %}
+
+{% block head %}{{ head_html }}{% endblock %}
+
+{% block topbar_tail %}
+<div class="xtr-fact">
+  <span class="xtr-fact-label">Token</span>
+  <span class="xtr-fact-value" id="xtr-token-value">{{ token }}</span>
+</div>
+<button type="button" class="xtr-button xtr-button-quiet" data-xtr-copy="xtr-token-value">Copy</button>
+{% endblock %}
+
+{% block summary %}
+{% set code = profile.status_code %}
+{% set tone = "green" if 200 <= code < 300 else ("yellow" if 300 <= code < 400 else ("red" if code >= 400 else "blue")) %}
+<section class="xtr-summary" aria-label="The request this profile kept">
+  <span class="xtr-method">{{ profile.method }}</span>
+  <span class="xtr-summary-url xtr-truncate" title="{{ profile.url }}">{{ profile.url }}</span>
+  <div class="xtr-summary-facts">
+    <div class="xtr-fact">
+      <span class="xtr-fact-label">Status</span>
+      <span class="xtr-fact-value"><span class="xtr-badge xtr-badge-{{ tone }}">{{ code }}</span></span>
+    </div>
+    <div class="xtr-fact">
+      <span class="xtr-fact-label">Profiled</span>
+      <span class="xtr-fact-value">{{ profile.time|format_time }}</span>
+    </div>
+    <div class="xtr-fact">
+      <span class="xtr-fact-label">Client</span>
+      <span class="xtr-fact-value">{{ profile.ip or "—" }}</span>
+    </div>
+    <div class="xtr-fact">
+      <span class="xtr-fact-label">Kind</span>
+      <span class="xtr-fact-value">{{ profile.virtual_type }}</span>
+    </div>
+    {% if profile.has_errors %}
+    <span class="xtr-errors-mark" title="Handling raised, or an error was logged">errors</span>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block sidebar %}
+<nav class="xtr-sidebar" aria-label="Panels">
+  {% for item in items %}
+  <a class="xtr-menu-item{% if item.selected %} xtr-on{% endif %}" href="{{ item.url }}"{% if item.selected %} aria-current="page"{% endif %}>{{ item.menu }}</a>
+  {% endfor %}
+</nav>
+{% endblock %}
+
+{% block main %}
+{% if panel is none %}
+<p class="xtr-empty">This profile kept nothing: no collector was registered when the request was handled.</p>
+{% else %}
+{{ panel_html }}
+{% endif %}
+{% endblock %}

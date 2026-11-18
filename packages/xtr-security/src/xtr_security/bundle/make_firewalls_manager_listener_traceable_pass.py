@@ -12,6 +12,8 @@ from xtr_security_http import (
     TraceableAuthenticatorManagerListener,
 )
 
+from xtr_security.data_collector import SecurityDataCollector
+
 from .firewall_context import FirewallContext
 from .firewall_manager_listener_name import firewall_manager_listener_name
 from .security_config import SecurityConfig
@@ -40,6 +42,9 @@ class MakeFirewallsManagerListenerTraceablePass:
     qualifier gives way to the traceable one's, the same argument the sorting
     pass orders — so the plain listener stays registered for the traceable
     one to wrap, and the chain resolves the wrapper alone.
+
+    While the profiler's security panel is registered, each traceable listener
+    reports the authenticators it records to it.
     """
 
     __slots__ = ()
@@ -50,6 +55,7 @@ class MakeFirewallsManagerListenerTraceablePass:
         if not (trace if trace is not None else bool(builder.get_parameter("kernel.debug"))):
             return
 
+        profiled = builder.has_definition(SecurityDataCollector)
         for firewall in builder.get_extension_config(SecurityConfig).firewalls:
             plain = firewall_manager_listener_name(firewall)
             if not builder.has_definition(FirewallContext, firewall):
@@ -71,7 +77,7 @@ class MakeFirewallsManagerListenerTraceablePass:
             _ = builder.set_definition(
                 Definition(
                     (TraceableAuthenticatorManagerListener, traceable),
-                    _traceable_listener_factory(plain),
+                    _traceable_listener_factory(plain, profiled=profiled),
                     "factory",
                     "scoped",
                     _ORIGIN,
@@ -85,19 +91,30 @@ class MakeFirewallsManagerListenerTraceablePass:
 
 def _traceable_listener_factory(
     plain: str,
+    *,
+    profiled: bool,
 ) -> Callable[..., TraceableAuthenticatorManagerListener]:
-    """Return the factory wrapping the firewall's manager listener in a trace."""
+    """Return the factory wrapping the firewall's manager listener in a trace.
+
+    When ``profiled``, the factory also takes the security panel, and the
+    trace reports every authenticator it records to it.
+    """
 
     def traceable_manager_listener(
         listener: AuthenticatorManagerListener,
+        collector: SecurityDataCollector | None = None,
     ) -> TraceableAuthenticatorManagerListener:
         """Trace the manager listener the chain would otherwise run."""
-        return TraceableAuthenticatorManagerListener(listener)
+        recorder = collector.record_authenticator if collector is not None else None
+        return TraceableAuthenticatorManagerListener(listener, recorder)
 
-    traceable_manager_listener.__annotations__ = {
+    annotations: dict[str, object] = {
         "listener": Annotated[AuthenticatorManagerListener, Target(plain)],
         "return": TraceableAuthenticatorManagerListener,
     }
+    if profiled:
+        annotations["collector"] = SecurityDataCollector
+    traceable_manager_listener.__annotations__ = annotations
     traceable_manager_listener.__name__ = f"traceable_manager_listener_{plain}"
     traceable_manager_listener.__qualname__ = traceable_manager_listener.__name__
     return traceable_manager_listener

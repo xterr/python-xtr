@@ -1,0 +1,27 @@
+{#
+  One block of the development toolbar.
+
+  A collector's `toolbar` block imports this macro and calls it once:
+
+      {% from "@xtr_web_profiler/profiler/toolbar_item.html.j2" import toolbar_item %}
+      {% set icon %}<svg …></svg><span class="xtr-toolbar-value">12.3 ms</span>{% endset %}
+      {% set text %}<div class="xtr-toolbar-rows">…</div>{% endset %}
+      {{ toolbar_item(collector.name, icon, text, link=panel_url(collector.name)) }}
+
+  `icon` is what the bar shows — a small inline drawing and the short value
+  beside it — and `text` what the popover holds, open while the block is
+  hovered or holds the focus.
+#}
+{% macro toolbar_item(name, icon, text, link=None, status="normal") %}
+<div class="xtr-toolbar-block xtr-toolbar-status-{{ status }}" data-xtr-panel="{{ name }}">
+  {% if link %}
+  <a class="xtr-toolbar-handle" href="{{ link }}" aria-describedby="xtr-pop-{{ name }}">{{ icon }}</a>
+  {% else %}
+  <span class="xtr-toolbar-handle" tabindex="0" aria-describedby="xtr-pop-{{ name }}">{{ icon }}</span>
+  {% endif %}
+  <div class="xtr-toolbar-popover" id="xtr-pop-{{ name }}" role="tooltip">
+    <div class="xtr-toolbar-popover-head">{{ name }}</div>
+    <div class="xtr-toolbar-popover-body">{{ text }}</div>
+  </div>
+</div>
+{% endmacro %}

@@ -11,6 +11,7 @@ not need is given as ``None`` rather than asked for.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable, Collection, Sequence
+from functools import partial
 from typing import TYPE_CHECKING, Annotated, Protocol
 
 from xtr_dependency_injection import ServiceConfigurator, Target, named_factory
@@ -33,6 +34,8 @@ from .http_client_config import HttpClientConfig
 
 if TYPE_CHECKING:
     from xtr_rate_limiter import RateLimiterFactoryInterface
+
+    from xtr_http_client.data_collector import HttpClientDataCollector
 
     from .client_options_config import ClientOptionsConfig
     from .retry_failed_config import RetryFailedConfig
@@ -64,6 +67,7 @@ def register_client(
     options: ClientOptionsConfig,
     *,
     mocked: bool,
+    profiled: bool = False,
 ) -> None:
     """Register the client ``name`` — the default one for ``None`` — as ``options`` build it.
 
@@ -73,6 +77,8 @@ def register_client(
             default client.
         options: Its options, with what it inherits already filled in.
         mocked: Whether it answers from the mock transport.
+        profiled: Whether the http kernel profiles requests, so that the
+            client hands what it sends to the profiler's collector.
     """
     annotations: dict[str, object] = {
         "config": HttpClientConfig,
@@ -89,13 +95,19 @@ def register_client(
         annotations["strategy"] = Annotated[RetryStrategyInterface, Target(retry.retry_strategy)]
     else:
         unused["strategy"] = None
+    if profiled:
+        # Needs xtr-http-kernel, which the profiler being on proves installed.
+        from xtr_http_client.data_collector import (  # noqa: PLC0415 — xtr-http-kernel is optional
+            HttpClientDataCollector,
+        )
+
+        annotations["collector"] = HttpClientDataCollector
+    else:
+        unused["collector"] = None
 
     factory = _client_factory(name)
     factory.__annotations__ = annotations
-    definition = services.set(
-        named_factory(factory, "http_client" if name is None else f"http_client_{name}"),
-        qualifier=name,
-    )
+    definition = services.set(named_factory(factory, _service_name(name)), qualifier=name)
     if unused:
         _ = definition.set_arguments(unused)
     _ = definition.add_tag("kernel.reset", method="reset")
@@ -137,12 +149,14 @@ def _client_factory(name: str | None) -> Callable[..., HttpClientInterface]:
     Its options are read from the configuration it is handed, so an ``env()``
     placeholder in them is read when the client is built.
     """
+    service = _service_name(name)
 
     def http_client(
         config: HttpClientConfig,
         transport: HttpClientInterface,
         limiters: RateLimiterFactoryInterface | None,
         strategy: RetryStrategyInterface | None,
+        collector: HttpClientDataCollector | None,
     ) -> HttpClientInterface:
         client = (
             transport if limiters is None else ThrottlingHttpClient(transport, limiters.create())
@@ -154,9 +168,24 @@ def _client_factory(name: str | None) -> Callable[..., HttpClientInterface]:
             scoped = config.scoped_clients[name].inheriting(config.default_options)
             client = _scoped(client, scoped, strategy)
 
-        return TraceableHttpClient(client) if config.tracing else client
+        if collector is None:
+            return TraceableHttpClient(client) if config.tracing else client
+        # Traced for the profiler alone, a client records only while a request
+        # is profiled, so the requests of every other one keep nothing.
+        disabled = None if config.tracing else _idle(collector)
+        return TraceableHttpClient(client, disabled, partial(collector.record, service))
 
     return http_client
+
+
+def _service_name(name: str | None) -> str:
+    """The name of the client ``name``'s service — the default one's for ``None``."""
+    return "http_client" if name is None else f"http_client_{name}"
+
+
+def _idle(collector: HttpClientDataCollector) -> Callable[[], bool]:
+    """Return what tells a client no profiled request is being recorded."""
+    return lambda: not collector.is_recording()
 
 
 def _scoped(

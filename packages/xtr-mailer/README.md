@@ -365,6 +365,23 @@ assert_factory_cases(
 )
 ```
 
+## Profiler panel
+
+When the http kernel profiles requests — the web profiler turns its profiler on in development —
+the bundle registers `xtr_mailer.data_collector.MailerDataCollector`, the profiler's **mailer**
+panel. For every email a profiled request sends or queues, in the order announced, it shows the
+transport, whether the email was queued, how it ended (`sent`, `queued`, `failed`, `rejected` by
+a listener, or `pending`), the subject, the From, To, Cc, Bcc and Reply-To addresses, the headers
+(credentials such as `Authorization`, `X-Api-Key` or any `*token*` header shown as `******`), the
+first 10,000 characters of the text body and 50,000 of the HTML body, each attachment's name,
+type and size, the message id, the transport's transcript and the error of a failed send. The
+toolbar counts the emails, and how many were queued, sent and failed. A raw message, or one a
+listener signed as a whole, shows its size instead of its fields.
+
+The panel hears the email events, so it needs the event dispatcher bundle; without it no panel
+is registered. With the profiler off nothing is registered, and an email sent outside a
+profiled request costs one lookup and keeps nothing.
+
 ## Use in an application
 
 Everything adding this package to an application on
