@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from .callback import Callback
     from .metadata import Metadata
 
 __all__ = ["CacheInterface"]
-
-_T = TypeVar("_T")
 
 
 @runtime_checkable
@@ -32,15 +30,15 @@ class CacheInterface(Protocol):
     refreshing a value shortly before it expires.
     """
 
-    async def get(
+    async def get[T](
         self,
         key: str,
-        callback: Callback[_T],
+        callback: Callback[T],
         /,
         *,
         beta: float | None = None,
         metadata: Metadata | None = None,
-    ) -> _T:
+    ) -> T:
         """Return the value cached under ``key``, computing and saving it on a miss.
 
         On a miss ``callback`` is awaited with the item for ``key``; what it

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import Unpack
+from typing import TYPE_CHECKING, Unpack, final
 
 from .httpx_http_client import HttpxHttpClient
 

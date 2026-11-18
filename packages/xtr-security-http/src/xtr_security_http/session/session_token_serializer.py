@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Final, TypeVar, cast, final
+from typing import TYPE_CHECKING, Final, TypeIs, cast, final, is_protocol
 
-from typing_extensions import TypeIs, is_protocol
 from xtr_password_hasher import PasswordAuthenticatedUserInterface
 from xtr_security_core.authentication.token.abstract_token import AbstractToken
 from xtr_security_core.exception import InvalidArgumentError
@@ -27,8 +26,6 @@ __all__ = ["SessionTokenSerializer"]
 #: The version of the envelope a token is kept in. A session value carrying
 #: another is not read as a token at all.
 _VERSION: Final = 1
-
-_User = TypeVar("_User", bound=SessionSerializableUserInterface)
 
 
 @final
@@ -126,7 +123,7 @@ class SessionTokenSerializer:
         try:
             user = _user_of(envelope["user"])
             return token_class.from_session(cast("dict[str, object]", state), user, self.decode)
-        except (InvalidArgumentError, TypeError, KeyError, ValueError):
+        except InvalidArgumentError, TypeError, KeyError, ValueError:
             return None
 
 
@@ -199,7 +196,9 @@ def _user_of(part: object) -> UserInterface | None:
     return _rebuilt(user_class, cast("dict[str, object]", state))
 
 
-def _rebuilt(user_class: type[_User], state: dict[str, object]) -> _User:
+def _rebuilt[User: SessionSerializableUserInterface](
+    user_class: type[User], state: dict[str, object]
+) -> User:
     """Rebuild a user of ``user_class`` — a class, never the contract — from ``state``."""
     return user_class.from_session(state)
 
@@ -246,6 +245,6 @@ def _round_trips(value: object) -> bool:
     """
     try:
         encoded = json.dumps(value, allow_nan=False)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
     return cast("object", json.loads(encoded)) == value

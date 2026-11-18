@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Literal, TypeAlias
+from typing import Literal
 
 __all__ = ["SupportedTypes"]
 
-SupportedTypes: TypeAlias = Mapping[type | Literal["*", "object"], bool | None]
+type SupportedTypes = Mapping[type | Literal["*", "object"], bool | None]
 """The types a normalizer or a denormalizer handles in one format, as it reports them.
 
 Lets a serializer holding many normalizers find the one for a type without asking each of them

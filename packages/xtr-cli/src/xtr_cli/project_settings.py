@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Final, final
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -12,6 +12,10 @@ if TYPE_CHECKING:
     from .template import Template
 
 __all__ = ["ProjectSettings"]
+
+_OLDEST_PATCH: Final = {"3.14": "3.14.4"}
+"""The first release of a minor every xtr package installs on: an earlier one folds some email
+subjects forever, so the packages require it and a project pinned to the minor must too."""
 
 
 @final
@@ -42,11 +46,13 @@ class ProjectSettings:
         """Return what the template's placeholders are filled with.
 
         ``minor`` is the part of the Python version after ``3.``, so a tool
-        naming versions as ``py313`` can be given ``py3${minor}``.
+        naming versions as ``py314`` can be given ``py3${minor}``; ``requires_python`` is the
+        oldest release of that minor the packages install on.
         """
         return {
             "name": self.name.distribution,
             "app": self.name.app,
             "python": self.python,
             "minor": self.python.partition(".")[2],
+            "requires_python": _OLDEST_PATCH.get(self.python, self.python),
         }

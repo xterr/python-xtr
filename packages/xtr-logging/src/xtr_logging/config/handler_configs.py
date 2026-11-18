@@ -9,10 +9,9 @@ the path to it.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, override
 
 import msgspec
-from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from .channel_filter import ChannelFilter

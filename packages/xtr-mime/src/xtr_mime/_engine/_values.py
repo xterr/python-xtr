@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal, TypeAlias, final
+from typing import Literal, final
 
 __all__ = [
     "BinaryLeaf",
@@ -19,7 +19,7 @@ __all__ = [
     "TransferEncoding",
 ]
 
-TransferEncoding: TypeAlias = Literal["7bit", "8bit", "quoted-printable", "base64"]
+type TransferEncoding = Literal["7bit", "8bit", "quoted-printable", "base64"]
 
 
 @final
@@ -65,7 +65,7 @@ class Path:
     address: str
 
 
-HeaderValue: TypeAlias = (
+type HeaderValue = (
     str | datetime | Parameterized | MessageIds | Path | Sequence[Mailbox | MailboxGroup]
 )
 """What a header holds; the kind decides how the engine encodes it."""

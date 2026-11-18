@@ -11,9 +11,8 @@ application's own — that page is kept as the return trip's target.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_http._request_parameters import payload_parameter, query_parameter

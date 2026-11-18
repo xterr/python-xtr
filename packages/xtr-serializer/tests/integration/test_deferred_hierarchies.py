@@ -7,12 +7,11 @@ from dataclasses import field
 from functools import partial
 from sys import getswitchinterval, setswitchinterval
 from threading import Barrier, Thread
-from typing import TYPE_CHECKING, Annotated, ClassVar, NewType, cast
+from typing import TYPE_CHECKING, Annotated, ClassVar, NewType, TypeAliasType, cast
 
 import pytest
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import TypeAliasType
 
 from xtr_serializer import (
     NotNormalizableValueError,

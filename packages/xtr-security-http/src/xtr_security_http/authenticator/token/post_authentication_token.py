@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, override
 
-from typing_extensions import override
 from xtr_security_core.authentication.token.abstract_token import AbstractToken
 from xtr_security_core.exception import InvalidArgumentError
 

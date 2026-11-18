@@ -11,7 +11,7 @@ from __future__ import annotations
 import functools
 import inspect
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, TypeAlias, cast, final
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from xtr_event_dispatcher import CompiledEventDispatcher, EventDispatcher, LazyListener
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
-_Guard: TypeAlias = "GuardExpression | Callable[[GuardContext], bool | Awaitable[bool]]"
+type _Guard = "GuardExpression | Callable[[GuardContext], bool | Awaitable[bool]]"
 
 GUARD_LISTENER = "xtr_workflow.event_listener.guard_listener.GuardListener.on_transition()"
 

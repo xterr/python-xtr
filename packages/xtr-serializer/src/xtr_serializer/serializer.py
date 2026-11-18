@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType, NoneType
-from typing import TYPE_CHECKING, Final, TypeVar, cast, final, overload
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, cast, final, overload, override
 
 from ._dispatch import Dispatch
 from ._type_names import qualified_name_of
@@ -30,7 +28,6 @@ if TYPE_CHECKING:
 
 __all__ = ["Serializer"]
 
-_T = TypeVar("_T")
 
 # The values that are plain data as they are: their exact classes, so that an enum member that
 # is a string, say, is still handed to a normalizer.
@@ -110,13 +107,13 @@ class Serializer(
         return encoder.encode(self._normalize(data, format, context, type_), format, context)
 
     @overload
-    def deserialize(
+    def deserialize[T](
         self,
         data: str | bytes,
-        type_: type[_T],
+        type_: type[T],
         format: str,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def deserialize(
@@ -164,13 +161,13 @@ class Serializer(
         return self._normalizer_for(data, format, self._merged(context), type_) is not None
 
     @overload
-    def denormalize(
+    def denormalize[T](
         self,
         data: object,
-        type_: type[_T],
+        type_: type[T],
         format: str | None = None,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def denormalize(

@@ -7,7 +7,7 @@ this checks it against what the kind of header holds and builds that header.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal
 
 from xtr_mime.address import Address
 from xtr_mime.exception import InvalidArgumentError
@@ -26,9 +26,7 @@ if TYPE_CHECKING:
 
 __all__ = ["HeaderKind", "build_header"]
 
-HeaderKind: TypeAlias = Literal[
-    "text", "parameterized", "mailbox", "mailbox_list", "date", "id", "path"
-]
+type HeaderKind = Literal["text", "parameterized", "mailbox", "mailbox_list", "date", "id", "path"]
 """Which kind of header :meth:`Headers.set_header_body` adds when the header is not there."""
 
 

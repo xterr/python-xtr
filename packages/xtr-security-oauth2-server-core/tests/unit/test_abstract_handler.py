@@ -6,10 +6,9 @@ import base64
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import timedelta
 from types import MappingProxyType
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.encryption import ENCRYPTION_KEY, seal

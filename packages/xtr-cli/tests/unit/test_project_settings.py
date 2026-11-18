@@ -14,6 +14,7 @@ def test_the_values_fill_every_placeholder(tmp_path: Path) -> None:
     assert settings.values() == {
         "name": "web-shop",
         "app": "web_shop",
-        "python": "3.13",
-        "minor": "13",
+        "python": "3.14",
+        "minor": "14",
+        "requires_python": "3.14.4",
     }

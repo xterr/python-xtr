@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, ClassVar, final
+from typing import TYPE_CHECKING, ClassVar, final, override
 
-from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from .abstract_processing_handler import AbstractProcessingHandler

@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from inspect import isawaitable
-from typing import TYPE_CHECKING, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, cast, final, override
 
 from xtr_security_core.authorization.authorization_checker_interface import (
     AuthorizationCheckerInterface,

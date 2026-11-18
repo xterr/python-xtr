@@ -18,9 +18,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import TYPE_CHECKING, Final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, override
 
 from xtr_storage.adapter._fsspec_bridge import FsspecBridge
 from xtr_storage.adapter.storage_adapter_interface import StorageAdapterInterface
@@ -414,7 +412,7 @@ class FsspecAdapter(StorageAdapterInterface, ABC):
             return None
         try:
             return (await self.visibility(source)).visibility
-        except (FeatureNotSupportedError, UnableToRetrieveMetadataError):
+        except FeatureNotSupportedError, UnableToRetrieveMetadataError:
             return None
 
     async def _apply_transfer_visibility(

@@ -18,11 +18,10 @@ from ._fixture_response import Answer, compact, compressed, head, length, pretty
 if TYPE_CHECKING:
     from asyncio import StreamWriter
     from collections.abc import Awaitable, Callable, Mapping
-    from typing import TypeAlias
 
     from ._fixture_request import FixtureRequest
 
-    _Route: TypeAlias = Callable[[FixtureRequest, StreamWriter], Awaitable[None]]
+    type _Route = Callable[[FixtureRequest, StreamWriter], Awaitable[None]]
 
 __all__ = ["respond"]
 

@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import copy
 import pickle
-from typing import TypeVar
 
 __all__ = ["round_trips"]
 
-_ErrorT = TypeVar("_ErrorT", bound=BaseException)
 
-
-def round_trips(error: _ErrorT) -> tuple[_ErrorT, ...]:
+def round_trips[ErrorT: BaseException](error: ErrorT) -> tuple[ErrorT, ...]:
     """Return ``error`` rebuilt by a pickle round trip (once, and twice), a copy and a deep copy.
 
     The pickle module is only ever handed bytes this function produced from the

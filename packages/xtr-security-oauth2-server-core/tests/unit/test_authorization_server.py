@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import TYPE_CHECKING, Final, Literal, cast, final
+from typing import TYPE_CHECKING, Final, Literal, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_message import Response
 
 from tests.support.dispatcher import RecordingEventDispatcher

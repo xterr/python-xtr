@@ -8,10 +8,9 @@ shared between channels, so "this handler, on that channel" has no meaning.
 from __future__ import annotations
 
 import re
-from typing import TypeAlias
+from typing import override
 
 import msgspec
-from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
@@ -127,7 +126,7 @@ class ServiceProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, ta
     id: str
 
 
-ProcessorConfig: TypeAlias = (
+type ProcessorConfig = (
     PlaceholderProcessorConfig
     | UidProcessorConfig
     | HostnameProcessorConfig

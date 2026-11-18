@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
 __all__ = ["injecting_factory"]
 
-_T = TypeVar("_T")
 
-
-def injecting_factory(
-    build: Callable[[Mapping[str, object]], _T], parameters: Mapping[str, object], returns: type
-) -> Callable[..., _T]:
+def injecting_factory[T](
+    build: Callable[[Mapping[str, object]], T], parameters: Mapping[str, object], returns: type
+) -> Callable[..., T]:
     """Return a factory taking ``parameters`` by keyword and handing them to ``build``.
 
     What a workflow's services take depends on its configuration — the
@@ -31,7 +29,7 @@ def injecting_factory(
         returns: The type the factory is registered under.
     """
 
-    def factory(**arguments: object) -> _T:
+    def factory(**arguments: object) -> T:
         return build(arguments)
 
     signature = inspect.Signature(

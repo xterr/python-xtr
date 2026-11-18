@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import base64
 import binascii
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 from urllib.parse import unquote
 
-from typing_extensions import override
 from xtr_security_core.exception import AuthenticationError
 
 if TYPE_CHECKING:
@@ -96,7 +95,7 @@ class RememberMeDetails:
         if _COOKIE_DELIMITER not in raw:
             try:
                 raw = base64.b64decode(raw).decode("utf-8")
-            except (binascii.Error, UnicodeDecodeError):
+            except binascii.Error, UnicodeDecodeError:
                 raise AuthenticationError("The cookie contains invalid data.") from None
         fields = raw.split(_COOKIE_DELIMITER, 3)
         if len(fields) != _FIELD_COUNT:
@@ -106,7 +105,7 @@ class RememberMeDetails:
                 fields[1].translate(_DECODE_ALPHABET),
                 validate=True,
             ).decode("utf-8")
-        except (binascii.Error, UnicodeDecodeError):
+        except binascii.Error, UnicodeDecodeError:
             raise AuthenticationError(
                 "The user identifier contains a character from outside the base64 alphabet.",
             ) from None

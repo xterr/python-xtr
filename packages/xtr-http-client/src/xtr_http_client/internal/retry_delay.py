@@ -34,12 +34,12 @@ def retry_after_ms(response: ResponseInterface) -> int | None:
     value = after[0].strip()
     try:
         return int(float(value) * 1000)
-    except (OverflowError, ValueError):
+    except OverflowError, ValueError:
         pass
 
     try:
         when = parsedate_to_datetime(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
     return max(0, int(when.timestamp() - time.time())) * 1000

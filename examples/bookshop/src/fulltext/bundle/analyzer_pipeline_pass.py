@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import CompilerPassInterface
 
 from fulltext.search_index import SearchIndex

@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, Unpack, cast, final, override
 
 import anyio
 import httpx
-from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_message import Request
 from xtr_service_contracts import ResetInterface

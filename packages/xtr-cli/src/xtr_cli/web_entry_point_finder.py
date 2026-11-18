@@ -92,7 +92,7 @@ def _scripts(project_dir: Path) -> dict[str, str]:
     try:
         with (project_dir / _PYPROJECT).open("rb") as handle:
             data: dict[str, object] = tomllib.load(handle)
-    except (OSError, tomllib.TOMLDecodeError):
+    except OSError, tomllib.TOMLDecodeError:
         # A manifest that cannot be read has no scripts to offer; the ASGI search still runs.
         return {}
     project = data.get("project")
@@ -125,7 +125,7 @@ def _parse(file: Path) -> ast.Module | None:
     """Parse ``file``, or return ``None`` for one that cannot be read as Python."""
     try:
         return ast.parse(file.read_text(encoding="utf-8"), str(file))
-    except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
+    except OSError, UnicodeDecodeError, SyntaxError, ValueError:
         # Not this tool's to report: a broken module is simply not an entry point.
         return None
 

@@ -5,9 +5,7 @@ from __future__ import annotations
 from email.generator import BytesGenerator
 from email.message import EmailMessage
 from email.parser import BytesParser
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_mime.exception import MimeError, MimeRuntimeError
 

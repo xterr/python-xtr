@@ -13,7 +13,7 @@ __all__ = ["UnsupportedPythonError"]
 class UnsupportedPythonError(CliError):
     """``--python`` is not a ``3.<minor>`` version the packages support.
 
-    Every xtr package requires Python 3.11 or later, so a project pinned below
+    Every xtr package requires Python 3.14 or later, so a project pinned below
     that could install none of them.
 
     Attributes:
@@ -25,4 +25,4 @@ class UnsupportedPythonError(CliError):
     def __init__(self, python: str) -> None:
         """Record the version that was refused."""
         self.python = python
-        super().__init__(f"--python {python!r}: give a version 3.11 or later, such as 3.13")
+        super().__init__(f"--python {python!r}: give a version 3.14 or later")

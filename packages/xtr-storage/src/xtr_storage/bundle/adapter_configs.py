@@ -26,7 +26,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import TypeAlias
 
 from xtr_dependency_injection import Reference
 
@@ -232,7 +231,7 @@ class FsspecAdapterConfig:
             )
 
 
-AdapterEntry: TypeAlias = (
+type AdapterEntry = (
     LocalAdapterConfig
     | MemoryAdapterConfig
     | S3AdapterConfig

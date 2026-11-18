@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, TypeVar, final
+from typing import TYPE_CHECKING, Final, final
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 __all__ = ["FirewallListenerOrder", "firewall_listener_order_of"]
 
 _MARKER: Final = "__xtr_firewall_listener_order__"
-_T = TypeVar("_T")
 
 
 @final
@@ -57,7 +56,7 @@ class FirewallListenerOrder:
         """Return the listeners this one runs after, as classes, names or qualifiers."""
         return self._after
 
-    def __call__(self, listener_class: type[_T]) -> type[_T]:
+    def __call__[T](self, listener_class: type[T]) -> type[T]:
         """Record this order on ``listener_class`` and return it unchanged."""
         setattr(listener_class, _MARKER, self)
         return listener_class

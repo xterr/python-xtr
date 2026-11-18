@@ -87,7 +87,7 @@ There are two templates:
 |---|---|
 | `--webapp` | Makes a web application, not a console application. |
 | `--name NAME` | Sets the name of the distribution and of the console command. The default is the name of the directory. |
-| `--python 3.13` | Sets the Python version of the application. The version must be 3.11 or a later version. |
+| `--python 3.14` | Sets the Python version of the application. The version must be 3.14 or a later version. |
 | `--no-git` | Does not start a git repository. |
 | `--dry-run` | Shows each file and each command, and writes nothing. |
 

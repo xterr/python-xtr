@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, override
 
 from .authorization_checker_interface import AuthorizationCheckerInterface
 from .voter.authenticated_voter import AuthenticatedVoter

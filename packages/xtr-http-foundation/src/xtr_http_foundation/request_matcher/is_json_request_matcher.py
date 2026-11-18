@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, cast, final, override
 
 from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
 
@@ -50,7 +48,7 @@ class IsJsonRequestMatcher(RequestMatcherInterface):
         # The parser gives up on deep nesting with a RecursionError rather than a
         # ValueError. The body is the sender's, so that is a body that does not
         # decode, not this side's failure to answer for with a server error.
-        except (ValueError, RecursionError):
+        except ValueError, RecursionError:
             return False
 
         return True

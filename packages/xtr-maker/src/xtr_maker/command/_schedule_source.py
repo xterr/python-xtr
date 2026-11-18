@@ -70,7 +70,7 @@ class ScheduleSource:
         comments, base = self._schedule_lines(imports, schedule_class)
         decorator = imports.add("xtr_scheduler.decorator", "as_schedule")
         provider_interface = imports.add("xtr_scheduler", "ScheduleProviderInterface")
-        override = imports.add("typing_extensions", "override")
+        override = imports.add("typing", "override")
         return {
             "imports": imports.render(),
             "schedule": self.schedule,

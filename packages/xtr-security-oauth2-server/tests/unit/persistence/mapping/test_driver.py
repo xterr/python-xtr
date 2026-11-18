@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 @contextmanager
-def _loaded(driver: Driver, metadata: MetaData | None = None) -> Generator[MetaData, None, None]:
+def _loaded(driver: Driver, metadata: MetaData | None = None) -> Generator[MetaData]:
     """Load ``driver`` into definitions, then unmap what it mapped.
 
     The mapping lives on the model classes, which the process shares, so a

@@ -109,6 +109,6 @@ class SentMessage:
         """Return what is sent, as text."""
         return self._raw.to_string()
 
-    def to_iterable(self) -> Generator[bytes, None, None]:
+    def to_iterable(self) -> Generator[bytes]:
         """Yield what is sent, as a mail server receives it."""
         return self._raw.to_iterable()

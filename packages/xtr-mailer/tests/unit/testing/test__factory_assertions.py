@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.scripted_transport import ScriptedTransport
 from xtr_mailer.exception import UnsupportedSchemeError

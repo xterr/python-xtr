@@ -10,10 +10,9 @@ bag — supersedes this memo, and this is the interim carrier.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeGuard, cast, final
+from typing import TYPE_CHECKING, TypeGuard, cast, final, override
 from weakref import WeakKeyDictionary
 
-from typing_extensions import override
 from xtr_security_core.exception import AuthenticationError, UserNotFoundError
 from xtr_security_core.user.attributes_based_user_provider_interface import (
     AttributesBasedUserProviderInterface,

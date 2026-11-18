@@ -46,7 +46,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
     from contextlib import AbstractAsyncContextManager
     from pathlib import Path
-    from typing import TypeAlias
 
     from xtr_security_oauth2_server.manager.access_token_manager_interface import (
         AccessTokenManagerInterface,
@@ -63,18 +62,18 @@ if TYPE_CHECKING:
     )
     from xtr_security_oauth2_server.model.client_interface import ClientInterface
 
-    OpenClients: TypeAlias = Callable[[Path], AbstractAsyncContextManager[ClientManagerInterface]]
-    OpenAccessTokens: TypeAlias = Callable[
+    type OpenClients = Callable[[Path], AbstractAsyncContextManager[ClientManagerInterface]]
+    type OpenAccessTokens = Callable[
         [Path], AbstractAsyncContextManager[tuple[AccessTokenManagerInterface, ClientInterface]]
     ]
-    OpenAuthorizationCodes: TypeAlias = Callable[
+    type OpenAuthorizationCodes = Callable[
         [Path],
         AbstractAsyncContextManager[tuple[AuthorizationCodeManagerInterface, ClientInterface]],
     ]
-    OpenRefreshTokens: TypeAlias = Callable[
+    type OpenRefreshTokens = Callable[
         [Path], AbstractAsyncContextManager[RefreshTokenManagerInterface]
     ]
-    OpenDeviceCodes: TypeAlias = Callable[
+    type OpenDeviceCodes = Callable[
         [Path], AbstractAsyncContextManager[tuple[DeviceCodeManagerInterface, ClientInterface]]
     ]
 
@@ -82,13 +81,13 @@ pytestmark = pytest.mark.anyio
 
 
 @asynccontextmanager
-async def _held_clients(tmp_path: Path) -> AsyncGenerator[ClientManagerInterface, None]:
+async def _held_clients(tmp_path: Path) -> AsyncGenerator[ClientManagerInterface]:
     del tmp_path
     yield in_memory.ClientManager(RecordingEventDispatcher())
 
 
 @asynccontextmanager
-async def _stored_clients(tmp_path: Path) -> AsyncGenerator[ClientManagerInterface, None]:
+async def _stored_clients(tmp_path: Path) -> AsyncGenerator[ClientManagerInterface]:
     async with stored(tmp_path) as database:
         yield orm.ClientManager(
             await database.scope_factory(),
@@ -101,7 +100,7 @@ async def _stored_clients(tmp_path: Path) -> AsyncGenerator[ClientManagerInterfa
 @asynccontextmanager
 async def _held_access_tokens(
     tmp_path: Path,
-) -> AsyncGenerator[tuple[AccessTokenManagerInterface, ClientInterface], None]:
+) -> AsyncGenerator[tuple[AccessTokenManagerInterface, ClientInterface]]:
     del tmp_path
     yield in_memory.AccessTokenManager(MockClock(NOW)), client_model()
 
@@ -109,7 +108,7 @@ async def _held_access_tokens(
 @asynccontextmanager
 async def _stored_access_tokens(
     tmp_path: Path,
-) -> AsyncGenerator[tuple[AccessTokenManagerInterface, ClientInterface], None]:
+) -> AsyncGenerator[tuple[AccessTokenManagerInterface, ClientInterface]]:
     async with stored(tmp_path) as database:
         client = await registered(database.session())
         manager = orm.AccessTokenManager(
@@ -124,7 +123,7 @@ async def _stored_access_tokens(
 @asynccontextmanager
 async def _held_authorization_codes(
     tmp_path: Path,
-) -> AsyncGenerator[tuple[AuthorizationCodeManagerInterface, ClientInterface], None]:
+) -> AsyncGenerator[tuple[AuthorizationCodeManagerInterface, ClientInterface]]:
     del tmp_path
     yield in_memory.AuthorizationCodeManager(MockClock(NOW)), client_model()
 
@@ -132,7 +131,7 @@ async def _held_authorization_codes(
 @asynccontextmanager
 async def _stored_authorization_codes(
     tmp_path: Path,
-) -> AsyncGenerator[tuple[AuthorizationCodeManagerInterface, ClientInterface], None]:
+) -> AsyncGenerator[tuple[AuthorizationCodeManagerInterface, ClientInterface]]:
     async with stored(tmp_path) as database:
         client = await registered(database.session())
         manager = orm.AuthorizationCodeManager(
@@ -146,7 +145,7 @@ async def _stored_authorization_codes(
 @asynccontextmanager
 async def _held_refresh_tokens(
     tmp_path: Path,
-) -> AsyncGenerator[RefreshTokenManagerInterface, None]:
+) -> AsyncGenerator[RefreshTokenManagerInterface]:
     del tmp_path
     yield in_memory.RefreshTokenManager(MockClock(NOW))
 
@@ -154,7 +153,7 @@ async def _held_refresh_tokens(
 @asynccontextmanager
 async def _stored_refresh_tokens(
     tmp_path: Path,
-) -> AsyncGenerator[RefreshTokenManagerInterface, None]:
+) -> AsyncGenerator[RefreshTokenManagerInterface]:
     async with stored(tmp_path) as database:
         yield orm.RefreshTokenManager(
             await database.scope_factory(),
@@ -166,7 +165,7 @@ async def _stored_refresh_tokens(
 @asynccontextmanager
 async def _held_device_codes(
     tmp_path: Path,
-) -> AsyncGenerator[tuple[DeviceCodeManagerInterface, ClientInterface], None]:
+) -> AsyncGenerator[tuple[DeviceCodeManagerInterface, ClientInterface]]:
     del tmp_path
     yield in_memory.DeviceCodeManager(MockClock(NOW)), client_model()
 
@@ -174,7 +173,7 @@ async def _held_device_codes(
 @asynccontextmanager
 async def _stored_device_codes(
     tmp_path: Path,
-) -> AsyncGenerator[tuple[DeviceCodeManagerInterface, ClientInterface], None]:
+) -> AsyncGenerator[tuple[DeviceCodeManagerInterface, ClientInterface]]:
     async with stored(tmp_path) as database:
         client = await registered(database.session())
         manager = orm.DeviceCodeManager(await database.scope_factory(), CONNECTION, MockClock(NOW))

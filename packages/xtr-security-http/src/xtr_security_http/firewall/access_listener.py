@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
-from typing_extensions import override
 from xtr_security_core.authentication.token.null_token import NullToken
 from xtr_security_core.authorization.access_decision import AccessDecision
 from xtr_security_core.authorization.voter.authenticated_voter import AuthenticatedVoter

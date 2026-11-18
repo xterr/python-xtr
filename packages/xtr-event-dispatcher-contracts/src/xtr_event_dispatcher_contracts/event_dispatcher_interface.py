@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 __all__ = ["EventDispatcherInterface"]
-
-_EventT = TypeVar("_EventT")
 
 
 @runtime_checkable
@@ -19,7 +17,7 @@ class EventDispatcherInterface(Protocol):
     learns what listens.
     """
 
-    async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+    async def dispatch[EventT](self, event: EventT, event_name: str | type | None = None) -> EventT:
         """Run every listener of the event, highest priority first, and return the event.
 
         Listeners run one after the other, each awaited before the next. When

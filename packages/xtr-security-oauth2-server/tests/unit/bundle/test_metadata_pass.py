@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.building import processing_builder
 from xtr_security_oauth2_server.controller.metadata_controller import MetadataController

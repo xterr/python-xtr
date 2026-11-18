@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, ClassVar, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, final, override
 
 from .envelope import Envelope
 from .event import MessageEvent

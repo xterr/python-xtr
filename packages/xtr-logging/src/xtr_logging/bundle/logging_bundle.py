@@ -15,9 +15,8 @@ missing clock bundle costs nothing at build time.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable, Iterable, Iterator
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
-from typing_extensions import override
 from xtr_clock import ClockInterface
 from xtr_dependency_injection import (
     UNIT_PARTICIPANT_TAG,

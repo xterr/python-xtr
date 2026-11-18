@@ -4,8 +4,8 @@
 
 **Channels, handlers, processors and formatters for Python — behind one logger interface.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: 5" src="https://img.shields.io/badge/core%20deps-5-3FB950">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
+<img alt="core dependencies: 4" src="https://img.shields.io/badge/core%20deps-4-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -33,9 +33,9 @@ What you get:
 - 🕰️ **An injectable clock** — record times come from [xtr-clock](https://github.com/xterr/python-xtr-clock),
   so a test freezes them.
 - 🤝 **A contract a library can depend on alone** — the interface lives in
-  [xtr-logging-contracts](https://github.com/xterr/python-xtr-logging-contracts), which has one
-  dependency, so a library that only logs never installs any of this.
-- 🪶 **Five core dependencies** — `msgspec`, `typing-extensions`, `xtr-clock`,
+  [xtr-logging-contracts](https://github.com/xterr/python-xtr-logging-contracts), which has no
+  dependencies, so a library that only logs never installs any of this.
+- 🪶 **Four core dependencies** — `msgspec`, `xtr-clock`,
   `xtr-logging-contracts` and `xtr-service-contracts`. The container is not one of them.
 
 ```python
@@ -49,7 +49,7 @@ uv add xtr-logging                           # everything but the container inte
 uv add xtr-logging xtr-dependency-injection  # + the container, for the LoggingBundle
 ```
 
-Requires Python 3.11+. The container is not a dependency: the bundle is used when
+Requires Python 3.14.4+. The container is not a dependency: the bundle is used when
 [xtr-dependency-injection](../xtr-dependency-injection) is installed beside the package, never as
 an extra, and the loggers work without it.
 

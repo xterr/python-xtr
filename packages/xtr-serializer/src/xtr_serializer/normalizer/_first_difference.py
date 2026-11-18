@@ -20,7 +20,6 @@ from ._part_pairs import ABSENT, PLAIN, mapping_pairs, pairs, set_pairs
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from types import CodeType
-    from typing import TypeAlias
 
     from _typeshed import DataclassInstance
     from pydantic.fields import FieldInfo
@@ -30,7 +29,7 @@ if TYPE_CHECKING:
     # The pairs of parts of one value still to compare, how many steps lead to the value, whether
     # its parts have a place in a path, the type a difference inside it is reported as, and the
     # value itself.
-    _Frame: TypeAlias = tuple[Iterator[Pair], int, bool, type | None, object]
+    type _Frame = tuple[Iterator[Pair], int, bool, type | None, object]
 
 __all__ = ["first_difference"]
 

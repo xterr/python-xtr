@@ -272,5 +272,5 @@ def _http_date(response: HttpResponseInterface, name: str) -> int | None:
         return None
     try:
         return int(parsedate_to_datetime(value).timestamp())
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None

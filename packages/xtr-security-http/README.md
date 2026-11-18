@@ -4,7 +4,7 @@
 
 **The HTTP edge of security: firewalls, authenticators, bearer access tokens and the request surface.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -47,7 +47,7 @@ uv add xtr-security-http                 # firewalls, authenticators, access tok
 uv add "xtr-security-http[oidc]"         # + verifying a third-party OIDC issuer's tokens
 ```
 
-Requires Python 3.11+. The web framework and the security core come with the package; the `oidc`
+Requires Python 3.14.4+. The web framework and the security core come with the package; the `oidc`
 extra adds [joserfc](https://jose.authlib.org/) and [httpx](https://www.python-httpx.org/) for
 verifying and discovering an issuer's keys, and for verifying the signed introspection responses
 the OAuth2 handler can ask for.

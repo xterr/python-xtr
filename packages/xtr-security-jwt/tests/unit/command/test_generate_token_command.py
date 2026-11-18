@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import io
+from typing import override
 
 import pytest
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_console import ConsoleStyle
 from xtr_dependency_injection import ServiceLocator

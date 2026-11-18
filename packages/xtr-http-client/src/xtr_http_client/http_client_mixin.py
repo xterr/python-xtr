@@ -6,9 +6,8 @@ import copy
 import json
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Final, Self
+from typing import TYPE_CHECKING, Final, Self, Unpack
 
-from typing_extensions import Unpack
 from xtr_http_client_contracts import OPTIONS_DEFAULTS
 
 from xtr_http_client.exception import InvalidArgumentError

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_dependency_injection import ContainerBuilder, Origin
 from xtr_dependency_injection.builder.service_configurator import BuildState
 from xtr_security_http.decorator.firewall_listener_order import FirewallListenerOrder

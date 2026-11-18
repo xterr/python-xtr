@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import TYPE_CHECKING, ClassVar, Final, Self
+from typing import TYPE_CHECKING, ClassVar, Final, Self, override
 
-from typing_extensions import override
 from xtr_security_core.exception import AuthenticationError
 from xtr_security_oauth2_server_core.bearer_challenge import bearer_challenge
 from xtr_security_oauth2_server_core.exception.oauth2_error import OAuth2Error

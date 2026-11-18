@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING, Final, cast
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, cast, override
 
 from .introspection_response_type_interface import IntrospectionResponseTypeInterface
 

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_service_contracts import UnitParticipantInterface
 
 from .log_unit import enter_nested_unit, exit_nested_unit

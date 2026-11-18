@@ -9,9 +9,8 @@ first: the built-in passes first, then bundles', then the application's in scan 
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import CompilerPassInterface, ContainerBuilder, compiler_pass
 
 __all__ = ["TagApplicationServicesPass"]

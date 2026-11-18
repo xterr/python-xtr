@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic_ai.agent import AbstractAgent
 
@@ -14,11 +14,9 @@ if TYPE_CHECKING:
 
 __all__ = ["override_agent_model"]
 
-_T = TypeVar("_T")
-
 
 class _Container(Protocol):
-    async def get(self, service: type[_T], qualifier: Hashable | None = None, /) -> _T: ...
+    async def get[T](self, service: type[T], qualifier: Hashable | None = None, /) -> T: ...
 
 
 @asynccontextmanager

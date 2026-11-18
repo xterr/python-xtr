@@ -7,7 +7,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final, TypeVar, final
+from typing import TYPE_CHECKING, ClassVar, Final, final
 
 from xtr_mime._error_text import escaped
 from xtr_mime.exception import InvalidArgumentError, LogicError, MimeRuntimeError
@@ -33,7 +33,6 @@ _LABELS: Final = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*")
 # A DKIM-Signature already there is left out too, as RFC 6376 advises: a later hop may add
 # its own above it, and signing one would sign what the next signer changes.
 _ALWAYS_IGNORED: Final = frozenset({"return-path", "x-transport", "dkim-signature"})
-_T = TypeVar("_T")
 
 
 @final
@@ -187,7 +186,7 @@ class _Settings:
         return header.get_name().lower() not in self.ignored and bool(header.get_body_as_string())
 
 
-def _first(value: _T | None, default: _T | None, fallback: _T) -> _T:
+def _first[T](value: T | None, default: T | None, fallback: T) -> T:
     """Return the option set for this signature, else the signer's, else ``fallback``."""
     if value is not None:
         return value

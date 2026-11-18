@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import copy
 from secrets import randbelow
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_logging_contracts import EXCEPTION_KEY, NullLogger
 

@@ -5,9 +5,8 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from random import random
-from typing import TYPE_CHECKING, Final, TypeVar, cast
+from typing import TYPE_CHECKING, Final, cast, override
 
-from typing_extensions import override
 from xtr_clock import now
 
 from .cache_interface import CacheInterface
@@ -20,7 +19,6 @@ if TYPE_CHECKING:
 
 __all__ = ["CacheMixin"]
 
-_T = TypeVar("_T")
 
 _DEFAULT_BETA: Final = 1.0
 """The ``beta`` used when none is given; what the early-expiry model is tuned for."""
@@ -64,15 +62,15 @@ class CacheMixin(CacheInterface, ABC):
         """Remove the item under ``key``; ``False`` when that failed."""
 
     @override
-    async def get(
+    async def get[T](
         self,
         key: str,
-        callback: Callback[_T],
+        callback: Callback[T],
         /,
         *,
         beta: float | None = None,
         metadata: Metadata | None = None,
-    ) -> _T:
+    ) -> T:
         """Return the value under ``key``, computing and saving it on a miss.
 
         Raises:
@@ -97,7 +95,7 @@ class CacheMixin(CacheInterface, ABC):
             and not self._elect_early_recomputation(item, found, beta)
         ):
             # The key's value was stored by the same callback type, which is the caller's promise.
-            return cast("_T", item.get())
+            return cast("T", item.get())
 
         return await self._compute(item, callback, beta, metadata)
 
@@ -106,13 +104,13 @@ class CacheMixin(CacheInterface, ABC):
         """Remove the value under ``key``; ``False`` when the backend failed."""
         return await self.delete_item(key)
 
-    async def _compute(
+    async def _compute[T](
         self,
         item: ItemInterface,
-        callback: Callback[_T],
+        callback: Callback[T],
         beta: float,
         metadata: Metadata | None,
-    ) -> _T:
+    ) -> T:
         """Compute the value for ``item`` with ``callback``, save it, and return it.
 
         A value that cannot be saved is still returned, and reported through

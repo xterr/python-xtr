@@ -15,16 +15,16 @@ that each tool is on your computer.
    ```
 
    The command shows the version of uv.
-4. Make sure that Python 3.11 or a later version is available:
+4. Make sure that Python 3.14.4 or a later version is available:
 
    ```sh
-   uv python find 3.11
+   uv python find 3.14
    ```
 
    If the command does not find a Python, install one with uv:
 
    ```sh
-   uv python install 3.13
+   uv python install 3.14
    ```
 
 5. Make sure that git is available:

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
 from sqlalchemy import delete, update
-from typing_extensions import override
 from xtr_clock import ClockInterface  # noqa: TC002 — read at runtime by the container
 from xtr_dependency_injection import (
     ScopeFactoryInterface,  # noqa: TC002 — read at runtime by the container

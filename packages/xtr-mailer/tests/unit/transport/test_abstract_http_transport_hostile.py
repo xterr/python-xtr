@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 import anyio
 import pytest
-from typing_extensions import override
 from xtr_http_client import MockHttpClient, MockResponse
 from xtr_http_client_contracts.exception import TransportTimeoutError
 from xtr_mime import Email

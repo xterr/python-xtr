@@ -5,9 +5,8 @@ from __future__ import annotations
 import os
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
-from typing_extensions import override
 from xtr_logging_contracts import Level
 
 from .abstract_processing_handler import AbstractProcessingHandler

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.records import make_record
 from xtr_logging import AbstractHandler, LogRecord, TestHandler

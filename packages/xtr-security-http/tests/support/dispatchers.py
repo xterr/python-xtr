@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypeVar, final
-
-_EventT = TypeVar("_EventT")
+from typing import final
 
 
 @final
@@ -14,7 +12,7 @@ class RecordingDispatcher:
     def __init__(self) -> None:
         self.events: list[object] = []
 
-    async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+    async def dispatch[EventT](self, event: EventT, event_name: str | type | None = None) -> EventT:
         del event_name
         self.events.append(event)
         return event

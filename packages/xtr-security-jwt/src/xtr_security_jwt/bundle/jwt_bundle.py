@@ -21,9 +21,7 @@ from collections.abc import (
     Hashable,
     Mapping,
 )
-from typing import TYPE_CHECKING, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, cast, final, override
 
 # The clock, the dispatcher and the collected enrichments annotate factory
 # parameters the container reads at runtime, so they cannot hide under

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing_extensions import override
+from typing import override
 
 from xtr_logging import LogRecord
 from xtr_logging.decorator import as_processor

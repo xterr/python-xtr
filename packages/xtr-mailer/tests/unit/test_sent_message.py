@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
-from typing_extensions import override
 from xtr_mime import Address, Email, RawMessage, RfcComplianceError
 from xtr_mime import LogicError as MimeLogicError
 
@@ -33,7 +32,7 @@ class _CountingEmail(Email):
         self.renderings: list[None] = []
 
     @override
-    def to_iterable(self) -> Generator[bytes, None, None]:
+    def to_iterable(self) -> Generator[bytes]:
         self.renderings.append(None)
         yield from super().to_iterable()
 

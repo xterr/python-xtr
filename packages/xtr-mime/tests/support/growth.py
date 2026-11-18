@@ -28,14 +28,13 @@ from __future__ import annotations
 import gc
 import time
 from itertools import pairwise
-from typing import TYPE_CHECKING, Final, TypeVar
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 __all__ = ["assert_linear_growth"]
 
-_T = TypeVar("_T")
 
 _FACTOR: Final = 2
 _STEPS: Final = 10
@@ -46,7 +45,7 @@ _RUNS: Final = 3
 _FLOOR_SECONDS: Final = 0.03
 
 
-def assert_linear_growth(run: Callable[[int], _T], size: int) -> _T:
+def assert_linear_growth[T](run: Callable[[int], T], size: int) -> T:
     """Assert the CPU time of ``run`` grows linearly with its size, up to four times ``size``.
 
     Returns:
@@ -77,7 +76,7 @@ def assert_linear_growth(run: Callable[[int], _T], size: int) -> _T:
     return result
 
 
-def _best_of(run: Callable[[int], _T], size: int, *, bound: float | None) -> tuple[_T, float]:
+def _best_of[T](run: Callable[[int], T], size: int, *, bound: float | None) -> tuple[T, float]:
     """Time ``run`` on ``size`` up to three times, stopping once a time is under ``bound``.
 
     With no bound — the step is not compared — all three run: the time may be the base of the
@@ -92,7 +91,7 @@ def _best_of(run: Callable[[int], _T], size: int, *, bound: float | None) -> tup
     return result, best
 
 
-def _timed(run: Callable[[int], _T], size: int) -> tuple[_T, float]:
+def _timed[T](run: Callable[[int], T], size: int) -> tuple[T, float]:
     collecting = gc.isenabled()
     gc.disable()
     try:

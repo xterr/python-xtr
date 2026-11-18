@@ -4,8 +4,8 @@
 
 **A clock an application can be handed, instead of the one it is standing on.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: 2" src="https://img.shields.io/badge/core%20deps-2-3FB950">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
+<img alt="core dependencies: 1" src="https://img.shields.io/badge/core%20deps-1-3FB950">
 <img alt="statements 100%" src="https://img.shields.io/badge/statements-100%25-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -24,8 +24,8 @@ Take a **clock** as a constructor argument and the choice becomes configuration:
 clock in production, a frozen one in a test. What comes back is a **`DatePoint`** — a
 `datetime`, so nothing downstream has to change.
 
-- 🪶 **Two dependencies.** `anyio`, so an awaitable wait is not tied to one async backend, and
-  `typing-extensions`, which only the bundle imports. `zoneinfo`, `contextvars` and `datetime`
+- 🪶 **One dependency.** `anyio`, so an awaitable wait is not tied to one async backend.
+  `zoneinfo`, `contextvars` and `datetime`
   are already there, and the container the bundle plugs into is not a dependency at all.
 - 🕐 **A `DatePoint` is a `datetime`.** It drops into an ORM column, a serializer, a comparison,
   an existing signature. Adopting this library changes no type you already have.
@@ -55,10 +55,10 @@ uv add xtr-clock xtr-dependency-injection  # + the container, for the ClockBundl
 
 | Extra | Brings | For |
 | --- | --- | --- |
-| *(none)* | `anyio`, `typing-extensions` | The whole library |
+| *(none)* | `anyio` | The whole library |
 | `tzdata` | `tzdata` | Windows, and slim containers that ship no zone database |
 
-Requires Python 3.11+. The container is not a dependency: the bundle is used when
+Requires Python 3.14.4+. The container is not a dependency: the bundle is used when
 [xtr-dependency-injection](../xtr-dependency-injection) is installed beside the package, never as
 an extra, and the clocks work without it.
 
@@ -192,7 +192,7 @@ point.to_naive_utc()  # a plain datetime, no zone, holding the UTC wall clock
 ```
 
 `replace(tzinfo=None)` does not: it answers with a `DatePoint` like every other operation, the
-local zone attached again on Python 3.12 and later, and a database driver handed one either
+local zone attached again, and a database driver handed one either
 refuses it or stores it shifted by the machine's UTC offset.
 
 > A `DatePoint` is built the way a `datetime` is — `DatePoint(2024, 4, 9)`. The string grammar

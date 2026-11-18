@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import secrets
 from abc import ABCMeta
-from typing import TYPE_CHECKING, ClassVar
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, override
 
 from xtr_mime._engine import build_multipart, set_fields
 

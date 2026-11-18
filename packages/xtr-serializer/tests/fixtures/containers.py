@@ -4,13 +4,9 @@ from __future__ import annotations
 
 from collections import Counter, OrderedDict, defaultdict, deque
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import NamedTuple, TypedDict, override
 
 from pydantic import BaseModel, ConfigDict, with_config
-from typing_extensions import (  # pydantic reads typing's TypedDict from Python 3.12
-    TypedDict,
-    override,
-)
 
 from tests.fixtures.exact_values import Level
 

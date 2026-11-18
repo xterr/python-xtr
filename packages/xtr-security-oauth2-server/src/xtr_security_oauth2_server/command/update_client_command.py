@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, TypeVar, final
+from typing import TYPE_CHECKING, Annotated, final
 
 from xtr_console import Argument, ConsoleStyle, ExitCode, Option, as_command, escape
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
@@ -20,8 +20,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 __all__ = ["UpdateClientCommand"]
-
-_T = TypeVar("_T")
 
 
 @as_command("oauth2-server:update-client", registry=OAUTH2_SERVER_COMMANDS)
@@ -150,13 +148,13 @@ def _state(current: bool, *, activate: bool, deactivate: bool) -> bool:
     return current
 
 
-def _amended(
-    held: Sequence[_T],
+def _amended[T](
+    held: Sequence[T],
     to_add: Sequence[str],
     to_remove: Sequence[str],
-    value_object: Callable[[str], _T],
+    value_object: Callable[[str], T],
     option: str,
-) -> tuple[_T, ...]:
+) -> tuple[T, ...]:
     """Return ``held`` without ``to_remove`` and with ``to_add``, in that order.
 
     Removing something the client never held is not an error: the outcome the

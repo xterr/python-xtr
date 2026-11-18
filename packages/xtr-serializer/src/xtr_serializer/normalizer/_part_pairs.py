@@ -7,12 +7,11 @@ from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
-    from typing import TypeAlias
 
     # Two parts to compare: the step leading to them, or ``None`` where they have no place in a
     # path; the part; its copy; and the type a difference inside them is reported as, ``None``
     # for the type of the part that differs.
-    Pair: TypeAlias = tuple[str | int | None, object, object, type | None]
+    type Pair = tuple[str | int | None, object, object, type | None]
 
 __all__ = ["ABSENT", "PLAIN", "mapping_pairs", "pairs", "set_pairs"]
 

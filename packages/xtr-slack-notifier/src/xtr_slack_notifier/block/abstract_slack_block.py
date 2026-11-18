@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import copy
 from abc import ABC
-
-from typing_extensions import override
+from typing import override
 
 from .slack_block_interface import SlackBlockInterface
 

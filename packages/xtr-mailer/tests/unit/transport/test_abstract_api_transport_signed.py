@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from functools import cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from typing_extensions import override
 from xtr_event_dispatcher import EventDispatcher
 from xtr_http_client import MockHttpClient
 from xtr_mime import Email, MimeRuntimeError

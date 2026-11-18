@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_security_core.authentication.token.abstract_token import AbstractToken
 from xtr_security_core.authentication.token.null_token import NullToken

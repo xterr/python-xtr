@@ -21,7 +21,7 @@ from ipaddress import (
     IPv6Network,
 )
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Annotated, cast
+from typing import TYPE_CHECKING, Annotated, cast, override
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -37,7 +37,6 @@ from pydantic import (
     field_validator,
 )
 from pydantic_core import to_json
-from typing_extensions import override
 from xtr_clock import DatePoint
 
 from tests.fixtures.colliding_key import CollidingKey

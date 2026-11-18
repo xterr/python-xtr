@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from xtr_webhook.client.webhook_id_store_interface import WebhookIdStoreInterface
 

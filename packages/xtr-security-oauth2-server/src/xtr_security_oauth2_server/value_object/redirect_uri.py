@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Final, final
+from typing import Final, final, override
 
-from typing_extensions import override
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 
 __all__ = ["RedirectUri"]

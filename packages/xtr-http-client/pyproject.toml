@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Xterr", email = "me@xterr.dev" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.14.4"
 license = "MIT"
 license-files = ["LICENSE"]
 keywords = ["http", "http-client", "request", "response", "mock", "asyncio"]
@@ -14,9 +14,6 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Framework :: AsyncIO",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Internet :: WWW/HTTP",
     "Typing :: Typed",
@@ -24,8 +21,7 @@ classifiers = [
 # `anyio` for the deadlines and task groups a streamed transfer is driven by;
 # `httpx` for the one backend that opens the connections, named nowhere else.
 dependencies = [
-    "typing-extensions>=4.4",
-    "anyio>=4.0",
+    "anyio>=4.10",
     "httpx>=0.27",
     "xtr-http-client-contracts>=7.0,<8",
     "xtr-http-message>=7.0,<8",
@@ -51,12 +47,12 @@ http_client = "xtr_http_client.recipe"
 
 [dependency-groups]
 dev = [
-    "basedpyright>=1.21",
-    "ruff>=0.8",
-    "pytest>=8",
-    "pytest-cov>=5",
-    "anyio>=4.0",
-    "h2>=4.0",
+    "basedpyright>=1.31.7",
+    "ruff>=0.14.7",
+    "pytest>=8.4",
+    "pytest-cov>=7.1",
+    "anyio>=4.10",
+    "h2>=4.4",
     "ty>=0.0.83",
     "xtr-clock>=7.0,<8",
     "xtr-dependency-injection>=7.0,<8",
@@ -76,7 +72,7 @@ build-backend = "uv_build"
 # ─────────────────────────────────────────────────────────────────
 [tool.basedpyright]
 typeCheckingMode = "all"
-pythonVersion = "3.11"
+pythonVersion = "3.14"
 pythonPlatform = "All"
 include = ["src", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
@@ -102,7 +98,7 @@ reportPrivateUsage = "none"
 # ruff — select = ["ALL"], minimal justified ignores
 # ─────────────────────────────────────────────────────────────────
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 100
 src = ["src", "tests"]
 

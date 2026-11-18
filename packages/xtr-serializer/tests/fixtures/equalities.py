@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable  # read at run time: dataclass reads its class's annotations
 from dataclasses import dataclass, field
-from typing import ClassVar, cast
+from typing import ClassVar, cast, override
 
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import override
 
 __all__ = [
     "GENERATED_EQUALITIES",

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from contextlib import suppress
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_http_message_contracts import ResponseInterface
 from xtr_serializer import JsonEncoder, NotEncodableValueError
 
@@ -23,7 +22,6 @@ if TYPE_CHECKING:
 
 __all__ = ["AbstractRequestParser"]
 
-R = TypeVar("R", bound=ResponseInterface)
 
 _MALFORMED = "Request body is malformed."
 _PLAIN_TEXT = "text/plain; charset=utf-8"
@@ -93,7 +91,9 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         raise RejectWebhookError(_UNACCEPTABLE, _MALFORMED)
 
     @override
-    async def create_successful_response(self, request: ServerRequestInterface, response: R) -> R:
+    async def create_successful_response[R: ResponseInterface](
+        self, request: ServerRequestInterface, response: R
+    ) -> R:
         """Answer a webhook that was read with 202 and nothing else.
 
         The sender is told the webhook was taken, not what became of it: the
@@ -113,7 +113,7 @@ class AbstractRequestParser(RequestParserInterface, ABC):
         return response.with_status(_ACCEPTED)
 
     @override
-    async def create_rejected_response(
+    async def create_rejected_response[R: ResponseInterface](
         self,
         reason: str,
         request: ServerRequestInterface,

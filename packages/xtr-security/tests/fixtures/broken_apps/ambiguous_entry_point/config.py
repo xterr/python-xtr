@@ -12,9 +12,8 @@ firewall pairing one of each resolves without naming an entry point.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, configure, required_bundle
 from xtr_security_core import InMemoryUser
 from xtr_security_core.user.user_interface import UserInterface

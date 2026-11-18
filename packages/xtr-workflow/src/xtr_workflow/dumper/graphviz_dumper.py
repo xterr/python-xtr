@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import TYPE_CHECKING, ClassVar, cast
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, cast, override
 
 from ._escaping import addslashes, escape_html, text_of
 from ._graphviz_nodes import Edge, PlaceNode, TransitionNode

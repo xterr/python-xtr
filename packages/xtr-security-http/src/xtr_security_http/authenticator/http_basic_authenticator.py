@@ -11,9 +11,8 @@ try again, not turned away.
 from __future__ import annotations
 
 from base64 import b64decode
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_security_core.authentication.authentication_method import AuthenticationMethod
 from xtr_security_core.authentication.token.username_password_token import UsernamePasswordToken
 from xtr_security_core.exception import BadCredentialsError

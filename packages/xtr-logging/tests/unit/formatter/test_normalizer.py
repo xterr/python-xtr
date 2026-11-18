@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 from pathlib import PurePosixPath
+from typing import override
 
 import pytest
-from typing_extensions import override
 
 from xtr_logging import Normalizer
 

@@ -7,9 +7,8 @@ import sys
 import threading
 import traceback
 from contextvars import copy_context
-from typing import TYPE_CHECKING, Final, TypeAlias, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_service_contracts import ResetInterface
 
 from xtr_logging.log_context import current_context
@@ -38,7 +37,7 @@ _STOP: Final = _Stop()
 _WORKER_CHECK_INTERVAL: Final = 0.1
 """Seconds a flush waits between checks that the worker it waits on is still alive."""
 
-_Queued: TypeAlias = "tuple[LogRecord, Context | None, Callable[[], None] | None]"
+type _Queued = "tuple[LogRecord, Context | None, Callable[[], None] | None]"
 """A record, the context it was logged in, and the release of the unit it holds open."""
 
 

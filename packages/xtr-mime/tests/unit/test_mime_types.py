@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import mimetypes
 import sys
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.fake_magic_module import FakeMagicModule
 from tests.support.mime_type_guesser_conformance import FIXTURES, MimeTypeGuesserTests

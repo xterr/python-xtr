@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING, Annotated, Final, final
+from typing import TYPE_CHECKING, Annotated, Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Target, as_service
 from xtr_logging_contracts import LoggerInterface
 

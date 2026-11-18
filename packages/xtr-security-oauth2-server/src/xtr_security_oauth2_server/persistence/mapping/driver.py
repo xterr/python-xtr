@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 from sqlalchemy.orm import class_mapper, registry, relationship
 from sqlalchemy.orm.exc import UnmappedClassError
-from typing_extensions import override
 from xtr_orm import MappingDriverInterface
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
 

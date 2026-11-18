@@ -12,9 +12,8 @@ looked for the first time a maker needs it.
 
 from __future__ import annotations
 
-from typing import Final, final
+from typing import Final, final, override
 
-from typing_extensions import override
 from xtr_console.bundle import ConsoleBundle
 from xtr_dependency_injection import (
     Bundle,

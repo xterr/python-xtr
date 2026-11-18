@@ -5,9 +5,7 @@ from __future__ import annotations
 import sys
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from .peekable_request_rate_limiter_interface import PeekableRequestRateLimiterInterface
 

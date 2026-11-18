@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from importlib import import_module
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from ._readable_file import ensure_readable_file
 from .exception import LogicError, MimeRuntimeError
@@ -87,6 +85,6 @@ def _magic_loads() -> bool:
     """Tell whether ``magic`` imports: python-magic installed, and libmagic found and opened."""
     try:
         _ = import_module("magic")
-    except (ImportError, OSError):
+    except ImportError, OSError:
         return False
     return True

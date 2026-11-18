@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, override
 
 from xtr_security_core.authentication.token.offline_token_interface import OfflineTokenInterface
 from xtr_security_core.authentication.token.switch_user_token import SwitchUserToken

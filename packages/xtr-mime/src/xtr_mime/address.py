@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import re
 from ipaddress import AddressValueError, IPv4Address, IPv6Address
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 import idna
 from email_validator import EmailNotValidError, validate_email
-from typing_extensions import override
 
 from ._display_name import TRIMMED, clean_display_name
 from ._engine import Mailbox, encode_idn_address, header_body

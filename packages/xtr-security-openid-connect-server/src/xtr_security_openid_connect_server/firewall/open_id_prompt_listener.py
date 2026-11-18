@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 from urllib.parse import parse_qsl, urlencode
-
-from typing_extensions import override
 
 # Every name the constructor below reads is imported at runtime: the container
 # evaluates those annotations when it builds this step.

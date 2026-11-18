@@ -4,8 +4,8 @@
 
 **The HTTP message contract, implemented — six small classes, one factory, a request that can be born connected, and no web framework anywhere in sight.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: 3" src="https://img.shields.io/badge/core%20deps-3-3FB950">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
+<img alt="core dependencies: 2" src="https://img.shields.io/badge/core%20deps-2-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -52,9 +52,8 @@ assert response.get_reason_phrase() == "Created"
 uv add xtr-http-message
 ```
 
-Requires Python 3.11+. Three runtime dependencies: the contract it implements,
-`typing-extensions` for `@override` on 3.11, and `uritools` to split a URI the way RFC 3986
-defines it.
+Requires Python 3.14.4+. Two runtime dependencies: the contract it implements, and `uritools` to
+split a URI the way RFC 3986 defines it.
 
 ## Who installs what
 
@@ -270,7 +269,7 @@ is copied a mebibyte at a time, and a second move is refused.
   configuration file, no environment variable, no path to ignore.
 - **Activate** — nothing to activate. These are classes, not a service: build one where you need
   one, or take `HttpFactory` as a dependency and let it build them.
-- **Brings along** — `xtr-http-message-contracts`, `typing-extensions` and `uritools`. No web
+- **Brings along** — `xtr-http-message-contracts` and `uritools`. No web
   framework, no container, no I/O until a stream is read.
 - **Configure** — nothing to configure.
 - **Environment** — nothing to set.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Final, TypeVar
+from typing import Final
 
 from xtr_ai.exception import InvalidConfigurationError
 
@@ -14,15 +14,13 @@ __all__ = ["TOOL_ATTRIBUTE", "as_tool"]
 TOOL_ATTRIBUTE: Final = "__xtr_ai_tool__"
 """The attribute ``@as_tool`` sets on the method it marks."""
 
-_F = TypeVar("_F", bound=Callable[..., object])
 
-
-def as_tool(
+def as_tool[F: Callable[..., object]](
     *,
     agents: tuple[str, ...],
     name: str | None = None,
     description: str | None = None,
-) -> Callable[[_F], _F]:
+) -> Callable[[F], F]:
     """Declare a method of a service a tool of the agents named.
 
     The method is called on the service the container builds, so the service's
@@ -54,7 +52,7 @@ def as_tool(
     if not agents:
         raise InvalidConfigurationError("@as_tool needs at least one agent in agents=.")
 
-    def mark(method: _F) -> _F:
+    def mark(method: F) -> F:
         qualname: str = getattr(method, "__qualname__", "")
         owner, _, method_name = qualname.rpartition(".")
         if not owner or owner.endswith("<locals>"):

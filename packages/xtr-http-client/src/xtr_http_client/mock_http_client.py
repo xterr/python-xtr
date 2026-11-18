@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, Unpack, cast, final, override
 
-from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface, RequestOptions
 from xtr_http_message import Request
 from xtr_service_contracts import ResetInterface

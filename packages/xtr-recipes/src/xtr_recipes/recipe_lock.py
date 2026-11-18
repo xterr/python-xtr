@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, TypeAlias, final
+from typing import TYPE_CHECKING, Literal, final
 
 from .exception import UnreadableFileError
 from .file_write import write_text
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 __all__ = ["LOCK_NAME", "BundleState", "LockEntry", "LockedFile", "RecipeLock"]
 
-BundleState: TypeAlias = Literal["listed", "adopted"]
+type BundleState = Literal["listed", "adopted"]
 """How a recipe's bundle came to be in ``BUNDLES``.
 
 ``listed`` when the sync added it, ``adopted`` when it was already there.

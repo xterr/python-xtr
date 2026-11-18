@@ -8,7 +8,7 @@ stages:
   - publish
 
 default:
-  image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+  image: ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 variables:
   UV_LINK_MODE: copy

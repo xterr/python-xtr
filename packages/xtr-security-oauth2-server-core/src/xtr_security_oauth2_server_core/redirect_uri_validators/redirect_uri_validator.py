@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 from urllib.parse import urlsplit, urlunsplit
-
-from typing_extensions import override
 
 from .redirect_uri_validator_interface import RedirectUriValidatorInterface
 

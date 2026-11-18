@@ -7,15 +7,11 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Annotated, Literal, cast, final
+from typing import TYPE_CHECKING, Annotated, Literal, TypedDict, cast, final, override
 
 import pytest
 from pydantic import AwareDatetime, Field, NaiveDatetime, ValidationError
 from pydantic_core import to_json
-from typing_extensions import (  # pydantic reads typing's TypedDict from Python 3.12
-    TypedDict,
-    override,
-)
 
 from tests.fixtures.exact_values import Appointment, Color, Shape, Visit
 from tests.fixtures.nameless import NamelessThing, names_refused

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -55,7 +55,7 @@ _REFUSED = "this storage is read-only"
 _EXPIRES_AT = datetime(2030, 1, 1, tzinfo=UTC)
 _FOOBAR_MD5 = "3858f62230ac3c915f300c664312c63f"
 
-_Change: TypeAlias = Callable[[ReadOnlyAdapter], Awaitable[None]]
+type _Change = Callable[[ReadOnlyAdapter], Awaitable[None]]
 
 
 async def _stream(*chunks: bytes) -> AsyncIterator[bytes]:

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
-from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_jwt.services.key_loader.abstract_key_loader import AbstractKeyLoader

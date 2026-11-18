@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Unpack, final, override
 
 import anyio
-from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_service_contracts import ResetInterface
 

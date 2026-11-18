@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Final, NamedTuple, cast
+from typing import TYPE_CHECKING, Final, NamedTuple, cast, override
 
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue, JsonSchemaWarningKind
-from typing_extensions import override
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -74,7 +73,7 @@ def field_rows(
         named = _object_of(_schema(writer, mode, by_alias=False), member)
     # How pydantic refuses a schema it cannot describe, such as a class's JSON schema settings of
     # the wrong kind; its message quotes them, and points to its own documentation.
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return f"pydantic cannot describe it in a JSON schema when it is {_VERBS[mode]}"
     if aliased is None or named is None:
         return _NO_OBJECT

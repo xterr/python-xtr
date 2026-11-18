@@ -9,9 +9,7 @@ from collections.abc import (  # noqa: TC003 -- container hydrates this construc
     Mapping,
 )
 from http import HTTPStatus
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_security_oauth2_server.authorization_server_metadata import (  # noqa: TC001 -- container hydrates this constructor at runtime
     AuthorizationServerMetadata,

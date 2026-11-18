@@ -10,9 +10,8 @@ password migration finds the upgrader through that loader alone.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_http_message_contracts.factory import ResponseFactoryInterface
 from xtr_security_core import UsernamePasswordToken
 from xtr_security_http import Passport, PasswordCredentials, UserBadge

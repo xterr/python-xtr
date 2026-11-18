@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, cast, final, override
 
 # ``ServiceLocator`` and the provider interface annotate a factory parameter the
 # container reads at runtime, so both must be importable when it does.

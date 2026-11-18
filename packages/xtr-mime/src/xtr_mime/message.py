@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import copy
 import secrets
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 
 from ._engine import build_message, prepend_fields, render, to_string
@@ -118,7 +117,7 @@ class Message(RawMessage):
         return to_string(self._to_engine())
 
     @override
-    def to_iterable(self) -> Generator[bytes, None, None]:
+    def to_iterable(self) -> Generator[bytes]:
         """Render the message in the pieces the engine writes, as a mail server receives them.
 
         Raises:

@@ -83,7 +83,7 @@ class WebhookNames:
         _ = imports.add("typing", "Final")
         if generator.final_classes:
             _ = imports.add("typing", "final")
-        _ = imports.add("typing_extensions", "override")
+        _ = imports.add("typing", "override")
         _ = imports.add("xtr_remote_event", "RemoteEvent")
         _ = imports.add("xtr_webhook.client", "AbstractRequestParser")
         _ = imports.add("xtr_webhook.exception", "RejectWebhookError")

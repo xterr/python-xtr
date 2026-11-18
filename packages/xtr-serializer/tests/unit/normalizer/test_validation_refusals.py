@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, NamedTuple, final
+from typing import ClassVar, NamedTuple, final, override
 
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic_core import ErrorDetails
-from typing_extensions import override
 
 from xtr_serializer.exception import ExtraAttributesError, NotNormalizableValueError
 from xtr_serializer.normalizer._validation_refusals import _ABSENT, _KeyIndexes, refusals_of

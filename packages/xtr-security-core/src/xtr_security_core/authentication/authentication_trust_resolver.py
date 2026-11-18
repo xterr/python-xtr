@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 
 from .authentication_trust_resolver_interface import AuthenticationTrustResolverInterface

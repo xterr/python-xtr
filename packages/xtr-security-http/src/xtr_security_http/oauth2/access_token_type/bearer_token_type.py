@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_security_core.exception import AuthenticationError
 
 from .access_token_type_interface import AccessTokenTypeInterface

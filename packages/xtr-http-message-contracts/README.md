@@ -4,8 +4,8 @@
 
 **The HTTP message contract, and nothing else — so two libraries can pass a request between them without agreeing on a class.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: 1" src="https://img.shields.io/badge/core%20deps-1-3FB950">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
+<img alt="core dependencies: 0" src="https://img.shields.io/badge/core%20deps-0-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -20,8 +20,7 @@ None of them should care whose request object it is — and if each brings its o
 ends up converting between three shapes of the same thing on every call.
 
 So they need the *seam*, not an implementation. This package is that seam and nothing else:
-thirteen protocols and an enumeration, built from the standard library, with one dependency —
-`typing-extensions`, for `@override` on 3.11.
+thirteen protocols and an enumeration, built from the standard library alone.
 
 - 🧩 **`ServerRequestInterface`** — what arrived: method, URI, headers, body, cookies, query,
   uploaded files, parsed body, plus the attributes a handler annotates it with.
@@ -49,7 +48,7 @@ async def whoami(
 uv add xtr-http-message-contracts
 ```
 
-Requires Python 3.11+.
+Requires Python 3.14.4+.
 
 ## Who installs what
 

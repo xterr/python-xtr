@@ -5,14 +5,12 @@ Async, and keyed by type plus an optional qualifier.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import Hashable
 
 __all__ = ["ContainerInterface"]
-
-T = TypeVar("T")
 
 
 @runtime_checkable
@@ -27,7 +25,7 @@ class ContainerInterface(Protocol):
     confirm it against the contract.
     """
 
-    async def get(self, service: type[T], /, qualifier: Hashable | None = None) -> T:
+    async def get[T](self, service: type[T], /, qualifier: Hashable | None = None) -> T:
         """Return the service of ``service`` type, the one named by ``qualifier`` if given.
 
         Raises:

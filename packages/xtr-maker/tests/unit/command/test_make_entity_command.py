@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, Unpack
 
 import pytest
-from typing_extensions import Unpack
 from xtr_console import ExitCode
 
 from tests.conftest import FIXTURES

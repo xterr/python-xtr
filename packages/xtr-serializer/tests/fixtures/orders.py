@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, cast
+from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, TypedDict, cast
 from uuid import UUID
 
 from pydantic import (
@@ -19,7 +19,6 @@ from pydantic import (
     with_config,
 )
 from pydantic_core import PydanticCustomError
-from typing_extensions import TypedDict  # pydantic reads typing's only from Python 3.12
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

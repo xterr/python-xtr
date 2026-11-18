@@ -4,7 +4,7 @@
 
 **An OAuth 2.0 authorization server and resource-server authenticator for xtr security.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -46,7 +46,7 @@ uv add xtr-orm                                 # beside it: clients and credenti
 uv add xtr-console                             # beside it: the oauth2-server:* commands
 ```
 
-Requires Python 3.11+. It brings the protocol library, the security family, xtr-security-jwt's
+Requires Python 3.14.4+. It brings the protocol library, the security family, xtr-security-jwt's
 key layer, the password hasher, the clock, the event dispatcher and the HTTP kernel with it.
 xtr-orm and xtr-console are not among them: each is used when installed beside it.
 

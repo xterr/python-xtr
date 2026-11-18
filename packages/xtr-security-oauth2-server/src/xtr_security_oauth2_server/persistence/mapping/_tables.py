@@ -9,7 +9,7 @@ the description for its own.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final, Generic, TypeVar, final
+from typing import TYPE_CHECKING, Final, final
 
 from sqlalchemy import CHAR, Boolean, Column, ForeignKey, Integer, String, Table, false
 from sqlalchemy.orm import mapped_column
@@ -46,7 +46,6 @@ __all__ = [
     "refresh_token_table",
 ]
 
-_ValueT = TypeVar("_ValueT")
 
 IDENTIFIER: Final = 32
 """How long a client identifier may be. A client picks its own, or is given one."""
@@ -66,7 +65,7 @@ URI: Final = 255
 
 @final
 @dataclass(frozen=True, slots=True)
-class _Registered(Generic[_ValueT]):
+class _Registered[ValueT]:
     """One column a client's registration is kept in, and how to build it.
 
     Two kinds of client are stored through these: the one this package ships,
@@ -82,7 +81,7 @@ class _Registered(Generic[_ValueT]):
     name: str
     """What the column is called, in either table."""
 
-    type: TypeEngine[_ValueT]
+    type: TypeEngine[ValueT]
     """What the column holds. Shared: a column type belongs to no table."""
 
     nullable: bool
@@ -91,7 +90,7 @@ class _Registered(Generic[_ValueT]):
     server_default: ColumnElement[bool] | None = None
     """What the database fills in for a row written before the column existed."""
 
-    def for_table(self) -> Column[_ValueT]:
+    def for_table(self) -> Column[ValueT]:
         """Return this column for a table this package builds itself."""
         return Column(
             self.name,
@@ -100,7 +99,7 @@ class _Registered(Generic[_ValueT]):
             server_default=self.server_default,
         )
 
-    def for_class(self) -> MappedColumn[_ValueT]:
+    def for_class(self) -> MappedColumn[ValueT]:
         """Return this column for a class an application maps declaratively."""
         return mapped_column(
             self.name,

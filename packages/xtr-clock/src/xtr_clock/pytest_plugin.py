@@ -29,7 +29,7 @@ __all__ = ["clock"]
 
 
 @pytest.fixture
-def clock() -> Generator[MockClock, None, None]:
+def clock() -> Generator[MockClock]:
     """Freeze the clock at the current instant, in UTC, for one test.
 
     The clock in force is restored afterwards, so a test that never asks for

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, cast, final, override
 
-from typing_extensions import override
 from xtr_security_core.exception.invalid_argument_error import (
     InvalidArgumentError as UnreadableTokenError,
 )

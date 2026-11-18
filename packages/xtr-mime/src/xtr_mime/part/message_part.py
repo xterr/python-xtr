@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, ClassVar, Final, Protocol, final, runtime_checkable
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, Final, Protocol, final, override, runtime_checkable
 
 from xtr_mime._engine import build_verbatim, set_fields
 

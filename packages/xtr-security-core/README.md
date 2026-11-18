@@ -4,7 +4,7 @@
 
 **The security core: users, tokens, roles, voters and the authorization decision.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -42,7 +42,7 @@ request concern.
 uv add xtr-security-core
 ```
 
-Requires Python 3.11+. Two siblings come with it:
+Requires Python 3.14.4+. Two siblings come with it:
 [xtr-password-hasher](../xtr-password-hasher), for the password-authenticated user interface, and
 [xtr-clock](../xtr-clock), the clock the trust resolver measures recent authentication with.
 

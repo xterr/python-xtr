@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_oauth2_server_core.exception.oauth_server_error import OAuthServerError
 from xtr_security_oauth2_server_core.resource_server import ResourceServer

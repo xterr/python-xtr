@@ -4,7 +4,7 @@
 
 **A database transport for xtr-messenger: messages kept in a table on an xtr-orm connection, claimed by workers, delayed, redelivered and woken by notifications.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -113,7 +113,7 @@ until `redeliver_timeout`.
 
 SQLite has no row locks, so the lock clause is left out there, and SQLite is for development and
 tests. With the driver's default transaction mode two workers can claim one row; run one worker
-on SQLite, or pass `connect_args={"autocommit": False}` (Python 3.12+), under which the second
+on SQLite, or pass `connect_args={"autocommit": False}`, under which the second
 gets "database is locked", which counts as a conflict and is tried again.
 
 Conflicts between workers — a deadlock, a lock wait that timed out — say nothing about the

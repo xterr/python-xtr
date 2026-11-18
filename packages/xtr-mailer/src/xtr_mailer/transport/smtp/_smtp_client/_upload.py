@@ -46,7 +46,7 @@ async def send_message(
                 await drained(protocol, seconds)
             protocol.write(bytes(payload[start : start + _CHUNK_SIZE]))
         response = await protocol.read_response(timeout=seconds)
-    except (aiosmtplib.SMTPServerDisconnected, aiosmtplib.SMTPTimeoutError):
+    except aiosmtplib.SMTPServerDisconnected, aiosmtplib.SMTPTimeoutError:
         smtp.close()
         raise
     if response.code == _SERVICE_CLOSING:

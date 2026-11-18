@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_client import MockHttpClient
 
 from tests.support.dummy_message import DummyMessage

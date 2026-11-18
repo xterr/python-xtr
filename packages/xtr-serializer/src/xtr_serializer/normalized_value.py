@@ -8,7 +8,8 @@ from pydantic import JsonValue
 
 __all__ = ["NormalizedValue"]
 
-NormalizedValue: TypeAlias = JsonValue
+# pydantic's own JsonValue, by identity: a ``type`` statement would make a new alias of it.
+NormalizedValue: TypeAlias = JsonValue  # noqa: UP040 — see above
 """A value made only of what JSON holds: booleans, numbers, strings, lists and objects keyed by
 strings, nested, and ``None``.
 

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 from http import HTTPStatus
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_security_jwt.exception import MissingKeyError
 from xtr_security_jwt.services.key_loader import public_key_set
 

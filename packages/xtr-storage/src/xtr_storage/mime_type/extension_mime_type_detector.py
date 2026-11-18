@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from mimetypes import MimeTypes
-from typing import Final, final
-
-from typing_extensions import override
+from typing import Final, final, override
 
 from .mime_type_detector_interface import MimeTypeDetectorInterface
 

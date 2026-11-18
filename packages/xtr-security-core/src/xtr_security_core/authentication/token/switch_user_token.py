@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Self, final, override
 
 from xtr_security_core._session_state import optional_string_field
 from xtr_security_core.exception import InvalidArgumentError

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import ResolveModelId
 from pydantic_ai.models.test import TestModel
-from typing_extensions import override
 
 from xtr_ai import Platform, PlatformInterface, PlatformRegistry, PlatformRegistryInterface
 

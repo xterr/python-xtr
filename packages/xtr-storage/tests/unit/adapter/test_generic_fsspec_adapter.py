@@ -12,12 +12,11 @@ paths relative, and that it refuses a visibility it has no way to know about.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
 from fsspec.asyn import AsyncFileSystem
 from fsspec.implementations.memory import MemoryFileSystem
-from typing_extensions import override
 
 from xtr_storage.adapter.generic_fsspec_adapter import GenericFsspecAdapter
 from xtr_storage.config import Config

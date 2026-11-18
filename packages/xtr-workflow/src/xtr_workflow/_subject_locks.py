@@ -73,7 +73,7 @@ class SubjectLocks:
         self._entries: dict[int, _Entry] = {}
 
     @asynccontextmanager
-    async def hold(self, subject: object) -> AsyncGenerator[None, None]:
+    async def hold(self, subject: object) -> AsyncGenerator[None]:
         """Hold ``subject`` until the block is left; at once when this task chain holds it."""
         key = (id(self), id(subject))
         if _is_held(key):

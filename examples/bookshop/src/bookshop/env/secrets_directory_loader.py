@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated, final
+from typing import Annotated, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Autowire, EnvVarLoaderInterface, as_service
 
 __all__ = ["SecretsDirectoryLoader"]

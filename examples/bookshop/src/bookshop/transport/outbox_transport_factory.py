@@ -13,9 +13,8 @@ A published transport would advertise its scheme with an entry point instead::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_messenger import Dsn, SerializerInterface, TransportConfig, TransportFactoryInterface
 
 from bookshop.transport.outbox_transport import OutboxTransport

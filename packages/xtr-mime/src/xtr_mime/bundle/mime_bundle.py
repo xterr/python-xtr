@@ -18,9 +18,8 @@ asked for.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import (
     BUNDLE_PASS_PRIORITY,
     Bundle,

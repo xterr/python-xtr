@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_logging_contracts import Level
 from xtr_service_contracts import ResetInterface
 
@@ -19,13 +18,12 @@ from .handler_interface import HandlerInterface
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-    from typing import TypeAlias
 
     from xtr_logging_contracts import LevelLike
 
     from xtr_logging.log_record import LogRecord
 
-    _HandlerFactory: TypeAlias = Callable[
+    type _HandlerFactory = Callable[
         ["LogRecord | None", "FingersCrossedHandler"],
         HandlerInterface,
     ]

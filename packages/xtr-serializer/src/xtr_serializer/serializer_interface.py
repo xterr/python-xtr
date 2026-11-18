@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, TypeVar, overload, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, overload, runtime_checkable
 
 if TYPE_CHECKING:
     from xtr_serializer.context.context import Context
 
 __all__ = ["SerializerInterface"]
-
-_T = TypeVar("_T")
 
 
 @runtime_checkable
@@ -55,13 +53,13 @@ class SerializerInterface(Protocol):
         ...
 
     @overload
-    def deserialize(
+    def deserialize[T](
         self,
         data: str | bytes,
-        type_: type[_T],
+        type_: type[T],
         format: str,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def deserialize(

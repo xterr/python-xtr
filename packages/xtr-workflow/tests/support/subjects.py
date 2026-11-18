@@ -7,13 +7,13 @@ it was handed.
 
 from __future__ import annotations
 
-from typing import TypeAlias, assert_never
+from typing import assert_never
 
 from tests.fixtures.subject import AsyncSubject, Subject
 
 __all__ = ["SUBJECT_TYPES", "AnySubject", "keep", "kept_by"]
 
-AnySubject: TypeAlias = Subject | AsyncSubject
+type AnySubject = Subject | AsyncSubject
 
 SUBJECT_TYPES: tuple[type[AnySubject], ...] = (Subject, AsyncSubject)
 

@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import socket
-from typing import TYPE_CHECKING, ClassVar, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, final, override
 
 from .processor_interface import ProcessorInterface
 

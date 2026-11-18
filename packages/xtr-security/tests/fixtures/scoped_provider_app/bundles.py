@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, as_bundle, required_bundle
 
 from tests.fixtures.scoped_provider_app.authenticator import LoaderlessLoginFactory

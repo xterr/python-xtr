@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, final, override
 
 from .smime_certificate_repository_interface import SmimeCertificateRepositoryInterface
 

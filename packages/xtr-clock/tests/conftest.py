@@ -18,7 +18,7 @@ def anyio_backend() -> str:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_clock() -> Generator[None, None, None]:
+def _isolate_clock() -> Generator[None]:
     """Keep a test that installs a clock from reaching the next one.
 
     Reinstalling the clock already in force changes nothing, and leaving the

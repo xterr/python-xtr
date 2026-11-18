@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_security_core.user.user_interface import UserInterface
 from xtr_security_core.user.user_provider_interface import UserProviderInterface
 from xtr_security_http import (

@@ -8,13 +8,13 @@ import math
 import traceback
 from collections.abc import Mapping
 from enum import Enum
-from typing import Final, TypeAlias
+from typing import Final
 
 from ._text import class_name, describe, previous_error, safe_str
 
 __all__ = ["Normalized", "Normalizer"]
 
-Normalized: TypeAlias = "bool | int | float | str | list[Normalized] | dict[str, Normalized] | None"
+type Normalized = "bool | int | float | str | list[Normalized] | dict[str, Normalized] | None"
 """A value JSON can hold: what :meth:`Normalizer.normalize` returns."""
 
 _DEFAULT_MAX_DEPTH: Final = 9

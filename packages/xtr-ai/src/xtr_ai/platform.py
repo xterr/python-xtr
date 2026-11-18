@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Final, final
+from typing import TYPE_CHECKING, Any, Final, final, override
 
 from pydantic_ai.exceptions import UserError
 from pydantic_ai.models import Model, infer_model
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.providers import Provider, infer_provider_class
-from typing_extensions import override
 
 from xtr_ai._platform_model import PlatformModel
 from xtr_ai.exception import InvalidConfigurationError, PlatformUnavailableError

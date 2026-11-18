@@ -106,9 +106,8 @@ claimed.
 `RequestMatcherInterface` is a `@runtime_checkable` `Protocol`, so no base class is needed:
 
 ```python
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_http_foundation import RequestMatcherInterface
 from xtr_http_message_contracts import ServerRequestInterface
 
@@ -154,9 +153,8 @@ IpUtils.anonymize("2001:db8::1")  # "2001:db8::"
 ## Limit a request
 
 ```python
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_http_foundation import AbstractRequestRateLimiter
 
 

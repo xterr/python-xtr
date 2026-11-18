@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated, ClassVar, final
+from typing import Annotated, ClassVar, final, override
 
-from typing_extensions import override
 from xtr_clock import ClockInterface
 from xtr_dependency_injection import Autowire, as_service, autoconfigure
 

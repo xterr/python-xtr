@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast, final
+from typing import TYPE_CHECKING, Annotated, cast, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Target, as_service
 from xtr_http_foundation import IsJsonRequestMatcher, RequestMatcherInterface
 from xtr_remote_event import RemoteEvent

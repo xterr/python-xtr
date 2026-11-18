@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, override
 
 from xtr_notifier.message import ChatMessage
 from xtr_notifier.notification.chat_notification_interface import ChatNotificationInterface

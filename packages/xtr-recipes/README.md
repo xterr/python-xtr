@@ -4,7 +4,7 @@
 
 **Applies a package's use-in-an-application steps to a project, and undoes them when the package goes away.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -35,7 +35,7 @@ package arrived, and running it twice changes nothing the second time.
 uv add --dev xtr-recipes
 ```
 
-Requires Python 3.11+. It depends on [xtr-console](../xtr-console) for its command line and on
+Requires Python 3.14.4+. It depends on [xtr-console](../xtr-console) for its command line and on
 [xtr-dependency-injection](../xtr-dependency-injection) to read an application's bundle list. It
 installs no runtime weight into the application: it is a tool a developer and a CI job run, not
 a dependency the application boots.

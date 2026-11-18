@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
-from typing_extensions import override
 from xtr_event_dispatcher_contracts import Event
 
 from .jwt_failure_event_interface import JwtFailureEventInterface

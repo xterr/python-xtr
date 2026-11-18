@@ -7,9 +7,7 @@ import binascii
 import copy
 import re
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, cast, final, override
 
 from xtr_mime._engine import parse
 from xtr_mime.exception import InvalidArgumentError, RfcComplianceError
@@ -25,10 +23,10 @@ if TYPE_CHECKING:
 
 __all__ = ["FormDataPart", "FormFields", "FormValue"]
 
-FormValue: TypeAlias = "str | TextPart | Mapping[str | int, FormValue] | Sequence[FormValue]"
+type FormValue = "str | TextPart | Mapping[str | int, FormValue] | Sequence[FormValue]"
 """A field's value: text, a part, or fields nested under the field's name."""
 
-FormFields: TypeAlias = "Mapping[str | int, FormValue] | Sequence[FormValue]"
+type FormFields = "Mapping[str | int, FormValue] | Sequence[FormValue]"
 """A form's fields; at the top, an integer key holds a one-field mapping, so names repeat."""
 
 # RFC 2045, 5.1: a parameter value written without quotes.

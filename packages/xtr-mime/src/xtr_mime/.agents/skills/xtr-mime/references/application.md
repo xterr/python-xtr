@@ -49,7 +49,8 @@ registration order. The tag's `priority` wins over the definition's own; without
 
 ```python
 # app/services/upload_guesser.py
-from typing_extensions import override
+from typing import override
+
 from xtr_dependency_injection import as_service
 from xtr_mime import MimeTypeGuesserInterface
 

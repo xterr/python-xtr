@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 from sqlalchemy import select, update
-from typing_extensions import override
 from xtr_dependency_injection import (
     ScopeFactoryInterface,  # noqa: TC002 — read at runtime by the container
 )

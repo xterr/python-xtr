@@ -12,14 +12,12 @@ registration order, and the event they changed is the one handed back.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, final
+from typing import TYPE_CHECKING, final
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 __all__ = ["Dispatched", "RecordingEventDispatcher"]
-
-_EventT = TypeVar("_EventT")
 
 
 @final
@@ -47,7 +45,7 @@ class RecordingEventDispatcher:
         """Run ``listener`` for every event dispatched under ``name``."""
         self._listeners.setdefault(name, []).append(listener)
 
-    async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+    async def dispatch[EventT](self, event: EventT, event_name: str | type | None = None) -> EventT:
         """Record the dispatch, run the listeners of ``event_name``, answer the event."""
         self.dispatched.append(Dispatched(event, event_name))
         if isinstance(event_name, str):

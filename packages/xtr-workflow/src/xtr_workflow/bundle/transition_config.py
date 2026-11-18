@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 from xtr_workflow.arc import Arc
 from xtr_workflow.event_listener.guard_context import GuardContext
@@ -17,8 +17,8 @@ from .arc_config import ArcConfig
 
 __all__ = ["TransitionConfig"]
 
-_Arc: TypeAlias = str | Enum | Arc | ArcConfig
-_Arcs: TypeAlias = _Arc | Sequence[_Arc]
+type _Arc = str | Enum | Arc | ArcConfig
+type _Arcs = _Arc | Sequence[_Arc]
 
 # The default the typed signature below shows; the dataclass builds its own.
 _NO_METADATA: Final[Mapping[str, object]] = MappingProxyType({})

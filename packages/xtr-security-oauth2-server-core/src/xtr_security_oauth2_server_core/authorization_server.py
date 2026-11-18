@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import copy
 from datetime import timedelta
-from typing import TYPE_CHECKING, Final, Literal, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, Literal, final, override
 
 from xtr_security_oauth2_server_core._repeated_parameter import refuse_if_repeated
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError

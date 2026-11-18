@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_security_core.authentication.token.storage.token_storage_interface import (  # noqa: TC002 -- container hydrates this constructor at runtime
     TokenStorageInterface,
 )

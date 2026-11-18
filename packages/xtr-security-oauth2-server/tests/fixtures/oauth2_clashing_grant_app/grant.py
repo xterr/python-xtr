@@ -13,9 +13,8 @@ for the container to hydrate it.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_service
 from xtr_security_oauth2_server_core.grant.abstract_grant import AbstractGrant
 from xtr_security_oauth2_server_core.oauth2_grants import OAuth2Grants

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
-from typing_extensions import override
+from xtr_dependency_injection.config.env_placeholder import env_placeholders_in
 from xtr_security_core import InMemoryUserProvider
 
 from xtr_security.bundle.user_provider_configs import InMemoryUserProviderConfig
@@ -43,8 +43,30 @@ class InMemoryUserProviderFactory(UserProviderFactoryInterface):
         provider_name: str,
         config: object,
     ) -> ServiceKey:
-        """Register the in-memory provider under ``provider_name`` and return its key."""
+        """Register the in-memory provider under ``provider_name`` and return its key.
+
+        Registered as a factory over the user table, not as a built provider: the table
+        may hold ``env(...)`` placeholders — a password hash read from the environment —
+        and the container resolves those in what a factory closes over before calling
+        it. A provider built here would keep the placeholders as the users' values.
+
+        A table holding none is checked now, so a malformed user fails the build; one
+        holding a placeholder is checked when the provider is built, against the values
+        the variables hold.
+
+        Raises:
+            InvalidArgumentError: If a user's fields cannot build a user — a non-boolean
+                ``enabled``, say — and the table holds no placeholder.
+        """
         del builder
         settings = cast("InMemoryUserProviderConfig", config)
-        provider = InMemoryUserProvider(dict(settings.users))
-        return services.instance(provider, qualifier=provider_name).key
+        users = dict(settings.users)
+        if not env_placeholders_in(users):
+            _ = InMemoryUserProvider(users)
+
+        def in_memory_user_provider() -> InMemoryUserProvider:
+            return InMemoryUserProvider(users)
+
+        in_memory_user_provider.__name__ = f"in_memory_user_provider_{provider_name}"
+        in_memory_user_provider.__qualname__ = in_memory_user_provider.__name__
+        return services.set(in_memory_user_provider, qualifier=provider_name).key

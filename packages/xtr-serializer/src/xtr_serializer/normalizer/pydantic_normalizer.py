@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, TypeVar, cast, final, overload
+from typing import TYPE_CHECKING, cast, final, overload, override
 
 from pydantic import ValidationError
 from pydantic_core import to_json
-from typing_extensions import override
 
 from xtr_serializer._type_names import name_of, qualified_name_of
 from xtr_serializer.exception import (
@@ -35,8 +34,6 @@ if TYPE_CHECKING:
     from xtr_serializer.supported_types import SupportedTypes
 
 __all__ = ["PydanticNormalizer"]
-
-_T = TypeVar("_T")
 
 
 @final
@@ -167,13 +164,13 @@ class PydanticNormalizer(NormalizerInterface, DenormalizerInterface):
         return not isinstance(self._adapters.get(type(data) if type_ is None else type_), str)
 
     @overload
-    def denormalize(
+    def denormalize[T](
         self,
         data: object,
-        type_: type[_T],
+        type_: type[T],
         format: str | None = None,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def denormalize(

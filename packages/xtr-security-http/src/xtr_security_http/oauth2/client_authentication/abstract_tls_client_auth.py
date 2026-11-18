@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from .client_authentication_interface import ClientAuthenticationInterface
 

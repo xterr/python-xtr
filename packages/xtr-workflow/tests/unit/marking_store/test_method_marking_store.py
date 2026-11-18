@@ -6,10 +6,9 @@ methods and once with coroutines — or, when it has none, through its attribute
 
 from __future__ import annotations
 
-from typing import assert_never, final
+from typing import assert_never, final, override
 
 import pytest
-from typing_extensions import override
 
 from tests.fixtures.place_enum import PlaceEnum
 from tests.fixtures.subject import AsyncSubject, Subject

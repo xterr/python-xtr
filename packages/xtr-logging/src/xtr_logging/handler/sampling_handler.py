@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError
 
@@ -15,13 +13,12 @@ from .abstract_handler import AbstractHandler
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import TypeAlias
 
     from xtr_logging.log_record import LogRecord
 
     from .handler_interface import HandlerInterface
 
-    _HandlerFactory: TypeAlias = Callable[
+    type _HandlerFactory = Callable[
         ["LogRecord | None", "SamplingHandler"],
         HandlerInterface,
     ]

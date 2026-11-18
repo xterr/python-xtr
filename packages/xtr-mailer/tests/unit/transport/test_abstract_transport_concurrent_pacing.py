@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from itertools import pairwise
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import anyio
 import pytest
 from anyio.lowlevel import checkpoint
-from typing_extensions import override
 from xtr_mime import Address, Headers, Message, RawMessage, TextPart
 
 from tests.support.fake_transport import FakeTransport

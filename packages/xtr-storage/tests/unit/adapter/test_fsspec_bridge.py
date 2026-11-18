@@ -7,11 +7,11 @@
 from __future__ import annotations
 
 import asyncio
+from typing import override
 
 import pytest
 from fsspec.asyn import AsyncFileSystem
 from fsspec.implementations.memory import MemoryFileSystem
-from typing_extensions import override
 
 from xtr_storage.adapter._fsspec_bridge import FsspecBridge
 

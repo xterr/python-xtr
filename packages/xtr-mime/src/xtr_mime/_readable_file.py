@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from .exception import InvalidArgumentError
 
@@ -18,7 +19,5 @@ def ensure_readable_file(path: str) -> None:
     Raises:
         InvalidArgumentError: When ``path`` is not a readable file.
     """
-    # os.path.isfile answers False for a path it cannot even stat, where Path.is_file raises
-    # a PermissionError before 3.14.
-    if not (os.path.isfile(path) and os.access(path, os.R_OK)):  # noqa: PTH113 — see above.
+    if not (Path(path).is_file() and os.access(path, os.R_OK)):
         raise InvalidArgumentError(f'The "{path}" file does not exist or is not readable.')

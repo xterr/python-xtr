@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, final
-
-from typing_extensions import Unpack
+from typing import TYPE_CHECKING, Self, Unpack, final
 
 from xtr_http_client import MockHttpClient
 

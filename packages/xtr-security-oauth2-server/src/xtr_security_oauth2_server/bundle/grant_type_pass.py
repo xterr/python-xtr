@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import CompilerPassInterface
 from xtr_security_oauth2_server_core.authorization_server import AuthorizationServer
 from xtr_security_oauth2_server_core.grant.grant_type_interface import GrantTypeInterface

@@ -140,7 +140,7 @@ class ScriptedSmtpServer:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.throttle[0])
         try:
             await self._converse(reader, writer)
-        except (ConnectionError, OSError, RuntimeError):
+        except ConnectionError, OSError, RuntimeError:
             # RuntimeError: a reply held back by a delay, written after the end of file the
             # server sends when the test ends.
             pass
@@ -190,7 +190,7 @@ class ScriptedSmtpServer:
             # attribute, hence vars().
             vars(writer)["_transport"] = transport
             return False
-        except (ConnectionError, ssl.SSLError):
+        except ConnectionError, ssl.SSLError:
             return False
         self.tls_upgrades += 1
         return True

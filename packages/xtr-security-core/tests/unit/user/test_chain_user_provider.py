@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 
 from xtr_security_core.exception import UnsupportedUserError, UserNotFoundError
 from xtr_security_core.user import (

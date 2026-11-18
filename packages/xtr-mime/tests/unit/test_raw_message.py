@@ -11,10 +11,9 @@ from __future__ import annotations
 import io
 from collections.abc import Iterable
 from copy import copy
-from typing import TYPE_CHECKING, BinaryIO, Final
+from typing import TYPE_CHECKING, BinaryIO, Final, override
 
 import pytest
-from typing_extensions import override
 
 from xtr_mime import RawMessage
 from xtr_mime.exception import InvalidArgumentError, LogicError

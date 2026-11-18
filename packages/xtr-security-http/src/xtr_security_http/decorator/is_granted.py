@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import functools
 import inspect
-from typing import TYPE_CHECKING, Annotated, Final, ParamSpec, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Annotated, Final, cast, overload
 
 from fastapi import Depends, Request
 from fastapi.params import Depends as DependsParam
@@ -25,8 +25,6 @@ if TYPE_CHECKING:
 
 __all__ = ["IsGranted"]
 
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
 
 _HIDDEN_PREFIX: Final = "_xtr_is_granted_"
 
@@ -154,19 +152,19 @@ class IsGranted(DependsParam):
         )
 
     @overload
-    def __call__(self, target: Callable[_P, _R], /) -> Callable[_P, _R]: ...
+    def __call__[**P, R](self, target: Callable[P, R], /) -> Callable[P, R]: ...
 
     @overload
     def __call__(self, target: object, /) -> object: ...
 
-    def __call__(self, target: Callable[_P, _R] | object, /) -> Callable[_P, _R] | object:
+    def __call__[**P, R](self, target: Callable[P, R] | object, /) -> Callable[P, R] | object:
         """Attach this check to the endpoint ``target`` as a hidden dependency."""
         if not callable(target):
             return target
-        endpoint = cast("Callable[_P, _R]", target)
+        endpoint = cast("Callable[P, R]", target)
         return self._decorate(endpoint)
 
-    def _decorate(self, endpoint: Callable[_P, _R]) -> Callable[_P, _R]:
+    def _decorate[**P, R](self, endpoint: Callable[P, R]) -> Callable[P, R]:
         """Return ``endpoint`` taking this check as a hidden dependency."""
         signature = inspect.signature(endpoint)
         taken = set(signature.parameters)
@@ -182,18 +180,18 @@ class IsGranted(DependsParam):
         extended = signature.replace(parameters=[*others, hidden, *keywords])
 
         if inspect.iscoroutinefunction(endpoint):
-            call = cast("Callable[_P, Awaitable[object]]", endpoint)
+            call = cast("Callable[P, Awaitable[object]]", endpoint)
 
             @functools.wraps(endpoint)
-            async def asynchronous(*args: _P.args, **kwargs: _P.kwargs) -> object:
+            async def asynchronous(*args: P.args, **kwargs: P.kwargs) -> object:
                 _ = kwargs.pop(name, None)
                 return await call(*args, **kwargs)
 
-            wrapper = cast("Callable[_P, _R]", asynchronous)
+            wrapper = cast("Callable[P, R]", asynchronous)
         else:
 
             @functools.wraps(endpoint)
-            def synchronous(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+            def synchronous(*args: P.args, **kwargs: P.kwargs) -> R:
                 _ = kwargs.pop(name, None)
                 return endpoint(*args, **kwargs)
 

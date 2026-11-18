@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TypeAlias
-
 from xtr_storage.directory_attributes import DirectoryAttributes
 from xtr_storage.file_attributes import FileAttributes
 
 __all__ = ["StorageAttributes"]
 
-StorageAttributes: TypeAlias = FileAttributes | DirectoryAttributes
+type StorageAttributes = FileAttributes | DirectoryAttributes
 """One entry of a listing.
 
 A closed union rather than a base class with optional fields: the two sides

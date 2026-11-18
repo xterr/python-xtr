@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from copy import copy
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Final, Self, final
+from typing import TYPE_CHECKING, Final, Self, final, override
 
 import anyio
 
@@ -97,6 +97,7 @@ class MonotonicClock:
 
         return clone
 
+    @override
     def __repr__(self) -> str:
         """Return a reading that names the zone, which is all there is to see."""
         return f"{type(self).__name__}({self._timezone!s})"

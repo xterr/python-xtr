@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, final, overload
+from typing import TYPE_CHECKING, final, overload
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -10,8 +10,6 @@ if TYPE_CHECKING:
     from xtr_serializer import Context, NormalizedValue, SupportedTypes
 
 __all__ = ["CountingNormalizer"]
-
-_T = TypeVar("_T")
 
 
 @final
@@ -63,13 +61,13 @@ class CountingNormalizer:
         return self.handles
 
     @overload
-    def denormalize(
+    def denormalize[T](
         self,
         data: object,
-        type_: type[_T],
+        type_: type[T],
         format: str | None = None,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def denormalize(

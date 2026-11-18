@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, final
+from typing import TYPE_CHECKING, ClassVar, Unpack, final, override
 
 import pytest
-from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_client_contracts.testing import HttpClientTestCase
 

@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Final, final
+from typing import Final, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import CacheWarmer, as_service
 
 from bookshop.service.book_catalog_interface import BookCatalogInterface

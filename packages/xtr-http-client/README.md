@@ -4,7 +4,7 @@
 
 **An async HTTP client behind one interface: typed options in, a response read on demand out.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="asyncio" src="https://img.shields.io/badge/asyncio-native-1f6feb">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -34,7 +34,7 @@ uv add xtr-rate-limiter                           # beside it: the limiter the t
 uv add xtr-http-foundation                        # beside it: the networks the private-network guard refuses
 ```
 
-Requires Python 3.11+. `http2` is the only extra, and the container is not a dependency: the
+Requires Python 3.14.4+. `http2` is the only extra, and the container is not a dependency: the
 bundle is used when [xtr-dependency-injection](../xtr-dependency-injection) is installed beside the
 package, never as an extra, and every client works without it, built by hand as below. Installed
 beside it too, [xtr-rate-limiter](../xtr-rate-limiter) supplies the limiter `ThrottlingHttpClient`

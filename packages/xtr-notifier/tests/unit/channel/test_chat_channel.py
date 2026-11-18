@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from typing import override
+
 import pytest
-from typing_extensions import override
 
 from tests.support.fake_transport import FakeTransport
 from tests.support.recording_message_bus import RecordingMessageBus

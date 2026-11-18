@@ -7,7 +7,7 @@ attach any file the worker can read.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, TypeVar, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from xtr_mime import DataPart, ParameterizedHeader, SMimePart, TextPart
 
@@ -32,7 +32,6 @@ if TYPE_CHECKING:
 
 __all__ = ["read_leaf", "write_leaf"]
 
-_P = TypeVar("_P", bound=TextPart)
 
 _SHORT: Final = 256
 # RFC 2978 registers charset names of at most 40 characters.
@@ -125,7 +124,7 @@ def _data(found: JsonObject, path: str) -> DataPart:
     return _shown(part, found, path)
 
 
-def _shown(part: _P, found: JsonObject, path: str) -> _P:
+def _shown[P: TextPart](part: P, found: JsonObject, path: str) -> P:
     disposition = optional_text(found["disposition"], f"{path}.disposition", _SHORT)
     name = optional_text(found["name"], f"{path}.name", _SHORT)
     if disposition is not None:

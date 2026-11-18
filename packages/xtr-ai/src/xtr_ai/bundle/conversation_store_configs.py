@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeAlias, final
+from typing import final
 
 from pydantic_ai.conversation_store import ConversationStore
 
@@ -43,7 +43,7 @@ class ServiceConversationStoreConfig:
     service: type[ConversationStore]
 
 
-ConversationStoreEntry: TypeAlias = (
+type ConversationStoreEntry = (
     InMemoryConversationStoreConfig | OrmConversationStoreConfig | ServiceConversationStoreConfig
 )
 """What ``AiConfig.conversation_stores`` maps a name to."""

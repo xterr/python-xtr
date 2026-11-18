@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import TYPE_CHECKING, Final, TypeVar, final
+from typing import TYPE_CHECKING, Final, final, override
 
 import pytest
 from joserfc import jwt
 from joserfc.jwk import OctKey
 from joserfc.jws import serialize_compact
-from typing_extensions import override
 from xtr_cache import ArrayAdapter, CacheItem
 from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient
@@ -38,8 +37,6 @@ _ISSUER: Final = "https://as.example"
 _AUDIENCE: Final = "shop-api"
 _INTROSPECTION_URI: Final = "https://as.example/introspect"
 _JWT_MEDIA_TYPE: Final = "application/token-introspection+jwt"
-
-_T = TypeVar("_T")
 
 
 def _clock_at(moment: int) -> MockClock:
@@ -131,15 +128,15 @@ class _RecordingCache:
         self.keys: list[str] = []
         self.items: list[CacheItem] = []
 
-    async def get(
+    async def get[T](
         self,
         key: str,
-        callback: Callback[_T],
+        callback: Callback[T],
         /,
         *,
         beta: float | None = None,
         metadata: Metadata | None = None,
-    ) -> _T:
+    ) -> T:
         """Compute the value, recording the key and the item it was computed for."""
         del beta, metadata
         self.keys.append(key)

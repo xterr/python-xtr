@@ -109,6 +109,6 @@ def _round_trips(value: object) -> bool:
     """
     try:
         encoded = json.dumps(value, allow_nan=False)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
     return cast("object", json.loads(encoded)) == value

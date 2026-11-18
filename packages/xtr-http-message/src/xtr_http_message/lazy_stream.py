@@ -12,9 +12,8 @@ after it.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_http_message_contracts import StreamInterface
 
 from .stream import Stream

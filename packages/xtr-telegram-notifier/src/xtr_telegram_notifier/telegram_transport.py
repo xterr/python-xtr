@@ -6,10 +6,9 @@ import base64
 from collections.abc import Mapping
 from http import HTTPStatus
 from io import BytesIO
-from typing import TYPE_CHECKING, ClassVar, Final, cast, final
+from typing import TYPE_CHECKING, ClassVar, Final, cast, final, override
 from urllib.parse import urlencode
 
-from typing_extensions import override
 from xtr_http_client_contracts.exception import TransportError as HttpTransportError
 from xtr_notifier.exception import TransportError, UnsupportedMessageTypeError
 from xtr_notifier.message import ChatMessage, SentMessage

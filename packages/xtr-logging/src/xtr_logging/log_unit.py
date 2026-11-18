@@ -47,7 +47,7 @@ import threading
 from contextlib import suppress
 from contextvars import ContextVar, Token
 from functools import partial
-from typing import TYPE_CHECKING, Final, TypeVar, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -63,8 +63,6 @@ __all__ = [
     "in_unit",
     "unit_state",
 ]
-
-_T = TypeVar("_T")
 
 
 @final
@@ -281,17 +279,17 @@ def _began_here(unit: _Unit) -> bool:
     """Tell whether the current context began ``unit``, the one time it ends it."""
     try:
         _BEGUN.reset(unit.begun)
-    except (ValueError, RuntimeError):
+    except ValueError, RuntimeError:
         # The mark was made in another context, or this one already spent it.
         return False
     return True
 
 
-def unit_state(
+def unit_state[T](
     owner: object,
-    factory: Callable[[], _T],
-    on_end: Callable[[_T], object] | None = None,
-) -> _T | None:
+    factory: Callable[[], T],
+    on_end: Callable[[T], object] | None = None,
+) -> T | None:
     """Return ``owner``'s state in the unit carried here, or ``None`` outside one.
 
     The state is created with ``factory()`` the first time ``owner`` asks in a
@@ -317,7 +315,7 @@ def unit_state(
         return None
     key = id(owner)
     if key in unit.state:
-        return cast("_T", unit.state[key])
+        return cast("T", unit.state[key])
     state = factory()
     unit.state[key] = state
     if on_end is not None:

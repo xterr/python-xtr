@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping
-from typing import TYPE_CHECKING, Self, TypeVar, final
+from typing import TYPE_CHECKING, Self, final, override
 from urllib.parse import parse_qsl
 
-from typing_extensions import override
 from xtr_http_message_contracts import ServerRequestInterface
 
 from ._connected_trait import ConnectedTrait
@@ -25,11 +24,8 @@ __all__ = ["ServerRequest"]
 
 _HOST = "Host"
 
-_K = TypeVar("_K")
-_V = TypeVar("_V")
 
-
-def _held(given: Mapping[_K, _V]) -> Mapping[_K, _V]:
+def _held[K, V](given: Mapping[K, V]) -> Mapping[K, V]:
     """Return the mapping to hold for one given to the request.
 
     A mapping nobody can change is held as it is: copying it would only cost a

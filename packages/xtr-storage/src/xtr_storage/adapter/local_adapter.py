@@ -7,12 +7,11 @@ import os
 import secrets
 import stat
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
 from fsspec.implementations.local import (  # pyright: ignore[reportMissingTypeStubs] -- fsspec ships no type information; this is the only line in the package that names its local filesystem
     LocalFileSystem,
 )
-from typing_extensions import override
 
 from xtr_storage.adapter.fsspec_adapter import FsspecAdapter
 from xtr_storage.adapter.portable_visibility_converter import PortableVisibilityConverter

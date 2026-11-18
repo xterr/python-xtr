@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, cast, final, override
 
-from typing_extensions import override
 from xtr_http_client_contracts.exception import DecodingError, TransportError
 from xtr_security_core.exception import AuthenticationError
 

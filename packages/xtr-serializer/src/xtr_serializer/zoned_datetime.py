@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Annotated, Final, TypeAlias
+from typing import Annotated, Final
 from zoneinfo import ZoneInfo
 
 from pydantic import PlainSerializer, PlainValidator
@@ -59,7 +59,7 @@ def _read(value: object) -> datetime:
             zoned = instant.astimezone(zone) if offset is not None else None
         # A name the zone database lacks, a path or a directory of zones: the error quotes it.
         # An instant in the first or the last year shown in the zone may fall outside them.
-        except (ValueError, KeyError, OSError, OverflowError):
+        except ValueError, KeyError, OSError, OverflowError:
             pass
         else:
             # Zone rules other than the writer's would show the same instant at another time.
@@ -68,7 +68,7 @@ def _read(value: object) -> datetime:
     raise PydanticCustomError(_ERROR_TYPE, _READ_REFUSAL)
 
 
-ZonedDateTime: TypeAlias = Annotated[
+type ZonedDateTime = Annotated[
     datetime,
     PlainSerializer(_write, return_type=str, when_used="json"),
     PlainValidator(_read, json_schema_input_type=str),

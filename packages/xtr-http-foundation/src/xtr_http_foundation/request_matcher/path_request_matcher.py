@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 from urllib.parse import unquote
-
-from typing_extensions import override
 
 from xtr_http_foundation.request_matcher_interface import RequestMatcherInterface
 

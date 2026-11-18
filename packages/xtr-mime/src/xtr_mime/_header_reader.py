@@ -13,15 +13,15 @@ from __future__ import annotations
 import base64
 import binascii
 import re
-from typing import Final, Literal, TypeAlias, final
+from typing import Final, Literal, final
 
 __all__ = ["ReadGroup", "read_address_list", "read_unstructured"]
 
-ReadGroup: TypeAlias = tuple[str | None, list[str]]
+type ReadGroup = tuple[str | None, list[str]]
 """One item of an address list: the group's name (``None`` for a lone mailbox) and the display
 names of its mailboxes, empty for a bare address."""
 
-_Piece: TypeAlias = tuple[Literal["space", "encoded", "text"], str]
+type _Piece = tuple[Literal["space", "encoded", "text"], str]
 
 _ENCODED_WORD: Final = re.compile(r"=\?([^?*\s]+)(?:\*[^?\s]*)?\?([bBqQ])\?([^?\s]*)\?=")
 _QUOTED_BYTE: Final = re.compile(rb"=([0-9A-Fa-f]{2})")

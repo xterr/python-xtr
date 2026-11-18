@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import math
 from hashlib import sha256
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 from joserfc.errors import JoseError
 from joserfc.jwk import KeySet
-from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_security_core.exception import AuthenticationError, InvalidArgumentError
 

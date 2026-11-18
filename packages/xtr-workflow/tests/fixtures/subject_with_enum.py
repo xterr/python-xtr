@@ -58,6 +58,6 @@ class SubjectWithOptionalEnumAttribute:
     marking: PlaceEnum | None = None
 
 
-# The ``Optional[...]`` spelling, which has an origin of its own before 3.14;
-# written as a string so that nothing else here has to use it.
+# The ``Optional[...]`` spelling, written as a string so that nothing else here
+# has to use it.
 SubjectWithOptionalEnumAttribute.__annotations__["marking"] = "typing.Optional[PlaceEnum]"

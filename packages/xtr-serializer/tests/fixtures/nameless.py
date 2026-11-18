@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Final, cast
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, Final, cast, override
 
 if TYPE_CHECKING:
     from collections.abc import Generator

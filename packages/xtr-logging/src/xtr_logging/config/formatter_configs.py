@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypeAlias
+from typing import Literal
 
 import msgspec
 
@@ -58,5 +58,5 @@ class ConsoleFormatterConfig(_FormatterConfigBase, frozen=True, kw_only=True, ta
     ignore_empty_context_and_extra: bool = True
 
 
-FormatterConfig: TypeAlias = LineFormatterConfig | JsonFormatterConfig | ConsoleFormatterConfig
+type FormatterConfig = LineFormatterConfig | JsonFormatterConfig | ConsoleFormatterConfig
 """Any built-in formatter, told apart by its ``type``."""

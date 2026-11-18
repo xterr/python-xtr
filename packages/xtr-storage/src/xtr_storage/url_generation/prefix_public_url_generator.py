@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 from urllib.parse import quote
-
-from typing_extensions import override
 
 from xtr_storage.path.path_prefixer import PathPrefixer
 from xtr_storage.url_generation.public_url_generator_interface import PublicUrlGeneratorInterface

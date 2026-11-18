@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
-from typing_extensions import override
 from xtr_cache_contracts import (
     CacheInterface,  # noqa: TC002 -- a factory signature the container reads
 )

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import NoneType
-from typing import Any, Literal, TypeAlias, final
+from typing import Any, Literal, final
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.usage import UsageLimits
@@ -18,7 +18,7 @@ from .toolset_configs import ToolsetEntry
 
 __all__ = ["AgentConfig", "CapabilityEntry"]
 
-CapabilityEntry: TypeAlias = (
+type CapabilityEntry = (
     str | Mapping[str, Any] | AbstractCapability[Any] | type[AbstractCapability[Any]]
 )
 """A capability: pydantic-ai's declarative form (``"Thinking"``, ``{"Thinking": {...}}``), a

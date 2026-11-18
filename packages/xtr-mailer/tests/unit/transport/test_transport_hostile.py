@@ -8,10 +8,9 @@ for minutes on the megabyte.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
-from typing_extensions import override
 from xtr_http_client import MockHttpClient
 from xtr_logging_contracts import AbstractLogger
 

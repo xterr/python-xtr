@@ -6,11 +6,10 @@ import socket
 from collections.abc import Mapping
 from io import BytesIO
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, Unpack, cast, final, override
 from urllib.parse import urljoin
 
 import anyio
-from typing_extensions import Unpack, override
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_message import Request, Stream, Uri
 from xtr_service_contracts import ResetInterface

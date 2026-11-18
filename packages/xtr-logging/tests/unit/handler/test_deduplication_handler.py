@@ -7,10 +7,9 @@ import os
 import stat
 import tempfile
 import threading
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_logging_contracts import Level
 

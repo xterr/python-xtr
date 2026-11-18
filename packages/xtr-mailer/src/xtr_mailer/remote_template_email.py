@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from typing_extensions import override
 from xtr_mime import Email, LogicError, TextPart
 
 from .remote_template import RemoteTemplate

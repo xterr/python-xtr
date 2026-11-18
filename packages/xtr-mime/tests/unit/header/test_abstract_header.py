@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, override
 
 import pytest
-from typing_extensions import override
 
 from xtr_mime.exception import RfcComplianceError
 from xtr_mime.header import AbstractHeader

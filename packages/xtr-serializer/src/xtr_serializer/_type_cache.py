@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 from threading import RLock, get_ident
-from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast, final, get_args
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, cast, final, get_args, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 __all__ = ["TypeCache"]
 
-_V = TypeVar("_V")
 
 # How many types a cache keeps the value of. A type expression built per call, such as
 # Annotated[int, Field(ge=0)], is a new key each time; the least recently used goes first.
@@ -76,7 +73,7 @@ class _OwnedLock:
 
 
 @final
-class TypeCache(Generic[_V]):
+class TypeCache[V]:
     """The values built for the types used last, each in a scope, such as a format.
 
     A union's members count in the order written, as pydantic tries them in that order. Threads
@@ -87,14 +84,14 @@ class TypeCache(Generic[_V]):
 
     def __init__(self) -> None:
         # Oldest use first: a type used again is moved to the end.
-        self._kept: dict[_Key, _V] = {}
+        self._kept: dict[_Key, V] = {}
         self._lock = _OwnedLock()
 
     def __len__(self) -> int:
         """Give how many types the cache keeps a value of."""
         return len(self._kept)
 
-    def get(self, type_: object, build_factory: Callable[[], _V], scope: str | None = None) -> _V:
+    def get(self, type_: object, build_factory: Callable[[], V], scope: str | None = None) -> V:
         """Return the value kept for ``type_`` in ``scope``, calling ``build_factory`` on first use.
 
         Keying a type runs its own code — reading its class to take it apart, hashing it — which
@@ -134,7 +131,7 @@ class TypeCache(Generic[_V]):
             self._keep(key, value)
         return value
 
-    def _keep(self, key: _Key, value: _V) -> None:
+    def _keep(self, key: _Key, value: V) -> None:
         """Keep ``value`` as used last, evicting the oldest while more than the bound are kept."""
         self._kept[key] = value
         while len(self._kept) > _CACHE_SIZE:

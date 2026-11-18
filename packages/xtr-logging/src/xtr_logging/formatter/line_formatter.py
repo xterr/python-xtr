@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import re
 import traceback
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, override
 
 import msgspec
-from typing_extensions import override
 
 from ._text import class_name, previous_error, safe_str
 from .formatter_interface import FormatterInterface

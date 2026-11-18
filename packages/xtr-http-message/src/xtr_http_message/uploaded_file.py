@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, final
+from typing import TYPE_CHECKING, Literal, final, override
 
-from typing_extensions import override
 from xtr_http_message_contracts import StreamInterface, UploadedFileInterface, UploadError
 
 from .exception import InvalidArgumentError, UploadedFileError

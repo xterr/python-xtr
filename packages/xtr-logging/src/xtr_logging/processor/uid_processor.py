@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import secrets
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_service_contracts import ResetInterface
 
 from xtr_logging.exception.invalid_option_error import InvalidOptionError

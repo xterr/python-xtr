@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_tagged_item
 
 from bookshop.service.book_catalog_interface import BookCatalogInterface

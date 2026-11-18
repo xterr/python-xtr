@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, final
+from typing import ClassVar, final, override
 
 from joserfc.errors import JoseError
 from joserfc.jwk import ECKey, OKPKey, RSAKey
-from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_jwt.exception.missing_key_error import MissingKeyError
@@ -80,7 +79,7 @@ def _public_pem_from_private(private_pem: str, passphrase: str | None) -> str:
     for key_class in _ASYMMETRIC_KEY_CLASSES:
         try:
             key = key_class.import_key(private_pem, password=password)
-        except (JoseError, ValueError, TypeError):
+        except JoseError, ValueError, TypeError:
             continue
         return key.as_pem(private=False).decode("utf-8")
     raise InvalidArgumentError("The private key could not be read to derive a public key.")

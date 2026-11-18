@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import base64
 from datetime import timedelta
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.dispatcher import RecordingEventDispatcher
 from tests.support.entities import make_client, make_scope

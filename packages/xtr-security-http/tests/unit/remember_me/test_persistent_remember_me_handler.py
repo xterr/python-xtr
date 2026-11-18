@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_security_core.exception import AuthenticationError, CookieTheftError
 from xtr_security_core.user.in_memory_user import InMemoryUser

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
 from joserfc import jwt as joserfc_jwt
-from typing_extensions import override
 from xtr_http_message import Response
 
 from tests.support.encryption import ENCRYPTION_KEY, unseal

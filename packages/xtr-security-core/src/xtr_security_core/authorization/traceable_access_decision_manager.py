@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from .access_decision import AccessDecision
 from .access_decision_manager_interface import AccessDecisionManagerInterface

@@ -268,7 +268,8 @@ A class implementing `VoterInterface` is gathered into the decision manager by t
 `security.voter` tag. Extend `Voter`, register it as a service, and that is the whole wiring.
 
 ```python
-from typing_extensions import override
+from typing import override
+
 from xtr_dependency_injection import as_service
 from xtr_security_core import TokenInterface, Vote, Voter
 

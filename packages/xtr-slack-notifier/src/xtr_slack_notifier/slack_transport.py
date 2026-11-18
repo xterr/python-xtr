@@ -5,10 +5,9 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from http import HTTPStatus
-from typing import TYPE_CHECKING, ClassVar, Final, final
+from typing import TYPE_CHECKING, ClassVar, Final, final, override
 from urllib.parse import urlencode
 
-from typing_extensions import override
 from xtr_http_client_contracts.exception import TransportError as HttpTransportError
 from xtr_notifier.exception import (
     InvalidArgumentError,

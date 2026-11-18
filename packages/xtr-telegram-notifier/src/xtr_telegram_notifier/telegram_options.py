@@ -6,9 +6,8 @@ import base64
 import copy
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, Self, cast, final
+from typing import TYPE_CHECKING, Final, Self, cast, final, override
 
-from typing_extensions import override
 from xtr_notifier.message import MessageOptions, MessageOptionsInterface
 
 if TYPE_CHECKING:

@@ -5,9 +5,7 @@ from __future__ import annotations
 import base64
 import hmac
 import re
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 from xtr_mailer.exception import InvalidArgumentError
 

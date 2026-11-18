@@ -8,11 +8,10 @@ from ._tables import REGISTRATION_COLUMNS
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from typing import TypeAlias
 
     from sqlalchemy import Table
 
-    Properties: TypeAlias = dict[str, object]
+    type Properties = dict[str, object]
 
 __all__ = [
     "BESIDE",

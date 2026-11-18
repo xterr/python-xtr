@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from typing import override
+
 import pytest
-from typing_extensions import override
 
 from xtr_ai.decorator import TOOL_ATTRIBUTE, ToolDeclaration, as_tool, tools_declared_on
 from xtr_ai.exception import InvalidConfigurationError

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_security_core.exception import AuthenticationServiceError, BadCredentialsError
 from xtr_security_core.user.user_interface import UserInterface
 
@@ -139,7 +138,7 @@ class UserBadge(BadgeInterface):
         """Call ``loader`` with the identifier, and the attributes when it takes them."""
         try:
             signature = inspect.signature(loader)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return loader(self._identifier)
         positional = [
             parameter

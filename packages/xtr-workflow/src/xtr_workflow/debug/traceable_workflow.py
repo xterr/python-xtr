@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import TYPE_CHECKING, Final, TypeVar, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_clock import MonotonicClock
 from xtr_service_contracts import ResetInterface
 
@@ -25,7 +24,6 @@ if TYPE_CHECKING:
 
 __all__ = ["TraceableWorkflow"]
 
-_T = TypeVar("_T")
 
 _MILLISECOND: Final = timedelta(milliseconds=1)
 
@@ -181,9 +179,9 @@ class TraceableWorkflow(WorkflowInterface, ResetInterface):
         """Forget every call recorded, so the next unit of work starts with none."""
         self._calls.clear()
 
-    async def _call_inner(
-        self, method: str, arguments: tuple[object, ...], call: Callable[[], Awaitable[_T]]
-    ) -> _T:
+    async def _call_inner[T](
+        self, method: str, arguments: tuple[object, ...], call: Callable[[], Awaitable[T]]
+    ) -> T:
         """Make ``call`` to the wrapped workflow, recorded as ``method`` called with ``arguments``.
 
         The clock is read first, so reading the marking a subject is in

@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import hmac
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from xtr_password_hasher.exception import InvalidArgumentError
 from xtr_password_hasher.legacy_password_hasher_interface import LegacyPasswordHasherInterface

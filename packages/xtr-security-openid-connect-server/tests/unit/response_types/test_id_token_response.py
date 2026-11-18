@@ -5,11 +5,10 @@ from __future__ import annotations
 import copy
 import json
 from datetime import timedelta
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
 from joserfc import jwt
-from typing_extensions import override
 from xtr_http_message import Response
 from xtr_security_jwt.services.jws_provider import JwsProviderInterface
 from xtr_security_jwt.signature.created_jws import CreatedJws

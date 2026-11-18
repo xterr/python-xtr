@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, final, override
 
 # Both names the constructor below reads are imported at runtime: the container
 # evaluates those annotations when it builds this answer.

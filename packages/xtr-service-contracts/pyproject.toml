@@ -6,16 +6,13 @@ readme = "README.md"
 authors = [
     { name = "Xterr", email = "me@xterr.dev" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.14.4"
 license = "MIT"
 license-files = ["LICENSE"]
 keywords = ["contracts", "interface", "protocol", "service", "dependency-injection", "reset"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 ]
@@ -25,11 +22,11 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-    "basedpyright>=1.21",
-    "ruff>=0.8",
-    "pytest>=8",
-    "pytest-cov>=5",
-    "anyio>=4.0",
+    "basedpyright>=1.31.7",
+    "ruff>=0.14.7",
+    "pytest>=8.4",
+    "pytest-cov>=7.1",
+    "anyio>=4.10",
     "ty>=0.0.83",
 ]
 
@@ -42,7 +39,7 @@ build-backend = "uv_build"
 # ─────────────────────────────────────────────────────────────────
 [tool.basedpyright]
 typeCheckingMode = "all"
-pythonVersion = "3.11"
+pythonVersion = "3.14"
 pythonPlatform = "All"
 include = ["src", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
@@ -53,15 +50,12 @@ reportUnusedVariable = "error"
 reportMissingParameterType = "error"
 reportPrivateUsage = "error"
 
-# `@override` landed in typing in 3.12, and this package ships no dependencies,
-# so on 3.11 there is nothing to import it from.
-reportImplicitOverride = "none"
 
 # ─────────────────────────────────────────────────────────────────
 # ruff — select = ["ALL"], minimal justified ignores
 # ─────────────────────────────────────────────────────────────────
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 100
 src = ["src"]
 

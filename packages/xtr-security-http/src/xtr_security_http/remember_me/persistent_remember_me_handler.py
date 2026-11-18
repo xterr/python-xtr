@@ -6,9 +6,8 @@ import base64
 import hmac
 import secrets
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_security_core.authentication.remember_me.persistent_token import PersistentToken
 from xtr_security_core.authentication.remember_me.token_verifier_interface import (

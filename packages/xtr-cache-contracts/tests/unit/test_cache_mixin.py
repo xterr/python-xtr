@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, TypeVar, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_clock.testing import mock_time
 
 from tests.support.in_memory_pool import InMemoryItem, InMemoryPool
@@ -17,8 +16,6 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.anyio
 
 NOON = "2024-04-09 12:00:00"
-
-_T = TypeVar("_T")
 
 
 @final
@@ -202,13 +199,13 @@ class _HookedPool(InMemoryPool):
         self.elected: list[tuple[str, float]] = []
 
     @override
-    async def _compute(
+    async def _compute[T](
         self,
         item: ItemInterface,
-        callback: Callback[_T],
+        callback: Callback[T],
         beta: float,
         metadata: Metadata | None,
-    ) -> _T:
+    ) -> T:
         self.computed.append((item.key, beta))
         return await super()._compute(item, callback, beta, metadata)
 

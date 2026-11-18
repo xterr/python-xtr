@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Final, override
 
 from xtr_security_oauth2_server_core.code_challenge_verifiers.plain_verifier import PlainVerifier
 from xtr_security_oauth2_server_core.code_challenge_verifiers.s256_verifier import S256Verifier

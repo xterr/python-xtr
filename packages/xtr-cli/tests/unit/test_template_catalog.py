@@ -6,7 +6,13 @@ import pytest
 
 from xtr_cli import TemplateCatalog, UnknownTemplateError
 
-_VALUES = {"name": "web-shop", "app": "web_shop", "python": "3.13", "minor": "13"}
+_VALUES = {
+    "name": "web-shop",
+    "app": "web_shop",
+    "python": "3.14",
+    "minor": "14",
+    "requires_python": "3.14.4",
+}
 
 
 def _kernel_call(name: str) -> ast.Call:

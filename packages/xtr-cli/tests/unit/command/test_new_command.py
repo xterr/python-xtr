@@ -24,7 +24,7 @@ async def test_new_makes_a_console_application_then_installs_and_syncs_it_asking
     runner = record_processes(monkeypatch)
     target = tmp_path / "shop"
 
-    code = await tester.execute(["new", str(target), "--python", "3.13"])
+    code = await tester.execute(["new", str(target), "--python", "3.14"])
 
     assert code == ExitCode.SUCCESS
     assert (target / "src" / "shop" / "__main__.py").is_file()
@@ -49,7 +49,7 @@ async def test_webapp_makes_a_web_application_with_the_web_packages(
     runner = record_processes(monkeypatch)
     target = tmp_path / "web-shop"
 
-    code = await tester.execute(["new", str(target), "--webapp", "--python", "3.13", "--no-git"])
+    code = await tester.execute(["new", str(target), "--webapp", "--python", "3.14", "--no-git"])
 
     assert code == ExitCode.SUCCESS
     assert "the webapp template" in tester.display
@@ -66,7 +66,7 @@ async def test_a_dry_run_prints_the_plan_and_writes_nothing(
     runner = record_processes(monkeypatch)
 
     code = await tester.execute(
-        ["new", str(tmp_path / "shop"), "--dry-run", "--python", "3.13"], interactive=False
+        ["new", str(tmp_path / "shop"), "--dry-run", "--python", "3.14"], interactive=False
     )
 
     assert code == ExitCode.SUCCESS
@@ -93,8 +93,8 @@ async def test_no_directory_is_an_invalid_command_line(
 @pytest.mark.parametrize(
     ("options", "message"),
     [
-        (["--python", "3.10"], "give a version 3.11 or later"),
-        (["--python", "three"], "give a version 3.11 or later"),
+        (["--python", "3.13"], "give a version 3.14 or later"),
+        (["--python", "three"], "give a version 3.14 or later"),
         (["--name", "json"], "would shadow the standard library"),
     ],
 )
@@ -121,7 +121,7 @@ async def test_a_directory_in_use_is_refused(
     _ = record_processes(monkeypatch)
     _ = (tmp_path / "notes.txt").write_text("mine", encoding="utf-8")
 
-    code = await tester.execute(["new", str(tmp_path), "--python", "3.13"], interactive=False)
+    code = await tester.execute(["new", str(tmp_path), "--python", "3.14"], interactive=False)
 
     assert code == ExitCode.FAILURE
     assert "is not empty (notes.txt)" in tester.display
@@ -133,7 +133,7 @@ async def test_a_failing_step_is_reported_with_the_command(
     _ = record_processes(monkeypatch, 1)
 
     code = await tester.execute(
-        ["new", str(tmp_path / "shop"), "--python", "3.13"], interactive=False
+        ["new", str(tmp_path / "shop"), "--python", "3.14"], interactive=False
     )
 
     assert code == ExitCode.FAILURE

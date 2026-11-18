@@ -6,13 +6,12 @@ import json
 from base64 import urlsafe_b64encode
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 from urllib.parse import parse_qsl, urlsplit
 
 import pytest
 from joserfc import jwt
 from joserfc.jwk import RSAKey
-from typing_extensions import override
 from xtr_cache import ArrayAdapter
 from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient
@@ -70,8 +69,6 @@ _CALLBACK_URI = "https://example.com/oidc/callback"
 _FORM = "application/x-www-form-urlencoded"
 
 pytestmark = pytest.mark.anyio
-
-_EventT = TypeVar("_EventT")
 
 
 def _key(kid: str = "k1") -> RSAKey:
@@ -278,11 +275,11 @@ class _ListenerDispatcher:
         self._listener = listener
         self.events: list[object] = []
 
-    async def dispatch(
+    async def dispatch[EventT](
         self,
-        event: _EventT,
+        event: EventT,
         event_name: str | type | None = None,
-    ) -> _EventT:
+    ) -> EventT:
         """Run the listener on ``event``, then record it."""
         del event_name
         self.events.append(event)

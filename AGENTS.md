@@ -240,7 +240,7 @@ Before writing a helper, a wrapper, a context manager or any "own" version of so
 
 ### Style
 
-- Python `>= 3.11`.
+- Python `>= 3.14.4`.
 - Every module starts with `from __future__ import annotations`, a module docstring, and
   declares `__all__`.
 - Prefer `@final` on public classes not meant to be subclassed, and `__slots__` where cheap.

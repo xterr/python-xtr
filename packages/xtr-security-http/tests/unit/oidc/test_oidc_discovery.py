@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, cast, final
 
 import pytest
 from xtr_cache import ArrayAdapter
@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from xtr_cache_contracts import CacheInterface, Callback, ItemInterface
     from xtr_http_client_contracts import HttpClientInterface, HttpResponseInterface, RequestOptions
 
-_T = TypeVar("_T")
 
 _ISSUER = "https://issuer.example"
 _DOCUMENT_URI = "https://issuer.example/.well-known/openid-configuration"
@@ -58,15 +57,15 @@ class _RecordingCache:
         self._inner = ArrayAdapter(clock=MockClock(_FROZEN))
         self.keys: list[str] = []
 
-    async def get(
+    async def get[T](
         self,
         key: str,
-        callback: Callback[_T],
+        callback: Callback[T],
         /,
         *,
         beta: float | None = None,
         metadata: object = None,
-    ) -> _T:
+    ) -> T:
         """Compute or answer, recording the key either way."""
         self.keys.append(key)
         return await self._inner.get(key, callback, beta=beta, metadata=metadata)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
@@ -290,19 +289,19 @@ class _FakeCache:
         self.item = _FakeItem()
         self.saved = None
 
-    async def get(
+    async def get[T](
         self,
         key: str,
-        callback: Callback[_T],
+        callback: Callback[T],
         /,
         *,
         beta: float | None = None,
         metadata: object = None,
-    ) -> _T:
+    ) -> T:
         """Compute the value through the recording item."""
         del key, beta, metadata
         self.saved = await callback(cast("ItemInterface", cast("object", self.item)))
-        return cast("_T", cast("object", self.saved))
+        return cast("T", cast("object", self.saved))
 
     async def delete(self, key: str, /) -> bool:
         """Remove nothing; this cache holds one entry."""

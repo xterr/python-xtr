@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from tests.support.in_memory_encoder import InMemoryEncoder
 from xtr_serializer import DecoderInterface, EncoderInterface

@@ -5,10 +5,9 @@ from __future__ import annotations
 import base64
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_security_core.exception import InvalidArgumentError
 from xtr_security_core.user.attributes_based_user_provider_interface import (

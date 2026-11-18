@@ -120,7 +120,7 @@ import json
 import re
 import time
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, ClassVar, Protocol, cast
 
 import anyio
 import pytest
@@ -146,7 +146,6 @@ if TYPE_CHECKING:
 
 __all__ = ["HttpClientTestCase"]
 
-_T = TypeVar("_T")
 
 _HOST = "localhost"
 _IPV6_HOST = "::1"
@@ -209,14 +208,14 @@ def _without_client_port(echo: Mapping[str, object]) -> Mapping[str, object]:
     return {name: value for name, value in echo.items() if name != _CLIENT_PORT}
 
 
-def _expect(value: object, kind: type[_T]) -> _T:
+def _expect[T](value: object, kind: type[T]) -> T:
     """``value``, once it is a ``kind``; the transfer info comes out of the contract untyped."""
     if not isinstance(value, kind):
         raise TypeError(f"expected {kind.__name__}, got {value!r}")
     return value
 
 
-def _info(response: HttpResponseInterface, key: str, kind: type[_T]) -> _T:
+def _info[T](response: HttpResponseInterface, key: str, kind: type[T]) -> T:
     """The ``key`` entry of ``response``'s info, narrowed to ``kind``."""
     return _expect(response.get_info(key), kind)
 

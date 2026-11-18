@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
 from joserfc import jwt
 from joserfc.jwk import RSAKey
-from typing_extensions import override
 from xtr_cache import ArrayAdapter
 from xtr_clock import MockClock
 from xtr_http_client import MockHttpClient

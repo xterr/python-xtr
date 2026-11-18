@@ -14,10 +14,9 @@ import copy
 import re
 from ipaddress import IPv6Address
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, Self, final
+from typing import TYPE_CHECKING, Final, Self, final, override
 from urllib.parse import quote
 
-from typing_extensions import override
 from uritools import uridefrag, urisplit
 from xtr_http_message_contracts import UriInterface
 

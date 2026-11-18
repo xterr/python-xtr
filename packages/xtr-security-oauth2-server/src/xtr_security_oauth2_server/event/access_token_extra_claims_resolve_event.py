@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, override
 
-from typing_extensions import override
 from xtr_event_dispatcher_contracts import Event
 
 if TYPE_CHECKING:

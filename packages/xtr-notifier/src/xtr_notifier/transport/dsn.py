@@ -14,10 +14,8 @@ so a DSN with nothing after the scheme is refused rather than guessed at.
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, final, overload
+from typing import TYPE_CHECKING, final, overload, override
 from urllib.parse import parse_qsl, unquote, urlsplit
-
-from typing_extensions import override
 
 from xtr_notifier.exception import InvalidArgumentError, MissingRequiredOptionError
 

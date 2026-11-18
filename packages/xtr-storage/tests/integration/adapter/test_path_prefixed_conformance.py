@@ -16,10 +16,9 @@ the adapter underneath has nothing to offer.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 import pytest
-from typing_extensions import override
 
 from tests.support.adapter_conformance import AdapterConformance
 from xtr_storage.adapter.in_memory_adapter import InMemoryAdapter

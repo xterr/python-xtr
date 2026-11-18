@@ -11,9 +11,8 @@ produced a response still wrote.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_http_foundation import Session
 from xtr_http_kernel.event import FinishRequestEvent, ResponseEvent

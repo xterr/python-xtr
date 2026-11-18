@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TypeAlias
 
 __all__ = ["Context"]
 
-Context: TypeAlias = Mapping[str, object]
+type Context = Mapping[str, object]
 """Options for a single call, by name, each read by the step that knows it.
 
 One mapping travels the whole way — serializer, normalizers, encoders — so a call can tune a step

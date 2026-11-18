@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Final, TypeAlias
+from typing import Final
 
 __all__ = ["EXCEPTION_KEY", "Context"]
 
-Context: TypeAlias = Mapping[str, object]
+type Context = Mapping[str, object]
 """Structured data attached to what is logged.
 
 Values are ``object`` because a caller may log anything; an implementation

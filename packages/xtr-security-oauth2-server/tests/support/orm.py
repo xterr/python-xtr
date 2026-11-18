@@ -14,7 +14,7 @@ tests would pass against a database that silently keeps orphans.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager, contextmanager
-from typing import TYPE_CHECKING, Final, TypeVar, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 from sqlalchemy import Column, MetaData, String, Table, event, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -48,7 +48,6 @@ __all__ = [
     "stored",
 ]
 
-_ValueT = TypeVar("_ValueT")
 
 CONNECTION: Final = "default"
 """The connection every stored manager in these tests reads and writes through."""
@@ -131,7 +130,7 @@ class Database:
             return counted.scalar_one()
 
     @contextmanager
-    def watching(self) -> Generator[list[str], None, None]:
+    def watching(self) -> Generator[list[str]]:
         """Collect the statements the database runs while the block is open."""
         self._statements.clear()
         try:
@@ -188,7 +187,7 @@ async def stored(
     tmp_path: Path,
     driver: Driver | None = None,
     metadata: MetaData | None = None,
-) -> AsyncGenerator[Database, None]:
+) -> AsyncGenerator[Database]:
     """Create ``driver``'s tables in a SQLite file under ``tmp_path``, then clean up.
 
     The driver's registry is disposed on the way out: the mapping it installs
@@ -213,11 +212,11 @@ async def stored(
         built._dispose()
 
 
-async def round_trip(
+async def round_trip[ValueT](
     tmp_path: Path,
-    column_type: TypeEngine[_ValueT],
-    value: _ValueT | None,
-) -> _ValueT | None:
+    column_type: TypeEngine[ValueT],
+    value: ValueT | None,
+) -> ValueT | None:
     """Store ``value`` in a one-column table of ``column_type``, and read it back.
 
     A column type is only worth anything through a database: what a decorator
@@ -240,6 +239,6 @@ async def round_trip(
             await session.commit()
             read = await session.execute(select(table.c["value"]))
 
-            return cast("_ValueT | None", read.scalar_one())
+            return cast("ValueT | None", read.scalar_one())
     finally:
         await engine.dispose()

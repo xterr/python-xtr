@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 from urllib.parse import urlencode, urlsplit
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 from xtr_security_core.exception import (
     ExpiredSignatureError,

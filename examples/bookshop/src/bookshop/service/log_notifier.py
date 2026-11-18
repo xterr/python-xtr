@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated, final
+from typing import Annotated, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Target, as_alias, as_service, when_not
 from xtr_logging_contracts import LoggerInterface
 

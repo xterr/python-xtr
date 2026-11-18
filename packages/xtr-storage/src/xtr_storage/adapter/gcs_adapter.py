@@ -23,10 +23,8 @@ from __future__ import annotations
 
 import base64
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 from urllib.parse import quote
-
-from typing_extensions import override
 
 from xtr_storage.adapter._object_store import (
     directory_exists,

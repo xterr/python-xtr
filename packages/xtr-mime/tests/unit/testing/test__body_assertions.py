@@ -5,10 +5,9 @@ from __future__ import annotations
 import io
 import re
 from functools import partial
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, override
 
 import pytest
-from typing_extensions import override
 
 from xtr_mime import Email, Headers, Message, RawMessage
 from xtr_mime.exception import InvalidArgumentError, LogicError

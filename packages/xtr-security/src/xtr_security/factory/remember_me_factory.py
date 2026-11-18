@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast, final
+from typing import TYPE_CHECKING, Annotated, cast, final, override
 
-from typing_extensions import override
 from xtr_clock import ClockInterface
 from xtr_dependency_injection import Target
 from xtr_security_core import SignatureHasher, TokenStorageInterface

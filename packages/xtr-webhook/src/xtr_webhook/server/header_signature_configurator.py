@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_webhook._standard_webhooks_signature import sign
 from xtr_webhook.exception import InvalidArgumentError, LogicError

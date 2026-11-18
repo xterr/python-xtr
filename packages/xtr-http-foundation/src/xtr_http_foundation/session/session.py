@@ -8,9 +8,8 @@ import secrets
 from copy import deepcopy
 from dataclasses import replace
 from datetime import timedelta
-from typing import TYPE_CHECKING, Final, Self, TypeGuard, final
+from typing import TYPE_CHECKING, Final, Self, TypeGuard, final, override
 
-from typing_extensions import override
 from xtr_clock import SystemClock
 
 from xtr_http_foundation.response_cookie import cookie_header_value

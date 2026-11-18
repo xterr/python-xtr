@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_security.access_token import TokenHandlerFactoryInterface
 from xtr_security.access_token.add_token_handler_factory import add_token_handler_factory

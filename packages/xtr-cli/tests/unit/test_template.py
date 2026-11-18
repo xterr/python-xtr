@@ -10,7 +10,13 @@ from xtr_cli import InvalidTemplateError, Template
 if TYPE_CHECKING:
     from pathlib import Path
 
-_VALUES = {"name": "web-shop", "app": "web_shop", "python": "3.13", "minor": "13"}
+_VALUES = {
+    "name": "web-shop",
+    "app": "web_shop",
+    "python": "3.14",
+    "minor": "14",
+    "requires_python": "3.14.4",
+}
 
 _MANIFEST = """\
 summary = "A test template."

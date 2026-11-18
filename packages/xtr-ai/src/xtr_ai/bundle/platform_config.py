@@ -5,9 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Final, final
-
-from typing_extensions import override
+from typing import Any, Final, final, override
 
 from xtr_ai.exception import InvalidConfigurationError
 

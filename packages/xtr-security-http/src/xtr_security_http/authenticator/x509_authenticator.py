@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_security_core.exception import BadCredentialsError
 
 from .abstract_pre_authenticated_authenticator import AbstractPreAuthenticatedAuthenticator

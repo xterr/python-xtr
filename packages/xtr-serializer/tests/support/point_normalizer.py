@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, final, overload
+from typing import TYPE_CHECKING, final, overload
 
 from tests.support.shapes import Point
 from xtr_serializer.exception import InvalidArgumentError, NotNormalizableValueError
@@ -11,8 +11,6 @@ if TYPE_CHECKING:
     from xtr_serializer import Context, NormalizedValue, SupportedTypes
 
 __all__ = ["PointNormalizer"]
-
-_T = TypeVar("_T")
 
 
 @final
@@ -44,13 +42,13 @@ class PointNormalizer:
         return isinstance(data, Point)
 
     @overload
-    def denormalize(
+    def denormalize[T](
         self,
         data: object,
-        type_: type[_T],
+        type_: type[T],
         format: str | None = None,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def denormalize(

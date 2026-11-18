@@ -5,11 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, cast, final
+from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, cast, final, override
 
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, PlainValidator
 from pydantic_core import core_schema
-from typing_extensions import override
 
 from tests.fixtures.foreign import Money
 

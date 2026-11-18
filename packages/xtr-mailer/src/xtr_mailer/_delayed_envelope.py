@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, final
+from typing import TYPE_CHECKING, ClassVar, final, override
 
-from typing_extensions import override
 from xtr_mime import MailboxHeader, MailboxListHeader, PathHeader
 
 from .envelope import Envelope

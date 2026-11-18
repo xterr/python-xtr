@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import final
-
-from typing_extensions import override
+from typing import final, override
 
 from xtr_security_openid_connect_server.exception.invalid_argument_error import (
     InvalidArgumentError,

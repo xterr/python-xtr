@@ -571,10 +571,9 @@ authenticators, handlers and listeners all use the request's instance — so the
 firewall loads belongs to the same session the route writes through:
 
 ```python
-from typing import final
+from typing import final, override
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing_extensions import override
 from xtr_dependency_injection import as_service
 from xtr_password_hasher import PasswordAuthenticatedUserInterface
 from xtr_security_core.exception import UnsupportedUserError, UserNotFoundError

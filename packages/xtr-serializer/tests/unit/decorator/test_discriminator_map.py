@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from pydantic import BaseModel, RootModel, ValidationError
@@ -106,16 +106,13 @@ def test_a_class_pydantic_has_no_schema_for_is_refused() -> None:
         _ = discriminator_map()(Plain)
 
 
-_Item = TypeVar("_Item")
-
-
 @dataclass
-class _GenericBase(Generic[_Item]):
-    value: _Item
+class _GenericBase[Item]:
+    value: Item
 
 
-class _GenericModel(BaseModel, Generic[_Item]):
-    value: _Item
+class _GenericModel[Item](BaseModel):
+    value: Item
 
 
 @pytest.mark.parametrize("base", [_GenericBase, _GenericModel], ids=["dataclass", "model"])

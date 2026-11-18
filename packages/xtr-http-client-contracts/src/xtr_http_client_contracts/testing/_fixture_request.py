@@ -122,7 +122,7 @@ async def read_request(
     """
     try:
         head = await reader.readuntil(b"\r\n\r\n")
-    except (asyncio.IncompleteReadError, asyncio.LimitOverrunError):
+    except asyncio.IncompleteReadError, asyncio.LimitOverrunError:
         return None
     lines = head.decode("latin-1").split("\r\n")
     parts = lines[0].split(" ")

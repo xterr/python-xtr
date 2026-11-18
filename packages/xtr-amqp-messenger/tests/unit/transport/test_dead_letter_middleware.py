@@ -8,7 +8,7 @@ attempt instead, so exhausted work can be inspected and replayed.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 from uuid import uuid4
 
 import pytest
@@ -16,7 +16,6 @@ from aio_pika import Connection, Exchange, Message
 from aio_pika.channel import Channel
 from taskiq import InMemoryBroker, TaskiqMessage, TaskiqResult
 from taskiq_aio_pika import AioPikaBroker
-from typing_extensions import override
 from xtr_messenger.bridge.taskiq.labels import RETRIES_LABEL
 from yarl import URL
 

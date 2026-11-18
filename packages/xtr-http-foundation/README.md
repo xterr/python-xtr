@@ -4,7 +4,7 @@
 
 **One question each about a request that arrived, composed into one matcher — and the helpers that place an IP in a network, count a request against the limits it names, and set a cookie on the response.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="asyncio" src="https://img.shields.io/badge/asyncio-native-1f6feb">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -36,7 +36,7 @@ attributed exactly as a browser reads them.
 uv add xtr-http-foundation
 ```
 
-Requires Python 3.11+. The one runtime dependency beyond `typing-extensions` is
+Requires Python 3.14.4+. The one runtime dependency is
 [xtr-http-message-contracts](../xtr-http-message-contracts), because a matcher and a request
 rate limiter read a request that arrived and nothing else; the address helpers and the cookie
 builder are built on the standard library.
@@ -146,9 +146,8 @@ claimed: there is nothing to match an expression against.
 your own needs no base class:
 
 ```python
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_http_foundation import RequestMatcherInterface
 from xtr_http_message_contracts import ServerRequestInterface
 
@@ -329,9 +328,8 @@ because a request passes only when every limit passes. A request that counts und
 at all is unlimited:
 
 ```python
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_http_foundation import AbstractRequestRateLimiter, RateLimiterInterface
 from xtr_rate_limiter import RateLimiterFactoryInterface
 

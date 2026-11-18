@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, ClassVar, final, override
 
 from xtr_mime._engine import MessageIds, check_message_id, encode_idn_address
 from xtr_mime.exception import RfcComplianceError

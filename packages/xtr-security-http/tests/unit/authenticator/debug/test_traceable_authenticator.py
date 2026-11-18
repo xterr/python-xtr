@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_http_kernel.bridge import ResponseFactory
 from xtr_security_core.authentication.token.null_token import NullToken

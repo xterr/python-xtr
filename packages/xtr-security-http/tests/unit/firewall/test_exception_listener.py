@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
 import pytest
 from starlette.responses import Response as FrameworkResponse
-from typing_extensions import override
 from xtr_http_foundation import MemorySessionStorage, Session
 from xtr_http_kernel import ExceptionEvent
 from xtr_http_kernel.bridge import Response as KernelResponse

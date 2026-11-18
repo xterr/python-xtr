@@ -1,10 +1,7 @@
 """Workflows declared with deferred annotations, some naming what only the type checker imports.
 
 The one module here that does not import ``annotations`` from ``__future__``:
-from 3.14 on, the annotations of its classes are evaluated only when read, all
-at once. Before 3.14 they are evaluated as each class is created, which fails
-on the first naming what only the type checker imports — so it is imported from
-3.14 on only.
+the annotations of its classes are evaluated only when read, all at once.
 """
 
 from typing import TYPE_CHECKING, Annotated, ClassVar
@@ -13,8 +10,8 @@ from xtr_workflow import WorkflowTrait
 from xtr_workflow.decorator import Transition, as_workflow
 
 if TYPE_CHECKING:
-    from tests.fixtures.task import Task  # noqa: TC004 — deferred, not needed to create a class
-    from tests.fixtures.task_step import TaskStep  # noqa: TC004 — a marker lacking it is the point
+    from tests.fixtures.task import Task
+    from tests.fixtures.task_step import TaskStep
 
 
 @as_workflow(supports=object)

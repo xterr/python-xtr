@@ -4,7 +4,7 @@
 
 **Cross-site request forgery protection: a manager that mints and checks tokens by id, and the session storage that keeps them.**
 
-<img alt="python 3.11+" src="https://img.shields.io/badge/python-%E2%89%A5%203.11-3776AB?logo=python&logoColor=white">
+<img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
 
@@ -46,7 +46,7 @@ It ships no bundle of its own: it is a library member of the security family —
 uv add xtr-security-csrf
 ```
 
-Requires Python 3.11+. One sibling comes with it:
+Requires Python 3.14.4+. One sibling comes with it:
 [xtr-http-foundation](../xtr-http-foundation), whose session the storage keeps tokens in.
 
 ## Quick start

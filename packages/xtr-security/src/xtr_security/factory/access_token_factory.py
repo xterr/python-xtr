@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, assert_never, cast, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, Annotated, assert_never, cast, final, override
 
 # These annotate factory parameters and returns the container reads at runtime,
 # so the marker, the qualifier helper and the return types stay importable here.

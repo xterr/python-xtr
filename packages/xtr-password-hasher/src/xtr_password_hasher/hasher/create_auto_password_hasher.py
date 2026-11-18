@@ -35,7 +35,7 @@ def bcrypt_available() -> bool:
 
     try:
         _ = importlib.import_module("pwdlib.hashers.bcrypt")
-    except (ImportError, HasherNotAvailable):
+    except ImportError, HasherNotAvailable:
         return False
     return True
 

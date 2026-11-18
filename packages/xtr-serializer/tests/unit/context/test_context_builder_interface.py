@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
     from xtr_serializer import Context
 
-_Build: TypeAlias = "Callable[[Context | None], ContextBuilderInterface]"
+type _Build = "Callable[[Context | None], ContextBuilderInterface]"
 
 _BUILDERS = [
     pytest.param(SerializerContextBuilder, id="serializer"),

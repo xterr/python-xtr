@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Bundle, Kernel, NoConfig, as_bundle
 
 from xtr_serializer.bundle import SerializerBundle

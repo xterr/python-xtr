@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 
-from typing_extensions import override
 from xtr_service_contracts import ServiceProviderInterface
 
 from xtr_webhook.exception import LogicError

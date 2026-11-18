@@ -25,7 +25,7 @@ import logging
 from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Final, TypeVar, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 import msgspec
 from sqlalchemy import (
@@ -63,7 +63,6 @@ if TYPE_CHECKING:
 
 __all__ = ["LISTING_PAGE_SIZE", "Connection"]
 
-_T = TypeVar("_T")
 
 #: Through the messenger channel, beside the rest of the bus's output.
 _LOGGER: Final = logging.getLogger("messenger")
@@ -341,7 +340,7 @@ class Connection:
         with suppress(DBAPIError, OSError):
             await notifier.close()
 
-    async def _with_setup(self, operation: Callable[[], Awaitable[_T]]) -> _T:
+    async def _with_setup[T](self, operation: Callable[[], Awaitable[T]]) -> T:
         """Run ``operation``; on a missing table, with ``auto_setup``, create it and run again."""
         try:
             return await operation()

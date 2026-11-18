@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, override
 
 from xtr_security_http._security_state import security_state_of, state_bag_of
 from xtr_security_http.security_request_attributes import SecurityRequestAttributes

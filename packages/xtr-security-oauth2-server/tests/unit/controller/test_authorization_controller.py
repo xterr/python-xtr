@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, final, override
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from typing_extensions import override
 from xtr_clock import MockClock
 from xtr_http_kernel.bridge import Response
 from xtr_security import Security

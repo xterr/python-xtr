@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import re
 from html.parser import HTMLParser
-from typing import Final, final
-
-from typing_extensions import override
+from typing import Final, final, override
 
 __all__ = ["DefaultHtmlToTextConverter"]
 

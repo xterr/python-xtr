@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Final, TypeVar, final
+from typing import TYPE_CHECKING, Final, final
 
 from xtr_http_message_contracts import ResponseInterface
 from xtr_remote_event import RemoteEvent
@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 __all__ = ["WebhookController"]
 
-R = TypeVar("R", bound=ResponseInterface)
 
 _NOT_FOUND: Final = 404
 _PLAIN_TEXT: Final = "text/plain; charset=utf-8"
@@ -33,7 +32,7 @@ _UNPARSABLE: Final = "Unable to parse the webhook payload."
 _WIRE_FORMAT: Final = "json"
 
 
-async def _as_plain_text(
+async def _as_plain_text[R: ResponseInterface](
     response: R,
     status_code: int,
     reason: str,
@@ -112,7 +111,7 @@ class WebhookController:
         self._id_store = id_store
         self._id_ttl = id_ttl
 
-    async def index_action(
+    async def index_action[R: ResponseInterface](
         self,
         event_type: str,
         request: ServerRequestInterface,

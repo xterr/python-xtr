@@ -36,7 +36,7 @@ class ServerStateBridge:
 
 
 @asynccontextmanager
-async def serving(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def serving(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient]:
     """Serve ``app`` for one application life and yield a client driving it."""
     async with app.router.lifespan_context(app) as state:
         bridge = ServerStateBridge(app, cast("Mapping[str, object] | None", state))

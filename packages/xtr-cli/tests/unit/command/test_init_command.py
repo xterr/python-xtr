@@ -26,7 +26,7 @@ async def test_init_makes_the_project_in_the_current_directory_keeping_its_repos
     (project / ".git").mkdir(parents=True)
     monkeypatch.chdir(project)
 
-    code = await tester.execute(["init", "--python", "3.13"])
+    code = await tester.execute(["init", "--python", "3.14"])
 
     assert code == ExitCode.SUCCESS
     assert (project / "src" / "my_tool" / "kernel.py").is_file()
@@ -44,7 +44,7 @@ async def test_init_makes_a_web_application_under_a_name_other_than_the_director
     _ = record_processes(monkeypatch)
     monkeypatch.chdir(tmp_path)
 
-    code = await tester.execute(["init", "--name", "Billing API", "--webapp", "--python", "3.13"])
+    code = await tester.execute(["init", "--name", "Billing API", "--webapp", "--python", "3.14"])
 
     assert code == ExitCode.SUCCESS
     assert (tmp_path / "src" / "billing_api" / "web" / "app.py").is_file()

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import base64
 import binascii
-from typing import TYPE_CHECKING, Final, NoReturn, TypeAlias, TypeVar, cast
+from typing import TYPE_CHECKING, Final, NoReturn, cast
 
 from xtr_mime import MimeError
 
@@ -35,10 +35,9 @@ __all__ = [
     "written_content",
 ]
 
-JsonObject: TypeAlias = dict[str, object]
+type JsonObject = dict[str, object]
 """An object of the format, as JSON reads it: text keys."""
 
-_T = TypeVar("_T")
 
 # What the classes the data is handed to raise on a value they refuse; their words may
 # repeat the value, so they are not passed on.
@@ -138,7 +137,7 @@ def decoded(data: object, path: str) -> bytes:
     if type(data) is str:
         try:
             return base64.b64decode(data, validate=True)
-        except (binascii.Error, ValueError):
+        except binascii.Error, ValueError:
             pass
     refuse(path, "is not base64")
 
@@ -162,7 +161,7 @@ def content(data: object, path: str) -> str | bytes:
     return decoded(found["bytes"], f"{path}.bytes")
 
 
-def built(path: str, what: str, build: Callable[[], _T]) -> _T:
+def built[T](path: str, what: str, build: Callable[[], T]) -> T:
     """Give what ``build`` builds, refused at ``path`` as not ``what`` when its class refuses it.
 
     The class's error is dropped, not chained: its words may repeat the data.

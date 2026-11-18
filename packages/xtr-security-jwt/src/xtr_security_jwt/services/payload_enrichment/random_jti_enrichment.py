@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import TYPE_CHECKING, final
-
-from typing_extensions import override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_security_jwt.services.payload_enrichment_interface import PayloadEnrichmentInterface
 

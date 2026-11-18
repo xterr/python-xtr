@@ -11,9 +11,8 @@ through a lookup built from the firewall map.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast, final
+from typing import TYPE_CHECKING, Annotated, cast, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Target
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 from xtr_http_kernel.bridge import StarletteHttpFactoryInterface

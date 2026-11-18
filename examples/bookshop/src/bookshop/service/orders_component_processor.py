@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import final
+from typing import final, override
 
-from typing_extensions import override
 from xtr_logging import LogRecord, ProcessorInterface, as_processor
 
 __all__ = ["OrdersComponentProcessor"]

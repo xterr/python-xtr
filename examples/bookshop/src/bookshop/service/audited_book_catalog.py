@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, final
+from typing import TYPE_CHECKING, Annotated, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import AutowireDecorated, Target, as_decorator
 from xtr_logging_contracts import LoggerInterface
 

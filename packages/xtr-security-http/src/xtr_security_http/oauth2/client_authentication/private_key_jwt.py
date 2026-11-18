@@ -7,9 +7,8 @@ carries the requirement.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_security_core.exception import InvalidArgumentError
 
 from xtr_security_http.oauth2.jws_algorithms import JwsAlgorithms

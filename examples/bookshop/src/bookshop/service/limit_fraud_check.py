@@ -10,9 +10,8 @@ registered, the same decorator wraps it, unchanged.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Annotated, final
+from typing import Annotated, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import Autowire, AutowireDecorated, OnInvalid, as_decorator
 
 from bookshop.service.fraud_check_interface import FraudCheckInterface

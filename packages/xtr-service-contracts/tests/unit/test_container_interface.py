@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, cast, override
 
 import pytest
 
@@ -9,27 +9,29 @@ from xtr_service_contracts import ContainerInterface
 if TYPE_CHECKING:
     from collections.abc import Hashable
 
-T = TypeVar("T")
-
 
 class FakeContainer(ContainerInterface):
     def __init__(self) -> None:
         self.services: dict[tuple[type[object], Hashable | None], object] = {}
         self.parameters: dict[str, object] = {}
 
-    async def get(self, service: type[T], /, qualifier: Hashable | None = None) -> T:
+    @override
+    async def get[T](self, service: type[T], /, qualifier: Hashable | None = None) -> T:
         if (service, qualifier) not in self.services:
             raise LookupError(service)
         return cast("T", self.services[service, qualifier])
 
+    @override
     def has(self, service: type[object], /, qualifier: Hashable | None = None) -> bool:
         return (service, qualifier) in self.services
 
+    @override
     def get_parameter(self, name: str, /) -> object:
         if name not in self.parameters:
             raise LookupError(name)
         return self.parameters[name]
 
+    @override
     def has_parameter(self, name: str, /) -> bool:
         return name in self.parameters
 

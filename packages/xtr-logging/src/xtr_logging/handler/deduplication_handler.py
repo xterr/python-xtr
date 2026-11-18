@@ -11,9 +11,8 @@ import tempfile
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, override
 
-from typing_extensions import override
 from xtr_clock import Clock
 from xtr_logging_contracts import Level
 

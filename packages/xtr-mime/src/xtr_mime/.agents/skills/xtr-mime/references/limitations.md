@@ -17,7 +17,5 @@
 - **Faithful HTML text.** `DefaultHtmlToTextConverter` drops scripts, styles and the head,
   decodes references, collapses whitespace and trims; `<p>One</p><p>Two</p>` on one line reads
   `OneTwo`. Write a converter implementing `HtmlToTextConverterInterface` for anything else.
-- **Old `html.parser`.** Before CPython 3.11.14, 3.12.12 and 3.13.6 unclosed markup is quadratic
-  and an unclosed `<script>` hides the rest.
 - **Attachments reading the configured table.** `MimeConfig.extra_map` shapes the container's
   table; a `File` attachment reads `MimeTypes.get_default()`, which the bundle never sets.

@@ -78,7 +78,7 @@ def local_timezone() -> tzinfo:
     if configured := os.environ.get("TZ"):
         try:
             return ZoneInfo(configured)
-        except (ZoneInfoNotFoundError, ValueError):
+        except ZoneInfoNotFoundError, ValueError:
             pass  # A POSIX TZ string, or a name this system has no data for.
 
     # No timezone on purpose: the offset the platform reports for a naive

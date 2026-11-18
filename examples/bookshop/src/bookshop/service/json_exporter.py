@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import ClassVar, final
+from typing import ClassVar, final, override
 
-from typing_extensions import override
 from xtr_dependency_injection import as_service
 
 from bookshop.service.exporter import Exporter, Rows
