@@ -6,7 +6,7 @@ on the field rather than on the class, with pydantic's own annotations.
 ```python
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Annotated, TypeAlias
+from typing import Annotated
 
 from pydantic import PlainSerializer, PlainValidator
 
@@ -41,7 +41,7 @@ def _read_money(value: object) -> Money:
     return Money(Decimal(amount), currency)
 
 
-Priced: TypeAlias = Annotated[
+type Priced = Annotated[
     Money, PlainValidator(_read_money), PlainSerializer(_write_money, return_type=str)
 ]
 

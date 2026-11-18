@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Protocol, TypeVar, final
+from typing import TYPE_CHECKING, Protocol, final
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -19,13 +19,8 @@ class _HasPath(Protocol):
         ...
 
 
-T = TypeVar("T")
-R = TypeVar("R")
-PathT = TypeVar("PathT", bound=_HasPath)
-
-
 @final
-class DirectoryListing(Generic[T]):
+class DirectoryListing[T]:
     """Entries a storage would yield, described rather than fetched.
 
     A directory on an object store can hold more entries than fit in memory,
@@ -91,7 +86,7 @@ class DirectoryListing(Generic[T]):
 
         return DirectoryListing(filtered)
 
-    def map(self, transform: Callable[[T], R]) -> DirectoryListing[R]:
+    def map[R](self, transform: Callable[[T], R]) -> DirectoryListing[R]:
         """Return each entry as ``transform`` describes it, one at a time.
 
         Nothing is read here either — the transformation runs per entry during
@@ -112,7 +107,7 @@ class DirectoryListing(Generic[T]):
 
         return DirectoryListing(mapped)
 
-    def sort_by_path(self: DirectoryListing[PathT]) -> DirectoryListing[PathT]:
+    def sort_by_path[PathT: _HasPath](self: DirectoryListing[PathT]) -> DirectoryListing[PathT]:
         """Return the entries ordered by path — the one step that cannot stream.
 
         Backends list in whatever order suits them, and code that compares two

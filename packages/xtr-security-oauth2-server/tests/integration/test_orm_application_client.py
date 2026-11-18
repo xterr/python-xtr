@@ -36,14 +36,13 @@ from xtr_security_oauth2_server.value_object.grant import Grant
 
 if TYPE_CHECKING:
     from pathlib import Path
-    from typing import TypeAlias
 
     from sqlalchemy import MetaData
 
     from tests.support.orm import Database
 
-    AppClient: TypeAlias = PlainAppClient | AuditAppClient
-    AppClientClass: TypeAlias = type[PlainAppClient | AuditAppClient]
+    type AppClient = PlainAppClient | AuditAppClient
+    type AppClientClass = type[PlainAppClient | AuditAppClient]
 
 pytestmark = pytest.mark.anyio
 

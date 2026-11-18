@@ -21,7 +21,7 @@ opening a single file.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import msgspec
 
@@ -63,7 +63,7 @@ if TYPE_CHECKING:
 
 __all__ = ["HandlerConfig", "LoggingConfig"]
 
-HandlerConfig: TypeAlias = (
+type HandlerConfig = (
     StreamHandlerConfig
     | RotatingFileHandlerConfig
     | SyslogHandlerConfig

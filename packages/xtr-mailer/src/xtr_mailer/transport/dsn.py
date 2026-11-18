@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, TypeAlias, TypeVar, final, overload, override
+from typing import TYPE_CHECKING, final, overload, override
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 from xtr_mailer._error_text import option_value
@@ -31,9 +31,8 @@ __all__ = ["Dsn", "DsnOption"]
 
 #: What an option of the query string holds: ``key=v`` a string, ``key[]=a&key[]=b`` the
 #: strings in order, ``key[name]=v`` the strings by name.
-DsnOption: TypeAlias = str | tuple[str, ...] | Mapping[str, str]
+type DsnOption = str | tuple[str, ...] | Mapping[str, str]
 
-_T = TypeVar("_T")
 
 _TRUE = frozenset({"1", "true", "on", "yes"})
 _FALSE = frozenset({"0", "false", "off", "no", ""})
@@ -157,7 +156,7 @@ class Dsn:
     @overload
     def get_option(self, key: str) -> DsnOption | None: ...
     @overload
-    def get_option(self, key: str, default: _T) -> DsnOption | _T: ...
+    def get_option[T](self, key: str, default: T) -> DsnOption | T: ...
     def get_option(self, key: str, default: object = None) -> object:
         """Return the option ``key``, or ``default`` when the DSN does not set it."""
         value = self._options.get(key)

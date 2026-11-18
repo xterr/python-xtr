@@ -1,7 +1,7 @@
 """What sending a queued email costs, bounded once it is read and before a worker renders it.
 
 Rendering folds every header, and some text costs far more to fold than other. Measured on
-CPython 3.11 and 3.14, text beyond ASCII costs up to 8 microseconds an octet in a value and up
+CPython 3.14, text beyond ASCII costs up to 8 microseconds an octet in a value and up
 to 12 an octet written in a parameter — a file name is written three times. A name beside an
 address costs by its words instead, whatever its script: up to two thirds of a millisecond
 for each word of up to 24 octets, however short, and up to half a millisecond a character
@@ -32,7 +32,7 @@ is counted with the headers it writes — a file name is written as a parameter 
 frozen at signing with the headers it was frozen with: it renders nothing again.
 
 The most costly email these limits let through, every kind of text at its limit at once, was
-sent in 1.5 seconds on CPython 3.14 and 1.7 on 3.11, rendering included.
+sent in 1.5 seconds on CPython 3.14, rendering included.
 """
 
 from __future__ import annotations

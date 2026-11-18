@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, final, override
+from typing import TYPE_CHECKING, final, override
 
 import pytest
 from xtr_dependency_injection import Reference
@@ -24,8 +24,6 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
-_T = TypeVar("_T")
-
 
 @final
 class _EmptyContainer(ContainerInterface):
@@ -36,7 +34,7 @@ class _EmptyContainer(ContainerInterface):
     """
 
     @override
-    async def get(self, service: type[_T], /, qualifier: Hashable | None = None) -> _T:
+    async def get[T](self, service: type[T], /, qualifier: Hashable | None = None) -> T:
         del qualifier
         raise LookupError(service)
 

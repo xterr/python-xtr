@@ -8,7 +8,7 @@ shared between channels, so "this handler, on that channel" has no meaning.
 from __future__ import annotations
 
 import re
-from typing import TypeAlias, override
+from typing import override
 
 import msgspec
 from xtr_logging_contracts import Level
@@ -126,7 +126,7 @@ class ServiceProcessorConfig(_ProcessorConfigBase, frozen=True, kw_only=True, ta
     id: str
 
 
-ProcessorConfig: TypeAlias = (
+type ProcessorConfig = (
     PlaceholderProcessorConfig
     | UidProcessorConfig
     | HostnameProcessorConfig

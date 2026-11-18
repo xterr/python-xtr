@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NoReturn, TypeVar, final, overload, override
+from typing import TYPE_CHECKING, NoReturn, final, overload, override
 
 from xtr_event_dispatcher_contracts import event_name_of
 
@@ -17,8 +17,6 @@ if TYPE_CHECKING:
     from .introspectable_dispatcher_interface import IntrospectableDispatcherInterface
 
 __all__ = ["ImmutableEventDispatcher"]
-
-_EventT = TypeVar("_EventT")
 
 
 @final
@@ -47,7 +45,7 @@ class ImmutableEventDispatcher(EventDispatcherInterface):
         self._dispatcher = dispatcher
 
     @override
-    async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+    async def dispatch[EventT](self, event: EventT, event_name: str | type | None = None) -> EventT:
         """Dispatch through the wrapped dispatcher."""
         return await self._dispatcher.dispatch(event, event_name)
 

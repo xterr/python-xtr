@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, TypeVar, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from xtr_remote_event.exception import InvalidArgumentError
 
@@ -17,10 +17,10 @@ __all__ = [
 
 CONSUMERS_ATTRIBUTE: Final = "__xtr_remote_event_consumers__"
 
-ConsumerT = TypeVar("ConsumerT", bound=type[object])
 
-
-def as_remote_event_consumer(name: str) -> Callable[[ConsumerT], ConsumerT]:
+def as_remote_event_consumer[ConsumerT: type[object]](
+    name: str,
+) -> Callable[[ConsumerT], ConsumerT]:
     """Declare the decorated class the consumer of the events named ``name``.
 
     For example::

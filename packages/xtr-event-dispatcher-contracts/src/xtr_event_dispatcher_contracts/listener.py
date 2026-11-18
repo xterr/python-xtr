@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeAlias
 
 __all__ = ["Listener"]
 
-Listener: TypeAlias = Callable[..., object]
+type Listener = Callable[..., object]
 """A callable run when an event it listens to is dispatched.
 
 A dispatcher calls it with the event, the name the event was dispatched

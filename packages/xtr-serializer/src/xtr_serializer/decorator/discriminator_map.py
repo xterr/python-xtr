@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import is_dataclass
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, RootModel
 
@@ -19,13 +19,12 @@ if TYPE_CHECKING:
 
 __all__ = ["discriminator_map"]
 
-_ClassT = TypeVar("_ClassT", bound=type)
 
 # What pydantic asks a class for its schema by.
 _HOOK = "__get_pydantic_core_schema__"
 
 
-def discriminator_map(type_property: str = "$type") -> Callable[[_ClassT], _ClassT]:
+def discriminator_map[ClassT: type](type_property: str = "$type") -> Callable[[ClassT], ClassT]:
     """Make the decorated class the base of a hierarchy written with each value's class name.
 
     A field declaring the base, or any class under it, holds a value of any subclass: pydantic
@@ -66,7 +65,7 @@ def discriminator_map(type_property: str = "$type") -> Callable[[_ClassT], _Clas
             a hierarchy already, or hands pydantic its schema itself.
     """
 
-    def declare(base: _ClassT) -> _ClassT:
+    def declare(base: ClassT) -> ClassT:
         _refuse_as_base(cast("object", base), type_property)
         REGISTRY.add_hierarchy(base, type_property)
         setattr(base, _HOOK, classmethod(polymorphic_schema))

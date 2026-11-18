@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, TypeVar, override
+from typing import TYPE_CHECKING, Self, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 __all__ = ["SerializerError"]
 
-_ErrorT = TypeVar("_ErrorT", bound="SerializerError")
 
-
-def _restore_error(error_type: type[_ErrorT]) -> _ErrorT:
+def _restore_error[ErrorT: "SerializerError"](error_type: type[ErrorT]) -> ErrorT:
     """Make an error of ``error_type`` without calling its constructor.
 
     Pickle and copy call this to allocate the instance, then restore its state onto

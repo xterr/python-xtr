@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final, TypeVar, final, override
+from typing import TYPE_CHECKING, Final, final, override
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,14 +42,13 @@ from xtr_security_oauth2_server.service.credentials_revoker.orm_credentials_revo
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Hashable
     from pathlib import Path
-    from typing import TypeAlias
 
     from xtr_dependency_injection import ScopeFactoryInterface
 
     #: Every manager a stored deployment is wired with. They have no interface
     #: in common beyond the one each fills, and what is asserted here is
     #: something all of them do.
-    Manager: TypeAlias = (
+    type Manager = (
         AccessTokenManager
         | AuthorizationCodeManager
         | DeviceCodeManager
@@ -59,11 +58,10 @@ if TYPE_CHECKING:
     )
 
     #: What a unit of work was asked for: a service, and the qualifier naming it.
-    Asked: TypeAlias = tuple[type[object], Hashable | None]
+    type Asked = tuple[type[object], Hashable | None]
 
 pytestmark = pytest.mark.anyio
 
-_T = TypeVar("_T")
 
 CONNECTION: Final = "reports"
 """A connection that is not the default one, so a manager asking for the default is caught."""
@@ -84,7 +82,7 @@ class _RecordingUnit(ContainerInterface):
         self._asked = asked
 
     @override
-    async def get(self, service: type[_T], /, qualifier: Hashable | None = None) -> _T:
+    async def get[T](self, service: type[T], /, qualifier: Hashable | None = None) -> T:
         """Note what was asked for, then refuse it."""
         self._asked.append((service, qualifier))
         raise _AskedError

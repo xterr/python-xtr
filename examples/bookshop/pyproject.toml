@@ -140,12 +140,6 @@ extend-exclude = ["migrations"]
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    # Aliases and type variables keep the spelling the container, the configuration
-    # reader and pydantic read at run time; a `type` statement or inline type
-    # parameters would change what they are handed.
-    "UP040",
-    "UP046",
-    "UP047",
     "COM812",
     "ISC001",
     "D203",

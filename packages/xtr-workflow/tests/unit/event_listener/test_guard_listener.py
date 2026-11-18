@@ -7,7 +7,7 @@ among the several a name can have.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias, final, get_type_hints
+from typing import TYPE_CHECKING, final, get_type_hints
 
 import pytest
 from xtr_security_core import (
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
-_Guard: TypeAlias = "GuardExpression | Callable[[GuardContext], bool | Awaitable[bool]]"
+type _Guard = "GuardExpression | Callable[[GuardContext], bool | Awaitable[bool]]"
 
 EVENT_NAME = "workflow.article.guard.publish"
 EXPRESSION_CODE = "326a1e9c-0c12-11e8-ba89-0ed5f89f718b"

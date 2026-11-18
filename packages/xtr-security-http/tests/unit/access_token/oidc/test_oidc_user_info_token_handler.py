@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, TypeVar, final, override
+from typing import TYPE_CHECKING, final, override
 
 import pytest
 from xtr_cache import ArrayAdapter, CacheItem
@@ -37,8 +37,6 @@ _CLAIMS: dict[str, object] = {
     "email_verified": True,
     "roles": ["ROLE_ADMIN"],
 }
-
-_T = TypeVar("_T")
 
 
 def _json_response(body: object) -> MockResponse:
@@ -92,15 +90,15 @@ class _RecordingCache:
     def __init__(self) -> None:
         self.keys: list[str] = []
 
-    async def get(
+    async def get[T](
         self,
         key: str,
-        callback: Callback[_T],
+        callback: Callback[T],
         /,
         *,
         beta: float | None = None,
         metadata: object = None,
-    ) -> _T:
+    ) -> T:
         """Compute the value, recording the key it was computed for."""
         del beta, metadata
         self.keys.append(key)

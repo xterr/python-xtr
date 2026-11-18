@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, cast, final, override
+from typing import TYPE_CHECKING, cast, final, override
 
 from xtr_dependency_injection import ServiceLocator
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
@@ -28,8 +28,6 @@ __all__ = [
     "provider_locator",
 ]
 
-_EventT = TypeVar("_EventT")
-
 
 @final
 class RecordingDispatcher(EventDispatcherInterface):
@@ -40,7 +38,7 @@ class RecordingDispatcher(EventDispatcherInterface):
         self.events: list[Event] = []
 
     @override
-    async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+    async def dispatch[EventT](self, event: EventT, event_name: str | type | None = None) -> EventT:
         """Record the event and return it, running no listener."""
         del event_name
         self.events.append(cast("Event", event))
@@ -60,7 +58,7 @@ class RejectingDispatcher(EventDispatcherInterface):
         self._reject = reject
 
     @override
-    async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+    async def dispatch[EventT](self, event: EventT, event_name: str | type | None = None) -> EventT:
         """Mark the target event invalid, leaving every other event untouched."""
         del event_name
         if isinstance(event, self._reject):

@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import InitVar, dataclass, field
 from enum import Enum
-from typing import TypeAlias, final
+from typing import final
 
 from xtr_workflow.arc import Arc
 from xtr_workflow.event_listener.guard_context import GuardContext
@@ -21,7 +21,7 @@ from ._build_metadata import build_metadata
 
 __all__ = ["Transition"]
 
-_Places: TypeAlias = str | Enum | Arc | Sequence[str | Enum | Arc]
+type _Places = str | Enum | Arc | Sequence[str | Enum | Arc]
 
 
 @final

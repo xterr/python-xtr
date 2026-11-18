@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, override
+from typing import TYPE_CHECKING, override
 
 from xtr_service_contracts import ContainerInterface
 
@@ -9,15 +9,13 @@ from xtr_dependency_injection.parameter_bag import ContainerBag, ContainerBagInt
 if TYPE_CHECKING:
     from collections.abc import Hashable
 
-T = TypeVar("T")
-
 
 class FakeContainer(ContainerInterface):
     def __init__(self, parameters: dict[str, object]) -> None:
         self.parameters: dict[str, object] = parameters
 
     @override
-    async def get(self, service: type[T], /, qualifier: Hashable | None = None) -> T:
+    async def get[T](self, service: type[T], /, qualifier: Hashable | None = None) -> T:
         del service, qualifier
         raise NotImplementedError
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 
 from xtr_logging.processor.processor_declaration import ProcessorDeclaration
 from xtr_logging.processor.processor_descriptor import ProcessorDescriptor
@@ -18,10 +18,8 @@ if TYPE_CHECKING:
 
 __all__ = ["as_processor"]
 
-P = TypeVar("P", bound="ProcessorInterface | type[ProcessorInterface]")
 
-
-def as_processor(
+def as_processor[P: "ProcessorInterface | type[ProcessorInterface]"](
     *,
     channel: str | None = None,
     handler: str | None = None,

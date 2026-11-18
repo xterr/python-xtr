@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, Final, TypeAlias, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from pydantic_core import core_schema, to_json
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 __all__ = ["class_choice"]
 
 # A schema as the dict it is, its parts read by their keys.
-_Node: TypeAlias = "dict[str, object]"
+type _Node = "dict[str, object]"
 
 # The validators pydantic wraps a class's schema, or its fields, in: each holds what it wraps.
 _WRAPPERS: Final = frozenset({"function-before", "function-after", "function-wrap"})

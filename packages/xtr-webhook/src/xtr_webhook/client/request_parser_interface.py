@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from xtr_http_message_contracts import ResponseInterface
 
@@ -13,8 +13,6 @@ if TYPE_CHECKING:
     from xtr_remote_event import RemoteEvent
 
 __all__ = ["RequestParserInterface"]
-
-R = TypeVar("R", bound=ResponseInterface)
 
 
 @runtime_checkable
@@ -56,7 +54,9 @@ class RequestParserInterface(Protocol):
         """
         ...
 
-    async def create_successful_response(self, request: ServerRequestInterface, response: R) -> R:
+    async def create_successful_response[R: ResponseInterface](
+        self, request: ServerRequestInterface, response: R
+    ) -> R:
         """Fill in the answer to a webhook that was read.
 
         Args:
@@ -69,7 +69,7 @@ class RequestParserInterface(Protocol):
         """
         ...
 
-    async def create_rejected_response(
+    async def create_rejected_response[R: ResponseInterface](
         self,
         reason: str,
         request: ServerRequestInterface,

@@ -20,11 +20,10 @@ from xtr_http_client.internal.httpx_clients import _key
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
-    from typing import TypeAlias
 
     from xtr_http_client_contracts import RequestOptions
 
-    _Handler: TypeAlias = Callable[[httpx.Request], Coroutine[None, None, httpx.Response]]
+    type _Handler = Callable[[httpx.Request], Coroutine[None, None, httpx.Response]]
 
 pytestmark = pytest.mark.anyio
 

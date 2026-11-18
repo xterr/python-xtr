@@ -31,7 +31,7 @@ interfaces.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, ClassVar, Self, TypeVar, override
+from typing import TYPE_CHECKING, ClassVar, Self, override
 
 from .modifier import apply_modifier
 from .timezone import local_timezone, resolve_timezone
@@ -42,8 +42,6 @@ if TYPE_CHECKING:
     from typing import SupportsIndex
 
 __all__ = ["DatePoint"]
-
-_DatePointT = TypeVar("_DatePointT", bound="DatePoint")
 
 
 class DatePoint(datetime):
@@ -273,8 +271,8 @@ class DatePoint(datetime):
         )
 
 
-def _rebuild(
-    cls: type[_DatePointT],
+def _rebuild[DatePointT: "DatePoint"](
+    cls: type[DatePointT],
     year: int,
     month: int,
     day: int,
@@ -284,6 +282,6 @@ def _rebuild(
     microsecond: int,
     tzinfo: tzinfo | None,
     fold: int,
-) -> _DatePointT:
+) -> DatePointT:
     """Rebuild a pickled instant. Named at module level so pickle can find it."""
     return cls(year, month, day, hour, minute, second, microsecond, tzinfo, fold=fold)

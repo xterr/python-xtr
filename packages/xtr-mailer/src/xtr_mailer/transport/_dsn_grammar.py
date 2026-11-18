@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Final, Literal, TypeAlias, final
+from typing import TYPE_CHECKING, Final, Literal, final
 
 from xtr_mailer._error_text import shown
 from xtr_mailer.exception import InvalidArgumentError
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 __all__ = ["GARBAGE", "MAX_DEPTH", "DsnGroup", "DsnNode", "read_dsn_groups"]
 
-Keyword: TypeAlias = Literal["failover", "roundrobin"]
+type Keyword = Literal["failover", "roundrobin"]
 
 #: How deep groups may nest: far beyond any real configuration, and shallow enough that
 #: building, naming and sending through the transports never nears the recursion limit.
@@ -56,7 +56,7 @@ class DsnGroup:
 
 
 #: A member of a DSN string: one DSN, still unread, or a group.
-DsnNode: TypeAlias = "str | DsnGroup"
+type DsnNode = "str | DsnGroup"
 
 
 def read_dsn_groups(text: str) -> tuple[DsnNode, bool]:

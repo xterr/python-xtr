@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import TypeAlias, TypeVar
 
 from .item_interface import ItemInterface
 
 __all__ = ["Callback"]
 
-_T = TypeVar("_T")
 
-Callback: TypeAlias = Callable[[ItemInterface], Awaitable[_T]]
+type Callback[T] = Callable[[ItemInterface], Awaitable[T]]
 """Computes the value for an item, on a miss.
 
 Receives the item the value is for, so it can set how long the value lives

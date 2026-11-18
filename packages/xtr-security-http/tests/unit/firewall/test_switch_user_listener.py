@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, final
+from typing import TYPE_CHECKING, final
 
 import pytest
 from xtr_http_kernel import RequestEvent
@@ -47,7 +47,6 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
-_EventT = TypeVar("_EventT")
 
 _FORM = "application/x-www-form-urlencoded"
 
@@ -139,11 +138,11 @@ class _NamedDispatcher:
     def __init__(self) -> None:
         self.dispatched: list[tuple[object, str | type | None]] = []
 
-    async def dispatch(
+    async def dispatch[EventT](
         self,
-        event: _EventT,
+        event: EventT,
         event_name: str | type | None = None,
-    ) -> _EventT:
+    ) -> EventT:
         """Record the event with its name, and answer it unchanged."""
         self.dispatched.append((event, event_name))
         return event
@@ -158,11 +157,11 @@ class _ReplacingDispatcher:
     def __init__(self, replacement: TokenInterface) -> None:
         self.replacement = replacement
 
-    async def dispatch(
+    async def dispatch[EventT](
         self,
-        event: _EventT,
+        event: EventT,
         event_name: str | type | None = None,
-    ) -> _EventT:
+    ) -> EventT:
         """Replace the token a switch event carries, and answer it."""
         del event_name
         if isinstance(event, SwitchUserEvent):

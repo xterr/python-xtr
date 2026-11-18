@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict, defaultdict
-from typing import TYPE_CHECKING, NamedTuple, TypeAlias, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 import pytest
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from xtr_serializer import Context, ContextBuilderInterface
 
-_Build: TypeAlias = "Callable[[Context | None], ContextBuilderInterface]"
+type _Build = "Callable[[Context | None], ContextBuilderInterface]"
 
 _BUILDERS = [
     pytest.param(SerializerContextBuilder, id="serializer"),

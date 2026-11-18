@@ -14,7 +14,7 @@ unit of work then sees.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Final, TypeAlias
+from typing import TYPE_CHECKING, Final
 
 import pytest
 from xtr_console import Application, CommandTester, ExitCode
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
-Console: TypeAlias = "tuple[Application, ContainerInterface]"
+type Console = "tuple[Application, ContainerInterface]"
 """A booted console of the stored deployment, and the container behind it."""
 
 _APP: Final = "tests.fixtures.oauth2_orm_app"

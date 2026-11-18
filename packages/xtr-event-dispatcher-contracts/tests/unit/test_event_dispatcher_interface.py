@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from typing import TypeVar
-
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
-
-_EventT = TypeVar("_EventT")
 
 
 class _SilentDispatcher:
-    async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+    async def dispatch[EventT](self, event: EventT, event_name: str | type | None = None) -> EventT:
         del event_name
         return event
 

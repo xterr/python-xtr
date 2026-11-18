@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
     from xtr_serializer import Context
 
-_Setting: TypeAlias = "Callable[[JsonEncoderContextBuilder], JsonEncoderContextBuilder]"
+type _Setting = "Callable[[JsonEncoderContextBuilder], JsonEncoderContextBuilder]"
 
 _START: Context = {STRICT: True, COLLECT_DENORMALIZATION_ERRORS: True}
 

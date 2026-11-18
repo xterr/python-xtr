@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Protocol, TypeVar, final
+from typing import TYPE_CHECKING, Protocol, final
 
 from ._type_cache import TypeCache
 
@@ -20,11 +20,8 @@ class _ReportingTypes(Protocol):
     def get_supported_types(self, format: str | None, /) -> SupportedTypes: ...  # noqa: A002 — the name every serializer call uses.
 
 
-_C = TypeVar("_C", bound=_ReportingTypes)
-
-
 @final
-class Dispatch(Generic[_C]):
+class Dispatch[C: _ReportingTypes]:
     """Finds the first of some normalizers, in the order given, that handles a type in a format.
 
     The types each reports for the format say which to ask at all, and which answers to keep:
@@ -40,16 +37,16 @@ class Dispatch(Generic[_C]):
 
     __slots__ = ("_candidates", "_chains")
 
-    def __init__(self, candidates: Sequence[_C]) -> None:
+    def __init__(self, candidates: Sequence[C]) -> None:
         self._candidates = tuple(candidates)
-        self._chains: TypeCache[tuple[tuple[_C, bool], ...]] = TypeCache()
+        self._chains: TypeCache[tuple[tuple[C, bool], ...]] = TypeCache()
 
     def first(
         self,
         type_: object,
         format: str | None,  # noqa: A002 — the name every serializer call uses.
-        supports: Callable[[_C], bool],
-    ) -> _C | None:
+        supports: Callable[[C], bool],
+    ) -> C | None:
         """Return the first normalizer ``supports`` says handles ``type_`` in ``format``, if any.
 
         ``supports`` asks one normalizer about the value at hand, and is only called when its
@@ -65,10 +62,10 @@ class Dispatch(Generic[_C]):
         self,
         type_: object,
         format: str | None,  # noqa: A002 — the name every serializer call uses.
-        supports: Callable[[_C], bool],
-    ) -> tuple[tuple[_C, bool], ...]:
+        supports: Callable[[C], bool],
+    ) -> tuple[tuple[C, bool], ...]:
         """Give the normalizers that may handle ``type_``, each with whether it surely does."""
-        chain: list[tuple[_C, bool]] = []
+        chain: list[tuple[C, bool]] = []
         for candidate in self._candidates:
             answer = _answer_for(candidate.get_supported_types(format), type_)
             if answer is None:

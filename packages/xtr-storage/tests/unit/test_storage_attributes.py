@@ -8,7 +8,7 @@ from xtr_storage.storage_attributes import StorageAttributes
 
 
 def test_a_listing_entry_is_a_file_or_a_directory() -> None:
-    assert get_args(StorageAttributes) == (FileAttributes, DirectoryAttributes)
+    assert get_args(StorageAttributes.__value__) == (FileAttributes, DirectoryAttributes)  # pyright: ignore[reportAny] — an alias's value is untyped
 
 
 def test_both_kinds_of_entry_answer_where_they_are() -> None:

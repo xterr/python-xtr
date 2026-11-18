@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import FunctionType
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, cast, final
 
 from xtr_scheduler.registry.declarations import declare_task, refuse_private_method
 
@@ -13,8 +13,6 @@ if TYPE_CHECKING:
     from xtr_scheduler.registry.task_declaration import TaskDeclaration
 
 __all__ = ["declaring", "names"]
-
-TargetT = TypeVar("TargetT")
 
 
 @final
@@ -37,7 +35,7 @@ class _MethodTasks:
             declare_task(owner, declaration.on_method(name))
 
 
-def declaring(declaration: TaskDeclaration) -> Callable[[TargetT], TargetT]:
+def declaring[TargetT](declaration: TaskDeclaration) -> Callable[[TargetT], TargetT]:
     """Return a decorator recording ``declaration`` on what it decorates."""
 
     def decorate(target: TargetT) -> TargetT:

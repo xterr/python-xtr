@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, TypeVar, overload, override
+from typing import TYPE_CHECKING, Final, overload, override
 
 from xtr_serializer import DenormalizerInterface, NormalizerInterface
 
@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 
 __all__ = ["DECLARED", "DeclaredNormalizer"]
 
-_T = TypeVar("_T")
 
 DECLARED: Final = "declared"
 """What the declared normalizer writes for every value, and reads every data back as."""
@@ -50,13 +49,13 @@ class DeclaredNormalizer(NormalizerInterface, DenormalizerInterface):
         return True
 
     @overload
-    def denormalize(
+    def denormalize[T](
         self,
         data: object,
-        type_: type[_T],
+        type_: type[T],
         format: str | None = None,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def denormalize(

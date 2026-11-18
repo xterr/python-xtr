@@ -5,7 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from types import GenericAlias, new_class
-from typing import TYPE_CHECKING, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from pydantic import BaseModel, Field
@@ -60,9 +60,6 @@ def test_a_class_in_two_hierarchies_is_refused() -> None:
         _ = discriminator_name("both")(both)
 
 
-_Item = TypeVar("_Item")
-
-
 @discriminator_map()
 @dataclass(frozen=True)
 class _Root:
@@ -70,8 +67,8 @@ class _Root:
 
 
 @dataclass(frozen=True)
-class _Box(_Root, Generic[_Item]):
-    content: _Item
+class _Box[Item](_Root):
+    content: Item
 
 
 def test_a_generic_class_is_refused() -> None:
@@ -91,8 +88,8 @@ def test_a_class_under_a_generic_dataclass_is_refused() -> None:
 
 
 @dataclass(frozen=True)
-class _Envelope(Generic[_Item]):
-    body: _Item
+class _Envelope[Item]:
+    body: Item
 
 
 def test_a_hierarchy_based_on_a_generic_dataclass_names_its_classes() -> None:
@@ -118,8 +115,8 @@ def test_a_class_under_a_generic_model_is_named() -> None:
     class Root(BaseModel):
         pass
 
-    class Box(Root, Generic[_Item]):
-        content: _Item
+    class Box[Item](Root):
+        content: Item
 
     @discriminator_name("int_box")
     class IntBox(Box[int]):

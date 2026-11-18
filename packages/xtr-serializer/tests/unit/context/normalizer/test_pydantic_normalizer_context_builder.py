@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -27,9 +27,7 @@ if TYPE_CHECKING:
 
     from xtr_serializer import Context
 
-_Setting: TypeAlias = (
-    "Callable[[PydanticNormalizerContextBuilder], PydanticNormalizerContextBuilder]"
-)
+type _Setting = "Callable[[PydanticNormalizerContextBuilder], PydanticNormalizerContextBuilder]"
 
 _START: Context = {JSON_INDENT: 2, COLLECT_DENORMALIZATION_ERRORS: True}
 

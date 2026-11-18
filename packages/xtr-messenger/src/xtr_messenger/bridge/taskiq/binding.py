@@ -39,7 +39,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 from taskiq import Context, TaskiqDepends, TaskiqMessage
 
@@ -70,7 +70,7 @@ __all__ = ["UndecodableDeadLetterer", "bind_bus"]
 #: somewhere it can be inspected. Decoding is deterministic, so redelivering
 #: such a message can never end differently — with this hook it goes straight
 #: to quarantine instead of through the retry ladder.
-UndecodableDeadLetterer: TypeAlias = Callable[
+type UndecodableDeadLetterer = Callable[
     [TaskiqMessage, MessageDecodingFailedError], Awaitable[None]
 ]
 

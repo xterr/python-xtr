@@ -16,7 +16,7 @@ from __future__ import annotations
 import inspect
 import types
 from collections.abc import AsyncGenerator, AsyncIterator, Generator, Iterator
-from typing import TYPE_CHECKING, Annotated, Any, Final, TypeAlias, cast
+from typing import TYPE_CHECKING, Annotated, Any, Final, cast
 
 from xtr_service_contracts import ContainerInterface
 
@@ -49,7 +49,7 @@ _BOX_MODULE: Final = "xtr_dependency_injection.compiler"
 _INNER_BOX_PARAMETER: Final = "_xtr_inner_box"
 _CONTAINER_PARAMETER: Final = "_xtr_container"
 
-_Call: TypeAlias = "tuple[Callable[..., object], dict[str, object]]"
+type _Call = "tuple[Callable[..., object], dict[str, object]]"
 """What to call, and with which arguments."""
 
 

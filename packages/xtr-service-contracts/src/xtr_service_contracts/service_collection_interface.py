@@ -5,7 +5,7 @@ Iteration is asynchronous, because building a service is.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from .service_provider_interface import ServiceProviderInterface
 
@@ -14,11 +14,9 @@ if TYPE_CHECKING:
 
 __all__ = ["ServiceCollectionInterface"]
 
-T_co = TypeVar("T_co", covariant=True)
-
 
 @runtime_checkable
-class ServiceCollectionInterface(ServiceProviderInterface[T_co], Protocol[T_co]):
+class ServiceCollectionInterface[T_co](ServiceProviderInterface[T_co], Protocol):
     """A :class:`ServiceProviderInterface` that also reports its size and iterates.
 
     Iterating yields ``(name, service)`` pairs, each service built lazily as it

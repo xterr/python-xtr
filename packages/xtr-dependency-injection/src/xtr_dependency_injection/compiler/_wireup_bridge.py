@@ -14,9 +14,8 @@ when copying a factory, keeping the mark out of the clone.
 
 from __future__ import annotations
 
-import typing
 from types import UnionType
-from typing import TYPE_CHECKING, Annotated, Any, Final, cast, get_args, get_origin
+from typing import TYPE_CHECKING, Annotated, Any, cast, get_args, get_origin
 
 import wireup
 from wireup.ioc.registry import _function_get_unwrapped_return_type
@@ -48,9 +47,6 @@ __all__ = [
 
 REGISTRATION_ATTRIBUTE = "__wireup_registration__"
 """Where ``@injectable`` records its declaration on what it marks."""
-
-_TYPING_UNION: Final = typing.Union  # pyright: ignore[reportDeprecated] — not an annotation.
-"""``Optional[T]``'s origin, bound once so the deprecation note is stated once."""
 
 
 def is_registered(container: AsyncContainer, service: type, qualifier: Hashable | None) -> bool:
@@ -255,12 +251,10 @@ def built_type(definition: Definition) -> type | None:
 def _non_optional(annotation: object) -> object:
     """Return ``annotation``'s single non-``None`` member, or ``annotation`` unchanged.
 
-    Both union spellings are matched: ``T | None`` reads back as
-    :data:`types.UnionType`, ``Optional[T]`` as :data:`typing.Union`, and the
-    two are one object from Python 3.14 on.
+    ``T | None`` and ``Optional[T]`` both read back as :data:`types.UnionType`.
     """
     origin = get_origin(annotation)
-    if origin is UnionType or origin is _TYPING_UNION:
+    if origin is UnionType:
         members = [arg for arg in get_args(annotation) if arg is not type(None)]
         if len(members) == 1:
             return members[0]

@@ -46,7 +46,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
     from contextlib import AbstractAsyncContextManager
     from pathlib import Path
-    from typing import TypeAlias
 
     from xtr_security_oauth2_server.manager.access_token_manager_interface import (
         AccessTokenManagerInterface,
@@ -63,18 +62,18 @@ if TYPE_CHECKING:
     )
     from xtr_security_oauth2_server.model.client_interface import ClientInterface
 
-    OpenClients: TypeAlias = Callable[[Path], AbstractAsyncContextManager[ClientManagerInterface]]
-    OpenAccessTokens: TypeAlias = Callable[
+    type OpenClients = Callable[[Path], AbstractAsyncContextManager[ClientManagerInterface]]
+    type OpenAccessTokens = Callable[
         [Path], AbstractAsyncContextManager[tuple[AccessTokenManagerInterface, ClientInterface]]
     ]
-    OpenAuthorizationCodes: TypeAlias = Callable[
+    type OpenAuthorizationCodes = Callable[
         [Path],
         AbstractAsyncContextManager[tuple[AuthorizationCodeManagerInterface, ClientInterface]],
     ]
-    OpenRefreshTokens: TypeAlias = Callable[
+    type OpenRefreshTokens = Callable[
         [Path], AbstractAsyncContextManager[RefreshTokenManagerInterface]
     ]
-    OpenDeviceCodes: TypeAlias = Callable[
+    type OpenDeviceCodes = Callable[
         [Path], AbstractAsyncContextManager[tuple[DeviceCodeManagerInterface, ClientInterface]]
     ]
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import AsyncIterable, Awaitable, Iterable
-from typing import TYPE_CHECKING, TypeAlias, final, override
+from typing import TYPE_CHECKING, final, override
 
 from .message_provider_interface import MessageProviderInterface
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 __all__ = ["CallbackMessageProvider", "Produced"]
 
-Produced: TypeAlias = "Iterable[object] | AsyncIterable[object] | Awaitable[Iterable[object]]"
+type Produced = "Iterable[object] | AsyncIterable[object] | Awaitable[Iterable[object]]"
 """What the callback may return: messages, an async generator of them, or a coroutine of them."""
 
 

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TypeVar, final, override
+from typing import final, override
 
 from xtr_event_dispatcher_contracts import EventDispatcherInterface
 
 __all__ = ["EventDispatcherSpy"]
-
-_EventT = TypeVar("_EventT")
 
 
 @final
@@ -23,6 +21,6 @@ class EventDispatcherSpy(EventDispatcherInterface):
         self.dispatched_event_names: list[str | type | None] = []
 
     @override
-    async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+    async def dispatch[EventT](self, event: EventT, event_name: str | type | None = None) -> EventT:
         self.dispatched_event_names.append(event_name)
         return event

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, ClassVar, TypeAlias, override
+from typing import TYPE_CHECKING, ClassVar, override
 
 import pytest
 
@@ -69,8 +69,8 @@ _PATH = "a.txt"
 _INNER_PATH = "some/prefix/a.txt"
 _EXPIRES_AT = datetime(2030, 1, 1, tzinfo=UTC)
 
-_Call: TypeAlias = Callable[[PathPrefixedAdapter], Awaitable[object]]
-_MetadataRead: TypeAlias = Callable[[PathPrefixedAdapter], Awaitable[FileAttributes]]
+type _Call = Callable[[PathPrefixedAdapter], Awaitable[object]]
+type _MetadataRead = Callable[[PathPrefixedAdapter], Awaitable[FileAttributes]]
 
 
 async def _stream(*chunks: bytes) -> AsyncIterator[bytes]:

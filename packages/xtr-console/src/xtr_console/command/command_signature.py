@@ -314,12 +314,10 @@ def _annotation_of(parameter: inspect.Parameter) -> object:
 def _members_of(annotation: object) -> tuple[object, ...]:
     """Return what ``annotation`` may be: its members if a union, else itself.
 
-    ``X | None`` has the origin ``UnionType``; ``Optional[X]`` has
-    ``typing.Union`` until Python 3.14 makes them one — compared by name, as
-    naming it is deprecated.
+    ``X | None`` and ``Optional[X]`` both have the origin ``UnionType``.
     """
     origin = get_origin(annotation)
-    if origin is UnionType or str(origin) == "typing.Union":
+    if origin is UnionType:
         members: tuple[object, ...] = get_args(annotation)
         return members
     return (annotation,)

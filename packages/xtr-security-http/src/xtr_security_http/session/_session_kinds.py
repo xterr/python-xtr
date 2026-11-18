@@ -10,14 +10,12 @@ to be rebuilt from a session, and nothing else.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
 __all__ = ["kind_of", "loaded_kind"]
-
-_T = TypeVar("_T")
 
 
 def kind_of(cls: type) -> str:
@@ -25,7 +23,7 @@ def kind_of(cls: type) -> str:
     return f"{cls.__module__}:{cls.__qualname__}"
 
 
-def loaded_kind(root: type[_T], kind: str) -> type[_T] | None:
+def loaded_kind[T](root: type[T], kind: str) -> type[T] | None:
     """Return the loaded subclass of ``root`` a session names ``kind``, or ``None``.
 
     ``root``'s subclasses are walked as they are now, recursively; ``root``
@@ -34,14 +32,14 @@ def loaded_kind(root: type[_T], kind: str) -> type[_T] | None:
     module loaded twice — and the one made last is answered, since it is the
     one its module holds now.
     """
-    found: type[_T] | None = None
+    found: type[T] | None = None
     for subclass in _subclasses_of(root):
         if kind_of(subclass) == kind:
             found = subclass
     return found
 
 
-def _subclasses_of(root: type[_T]) -> Iterator[type[_T]]:
+def _subclasses_of[T](root: type[T]) -> Iterator[type[T]]:
     """Yield every subclass of ``root`` loaded now, depth first, each in the order it was made."""
     for subclass in root.__subclasses__():
         yield subclass

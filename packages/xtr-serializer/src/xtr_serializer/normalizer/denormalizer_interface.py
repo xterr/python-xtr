@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, Protocol, TypeVar, overload, runtime_checkable
+from typing import TYPE_CHECKING, Final, Protocol, overload, runtime_checkable
 
 if TYPE_CHECKING:
     from xtr_serializer.context.context import Context
@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 
 __all__ = ["COLLECT_DENORMALIZATION_ERRORS", "DenormalizerInterface"]
 
-_T = TypeVar("_T")
 
 COLLECT_DENORMALIZATION_ERRORS: Final = "collect_denormalization_errors"
 """The context key asking for every value that does not fit, rather than the first.
@@ -32,13 +31,13 @@ class DenormalizerInterface(Protocol):
     """
 
     @overload
-    def denormalize(
+    def denormalize[T](
         self,
         data: object,
-        type_: type[_T],
+        type_: type[T],
         format: str | None = None,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def denormalize(

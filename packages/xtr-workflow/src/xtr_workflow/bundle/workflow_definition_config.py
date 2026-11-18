@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 from xtr_workflow.decorator._workflow_name import class_name
 from xtr_workflow.exception import InvalidArgumentError
@@ -25,9 +25,9 @@ from .transition_config import TransitionConfig
 
 __all__ = ["WorkflowDefinitionConfig"]
 
-_Place: TypeAlias = str | Enum | PlaceConfig
-_Places: TypeAlias = _Place | Sequence[_Place] | Mapping[str, PlaceConfig | None]
-_Transitions: TypeAlias = Sequence[TransitionConfig] | Mapping[str, TransitionConfig]
+type _Place = str | Enum | PlaceConfig
+type _Places = _Place | Sequence[_Place] | Mapping[str, PlaceConfig | None]
+type _Transitions = Sequence[TransitionConfig] | Mapping[str, TransitionConfig]
 
 _EVENTS: Final = frozenset(WorkflowEvents.ALIASES.values())
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, TypeAlias, final, override
+from typing import Annotated, final, override
 
 from pydantic import PlainSerializer, PlainValidator
 
@@ -58,9 +58,7 @@ def _read(value: object) -> Money:
     return Money(number, currency)
 
 
-Priced: TypeAlias = Annotated[
-    Money, PlainValidator(_read), PlainSerializer(_write, return_type=str)
-]
+type Priced = Annotated[Money, PlainValidator(_read), PlainSerializer(_write, return_type=str)]
 """A field holding money: the annotation, not the class, says how it is written and read.
 
 The validator comes first: it replaces the whole schema, and the serializer after it is kept.

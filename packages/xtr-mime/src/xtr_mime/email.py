@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, BinaryIO, ClassVar, TypeAlias, override
+from typing import TYPE_CHECKING, BinaryIO, ClassVar, override
 
 from ._email_body import NO_BODY, assemble_body
 from ._email_headers import (
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Email"]
 
-Body: TypeAlias = "str | bytes | BinaryIO"
+type Body = "str | bytes | BinaryIO"
 """A text or HTML body: a string, bytes in its charset, or a binary file read when needed."""
 
 

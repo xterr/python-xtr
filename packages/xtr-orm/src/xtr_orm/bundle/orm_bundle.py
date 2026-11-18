@@ -36,7 +36,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from functools import partial
 from importlib.util import find_spec
 from operator import contains
-from typing import Annotated, Final, TypeVar, cast, final, override
+from typing import Annotated, Final, cast, final, override
 
 from advanced_alchemy.base import metadata_registry
 from advanced_alchemy.config import AsyncSessionConfig, EngineConfig, SQLAlchemyAsyncConfig
@@ -74,7 +74,6 @@ from .orm_config import OrmConfig
 
 __all__ = ["ORM_CHANNEL", "OrmBundle"]
 
-_T = TypeVar("_T")
 
 _SessionMaker = type[async_sessionmaker[AsyncSession]] | type[RoutingAsyncSessionMaker]
 """Which session maker a connection is given, and so which service a session comes from."""
@@ -501,10 +500,10 @@ def _closer(
     return close
 
 
-def _provider(
-    container: ContainerInterface, service: type[_T], name: str
-) -> Callable[[], Awaitable[_T]]:
-    async def provide() -> _T:
+def _provider[T](
+    container: ContainerInterface, service: type[T], name: str
+) -> Callable[[], Awaitable[T]]:
+    async def provide() -> T:
         return await container.get(service, name)
 
     return provide

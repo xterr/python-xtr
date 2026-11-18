@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, final, overload
+from typing import TYPE_CHECKING, final, overload
 
 from tests.support.shapes import Parcel, Point
 from xtr_serializer.exception import InvalidArgumentError, LogicError, NotNormalizableValueError
@@ -11,8 +11,6 @@ if TYPE_CHECKING:
     from xtr_serializer import Context, NormalizedValue, SerializerInterface, SupportedTypes
 
 __all__ = ["ParcelNormalizer"]
-
-_T = TypeVar("_T")
 
 
 @final
@@ -58,13 +56,13 @@ class ParcelNormalizer:
         return isinstance(data, Parcel)
 
     @overload
-    def denormalize(
+    def denormalize[T](
         self,
         data: object,
-        type_: type[_T],
+        type_: type[T],
         format: str | None = None,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def denormalize(

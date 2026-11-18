@@ -9,7 +9,7 @@ import signal
 import sys
 import threading
 from contextlib import AsyncExitStack, contextmanager
-from typing import TYPE_CHECKING, Final, Literal, TypeAlias, cast, final
+from typing import TYPE_CHECKING, Final, Literal, cast, final
 
 from cyclopts import App, Group, Parameter
 from cyclopts.exceptions import CycloptsError, MissingArgumentError
@@ -44,10 +44,10 @@ if TYPE_CHECKING:
 
 __all__ = ["Application", "ConfigureHook", "Hook"]
 
-Hook: TypeAlias = "Callable[[], Awaitable[None] | None]"
+type Hook = "Callable[[], Awaitable[None] | None]"
 """Run before or after a command; sync or async."""
 
-ConfigureHook: TypeAlias = "Callable[[ConsoleStyle], Awaitable[None] | None]"
+type ConfigureHook = "Callable[[ConsoleStyle], Awaitable[None] | None]"
 """Run with a command's style, its global options applied; sync or async."""
 
 # What a shell reports for a process SIGTERM ended: 128 plus the signal's number.

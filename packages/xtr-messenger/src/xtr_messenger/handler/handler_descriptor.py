@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 from dataclasses import dataclass
 from functools import cache
-from typing import TYPE_CHECKING, TypeAlias, cast, get_type_hints
+from typing import TYPE_CHECKING, cast, get_type_hints
 
 from xtr_messenger.envelope import Envelope
 from xtr_messenger.exception import HandlerSignatureError
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Handler", "HandlerDescriptor"]
 
-Handler: TypeAlias = "Callable[..., Awaitable[object]]"
+type Handler = "Callable[..., Awaitable[object]]"
 
 _WITH_ENVELOPE = 2
 

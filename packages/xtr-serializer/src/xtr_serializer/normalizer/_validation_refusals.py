@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from inspect import getattr_static
 from types import MemberDescriptorType
-from typing import TYPE_CHECKING, Final, TypeAlias, cast, final
+from typing import TYPE_CHECKING, Final, cast, final
 
 from xtr_serializer._loc_path import render_path
 from xtr_serializer._type_names import name_of
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from pydantic_core import ErrorDetails
 
     # What finds the item a mapping holds at a step of a location.
-    _ItemAt: TypeAlias = Callable[[dict[object, object], str | int], object]
+    type _ItemAt = Callable[[dict[object, object], str | int], object]
 
 __all__ = ["refusals_of"]
 

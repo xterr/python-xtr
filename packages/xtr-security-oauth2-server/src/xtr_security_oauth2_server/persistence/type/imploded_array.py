@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, TypeVar, override
+from typing import TYPE_CHECKING, override
 
 from sqlalchemy.types import TypeDecorator
 
@@ -12,13 +12,12 @@ if TYPE_CHECKING:
 
 __all__ = ["ImplodedArray"]
 
-_ValueT = TypeVar("_ValueT")
 
 _SEPARATOR = " "
 """What joins the values: the separator the protocol itself uses for scopes."""
 
 
-class ImplodedArray(TypeDecorator[Sequence[_ValueT]]):
+class ImplodedArray[ValueT](TypeDecorator[Sequence[ValueT]]):
     """Stores a list of value objects as one space-separated string.
 
     A client's grants, its redirect URIs and the scopes a credential was
@@ -43,7 +42,7 @@ class ImplodedArray(TypeDecorator[Sequence[_ValueT]]):
     @override
     def process_bind_param(
         self,
-        value: Sequence[_ValueT] | None,
+        value: Sequence[ValueT] | None,
         dialect: Dialect,
     ) -> str | None:
         """Join ``value`` with a space, storing nothing when it holds nothing."""
@@ -58,7 +57,7 @@ class ImplodedArray(TypeDecorator[Sequence[_ValueT]]):
         self,
         value: str | None,
         dialect: Dialect,
-    ) -> tuple[_ValueT, ...]:
+    ) -> tuple[ValueT, ...]:
         """Split what was stored, and make the values of it."""
         del dialect
         if value is None:
@@ -66,7 +65,7 @@ class ImplodedArray(TypeDecorator[Sequence[_ValueT]]):
 
         return self.convert_database_values(value.split(_SEPARATOR))
 
-    def convert_database_values(self, values: Sequence[str]) -> tuple[_ValueT, ...]:
+    def convert_database_values(self, values: Sequence[str]) -> tuple[ValueT, ...]:
         """Return the value objects the stored words stand for.
 
         The one thing a subclass has to say. Called only with a non-empty list,

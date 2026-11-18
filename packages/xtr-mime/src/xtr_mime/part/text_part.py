@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, BinaryIO, ClassVar, Final, Literal, TypeAlias, override
+from typing import TYPE_CHECKING, BinaryIO, ClassVar, Final, Literal, override
 
 from xtr_mime._engine import BinaryLeaf, TextLeaf, build_binary, build_text, set_fields
 from xtr_mime._error_text import body_charset_error, check_charset, escaped
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 __all__ = ["TextPart"]
 
-_Encoding: TypeAlias = Literal["quoted-printable", "base64", "8bit", "binary"]
+type _Encoding = Literal["quoted-printable", "base64", "8bit", "binary"]
 _ENCODINGS: Final[tuple[_Encoding, ...]] = ("quoted-printable", "base64", "8bit", "binary")
 
 

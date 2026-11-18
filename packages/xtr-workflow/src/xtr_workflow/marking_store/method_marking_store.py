@@ -16,10 +16,9 @@ from .marking_store_interface import MarkingStoreInterface
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping, Sequence
-    from typing import TypeAlias
 
-    _Getter: TypeAlias = Callable[[object], Awaitable[object]]
-    _Setter: TypeAlias = Callable[[object, object, dict[str, object]], Awaitable[None]]
+    type _Getter = Callable[[object], Awaitable[object]]
+    type _Setter = Callable[[object, object, dict[str, object]], Awaitable[None]]
 
 __all__ = ["MethodMarkingStore"]
 

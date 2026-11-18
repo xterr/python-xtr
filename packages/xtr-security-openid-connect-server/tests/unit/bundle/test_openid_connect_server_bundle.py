@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import TypeVar
 
 import pytest
 from xtr_dependency_injection import unit_of_work
@@ -49,10 +48,8 @@ from xtr_security_openid_connect_server.response_types.id_token_response import 
 
 pytestmark = pytest.mark.anyio
 
-T = TypeVar("T")
 
-
-async def _resolved(service: type[T], env: str = "test") -> T:
+async def _resolved[T](service: type[T], env: str = "test") -> T:
     """Return ``service`` as the deployment served in ``env`` builds it."""
     async with await openid_kernel(env).boot() as booted:
         return await booted.container.get(service)

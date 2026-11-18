@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, TypeAlias, final
+from typing import Any, final
 
 from pydantic_ai.toolsets import AbstractToolset
 
@@ -38,5 +38,5 @@ class AgentToolRef:
     description: str | None = None
 
 
-ToolsetEntry: TypeAlias = ToolsetRef | AgentToolRef
+type ToolsetEntry = ToolsetRef | AgentToolRef
 """What an agent's ``toolsets`` holds."""

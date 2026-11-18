@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, TypeVar, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from xtr_security_core.exception import AuthenticationServiceError
 
@@ -17,8 +17,6 @@ if TYPE_CHECKING:
     from .credentials.credentials_interface import CredentialsInterface
 
 __all__ = ["Passport"]
-
-_BadgeT = TypeVar("_BadgeT", bound="BadgeInterface")
 
 
 class Passport:
@@ -72,13 +70,13 @@ class Passport:
         """Tell whether a badge of ``badge_class`` is attached."""
         return badge_class in self._badges
 
-    def get_badge(self, badge_class: type[_BadgeT]) -> _BadgeT | None:
+    def get_badge[BadgeT: "BadgeInterface"](self, badge_class: type[BadgeT]) -> BadgeT | None:
         """Return the badge attached under ``badge_class``, or ``None`` when none is.
 
         The lookup is by key: a badge attached under an explicit class — a
         custom badge standing in for a built-in — is found under that class.
         """
-        return cast("_BadgeT | None", self._badges.get(badge_class))
+        return cast("BadgeT | None", self._badges.get(badge_class))
 
     def get_badges(self) -> Mapping[type, BadgeInterface]:
         """Return every badge attached, keyed by class."""

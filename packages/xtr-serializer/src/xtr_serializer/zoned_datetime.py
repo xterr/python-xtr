@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Annotated, Final, TypeAlias
+from typing import Annotated, Final
 from zoneinfo import ZoneInfo
 
 from pydantic import PlainSerializer, PlainValidator
@@ -68,7 +68,7 @@ def _read(value: object) -> datetime:
     raise PydanticCustomError(_ERROR_TYPE, _READ_REFUSAL)
 
 
-ZonedDateTime: TypeAlias = Annotated[
+type ZonedDateTime = Annotated[
     datetime,
     PlainSerializer(_write, return_type=str, when_used="json"),
     PlainValidator(_read, json_schema_input_type=str),

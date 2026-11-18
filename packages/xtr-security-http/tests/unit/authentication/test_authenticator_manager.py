@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, cast, final, override
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
 from xtr_http_kernel.bridge import ResponseFactory
@@ -50,8 +50,6 @@ if TYPE_CHECKING:
     from xtr_security_http.authenticator.passport.passport import Passport
 
 pytestmark = pytest.mark.anyio
-
-_EventT = TypeVar("_EventT")
 
 
 @final
@@ -503,7 +501,9 @@ async def test_the_failure_event_is_dispatched_after_the_handler_ran() -> None:
 
     @final
     class _RecordingDispatcher:
-        async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+        async def dispatch[EventT](
+            self, event: EventT, event_name: str | type | None = None
+        ) -> EventT:
             del event_name
             if isinstance(event, LoginFailureEvent):
                 order.append("event")
@@ -521,7 +521,9 @@ async def test_a_login_failure_listener_answer_is_returned() -> None:
 
     @final
     class _AnsweringDispatcher:
-        async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+        async def dispatch[EventT](
+            self, event: EventT, event_name: str | type | None = None
+        ) -> EventT:
             del event_name
             if isinstance(event, LoginFailureEvent):
                 event.set_response(response)
@@ -571,7 +573,9 @@ async def test_the_interactive_login_is_announced_under_its_name() -> None:
         def __init__(self) -> None:
             self.dispatched: list[tuple[object, str | type | None]] = []
 
-        async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+        async def dispatch[EventT](
+            self, event: EventT, event_name: str | type | None = None
+        ) -> EventT:
             self.dispatched.append((event, event_name))
             return event
 
@@ -650,7 +654,9 @@ async def test_the_interactive_login_is_announced_between_handler_and_login_succ
 
     @final
     class _RecordingDispatcher:
-        async def dispatch(self, event: _EventT, event_name: str | type | None = None) -> _EventT:
+        async def dispatch[EventT](
+            self, event: EventT, event_name: str | type | None = None
+        ) -> EventT:
             del event_name
             if isinstance(event, InteractiveLoginEvent):
                 order.append("interactive")

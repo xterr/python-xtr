@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeVar, cast, final
+from typing import TYPE_CHECKING, cast, final
 
 from xtr_event_dispatcher.decorator import EventListenerDeclaration, as_event_listener
 from xtr_event_dispatcher.decorator.event_listener_declaration import recorded_on
@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "WORKFLOW_LISTENERS_ATTRIBUTE",
-    "ListenerT",
     "WorkflowListenerDeclaration",
     "workflow_listener",
     "workflow_listeners_recorded_on",
@@ -23,8 +22,6 @@ __all__ = [
 
 WORKFLOW_LISTENERS_ATTRIBUTE = "__xtr_workflow_listeners__"
 """Where the workflow listener decorators record their marks."""
-
-ListenerT = TypeVar("ListenerT", bound="Callable[..., object] | type")
 
 
 @final
@@ -45,7 +42,7 @@ class WorkflowListenerDeclaration:
     declaration: EventListenerDeclaration
 
 
-def workflow_listener(  # noqa: PLR0913 — one argument per thing a listener can declare.
+def workflow_listener[ListenerT: "Callable[..., object] | type"](  # noqa: PLR0913 — one argument per thing a listener can declare.
     event: str,
     *,
     method: str | None = None,

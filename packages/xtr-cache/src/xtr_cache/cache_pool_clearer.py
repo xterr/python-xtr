@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias, final, override
+from typing import TYPE_CHECKING, final, override
 
 from xtr_cache_contracts import (
     CacheItemPoolInterface,
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 __all__ = ["CachePoolClearer", "PoolCapabilities", "PoolProvider"]
 
-PoolProvider: TypeAlias = CacheItemPoolInterface | Callable[[], "Awaitable[CacheItemPoolInterface]"]
+type PoolProvider = CacheItemPoolInterface | Callable[[], "Awaitable[CacheItemPoolInterface]"]
 """A pool, or what builds it when first asked for."""
 
 

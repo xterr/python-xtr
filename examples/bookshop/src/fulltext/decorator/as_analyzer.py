@@ -11,7 +11,7 @@ console, messenger and logging bundles use for ``@as_command``, ``@as_message_ha
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final, TypeVar
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -20,8 +20,6 @@ __all__ = ["ANALYZER_ATTRIBUTE", "AnalyzerDeclaration", "analyzers_declared_on",
 
 ANALYZER_ATTRIBUTE: Final = "__fulltext_analyzer__"
 """Where ``@as_analyzer`` records its declaration on the class."""
-
-A = TypeVar("A", bound=type)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +33,7 @@ class AnalyzerDeclaration:
     name: str
 
 
-def as_analyzer(name: str, /) -> Callable[[A], A]:
+def as_analyzer[A: type](name: str, /) -> Callable[[A], A]:
     """Declare the decorated class as the analyzer ``name``.
 
     The class must be buildable by a container: its constructor may ask for anything the

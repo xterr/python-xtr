@@ -13,7 +13,7 @@ of a chosen size while the test watches what the application allocates.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, TypeAlias, cast, final
+from typing import TYPE_CHECKING, cast, final
 
 import httpx
 
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Drive", "ServerStateBridge", "driving", "serving"]
 
-Drive: TypeAlias = "Callable[[Scope, Receive], Awaitable[list[Message]]]"
+type Drive = "Callable[[Scope, Receive], Awaitable[list[Message]]]"
 """Runs one connection at the application and returns everything it sent."""
 
 

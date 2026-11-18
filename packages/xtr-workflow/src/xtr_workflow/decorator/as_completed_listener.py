@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._build_event_name import build_event_name
-from .workflow_listener_declaration import ListenerT, workflow_listener
+from .workflow_listener_declaration import workflow_listener
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 __all__ = ["as_completed_listener"]
 
 
-def as_completed_listener(  # noqa: PLR0913 — one argument per thing a listener can declare.
+def as_completed_listener[ListenerT: "Callable[..., object] | type"](  # noqa: PLR0913 — one argument per thing a listener can declare.
     workflow: str | None = None,
     transition: str | None = None,
     *,

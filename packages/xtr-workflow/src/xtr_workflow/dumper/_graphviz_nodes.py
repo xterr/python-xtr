@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TypeAlias
 
 __all__ = ["Edge", "Listeners", "PlaceEdge", "PlaceNode", "TransitionNode"]
 
-Listeners: TypeAlias = Mapping[str, Mapping[str, Sequence[Mapping[str, object]]]]
+type Listeners = Mapping[str, Mapping[str, Sequence[Mapping[str, object]]]]
 """The listeners of each transition, under ``"transition__<number>"``, by event."""
 
 

@@ -17,6 +17,14 @@ No package ships a database migration for 7.0: no table gains or loses a column.
   long runs of spaces — which would hang xtr-mime and everything that sends mail through it.
 - `typing-extensions` is no longer a dependency of any package. Import `override`, `Self`,
   `TypeIs`, `Unpack` and `TypedDict` from `typing`; xtr-maker's generated code does.
+- Type aliases are `type` statements and generics declare their type parameters inline. An alias
+  a package exports — `Callback`, `ZonedDateTime`, `Policy`, `StorageAttributes`, a
+  configuration's entry types — is now a `typing.TypeAliasType`: annotations and pydantic read it
+  as before, but code that took it apart at run time reads `Alias.__value__` instead
+  (`get_args(Policy.__value__)`). `Injected` and `NormalizedValue` stay plain aliases: the first
+  is the marker the container, wireup and the web framework read, the second is pydantic's own
+  `JsonValue`. The module-level type variables `xtr_console.decorator.as_command.CommandT` and
+  `xtr_workflow.decorator.workflow_listener_declaration.ListenerT` are gone.
 - Third-party dependencies need at least the first release that supports Python 3.14, and that
   every package's tests pass on:
 

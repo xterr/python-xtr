@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import is_dataclass
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 
 from xtr_serializer._type_names import qualified_name_of
 from xtr_serializer.exception import MappingError
@@ -15,13 +15,12 @@ if TYPE_CHECKING:
 
 __all__ = ["discriminator_name"]
 
-_ClassT = TypeVar("_ClassT", bound=type)
 
 # What pydantic asks a class for its schema by, which the hierarchy's base answers.
 _HOOK = "__get_pydantic_core_schema__"
 
 
-def discriminator_name(name: str) -> Callable[[_ClassT], _ClassT]:
+def discriminator_name[ClassT: type](name: str) -> Callable[[ClassT], ClassT]:
     """Write the values of the decorated class under ``name``, and read ``name`` back as it.
 
     The class derives from the base of a hierarchy (see
@@ -56,7 +55,7 @@ def discriminator_name(name: str) -> Callable[[_ClassT], _ClassT]:
             bases.
     """
 
-    def register(kind: _ClassT) -> _ClassT:
+    def register(kind: ClassT) -> ClassT:
         if not isinstance(cast("object", kind), type):
             raise MappingError(
                 f"a {qualified_name_of(type(kind))!r} is no class, which a name is given to"

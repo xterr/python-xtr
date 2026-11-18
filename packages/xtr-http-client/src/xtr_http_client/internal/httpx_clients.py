@@ -14,9 +14,8 @@ from xtr_http_client.exception import InvalidArgumentError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from typing import TypeAlias
 
-    _Key: TypeAlias = tuple[object, ...]
+    type _Key = tuple[object, ...]
 
 __all__ = ["HttpxClients"]
 

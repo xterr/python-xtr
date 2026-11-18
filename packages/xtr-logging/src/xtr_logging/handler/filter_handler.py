@@ -13,13 +13,12 @@ from .handler_interface import HandlerInterface
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-    from typing import TypeAlias
 
     from xtr_logging_contracts import LevelLike
 
     from xtr_logging.log_record import LogRecord
 
-    _HandlerFactory: TypeAlias = Callable[
+    type _HandlerFactory = Callable[
         ["LogRecord | None", "FilterHandler"],
         HandlerInterface,
     ]

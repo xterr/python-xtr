@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import UTC, timedelta
-from typing import TYPE_CHECKING, Final, TypeVar
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -13,10 +13,8 @@ __all__ = ["shift_calendar"]
 
 _MONTHS_PER_YEAR: Final = 12
 
-_DateT = TypeVar("_DateT", bound="datetime")
 
-
-def shift_calendar(moment: _DateT, /, *, months: int = 0, days: int = 0) -> _DateT:
+def shift_calendar[DateT: "datetime"](moment: DateT, /, *, months: int = 0, days: int = 0) -> DateT:
     """Move ``moment`` by whole months, then whole days, keeping the wall clock it shows.
 
     "A month later" from the 31st lands on the last day of a shorter month,

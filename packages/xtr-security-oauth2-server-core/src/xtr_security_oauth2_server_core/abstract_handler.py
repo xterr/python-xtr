@@ -12,7 +12,7 @@ from __future__ import annotations
 import base64
 import binascii
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Final, TypeVar, cast
+from typing import TYPE_CHECKING, Final, cast
 from urllib.parse import unquote_plus
 
 from xtr_security_oauth2_server_core._repeated_parameter import refuse_if_repeated
@@ -45,8 +45,6 @@ __all__ = ["AbstractHandler"]
 #: How long the HTTP Basic scheme's name and separator are, so the rest of the
 #: header is the credentials.
 _BASIC_PREFIX_LENGTH: Final[int] = 6
-
-_T = TypeVar("_T")
 
 
 def _parse_param(
@@ -369,7 +367,7 @@ class AbstractHandler(CryptTrait):
         return payload
 
     @staticmethod
-    def _wired(value: _T | None, setter: str) -> _T:
+    def _wired[T](value: T | None, setter: str) -> T:
         """Return ``value``, or say which setter nobody called.
 
         Raises:

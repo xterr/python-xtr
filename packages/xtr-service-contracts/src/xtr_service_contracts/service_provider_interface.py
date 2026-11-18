@@ -7,18 +7,16 @@ carries parameters.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping
 
 __all__ = ["ServiceProviderInterface"]
 
-T_co = TypeVar("T_co", covariant=True)
-
 
 @runtime_checkable
-class ServiceProviderInterface(Protocol[T_co]):
+class ServiceProviderInterface[T_co](Protocol):
     """Provides a fixed set of services, each reachable by its name.
 
     Unlike a :class:`ContainerInterface`, which is keyed by type, a provider is

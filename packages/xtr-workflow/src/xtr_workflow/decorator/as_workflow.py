@@ -7,7 +7,7 @@ import builtins
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import InitVar, dataclass, field
 from enum import Enum
-from typing import ClassVar, TypeVar, cast, final
+from typing import ClassVar, cast, final
 
 from xtr_workflow.exception import LogicError
 from xtr_workflow.validator import DefinitionValidatorInterface
@@ -24,7 +24,6 @@ __all__ = ["WORKFLOW_ATTRIBUTE", "AsWorkflow", "as_workflow", "workflow_declared
 WORKFLOW_ATTRIBUTE = "__xtr_workflow__"
 """Where :func:`as_workflow` records its declaration on the class."""
 
-_ClassT = TypeVar("_ClassT", bound=type)
 
 _DECORATOR: str = "@as_workflow"
 
@@ -107,7 +106,7 @@ class AsWorkflow:
         object.__setattr__(self, "metadata", build_metadata(self.metadata, description, _DECORATOR))
 
 
-def as_workflow(  # noqa: PLR0913 — one argument per thing a workflow declares.
+def as_workflow[ClassT: type](  # noqa: PLR0913 — one argument per thing a workflow declares.
     *,
     name: str | None = None,
     type: WorkflowType = WorkflowType.STATE_MACHINE,  # noqa: A002 — the declaration's own name.
@@ -123,7 +122,7 @@ def as_workflow(  # noqa: PLR0913 — one argument per thing a workflow declares
     definition_validators: Sequence[builtins.type[DefinitionValidatorInterface]] = (),
     places: builtins.type[Enum] | None = None,
     place_markers: Mapping[Enum, Place] | None = None,
-) -> Callable[[_ClassT], _ClassT]:
+) -> Callable[[ClassT], ClassT]:
     """Declare that the decorated class defines a workflow; the arguments are :class:`AsWorkflow`'s.
 
     ```python
@@ -163,7 +162,7 @@ def as_workflow(  # noqa: PLR0913 — one argument per thing a workflow declares
         place_markers={} if place_markers is None else place_markers,
     )
 
-    def decorate(class_: _ClassT) -> _ClassT:
+    def decorate(class_: ClassT) -> ClassT:
         if WORKFLOW_ATTRIBUTE in vars(class_):
             raise LogicError(
                 f'"{class_name(class_)}" cannot have several "{_DECORATOR}" decorators.'

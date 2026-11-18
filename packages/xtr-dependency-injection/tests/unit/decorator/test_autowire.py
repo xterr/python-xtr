@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Annotated, TypeAlias, cast, get_args, get_origin
+from typing import TYPE_CHECKING, Annotated, cast, get_args, get_origin
 
 import pytest
 import wireup
@@ -174,9 +174,10 @@ def test_target_beside_a_parameter_or_variable_injection_is_refused(marker: Auto
         _ = to_engine_signature(signature)
 
 
-OptionalInjected: TypeAlias = Injected[int] | None
-OptionalTargeted: TypeAlias = Annotated[int, Target("smtp")] | None
-OptionalLocator: TypeAlias = ServiceLocator[int] | None
+# Annotations as values, handed to the function under test: plain expressions, not aliases.
+OptionalInjected = Injected[int] | None
+OptionalTargeted = Annotated[int, Target("smtp")] | None
+OptionalLocator = ServiceLocator[int] | None
 MARKED: list[object] = [
     Injected[int],
     Annotated[int, Autowire(param="kernel.name")],

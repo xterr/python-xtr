@@ -7,7 +7,7 @@ it belongs, and they compare as integers: ``Level.ERROR > Level.WARNING``.
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import TYPE_CHECKING, Final, TypeAlias
+from typing import TYPE_CHECKING, Final
 
 from .exception.invalid_level_error import InvalidLevelError
 
@@ -87,7 +87,7 @@ class Level(IntEnum):
         return self < other
 
 
-LevelLike: TypeAlias = Level | int | str
+type LevelLike = Level | int | str
 """Anything :meth:`Level.parse` accepts."""
 
 _TO_RFC5424: Final[Mapping[Level, int]] = {

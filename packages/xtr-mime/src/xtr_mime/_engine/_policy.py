@@ -16,7 +16,7 @@ from email.headerregistry import (
     UnstructuredHeader,
 )
 from email.policy import EmailPolicy
-from typing import TYPE_CHECKING, Final, TypeAlias, cast, final, override
+from typing import TYPE_CHECKING, Final, cast, final, override
 
 from xtr_mime.exception import RfcComplianceError
 
@@ -95,7 +95,7 @@ UTF8_POLICY: Final = POLICY.clone(utf8=True)
 
 # Quoted: the class is generic only in its type stubs, not at runtime. It is the parser's
 # class too, so a parsed message and a built one are the same kind of value.
-EnginePart: TypeAlias = "EmailMessage[str, str]"
+type EnginePart = "EmailMessage[str, str]"
 """A part or a whole message as the engine holds it; never seen outside xtr-mime."""
 
 

@@ -13,13 +13,12 @@ from .abstract_handler import AbstractHandler
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import TypeAlias
 
     from xtr_logging.log_record import LogRecord
 
     from .handler_interface import HandlerInterface
 
-    _HandlerFactory: TypeAlias = Callable[
+    type _HandlerFactory = Callable[
         ["LogRecord | None", "SamplingHandler"],
         HandlerInterface,
     ]

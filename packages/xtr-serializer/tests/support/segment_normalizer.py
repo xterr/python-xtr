@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, final, overload
+from typing import TYPE_CHECKING, final, overload
 
 from tests.support.shapes import Point, Segment
 from xtr_serializer.exception import InvalidArgumentError, LogicError, NotNormalizableValueError
@@ -17,8 +17,6 @@ if TYPE_CHECKING:
     )
 
 __all__ = ["SegmentNormalizer"]
-
-_T = TypeVar("_T")
 
 
 @final
@@ -71,13 +69,13 @@ class SegmentNormalizer:
         return isinstance(data, Segment)
 
     @overload
-    def denormalize(
+    def denormalize[T](
         self,
         data: object,
-        type_: type[_T],
+        type_: type[T],
         format: str | None = None,
         context: Context | None = None,
-    ) -> _T: ...
+    ) -> T: ...
 
     @overload
     def denormalize(
