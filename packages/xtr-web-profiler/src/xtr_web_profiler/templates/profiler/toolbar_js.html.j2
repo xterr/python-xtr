@@ -9,7 +9,9 @@
   response names.
 #}
 <div id="xtr-wdt-{{ token }}" class="xtr-wdt" data-xtr-token="{{ token }}" hidden></div>
-<link rel="stylesheet" href="{{ stylesheet_url }}">
+{# The style nonce: a page whose policy names nonces ignores 'unsafe-inline' and 'self'
+   alone does not cover every policy, so the stylesheet carries the nonce it was given. #}
+<link rel="stylesheet" href="{{ stylesheet_url }}"{% if csp_style_nonce %} nonce="{{ csp_style_nonce }}"{% endif %}>
 <script nonce="{{ csp_script_nonce }}">
 (function () {
   "use strict";

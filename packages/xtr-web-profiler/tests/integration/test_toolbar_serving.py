@@ -111,6 +111,18 @@ async def test_what_is_drawn_carries_no_style_attribute_a_policy_would_block() -
     assert "hidden" in response.text
 
 
+async def test_the_toolbars_stylesheet_carries_the_style_nonce_of_the_policy() -> None:
+    # A policy naming a nonce ignores 'unsafe-inline': only a nonced link is loaded.
+    async with serving(application()) as client:
+        response = await client.get("/protected")
+
+    style = response.headers["content-security-policy"].split("style-src")[1].split(";")[0]
+    nonce = style.split("'nonce-")[1].split("'")[0]
+    assert f'<link rel="stylesheet" href="http://shop.test/_wdt/styles" nonce="{nonce}">' in (
+        response.text
+    )
+
+
 async def test_the_profilers_own_pages_carry_no_policy_and_are_not_profiled() -> None:
     async with serving(application()) as client:
         response = await client.get("/_profiler/latest")
