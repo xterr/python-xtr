@@ -23,8 +23,16 @@ No package ships a database migration for 7.0: no table gains or loses a column.
   as before, but code that took it apart at run time reads `Alias.__value__` instead
   (`get_args(Policy.__value__)`). `Injected` and `NormalizedValue` stay plain aliases: the first
   is the marker the container, wireup and the web framework read, the second is pydantic's own
-  `JsonValue`. The module-level type variables `xtr_console.decorator.as_command.CommandT` and
-  `xtr_workflow.decorator.workflow_listener_declaration.ListenerT` are gone.
+  `JsonValue`.
+- Every module-level type variable is gone, each package's generics declaring theirs inline. None
+  was exported, but those not named with a leading underscore could be imported: among them
+  `xtr_console.decorator.as_command.CommandT`,
+  `xtr_workflow.decorator.workflow_listener_declaration.ListenerT`,
+  `xtr_dependency_injection.bundle.bundle.ConfigT`, `xtr_messenger.envelope.StampT`,
+  `xtr_storage.directory_listing.PathT`, the `T_co` of `xtr_service_contracts`'
+  `service_provider_interface` and `service_collection_interface`, the `R` of xtr-webhook's
+  `request_parser_interface`, `abstract_request_parser` and `webhook_controller`, and the `T`,
+  `F`, `D`, `B`, `P` and `M` of the decorator modules. Code that imported one declares its own.
 - Third-party dependencies need at least the first release that supports Python 3.14, and that
   every package's tests pass on:
 
@@ -80,6 +88,21 @@ No package ships a database migration for 7.0: no table gains or loses a column.
   raises `UnitReadDuringSingletonBuildError`.
 - A note about a failed rollback after a failed boot, or about a failed cleanup, names an error
   that cannot be printed as `[unprintable module.Class]` instead of replacing the error.
+- Every annotation the container reads means what a `type` alias in it stands for: a
+  constructor's or a factory's parameters and a factory's return — plain, async or a generator —,
+  a bound callable's parameters (a command, a message handler, an event listener) and the
+  signature handed to `bind_callable`, a hook's, a served route's injected parameters, a
+  `@configure` function's, and an `AliasOf` field. An alias may stand alone
+  (`type Mailer = Smtp`), be chained, be applied to arguments (`type Qualified[T] = Annotated[T,
+  Target("smtp")]`), hold a marker (`type Db = Injected[AsyncSession]`) or sit inside one
+  (`Injected[Mailer]`, `Sequence[Mailer]`, `ServiceLocator[Mailer]`, `Mailer | None`). Before, an
+  alias named a service nothing registered, a factory returning one failed the build, and a
+  bound callable left a parameter marked through an alias unfilled. An annotation holding no alias
+  reads exactly as before. A type passed as a value — `container.get(Mailer)` with `Mailer` an
+  alias — is still not expanded: name the class.
+- A marker on a member of a union — `Injected[T] | None`, `Annotated[T, Target("x")] | None` — is
+  honoured on a bound callable too, as `is_container_supplied()` already reported: the parameter is
+  filled with the optional service, where it was left for the caller to pass.
 
 ### xtr-service-contracts
 
@@ -121,6 +144,10 @@ No package ships a database migration for 7.0: no table gains or loses a column.
 - A saved target from another origin is dropped after login; a path matcher strips `root_path`
   on a segment boundary only.
 - `LoginLinkConfig.max_uses` (unset by default) limits how often one login link logs in.
+- An `InMemoryUserProviderConfig` reads the `env(...)` placeholders in its users — a password
+  hash, a role — from the environment, where the users carried the placeholders' text and no
+  login could succeed. A user table holding a placeholder is checked when the provider is first
+  built, against the values read; one holding none is still checked when the container is built.
 - Successful logins count against the per-IP login limit, so a burst of requests cannot slip past
   it; the local per-user count is reset by a success, the per-IP count is not refunded.
 - Remember-me cookies are `Secure` over https by default (`RememberMeConfig(secure=False)` keeps
@@ -225,6 +252,10 @@ No package ships a database migration for 7.0: no table gains or loses a column.
   uses the handler in force before the command.
 - `debug:*` commands print application text literally.
 - An error that cannot be printed is reported as `[unprintable module.Class]`.
+- A bare `-` on the command line is a value: a text or path argument or option receives `"-"`
+  (`Path("-")`), so a command can read standard input from it —
+  `security:hash-password -` now does. It was refused as an unknown option; it still is where
+  the command cannot take it, with the same message. A mistyped option is still an unknown option.
 
 ### xtr-cache
 
@@ -272,6 +303,12 @@ No package ships a database migration for 7.0: no table gains or loses a column.
 
 - SMTP refuses `AUTH` over an unencrypted session to a server that is not on this machine; use TLS
   or add `allow_plain_auth=1` to the DSN.
+
+### xtr-mime
+
+- A file to attach or embed named with a trailing slash — `attach_from_path("report.pdf/")` — is
+  refused with `InvalidArgumentError`, as a path naming no readable file is; it was read as the
+  file.
 
 ### xtr-notifier
 
