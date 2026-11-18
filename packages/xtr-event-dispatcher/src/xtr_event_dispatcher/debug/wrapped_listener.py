@@ -102,9 +102,11 @@ class WrappedListener:
         ``arguments`` are the event, its name and the dispatcher.
         """
         self._called = True
+        # Timed only inside a unit of work timing itself — a profiled request opens a
+        # section — so a context nobody reads, a worker's own loop, never accumulates.
         timed = (
             self._stopwatch.start(self.get_pretty(), _STOPWATCH_CATEGORY)
-            if self._stopwatch is not None
+            if self._stopwatch is not None and self._stopwatch.has_open_section()
             else None
         )
         started = perf_counter()

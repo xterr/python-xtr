@@ -550,16 +550,24 @@ def test_the_debug_module_imports_without_the_service_contracts() -> None:
     assert result.returncode == 0, result.stderr
 
 
+def _opened() -> Stopwatch:
+    """A stopwatch with a section open, as a unit of work timing itself has."""
+    stopwatch = Stopwatch()
+    stopwatch.open_section()
+    return stopwatch
+
+
 def _timed_names(stopwatch: Stopwatch) -> dict[str, int]:
+    stopwatch.stop_section("timed")
     return {
         name: len(event.get_periods())
-        for name, event in stopwatch.get_section_events("__root__").items()
+        for name, event in stopwatch.get_section_events("timed").items()
         if event.category == "event_listener"
     }
 
 
 async def test_with_a_stopwatch_each_listener_run_is_timed(inner: EventDispatcher) -> None:
-    stopwatch = Stopwatch()
+    stopwatch = _opened()
     inner.add_listener("foo", _one)
     inner.add_listener("foo", _two)
     traced = TraceableEventDispatcher(inner, stopwatch=stopwatch)
@@ -573,7 +581,7 @@ async def test_with_a_stopwatch_each_listener_run_is_timed(inner: EventDispatche
 async def test_with_a_stopwatch_a_lazy_listener_is_timed_as_what_it_built(
     inner: EventDispatcher,
 ) -> None:
-    stopwatch = Stopwatch()
+    stopwatch = _opened()
     listener = RecordingListener()
 
     async def factory() -> object:
@@ -588,7 +596,7 @@ async def test_with_a_stopwatch_a_lazy_listener_is_timed_as_what_it_built(
 
 
 async def test_with_a_stopwatch_another_dispatchers_listeners_are_timed() -> None:
-    stopwatch = Stopwatch()
+    stopwatch = _opened()
     traced = TraceableEventDispatcher(
         ScopedEventDispatcher(ReadOnlyDispatcher({"foo": [_one]})), stopwatch=stopwatch
     )

@@ -161,16 +161,23 @@ async def test_in_debug_the_dispatcher_is_traced_to_the_event_channel() -> None:
     }
 
 
-async def test_in_debug_every_listener_is_timed_on_the_stopwatch() -> None:
+async def test_in_debug_every_listener_is_timed_on_the_stopwatch_inside_an_open_section() -> None:
     async with await _kernel(debug=True).boot() as booted:
         dispatcher = await booted.container.get(EventDispatcherInterface)
         stopwatch = await booted.container.get(Stopwatch)
 
         stopwatch.reset()
+        _ = await dispatcher.dispatch(OrderShipped(6))
+        stopwatch.open_section()
         _ = await dispatcher.dispatch(OrderShipped(7))
+        stopwatch.stop_section("request")
 
-    timed = stopwatch.get_section_events("__root__")
+    timed = stopwatch.get_section_events("request")
     assert timed["tests.fixtures.app_events.listeners.audit"].category == "event_listener"
+    assert len(timed["tests.fixtures.app_events.listeners.audit"].get_periods()) == 1
+    assert "tests.fixtures.app_events.listeners.audit" not in stopwatch.get_section_events(
+        "__root__"
+    )
 
 
 async def test_outside_debug_no_stopwatch_is_registered() -> None:

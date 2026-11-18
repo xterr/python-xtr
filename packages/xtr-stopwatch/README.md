@@ -90,6 +90,11 @@ period to it.
 Outside any section, events go to the root section, stored as `ROOT` (`"__root__"`), whose
 events each count from the instant they first started.
 
+`has_open_section()` tells whether the calling context has a section open, without starting
+anything. Code that times what it does on a stopwatch it shares — every listener a dispatcher
+runs — asks it first, so a context no unit of work times in, a worker's own loop, never
+accumulates events.
+
 ## Units of work
 
 Everything a stopwatch times belongs to the calling context — the same `contextvars` mechanism

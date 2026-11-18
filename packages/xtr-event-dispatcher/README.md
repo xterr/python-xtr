@@ -164,9 +164,11 @@ A `TraceableEventDispatcher` times every listener: each `ListenerInfo` of
 "Notified" debug record a `duration`. Wrapping an `EventDispatcher` — the container's always
 are — it leaves running the listeners to it and only watches each call.
 
-Given an [xtr-stopwatch](../xtr-stopwatch) `Stopwatch`, each listener run is also an event on it,
-named after the listener and in the `"event_listener"` category, so a profile can draw where a
-dispatch spent its time on a timeline. The event is stopped through the object `start` returned,
+Given an [xtr-stopwatch](../xtr-stopwatch) `Stopwatch`, each listener run while the calling
+context has a section open — a profiled request opens one — is also an event on it, named after
+the listener and in the `"event_listener"` category, so a profile can draw where a dispatch spent
+its time on a timeline. Outside an open section nothing is timed, so a context nobody reads, a
+worker's own loop, accumulates nothing. The event is stopped through the object `start` returned,
 so a listener that resets the stopwatch's context still closes its own period.
 
 `ImmutableEventDispatcher` and `ScopedEventDispatcher` wrap an `IntrospectableDispatcherInterface`:
@@ -343,8 +345,8 @@ In debug mode every dispatcher is wrapped in a `TraceableEventDispatcher`, reset
 work (`kernel.reset`); with the logging bundle active it writes to the `"event"` channel. A bundle
 owning a dispatcher traces it the same way with `traceable_event_dispatcher_factory`.
 With [xtr-stopwatch](../xtr-stopwatch) installed — the `stopwatch` extra — it also times every
-listener on the `Stopwatch` service, which the bundle registers, on its own monotonic clock, unless
-a bundle loaded before it registered one.
+listener run inside an open section on the `Stopwatch` service, which the bundle registers, on its
+own monotonic clock, unless a bundle loaded before it registered one.
 
 The bundle's zero-config path builds an empty dispatcher and does no I/O.
 

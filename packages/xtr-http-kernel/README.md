@@ -537,8 +537,9 @@ The core collectors, each a panel of the web profiler:
 | `config` | the Python version, the environment, the active bundles, the xtr packages installed |
 
 In debug mode with the logging bundle active, the bundle adds a handler named `profiler` to the
-logging configuration — a `DebugHandler` keeping the records of each unit of work — which the
-`logger` collector reads.
+logging configuration — a `DebugHandler` keeping the records of each unit of work that began
+recording — which the `logger` collector reads. The collector begins it as a profiled request
+arrives, so a request that is not profiled, a command or a worker keeps no record.
 
 ### Writing a collector
 

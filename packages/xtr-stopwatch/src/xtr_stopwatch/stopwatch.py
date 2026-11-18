@@ -152,6 +152,16 @@ class Stopwatch:
         """Tell whether the event ``name`` is running in the current section."""
         return self._current().stack[-1].is_event_started(name)
 
+    def has_open_section(self) -> bool:
+        """Tell whether the calling context has a section open, without starting anything.
+
+        A unit of work timing itself opens a section; code that times what it
+        does on a shared stopwatch asks this first, so a context nobody times
+        in — a worker's own loop, a long command — never accumulates events.
+        """
+        activity = self._activity.get()
+        return activity is not None and len(activity.stack) > 1
+
     def get_event(self, name: str) -> StopwatchEvent:
         """Return the event ``name`` of the current section.
 

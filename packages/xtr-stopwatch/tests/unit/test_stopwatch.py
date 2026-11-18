@@ -145,6 +145,17 @@ def test_setting_the_detached_variable_back_forgets_what_the_context_timed(
     assert repr(stopwatch) == "Stopwatch(open_sections=0)"
 
 
+def test_a_section_is_open_only_between_opening_and_stopping_it(clock: MockClock) -> None:
+    stopwatch = Stopwatch(clock)
+    assert not stopwatch.has_open_section()
+
+    stopwatch.open_section()
+    assert stopwatch.has_open_section()
+
+    stopwatch.stop_section("request")
+    assert not stopwatch.has_open_section()
+
+
 def test_an_event_handed_out_before_a_reset_still_stops(clock: MockClock) -> None:
     stopwatch = Stopwatch(clock)
     event = stopwatch.start("listener")

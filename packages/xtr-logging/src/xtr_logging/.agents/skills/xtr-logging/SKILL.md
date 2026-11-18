@@ -23,7 +23,8 @@ apart and a library never installs handlers it does not use.
   `ContextVarsProcessor`.
 - Tests: `TestHandler()` and its `has_record_*` questions. Freeze record times with
   `Clock.using(MockClock(...))`.
-- One unit of work's records, for a debugging tool: `DebugHandler().get_logs()` inside the unit.
+- One unit of work's records, for a debugging tool: `handler.begin()` then `handler.get_logs()`
+  inside the unit (`DebugHandler`); a unit that never began keeps nothing.
   A bundle adds a handler of its own with `config.with_handler(name, handler_config)`.
 - In an application, with xtr-dependency-injection installed beside the package (it is not a
   dependency): activate `LoggingBundle`, inject `LoggerInterface` for the default channel and

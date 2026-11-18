@@ -77,6 +77,7 @@ async def test_a_lazy_listener_is_named_after_what_it_built() -> None:
 @pytest.mark.anyio
 async def test_a_run_is_an_event_listener_event_on_the_stopwatch() -> None:
     stopwatch = Stopwatch()
+    stopwatch.open_section()
     wrapped = WrappedListener(_function, stopwatch=stopwatch)
 
     await wrapped(Event(), "foo", object())
@@ -89,8 +90,19 @@ async def test_a_run_is_an_event_listener_event_on_the_stopwatch() -> None:
 
 
 @pytest.mark.anyio
+async def test_outside_an_open_section_a_run_is_not_timed() -> None:
+    stopwatch = Stopwatch()
+    wrapped = WrappedListener(_function, stopwatch=stopwatch)
+
+    await wrapped(Event(), "foo", object())
+
+    assert stopwatch.get_section_events("__root__") == {}
+
+
+@pytest.mark.anyio
 async def test_a_raising_listener_still_stops_its_event() -> None:
     stopwatch = Stopwatch()
+    stopwatch.open_section()
 
     def failing(_event: object) -> None:
         message = "boom"
@@ -101,13 +113,13 @@ async def test_a_raising_listener_still_stops_its_event() -> None:
     with pytest.raises(RuntimeError, match="boom"):
         await wrapped(Event(), "foo", object())
 
-    (event,) = stopwatch.get_section_events("__root__").values()
-    assert not event.is_started()
+    assert not stopwatch.get_event(f"{__name__}.{failing.__qualname__}").is_started()
 
 
 @pytest.mark.anyio
 async def test_a_listener_resetting_the_stopwatch_still_closes_its_own_event() -> None:
     stopwatch = Stopwatch()
+    stopwatch.open_section()
 
     def resetting(_event: object) -> None:
         stopwatch.reset()

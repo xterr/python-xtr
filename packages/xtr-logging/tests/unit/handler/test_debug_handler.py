@@ -12,8 +12,24 @@ from xtr_logging import DebugHandler, begin_unit, end_unit
 def test_outside_a_unit_nothing_is_kept() -> None:
     handler = DebugHandler()
 
+    handler.begin()
+
     assert handler.handle(make_record()) is False
     assert handler.get_logs() == ()
+    assert not handler.is_recording()
+
+
+def test_a_unit_that_did_not_begin_recording_keeps_nothing() -> None:
+    handler = DebugHandler()
+
+    begin_unit()
+    try:
+        assert handler.handle(make_record()) is False
+
+        assert handler.get_logs() == ()
+        assert not handler.is_recording()
+    finally:
+        end_unit()
 
 
 def test_the_records_of_the_open_unit_are_kept_in_order() -> None:
@@ -22,11 +38,27 @@ def test_the_records_of_the_open_unit_are_kept_in_order() -> None:
 
     begin_unit()
     try:
+        handler.begin()
         _ = handler.handle(first)
         _ = handler.handle(second)
 
         assert handler.get_logs() == (first, second)
         assert handler.count_errors() == 1
+        assert handler.is_recording()
+    finally:
+        end_unit()
+
+
+def test_beginning_again_starts_from_no_record() -> None:
+    handler = DebugHandler()
+
+    begin_unit()
+    try:
+        handler.begin()
+        _ = handler.handle(make_record())
+        handler.begin()
+
+        assert handler.get_logs() == ()
     finally:
         end_unit()
 
@@ -34,6 +66,7 @@ def test_the_records_of_the_open_unit_are_kept_in_order() -> None:
 def test_the_records_are_let_go_of_when_the_unit_ends() -> None:
     handler = DebugHandler()
     begin_unit()
+    handler.begin()
     _ = handler.handle(make_record())
     end_unit()
 
@@ -49,6 +82,7 @@ def test_records_below_the_level_are_not_kept() -> None:
 
     begin_unit()
     try:
+        handler.begin()
         _ = handler.handle(make_record(Level.INFO))
 
         assert handler.get_logs() == ()
@@ -64,6 +98,7 @@ async def test_concurrent_units_keep_their_own_records() -> None:
     async def unit(name: str) -> None:
         begin_unit()
         try:
+            handler.begin()
             _ = handler.handle(make_record(message=name))
             await anyio.lowlevel.checkpoint()
             seen[name] = tuple(record.message for record in handler.get_logs())

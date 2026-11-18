@@ -169,7 +169,7 @@ deep, with a warning, rather than recursing until the stack overflows.
 | `SyslogHandler` | Syslog over UDP or a socket such as `/dev/log`, with the right severity |
 | `ConsoleHandler` | Standard error, or any stream set later, its level following `-v` verbosity, coloured on a terminal |
 | `NullHandler` | Swallows records at its level |
-| `DebugHandler` | Keeps the records of the open [unit of work](#units-of-work), and nothing outside one, for a debugging tool — a request's profile — to read with `get_logs()`; always bubbles |
+| `DebugHandler` | Keeps the records of the open [unit of work](#units-of-work) once `begin()` was called in it, and nothing otherwise, for a debugging tool — a request's profile — to read with `get_logs()`; always bubbles |
 | `TestHandler` | Keeps records in memory for assertions |
 | `FingersCrossedHandler` | Buffers everything; writes it all once one record is bad enough |
 | `BufferHandler` | Buffers records and writes them as a batch on `close()` |

@@ -28,6 +28,10 @@ class LoggerDataCollector:
     context, and the counts a toolbar shows. A context entry named like a
     credential — a password, a secret, a token — is kept as ``******``, as
     the request's own fields are.
+
+    The handler keeps a unit's records only once :meth:`begin_request` told
+    it to, as a profiled request arrives: a request that is not profiled, a
+    command, a worker keep nothing.
     """
 
     __slots__ = ("_handler",)
@@ -41,15 +45,23 @@ class LoggerDataCollector:
         """``"logger"``."""
         return _NAME
 
+    def begin_request(self) -> None:
+        """Have the handler keep the records of the profiled request that arrived."""
+        self._handler.begin()
+
     def collect(self, profiled: ProfiledRequest) -> dict[str, object]:
         """Return the counts so far; the records follow once the response has left."""
         del profiled
         return self._read()
 
     def late_collect(self, data: dict[str, object], profiled: ProfiledRequest) -> dict[str, object]:
-        """Return every record of the request."""
-        del data, profiled
-        return self._read()
+        """Return every record of the request.
+
+        Once the request's log unit has closed, nothing more can be read, and
+        what was collected with the response stands.
+        """
+        del profiled
+        return self._read() if self._handler.is_recording() else data
 
     def _read(self) -> dict[str, object]:
         records = self._handler.get_logs()
