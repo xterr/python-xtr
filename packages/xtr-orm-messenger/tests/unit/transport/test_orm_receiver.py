@@ -317,6 +317,7 @@ class _Ticks:
     def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._ticks: asyncio.Queue[None] = asyncio.Queue()
         self._waiting = asyncio.Condition()
+        self._given = 0
         self.waits: list[float] = []
         monkeypatch.setattr(orm_receiver, "_pause", self._pause)
 
@@ -331,13 +332,18 @@ class _Ticks:
 
         With no renewal waiting — none held, or all stopped — return after
         a few turns of the loop: nothing is there to run.
+
+        Counted against the ticks given, not the waits seen when called: a
+        renewal loop that has not reached its first wait yet would otherwise
+        let this return before the renewal it lets through has run.
         """
-        waited = len(self.waits)
+        self._given += 1
+        given = self._given
         self._ticks.put_nowait(None)
         async with self._waiting:
             with contextlib.suppress(TimeoutError):
                 async with asyncio.timeout(1):
-                    _ = await self._waiting.wait_for(lambda: len(self.waits) > waited)
+                    _ = await self._waiting.wait_for(lambda: len(self.waits) > given)
 
 
 async def test_a_long_handler_keeps_its_message_alive(
