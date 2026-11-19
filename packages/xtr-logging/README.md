@@ -223,7 +223,7 @@ and only once some handler will handle it:
 | `TagProcessor` | A fixed list of tags |
 
 Ambient context rides along without being passed to every call. It lives in a context variable,
-so it is separate per thread and per asyncio or anyio task:
+so it is separate per thread and per asyncio task:
 
 ```python
 from xtr_logging import bound_context
@@ -481,10 +481,10 @@ unit `unit_state` returns `None` — that is the fallback: a handler asked for i
 before any unit opened simply has none, and behaves as if unbuffered.
 
 A unit lives in a [`ContextVar`](https://docs.python.org/3/library/contextvars.html), copied
-into each thread and each asyncio or anyio task, so two requests handled at once keep their own
+into each thread and each asyncio task, so two requests handled at once keep their own
 with no lock and no leakage. The unit *object* is shared by every context copied from the one
-that opened it, so **state is mutated in place**: a synchronous endpoint, which anyio runs in a
-copied context of its own, enriches the same unit, whereas a `ContextVar.set()` there would be
+that opened it, so **state is mutated in place**: a synchronous endpoint, which the web framework
+runs in a copied context of its own, enriches the same unit, whereas a `ContextVar.set()` there would be
 lost to the caller. Owners mutate their share of the unit; they never reach for the context
 variable itself.
 `bind_context()` is such a `set()`: a value it binds inside a synchronous endpoint is gone once

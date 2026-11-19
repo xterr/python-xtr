@@ -72,8 +72,8 @@ class UidProcessor(ProcessorInterface, ResetInterface):
         """Mint a fresh id for the next unit of work.
 
         Inside a unit the id is replaced on the unit's holder in place, so the
-        change follows the unit's context even into a synchronous callee anyio
-        runs in a copied context.
+        change follows the unit's context even into a synchronous callee run
+        in a copied context.
         """
         box = self._box()
         if box is not None:

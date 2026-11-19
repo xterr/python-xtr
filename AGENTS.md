@@ -238,6 +238,23 @@ Before writing a helper, a wrapper, a context manager or any "own" version of so
 - If the mechanism you need truly does not exist, stop and say so: the package that owns the
   concern needs an API, which is a decision for the human, not a private helper in yours.
 
+### Async — hard rule
+
+- Every library runs on **asyncio**, and only on asyncio. trio is not supported: no trio
+  backend, no trio detection, no trio test parametrisation, no `trio` dependency in any group.
+- Library code uses the standard library: `asyncio.sleep`, `asyncio.timeout` /
+  `asyncio.timeout_at`, `asyncio.to_thread`, `asyncio.TaskGroup`, `loop.getaddrinfo`,
+  `asyncio.CancelledError`.
+- Never use **anyio** in library code unless it is truly necessary — a third-party API that
+  only takes or returns anyio objects, with no asyncio equivalent. Being "backend-agnostic" is
+  not a reason. If you believe it is necessary, stop and say so first; it is the human's call.
+  The semgrep rule `lint/semgrep/no-anyio.yml` (run by pre-commit and CI) refuses any anyio
+  import under `packages/*/src/`. Once the human agrees, mark that one import
+  `# nosemgrep: no-anyio` with the reason in a comment above it — never widen or disable the
+  rule.
+- Never declare a dependency a package does not import. anyio stays only in the `dev` groups
+  (and a `testing` extra that ships a pytest suite), as the pytest runner for async tests.
+
 ### Style
 
 - Python `>= 3.14.4`.

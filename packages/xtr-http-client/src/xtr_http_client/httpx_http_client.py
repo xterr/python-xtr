@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import TYPE_CHECKING, Unpack, cast, final, override
 
-import anyio
 import httpx
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_message import Request
@@ -217,10 +217,10 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
         url = str(outgoing.url)
         limit = _seconds(options.get("max_duration"))
         start_time = time.time()
-        deadline = None if limit is None else anyio.current_time() + limit
+        deadline = None if limit is None else asyncio.get_running_loop().time() + limit
 
         try:
-            with anyio.fail_after(limit):
+            async with asyncio.timeout_at(deadline):
                 response, history = await exchange(
                     client,
                     outgoing,

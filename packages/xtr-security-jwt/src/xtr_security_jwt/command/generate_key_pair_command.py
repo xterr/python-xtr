@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -10,7 +11,6 @@ from functools import partial
 from pathlib import Path
 from typing import Annotated, Final, Literal, final
 
-import anyio.to_thread
 from joserfc.jwk import KeySet
 from xtr_console import ConsoleStyle, ExitCode, Option, as_command, escape
 from xtr_security_core.exception import InvalidArgumentError
@@ -132,7 +132,7 @@ async def _write_key_files(
     """
     private_path = directory / f"{key_id}.pem"
     public_path = directory / f"{key_id}.jwks.json"
-    await anyio.to_thread.run_sync(
+    await asyncio.to_thread(
         partial(
             _write_key_pair,
             private_path,

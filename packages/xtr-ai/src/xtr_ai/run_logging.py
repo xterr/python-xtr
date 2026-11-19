@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, override
 
-import anyio
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.exceptions import RunCancelled
 
@@ -89,7 +89,7 @@ class RunLogging(AbstractCapability[Any]):
             "requests": ctx.usage.requests,
             "error": type(error).__qualname__,
         }
-        if isinstance(error, (RunCancelled, anyio.get_cancelled_exc_class())):
+        if isinstance(error, (RunCancelled, asyncio.CancelledError)):
             # Asked for, or a deadline reached: an outcome, not a fault.
             self.logger.info("The agent run was cancelled.", context)
         else:

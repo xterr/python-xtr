@@ -54,8 +54,8 @@ async def to_http_response(  # noqa: PLR0913 — one call site, and every part a
         method: The method of the last request made.
         start_time: When the request was sent, as a wall clock reading.
         user_data: What the caller asked to find again on the response.
-        deadline: When the whole request runs out of time, on anyio's clock;
-            the body is held to it as the head was. ``None`` is no limit.
+        deadline: When the whole request runs out of time, on the event loop's
+            clock; the body is held to it as the head was. ``None`` is no limit.
         decode: Whether the body is to be handed over decoded. It is, unless
             the caller asked for an encoding outright — in which case what
             they asked for is what they get, as it arrived.

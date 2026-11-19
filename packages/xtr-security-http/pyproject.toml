@@ -38,7 +38,6 @@ dependencies = [
     # The floors xtr-http-kernel serves on; see its pyproject.toml for why.
     "fastapi>=0.143.1",
     "starlette>=1.6",
-    "anyio>=4.10",
 ]
 
 [project.optional-dependencies]

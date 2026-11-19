@@ -160,10 +160,10 @@ that whole time. The hashers are synchronous and CPU-bound on purpose; call them
 thread in async code:
 
 ```python
-import anyio
+import asyncio
 
-stored = await anyio.to_thread.run_sync(hasher.hash, plain)
-ok = await anyio.to_thread.run_sync(hasher.verify, stored, attempt)
+stored = await asyncio.to_thread(hasher.hash, plain)
+ok = await asyncio.to_thread(hasher.verify, stored, attempt)
 ```
 
 ## In an application

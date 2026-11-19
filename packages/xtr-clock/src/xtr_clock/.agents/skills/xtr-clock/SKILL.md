@@ -43,7 +43,7 @@ Every clock answers the same four calls:
 ```python
 clock.now()  # DatePoint, always aware
 clock.sleep(2.5)  # MockClock returns at once and moves 2.5s forward
-await clock.sleep_async(2.5)  # same, without blocking; waits through anyio, so any backend works
+await clock.sleep_async(2.5)  # same, without blocking the event loop
 clock.with_timezone("Europe/Paris")  # a copy; the original is unchanged
 ```
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Unpack, final, override
 
-import anyio
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_service_contracts import ResetInterface
 
@@ -81,7 +81,7 @@ class RetryableHttpClient(HttpClientInterface, ResetInterface):
         strategy: RetryStrategyInterface | None = None,
         max_retries: int = 3,
         logger: LoggerInterface | None = None,
-        sleep: Callable[[float], Awaitable[None]] = anyio.sleep,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         """Retry what ``client`` sends, as often as ``max_retries`` allows.
 

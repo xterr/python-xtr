@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, final
 
 import anyio
@@ -52,7 +53,7 @@ async def test_a_broken_transfer_is_reported_in_this_package_s_terms() -> None:
 
 
 async def test_a_body_that_outlasts_the_deadline_is_a_timeout() -> None:
-    body = HttpxBody(_answer(), _pieces(b"late"), anyio.current_time() - 1)
+    body = HttpxBody(_answer(), _pieces(b"late"), asyncio.get_running_loop().time() - 1)
 
     with pytest.raises(TransportTimeoutError, match="Maximum duration reached"):
         _ = await anext(body)

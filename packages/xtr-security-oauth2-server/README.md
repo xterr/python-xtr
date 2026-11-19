@@ -168,9 +168,9 @@ def security() -> SecurityConfig:
 
 ```python
 # app/consent.py
+import asyncio
 from typing import Annotated
 
-import anyio.to_thread
 from xtr_dependency_injection import Injected, Target, on_boot
 from xtr_event_dispatcher import as_event_listener
 from xtr_password_hasher import PasswordHasherInterface
@@ -199,7 +199,7 @@ async def register_demo_clients(
     hasher: Annotated[PasswordHasherInterface, Target("oauth2_server")],
 ) -> None:
     # In memory, clients are registered at every start; a database keeps them.
-    billing = Client("Billing", "billing", await anyio.to_thread.run_sync(hasher.hash, "s3cret"))
+    billing = Client("Billing", "billing", await asyncio.to_thread(hasher.hash, "s3cret"))
     _ = billing.set_grants(Grant("client_credentials")).set_scopes(Scope("invoices:read"))
     dashboard = Client("Dashboard", "dashboard", None)  # public: it holds no secret
     _ = dashboard.set_grants(Grant("authorization_code"), Grant("refresh_token"))
