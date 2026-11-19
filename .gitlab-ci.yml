@@ -8,7 +8,8 @@ stages:
   - publish
 
 default:
-  image: ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+  # A current uv and a Python 3.14 that meets the packages' floor (3.14.4).
+  image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
 
 variables:
   UV_LINK_MODE: copy
