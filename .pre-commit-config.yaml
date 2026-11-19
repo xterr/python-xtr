@@ -65,3 +65,14 @@ repos:
       files: ^(packages/[^/]+/src/.+\.py|lint/ast-grep/.+|sgconfig\.yml)$
       pass_filenames: false
       entry: bash -c 'uv run --frozen ast-grep scan && uv run --frozen ast-grep test'
+    # Library code runs on asyncio alone: no anyio unless a human agreed (lint/semgrep).
+    - id: semgrep
+      name: semgrep (no-anyio)
+      language: python
+      additional_dependencies: ["semgrep==1.168.0"]
+      files: ^(packages/[^/]+/src/.+\.py|lint/semgrep/.+)$
+      pass_filenames: false
+      entry: >-
+        bash -c 'semgrep scan --metrics=off --disable-version-check --error --quiet
+        --config lint/semgrep packages
+        && semgrep --metrics=off --disable-version-check --test lint/semgrep'

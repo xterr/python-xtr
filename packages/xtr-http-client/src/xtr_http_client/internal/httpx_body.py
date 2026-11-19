@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, final
 
-import anyio
 import httpx
 
 from .httpx_errors import timed_out, transport_error
@@ -43,9 +43,9 @@ class HttpxBody:
         Args:
             response: The transfer, which closing the body lets go of.
             pieces: The body, piece by piece, as the backend produces it.
-            deadline: When the whole request runs out of time, on anyio's
-                clock. ``None`` is no limit, which is what ``max_duration``
-                of zero means.
+            deadline: When the whole request runs out of time, on the event
+                loop's clock. ``None`` is no limit, which is what
+                ``max_duration`` of zero means.
         """
         self._response = response
         self._pieces = pieces
@@ -68,7 +68,7 @@ class HttpxBody:
             TransportError: When the transfer broke.
         """
         try:
-            with anyio.fail_after(self._remaining()):
+            async with asyncio.timeout_at(self._deadline):
                 return await self._pieces.__anext__()
         except StopAsyncIteration:
             raise
@@ -80,9 +80,3 @@ class HttpxBody:
     async def aclose(self) -> None:
         """Let go of the transfer, which frees the connection it was holding."""
         await self._response.aclose()
-
-    def _remaining(self) -> float | None:
-        """How long the request has left, or ``None`` when it was given no limit."""
-        if self._deadline is None:
-            return None
-        return self._deadline - anyio.current_time()

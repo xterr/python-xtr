@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, final, override
 
-import anyio.to_thread
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_password_hasher import PasswordAuthenticatedUserInterface
 from xtr_security_core.user.password_upgrader_interface import PasswordUpgraderInterface
@@ -83,9 +83,9 @@ class PasswordMigratingListener(EventSubscriberInterface):
         if upgrader is None:
             return
         try:
-            if not await anyio.to_thread.run_sync(self._hasher.needs_rehash, user):
+            if not await asyncio.to_thread(self._hasher.needs_rehash, user):
                 return
-            new_hash = await anyio.to_thread.run_sync(self._hasher.hash_password, user, plaintext)
+            new_hash = await asyncio.to_thread(self._hasher.hash_password, user, plaintext)
             await upgrader.upgrade_password(user, new_hash)
         except Exception:  # noqa: BLE001 -- an opportunistic upgrade must never fail the login
             if self._logger is not None:

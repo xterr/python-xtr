@@ -50,7 +50,8 @@ whose salt is stored beside its hash implements `LegacyPasswordAuthenticatedUser
 | `needs_rehash(user)` | tells whether the stored hash is behind the current settings |
 
 ```python
-import anyio
+import asyncio
+
 from xtr_password_hasher import UserPasswordHasherInterface
 
 
@@ -59,9 +60,9 @@ class ChangePassword:
         self._hasher = hasher
 
     async def __call__(self, user: Account, current: str, new: str) -> None:
-        if not await anyio.to_thread.run_sync(self._hasher.is_password_valid, user, current):
+        if not await asyncio.to_thread(self._hasher.is_password_valid, user, current):
             raise BadCredentialsError("The current password is wrong.")
-        user.password = await anyio.to_thread.run_sync(self._hasher.hash_password, user, new)
+        user.password = await asyncio.to_thread(self._hasher.hash_password, user, new)
 ```
 
 **Always through a worker thread in async code.** One argon2id hash costs tens of milliseconds of
@@ -80,9 +81,9 @@ The moment to replace a hash is right after a successful check, the one time the
 hand:
 
 ```python
-if await anyio.to_thread.run_sync(hasher.is_password_valid, user, attempt):
+if await asyncio.to_thread(hasher.is_password_valid, user, attempt):
     if hasher.needs_rehash(user):
-        user.password = await anyio.to_thread.run_sync(hasher.hash_password, user, attempt)
+        user.password = await asyncio.to_thread(hasher.hash_password, user, attempt)
 ```
 
 Behind a firewall you do not write this: the password migrating listener does it for you, provided

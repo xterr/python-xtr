@@ -1016,11 +1016,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/92/4c/8dd6c8056bc6f8ba5f20452bfe32425a7f3fdb798c112e38c6cecda375ac/cyclopts-5.0.0-py3-none-any.whl", hash = "sha256:69c5d98bd48827a0f7c663b76f966f730652cbc48daa7625f1e69ae429b82376", size = 278147, upload-time = "2026-09-23T23:44:52.344Z" },
 ]
 
-[package.optional-dependencies]
-trio = [
-    { name = "trio" },
-]
-
 [[package]]
 name = "decorator"
 version = "5.3.1"
@@ -2592,18 +2587,6 @@ wheels = [
 ]
 
 [[package]]
-name = "outcome"
-version = "1.3.0.post0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "attrs" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/98/df/77698abfac98571e65ffeb0c1fba8ffd692ab8458d617a0eed7d9a8d38f2/outcome-1.3.0.post0.tar.gz", hash = "sha256:9dcf02e65f2971b80047b377468e72a268e15c0af3cf1238e6ff14f7f91143b8", size = 21060, upload-time = "2023-10-26T04:26:04.361Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/8b/5ab7257531a5d830fc8000c476e63c935488d74609b50f9384a643ec0a62/outcome-1.3.0.post0-py2.py3-none-any.whl", hash = "sha256:e771c5ce06d1415e356078d3bdd68523f284b4ce5419828922b6871e65eda82b", size = 10692, upload-time = "2023-10-26T04:26:02.532Z" },
-]
-
-[[package]]
 name = "packaging"
 version = "26.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3755,23 +3738,6 @@ wheels = [
 ]
 
 [[package]]
-name = "trio"
-version = "0.34.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "attrs" },
-    { name = "cffi", marker = "implementation_name != 'pypy' and os_name == 'nt'" },
-    { name = "idna" },
-    { name = "outcome" },
-    { name = "sniffio" },
-    { name = "sortedcontainers" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/92/dc/a2d25ed73ad49cfd79bf18d262577c3731c98e382284e28d522f49a0df35/trio-0.34.0.tar.gz", hash = "sha256:63b9485408bdfdde544fced107045a8c0086cdc4bd0ef2f797b9e0dd111b964b", size = 607457, upload-time = "2026-08-11T00:33:42.198Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/1f/555f1364bed52a92a864181962b77f1b15adadeacf23b86105324363e461/trio-0.34.0-py3-none-any.whl", hash = "sha256:6c7c9f49917694dcdcd5f67abd168df5599eca480d61f29854d17a61a75c2f05", size = 511840, upload-time = "2026-08-11T00:33:40.552Z" },
-]
-
-[[package]]
 name = "truststore"
 version = "0.10.5"
 source = { registry = "https://pypi.org/simple" }
@@ -4137,7 +4103,6 @@ name = "xtr-ai"
 version = "7.0.0"
 source = { editable = "packages/xtr-ai" }
 dependencies = [
-    { name = "anyio" },
     { name = "pydantic-ai-slim" },
     { name = "xtr-clock" },
     { name = "xtr-logging-contracts" },
@@ -4178,6 +4143,7 @@ orm = [
 [package.dev-dependencies]
 dev = [
     { name = "aiosqlite" },
+    { name = "anyio" },
     { name = "basedpyright" },
     { name = "pydantic-ai-slim", extra = ["openai"] },
     { name = "pytest" },
@@ -4193,7 +4159,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anyio", specifier = ">=4.10" },
     { name = "pydantic-ai-slim", specifier = ">=2.66,<3" },
     { name = "pydantic-ai-slim", extras = ["ag-ui"], marker = "extra == 'ag-ui'", specifier = ">=2.66,<3" },
     { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2.66,<3" },
@@ -4213,6 +4178,7 @@ provides-extras = ["openai", "anthropic", "google", "bedrock", "mistral", "groq"
 [package.metadata.requires-dev]
 dev = [
     { name = "aiosqlite", specifier = ">=0.20" },
+    { name = "anyio", specifier = ">=4.10" },
     { name = "basedpyright", specifier = ">=1.31.7" },
     { name = "pydantic-ai-slim", extras = ["openai"], specifier = ">=2.66,<3" },
     { name = "pytest", specifier = ">=8.4" },
@@ -4275,7 +4241,6 @@ version = "7.0.0"
 source = { editable = "packages/xtr-amqp-messenger" }
 dependencies = [
     { name = "aio-pika" },
-    { name = "anyio" },
     { name = "taskiq" },
     { name = "taskiq-aio-pika" },
     { name = "xtr-messenger" },
@@ -4283,6 +4248,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "anyio" },
     { name = "basedpyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -4295,7 +4261,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aio-pika", specifier = ">=9.6" },
-    { name = "anyio", specifier = ">=4.10" },
     { name = "taskiq", specifier = ">=0.12.4" },
     { name = "taskiq-aio-pika", specifier = ">=0.6.1" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
@@ -4303,6 +4268,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "anyio", specifier = ">=4.10" },
     { name = "basedpyright", specifier = ">=1.31.7" },
     { name = "pytest", specifier = ">=8.4" },
     { name = "pytest-cov", specifier = ">=7.1" },
@@ -4442,9 +4408,6 @@ dev = [
 name = "xtr-clock"
 version = "7.0.0"
 source = { editable = "packages/xtr-clock" }
-dependencies = [
-    { name = "anyio" },
-]
 
 [package.optional-dependencies]
 tzdata = [
@@ -4453,29 +4416,26 @@ tzdata = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "anyio" },
     { name = "basedpyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
-    { name = "trio" },
     { name = "ty" },
     { name = "xtr-dependency-injection" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "anyio", specifier = ">=4.10" },
-    { name = "tzdata", marker = "extra == 'tzdata'", specifier = ">=2024.1" },
-]
+requires-dist = [{ name = "tzdata", marker = "extra == 'tzdata'", specifier = ">=2024.1" }]
 provides-extras = ["tzdata"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "anyio", specifier = ">=4.10" },
     { name = "basedpyright", specifier = ">=1.31.7" },
     { name = "pytest", specifier = ">=8.4" },
     { name = "pytest-cov", specifier = ">=7.1" },
     { name = "ruff", specifier = ">=0.14.7" },
-    { name = "trio", specifier = ">=0.32" },
     { name = "ty", specifier = ">=0.0.83" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
 ]
@@ -4487,11 +4447,6 @@ source = { editable = "packages/xtr-console" }
 dependencies = [
     { name = "cyclopts" },
     { name = "rich" },
-]
-
-[package.optional-dependencies]
-trio = [
-    { name = "cyclopts", extra = ["trio"] },
 ]
 
 [package.dev-dependencies]
@@ -4511,10 +4466,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cyclopts", specifier = ">=5.0,<6" },
-    { name = "cyclopts", extras = ["trio"], marker = "extra == 'trio'", specifier = ">=5.0,<6" },
     { name = "rich", specifier = ">=15.0" },
 ]
-provides-extras = ["trio"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4581,7 +4534,6 @@ name = "xtr-dotenv"
 version = "7.0.0"
 source = { editable = "packages/xtr-dotenv" }
 dependencies = [
-    { name = "anyio" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
 ]
@@ -4600,7 +4552,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anyio", specifier = ">=4.10" },
     { name = "pydantic-settings", specifier = ">=2.12,<3" },
     { name = "python-dotenv", specifier = ">=1.2.2,<2" },
 ]
@@ -4701,8 +4652,8 @@ name = "xtr-http-client"
 version = "7.0.0"
 source = { editable = "packages/xtr-http-client" }
 dependencies = [
-    { name = "anyio" },
     { name = "httpx" },
+    { name = "idna" },
     { name = "xtr-http-client-contracts" },
     { name = "xtr-http-message" },
     { name = "xtr-http-message-contracts" },
@@ -4734,9 +4685,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anyio", specifier = ">=4.10" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", extras = ["http2"], marker = "extra == 'http2'", specifier = ">=0.27" },
+    { name = "idna", specifier = ">=3.11" },
     { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },
@@ -5954,7 +5905,6 @@ name = "xtr-security-http"
 version = "7.0.0"
 source = { editable = "packages/xtr-security-http" }
 dependencies = [
-    { name = "anyio" },
     { name = "fastapi" },
     { name = "starlette" },
     { name = "xtr-cache-contracts" },
@@ -5995,7 +5945,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anyio", specifier = ">=4.10" },
     { name = "fastapi", specifier = ">=0.143.1" },
     { name = "joserfc", marker = "extra == 'oidc'", specifier = ">=1.7" },
     { name = "starlette", specifier = ">=1.6" },
@@ -6095,7 +6044,6 @@ name = "xtr-security-oauth2-server"
 version = "7.0.0"
 source = { editable = "packages/xtr-security-oauth2-server" }
 dependencies = [
-    { name = "anyio" },
     { name = "fastapi" },
     { name = "joserfc" },
     { name = "python-multipart" },
@@ -6117,6 +6065,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "aiosqlite" },
+    { name = "anyio" },
     { name = "basedpyright" },
     { name = "httpx" },
     { name = "pytest" },
@@ -6130,7 +6079,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anyio", specifier = ">=4.10" },
     { name = "fastapi", specifier = ">=0.143.1" },
     { name = "joserfc", specifier = ">=1.7" },
     { name = "python-multipart", specifier = ">=0.0.21" },
@@ -6152,6 +6100,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "aiosqlite", specifier = ">=0.20" },
+    { name = "anyio", specifier = ">=4.10" },
     { name = "basedpyright", specifier = ">=1.31.7" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", specifier = ">=8.4" },

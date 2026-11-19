@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from typing import TYPE_CHECKING, final, override
 
-import anyio.to_thread
 from xtr_password_hasher import (
     PasswordHasherInterface,  # noqa: TC002 -- container hydrates this constructor at runtime
 )
@@ -96,7 +96,7 @@ class ClientRepository(ClientRepositoryInterface):
 
         stored = client.get_secret() or ""
         presented = client_secret or ""
-        proved = await anyio.to_thread.run_sync(
+        proved = await asyncio.to_thread(
             self._password_hasher.verify,
             stored,
             presented,
@@ -113,7 +113,7 @@ class ClientRepository(ClientRepositoryInterface):
         verified, so refusing the request would punish a client for a storage
         problem it cannot see, and the next successful proof will try again.
         """
-        fresh = await anyio.to_thread.run_sync(self._password_hasher.hash, presented)
+        fresh = await asyncio.to_thread(self._password_hasher.hash, presented)
         client.set_secret(fresh)
         with contextlib.suppress(Exception):
             await self._client_manager.save(client)

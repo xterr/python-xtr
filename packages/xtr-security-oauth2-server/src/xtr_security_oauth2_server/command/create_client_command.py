@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import secrets
 from typing import TYPE_CHECKING, Annotated, Final, final
 
-import anyio.to_thread
 from xtr_console import Argument, ConsoleStyle, ExitCode, Option, as_command, escape
 from xtr_dependency_injection import Target
 from xtr_password_hasher import (
@@ -165,7 +165,7 @@ class CreateClientCommand:
         if await self._client_manager.find(identifier) is not None:
             raise ClientAlreadyRegisteredError(identifier)
         if plain is not None:
-            client.set_secret(await anyio.to_thread.run_sync(self._password_hasher.hash, plain))
+            client.set_secret(await asyncio.to_thread(self._password_hasher.hash, plain))
         await self._client_manager.save(client)
 
         return identifier

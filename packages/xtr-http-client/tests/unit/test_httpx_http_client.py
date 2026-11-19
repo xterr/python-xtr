@@ -13,7 +13,6 @@ from xtr_http_client.exception import InvalidArgumentError, TransportTimeoutErro
 from xtr_http_client.httpx_http_client import (
     _basic_credentials,
     _hops,
-    _reachable,
     _seconds,
 )
 from xtr_http_client.internal.httpx_clients import _key
@@ -36,24 +35,6 @@ def _answering(client: HttpxHttpClient, handler: _Handler) -> None:
         transport=httpx.MockTransport(handler),
         follow_redirects=False,
     )
-
-
-# ── the URL a request is made to ────────────────────────────────────────────
-
-
-def test_a_host_named_in_another_script_is_rewritten_to_the_form_that_reaches_it() -> None:
-    assert _reachable("http://Bücher.example:8057/") == "http://xn--bcher-kva.example:8057/"
-
-
-def test_an_ascii_url_is_left_exactly_as_it_was_given() -> None:
-    assert _reachable("http://foo:b%3Dar@localhost:8057/a?b=c") == (
-        "http://foo:b%3Dar@localhost:8057/a?b=c"
-    )
-
-
-def test_a_host_no_name_server_could_hold_is_refused() -> None:
-    with pytest.raises(InvalidArgumentError, match="for "):
-        _ = _reachable("http://" + "ü" * 100 + ".example/")
 
 
 # ── the credentials sent ────────────────────────────────────────────────────

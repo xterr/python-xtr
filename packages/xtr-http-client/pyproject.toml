@@ -18,11 +18,11 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
     "Typing :: Typed",
 ]
-# `anyio` for the deadlines and task groups a streamed transfer is driven by;
-# `httpx` for the one backend that opens the connections, named nowhere else.
+# `httpx` for the one backend that opens the connections, named nowhere else;
+# `idna` for the IDNA 2008 form a host is resolved by.
 dependencies = [
-    "anyio>=4.10",
     "httpx>=0.27",
+    "idna>=3.11",
     "xtr-http-client-contracts>=7.0,<8",
     "xtr-http-message>=7.0,<8",
     "xtr-http-message-contracts>=7.0,<8",

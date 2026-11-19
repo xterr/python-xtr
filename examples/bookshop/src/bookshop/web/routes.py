@@ -22,10 +22,10 @@ Rate limits, each a limiter of ``config/packages/rate_limiter.py`` — every way
 
 from __future__ import annotations
 
+import asyncio
 from http import HTTPStatus
 from typing import Annotated, ClassVar
 
-import anyio
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
 from xtr_dependency_injection import Autowire, Injected, KernelInterface, Target
@@ -218,7 +218,7 @@ async def issue_token(
     if isinstance(loaded, InMemoryUser):
         user = loaded
     probe = user if user is not None else InMemoryUser("__unknown__", password=_DUMMY_HASH)
-    valid = await anyio.to_thread.run_sync(hasher.is_password_valid, probe, body.password)
+    valid = await asyncio.to_thread(hasher.is_password_valid, probe, body.password)
     if user is None or not valid:
         raise AuthenticationCredentialsNotFoundError("Bad credentials.")
     return {"access_token": await tokens.create(user), "token_type": "bearer"}

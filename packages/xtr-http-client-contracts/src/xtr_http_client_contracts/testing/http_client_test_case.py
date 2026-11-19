@@ -114,6 +114,7 @@ Eleven tests are the contract's own additions, with nothing behind them in the r
 
 from __future__ import annotations
 
+import asyncio
 import gzip
 import io
 import json
@@ -122,7 +123,6 @@ import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, ClassVar, Protocol, cast
 
-import anyio
 import pytest
 from xtr_http_message import Request
 
@@ -704,7 +704,7 @@ class HttpClientTestCase:
         """The timeout is how long a transfer may go quiet for, not how long it may take."""
         client = self.create_client()
         response = await client.request("GET", f"{self.base_uri}/timeout-header", timeout=0.9)
-        await anyio.sleep(1)
+        await asyncio.sleep(1)
         assert response.get_status_code() == 200
 
     async def test_timeout_on_access(self) -> None:
@@ -716,7 +716,7 @@ class HttpClientTestCase:
 
     async def test_timeout_is_not_a_fatal_error(self) -> None:
         """A transfer that timed out mid-body carries on being read."""
-        await anyio.sleep(0.3)  # let the previous test release the server
+        await asyncio.sleep(0.3)  # let the previous test release the server
         client = self.create_client()
         response = await client.request("GET", f"{self.base_uri}/timeout-body", timeout=0.25)
 
@@ -767,9 +767,12 @@ class HttpClientTestCase:
             client = self.create_client()
             start = time.monotonic()
 
-            async with anyio.create_task_group() as requests:
+            async with asyncio.TaskGroup() as requests:
                 for port in (first.port, second.port, first.port, second.port):
-                    _ = requests.start_soon(self._expect_timeout, client, port)
+                    # The current context is right: it is the test's own, never a unit of work,
+                    # and the four requests end with the task group.
+                    # ast-grep-ignore: task-without-context
+                    _ = requests.create_task(self._expect_timeout(client, port))
 
             assert time.monotonic() - start < 1.0
         finally:

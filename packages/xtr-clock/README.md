@@ -5,7 +5,7 @@
 **A clock an application can be handed, instead of the one it is standing on.**
 
 <img alt="python 3.14+" src="https://img.shields.io/badge/python-%E2%89%A5%203.14-3776AB?logo=python&logoColor=white">
-<img alt="core dependencies: 1" src="https://img.shields.io/badge/core%20deps-1-3FB950">
+<img alt="core dependencies: 0" src="https://img.shields.io/badge/core%20deps-0-3FB950">
 <img alt="statements 100%" src="https://img.shields.io/badge/statements-100%25-3FB950">
 <img alt="typed" src="https://img.shields.io/badge/typed-ty%20%2B%20basedpyright-1f6feb">
 <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -24,9 +24,8 @@ Take a **clock** as a constructor argument and the choice becomes configuration:
 clock in production, a frozen one in a test. What comes back is a **`DatePoint`** — a
 `datetime`, so nothing downstream has to change.
 
-- 🪶 **One dependency.** `anyio`, so an awaitable wait is not tied to one async backend.
-  `zoneinfo`, `contextvars` and `datetime`
-  are already there, and the container the bundle plugs into is not a dependency at all.
+- 🪶 **No dependencies.** `asyncio`, `zoneinfo`, `contextvars` and `datetime` are already
+  there, and the container the bundle plugs into is not a dependency at all.
 - 🕐 **A `DatePoint` is a `datetime`.** It drops into an ORM column, a serializer, a comparison,
   an existing signature. Adopting this library changes no type you already have.
 - 🧭 **Always timezone-aware.** There is no such thing here as an instant whose offset is
@@ -34,8 +33,7 @@ clock in production, a frozen one in a test. What comes back is a **`DatePoint`*
 - ⏱️ **Frozen time costs nothing.** `clock.sleep(86400)` returns immediately and the clock is a
   day later.
 - 🔀 **Blocking or awaiting.** `sleep()` and `sleep_async()` on the same clock, so one contract
-  serves a worker and a web handler — and the awaitable one waits through anyio, so asyncio and
-  trio both get a clock they can use.
+  serves a worker and a web handler.
 - 🧩 **Protocol-based.** Every collaborator is a constructor argument, so a DI container can own
   the graph — and a clock from another library satisfies `SupportsNow` as it is.
 
@@ -55,7 +53,7 @@ uv add xtr-clock xtr-dependency-injection  # + the container, for the ClockBundl
 
 | Extra | Brings | For |
 | --- | --- | --- |
-| *(none)* | `anyio` | The whole library |
+| *(none)* | nothing | The whole library |
 | `tzdata` | `tzdata` | Windows, and slim containers that ship no zone database |
 
 Requires Python 3.14.4+. The container is not a dependency: the bundle is used when
@@ -531,8 +529,7 @@ the tests too, with nothing suppressed.
 The suite mirrors the source tree: `tests/unit/` holds a `test_<module>.py` for each module,
 testing it alone; `tests/integration/` holds what needs a fresh interpreter — that the fixture
 is invisible until a suite opts in, and that importing the library pulls in nothing but the
-standard library and `anyio`. The awaitable waits run on asyncio and, when the checkout has it,
-on trio. Statement coverage is 100% — the figure the badge shows — measured with `coverage run`
+standard library. Statement coverage is 100% — the figure the badge shows — measured with `coverage run`
 rather than `pytest --cov`, which starts too late to see a module's import. The report's own
 total reads 99%, since it counts branches too and one of them stays partial.
 

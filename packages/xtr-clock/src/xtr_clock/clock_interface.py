@@ -65,9 +65,7 @@ class ClockInterface(SupportsNow, Protocol):
     async def sleep_async(self, seconds: float) -> None:
         """Wait ``seconds`` without blocking the event loop.
 
-        A value of zero or less returns immediately. Implementations wait
-        through anyio, so a clock is usable on whichever async backend the
-        application runs on.
+        A value of zero or less returns immediately.
         """
         ...
 

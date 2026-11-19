@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from functools import partial
 from typing import TYPE_CHECKING, Annotated, Final, final
 
-import anyio.to_thread
 from xtr_console import Argument, ConsoleStyle, ExitCode, Option, as_command, escape
 from xtr_security_jwt.services.key_loader import generate_signing_key
 from xtr_security_oauth2_server_core.exception.invalid_argument_error import InvalidArgumentError
@@ -198,7 +198,7 @@ async def _written(
         written.append((public_path, public_pem, PUBLIC_MODE))
     try:
         for path, text, mode in written:
-            await anyio.to_thread.run_sync(partial(write_key_file, path, text, mode))
+            await asyncio.to_thread(partial(write_key_file, path, text, mode))
     except InvalidArgumentError as error:
         io.error(escape(str(error)))
 

@@ -304,8 +304,8 @@ Inject `UserPasswordHasherInterface`; it reads the stored hash off the user itse
 
 ```python
 # in an async service, hashing is CPU-bound: never run it on the event loop
-user.password = await anyio.to_thread.run_sync(hasher.hash_password, user, plain_password)
-ok = await anyio.to_thread.run_sync(hasher.is_password_valid, user, attempt)
+user.password = await asyncio.to_thread(hasher.hash_password, user, plain_password)
+ok = await asyncio.to_thread(hasher.is_password_valid, user, attempt)
 stale = hasher.needs_rehash(user)  # re-store right after a successful check
 ```
 
@@ -405,7 +405,7 @@ into the right status and challenge.
   firewall's job: write a token handler or an authenticator instead.
 - Do not build `TokenStorage`, `AuthorizationChecker`, `AccessDecisionManager` or
   `PasswordHasherFactory` by hand — the bundle registers each; inject it.
-- Do not call a hasher on the event loop; wrap it in `anyio.to_thread.run_sync`.
+- Do not call a hasher on the event loop; wrap it in `asyncio.to_thread`.
 - Do not store a plaintext password, and do not use `PlaintextHasherConfig()` outside a test.
 - Do not depend on a scoped security service from a singleton; take it as an argument.
 - Do not make a user provider or a user checker a singleton to satisfy the container: one of the

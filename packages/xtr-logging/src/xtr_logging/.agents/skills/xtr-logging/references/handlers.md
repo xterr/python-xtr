@@ -64,7 +64,7 @@ A processor is any callable `(LogRecord) -> LogRecord`. `ProcessorInterface` is 
 
 Ambient context: `bind_context(values)`, `unbind_context(*keys)`, `clear_context()`,
 `current_context()`, and `bound_context(values)` as a context manager. It lives in a context
-variable, so it is separate per thread and per asyncio or anyio task. What is bound during a
+variable, so it is separate per thread and per asyncio task. What is bound during a
 unit of work is bound for that unit — gone when it ends or when another unit begins in a
 context still carrying it; what is bound outside any unit lasts. `clear_context()` inside a
 unit drops only the unit's own values; outside one it drops everything.

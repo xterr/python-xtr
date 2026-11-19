@@ -52,12 +52,12 @@ An `AuthorizationServer` issuing a token to a service by client credentials, and
 `ResourceServer` reading it back — built from constructors, over stores written here in memory.
 
 ```python
+import asyncio
 import json
 import secrets
 from collections.abc import Sequence
 from datetime import timedelta
 
-import anyio
 from xtr_clock import SystemClock
 from xtr_event_dispatcher import EventDispatcher
 from xtr_http_message import Response, ServerRequest
@@ -222,7 +222,7 @@ async def main() -> None:
     print(read.get_attribute("oauth_client_id"), read.get_attribute("oauth_scopes"))
 
 
-anyio.run(main)
+asyncio.run(main())
 ```
 
 ```console

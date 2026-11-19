@@ -196,9 +196,9 @@ request before the endpoint calls `await posted_form_as_query(request)`
 ## Register and administer clients
 
 ```python
+import asyncio
 from typing import Annotated
 
-import anyio.to_thread
 from xtr_dependency_injection import Injected, Target, on_boot
 from xtr_password_hasher import PasswordHasherInterface
 from xtr_security_oauth2_server.manager.client_manager_interface import ClientManagerInterface
@@ -213,7 +213,7 @@ async def register_demo_clients(
     clients: Injected[ClientManagerInterface],
     hasher: Annotated[PasswordHasherInterface, Target("oauth2_server")],
 ) -> None:
-    billing = Client("Billing", "billing", await anyio.to_thread.run_sync(hasher.hash, "s3cret"))
+    billing = Client("Billing", "billing", await asyncio.to_thread(hasher.hash, "s3cret"))
     _ = billing.set_grants(Grant("client_credentials")).set_scopes(Scope("invoices:read"))
     dashboard = Client("Dashboard", "dashboard", None)  # public: it holds no secret
     _ = dashboard.set_grants(Grant("authorization_code"), Grant("refresh_token"))

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Self, final, override
-
-from anyio.lowlevel import checkpoint
 
 from .date_point import DatePoint
 from .timezone import resolve_timezone
@@ -100,14 +99,11 @@ class MockClock:
         Nothing is waited for, but control is handed back once so the tasks
         that were waiting on this clock get their turn — which is the whole
         behaviour a test of concurrent code is trying to observe.
-
-        The yield goes through anyio, so this works on whichever async
-        backend the test runs on rather than only on asyncio.
         """
         if seconds > 0:
             self._advance(seconds)
 
-        await checkpoint()
+        await asyncio.sleep(0)
 
     def modify(self, modifier: str) -> None:
         """Move to wherever ``modifier`` points, relative to right here.

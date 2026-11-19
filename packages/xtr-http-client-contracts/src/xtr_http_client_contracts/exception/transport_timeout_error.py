@@ -20,8 +20,7 @@ class TransportTimeoutError(  # pyright: ignore[reportUnsafeMultipleInheritance]
     whole transfer outlasts ``max_duration``, or when connecting outlasts
     ``max_connect_duration``.
 
-    Also a :class:`TimeoutError`, which is what every async library in the
-    standard library raises and what ``anyio`` cancel scopes turn a deadline
-    into, so code that already gives up on a timeout keeps working without
-    learning a new exception.
+    Also a :class:`TimeoutError`, which is what the standard library raises
+    and what ``asyncio.timeout`` turns a deadline into, so code that already
+    gives up on a timeout keeps working without learning a new exception.
     """

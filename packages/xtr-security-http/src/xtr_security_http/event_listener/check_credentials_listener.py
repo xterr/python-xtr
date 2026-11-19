@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, final, override
 
-import anyio.to_thread
 from xtr_event_dispatcher import EventSubscriberInterface
 from xtr_password_hasher import PasswordAuthenticatedUserInterface
 from xtr_security_core.exception import BadCredentialsError, UserNotFoundError
@@ -139,7 +139,7 @@ class CheckCredentialsListener(EventSubscriberInterface):
         if user.get_password() is None:
             await self._burn_dummy(plaintext)
             raise BadCredentialsError("The presented credentials are invalid.")
-        valid = await anyio.to_thread.run_sync(self._hasher.is_password_valid, user, plaintext)
+        valid = await asyncio.to_thread(self._hasher.is_password_valid, user, plaintext)
         if not valid:
             raise BadCredentialsError("The presented credentials are invalid.")
         credentials.mark_resolved()
@@ -148,4 +148,4 @@ class CheckCredentialsListener(EventSubscriberInterface):
 
     async def _burn_dummy(self, plaintext: str) -> None:
         """Verify a throwaway hash, so an unknown user costs the same as a wrong password."""
-        _ = await anyio.to_thread.run_sync(self._dummy_hasher.verify, self._dummy_hash, plaintext)
+        _ = await asyncio.to_thread(self._dummy_hasher.verify, self._dummy_hash, plaintext)

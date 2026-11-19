@@ -7,12 +7,13 @@ current unit, not to the process and not to the handler instance shared between
 units.
 
 A unit lives in a :class:`~contextvars.ContextVar`, so it is copied into each
-thread and each :mod:`asyncio` or :mod:`anyio` task: two requests handled at
+thread and each :mod:`asyncio` task: two requests handled at
 once keep their own units with no lock and no leakage. The unit *object* is
 shared by every context copied from the one that opened it, so state kept on it
 is mutated **in place** and the change is seen everywhere — a synchronous
-endpoint anyio runs in a copied context (its own ``context.run``) can enrich the
-same unit, whereas a :meth:`~contextvars.ContextVar.set` there would be lost.
+endpoint the web framework runs in a copied context (its own ``context.run``)
+can enrich the same unit, whereas a :meth:`~contextvars.ContextVar.set` there
+would be lost.
 
 :func:`begin_unit` and :func:`end_unit` are called at the edges of a unit — by
 whatever opens it (a request lifecycle, a message worker) — never from a handler,

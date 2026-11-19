@@ -1,0 +1,32 @@
+rules:
+  - id: no-anyio
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Library code runs on asyncio alone: use the standard library (asyncio.sleep,
+      asyncio.timeout / timeout_at, asyncio.to_thread, asyncio.TaskGroup, loop.getaddrinfo,
+      asyncio.CancelledError) instead of anyio.
+      anyio is allowed only where a third-party API takes or returns anyio objects and has no
+      asyncio equivalent, and only once a human has agreed to it. Then put the reason in a
+      comment on the line above and mark the import with `# nosemgrep: no-anyio`, and declare
+      anyio among the package's runtime dependencies.
+    metadata:
+      rationale: See "Async — hard rule" in AGENTS.md.
+    paths:
+      include:
+        - "/packages/*/src/**/*.py"
+        - "/lint/semgrep/no-anyio.py"
+    pattern-either:
+      - pattern: import anyio
+      - pattern: import anyio.$SUB
+      - pattern: import anyio as $ALIAS
+      - pattern: import anyio.$SUB as $ALIAS
+      - pattern: from anyio import $NAME
+      - pattern: from anyio.$SUB import $NAME
+      - patterns:
+          - pattern-either:
+              - pattern: importlib.import_module("$MODULE", ...)
+              - pattern: __import__("$MODULE", ...)
+          - metavariable-regex:
+              metavariable: $MODULE
+              regex: ^anyio(\..+)?$

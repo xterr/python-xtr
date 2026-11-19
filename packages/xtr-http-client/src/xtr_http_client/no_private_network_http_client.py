@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import socket
 from collections.abc import Mapping
 from io import BytesIO
@@ -9,13 +10,14 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Final, Unpack, cast, final, override
 from urllib.parse import urljoin
 
-import anyio
+import idna
 from xtr_http_client_contracts import HttpClientInterface
 from xtr_http_message import Request, Stream, Uri
 from xtr_service_contracts import ResetInterface
 
 from .exception import InvalidArgumentError, LogicError, TransportError
 from .internal.option_merge import as_options
+from .internal.reachable_url import reachable_url
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
@@ -126,7 +128,7 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
             TransportError: When the host is, or resolves to, a refused
                 address, and when no answer came.
         """
-        return await self.send_request(Request(method, url), **options)
+        return await self.send_request(Request(method, reachable_url(url)), **options)
 
     @override
     async def send_request(
@@ -307,10 +309,29 @@ def _ip_utils() -> type[IpUtils]:
 
 
 async def _getaddrinfo(host: str, port: int) -> Sequence[str]:
-    """Every address the platform's resolver gives for ``host`` at ``port``."""
-    resolved = await anyio.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    """Every address the platform's resolver gives for ``host`` at ``port``.
 
-    return [str(sockaddr[0]) for *_, sockaddr in resolved]
+    An answer carrying no text address — an IPv6 one, on an interpreter built
+    without IPv6 — names nothing a connection could reach, and is left out.
+    """
+    loop = asyncio.get_running_loop()
+    resolved = await loop.getaddrinfo(_ascii_host(host), port, type=socket.SOCK_STREAM)
+
+    return [sockaddr[0] for *_, sockaddr in resolved if isinstance(sockaddr[0], str)]
+
+
+def _ascii_host(host: str) -> bytes:
+    """``host`` as the resolver is asked for it.
+
+    A host named in another script is encoded by IDNA 2008, with the UTS #46
+    mapping, rather than by the older IDNA 2003 the standard library's codec
+    writes: the two disagree on some names, and the address checked must be
+    the one the connection reaches.
+    """
+    try:
+        return host.encode("ascii")
+    except UnicodeEncodeError:
+        return idna.encode(host, uts46=True)
 
 
 def _absolute(request: RequestInterface, base: object) -> RequestInterface:

@@ -72,7 +72,7 @@ from. The in-memory adapter keeps files in a dictionary — nothing to clean up 
 and the local adapter keeps them under a directory, created on first write:
 
 ```python
-import anyio
+import asyncio
 
 from xtr_storage import InMemoryAdapter, LocalAdapter, Storage, Visibility
 
@@ -100,7 +100,7 @@ async def main() -> None:
     await disk.close()
 
 
-anyio.run(main)
+asyncio.run(main())
 ```
 
 A call's own options are laid over the storage's standing defaults for that call

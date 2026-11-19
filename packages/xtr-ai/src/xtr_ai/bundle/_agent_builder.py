@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import anyio
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import AbstractCapability, ModelFallback, ResolveModelId
 
@@ -64,7 +65,9 @@ async def build_agent(  # noqa: PLR0913 — an agent's configuration and every s
             )
     instructions = config.instructions
     if config.instructions_file is not None:
-        instructions = await anyio.Path(config.instructions_file).read_text(encoding="utf-8")
+        instructions = await asyncio.to_thread(
+            Path(config.instructions_file).read_text, encoding="utf-8"
+        )
     # Instructions go beside the declarative part, not in it: pydantic-ai reads instructions
     # written there as templates, and a prompt quoting ``{{ ... }}`` would fail to build.
     definition: dict[str, Any] = {

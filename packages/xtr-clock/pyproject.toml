@@ -17,9 +17,7 @@ classifiers = [
     "Topic :: Software Development :: Testing",
     "Typing :: Typed",
 ]
-dependencies = [
-    "anyio>=4.10",
-]
+dependencies = []
 
 [project.optional-dependencies]
 tzdata = [
@@ -46,7 +44,7 @@ dev = [
     "ruff>=0.14.7",
     "pytest>=8.4",
     "pytest-cov>=7.1",
-    "trio>=0.32",
+    "anyio>=4.10",
     "ty>=0.0.83",
     "xtr-dependency-injection>=7.0,<8",
 ]
