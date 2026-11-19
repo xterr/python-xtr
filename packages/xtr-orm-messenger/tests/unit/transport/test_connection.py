@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
@@ -301,11 +302,18 @@ async def test_ping_tells_whether_the_database_answers(
     unreachable = create_async_engine(
         f"sqlite+aiosqlite:///{tmp_path_factory.mktemp('gone') / 'missing' / 'db.sqlite'}"
     )
+    started: set[threading.Thread] = set()
     try:
         assert await connection_on(engine, clock).ping()
+        started = set(threading.enumerate())
         assert not await connection_on(unreachable, clock).ping()
     finally:
         await unreachable.dispose()
+        # aiosqlite stops the worker thread of a connection that failed to open without
+        # waiting for it; finishing after this test's event loop closed, the thread would
+        # raise in a later test. Waited for here, it answers a loop still running.
+        for thread in set(threading.enumerate()) - started:
+            await asyncio.to_thread(thread.join, 5)
 
 
 async def test_off_postgresql_a_worker_waits_its_poll_interval(
