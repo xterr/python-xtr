@@ -75,7 +75,7 @@ TransportConfig(
 | Queue | `queue`, `queue_type`, `queue_durable`, `queue_auto_delete`, `queue_exclusive`, `queue_max_priority`, `routing_key` |
 | Connection | `heartbeat`, `connect_timeout`, `connection_name`, `frame_max`, `channel_max` |
 | TLS | `cacert`, `cert`, `key`, `verify` |
-| Consumption | `prefetch_count`, `max_async_tasks`, `auto_setup`, `delayed_message_exchange_plugin` |
+| Consumption | `prefetch_count`, `max_async_tasks`, `auto_setup`, `delay` |
 
 `max_async_tasks` is how many messages a worker handles at once: ten per CPU, capped at 100,
 unless set. A message is acked once handled, so `prefetch_count` (10 by default) caps it too —
@@ -83,13 +83,18 @@ a worker handles the smaller of the two at once. Raise both together to go wider
 Each message handled at once may hold a database connection; keep that number within the
 pool's size, or the extra handlers wait for a connection.
 
-Delays — a `DelayStamp`, and the retry ladder's backoff — ride RabbitMQ's delayed-message
-exchange, which needs the **`rabbitmq_delayed_message_exchange` plugin** enabled on the broker
-(`rabbitmq-plugins enable rabbitmq_delayed_message_exchange`). That is what
-`delayed_message_exchange_plugin` (on by default) declares. On a broker without the plugin set
-it to `false`: a delayed send is then refused with `UnsupportedStampError` rather than
-published without its delay — and pair it with `max_attempts=1`, because the retry ladder's
-backoff has nowhere to ride either.
+Delays — a `DelayStamp`, and the retry ladder's backoff — are held back as `delay` says, and
+need no plugin by default:
+
+| `delay` | How a delayed message waits |
+| --- | --- |
+| `auto` (default) | Settled once connected: `native` on RabbitMQ 4.4 and later when the queues are quorum queues, else `queue` |
+| `native` | In its own queue, released at the `x-opt-delivery-time` it is sent with; quorum queues of RabbitMQ 4.4 and later only, refused for another `queue_type` |
+| `queue` | In a queue of its own for that delay — `<exchange>.delay.<routing key>.<ms>`, with that TTL — which dead-letters it back to its exchange and routing key; works on any RabbitMQ. The queue is declared as a message is delayed, `auto_setup` or not, and deletes itself 10 s after its last use |
+| `plugin` | Through the delayed-message exchange of the `rabbitmq_delayed_message_exchange` plugin, which must be enabled on the broker |
+
+`delayed_message_exchange_plugin`, the setting this replaced, still reads when `delay` is not
+given: `true` is `delay=plugin`, `false` is `delay=auto`.
 
 The TLS settings belong to `amqps://` and are refused on plain `amqp://`, where the driver
 would silently ignore them. `verify=false` is warned about once per factory — a notice, not a
@@ -166,11 +171,10 @@ undoes. It ships no bundle: the message bus finds its factory by the DSN scheme.
   [*Use in an application*](../xtr-messenger/README.md#use-in-an-application) says.
 - **Recipe** — `uv run xtr-recipes recipes:sync` writes nothing: there is no bundle to list, no
   configuration file, environment variable or ignore line. The messenger's own recipe writes
-  `MESSENGER_DSN`, a RabbitMQ one. It prints the step enabling the delayed-message plugin, which
-  a recipe cannot make for you.
+  `MESSENGER_DSN`, a RabbitMQ one.
 - **Configure** — name `amqp://` transports in `<app>/config/packages/messenger.py` and route
-  messages to them; enable the `rabbitmq_delayed_message_exchange` plugin on the broker, or add
-  `delayed_message_exchange_plugin=false` to the DSN.
+  messages to them. Delays need nothing on the broker; `delay=plugin` uses the
+  `rabbitmq_delayed_message_exchange` plugin where it is enabled.
 - **Run** — a worker is `<script> messenger:consume <transport>`.
 - **Remove** — drop the `amqp://` transports and the routing to them, then
   `uv remove xtr-amqp-messenger`.
@@ -183,7 +187,6 @@ Everything raised derives from xtr-messenger's `MessageBusError`:
 | Error | Raised when |
 | --- | --- |
 | `UnknownTransportOptionError`, `InvalidTransportOptionError` | A setting is not accepted, or its value is not usable |
-| `UnsupportedStampError` | A delayed message is sent with `delayed_message_exchange_plugin=false` |
 | `MixedDsnError` | One worker is asked to serve transports on two servers |
 | `MissingSerializerError` | The factory is discovered with no envelope serializer to build it with |
 

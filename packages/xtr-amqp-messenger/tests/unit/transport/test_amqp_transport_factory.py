@@ -306,15 +306,16 @@ async def test_the_worker_resets_services_after_each_message() -> None:
     assert len(bus.dispatched) == 1
 
 
-def test_with_the_delay_plugin_off_senders_refuse_a_delay() -> None:
+def test_with_the_delay_plugin_off_senders_still_accept_a_delay() -> None:
+    """Without the plugin a delay is held back natively or in a delay queue."""
     group = {"q": TransportConfig(f"{_HOST}?queue=jobs&delayed_message_exchange_plugin=false")}
 
     sender = _sender(AmqpTransportFactory(json_serializer()).create(group)["q"])
 
-    assert sender._supports_delay is False  # pyright: ignore[reportPrivateUsage] -- no public accessor
+    assert sender._supports_delay is True  # pyright: ignore[reportPrivateUsage] -- no public accessor
 
 
-def test_with_the_delay_plugin_on_senders_accept_a_delay() -> None:
+def test_by_default_senders_accept_a_delay() -> None:
     sender = _sender(AmqpTransportFactory(json_serializer()).create(_group())["high"])
 
     assert sender._supports_delay is True  # pyright: ignore[reportPrivateUsage] -- no public accessor

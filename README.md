@@ -146,6 +146,7 @@ graph LR
     ormmessenger --> clock
     messenger -. optional .-> ormmessenger
     amqpmessenger[xtr-amqp-messenger] --> messenger
+    amqpmessenger --> clock
     messenger -. optional .-> amqpmessenger
     ai[xtr-ai] --> clock
     ai --> logcon

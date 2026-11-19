@@ -19,6 +19,7 @@ from xtr_amqp_messenger.transport.amqp_broker import create_amqp_broker, declare
 from xtr_amqp_messenger.transport.amqp_options import AmqpOptions
 from xtr_amqp_messenger.transport.connection_options import ConnectionOptions
 from xtr_amqp_messenger.transport.dead_letter_middleware import DeadLetterMiddleware
+from xtr_amqp_messenger.transport.delaying_broker import DelayingBroker
 from xtr_amqp_messenger.transport.exchange_options import ExchangeOptions
 from xtr_amqp_messenger.transport.reliability import Reliability
 
@@ -141,19 +142,21 @@ def test_without_a_connect_timeout_the_connect_call_gets_none() -> None:
     assert broker._conn_kwargs["timeout"] is None
 
 
-def test_the_delayed_message_exchange_plugin_is_on_by_default() -> None:
-    """A DelayStamp rides the delayed-message exchange, so the broker is
-    built expecting the plugin unless told otherwise."""
+def test_by_default_the_broker_needs_no_plugin_to_delay() -> None:
+    """How to delay is settled once connected, from the server's version, so
+    nothing is built expecting the plugin a stock RabbitMQ does not have."""
     broker = create_amqp_broker(_HOST)
+
+    assert isinstance(broker, DelayingBroker)
+    assert broker.delay == "auto"
+    assert broker._delayed_message_exchange_plugin is False
+
+
+def test_the_delayed_message_exchange_plugin_can_be_chosen() -> None:
+    broker = create_amqp_broker(_HOST, AmqpOptions(delay="plugin"))
 
     assert broker._delayed_message_exchange_plugin is True
     assert broker._delayed_message_exchange.declare is True
-
-
-def test_the_delayed_message_exchange_plugin_can_be_turned_off() -> None:
-    broker = create_amqp_broker(_HOST, AmqpOptions(delayed_message_exchange_plugin=False))
-
-    assert broker._delayed_message_exchange_plugin is False
 
 
 def test_without_auto_setup_nothing_is_declared() -> None:
@@ -163,7 +166,7 @@ def test_without_auto_setup_nothing_is_declared() -> None:
     failure at startup."""
     broker = create_amqp_broker(
         _HOST,
-        AmqpOptions(auto_setup=False),
+        AmqpOptions(auto_setup=False, delay="plugin"),
         queues=["jobs"],
     )
 

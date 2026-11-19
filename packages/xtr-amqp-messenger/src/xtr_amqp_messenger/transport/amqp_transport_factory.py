@@ -113,7 +113,6 @@ class AmqpTransportFactory(
                 self._started,
                 self._serializer,
                 queue=transport.queue_name if queues else None,
-                supports_delay=options.delayed_message_exchange_plugin,
             )
             for name, transport in group.items()
         }

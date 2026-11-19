@@ -16,7 +16,7 @@ def test_the_defaults() -> None:
     assert options.prefetch_count == 10
     assert options.max_async_tasks == default_max_async_tasks()
     assert options.auto_setup is True
-    assert options.delayed_message_exchange_plugin is True
+    assert options.delay == "auto"
     assert options.reliability == Reliability()
 
 
@@ -25,6 +25,7 @@ def test_the_option_list_names_every_group() -> None:
         "prefetch_count",
         "max_async_tasks",
         "auto_setup",
+        "delay",
         "delayed_message_exchange_plugin",
         "max_attempts",
         "exchange",
@@ -99,10 +100,34 @@ def test_auto_setup_must_be_a_boolean() -> None:
         _ = AmqpOptions.from_settings({"auto_setup": "yes"})
 
 
-def test_the_delay_plugin_is_read_from_the_settings() -> None:
-    options = AmqpOptions.from_settings({"delayed_message_exchange_plugin": "false"})
+@pytest.mark.parametrize("delay", ["auto", "native", "plugin", "queue"])
+def test_the_delay_is_read_from_the_settings(delay: str) -> None:
+    assert AmqpOptions.from_settings({"delay": delay}).delay == delay
 
-    assert options.delayed_message_exchange_plugin is False
+
+@pytest.mark.parametrize(("plugin", "delay"), [("true", "plugin"), ("false", "auto")])
+def test_the_plugin_setting_still_chooses_how_to_delay(plugin: str, delay: str) -> None:
+    options = AmqpOptions.from_settings({"delayed_message_exchange_plugin": plugin})
+
+    assert options.delay == delay
+
+
+def test_the_delay_setting_wins_over_the_plugin_setting() -> None:
+    options = AmqpOptions.from_settings(
+        {"delay": "queue", "delayed_message_exchange_plugin": "true"}
+    )
+
+    assert options.delay == "queue"
+
+
+def test_an_unknown_delay_is_refused() -> None:
+    with pytest.raises(InvalidTransportOptionError, match="delay"):
+        _ = AmqpOptions.from_settings({"delay": "later"})
+
+
+def test_a_native_delay_is_refused_for_queues_that_cannot_hold_one() -> None:
+    with pytest.raises(InvalidTransportOptionError, match="quorum"):
+        _ = AmqpOptions.from_settings({"delay": "native", "queue_type": "classic"})
 
 
 def test_the_delay_plugin_must_be_a_boolean() -> None:

@@ -10,9 +10,8 @@
 lines = []
 
 [notes]
-steps = [
-  "Enable the rabbitmq_delayed_message_exchange plugin on the broker MESSENGER_DSN points at, for delays and retry backoff, or add delayed_message_exchange_plugin=false to the DSN.",
-]
+# Nothing: delays need no plugin, the transport picks how to hold them back.
+steps = []
 check = [
   "<script> debug:config messenger — the amqp:// transports are listed",
 ]

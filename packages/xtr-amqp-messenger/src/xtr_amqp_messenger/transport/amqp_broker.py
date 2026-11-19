@@ -11,15 +11,18 @@ from typing import TYPE_CHECKING, Final
 
 from aio_pika import ExchangeType
 from taskiq import SmartRetryMiddleware
-from taskiq_aio_pika import AioPikaBroker
 from taskiq_aio_pika.exchange import Exchange
 from taskiq_aio_pika.queue import Queue
 
-from .amqp_options import AmqpOptions
+from .amqp_options import DELAY_PLUGIN, AmqpOptions
 from .dead_letter_middleware import DeadLetterMiddleware
+from .delaying_broker import DelayingBroker
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from taskiq_aio_pika import AioPikaBroker
+    from xtr_clock import ClockInterface
 
 __all__ = ["create_amqp_broker", "declared_queues"]
 
@@ -30,6 +33,7 @@ def create_amqp_broker(
     url: str,
     options: AmqpOptions | None = None,
     queues: Sequence[str] = (),
+    clock: ClockInterface | None = None,
 ) -> AioPikaBroker:
     """Build a RabbitMQ broker.
 
@@ -41,17 +45,17 @@ def create_amqp_broker(
     selects one by name, which is how a routing table maps message types onto
     queues.
 
-    Delays ride RabbitMQ's delayed-message exchange, which needs the
-    ``rabbitmq_delayed_message_exchange`` plugin enabled on the broker —
-    turn ``delayed_message_exchange_plugin`` off where it is not, and the
-    transport refuses a delayed send instead of publishing one that never
-    delays. With ``auto_setup`` off nothing is declared, the dead-letter
-    queue and the delayed exchange included: the topology must already
-    exist, or startup fails naming what is missing.
+    A delayed message is held back as ``options.delay`` says — natively on
+    RabbitMQ 4.4 and later, in a delay queue of its own on an older one, by
+    default; ``clock`` reads the time a native delay ends at. With
+    ``auto_setup`` off nothing is declared but delay queues, the dead-letter
+    queue and the plugin's delayed exchange included: the topology must
+    already exist, or startup fails naming what is missing.
     """
     configured = options if options is not None else AmqpOptions()
     settings = configured.reliability
-    broker = AioPikaBroker(
+    plugin = configured.delay == DELAY_PLUGIN
+    broker = DelayingBroker(
         url=configured.connection.applied_to(url),
         qos=configured.prefetch_count,
         exchange=configured.exchange.declared(configured.auto_setup),
@@ -62,13 +66,13 @@ def create_amqp_broker(
             if settings.dead_letter_queue is not None
             else None
         ),
-        delayed_message_exchange_plugin=configured.delayed_message_exchange_plugin,
-        delayed_message_exchange=(
-            _delayed_exchange(configured) if configured.delayed_message_exchange_plugin else None
-        ),
+        delayed_message_exchange=_delayed_exchange(configured) if plugin else None,
         # The driver only honours the connect timeout as a call argument —
         # as a URL parameter it is ignored — so it travels beside the URL.
         timeout=configured.connection.connect_timeout,
+        delay=configured.delay,
+        quorum=configured.uses_quorum_queues,
+        clock=clock,
     ).with_middlewares(
         SmartRetryMiddleware(
             default_retry_count=settings.max_attempts,

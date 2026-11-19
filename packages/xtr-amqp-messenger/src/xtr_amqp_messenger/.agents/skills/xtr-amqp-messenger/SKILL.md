@@ -17,7 +17,7 @@ it ships no bundle. For buses, routing and workers, load the `xtr-messenger` ski
   `dead_letter_queue`; exchange `exchange`, `exchange_type`, …; queue `queue`, `queue_type`,
   `routing_key`, …; connection `heartbeat`, `connect_timeout`, `connection_name`, …; TLS
   `cacert`, `cert`, `key`, `verify`; consumption `prefetch_count`, `max_async_tasks`,
-  `auto_setup`, `delayed_message_exchange_plugin`. Anything else raises
+  `auto_setup`, `delay`. Anything else raises
   `UnknownTransportOptionError`.
 - `AmqpTransportFactory(serializer, options=None)` — discovery builds it with the bus's envelope
   serializer.
@@ -47,9 +47,11 @@ Transports on one DSN share a connection; a worker on `["jobs"]` consumes only t
 
 ## Delays and dead letters
 
-A `DelayStamp` and the retry backoff ride the `rabbitmq_delayed_message_exchange` plugin. On a
-broker without it, add `delayed_message_exchange_plugin=false` and `max_attempts=1`; a delayed
-send is then refused with `UnsupportedStampError`. A message out of attempts — or one that can
+A `DelayStamp` and the retry backoff are held back as `delay` says: `auto` (default) delays
+natively (`x-opt-delivery-time`) on RabbitMQ 4.4+ quorum queues, else in a TTL delay queue per
+delay that dead-letters back — no plugin either way. `delay=native|queue|plugin` forces one;
+`plugin` needs `rabbitmq_delayed_message_exchange`. The old `delayed_message_exchange_plugin`
+still reads: `true` is `plugin`, `false` is `auto`. A message out of attempts — or one that can
 never be handled — goes to `dead_letter_queue` (`taskiq.dlq` by default) in its wire format.
 The n-th retry waits n times the one before (`base_delay_seconds`, ×2, ×3, …), at most 60 s; a
 `DelayStamp`'s delay replaces the base for its message. The dead-letter queue has no
@@ -77,21 +79,20 @@ routing to `in-memory://?serialize=true` and switch the DSN to `amqp://` in prod
 1. `uv add "xtr-messenger[amqp]"` — it installs this package; nothing to activate.
 2. In `<app>/config/packages/messenger.py`, name `amqp://` transports — the messenger recipe's
    `MESSENGER_DSN` is one — and route messages to them.
-3. Enable `rabbitmq_delayed_message_exchange` on the broker, or add
-   `delayed_message_exchange_plugin=false` to the DSN.
-4. Run a worker with `<script> messenger:consume <transport>`.
-5. Check with `<script> debug:config messenger` — the `amqp://` transports are listed.
+3. Run a worker with `<script> messenger:consume <transport>`.
+4. Check with `<script> debug:config messenger` — the `amqp://` transports are listed.
 
 ## Errors
 
 - `UnknownTransportOptionError` / `InvalidTransportOptionError` — a setting not accepted, or a
-  value not usable; TLS settings on plain `amqp://` are refused too.
-- `UnsupportedStampError` — a delay with the delayed-message plugin turned off.
+  value not usable; TLS settings on plain `amqp://` are refused too, and `delay=native` for
+  queues that are not quorum queues.
 - `MixedDsnError` — one worker asked to serve two servers.
 - `MissingSerializerError` — the factory discovered with no serializer.
 
 ## Do not
 
 - Do not leave `verify=false` on in production: it drops the broker's identity check.
-- Do not expect a delay without the delayed-message plugin: the send is refused, not sent early.
+- Do not set `delay=plugin` on a broker without `rabbitmq_delayed_message_exchange`: startup
+  fails declaring its exchange.
 - Do not build a worker before importing the modules declaring your messages.
