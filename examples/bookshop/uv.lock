@@ -319,7 +319,7 @@ wheels = [
 
 [[package]]
 name = "bookshop"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
@@ -1538,7 +1538,7 @@ wheels = [
 
 [[package]]
 name = "xtr-amqp-messenger"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-amqp-messenger" }
 dependencies = [
     { name = "aio-pika" },
@@ -1571,7 +1571,7 @@ dev = [
 
 [[package]]
 name = "xtr-cache"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-cache" }
 dependencies = [
     { name = "xtr-cache-contracts" },
@@ -1610,7 +1610,7 @@ dev = [
 
 [[package]]
 name = "xtr-cache-contracts"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-cache-contracts" }
 dependencies = [
     { name = "xtr-clock" },
@@ -1631,7 +1631,7 @@ dev = [
 
 [[package]]
 name = "xtr-clock"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-clock" }
 
 [package.metadata]
@@ -1651,7 +1651,7 @@ dev = [
 
 [[package]]
 name = "xtr-console"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-console" }
 dependencies = [
     { name = "cyclopts" },
@@ -1680,7 +1680,7 @@ dev = [
 
 [[package]]
 name = "xtr-dependency-injection"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-dependency-injection" }
 dependencies = [
     { name = "wireup" },
@@ -1709,7 +1709,7 @@ dev = [
 
 [[package]]
 name = "xtr-dotenv"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-dotenv" }
 dependencies = [
     { name = "pydantic-settings" },
@@ -1736,7 +1736,7 @@ dev = [
 
 [[package]]
 name = "xtr-event-dispatcher"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-event-dispatcher" }
 dependencies = [
     { name = "xtr-event-dispatcher-contracts" },
@@ -1768,7 +1768,7 @@ dev = [
 
 [[package]]
 name = "xtr-event-dispatcher-contracts"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-event-dispatcher-contracts" }
 
 [package.metadata]
@@ -1785,7 +1785,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-client"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-http-client" }
 dependencies = [
     { name = "httpx" },
@@ -1829,7 +1829,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-client-contracts"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-http-client-contracts" }
 dependencies = [
     { name = "xtr-http-message-contracts" },
@@ -1857,7 +1857,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-foundation"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-http-foundation" }
 dependencies = [
     { name = "xtr-clock" },
@@ -1886,7 +1886,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-kernel"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-http-kernel" }
 dependencies = [
     { name = "fastapi" },
@@ -1936,7 +1936,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-message"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-http-message" }
 dependencies = [
     { name = "uritools" },
@@ -1961,7 +1961,7 @@ dev = [
 
 [[package]]
 name = "xtr-http-message-contracts"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-http-message-contracts" }
 
 [package.metadata]
@@ -1977,7 +1977,7 @@ dev = [
 
 [[package]]
 name = "xtr-lock"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-lock" }
 dependencies = [
     { name = "xtr-clock" },
@@ -2009,7 +2009,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-logging" }
 dependencies = [
     { name = "msgspec" },
@@ -2039,7 +2039,7 @@ dev = [
 
 [[package]]
 name = "xtr-logging-contracts"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-logging-contracts" }
 
 [package.metadata]
@@ -2055,7 +2055,7 @@ dev = [
 
 [[package]]
 name = "xtr-maker"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-maker" }
 dependencies = [
     { name = "jinja2" },
@@ -2097,7 +2097,7 @@ dev = [
 
 [[package]]
 name = "xtr-messenger"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-messenger" }
 dependencies = [
     { name = "xtr-clock" },
@@ -2143,7 +2143,7 @@ dev = [
 
 [[package]]
 name = "xtr-orm"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-orm" }
 dependencies = [
     { name = "advanced-alchemy" },
@@ -2194,7 +2194,7 @@ dev = [
 
 [[package]]
 name = "xtr-password-hasher"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-password-hasher" }
 dependencies = [
     { name = "pwdlib", extra = ["argon2"] },
@@ -2221,7 +2221,7 @@ dev = [
 
 [[package]]
 name = "xtr-rate-limiter"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-rate-limiter" }
 dependencies = [
     { name = "xtr-clock" },
@@ -2260,7 +2260,7 @@ dev = [
 
 [[package]]
 name = "xtr-recipes"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-recipes" }
 dependencies = [
     { name = "cryptography" },
@@ -2287,7 +2287,7 @@ dev = [
 
 [[package]]
 name = "xtr-remote-event"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-remote-event" }
 dependencies = [
     { name = "xtr-messenger" },
@@ -2316,7 +2316,7 @@ dev = [
 
 [[package]]
 name = "xtr-scheduler"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-scheduler" }
 dependencies = [
     { name = "pydantic" },
@@ -2369,7 +2369,7 @@ dev = [
 
 [[package]]
 name = "xtr-security"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-security" }
 dependencies = [
     { name = "xtr-cache" },
@@ -2424,7 +2424,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-core"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-security-core" }
 dependencies = [
     { name = "xtr-clock" },
@@ -2453,7 +2453,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-csrf"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-security-csrf" }
 dependencies = [
     { name = "xtr-http-foundation" },
@@ -2474,7 +2474,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-http"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-security-http" }
 dependencies = [
     { name = "fastapi" },
@@ -2534,7 +2534,7 @@ dev = [
 
 [[package]]
 name = "xtr-security-jwt"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-security-jwt" }
 dependencies = [
     { name = "joserfc" },
@@ -2578,7 +2578,7 @@ dev = [
 
 [[package]]
 name = "xtr-serializer"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-serializer" }
 dependencies = [
     { name = "pydantic" },
@@ -2607,7 +2607,7 @@ dev = [
 
 [[package]]
 name = "xtr-service-contracts"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-service-contracts" }
 
 [package.metadata]
@@ -2624,7 +2624,7 @@ dev = [
 
 [[package]]
 name = "xtr-stopwatch"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-stopwatch" }
 dependencies = [
     { name = "xtr-clock" },
@@ -2645,7 +2645,7 @@ dev = [
 
 [[package]]
 name = "xtr-storage"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-storage" }
 dependencies = [
     { name = "fsspec" },
@@ -2676,7 +2676,7 @@ dev = [
 
 [[package]]
 name = "xtr-web-profiler"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-web-profiler" }
 dependencies = [
     { name = "fastapi" },
@@ -2713,7 +2713,7 @@ dev = [
 
 [[package]]
 name = "xtr-webhook"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "../../packages/xtr-webhook" }
 dependencies = [
     { name = "xtr-clock" },

@@ -322,7 +322,7 @@ siblings by major version (`xtr-logging-contracts>=7.0,<8`).
 
 ```sh
 uv run scripts/release.py check        # every package, this README and the docs on one version (CI runs this)
-uv run scripts/release.py bump 7.0.0   # move every package, this README and the docs; on a new major, rewrite the ranges
+uv run scripts/release.py bump 7.1.0   # move every package, this README and the docs; on a new major, rewrite the ranges
 ```
 
 A package classified `Private :: Do Not Upload` moves with the rest but is never published or
@@ -334,15 +334,15 @@ that is still possible, is in [UPGRADING.md](UPGRADING.md).
 ## Releasing
 
 ```sh
-uv run scripts/release.py bump 7.0.0
-git commit -am "bump: 7.0.0" && git push
-git tag 7.0.0 && git push origin 7.0.0
+uv run scripts/release.py bump 7.1.0
+git commit -am "bump: 7.1.0" && git push
+git tag 7.1.0 && git push origin 7.1.0
 ```
 
 The tag starts the [release workflow](.github/workflows/release.yml): it waits for CI to pass on
 the tagged commit's push to `main` — nothing is released otherwise — checks the tag against the
 packages' version, publishes every package to PyPI through trusted publishing, and tags each
-read-only repository `7.0.0`.
+read-only repository `7.1.0`.
 
 ## Repositories
 
@@ -442,7 +442,7 @@ packages/xtr-<name>/
 ```toml
 [project]
 name = "xtr-<name>"
-version = "7.0.0"
+version = "7.1.0"
 description = "<one-line pitch, on this project's own terms>."
 readme = "README.md"
 requires-python = ">=3.14.4"
