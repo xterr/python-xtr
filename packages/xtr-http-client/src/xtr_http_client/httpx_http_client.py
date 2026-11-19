@@ -22,6 +22,7 @@ from .internal.httpx_request import (
     pin_host,
     target_url,
 )
+from .internal.reachable_url import reachable_url
 from .response.httpx_response import to_http_response
 
 if TYPE_CHECKING:
@@ -123,7 +124,7 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
         """
         self.validate_method(method)
 
-        return await self.send_request(Request(method, _reachable(url)), **options)
+        return await self.send_request(Request(method, reachable_url(url)), **options)
 
     @override
     async def send_request(
@@ -241,28 +242,6 @@ class HttpxHttpClient(HttpClientMixin, HttpClientInterface, ResetInterface):
             deadline=deadline,
             decode=not carries(headers, "accept-encoding"),
         )
-
-
-def _reachable(url: str) -> str:
-    """``url`` with every part of it written in the form that reaches it.
-
-    A host named in another script is looked up in its ``xn--`` form, which
-    is also the only form a message request will hold, so the conversion
-    happens here — while the URL is still text — rather than further in,
-    where it would surface as a URL nobody can parse.
-
-    Raises:
-        InvalidArgumentError: When the URL cannot be read at all.
-    """
-    if url.isascii():
-        return url
-
-    try:
-        parsed = httpx.URL(url)
-
-        return str(parsed.copy_with(host=parsed.raw_host.decode("ascii")))
-    except (httpx.InvalidURL, UnicodeError) as error:
-        raise transport_error(httpx.InvalidURL(str(error)), url) from error
 
 
 def _basic_credentials(

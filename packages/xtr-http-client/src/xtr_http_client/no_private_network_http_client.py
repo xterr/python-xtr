@@ -17,6 +17,7 @@ from xtr_service_contracts import ResetInterface
 
 from .exception import InvalidArgumentError, LogicError, TransportError
 from .internal.option_merge import as_options
+from .internal.reachable_url import reachable_url
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
@@ -127,7 +128,7 @@ class NoPrivateNetworkHttpClient(HttpClientInterface, ResetInterface):
             TransportError: When the host is, or resolves to, a refused
                 address, and when no answer came.
         """
-        return await self.send_request(Request(method, url), **options)
+        return await self.send_request(Request(method, reachable_url(url)), **options)
 
     @override
     async def send_request(

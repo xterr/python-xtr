@@ -4687,7 +4687,7 @@ dev = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", extras = ["http2"], marker = "extra == 'http2'", specifier = ">=0.27" },
-    { name = "idna", specifier = ">=3.7" },
+    { name = "idna", specifier = ">=3.11" },
     { name = "xtr-http-client-contracts", editable = "packages/xtr-http-client-contracts" },
     { name = "xtr-http-message", editable = "packages/xtr-http-message" },
     { name = "xtr-http-message-contracts", editable = "packages/xtr-http-message-contracts" },

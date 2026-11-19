@@ -22,7 +22,7 @@ classifiers = [
 # `idna` for the IDNA 2008 form a host is resolved by.
 dependencies = [
     "httpx>=0.27",
-    "idna>=3.7",
+    "idna>=3.11",
     "xtr-http-client-contracts>=7.0,<8",
     "xtr-http-message>=7.0,<8",
     "xtr-http-message-contracts>=7.0,<8",

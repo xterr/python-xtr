@@ -306,8 +306,9 @@ The check runs on what the host *resolves to*, not on how it is written, and one
 address refuses the whole request — whichever of them the connection would pick, nothing is
 sent. The request is then pinned to the address that was checked, through the `resolve` option,
 so a name whose records change between the check and the connection reaches what was vetted or
-nothing at all. Redirects are followed here too, because a hop nobody checked would walk
-straight past the guard.
+nothing at all. A host named in another script — `https://münchen.de/` — is checked and pinned
+in the `xn--` form it is reached by. Redirects are followed here too, because a hop nobody
+checked would walk straight past the guard.
 
 A redirect to another origin — another scheme, host or port — carries no credentials meant for
 the first: the `Authorization`, `Cookie` and `Proxy-Authorization` headers, the `auth_bearer`

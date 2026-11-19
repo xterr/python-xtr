@@ -264,6 +264,32 @@ async def test_a_resolve_entry_for_another_host_is_kept() -> None:
         }
 
 
+async def test_a_host_named_in_another_script_is_vetted_and_pinned_as_it_is_reached() -> None:
+    asked: list[str] = []
+
+    async def resolve(host: str, port: int) -> Sequence[str]:
+        del port
+        asked.append(host)
+
+        return ["93.184.216.34"]
+
+    client = NoPrivateNetworkHttpClient(MockHttpClient(MockResponse(b"foo")), resolver=resolve)
+
+    async with _scripted(await client.request("GET", "http://Bücher.example/")) as response:
+        assert response.get_request_url() == "http://xn--bcher-kva.example/"
+        assert response.get_request_options()["resolve"] == {
+            "xn--bcher-kva.example": "93.184.216.34",
+        }
+    assert asked == ["xn--bcher-kva.example"]
+
+
+async def test_a_host_named_in_another_script_still_meets_the_refusal() -> None:
+    client = NoPrivateNetworkHttpClient(MockHttpClient(), resolver=_resolving_to("10.0.0.5"))
+
+    with pytest.raises(TransportError, match=_blocked('Host "xn--bcher-kva.example"')):
+        _ = await client.request("GET", "http://Bücher.example/")
+
+
 async def test_a_host_with_no_address_at_all_is_refused() -> None:
     client = NoPrivateNetworkHttpClient(
         MockHttpClient(MockResponse(b"foo")),
