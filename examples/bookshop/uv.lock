@@ -1544,6 +1544,7 @@ dependencies = [
     { name = "aio-pika" },
     { name = "taskiq" },
     { name = "taskiq-aio-pika" },
+    { name = "xtr-clock" },
     { name = "xtr-messenger" },
 ]
 
@@ -1552,6 +1553,7 @@ requires-dist = [
     { name = "aio-pika", specifier = ">=9.6" },
     { name = "taskiq", specifier = ">=0.12.4" },
     { name = "taskiq-aio-pika", specifier = ">=0.6.1" },
+    { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
 ]
 
