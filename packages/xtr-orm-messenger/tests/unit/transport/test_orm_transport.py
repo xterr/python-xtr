@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -7,9 +8,13 @@ from xtr_messenger import (
     Envelope,
     ErrorDetailsStamp,
     InvalidTransportOptionError,
+    ListableReceiverInterface,
+    MessageCountAwareInterface,
     ReceivedStamp,
     RedeliveryStamp,
     RetryingReceiverInterface,
+    SentToFailureTransportStamp,
+    SetupableTransportInterface,
     TransportInterface,
     TransportMessageIdStamp,
 )
@@ -41,6 +46,9 @@ async def test_it_is_a_whole_transport(engine: AsyncEngine, clock: MockClock) ->
     transport = _transport(engine, clock)
 
     assert isinstance(transport, TransportInterface)
+    assert isinstance(transport, ListableReceiverInterface)
+    assert isinstance(transport, MessageCountAwareInterface)
+    assert isinstance(transport, SetupableTransportInterface)
     assert transport.name == "orders"
     assert transport.connection.options == OrmOptions()
 
@@ -254,6 +262,14 @@ async def test_a_message_failing_every_attempt_lands_in_the_failed_queue(
     kept = await anext(failed.get())
     assert kept.message == OrderPlaced("o-1")
     assert kept.all(ErrorDetailsStamp) == (ErrorDetailsStamp("RuntimeError", "last"),)
+    moved = kept.last(SentToFailureTransportStamp)
+    assert moved is not None
+    assert moved.original_receiver_name == "orders"
+    assert moved.failed_at == clock.now().astimezone(moved.failed_at.tzinfo) - _seconds(60)
+
+
+def _seconds(count: int) -> timedelta:
+    return timedelta(seconds=count)
 
 
 async def test_the_transport_says_whether_a_failure_will_be_retried(

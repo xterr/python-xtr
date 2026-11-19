@@ -79,6 +79,11 @@ await transport.find(message_id)
 await transport.keepalive(envelope, seconds=600)  # a message held outside a worker
 ```
 
+The console reads a queue the same way: `messenger:setup-transports`, `messenger:stats`,
+`messenger:show <transport> [id]`, and `messenger:failed:show|retry|remove` on a transport
+reading `failure_queue`, named the configuration's `failure_transport`. A message moved there
+carries `SentToFailureTransportStamp(original_receiver_name, failed_at)`.
+
 ## Testing
 
 Run against a SQLite file per test (`sqlite+aiosqlite:///{tmp_path / 'app.sqlite'}`) and freeze

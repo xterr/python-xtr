@@ -200,6 +200,14 @@ await transport.setup()  # create the table ahead of time
 refused when longer than `redeliver_timeout`. A worker already renews what it holds on its own;
 call it for a message held some other way.
 
+These are the messenger's `ListableReceiverInterface`, `MessageCountAwareInterface` and
+`SetupableTransportInterface`, so the console commands read a queue through them:
+`messenger:setup-transports`, `messenger:stats`, `messenger:show`, and the
+`messenger:failed:*` commands on the transport reading `failure_queue` — name it the
+configuration's `failure_transport`. A message moved to `failure_queue` carries a
+`SentToFailureTransportStamp` naming the transport it failed on and when, which
+`messenger:failed:show` shows and `--failed-after` / `--failed-before` select by.
+
 ## Use in an application
 
 Everything adding this package to an application takes — and, read backwards, what removing it

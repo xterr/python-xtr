@@ -5,7 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, final, override
 
 from sqlalchemy.exc import DBAPIError
-from xtr_messenger import TransportInterface
+from xtr_messenger import (
+    ListableReceiverInterface,
+    MessageCountAwareInterface,
+    SetupableTransportInterface,
+    TransportInterface,
+)
 
 from xtr_orm_messenger.exception import TransportError
 
@@ -25,12 +30,19 @@ __all__ = ["OrmTransport"]
 
 
 @final
-class OrmTransport(TransportInterface):
+class OrmTransport(
+    TransportInterface,
+    ListableReceiverInterface,
+    MessageCountAwareInterface,
+    SetupableTransportInterface,
+):
     """Sends to, receives from and lists one queue of a messages table.
 
     Beyond sending and receiving, the queue can be looked into — counted,
     listed, one message found by id — and a message a long handler holds can
-    be kept from being handed out again.
+    be kept from being handed out again. That is what the console's
+    ``messenger:setup-transports``, ``messenger:stats``, ``messenger:show``
+    and ``messenger:failed:*`` commands read it through.
     """
 
     __slots__ = ("_connection", "_name", "_receiver", "_sender")
@@ -120,6 +132,7 @@ class OrmTransport(TransportInterface):
         except DBAPIError as error:
             raise TransportError(self._name, "keep a message alive", str(error.orig)) from error
 
+    @override
     async def find(self, message_id: str) -> Envelope | None:
         """Return the envelope kept as ``message_id`` in this queue, or ``None``.
 
@@ -133,6 +146,7 @@ class OrmTransport(TransportInterface):
             raise TransportError(self._name, "find a message", str(error.orig)) from error
         return None if stored is None else self._receiver.decode(stored)
 
+    @override
     async def all(self, limit: int | None = None) -> AsyncIterator[Envelope]:
         """Yield the envelopes a worker could claim now, oldest first, ``limit`` at most.
 
@@ -146,6 +160,7 @@ class OrmTransport(TransportInterface):
         except DBAPIError as error:
             raise TransportError(self._name, "list messages", str(error.orig)) from error
 
+    @override
     async def count(self) -> int:
         """Return how many messages a worker could claim now.
 
@@ -157,6 +172,7 @@ class OrmTransport(TransportInterface):
         except DBAPIError as error:
             raise TransportError(self._name, "count messages", str(error.orig)) from error
 
+    @override
     async def setup(self) -> None:
         """Create the messages table if it does not exist.
 

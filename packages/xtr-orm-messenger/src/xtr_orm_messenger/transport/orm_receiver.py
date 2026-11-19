@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets
+from datetime import UTC
 from typing import TYPE_CHECKING, Final, final, override
 
 from sqlalchemy.exc import DBAPIError
@@ -16,6 +17,7 @@ from xtr_messenger import (
     ReceivedStamp,
     ReceiverInterface,
     RedeliveryStamp,
+    SentToFailureTransportStamp,
     TransportMessageIdStamp,
 )
 
@@ -62,7 +64,11 @@ class OrmReceiver(ReceiverInterface):
     reason it failed in an :class:`~xtr_messenger.ErrorDetailsStamp`. Once
     its ``max_attempts`` are spent it is moved to the ``failure_queue`` with
     a fresh count, so whoever consumes that queue gets to try it again; a
-    message failing for good in the failure queue itself is deleted.
+    message failing for good in the failure queue itself is deleted. A
+    message moved there carries a
+    :class:`~xtr_messenger.SentToFailureTransportStamp` naming this
+    transport and when it was moved, which the ``messenger:failed:*``
+    commands show and select it by.
 
     Workers polling one table run into each other's transactions; a conflict
     says nothing about the message, so a poll sits through
@@ -172,6 +178,8 @@ class OrmReceiver(ReceiverInterface):
         elif options.queue != options.failure_queue:
             queue = options.failure_queue
             delay_ms = 0
+            moved_at = self._clock.now().astimezone(UTC)
+            next_try = next_try.with_stamps(SentToFailureTransportStamp(self._name, moved_at))
         else:
             await self._settle(message_id, self._connection.reject, "reject")
             return
