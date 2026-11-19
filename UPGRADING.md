@@ -40,13 +40,13 @@ No package ships a database migration for 7.0: no table gains or loses a column.
   |---|---|---|---|
   | `aio-pika` | 9.4 | 9.6 | xtr-amqp-messenger |
   | `aiosmtplib` | 5.1 | 5.1.3 | xtr-mailer — earlier releases let a line break into a command and whitespace into the local hostname |
-  | `anyio` | 4.0 | 4.10 | every package that depends on it |
+  | `anyio` | 4.0 | 4.10 | the development groups, and xtr-http-client-contracts `testing` |
   | `asyncmy` | 0.2.9 | 0.2.12 | xtr-orm `mysql` |
   | `asyncpg` | 0.29 | 0.31 | xtr-orm `postgres` |
   | `cryptography` | 43, 45 | 46 | xtr-mime `dkim` and `smime`, xtr-recipes |
   | `email-validator` | 2.3 | 2.4 | xtr-mime |
   | `fastapi` | 0.121.3 | 0.143.1 | xtr-dependency-injection `fastapi`, as every package serving requests already required |
-  | `idna` | 3.10 | 3.11 | xtr-mime |
+  | `idna` | 3.10 | 3.11 | xtr-mime, and xtr-http-client, which now depends on it |
   | `libcst` | 1.4 | 1.8.6 | xtr-maker |
   | `msgspec` | 0.18 | 0.20 | xtr-logging, xtr-orm-messenger |
   | `pydantic-settings` | 2.4 | 2.12 | xtr-dotenv |
@@ -60,6 +60,11 @@ No package ships a database migration for 7.0: no table gains or loses a column.
   | `taskiq-aio-pika` | 0.6.0 | 0.6.1 | xtr-amqp-messenger |
 
   Every other floor already supported Python 3.14 and stays as it was.
+- Every library runs on asyncio, through the standard library alone. `anyio` is no longer a
+  dependency of xtr-clock, xtr-dotenv, xtr-http-client, xtr-security-http,
+  xtr-security-oauth2-server, xtr-ai or xtr-amqp-messenger, so xtr-clock depends on nothing. An
+  application that imports `anyio` itself declares it; most still receive it from httpx, the web
+  framework or pydantic-ai.
 
 ### xtr-dependency-injection
 
@@ -170,8 +175,15 @@ No package ships a database migration for 7.0: no table gains or loses a column.
 - The remember-me handler rotates a token once under concurrent requests, and a losing rotation
   stages no cookie.
 - The access-token handlers name an error that cannot be printed by its class.
+- Passwords are hashed and verified on the event loop's default thread pool, which holds
+  `min(32, CPUs + 4)` threads, rather than on a pool of 40 shared with synchronous endpoints. On a
+  small host fewer hashes run at once under a burst of logins; give the loop a larger pool with
+  `loop.set_default_executor(ThreadPoolExecutor(max_workers=...))` where that matters.
 
 ### xtr-security-oauth2-server-core and xtr-security-oauth2-server
+
+- Client secrets are hashed and verified on the event loop's default thread pool, as
+  [xtr-security-http](#xtr-security-http) describes for passwords.
 
 - Two concurrent redemptions of one authorization code, or one device code, issue one pair of
   tokens. `DeviceCodeRepositoryInterface.revoke_device_code` returns whether it won, and gains
@@ -248,6 +260,8 @@ No package ships a database migration for 7.0: no table gains or loses a column.
 
 ### xtr-console
 
+- `Application` no longer takes `backend`, and the extra that went with it is gone: commands run
+  on asyncio. Drop the argument and the extra.
 - A command is cancelled on SIGTERM: its shutdown hooks run and it exits `143`. A second SIGTERM
   uses the handler in force before the command.
 - `debug:*` commands print application text literally.
@@ -288,6 +302,10 @@ No package ships a database migration for 7.0: no table gains or loses a column.
 - A custom `RetryStrategyInterface` reads `Retry-After` from `context.response`; a server's
   `Retry-After` is capped at 60 seconds by default.
 - The private-network guard sends no default headers or query on a cross-origin redirect.
+- The private-network guard takes a URL whose host is written in another script —
+  `https://münchen.de/` — checking and pinning the host in its `xn--` form, as `HttpxHttpClient`
+  already did; it refused it as an invalid URI. The host is resolved under IDNA 2008, through
+  `idna`, now a dependency.
 - A request's resolved address pins that request only; traces are bounded and mask credentials.
 - A `ThrottlingHttpClient` booking is never handed back.
 
