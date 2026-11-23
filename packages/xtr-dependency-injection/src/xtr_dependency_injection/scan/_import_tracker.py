@@ -9,15 +9,18 @@ and whether a module loaded meanwhile reached what the inspection served:
   calls;
 - through ``importlib.import_module`` — the import system's ``_gcd_import``,
   which it looks up on every call, so a reference to it taken long before is
-  seen too;
-- by asking whether one exists, through ``importlib.util.find_spec``.
+  seen too.
+
+Asking whether one exists, through ``importlib.util.find_spec``, is recorded
+apart: a module that asked has not reached it.
 
 Each import is credited to the module whose body is running — not to the
 module defining the function that imports, which may have been loaded long
 before. Around each import call, it runs the callbacks it was given: the
 inspection takes what it served for the statement before back out of
 ``sys.modules`` before one, so no import finds it there, and puts it back on
-its packages after one, for the inspected body to reach by a dotted name.
+its packages after one — whether it succeeded or not — for the inspected
+body to reach by a dotted name.
 
 It records, and calls back, only on the thread that opened it: an import
 another thread makes meanwhile is passed on untouched.
@@ -68,7 +71,9 @@ class ImportTracker:
 
     Attributes:
         imports: Each module whose body ran, mapped to the absolute names of
-            the modules it imported or asked about.
+            the modules it imported.
+        lookups: Each module whose body ran, mapped to the absolute names of
+            the modules it asked about.
     """
 
     __slots__ = (
@@ -80,15 +85,22 @@ class ImportTracker:
         "_original",
         "_thread",
         "imports",
+        "lookups",
     )
 
     def __init__(
         self,
         before: Callable[[], None] | None = None,
         after: Callable[[], None] | None = None,
+        imports: dict[str, set[str]] | None = None,
     ) -> None:
-        """Record nothing until opened; call ``before`` and ``after`` around each import call."""
-        self.imports: dict[str, set[str]] = {}
+        """Record nothing until opened; call ``before`` and ``after`` around each import call.
+
+        ``imports`` is where to record what each module imported — one
+        shared with other trackers, to add to it; a new one by default.
+        """
+        self.imports: dict[str, set[str]] = {} if imports is None else imports
+        self.lookups: dict[str, set[str]] = {}
         self._before = before
         self._after = after
         self._original: _Import = builtins.__import__
@@ -150,7 +162,11 @@ class ImportTracker:
         level: int = 0,
     ) -> ModuleType:
         tracking = self._starting()
-        imported = self._original(name, globals, locals, fromlist, level)
+        try:
+            imported = self._original(name, globals, locals, fromlist, level)
+        finally:
+            if tracking:
+                self._ended()
         if tracking:
             importer = running_module()
             if importer is None and globals is not None:
@@ -158,19 +174,21 @@ class ImportTracker:
                 importer = found if isinstance(found, str) else None
             if importer is not None:
                 self._record(importer, name, imported, fromlist)
-            self._ended()
         return imported
 
     def _tracked_import_by_name(
         self, name: str, package: str | None = None, level: int = 0
     ) -> ModuleType:
         tracking = self._starting()
-        imported = self._import_by_name(name, package, level)
+        try:
+            imported = self._import_by_name(name, package, level)
+        finally:
+            if tracking:
+                self._ended()
         if tracking:
             importer = running_module()
             if importer is not None:
                 self.imports.setdefault(importer, set()).add(imported.__name__)
-            self._ended()
         return imported
 
     def _tracked_lookup(self, name: str, package: str | None = None) -> ModuleSpec | None:
@@ -178,11 +196,12 @@ class ImportTracker:
         importer = running_module() if tracking else None
         if importer is not None:
             absolute = importlib.util.resolve_name(name, package) if name.startswith(".") else name
-            self.imports.setdefault(importer, set()).add(absolute)
-        found = self._lookup(name, package)
-        if tracking:
-            self._ended()
-        return found
+            self.lookups.setdefault(importer, set()).add(absolute)
+        try:
+            return self._lookup(name, package)
+        finally:
+            if tracking:
+                self._ended()
 
     def _starting(self) -> bool:
         """Call back before an import call of the tracking thread; return whether to record it."""
@@ -192,7 +211,7 @@ class ImportTracker:
         return tracking
 
     def _ended(self) -> None:
-        """Call back after an import call of the tracking thread that succeeded."""
+        """Call back after an import call of the tracking thread, succeeded or failed."""
         if self._open and self._after is not None:
             self._after()
 

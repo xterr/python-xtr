@@ -647,13 +647,19 @@ package it needs is not installed at all:
   learns it is missing, whichever order the scan finds it in. One that needs it fails, and its
   traceback names it: it is inspected and set aside first — a chain of modules failing through
   one another innermost first — then the module that imported it is inspected again, served
-  it. A module first loaded meanwhile that is, lies in or imported the inspected module or a
+  it. A module first loaded meanwhile — by the inspected module, an earlier attempt at it, or
+  the failed import before them — that is, lies in or imported the inspected module or a
   set-aside one — a sibling reading `from .fixtures import fake`, a child its package's
-  `__init__` imports, the other half of an import cycle — would fail at runtime: it is set aside
-  through it, without being run again. One that is not set aside but was handed a stand-in by
-  the inspected module's call is not kept: the scan imports it again, truthfully.
-- **Registered nowhere.** Nothing a set-aside module defines becomes a service, and it is not
-  loaded once the scan ends: importing it later fails with the error it always had.
+  `__init__` imports, the other half of an import cycle — may fail at runtime, or holds what a
+  failing module defined: it is set aside through it, without being run again. A module that
+  only asked whether another exists (`find_spec`) has not reached it, and is kept. One that is
+  not set aside but was handed a stand-in by the inspected module's call, and any module that
+  imported it, are not kept: the scan imports each again, truthfully.
+- **Registered nowhere.** Nothing a set-aside module defines becomes a service. A set-aside
+  module that ran under stand-ins is not loaded once the scan ends: importing it later fails
+  with the error it always had. One that ran only truthfully, its package failing after it —
+  `__init__` importing a healthy module, then a fixture — stays loaded, as a failed import
+  leaves it: a later import of the package finds it rather than running it twice.
 - **Refused when needed.** If anything would use one of its objects, the build fails with
   `SetAsideModuleUsedError`, naming the object, what would use it, the module and the missing
   package: an object carrying a marker of this package (`@as_service`, `@as_alias`,
@@ -673,9 +679,10 @@ package it needs is not installed at all:
 
 What stays fatal, as before: every failed import where every listed bundle is active; a module
 missing from the application or from a package that is installed; an import error naming a
-module of its own, even one raised while falling back from a missing package
-(`except ImportError: from app.models import Usr`); any failure other than a missing package; a
-bundle's own resources needing a missing package.
+module other than the missing package, even one raised while falling back from it
+(`except ImportError: from app.models import Usr`) — one naming no module, or the missing
+package itself (a library's "install the extra"), is read through to it; any failure other than
+a missing package; a bundle's own resources needing a missing package.
 
 ## Definitions and compiler passes
 
@@ -1562,9 +1569,19 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   missing package or failing module found while inspecting it, and once more for each module
   importing it truthfully — as Python itself would on every retry. A module imported again
   truthfully after an inspection runs once more too. Keep imports at the top of fixture modules.
-- **A bare package holds only what its body defined before it failed.** A module importing a
-  name its package's `__init__` defines after the import that failed gets an import error, which
-  fails the build.
+- **A bare package holds only what its body had defined when it last failed.** A module
+  importing a name its package's `__init__` defines after that point gets an import error,
+  which fails the build.
+- **Importing a set-aside module optionally sets the importer aside.** A module first loaded
+  while a fixture is inspected, doing `try: from app.fixtures import fake / except ImportError`,
+  is set aside through the fixture, though it would fall back at runtime; scanned before the
+  fixture, it is kept. Keep such imports inside the function that needs them.
+- **A module imported again runs its body again.** A helper that was handed a stand-in, and a
+  module importing it, are imported again truthfully: whatever their bodies register with a
+  process-wide registry (a command name, a table on shared table definitions) is registered
+  twice, which may fail the build. Keep such helpers apart from what registers.
+- **Reading a dunder of a missing package fails.** `faker.__version__` at module level raises
+  `AttributeError`, as for any module without it, and fails the build.
 - **The bundle list itself is strict.** `config/bundles.py` may import a bundle that is not
   installed, but a bundle module of the application that imports a missing package itself — or
   a package a bundle lives in whose `__init__` does — fails the build while the list loads.

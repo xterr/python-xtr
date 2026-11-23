@@ -340,7 +340,7 @@ def test_sweeping_takes_what_was_served_out_of_the_modules_and_closing_off_their
     finder.close()
 
     assert not hasattr(sys.modules["acme_app"], "seed")
-    # The set-aside module gets its own spec back: it had none.
+    # The set-aside module gets its own import record back: it had none.
     assert _SET_ASIDE.__spec__ is None
 
 

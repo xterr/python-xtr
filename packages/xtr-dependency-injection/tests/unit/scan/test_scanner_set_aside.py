@@ -1482,3 +1482,207 @@ def test_a_missing_package_imported_where_nothing_is_served_says_why(
 
     (note,) = caught.value.__notes__
     assert "is stood in for only where this module's own code imports it" in note
+
+
+# --- what the failed import before an inspection loaded --------------------------------
+
+
+def test_the_other_half_of_a_cycle_imported_before_the_failing_line_is_refused(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.aa_fx": f"import {APP}.zz_helper\nimport acme_faker\n\n\nclass F:\n    pass\n",
+            f"{APP}.zz_helper": (
+                "from xtr_dependency_injection import as_service\n"
+                f"from {APP} import aa_fx\n\n\n@as_service\nclass Helper:\n    pass\n"
+            ),
+        }
+    )
+
+    with pytest.raises(SetAsideModuleUsedError) as caught:
+        _ = _scan()
+
+    assert (caught.value.module, caught.value.through) == (f"{APP}.zz_helper", f"{APP}.aa_fx")
+
+
+def test_a_package_re_exporting_a_helper_imported_again_holds_its_new_classes(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.helpers.__init__": "from .fakes import Maker, make\n",
+            f"{APP}.helpers.fakes": (
+                "class Maker:\n    pass\n\n\ndef make():\n    import acme_faker\n"
+                "    return acme_faker\n"
+            ),
+            f"{APP}.aa_fx": f"from {APP}.helpers import make\nimport acme_faker\n\nX = make()\n",
+        }
+    )
+
+    _ = _scan()
+
+    helpers, fakes = sys.modules[f"{APP}.helpers"], sys.modules[f"{APP}.helpers.fakes"]
+    assert vars(helpers)["Maker"] is vars(fakes)["Maker"]
+
+
+def test_a_module_importing_a_helper_imported_again_is_imported_again_with_it(
+    application: ScratchModules,
+) -> None:
+    # Two missing packages: kk and hh are loaded by the first attempt, make() is lent in the second.
+    application.write(
+        {
+            f"{APP}.fx3": (
+                f"import acme_faker\nfrom {APP} import kk, hh\n"
+                "from acme_tools.fixtures import Fixture\n\nfake = hh.make()\n"
+            ),
+            f"{APP}.hh": (
+                "class Dep:\n    pass\n\n\n"
+                "def make():\n    import acme_faker\n    return acme_faker\n"
+            ),
+            f"{APP}.kk": f"from {APP}.hh import Dep\n\n\nclass K:\n    dep = Dep\n",
+        }
+    )
+
+    _ = _scan()
+
+    kept = cast("type", vars(sys.modules[f"{APP}.kk"])["K"])
+    assert vars(kept)["dep"] is vars(sys.modules[f"{APP}.hh"])["Dep"]
+
+
+def test_a_healthy_module_its_package_loads_before_a_fixture_runs_once(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            "acme_registry.__init__": REGISTRY,
+            f"{APP}.fixtures.__init__": "from .load import load\nfrom .users import UserFixtures\n",
+            f"{APP}.fixtures.load": (
+                "import acme_registry\n\nacme_registry.register('load')\n\n\n"
+                "def load():\n    pass\n"
+            ),
+        }
+    )
+
+    scanner, _ = _scan()
+
+    assert _set_aside(scanner)[f"{APP}.fixtures.load"][1] == f"{APP}.fixtures"
+    assert cast("list[str]", importlib.import_module("acme_registry").NAMES) == ["load"]
+
+
+def test_a_module_only_asking_whether_a_set_aside_module_exists_is_kept(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.zz_seed": f"import {APP}.fixtures.users\nimport {APP}.zz_zreport\n",
+            f"{APP}.zz_zreport": (
+                "import importlib.util\n\n"
+                f"HAS = importlib.util.find_spec('{APP}.fixtures.users') is not None\n\n\n"
+                "class Report:\n    pass\n"
+            ),
+        }
+    )
+
+    scanner, result = _scan()
+
+    assert f"{APP}.zz_zreport" not in _set_aside(scanner)
+    assert f"{APP}.zz_zreport:Report" in _services(result)
+
+
+def test_a_package_whose_modules_import_what_it_re_exports_is_set_aside(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.fixtures.__init__": (
+                "from .users import UserFixtures\nfrom .orders import OrderFixtures\n"
+            ),
+            f"{APP}.fixtures.orders": (
+                "from acme_tools.fixtures import Fixture\n"
+                f"from {APP}.fixtures import UserFixtures\n\n\n"
+                "class OrderFixtures(Fixture):\n    after = UserFixtures\n"
+            ),
+        }
+    )
+
+    scanner, _ = _scan()
+
+    set_aside = _set_aside(scanner)
+    assert {f"{APP}.fixtures", f"{APP}.fixtures.orders", f"{APP}.fixtures.users"} <= set(set_aside)
+
+
+def test_a_set_aside_module_is_reached_by_its_dotted_name_after_a_caught_failed_import(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.zz_seeder": (
+                f"import {APP}.fixtures.users\n"
+                "try:\n    import acme_orjson\nexcept ImportError:\n    acme_orjson = None\n\n\n"
+                f"class Seeder:\n    fixtures = [{APP}.fixtures.users.UserFixtures]\n"
+            )
+        }
+    )
+
+    scanner, _ = _scan()
+
+    assert _set_aside(scanner)[f"{APP}.zz_seeder"][1] == f"{APP}.fixtures.users"
+
+
+def test_a_set_aside_package_keeps_the_modules_its_own_body_imported(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.seeds.__init__": "from .people import People\n",
+            f"{APP}.seeds.people": "import acme_faker\n\n\nclass People:\n    pass\n",
+            f"{APP}.zz_use": f"import {APP}.seeds\n\nP = {APP}.seeds.people.People\n",
+        }
+    )
+
+    scanner, _ = _scan()
+
+    assert _set_aside(scanner)[f"{APP}.zz_use"][1] == f"{APP}.seeds"
+
+
+def test_a_module_a_failed_package_loaded_truthfully_stays_and_runs_once(
+    application: ScratchModules,
+) -> None:
+    # As a failed import leaves it: an optional import of the package finds it, not running it.
+    application.write(
+        {
+            "acme_registry.__init__": REGISTRY,
+            f"{APP}.seeds.__init__": "from .plain import Plain\nimport acme_faker\n",
+            f"{APP}.seeds.plain": (
+                "import acme_registry\n\nacme_registry.register('plain')\n\n\n"
+                "class Plain:\n    pass\n"
+            ),
+            f"{APP}.zz_opt": f"try:\n    import {APP}.seeds\nexcept ImportError:\n    pass\n",
+        }
+    )
+
+    scanner, _ = _scan()
+
+    (plain,) = [entry for entry in scanner.set_aside if entry.module == f"{APP}.seeds.plain"]
+    assert (plain.through, plain.defines) == (f"{APP}.seeds", (f"{APP}.seeds.plain:Plain",))
+    assert cast("list[str]", importlib.import_module("acme_registry").NAMES) == ["plain"]
+    assert f"{APP}.seeds" not in sys.modules
+
+
+def test_an_import_error_naming_the_missing_package_is_read_through(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            "acme_extra2.__init__": (
+                "try:\n    import acme_faker\nexcept ModuleNotFoundError as error:\n"
+                "    raise ImportError('install acme_extra2[fake]', name='acme_faker') from error\n"
+            ),
+            f"{APP}.uses_extra2": "import acme_extra2\n",
+        }
+    )
+
+    scanner, _ = _scan()
+
+    assert _set_aside(scanner)[f"{APP}.uses_extra2"] == (("acme_faker",), "acme_extra2")

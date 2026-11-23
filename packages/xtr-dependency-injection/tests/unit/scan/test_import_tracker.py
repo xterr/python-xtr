@@ -92,7 +92,10 @@ def test_importlib_imports_and_lookups_are_recorded_for_the_running_module(
     with ImportTracker() as tracker:
         _ = importlib.import_module("acme_app.dynamic")
 
-    assert {"acme_app.helpers", "acme_not_installed"} <= tracker.imports["acme_app.dynamic"]
+    assert "acme_app.helpers" in tracker.imports["acme_app.dynamic"]
+    # Asking whether a module exists is not reaching it: it is recorded apart.
+    assert tracker.lookups["acme_app.dynamic"] == {"acme_not_installed"}
+    assert "acme_not_installed" not in tracker.imports["acme_app.dynamic"]
 
 
 def test_a_hook_installed_over_it_is_left_in_place_and_it_stops_recording() -> None:
@@ -129,7 +132,29 @@ def test_a_relative_name_asked_about_is_recorded_absolute(
     with ImportTracker() as tracker:
         _ = importlib.import_module("acme_app.relative_probe")
 
-    assert "acme_app.helpers" in tracker.imports["acme_app.relative_probe"]
+    assert "acme_app.helpers" in tracker.lookups["acme_app.relative_probe"]
+
+
+def test_trackers_given_one_record_add_to_it() -> None:
+    shared: dict[str, set[str]] = {"acme_app.earlier": {"json"}}
+
+    with ImportTracker(imports=shared) as tracker:
+        exec("import json", {"__name__": "acme_app.later"})  # noqa: S102 — an import statement run under a module name of the test's own
+
+    assert tracker.imports is shared
+    assert shared == {"acme_app.earlier": {"json"}, "acme_app.later": {"json"}}
+
+
+def test_the_after_callback_runs_when_an_import_fails() -> None:
+    calls: list[None] = []
+
+    with (
+        ImportTracker(after=lambda: calls.append(None)),
+        pytest.raises(ModuleNotFoundError),
+    ):
+        _ = cast("object", builtins.__import__("acme_not_installed"))
+
+    assert calls == [None]
 
 
 def test_imports_outside_any_module_body_are_not_recorded() -> None:

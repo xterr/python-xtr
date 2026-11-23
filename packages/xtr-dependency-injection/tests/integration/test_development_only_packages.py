@@ -452,3 +452,38 @@ def test_a_module_a_set_aside_package_imports_is_refused_where_a_bundle_would_re
         _ = _build()
 
     assert (caught.value.name, caught.value.through) == (f"{APP}.seeds.plain:Plain", f"{APP}.seeds")
+
+
+def test_a_re_exporting_fixtures_package_with_a_healthy_module_boots_running_it_once(
+    application: ScratchModules,
+) -> None:
+    # The package loads a healthy module, then its fixtures; one of those imports another
+    # through the package. Another module imports the package again, truthfully.
+    application.write(
+        {
+            "acme_witness.__init__": "RUNS: list[str] = []\n",
+            f"{APP}.fixtures.__init__": (
+                "from .load import load\nfrom .users import UserFixtures\n"
+                "from .orders import OrderFixtures\n"
+            ),
+            f"{APP}.fixtures.load": (
+                "from acme_witness import RUNS\n\nRUNS.append(__name__)\n\n\n"
+                "def load():\n    pass\n"
+            ),
+            f"{APP}.fixtures.orders": (
+                "from acme_tools.fixtures import Fixture\n"
+                f"from {APP}.fixtures import UserFixtures\n\n\n"
+                "class OrderFixtures(Fixture):\n    after = UserFixtures\n"
+            ),
+            f"{APP}.seeding": f"from {APP}.fixtures.orders import OrderFixtures\n",
+        }
+    )
+
+    report = _build()
+
+    assert {f"{APP}.fixtures", f"{APP}.fixtures.orders", f"{APP}.seeding"} <= {
+        entry.module for entry in report.scan.set_aside
+    }
+    assert cast("list[str]", importlib.import_module("acme_witness").RUNS) == [
+        f"{APP}.fixtures.load"
+    ]

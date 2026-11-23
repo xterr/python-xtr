@@ -386,7 +386,7 @@ class StandInFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         module = self._set_aside.get(spec.name)
         if module is None:
             return StandInModule(spec.name)
-        # The import system gives a module the spec it was found by; it gets its own back.
+        # The import system gives a module the record it was found by; it gets its own back.
         _ = self._own_records.setdefault(spec.name, module.__spec__)
         return module
 
@@ -399,11 +399,13 @@ class StandInFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         """Take out of ``sys.modules``, and off its packages, all it served so far.
 
         Only this finder answers for those names, and it is swept before every
-        import: nothing else can have put another module there.
+        import: nothing else can have put another module there. What it was
+        set on the inspected module itself stays: that is what the module
+        defines, and whatever reaches the module is set aside with it.
         """
         for name, module in self._served.items():
             parent, _, child = name.rpartition(".")
-            holder = sys.modules.get(parent) if parent else None
+            holder = sys.modules.get(parent) if parent and parent != self._inspected else None
             if holder is not None and getattr(holder, child, None) is module:
                 self._attached.append((holder, child, module))
         for name, module in self._served.items():
