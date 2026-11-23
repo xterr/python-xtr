@@ -269,6 +269,55 @@ _REACHING: Final[dict[str, dict[str, str]]] = {
             f"import importlib.util\n\nHAS = importlib.util.find_spec('{APP}.{{fx}}') is not None\n"
         ),
     },
+    "a library a module imports optionally, its healthy module registering once": {
+        "acme_lib.__init__": "from acme_lib import helper\nimport acme_faker\n",
+        "acme_lib.helper": f"{REGISTER}\nclass Client:\n    pass\n",
+        f"{APP}.{{fx}}": "try:\n    import acme_lib\nexcept ImportError:\n    acme_lib = None\n",
+        f"{APP}.{{other}}": "try:\n    import acme_lib\nexcept ImportError:\n    acme_lib = None\n",
+        f"{APP}.{{third}}": "import acme_lib\n\n\nclass Uses:\n    pass\n",
+    },
+    "a module taking a fixture a package answers lazily": {
+        f"{APP}.{{fx}}.__init__": (
+            "import importlib\n\n\ndef __getattr__(name):\n"
+            "    return importlib.import_module('.users', __name__)\n"
+        ),
+        f"{APP}.{{fx}}.users": "import acme_tools\n\n\nclass U:\n    pass\n",
+        f"{APP}.{{other}}": f"from {APP}.{{fx}} import users\n\n\nclass O:\n    pass\n",
+    },
+    "a fixture taking everything a package lists, modules included": {
+        f"{APP}.{{other}}.__init__": "__all__ = ['refs']\n",
+        f"{APP}.{{other}}.refs": "def ref(name):\n    return name\n",
+        f"{APP}.{{fx}}": (
+            f"import acme_faker\nfrom {APP}.{{other}} import *\n\n\n"
+            "class Demo:\n    key = refs.ref('x')\n"
+        ),
+    },
+    "a fixture taking everything a package holds, after a fixture of it": {
+        f"{APP}.{{other}}.__init__": "def helper():\n    return 1\n",
+        f"{APP}.{{other}}.users": "import acme_faker\n",
+        f"{APP}.{{fx}}": (
+            f"import acme_tools\nfrom {APP}.{{other}} import users\n"
+            f"from {APP}.{{other}} import *\n\nVALUE = helper()\n"
+        ),
+    },
+    "a fixture reaching a fixture through a name bound to its package before": {
+        f"{APP}.{{other}}.__init__": "",
+        f"{APP}.{{other}}.users": "import acme_faker\n\n\nclass UserFixtures:\n    pass\n",
+        f"{APP}.{{fx}}": (
+            f"import acme_tools\nfrom {APP} import {{other}}\nimport {APP} as app\n"
+            f"import {APP}.{{other}}.users\n\n\n"
+            "class Orders:\n    after = {other}.users.UserFixtures\n"
+            "    again = app.{other}.users.UserFixtures\n"
+        ),
+    },
+    "a fixture taking a loaded module out of the loaded modules": {
+        f"{APP}.{{other}}": f"{REGISTER}\nclass O:\n    pass\n",
+        f"{APP}.{{fx}}": (
+            f"import sys\nimport acme_faker\nimport {APP}.{{other}}\n\n"
+            f"sys.modules.pop('{APP}.{{other}}')\n"
+        ),
+        f"{APP}.{{third}}": f"import {APP}.{{other}}\n",
+    },
 }
 
 SCENARIOS: Final = _READING | _SHAPES | _REACHING

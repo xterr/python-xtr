@@ -1550,16 +1550,20 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   `default`, else `0` or the token.
 - **A set-aside module runs under stand-ins.** Its module-level code runs to learn what it
   defines, and what it hands to other modules meanwhile stays with them: a class registering
-  itself with an installed library (`__init_subclass__`, a metaclass, a decorator's
-  registry), an `atexit` hook, a table added to shared table definitions, a value put in a
-  registry. Code handing a stand-in to a library that inspects it at import time — a
+  itself with another module — an installed library's, or one of the application's
+  (`__init_subclass__`, a metaclass, a decorator's registry) — an `atexit` hook, a table added
+  to shared table definitions, a value put in a registry. Code handing a stand-in to a library
+  that inspects it at import time — a
   `json.dumps` of fake data, unpacking `a, b = fake.pair()` — fails the build, naming the
   module and what it needs. A stand-in base cannot sit beside `Protocol`, nor parametrise
   `Generic`.
 - **Only a set-aside module's own import statements are served.** A function of another module
   it calls at module level (`fake = helpers.faker()`), or its own `importlib.import_module`,
   imports truthfully: reaching a missing package or a set-aside module that way fails the
-  build, naming the function. Import the library in the fixture module itself. A value the
+  build, naming the function. Import the library in the fixture module itself. A fixtures
+  package whose `__init__` imports its own modules that way (`for info in
+  pkgutil.iter_modules(__path__): importlib.import_module(...)`) fails the build likewise:
+  import them with import statements, or let the fixtures library find them. A value the
   module hands to another module's function (`registry.add(fake)`), or to a cache of the
   standard library (`Optional[faker.Thing]` is kept by `typing`), stays there.
 - **What fails part-way runs part-way again.** A module failing to import runs the lines
@@ -1581,6 +1585,11 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   would, not an `AttributeError`. Its `__dict__`, which the standard library reads (dataclasses,
   typing), is answered to anyone: a module taking the set-aside module out of `sys.modules`
   while its code runs, and reading `vars()` of it, is not refused.
+- **The refusal is always a `ModuleNotFoundError`.** It names the package not installed that a
+  truthful import fails for, even where that import fails with another import error — a
+  library's own `ImportError("install it with [fake]")`: a module catching only
+  `ModuleNotFoundError` there falls back in one order and fails in the other. Catch
+  `ImportError`.
 - **A half-loaded package is settled once the importing module is done.** A module catching a
   failed import of a package (`try: import app.fixtures`) and, in the same body, reaching one of
   the modules that package had loaded (`import app.fixtures.load`) finds it loaded or not

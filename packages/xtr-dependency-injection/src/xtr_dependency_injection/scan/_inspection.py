@@ -214,6 +214,7 @@ class Inspection:
         "_fatal",
         "_finder",
         "_inactive",
+        "_loads",
         "_missing",
         "_open",
         "_running",
@@ -239,6 +240,8 @@ class Inspection:
         # Modules whose body a failed import ran through: importing one again fails again.
         # Each with the package not installed its failure named.
         self._failing: dict[str, str | None] = {}
+        # Each module the scan's truthful imports loaded, in order: a body taking one out is undone.
+        self._loads: list[tuple[str, ModuleType]] = []
         # The namespaces whose bodies are running, outermost first.
         self._running: list[ModuleType] = []
         self._fatal: ResourceImportError | None = None
@@ -288,8 +291,15 @@ class Inspection:
         return module
 
     def reports(self) -> list[SetAsideReport]:
-        """Return what was set aside, as the scan report holds it, and forget it."""
+        """Return what was set aside, as the scan report holds it, and forget it.
+
+        Each namespace keeps what it lacks: read after the scan, it is refused
+        naming that, though the scan's records are gone.
+        """
         self._explain()
+        for name, entry in self._set_aside.items():
+            if isinstance(entry.module, _Inspected):
+                vars(entry.module)[_MARK] = (name, partial(_given, self._first_lacking(name)))
         reports = [
             SetAsideReport(
                 module=name,
@@ -322,17 +332,21 @@ class Inspection:
         if parent and parent not in sys.modules:
             # An orphan would be handed back from sys.modules with no finder asked.
             _ = self._load(parent)
-        if name in self._failing or holder_of(name, self._set_aside) is not None:
-            return self._put_aside(name, self._failing.get(name)).module
         before = frozenset(sys.modules)
+        if name in self._failing or holder_of(name, self._set_aside) is not None:
+            entry = self._put_aside(name, self._failing.get(name))
+            self._settle_orphans(before)
+            return entry.module
         try:
             with self._out_of_sight():
                 module = importlib.import_module(name)
         except ImportError as error:
             failure = error
         else:
+            self._record_loads(before)
             self._settle_orphans(before)
             return module
+        self._record_loads(before)
         # Set aside outside the handler: what fails meanwhile is not raised over this failure.
         if not self._sets_aside(failure) or name.partition(".")[0] in self._missing:
             raise failure
@@ -347,18 +361,23 @@ class Inspection:
         self._settle_orphans(before)
         return entry.module
 
+    def _record_loads(self, before: frozenset[str]) -> None:
+        """Record each module a truthful import loaded, since ``before``."""
+        self._loads.extend(
+            (entry, module) for entry, module in sys.modules.items() if entry not in before
+        )
+
     def _settle_orphans(self, before: frozenset[str]) -> None:
         """Settle the package of each module a truthful import left orphaned.
 
         A failed import caught by the module making it (``try: import
         app.fixtures``) leaves loaded what it loaded before failing, without
         its package: a later import would be handed it from ``sys.modules``,
-        though its package fails. A package of the application is imported at
-        once, and set aside — taking the orphan with it — whichever order the
-        scan finds them in; one failing for a reason of its own is left as
-        Python leaves it. An orphan outside the application is only taken out of
-        ``sys.modules``: a later import of it imports its package, as at runtime,
-        and is set aside the same way in every order.
+        though its package fails. Its package — the application's, or an
+        installed library's — is imported at once, and set aside, taking the
+        orphan with it as it is, never run again: as the scan does whichever
+        order it finds them in. One failing for a reason of its own is left as
+        Python leaves it.
         """
         fresh = [entry for entry in sys.modules if entry not in before]
         for orphan in sorted(fresh):
@@ -366,10 +385,6 @@ class Inspection:
             if not parent or parent in sys.modules or orphan not in sys.modules:
                 continue
             if holder_of(orphan, self._set_aside) is not None:
-                continue
-            if holder_of(orphan, self._application) is None:
-                # A library's own: running its package on stand-ins is not the scan's to do.
-                del sys.modules[orphan]
                 continue
             try:
                 _ = self._load(parent)
@@ -508,6 +523,7 @@ class Inspection:
         with self._out_of_sight():
             self._running.append(module)
             loaded_before = dict(sys.modules)
+            loads_before = len(self._loads)
             sys.modules[name] = module
             try:
                 exec(code, vars(module))  # noqa: S102 — a module's own code, as its import runs it
@@ -523,17 +539,21 @@ class Inspection:
             finally:
                 _ = self._running.pop()
                 _ = sys.modules.pop(name, None)
-                self._undo(loaded_before)
+                self._undo(loaded_before, self._loads[loads_before:])
         self._bind(name, module)
         return entry
 
-    def _undo(self, loaded_before: Mapping[str, ModuleType]) -> None:
+    def _undo(
+        self, loaded_before: Mapping[str, ModuleType], loaded: Sequence[tuple[str, ModuleType]]
+    ) -> None:
         """Undo what a body running on stand-ins did to ``sys.modules`` itself.
 
         A name it pointed at something else holds what it held again; a name
         it added goes when what it holds is the scan's own — a stand-in, a
         view of a package, an inspected namespace — and stays otherwise: a
-        module a truthful import loaded, or an alias a library made.
+        module a truthful import loaded, or an alias a library made. A module
+        it took out — one loaded before, or loaded by the scan for it — is
+        put back, unless the scan set it aside meanwhile.
         """
         for key, value in list(sys.modules.items()):
             previous = loaded_before.get(key)
@@ -543,6 +563,10 @@ class Inspection:
                 sys.modules[key] = previous
             elif isinstance(value, (StandInModule, _Branch, _Inspected)):
                 del sys.modules[key]
+        for key, previous in [*loaded_before.items(), *loaded]:
+            # Taken out by the body itself — not set aside by the scan meanwhile.
+            if key not in sys.modules and holder_of(key, self._set_aside) is None:
+                sys.modules[key] = previous
 
     def _record_of(self, name: str) -> importlib.machinery.ModuleSpec | None:
         """Find the import record of ``name`` on its package's path, importing nothing."""
@@ -627,13 +651,23 @@ class Inspection:
         """Return ``module`` for ``from name import ...``: a name it lacks may be a module of it.
 
         One that is set aside is read off the module's view of ``module``
-        where that is loaded: the package itself is left as it is.
+        where that is loaded: the package itself is left as it is. ``*`` takes
+        the names its ``__all__`` lists, as an import does, and every public
+        name of the package where it lists none.
         """
-        entry.reached.extend(f"{name}.{item}" for item in fromlist if item != "*")
+        star = "*" in fromlist
+        items = [item for item in fromlist if item != "*"]
+        if star:
+            listed = _read(module, "__all__")
+            if isinstance(listed, (list, tuple)):
+                items.extend(
+                    item for item in cast("Sequence[object]", listed) if isinstance(item, str)
+                )
+        entry.reached.extend(f"{name}.{item}" for item in items)
         if isinstance(module, StandInModule):
             return module
-        for item in fromlist:
-            if item == "*" or hasattr(module, item):
+        for item in items:
+            if _read(module, item) is not _ABSENT:
                 continue
             child = f"{name}.{item}"
             try:
@@ -645,6 +679,9 @@ class Inspection:
                 continue
             if found is not sys.modules.get(child) and name not in self._set_aside:
                 _ = _graft(entry, module, item, found)
+        if star and _read(module, "__all__") is _ABSENT:
+            # A view holds none of the package's names itself: ``*`` takes them off the package.
+            return module
         return _view(entry, module)
 
     def _rooted(
@@ -785,13 +822,47 @@ def _view(entry: SetAsideModule, module: ModuleType) -> ModuleType:
 
 
 def _graft(entry: SetAsideModule, package: ModuleType, child: str, module: ModuleType) -> _Branch:
-    """Graft ``module`` on ``entry``'s one view of the loaded ``package``, made at the first."""
+    """Graft ``module`` on ``entry``'s one view of the loaded ``package``, made at the first.
+
+    Made, it takes the place of the package wherever the inspected module
+    bound the package already (``from app import fixtures`` before ``import
+    app.fixtures.users``), so every name for it sees what is grafted.
+    """
     view = entry.views.get(package.__name__)
     if view is None:
         view = _Branch(package, {})
         entry.views[package.__name__] = view
+        if isinstance(entry.module, _Inspected):
+            namespace = cast("dict[str, object]", vars(entry.module))
+            for bound in [key for key, value in namespace.items() if value is package]:
+                namespace[bound] = view
     view.graft(child, module)
     return view
+
+
+_ABSENT: Final = object()
+"""What :func:`_read` gives for a name a module does not have."""
+
+
+def _given(lacking: str, name: str) -> str:
+    """Return ``lacking`` whatever ``name``: what a namespace lacks, kept past the scan."""
+    del name
+    return lacking
+
+
+def _read(module: ModuleType, name: str) -> object:
+    """Return ``module``'s ``name``, or :data:`_ABSENT` — also when reading it fails an import.
+
+    A package answering a name lazily (a module ``__getattr__``) may import a
+    module to answer it that is, or turns out to be, set aside: the name is
+    not there yet, and the scan serves the module it names instead. A failure
+    of another kind is raised again when the statement reads the name itself.
+    """
+    try:
+        found: object = getattr(module, name, _ABSENT)
+    except ImportError:
+        return _ABSENT
+    return found
 
 
 def _first_of(name: str, set_aside: Mapping[str, SetAsideModule], seen: set[str]) -> str | None:
@@ -872,7 +943,7 @@ def _origin(error: BaseException) -> tuple[str, bool]:
 
     ``module:qualname``, or ``code naming no module``; and whether it reached
     the failure through ``importlib.import_module``. The frames of the import
-    system, and of this scan, are not who imported.
+    system, of the standard library and of this scan are not who imported.
     """
     traceback: TracebackType | None = error.__traceback__
     where = "code naming no module"
@@ -881,11 +952,10 @@ def _origin(error: BaseException) -> tuple[str, bool]:
         frame = traceback.tb_frame
         module = frame.f_globals.get("__name__")
         frozen = frame.f_code.co_filename.startswith("<frozen importlib")
+        standard = isinstance(module, str) and module.partition(".")[0] in sys.stdlib_module_names
         if module == "importlib" and frame.f_code.co_name == "import_module":
             called = True
-        elif frozen or (
-            isinstance(module, str) and (module.startswith(("importlib", _OWN_PACKAGE)))
-        ):
+        elif frozen or standard or (isinstance(module, str) and module.startswith(_OWN_PACKAGE)):
             pass
         elif isinstance(module, str):
             where = f"{module}:{frame.f_code.co_qualname}"
