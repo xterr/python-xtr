@@ -128,7 +128,53 @@ _SHAPES: Final[dict[str, dict[str, str]]] = {
     },
 }
 
-SCENARIOS: Final = _READING | _SHAPES
+_REACHING: Final[dict[str, dict[str, str]]] = {
+    "a module a fixture's body loads by a call, reading from the fixture": {
+        f"{APP}.{{fx}}": (
+            "import importlib\nimport acme_faker\n\nfake = acme_faker.Faker()\n"
+            f"importlib.import_module('{APP}.{{other}}')\n"
+        ),
+        f"{APP}.{{other}}": f"from {APP}.{{fx}} import fake\n\n\nclass Reader:\n    name = fake\n",
+    },
+    "a module of a package a module imported optionally, imported directly later": {
+        f"{APP}.{{fx}}.__init__": "from .load import load\nimport acme_faker\n",
+        f"{APP}.{{fx}}.load": "def load():\n    pass\n",
+        f"{APP}.{{other}}": f"try:\n    import {APP}.{{fx}}\nexcept ImportError:\n    pass\n",
+        f"{APP}.{{third}}": f"from {APP}.{{fx}}.load import load\n\n\nclass Seed:\n    pass\n",
+    },
+    "a module falling back on the error a fixture's import raises": {
+        f"{APP}.{{fx}}": "import acme_faker\n\n\nclass F:\n    pass\n",
+        f"{APP}.{{other}}": (
+            f"try:\n    from {APP}.{{fx}} import F\nexcept ImportError as error:\n"
+            "    if error.name != 'acme_faker':\n        raise\n"
+            "    F = None\n    REASON = str(error)\n\n\nclass Service:\n    pass\n"
+        ),
+    },
+    "a module falling back on a name a fixture lacks": {
+        f"{APP}.{{fx}}": "import acme_faker\n\n\nclass Old:\n    pass\n",
+        f"{APP}.{{other}}": (
+            f"try:\n    from {APP}.{{fx}} import New\nexcept ImportError:\n"
+            f"    from {APP}.{{fx}} import Old as New\n\n\nclass User:\n    base = New\n"
+        ),
+    },
+    "a fixture putting another module in its own place": {
+        f"{APP}.{{fx}}": (
+            "import sys\nimport types\nimport acme_faker\n\n\n"
+            "class Replacement(types.ModuleType):\n    pass\n\n\n"
+            "sys.modules[__name__] = Replacement(__name__)\n"
+            f"sys.modules['{APP}.{{fx}}_alias'] = sys.modules[__name__]\n"
+        ),
+        f"{APP}.{{other}}": "class Plain:\n    pass\n",
+    },
+    "a fixtures package whose own code fails, with a healthy module": {
+        f"{APP}.{{fx}}.__init__": (
+            "from .load import load\nimport acme_faker\n\na, b = acme_faker.pair()\n"
+        ),
+        f"{APP}.{{fx}}.load": "def load():\n    pass\n",
+    },
+}
+
+SCENARIOS: Final = _READING | _SHAPES | _REACHING
 
 
 @pytest.mark.parametrize("scenario", sorted(SCENARIOS))

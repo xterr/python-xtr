@@ -258,8 +258,9 @@ class Scanner:
             self._inspection = inspection
             try:
                 self._sort(resources, None, result, late=late)
-            finally:
+                # Only a scan that ends says what it set aside: one failing has half of it.
                 self.set_aside.extend(inspection.reports())
+            finally:
                 self._inspection = None
 
     def _sort(

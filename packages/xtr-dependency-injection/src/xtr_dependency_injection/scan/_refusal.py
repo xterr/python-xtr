@@ -8,21 +8,25 @@ name that is, or lies under, a set-aside module is refused with
 :class:`SetAsideRefused`, which any ``except ImportError`` catches.
 
 It serves nothing. Asked only whether such a module exists
-(``importlib.util.find_spec``), it answers as the other finders do, with the
-record they found — whose loader refuses to load it.
+(``importlib.util.find_spec``), it answers as the other finders do, with a
+copy of the record they found — whose loader refuses to load it.
+
+The refusal reads as the failure a truthful import would raise: a
+``ModuleNotFoundError`` naming the package not installed the module needs.
 
 Private to the scan.
 """
 
 from __future__ import annotations
 
+import copy
 import importlib.abc
 import sys
 import threading
 from typing import TYPE_CHECKING, final, override
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Sequence
+    from collections.abc import Callable, Collection, Sequence
     from importlib.machinery import ModuleSpec
     from types import ModuleType
 
@@ -33,18 +37,19 @@ __all__ = ["RefusalFinder", "SetAsideRefused", "holder_of"]
 class SetAsideRefused(ModuleNotFoundError):  # noqa: N818 — named for what the scan did, as its report is
     """Raised by an import of a set-aside module, or of one lying under a set-aside package.
 
-    It names no module, as the error of a module that needs a missing package
-    does not name that module: ``from package import module`` takes an error
-    naming the module itself for "no such module", and goes on.
+    It reads as the failure of a truthful import of the module: it names, and
+    says, the package not installed that the module needs — not the module
+    itself, which ``from package import module`` would take for "no such
+    module", and go on.
 
     Attributes:
         module: The module refused.
         through: The set-aside module the name is, or lies under.
     """
 
-    def __init__(self, module: str, through: str) -> None:
-        """Refuse ``module``, set aside as, or under, ``through``."""
-        super().__init__(f"{module!r} is set aside: a package it needs is not installed")
+    def __init__(self, module: str, through: str, lacking: str) -> None:
+        """Refuse ``module``, set aside as, or under, ``through``, for ``lacking`` not installed."""
+        super().__init__(f"No module named {lacking!r}", name=lacking)
         self.module = module
         self.through = through
 
@@ -61,17 +66,18 @@ def holder_of(module: str, packages: Collection[str]) -> str | None:
 class _RefusingLoader(importlib.abc.Loader):
     """Loads nothing: the module it was found for is set aside."""
 
-    def __init__(self, through: str) -> None:
+    def __init__(self, through: str, lacking: Callable[[str], str]) -> None:
         self._through = through
+        self._lacking = lacking
 
     @override
     def create_module(self, spec: ModuleSpec) -> ModuleType | None:
         # Raised before the import system puts anything in sys.modules.
-        raise SetAsideRefused(spec.name, self._through)
+        raise SetAsideRefused(spec.name, self._through, self._lacking(self._through))
 
     @override
     def exec_module(self, module: ModuleType) -> None:
-        raise SetAsideRefused(module.__name__, self._through)
+        raise SetAsideRefused(module.__name__, self._through, self._lacking(self._through))
 
 
 @final
@@ -82,9 +88,14 @@ class RefusalFinder(importlib.abc.MetaPathFinder):
     names set aside from the collection it was given, as that grows.
     """
 
-    def __init__(self, set_aside: Collection[str]) -> None:
-        """Refuse each name of ``set_aside``, and every name under one."""
+    def __init__(self, set_aside: Collection[str], lacking: Callable[[str], str]) -> None:
+        """Refuse each name of ``set_aside``, and every name under one.
+
+        ``lacking`` gives, for a set-aside module, the package not installed
+        a truthful import of it would fail for.
+        """
         self._set_aside = set_aside
+        self._lacking = lacking
         self._thread = threading.get_ident()
 
     @override
@@ -105,9 +116,10 @@ class RefusalFinder(importlib.abc.MetaPathFinder):
                 continue
             found = finder.find_spec(fullname, path, target)
             if found is not None:
-                # A record made for this call: its loader is replaced, nothing else of it.
-                found.loader = _RefusingLoader(through)
-                return found
+                # A copy: the finder that found it may hand out the same record again.
+                refused = copy.copy(found)
+                refused.loader = _RefusingLoader(through, self._lacking)
+                return refused
         return None
 
     def install(self) -> None:

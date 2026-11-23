@@ -643,9 +643,15 @@ package it needs is not installed at all:
   application's models a fixture imports first, a module probing for the missing package
   (`try: import faker`, `find_spec("faker")`) — which learns it is missing, whichever order
   the scan finds it in. For the scan's length, importing a set-aside module is refused with an
-  import error, as it fails at runtime: a module that needs it fails, and is set aside in turn;
-  one importing it optionally (`try: from app.fixtures import fake / except ImportError`)
-  falls back, and is kept. Asking whether it exists (`find_spec`) is answered as ever.
+  import error, as it fails at runtime — the same `ModuleNotFoundError`, naming the package
+  not installed: a module that needs it fails, and is set aside in turn; one importing it
+  optionally (`try: from app.fixtures import fake / except ImportError`) falls back, and is
+  kept. Asking whether it exists (`find_spec`) is answered as ever. A set-aside module's names
+  are refused the same way to any code but inspected code — a module that a call of its body
+  loaded, finding it among the loaded modules, or one holding it after the scan. A failed import
+  that a module catches (`try: import app.fixtures`) leaves nothing half-loaded of the
+  application behind: the package it failed in is set aside at once, whichever order the scan
+  finds them in — or, failing for a reason of its own, fails the build where the scan meets it.
 - **Registered nowhere.** Nothing a set-aside module defines becomes a service, and no
   set-aside module is loaded once the scan ends: importing it later fails with the error it
   always had. Setting a package aside sets aside every module under it: one its `__init__`
@@ -1554,8 +1560,18 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   build, naming the function. Import the library in the fixture module itself. A value the
   module hands to another module's function (`registry.add(fake)`) stays there.
 - **What fails part-way runs part-way again.** A module failing to import runs the lines
-  before its failing import twice: once truthfully, once more when its code is run to see what
-  it defines. Keep imports at the top of fixture modules.
+  before its failing import once for each truthful import of it — the scan's, and any a module
+  makes and catches — and once more when its code is run to see what it defines. Keep imports at
+  the top of fixture modules.
+- **The rest of a set-aside module runs too, once.** Run to see what it defines, its code goes
+  on past the import that failed, and the modules it imports there are imported truthfully:
+  what they register stays registered, and one that fails fails the build — the error says
+  where it was raised.
+- **Set aside once per scan.** A healthy module a fixtures package loaded before failing is set
+  aside as it is, and out of the loaded modules after the scan: a second scan in the same
+  process runs it again. Keep what such a module registers at import idempotent.
+- **The refusal is found by `find_spec` with a loader of its own.** Asking whether a set-aside
+  module exists finds it where it lies, but the record's loader is the one refusing it.
 - **A package tried optionally by a set-aside module is said to be needed.** Inside a module
   that is set aside anyway, `try: import orjson / except ImportError` is served a stand-in for
   a package that is not installed, and the report lists it among what the module needs.

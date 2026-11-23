@@ -155,3 +155,39 @@ def test_a_module_with_no_code_to_run_again_is_fatal() -> None:
         _ = _code_of("_json", record)
 
     assert "has no code to run again" in caught.value.__notes__[0]
+
+
+def test_a_loaded_package_reached_through_a_set_aside_module_answers_its_own_dunders(
+    scratch_modules: ScratchModules,
+) -> None:
+    scratch_modules.write(
+        {
+            f"{APP}.aa_fx": "import acme_faker\n",
+            f"{APP}.bb_user": (
+                f"import {APP}.aa_fx\n\nRECORD = {APP}.__spec__.name\nPACKAGE = {APP}.__package__\n"
+            ),
+        }
+    )
+
+    scanner, result = _scan()
+
+    del result
+    (user,) = [entry for entry in scanner.set_aside if entry.module == f"{APP}.bb_user"]
+    assert user.through == f"{APP}.aa_fx"
+
+
+def test_the_namespace_of_a_set_aside_module_refuses_its_names_to_other_code(
+    scratch_modules: ScratchModules,
+) -> None:
+    scratch_modules.write({f"{APP}.typed": TYPED})
+
+    _, result = _scan()
+
+    box = cast("type", _set_aside_object(result, f"{APP}.typed:Box"))
+    # What its body read off sys.modules by its own name: the namespace itself.
+    namespace = cast("object", cast("FunctionType", vars(box)["__init__"]).__globals__["SELF"])
+    own, dunder = "fake", "__name__"
+    with pytest.raises(ModuleNotFoundError) as caught:
+        _ = cast("object", getattr(namespace, own))
+    assert caught.value.name == "acme_faker"
+    assert cast("str", getattr(namespace, dunder)) == f"{APP}.typed"

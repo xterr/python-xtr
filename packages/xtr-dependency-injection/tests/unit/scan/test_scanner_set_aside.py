@@ -277,7 +277,48 @@ def test_a_module_importing_a_set_aside_module_with_importlib_fails_saying_so(
 
     assert caught.value.module == f"{APP}.zz_loader"
     (note,) = caught.value.__notes__
-    assert f"'{APP}.fixtures.users' is served only to this module's own import statements" in note
+    served = f"'{APP}.fixtures.users' is served only to this module's own import statements"
+    assert note.endswith(
+        f"{served} — not to importlib.import_module, called by {APP}.zz_loader:<module>"
+    )
+
+
+def test_a_helper_importing_a_set_aside_module_for_a_set_aside_one_is_named(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.bb_util": (
+                f"def users():\n    from {APP}.fixtures import users\n    return users\n"
+            ),
+            f"{APP}.zz_seed": (
+                f"import acme_faker\nfrom {APP}.bb_util import users\n\nU = users()\n"
+            ),
+        }
+    )
+
+    with pytest.raises(ResourceImportError) as caught:
+        _ = _scan()
+
+    (note,) = caught.value.__notes__
+    assert note.endswith(f"not to an import statement of {APP}.bb_util:users")
+
+
+def test_a_failure_raised_by_a_module_a_set_aside_one_imports_names_where(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            "acme_side.__init__": "raise RuntimeError('side effect')\n",
+            f"{APP}.zz_fx": "import acme_faker\nimport acme_side\n",
+        }
+    )
+
+    with pytest.raises(ResourceImportError) as caught:
+        _ = _scan()
+
+    (note,) = caught.value.__notes__
+    assert note.endswith("; raised in acme_side:<module>")
 
 
 # --- what is kept --------------------------------------------------------------------
@@ -1652,3 +1693,24 @@ def test_an_import_error_naming_the_missing_package_is_read_through(
     scanner, _ = _scan()
 
     assert _set_aside(scanner)[f"{APP}.uses_extra2"] == (("acme_faker",), "acme_extra2")
+
+
+def test_a_package_failing_for_a_reason_of_its_own_is_blamed_where_the_scan_meets_it(
+    application: ScratchModules,
+) -> None:
+    # aa_opt catches the failed import, leaving zz_pkg.load loaded without its package.
+    application.write(
+        {
+            f"{APP}.aa_opt": f"try:\n    import {APP}.zz_pkg\nexcept ImportError:\n    pass\n",
+            f"{APP}.zz_pkg.__init__": "from .load import load\nfrom json import not_there\n",
+            f"{APP}.zz_pkg.load": "def load():\n    pass\n",
+        }
+    )
+
+    with pytest.raises(ResourceImportError) as caught:
+        # Scanned without the check of what is left: the failed import leaves its module, as ever.
+        _ = _scanner().scan([APP], owner=None)
+
+    assert caught.value.module == f"{APP}.zz_pkg"
+    assert f"{APP}.zz_pkg.load" in sys.modules
+    assert f"{APP}.zz_pkg" not in sys.modules
