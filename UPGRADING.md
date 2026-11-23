@@ -1,5 +1,54 @@
 # Upgrading
 
+## To 7.1
+
+7.1 adds the messenger's console commands for transports and failed messages, and has workers
+send a message that failed for good to the configured failure transport. Every package moves to
+7.1 together; only the packages below change anything you can observe.
+
+### xtr-messenger
+
+- `failure_transport` — on `MessageBusConfig`, or on a `TransportConfig` — now moves messages.
+  Once a message's last attempt fails, the worker sends it to the failure transport configured
+  for its transport, stamped with a `SentToFailureTransportStamp`, and acknowledges the original;
+  before, it only told the `messenger:failed:*` commands where to look and the transport kept the
+  message its own way. That send and the acknowledgement are two steps: a crash between them
+  leaves the message in both places, so a handler reading the failure transport must be
+  idempotent, as every handler already must. Leave `failure_transport` unset to keep the old
+  behaviour.
+- A message that failed in a failure transport — consumed there, or retried from it — is never
+  sent on to another one, whatever the configuration: it stays where it is.
+- A receiver that is not a `RetryingReceiverInterface` has every failure treated as final, so
+  with a failure transport configured its first failure is moved there. Implement `will_retry`
+  on a receiver that retries a rejected message itself.
+- `WorkerProvidingInterface.worker()` is unchanged. An adapter whose worker should send final
+  failures on implements the new `FailureTransportWorkerProvidingInterface`; one that does not
+  keeps working, its final failures staying with the broker, and `WorkerFactory` logs a warning
+  on `messenger` when its group has a failure transport.
+- `WorkerFactory.close_publishers()` closes what sending to a failure transport, or a redispatch,
+  opened; call it once a worker run without a container is done.
+
+### xtr-amqp-messenger
+
+- Delays need no plugin. The `delay` setting (`auto`, `native`, `queue`, `plugin`) replaces
+  `delayed_message_exchange_plugin`, which still reads: `true` is `delay=plugin`, `false` is
+  `delay=auto`. By default (`auto`) a delayed message waits natively on RabbitMQ 4.4 and later
+  quorum queues and in a delay queue of its own otherwise, so an application relying on the
+  plugin by default now uses the queue or native mode — set `delay=plugin` to keep the plugin. A
+  delayed send is never refused any more.
+- `AmqpTransportFactory.create()` returns `AmqpTransport` objects, not `TaskiqSender` ones: an
+  `isinstance(..., TaskiqSender)` check no longer matches. `AmqpTransport` reads `broker`,
+  `queue` and `serializer` as the sender did, and the sender itself is `.sender`.
+- With a failure transport configured, a message out of attempts goes there instead of
+  `taskiq.dlq`; a delivery that cannot be decoded still goes to `taskiq.dlq`.
+
+### xtr-orm-messenger
+
+- With a failure transport configured for an `orm://` transport, a message out of attempts is
+  sent there and its row deleted — a new row in the failure transport, with a new id — instead of
+  being moved to `failure_queue` in one update. Without one, it is moved to `failure_queue` as
+  before.
+
 ## To 7.0
 
 7.0 makes every unit of work — a request, a message, a command — keep its own state when several

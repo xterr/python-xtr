@@ -28,6 +28,9 @@ from xtr_messenger.bridge.taskiq.started_brokers import StartedBrokers
 from xtr_messenger.bridge.taskiq.taskiq_sender import TaskiqSender
 from xtr_messenger.bridge.taskiq.taskiq_worker import TaskiqWorker
 from xtr_messenger.exception import MixedDsnError
+from xtr_messenger.failure_transport_worker_providing_interface import (
+    FailureTransportWorkerProvidingInterface,
+)
 from xtr_messenger.publisher_closing_interface import PublisherClosingInterface
 from xtr_messenger.transport.transport_factory_interface import TransportFactoryInterface
 from xtr_messenger.transport.transport_options import reject_unknown_options
@@ -35,6 +38,7 @@ from xtr_messenger.worker_providing_interface import WorkerProvidingInterface
 
 from .amqp_broker import create_amqp_broker
 from .amqp_options import AMQP_OPTIONS, AmqpOptions
+from .amqp_transport import AmqpTransport
 from .dead_lettering import DETAIL_LIMIT, publish_dead_letter
 
 if TYPE_CHECKING:
@@ -47,6 +51,7 @@ if TYPE_CHECKING:
     from xtr_messenger.bridge.taskiq.poison_message_receiver import DeadLetterer
     from xtr_messenger.dsn import Dsn
     from xtr_messenger.exception import MessageDecodingFailedError
+    from xtr_messenger.failure.failure_transport_sender import FailureTransportSender
     from xtr_messenger.message_bus_interface import MessageBusInterface
     from xtr_messenger.transport.sender import SenderInterface
     from xtr_messenger.transport.serialization import SerializerInterface
@@ -72,7 +77,10 @@ _VERIFY_OFF_WARNING: Final = (
 
 @final
 class AmqpTransportFactory(
-    TransportFactoryInterface, WorkerProvidingInterface, PublisherClosingInterface
+    TransportFactoryInterface,
+    WorkerProvidingInterface,
+    FailureTransportWorkerProvidingInterface,
+    PublisherClosingInterface,
 ):
     """Builds ``amqp://`` transports, sharing one broker per DSN."""
 
@@ -103,16 +111,27 @@ class AmqpTransportFactory(
 
     @override
     def create(self, group: Mapping[str, TransportConfig]) -> Mapping[str, SenderInterface]:
-        """Build one broker for the group, and a sender per named queue."""
+        """Build one broker for the group, and a transport per named queue.
+
+        Each publishes through that broker, and can set up the connection's
+        topology and count its own queue.
+        """
         options = self._options_for(group)
         broker = self._broker_for(group, options)
         queues = _queues_of(group)
         return {
-            name: TaskiqSender(
-                broker,
-                self._started,
-                self._serializer,
+            name: AmqpTransport(
+                TaskiqSender(
+                    broker,
+                    self._started,
+                    self._serializer,
+                    queue=transport.queue_name if queues else None,
+                ),
+                name=name,
+                connection=_connection_of(group),
+                options=options,
                 queue=transport.queue_name if queues else None,
+                queues=queues,
             )
             for name, transport in group.items()
         }
@@ -158,9 +177,46 @@ class AmqpTransportFactory(
         does not decode into its message — is quarantined there at once
         rather than retried.
 
+        A message out of attempts is dead-lettered too, there; see
+        :meth:`worker_with_failure_transport` to send it to a failure
+        transport instead.
+
         Raises:
             MixedDsnError: If the transports do not share one connection.
         """
+        return self._worker(group, bus, None, event_dispatcher, resetter)
+
+    @override
+    def worker_with_failure_transport(
+        self,
+        group: Mapping[str, TransportConfig],
+        bus: MessageBusInterface,
+        failure_transport_sender: FailureTransportSender,
+        *,
+        event_dispatcher: EventDispatcherInterface | None = None,
+        resetter: AsyncResetter | None = None,
+    ) -> WorkerInterface:
+        """Build what :meth:`worker` builds, a message out of attempts sent to a failure transport.
+
+        Sent through ``failure_transport_sender`` and then acknowledged, rather
+        than put on the dead-letter queue; one it does not send — its
+        transport has no failure transport, it failed in one already, the
+        send failed — is dead-lettered as before, and so is a delivery that
+        cannot even be decoded.
+
+        Raises:
+            MixedDsnError: If the transports do not share one connection.
+        """
+        return self._worker(group, bus, failure_transport_sender, event_dispatcher, resetter)
+
+    def _worker(
+        self,
+        group: Mapping[str, TransportConfig],
+        bus: MessageBusInterface,
+        failure_transport_sender: FailureTransportSender | None,
+        event_dispatcher: EventDispatcherInterface | None,
+        resetter: AsyncResetter | None,
+    ) -> WorkerInterface:
         options = self._options_for(group)
         broker = self._broker_for(group, options)
         dead_letter_queue = options.reliability.dead_letter_queue
@@ -172,6 +228,7 @@ class AmqpTransportFactory(
             receiver_names={transport.queue_name: name for name, transport in group.items()},
             max_attempts=options.reliability.max_attempts,
             resetter=resetter,
+            failure_transport_sender=failure_transport_sender,
             dead_letter=(
                 _undecodable_dead_letterer(broker, dead_letter_queue)
                 if dead_letter_queue is not None
@@ -222,12 +279,19 @@ class AmqpTransportFactory(
         Raises:
             MixedDsnError: If the transports do not share one connection.
         """
-        connections = tuple(
-            dict.fromkeys(transport.parsed.connection for transport in group.values())
-        )
-        if len(connections) != 1:
-            raise MixedDsnError(connections)
-        return create_amqp_broker(connections[0], options, _queues_of(group))
+        return create_amqp_broker(_connection_of(group), options, _queues_of(group))
+
+
+def _connection_of(group: Mapping[str, TransportConfig]) -> str:
+    """Return the one server ``group``'s transports address.
+
+    Raises:
+        MixedDsnError: If the transports do not share one connection.
+    """
+    connections = tuple(dict.fromkeys(transport.parsed.connection for transport in group.values()))
+    if len(connections) != 1:
+        raise MixedDsnError(connections)
+    return connections[0]
 
 
 def _queues_of(group: Mapping[str, TransportConfig]) -> tuple[str, ...]:

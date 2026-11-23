@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import final
+from typing import TYPE_CHECKING, final
 
 import pytest
 from taskiq import Context, SmartRetryMiddleware, TaskiqMessage
@@ -17,16 +17,21 @@ from taskiq_aio_pika import AioPikaBroker
 from xtr_messenger import (
     Dsn,
     Envelope,
+    FailureTransportSender,
+    InMemoryTransport,
+    InMemoryTransportFactory,
+    MessageBusConfig,
     MixedDsnError,
     PublisherClosingInterface,
+    SentToFailureTransportStamp,
     TransportConfig,
+    TransportLocator,
     UnknownTransportOptionError,
     WorkerInterface,
     WorkerProvidingInterface,
     name_of,
 )
 from xtr_messenger.bridge.taskiq.labels import HEADERS_LABEL, RETRIES_LABEL
-from xtr_messenger.bridge.taskiq.taskiq_sender import TaskiqSender
 from xtr_messenger.bridge.taskiq.taskiq_worker import TaskiqWorker, default_max_async_tasks
 from xtr_messenger.message_registry import declared_names
 
@@ -34,6 +39,10 @@ from tests.support.fakes import RecordingBus
 from tests.support.messages import IngestDocument, ingest_document
 from tests.support.serialization import json_serializer
 from xtr_amqp_messenger.transport import AmqpTransportFactory, declared_queues
+from xtr_amqp_messenger.transport.amqp_transport import AmqpTransport
+
+if TYPE_CHECKING:
+    from xtr_messenger.bridge.taskiq.taskiq_sender import TaskiqSender
 
 _HOST = "amqp://guest:guest@localhost:5672/"
 _OTHER = "amqp://guest:guest@other:5672/"
@@ -58,8 +67,8 @@ def _group() -> dict[str, TransportConfig]:
 
 
 def _sender(built: object) -> TaskiqSender:
-    assert isinstance(built, TaskiqSender)
-    return built
+    assert isinstance(built, AmqpTransport)
+    return built.sender
 
 
 def _broker_of(sender: object) -> AioPikaBroker:
@@ -304,6 +313,63 @@ async def test_the_worker_resets_services_after_each_message() -> None:
 
     assert resetter.resets == 1
     assert len(bus.dispatched) == 1
+
+
+async def _fail_last_attempt(failure: str | None) -> tuple[bool, tuple[Envelope, ...]]:
+    """Fail a message's last attempt on ``high``; tell whether it raised, and what moved."""
+    config = MessageBusConfig(
+        transports={"high": _group()["high"], "failed": TransportConfig("in-memory://")},
+        failure_transport="failed",
+    )
+    locator = TransportLocator(config, [InMemoryTransportFactory()])
+    factory = AmqpTransportFactory(json_serializer())
+    bus = RecordingBus(failure=RuntimeError("boom"))
+    group = {"high": config.transports["high"]}
+    worker = (
+        factory.worker(group, bus)
+        if failure is None
+        else factory.worker_with_failure_transport(
+            group, bus, FailureTransportSender(config, locator)
+        )
+    )
+    broker = _worker_broker(worker)
+    task = broker.find_task(name_of(IngestDocument))
+    assert task is not None
+    encoded = json_serializer().encode(Envelope.wrap(ingest_document()))
+    message = TaskiqMessage(
+        task_id="t1",
+        task_name=name_of(IngestDocument),
+        labels={RETRIES_LABEL: 2, HEADERS_LABEL: json.dumps(encoded.headers)},
+        args=[],
+        kwargs={},
+    )
+    raised = False
+    try:
+        await task.original_func(encoded.body, Context(message, broker))
+    except RuntimeError:
+        raised = True
+    failed = locator.get("failed")
+    assert isinstance(failed, InMemoryTransport)
+    return raised, failed.sent
+
+
+@pytest.mark.anyio
+async def test_a_worker_with_a_failure_transport_sends_a_last_attempt_there() -> None:
+    raised, moved = await _fail_last_attempt("failed")
+
+    assert not raised
+    [envelope] = moved
+    stamp = envelope.last(SentToFailureTransportStamp)
+    assert stamp is not None
+    assert stamp.original_receiver_name == "high"
+
+
+@pytest.mark.anyio
+async def test_a_plain_worker_leaves_a_last_attempt_to_dead_lettering() -> None:
+    raised, moved = await _fail_last_attempt(None)
+
+    assert raised
+    assert moved == ()
 
 
 def test_with_the_delay_plugin_off_senders_still_accept_a_delay() -> None:

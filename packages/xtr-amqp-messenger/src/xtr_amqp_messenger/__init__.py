@@ -10,9 +10,11 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
+from .exception import AmqpMessengerError, TransportError
 from .transport import (
     AMQP_SCHEMES,
     DEFAULT_DEAD_LETTER_QUEUE,
+    AmqpTransport,
     AmqpTransportFactory,
     DeadLetterMiddleware,
     MixedDsnError,
@@ -31,10 +33,13 @@ except PackageNotFoundError:  # pragma: no cover
 __all__ = [
     "AMQP_SCHEMES",
     "DEFAULT_DEAD_LETTER_QUEUE",
+    "AmqpMessengerError",
+    "AmqpTransport",
     "AmqpTransportFactory",
     "DeadLetterMiddleware",
     "MixedDsnError",
     "Reliability",
+    "TransportError",
     "__version__",
     "create_amqp_broker",
     "declared_queues",

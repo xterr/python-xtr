@@ -20,6 +20,7 @@ and replayed.
 from __future__ import annotations
 
 from .amqp_broker import create_amqp_broker, declared_queues
+from .amqp_transport import AmqpTransport
 from .amqp_transport_factory import AMQP_SCHEMES, AmqpTransportFactory, MixedDsnError
 from .dead_letter_middleware import DeadLetterMiddleware
 from .reliability import DEFAULT_DEAD_LETTER_QUEUE, Reliability
@@ -27,6 +28,7 @@ from .reliability import DEFAULT_DEAD_LETTER_QUEUE, Reliability
 __all__ = [
     "AMQP_SCHEMES",
     "DEFAULT_DEAD_LETTER_QUEUE",
+    "AmqpTransport",
     "AmqpTransportFactory",
     "DeadLetterMiddleware",
     "MixedDsnError",

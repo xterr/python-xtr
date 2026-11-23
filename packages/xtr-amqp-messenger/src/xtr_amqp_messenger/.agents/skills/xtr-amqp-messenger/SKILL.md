@@ -51,8 +51,13 @@ A `DelayStamp` and the retry backoff are held back as `delay` says: `auto` (defa
 natively (`x-opt-delivery-time`) on RabbitMQ 4.4+ quorum queues, else in a TTL delay queue per
 delay that dead-letters back — no plugin either way. `delay=native|queue|plugin` forces one;
 `plugin` needs `rabbitmq_delayed_message_exchange`. The old `delayed_message_exchange_plugin`
-still reads: `true` is `plugin`, `false` is `auto`. A message out of attempts — or one that can
-never be handled — goes to `dead_letter_queue` (`taskiq.dlq` by default) in its wire format.
+still reads: `true` is `plugin`, `false` is `auto`. A message out of attempts goes to the
+configuration's `failure_transport` when one is named (sent by the worker, then acked);
+otherwise — and always for a delivery that cannot be decoded — to `dead_letter_queue`
+(`taskiq.dlq` by default) in its wire format. `messenger:setup-transports` declares the
+exchange, queues and dead-letter queue whatever `auto_setup` says; `messenger:stats` counts a
+transport's queue (ready messages only). Listing is not offered: RabbitMQ cannot look into a
+queue without taking from it, so point `failure_transport` at a listable one (`orm://`).
 The n-th retry waits n times the one before (`base_delay_seconds`, ×2, ×3, …), at most 60 s; a
 `DelayStamp`'s delay replaces the base for its message. The dead-letter queue has no
 limit: bound it with a RabbitMQ policy (`rabbitmqctl set_policy … '{"max-length": …}'`), never
@@ -84,6 +89,8 @@ routing to `in-memory://?serialize=true` and switch the DSN to `amqp://` in prod
 
 ## Errors
 
+- `TransportError` (an `AmqpMessengerError`) — the broker refused `setup()` or `count()`, or
+  could not be reached.
 - `UnknownTransportOptionError` / `InvalidTransportOptionError` — a setting not accepted, or a
   value not usable; TLS settings on plain `amqp://` are refused too, and `delay=native` for
   queues that are not quorum queues.

@@ -98,6 +98,9 @@ an `ErrorDetailsStamp` with why the last one failed. Once its attempts run out t
 the `failure_queue` of the same table, `failed` unless named otherwise, where `count()`, `all()`
 and `find()` on a transport reading that queue show it, and a worker consuming it tries it
 again, with a fresh count. A message failing for good in the failure queue itself is deleted.
+With a `failure_transport` configured for the transport, the worker sends a message whose
+attempts ran out there instead, and the row is deleted: `failure_queue` is where it goes only
+when the configuration names no failure transport.
 The worker asks the transport before it announces a failure, so `WorkerMessageFailedEvent`
 carries `will_retry=True` for an attempt that will be made again.
 
@@ -268,8 +271,8 @@ Everything this library raises derives from `OrmMessengerError`, itself a
 
 ## Upgrading
 
-What changes for an application moving to 7.0, and how to keep the old behaviour where that is
-still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-orm-messenger).
+What changes for an application moving to 7.0 and to 7.1, and how to keep the old behaviour
+where that is still possible: [Upgrading](../../UPGRADING.md).
 
 ## Development
 

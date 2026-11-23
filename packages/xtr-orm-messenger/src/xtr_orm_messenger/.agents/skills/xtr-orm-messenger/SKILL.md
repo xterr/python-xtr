@@ -26,7 +26,8 @@ skill; for connections and migrations, `xtr-orm`.
   `orm:migrations:diff` writes it; `messages_tables(bus_config, connection, default)` names them.
 - Acknowledging deletes the row. Rejecting puts it back in its queue with a `RedeliveryStamp`
   while attempts are left, then moves it to `failure_queue` — consume that queue to try it
-  again; a failure there deletes it. `transport.will_retry(envelope)` says which, and the
+  again; a failure there deletes it. With a `failure_transport` configured, the worker sends it
+  there instead and the row is deleted. `transport.will_retry(envelope)` says which, and the
   worker's `WorkerMessageFailedEvent.will_retry` follows it. While a worker holds a message its claim is renewed every half of
   `redeliver_timeout`; a row not renewed that long (a dead or frozen worker) is claimed again,
   so handlers must be idempotent.

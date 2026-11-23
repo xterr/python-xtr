@@ -3,13 +3,24 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, cast, final, override
 
 import pytest
 from xtr_messenger import (
+    Dsn,
     Envelope,
+    FailureTransportSender,
+    MessageBusConfig,
+    MessageBusInterface,
     ReceivedStamp,
+    SenderInterface,
+    SentToFailureTransportStamp,
+    StampInterface,
+    TransportConfig,
+    TransportFactoryInterface,
+    TransportLocator,
     TransportMessageIdStamp,
+    Worker,
 )
 
 from tests.support.connections import connection_on
@@ -25,11 +36,12 @@ from xtr_orm_messenger.transport import (
     OrmOptions,
     OrmReceivedStamp,
     OrmReceiver,
+    OrmTransport,
     orm_receiver,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncGenerator, Mapping
 
     from sqlalchemy.ext.asyncio import AsyncEngine
     from xtr_clock import MockClock
@@ -424,3 +436,83 @@ async def test_closing_the_receiver_stops_every_keepalive(
     await ticks.tick()
 
     assert calls[0] == 0
+
+
+# ── a configured failure transport ─────────────────────────────────────────
+
+
+@final
+class _Failing(MessageBusInterface):
+    """A bus every message fails on."""
+
+    @override
+    async def dispatch(self, message: object, *stamps: StampInterface) -> Envelope:
+        del message, stamps
+        raise RuntimeError("boom")
+
+
+@final
+class _Noting(SenderInterface):
+    """Sends through ``transport``, and says once it has."""
+
+    def __init__(self, transport: OrmTransport) -> None:
+        self._transport = transport
+        self.sent = asyncio.Event()
+
+    @override
+    async def send(self, envelope: Envelope) -> Envelope:
+        kept = await self._transport.send(envelope)
+        self.sent.set()
+        return kept
+
+
+@final
+class _Kept(TransportFactoryInterface):
+    """Serves ``kept://`` with the one failure transport it holds."""
+
+    def __init__(self, sender: SenderInterface) -> None:
+        self._sender = sender
+
+    @override
+    def supports(self, dsn: Dsn) -> bool:
+        return dsn.scheme == "kept"
+
+    @override
+    def create(self, group: Mapping[str, TransportConfig]) -> Mapping[str, SenderInterface]:
+        return dict.fromkeys(group, self._sender)
+
+
+def _queue(engine: AsyncEngine, clock: MockClock, queue: str) -> OrmTransport:
+    options = OrmOptions(queue=queue, max_attempts=1, poll_interval=0.01)
+    return OrmTransport(connection_on(engine, clock, options), SERIALIZER, name=queue, clock=clock)
+
+
+async def test_with_a_failure_transport_a_last_attempt_goes_there_not_to_the_failure_queue(
+    engine: AsyncEngine, clock: MockClock
+) -> None:
+    orders = _queue(engine, clock, "orders")
+    parked = _queue(engine, clock, "parked")
+    noting = _Noting(parked)
+    config = MessageBusConfig(
+        transports={"orders": TransportConfig("orm://"), "parked": TransportConfig("kept://")},
+        failure_transport="parked",
+    )
+    sender = FailureTransportSender(config, TransportLocator(config, [_Kept(noting)]))
+    _ = await orders.send(Envelope(OrderPlaced("o-1")))
+    worker = Worker(_Failing(), orders, receiver_name="orders", failure_transport_sender=sender)
+
+    running = asyncio.ensure_future(worker.run())
+    try:
+        async with asyncio.timeout(5):
+            _ = await noting.sent.wait()
+    finally:
+        worker.stop()
+        await running
+
+    [kept] = [envelope async for envelope in parked.all()]
+    assert kept.message == OrderPlaced("o-1")
+    stamp = kept.last(SentToFailureTransportStamp)
+    assert stamp is not None
+    assert stamp.original_receiver_name == "orders"
+    assert await orders.count() == 0
+    assert await _queue(engine, clock, "failed").count() == 0

@@ -96,6 +96,21 @@ need no plugin by default:
 `delayed_message_exchange_plugin`, the setting this replaced, still reads when `delay` is not
 given: `true` is `delay=plugin`, `false` is `delay=auto`.
 
+A message out of attempts goes to the configuration's `failure_transport` when one is named for
+its transport — the worker sends it there, stamped with a `SentToFailureTransportStamp`, and
+acknowledges the delivery — and to the dead-letter queue only when none is, or when that send
+fails. A delivery that cannot even be decoded always goes to the dead-letter queue. Point the
+failure transport at one that can be listed, an `orm://` one, so the `messenger:failed:*`
+commands can show, retry and remove what failed.
+
+Each transport is an `AmqpTransport`: it sends, `setup()` declares the exchange, its queue and
+the dead-letter queue whatever `auto_setup` says (`messenger:setup-transports` sets every
+transport up, so every queue), and `count()` returns the messages ready in its queue
+(`messenger:stats`) — a message waiting in a delay queue is counted once it falls due. It cannot
+be listed: RabbitMQ hands a message out to read it. A broker refusing either raises
+`TransportError`, whose message never carries the connection's password. `broker`, `queue` and
+`serializer` read what its sender, `.sender`, was built with.
+
 The TLS settings belong to `amqps://` and are refused on plain `amqp://`, where the driver
 would silently ignore them. `verify=false` is warned about once per factory — a notice, not a
 per-broker drumbeat. `connect_timeout` is passed to the driver's connect call, where it is
@@ -188,12 +203,13 @@ Everything raised derives from xtr-messenger's `MessageBusError`:
 | --- | --- |
 | `UnknownTransportOptionError`, `InvalidTransportOptionError` | A setting is not accepted, or its value is not usable |
 | `MixedDsnError` | One worker is asked to serve transports on two servers |
+| `TransportError` | The broker refuses `setup()` or `count()`, or cannot be reached — an `AmqpMessengerError` |
 | `MissingSerializerError` | The factory is discovered with no envelope serializer to build it with |
 
 ## Upgrading
 
-What changes for an application moving to 7.0, and how to keep the old behaviour where that is
-still possible: [Upgrading to 7.0](../../UPGRADING.md#xtr-amqp-messenger).
+What changes for an application moving to 7.0 and to 7.1, and how to keep the old behaviour
+where that is still possible: [Upgrading](../../UPGRADING.md).
 
 ## Development
 
