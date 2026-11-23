@@ -1560,7 +1560,8 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   it calls at module level (`fake = helpers.faker()`), or its own `importlib.import_module`,
   imports truthfully: reaching a missing package or a set-aside module that way fails the
   build, naming the function. Import the library in the fixture module itself. A value the
-  module hands to another module's function (`registry.add(fake)`) stays there.
+  module hands to another module's function (`registry.add(fake)`), or to a cache of the
+  standard library (`Optional[faker.Thing]` is kept by `typing`), stays there.
 - **What fails part-way runs part-way again.** A module failing to import runs the lines
   before its failing import once for each truthful import of it — the scan's, any a module
   makes and catches, and the one settling a package such a caught import left half-loaded — and
@@ -1583,7 +1584,8 @@ Every error derives from `DependencyInjectionError` and carries its data as type
 - **A half-loaded package is settled once the importing module is done.** A module catching a
   failed import of a package (`try: import app.fixtures`) and, in the same body, reaching one of
   the modules that package had loaded (`import app.fixtures.load`) finds it loaded or not
-  depending on the order the scan meets them in.
+  depending on the order the scan meets them in — and, reaching it by its dotted name
+  (`import app.fixtures.load as load`), may fail the build in one order.
 - **A package tried optionally by a set-aside module is said to be needed.** Inside a module
   that is set aside anyway, `try: import orjson / except ImportError` is served a stand-in for
   a package that is not installed, and the report lists it among what the module needs.
@@ -1596,6 +1598,12 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   the build.
 - **Reading a dunder of a missing package fails.** `faker.__version__` at module level raises
   `AttributeError`, as for any module without it, and fails the build.
+- **Every name of a missing package must be named.** `from faker import *` takes nothing from a
+  stand-in: a name used after it is not defined, and fails the build.
+- **A module a set-aside module makes up stays.** What its code puts in `sys.modules` is undone
+  — a name it pointed elsewhere gets back what it held, and a stand-in it put there goes — but
+  a module it builds itself (`types.ModuleType(...)`) and registers stays, with whatever it
+  holds.
 - **The bundle list itself is strict.** `config/bundles.py` may import a bundle that is not
   installed, but a bundle module of the application that imports a missing package itself — or
   a package a bundle lives in whose `__init__` does — fails the build while the list loads.

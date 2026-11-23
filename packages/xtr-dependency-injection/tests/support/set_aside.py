@@ -57,18 +57,19 @@ def write(root: Path, modules: Mapping[str, str]) -> None:
 
 @contextmanager
 def site(root: Path) -> Generator[None]:
-    """Put ``root`` on ``sys.path``, and take what was loaded from it away afterwards."""
+    """Put ``root`` on ``sys.path``, and take every module loaded meanwhile away afterwards."""
+    root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
+    before = frozenset(sys.modules)
     sys.path.insert(0, str(root))
     importlib.invalidate_caches()
     try:
         yield
     finally:
         sys.path.remove(str(root))
-        for name, module in list(sys.modules.items()):
-            origin = getattr(module, "__file__", None)
-            if isinstance(origin, str) and origin.startswith(str(root)):
-                del sys.modules[name]
+        # Whatever the scan left behind too, with a file or none: the next scan starts afresh.
+        for name in [name for name in sys.modules if name not in before]:
+            del sys.modules[name]
         importlib.invalidate_caches()
 
 

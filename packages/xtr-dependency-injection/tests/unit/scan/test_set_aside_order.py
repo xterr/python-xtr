@@ -200,6 +200,75 @@ _REACHING: Final[dict[str, dict[str, str]]] = {
         f"{APP}.{{other}}": f"{REGISTER}VALUE = 1\n",
         f"{APP}.{{third}}": f"from {APP}.{{other}} import VALUE\n",
     },
+    "a module importing a fixture, then a healthy module, by dotted names": {
+        f"{APP}.{{fx}}": "import acme_faker\n\n\nclass Base:\n    pass\n",
+        f"{APP}.{{third}}": "class User:\n    pass\n",
+        f"{APP}.{{other}}": (
+            f"import {APP}.{{fx}}\nimport {APP}.{{third}}\nimport {APP}\n\n\n"
+            f"class Seeder({APP}.{{fx}}.Base):\n    model = {APP}.{{third}}.User\n"
+        ),
+    },
+    "a module falling back on what a fixture's first failing import lacks": {
+        f"{APP}.{{third}}": "import acme_tools\n\n\nclass B:\n    pass\n",
+        f"{APP}.{{fx}}": f"from {APP}.{{third}} import B\nimport acme_faker\n",
+        f"{APP}.{{other}}": (
+            f"try:\n    from {APP}.{{fx}} import X\nexcept ImportError as error:\n"
+            "    REASON = error.name\n\n\nclass Service:\n    pass\n"
+        ),
+    },
+    "a module falling back on a fixture that tried a package optionally first": {
+        f"{APP}.{{fx}}": (
+            "try:\n    import acme_orjson\nexcept ImportError:\n    pass\nimport acme_faker\n"
+        ),
+        f"{APP}.{{other}}": (
+            f"try:\n    from {APP}.{{fx}} import X\nexcept ImportError as error:\n"
+            "    REASON = error.name\n\n\nclass Service:\n    pass\n"
+        ),
+    },
+    "a fixture putting the stand-in it was served among the loaded modules": {
+        f"{APP}.{{fx}}": (
+            "import sys\nimport acme_faker\n\n"
+            f"sys.modules['{APP}.faker_shim'] = acme_faker\n"
+            "sys.modules.setdefault('acme_faker', acme_faker)\n"
+        ),
+        f"{APP}.{{other}}": (
+            f"try:\n    from {APP}.faker_shim import Faker\nexcept ImportError:\n"
+            "    Faker = object\n\n\nclass Svc(Faker):\n    pass\n"
+        ),
+    },
+    "a fixture pointing a loaded module's name at itself": {
+        f"{APP}.{{other}}": f"{REGISTER}\nclass O:\n    pass\n",
+        f"{APP}.{{fx}}": (
+            f"import sys\nimport {APP}.{{other}}\nimport acme_faker\n\n"
+            f"sys.modules['{APP}.{{other}}'] = sys.modules[__name__]\n"
+        ),
+        f"{APP}.{{third}}": f"import {APP}.{{other}}\n",
+    },
+    "a healthy module keeping an error a fixture raises again": {
+        f"{APP}.{{other}}": (
+            "try:\n    import acme_faker\nexcept ImportError as exc:\n    ERROR = exc\n\n\n"
+            "class Compat:\n    pass\n"
+        ),
+        f"{APP}.{{fx}}": (
+            f"import {APP}.{{other}} as compat\n\n"
+            "try:\n    import acme_faker\nexcept ImportError:\n    raise compat.ERROR\n\n\n"
+            "class F:\n    pass\n"
+        ),
+    },
+    "a module of a library a module imported optionally, imported directly later": {
+        "acme_lib.__init__": "from acme_lib import helper\nimport acme_faker\n",
+        "acme_lib.helper": "class X:\n    pass\n",
+        f"{APP}.{{fx}}": "try:\n    import acme_lib\nexcept ImportError:\n    acme_lib = None\n",
+        f"{APP}.{{other}}": "from acme_lib.helper import X\n\n\nclass Uses:\n    pass\n",
+    },
+    "a module a fixture's body loads by a call, asking whether the fixture exists": {
+        f"{APP}.{{fx}}": (
+            f"import importlib\nimport acme_faker\n\nimportlib.import_module('{APP}.{{other}}')\n"
+        ),
+        f"{APP}.{{other}}": (
+            f"import importlib.util\n\nHAS = importlib.util.find_spec('{APP}.{{fx}}') is not None\n"
+        ),
+    },
 }
 
 SCENARIOS: Final = _READING | _SHAPES | _REACHING

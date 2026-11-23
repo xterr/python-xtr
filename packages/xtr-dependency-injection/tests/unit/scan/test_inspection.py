@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import dataclasses
 import importlib
 import importlib.util
@@ -155,6 +156,43 @@ def test_a_module_with_no_code_to_run_again_is_fatal() -> None:
         _ = _code_of("_json", record)
 
     assert "has no code to run again" in caught.value.__notes__[0]
+
+
+def test_an_inspected_module_sees_the_builtins_as_they_are_now(
+    scratch_modules: ScratchModules,
+) -> None:
+    scratch_modules.write(
+        {
+            f"{APP}.flagged": (
+                "import builtins\n\nbuiltins.ACME_FLAG = 1\nimport acme_faker\n\n"
+                "VALUE = ACME_FLAG\n"
+            )
+        }
+    )
+    try:
+        scanner, _ = _scan()
+    finally:
+        if hasattr(builtins, "ACME_FLAG"):
+            delattr(builtins, "ACME_FLAG")
+
+    assert [entry.module for entry in scanner.set_aside] == [f"{APP}.flagged"]
+
+
+def test_the_namespace_of_a_set_aside_module_is_refused_to_this_package_outside_the_scan(
+    scratch_modules: ScratchModules,
+) -> None:
+    scratch_modules.write({f"{APP}.typed": TYPED})
+    _, result = _scan()
+    box = cast("type", _set_aside_object(result, f"{APP}.typed:Box"))
+    namespace = cast("object", cast("FunctionType", vars(box)["__init__"]).__globals__["SELF"])
+    # As a boot hook of a bundle would read it: code of this package, but not the scan's.
+    reading: dict[str, object] = {
+        "__name__": "xtr_dependency_injection.kernel.hook",
+        "held": namespace,
+    }
+
+    with pytest.raises(ModuleNotFoundError):
+        exec("held.fake", reading)  # noqa: S102 — code run under a module name of this package
 
 
 def test_a_loaded_package_reached_through_a_set_aside_module_answers_its_own_dunders(
