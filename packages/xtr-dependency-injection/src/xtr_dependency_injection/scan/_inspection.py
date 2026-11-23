@@ -52,7 +52,7 @@ from ._stand_ins import StandInModule
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping, Sequence
-    from types import CodeType, TracebackType
+    from types import CodeType, FrameType, TracebackType
 
 __all__ = ["LOCK", "Inspection", "SetAsideModule"]
 
@@ -124,26 +124,53 @@ class _Branch(ModuleType):
 class _Inspected(ModuleType):
     """The namespace an inspected module's code runs in: its names are for inspected code alone.
 
-    Any other code reading one — a module loaded by a call of its body,
-    finding it among the loaded modules — is refused, as an import of it is.
-    Its own code reads its globals without asking it, and a dunder is
-    answered to anyone: the import system and the standard library look up
-    a module's ``__dict__``, ``__path__`` and the like.
+    Its own code reads its globals without asking it. Code it calls — a
+    library looking it up (``inspect.getmembers``, ``pkgutil.resolve_name``) —
+    is answered as well: the module's own body is up its stack. Code of
+    another module is refused, as an import of the namespace is: a module a
+    call of its body loaded, whose body is running instead, or one holding
+    it after the scan. That holds for its ``__spec__`` too, which the import
+    system reads to hand a loaded module back — so such a module cannot
+    import it either. Every other dunder is answered to anyone: the
+    standard library looks up a module's ``__dict__``, ``__path__`` and the
+    like.
     """
 
     @override
     def __getattribute__(self, name: str) -> object:
-        if not (name.startswith("__") and name.endswith("__")):
+        guarded = name == "__spec__" or not (name.startswith("__") and name.endswith("__"))
+        if guarded:
+            own = cast("dict[str, object]", super().__getattribute__("__dict__"))
             frame = inspect.currentframe()
-            caller = frame.f_back if frame is not None else None
-            reader = caller.f_globals if caller is not None else {}
-            module_name = reader.get("__name__")
-            ours = isinstance(module_name, str) and module_name.startswith(_OWN_PACKAGE)
-            if _MARK not in reader and not ours:
-                marked = cast("tuple[str, Callable[[str], str]]", super().__getattribute__(_MARK))
-                inspected, lacking = marked
+            if _read_by_another_module(own, frame.f_back if frame is not None else None):
+                inspected, lacking = cast("tuple[str, Callable[[str], str]]", own[_MARK])
                 raise SetAsideRefused(inspected, inspected, lacking(inspected))
         return cast("object", super().__getattribute__(name))
+
+
+def _read_by_another_module(own: Mapping[str, object], frame: FrameType | None) -> bool:
+    """Whether code reading the namespace ``own`` is another module's, not what its body called.
+
+    Up from the reader: the import system's frames say nothing; inspected
+    code, or this package's, may read it; reaching the namespace's own code
+    first, the read is made for it; reaching the body of another module
+    first — one being imported — or the top of the stack, it is not.
+    """
+    while frame is not None:
+        reader = frame.f_globals
+        if reader is own:
+            return False
+        module = reader.get("__name__")
+        importing = frame.f_code.co_filename.startswith("<frozen importlib") or (
+            isinstance(module, str) and (module == "importlib" or module.startswith("importlib."))
+        )
+        if not importing:
+            if _MARK in reader or (isinstance(module, str) and module.startswith(_OWN_PACKAGE)):
+                return False
+            if frame.f_code.co_name == "<module>":
+                return True
+        frame = frame.f_back
+    return True
 
 
 @final
@@ -302,8 +329,9 @@ class Inspection:
                 continue
             try:
                 _ = self._load(parent)
-            except ImportError:
-                # Its package fails for a reason of its own: the scan meets it, and says so.
+            except ResourceImportError:
+                raise
+            except Exception:  # noqa: BLE001, S112 — the package's own failure: the scan meets it there
                 continue
 
     @contextmanager
@@ -431,6 +459,7 @@ class Inspection:
         adopted = [child for child in self._set_aside if child not in adopted_before]
         with self._out_of_sight():
             self._running.append(module)
+            loaded_before = list(sys.modules.values())
             sys.modules[name] = module
             try:
                 exec(code, vars(module))  # noqa: S102 — a module's own code, as its import runs it
@@ -445,12 +474,17 @@ class Inspection:
                 raise self._fatal from error
             finally:
                 _ = self._running.pop()
-                # Whatever it left under its name, or under another name for it, ran on stand-ins.
+                # What it left under its name ran on stand-ins, and so did any other name for it —
+                # unless it is a module loaded under a name of its own, which it only pointed to.
                 left = sys.modules.pop(name, None)
+                loaded = left is not None and (
+                    sys.modules.get(getattr(left, "__name__", "")) is left
+                    or any(value is left for value in loaded_before)
+                )
                 for alias in [
                     key
                     for key, value in sys.modules.items()
-                    if value is module or (left is not None and value is left)
+                    if value is module or (left is not None and not loaded and value is left)
                 ]:
                     del sys.modules[alias]
         self._bind(name, module)
@@ -729,7 +763,9 @@ def _still_failing(
         served = "with the modules it needs set aside given back"
     note = f"imported again {served} to see what it defines, it failed with {error!r}"
     where, called = _origin(error)
-    if lacked is not None:
+    if lacked == name:
+        note += f"; its names are given only to its own code, and to what it calls — not to {where}"
+    elif lacked is not None:
         made = (
             f"importlib.import_module, called by {where}"
             if called

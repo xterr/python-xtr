@@ -172,6 +172,34 @@ _REACHING: Final[dict[str, dict[str, str]]] = {
         ),
         f"{APP}.{{fx}}.load": "def load():\n    pass\n",
     },
+    "a module a fixture's body loads by a call, binding the fixture without reading it": {
+        f"{APP}.{{fx}}": (
+            "import importlib\nimport acme_faker\n\nfake = acme_faker.Faker()\n"
+            f"importlib.import_module('{APP}.{{other}}')\n"
+        ),
+        f"{APP}.{{other}}": (
+            f"from {APP} import {{fx}}\nimport {APP}.{{fx}} as fxm\n\n"
+            "KIND = type({fx}).__name__\n\n\nclass Holder:\n    pass\n"
+        ),
+    },
+    "a fixture looking itself up through the standard library": {
+        f"{APP}.{{fx}}": (
+            "import inspect\nimport pkgutil\nimport sys\nimport acme_faker\n\n\n"
+            "class A:\n    pass\n\n\n"
+            "NAMES = [n for n, _ in inspect.getmembers(sys.modules[__name__], inspect.isclass)]\n"
+            "FOUND = pkgutil.resolve_name(__name__ + ':A')\n"
+            "HAS = hasattr(sys.modules[__name__], 'nothing')\n"
+        ),
+        f"{APP}.{{other}}": "class Plain:\n    pass\n",
+    },
+    "a fixture putting a loaded module in its own place": {
+        f"{APP}.{{fx}}": (
+            f"import sys\nimport acme_faker\nimport {APP}.{{other}} as impl\n\n"
+            "sys.modules[__name__] = impl\n"
+        ),
+        f"{APP}.{{other}}": f"{REGISTER}VALUE = 1\n",
+        f"{APP}.{{third}}": f"from {APP}.{{other}} import VALUE\n",
+    },
 }
 
 SCENARIOS: Final = _READING | _SHAPES | _REACHING

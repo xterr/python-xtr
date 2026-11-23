@@ -1714,3 +1714,22 @@ def test_a_package_failing_for_a_reason_of_its_own_is_blamed_where_the_scan_meet
     assert caught.value.module == f"{APP}.zz_pkg"
     assert f"{APP}.zz_pkg.load" in sys.modules
     assert f"{APP}.zz_pkg" not in sys.modules
+
+
+@pytest.mark.parametrize(("package", "catcher"), [("aa_pkg", "zz_opt"), ("zz_pkg", "aa_opt")])
+def test_a_package_failing_with_any_error_of_its_own_is_blamed_whatever_the_order(
+    application: ScratchModules, package: str, catcher: str
+) -> None:
+    application.write(
+        {
+            f"{APP}.{catcher}": f"try:\n    import {APP}.{package}\nexcept Exception:\n    pass\n",
+            f"{APP}.{package}.__init__": "from .load import load\nraise ValueError('boom')\n",
+            f"{APP}.{package}.load": "def load():\n    pass\n",
+        }
+    )
+
+    with pytest.raises(ResourceImportError) as caught:
+        _ = _scanner().scan([APP], owner=None)
+
+    assert caught.value.module == f"{APP}.{package}"
+    assert isinstance(caught.value.__cause__, ValueError)
