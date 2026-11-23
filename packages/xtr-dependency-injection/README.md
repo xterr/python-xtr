@@ -626,40 +626,31 @@ disabled for the environment, or not installed — what only it uses may be miss
 and only there, the application's scan **sets aside** a module that fails to import because a
 package it needs is not installed at all:
 
-- **Inspected.** The module is imported once more with each such package stood in for, only to
-  learn what it defines. A name taken from a stand-in can be subclassed, called, subscripted,
-  compared, counted, used as a context manager, as a metaclass and as a decorator — bare
-  (`@lib.register`) or as a factory handed a class (`@lib.depends_on(Users)`) — so module-level
-  code built on it runs through and every class and function stays what the module defines. A
-  module importing a set-aside module — however: `from . import sibling`, `import a.b as x`, a
-  dotted name, `importlib` — every module of a set-aside package, and a package whose
-  `__init__` re-exports a set-aside module, fails to import in turn, and is set aside the same
-  way; so is an installed package whose own body needs a missing package. The packages a module
-  lies in are settled before it is inspected, so no package body runs inside an inspection: a
-  package whose body failed while importing it stands bare, holding what that body had defined
-  by then.
-- **Only the inspected module is lied to.** The stand-ins, and the modules set aside so far, are
-  served to its own code alone — an import statement or `importlib` — and taken out of
-  `sys.modules`, and off their packages, before the next import; they are put back on their
-  packages once its body has its hands back. Every other module the inspection runs, an
-  installed library or the application's models a fixture imports first, runs truthfully, and
-  stays: one probing for the missing package (`try: import faker`, `find_spec("faker")`)
-  learns it is missing, whichever order the scan finds it in. One that needs it fails, and its
-  traceback names it: it is inspected and set aside first — a chain of modules failing through
-  one another innermost first — then the module that imported it is inspected again, served
-  it. A module first loaded meanwhile — by the inspected module, an earlier attempt at it, or
-  the failed import before them — that is, lies in or imported the inspected module or a
-  set-aside one — a sibling reading `from .fixtures import fake`, a child its package's
-  `__init__` imports, the other half of an import cycle — may fail at runtime, or holds what a
-  failing module defined: it is set aside through it, without being run again. A module that
-  only asked whether another exists (`find_spec`) has not reached it, and is kept. One that is
-  not set aside but was handed a stand-in by the inspected module's call, and any module that
-  imported it, are not kept: the scan imports each again, truthfully.
-- **Registered nowhere.** Nothing a set-aside module defines becomes a service. A set-aside
-  module that ran under stand-ins is not loaded once the scan ends: importing it later fails
-  with the error it always had. One that ran only truthfully, its package failing after it —
-  `__init__` importing a healthy module, then a fixture — stays loaded, as a failed import
-  leaves it: a later import of the package finds it rather than running it twice.
+- **Inspected.** The module's code is run once more, in a namespace of its own, only to learn
+  what it defines; each such package is stood in for where its import statements ask for it. A
+  name taken from a stand-in can be subclassed, called, subscripted, compared, counted, used as
+  a context manager, as a metaclass and as a decorator — bare (`@lib.register`) or as a factory
+  handed a class (`@lib.depends_on(Users)`) — so module-level code built on it runs through and
+  every class and function stays what the module defines. A module importing a set-aside module
+  — `from . import sibling`, `import a.b as x`, a dotted name — every module of a set-aside
+  package, and a package whose `__init__` re-exports a set-aside module, fails to import in
+  turn, and is set aside the same way; so is an installed package whose own body needs a
+  missing package. Modules importing one another are set aside together.
+- **Only the inspected module is lied to, and only by its own import statements.** The
+  namespace its code runs in is never among the loaded modules but while its own code runs,
+  and nothing it is served ever is: a stand-in, or a module set aside before it. Every other
+  module is imported truthfully, and stays as that import left it: an installed library, the
+  application's models a fixture imports first, a module probing for the missing package
+  (`try: import faker`, `find_spec("faker")`) — which learns it is missing, whichever order
+  the scan finds it in. For the scan's length, importing a set-aside module is refused with an
+  import error, as it fails at runtime: a module that needs it fails, and is set aside in turn;
+  one importing it optionally (`try: from app.fixtures import fake / except ImportError`)
+  falls back, and is kept. Asking whether it exists (`find_spec`) is answered as ever.
+- **Registered nowhere.** Nothing a set-aside module defines becomes a service, and no
+  set-aside module is loaded once the scan ends: importing it later fails with the error it
+  always had. Setting a package aside sets aside every module under it: one its `__init__`
+  loaded before failing — a healthy module imported before a fixture — is taken out as it is,
+  and never run again.
 - **Refused when needed.** If anything would use one of its objects, the build fails with
   `SetAsideModuleUsedError`, naming the object, what would use it, the module and the missing
   package: an object carrying a marker of this package (`@as_service`, `@as_alias`,
@@ -1557,29 +1548,24 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   `json.dumps` of fake data, unpacking `a, b = fake.pair()` — fails the build, naming the
   module and what it needs. A stand-in base cannot sit beside `Protocol`, nor parametrise
   `Generic`.
-- **A function of another module, called by an inspected module, is served too.** It imports on
-  that module's behalf (`fake = helpers.faker()`, through an import statement or
-  `importlib.import_module`, however it was imported), which would fail otherwise. A module first
-  loaded for that inspection is then imported again truthfully; one loaded before keeps whatever
-  it cached of the stand-in, and the build logs a WARNING naming it. A value the inspected module
-  merely hands to another module's function (`registry.add(fake)`) stays there, with no warning.
-  Keep such helpers free of module-level caches, or import the library in the fixture itself.
+- **Only a set-aside module's own import statements are served.** A function of another module
+  it calls at module level (`fake = helpers.faker()`), or its own `importlib.import_module`,
+  imports truthfully: reaching a missing package or a set-aside module that way fails the
+  build, naming the function. Import the library in the fixture module itself. A value the
+  module hands to another module's function (`registry.add(fake)`) stays there.
 - **What fails part-way runs part-way again.** A module failing to import runs the lines
-  before its failing import each time it is attempted — once truthfully, then once more for each
-  missing package or failing module found while inspecting it, and once more for each module
-  importing it truthfully — as Python itself would on every retry. A module imported again
-  truthfully after an inspection runs once more too. Keep imports at the top of fixture modules.
-- **A bare package holds only what its body had defined when it last failed.** A module
-  importing a name its package's `__init__` defines after that point gets an import error,
-  which fails the build.
-- **Importing a set-aside module optionally sets the importer aside.** A module first loaded
-  while a fixture is inspected, doing `try: from app.fixtures import fake / except ImportError`,
-  is set aside through the fixture, though it would fall back at runtime; scanned before the
-  fixture, it is kept. Keep such imports inside the function that needs them.
-- **A module imported again runs its body again.** A helper that was handed a stand-in, and a
-  module importing it, are imported again truthfully: whatever their bodies register with a
-  process-wide registry (a command name, a table on shared table definitions) is registered
-  twice, which may fail the build. Keep such helpers apart from what registers.
+  before its failing import twice: once truthfully, once more when its code is run to see what
+  it defines. Keep imports at the top of fixture modules.
+- **A package tried optionally by a set-aside module is said to be needed.** Inside a module
+  that is set aside anyway, `try: import orjson / except ImportError` is served a stand-in for
+  a package that is not installed, and the report lists it among what the module needs.
+- **The other half of an import cycle, loaded before the failing line, is kept.** A fixture
+  importing a module that imports it back, *before* the import that fails, leaves that module
+  loaded, holding the fixture half-run, as Python leaves it; found by the scan before the
+  fixture, the same module fails with it and is set aside. Import what is missing first.
+- **A set-aside module must be written in Python, found on its package's path.** One with no
+  code to run again — an extension module — or found only by an import hook of its own, fails
+  the build.
 - **Reading a dunder of a missing package fails.** `faker.__version__` at module level raises
   `AttributeError`, as for any module without it, and fails the build.
 - **The bundle list itself is strict.** `config/bundles.py` may import a bundle that is not
@@ -1588,13 +1574,10 @@ Every error derives from `DependencyInjectionError` and carries its data as type
 - **A namespace shared with installed packages.** A missing module under a top-level name an
   installed package also uses (`google.*`) is a module missing from an installed package: the
   build fails.
-- **One scan at a time.** The scan's import hooks are the process's: it holds a lock while it
-  inspects, and stand-ins answer only its own thread. Between an import statement of the
-  inspected module and the next import, what it was served sits in `sys.modules`, where another
+- **One scan at a time.** The finder refusing set-aside modules is the process's: the scan
+  holds a lock while it inspects, and refuses only its own thread's imports. While a set-aside
+  module's own code runs, its namespace sits in `sys.modules` under its name, where another
   thread reading it directly would see it.
-- **Modules importing one another, both needing a missing package, are fatal.** Two fixture
-  modules in an import cycle cannot be inspected one before the other. A cycle in which only
-  one needs it sets the other aside through it.
 - **Every bundle active is strict.** An environment where every listed bundle runs sets
   nothing aside: a library missing there fails the build, naming the module — and where one
   does not run, a set-aside module an active bundle would use fails it too, naming the package

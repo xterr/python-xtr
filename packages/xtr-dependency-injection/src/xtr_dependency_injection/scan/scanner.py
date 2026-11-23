@@ -22,8 +22,9 @@ aside* a module that fails to import because a package it needs is not
 installed, rather than failing (see
 :mod:`~xtr_dependency_injection.scan._inspection` for how):
 
-- the module is imported once more with each such package stood in for, to
-  learn what it defines;
+- the module's code is run once more, in a namespace of its own, with each
+  such package stood in for where its import statements ask for it, to learn
+  what it defines;
 - nothing it defines is registered, and it is not loaded once the scan ends,
   so a later import fails as it would have;
 - anything it defines that would be used — a marker of this package on it,
@@ -253,12 +254,12 @@ class Scanner:
             )
             if name
         )
-        with LOCK:
-            self._inspection = Inspection(application, self._inactive)
+        with LOCK, Inspection(application, self._inactive) as inspection:
+            self._inspection = inspection
             try:
                 self._sort(resources, None, result, late=late)
             finally:
-                self.set_aside.extend(self._inspection.reports())
+                self.set_aside.extend(inspection.reports())
                 self._inspection = None
 
     def _sort(

@@ -1,91 +1,59 @@
 """Importing the application where a listed bundle is not active: setting aside what cannot import.
 
-One :class:`Inspection` serves one application scan. A module whose import
-fails because a package it needs is not installed is **inspected**: imported
-once more, with that package — and each other one it turns out to need —
-stood in for, to learn what it defines. The module is then **set aside**: it
-is kept here, out of ``sys.modules``, and nothing it defines is registered.
+One :class:`Inspection` serves one application scan. Every module is imported
+truthfully, with ``importlib.import_module``, and stays as that import left
+it. A module whose import fails because a package it needs is not installed —
+or because a module it imports is set aside — is **set aside**: kept here,
+out of ``sys.modules``, with nothing it defines registered.
 
-Only the inspected module is lied to. The stand-ins, and the modules set
-aside so far, are served to its own code alone; every other module the
-inspection imports runs truthfully, and stays loaded:
+Nothing that is not what a truthful import produced is ever left in
+``sys.modules``:
 
-- one probing for a missing package (``try: import faker``,
-  ``find_spec('faker')``) learns it is missing;
-- one needing it fails — and the traceback names its body — so that module is
-  inspected and set aside first, and the inspection of the first one starts
-  again, served the set-aside module where it imports it.
+- a set-aside module that is loaded — its package failed after it — is taken
+  out as it is, and never run again;
+- one that is not is **inspected**: its code is run in a namespace of its own,
+  never placed among the loaded modules but for the length of its own body,
+  whose import statements alone are served — a stand-in for a package not
+  installed, the namespace of a module set aside, and any other module as a
+  truthful import gives it;
+- for the scan's length, a :class:`~._refusal.RefusalFinder` refuses every
+  set-aside name to every truthful import, so a module importing one fails as
+  it would at runtime, and is set aside in turn — or falls back, if it catches
+  the failure.
 
-A traceback running through several bodies — a fixture importing a helper
-importing what is not installed — names a chain of modules failing in turn;
-each is inspected, innermost first, so each body runs once more, not once per
-link. A module of a set-aside package that is not set aside itself is
-inspected before the module importing it, too: it cannot be loaded under its
-package.
-
-The packages the inspected module lies in are settled before its import, so
-none of their bodies runs inside it: one loaded stays as it is; one set aside
-is put back for the inspection's length; one not loaded — its body was
-importing the inspected module when it failed — is stood for by its bare
-package, holding what its body had defined by then, until the inspection ends.
-
-What an inspection serves is loaded only for the import statement asking for
-it: it is taken out of ``sys.modules``, and off its packages, before the next
-import, and put back on its packages once the inspected body has its hands
-back. Outside an inspection, a set-aside module is not loaded at all, so any
-module importing it fails as it would at runtime, and is inspected itself.
-
-A module first loaded meanwhile — by the inspected body, by an earlier
-attempt at it, or by the failed import before them, all of which are
-recorded — may still have touched what the body built:
-
-- one that is, lies in, or imported the inspected module, a set-aside module
-  given back or a set-aside package put in place, would fail at runtime: it
-  is set aside through that module, as it is, without being run again;
-- one whose function the inspected body called and was served — it imports
-  on the body's behalf — and one that imported such a module, are not kept:
-  the scan imports each again, truthfully;
-- one that lies in, or imported, a bare package put in place stays loaded:
-  that package is inspected next, and the module is set aside through it
-  then, without being run again.
-
-Asking whether a module exists (``find_spec``) is not reaching it: a module
-that only asked is kept.
-
-A module loaded before keeps whatever its function, served for the inspected
-body, made of a stand-in — which is warned of.
+Setting a package aside sets aside every module under it.
 
 Private to the scan.
 """
 
 from __future__ import annotations
 
+import builtins
 import importlib
+import importlib.machinery
 import importlib.util
-import logging
 import sys
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import partial
 from types import ModuleType
-from typing import TYPE_CHECKING, Final, cast, final
+from typing import TYPE_CHECKING, Final, Self, cast, final, override
 
 from xtr_dependency_injection.diagnostics.report import SetAsideReport
 from xtr_dependency_injection.exception import ResourceImportError
 
-from ._frames import running_module
-from ._import_tracker import ImportTracker
-from ._stand_ins import ChildOfSetAside, StandInFinder
+from ._refusal import RefusalFinder, SetAsideRefused, holder_of
+from ._stand_ins import StandInModule
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Mapping
-    from types import TracebackType
+    from collections.abc import Generator, Mapping, Sequence
+    from types import CodeType, TracebackType
 
 __all__ = ["LOCK", "Inspection", "SetAsideModule"]
 
 LOCK: Final = threading.RLock()
-"""Held for a whole inspecting scan: its import hooks and stand-ins are the process's."""
-
-_LOGGER: Final = logging.getLogger("xtr_dependency_injection")
+"""Held for a whole inspecting scan: its refusal finder is the process's."""
 
 
 @dataclass(slots=True)
@@ -93,7 +61,7 @@ class SetAsideModule:
     """A module set aside, and why.
 
     Attributes:
-        module: The module, as its inspection left it.
+        module: The module: as it was loaded, or the namespace its code ran in.
         missing: The top-level packages it needs that are not installed.
         through: The set-aside module it needs them through, or ``None`` when
             it imports one of them itself.
@@ -101,27 +69,42 @@ class SetAsideModule:
             bundle that is not active.
         defines: ``module:qualname`` of each object it defines that the
             scan looked at.
+        package: The nearest package it lies in that is set aside, if any.
+        needs: The packages not installed its own imports asked for, in order.
+        served: The set-aside modules its own imports were served, in order.
+        reached: Every name its own imports asked for, in order.
     """
 
     module: ModuleType
-    missing: set[str]
-    through: str | None
-    expected: bool
+    missing: set[str] = field(default_factory=set)
+    through: str | None = None
+    expected: bool = False
     defines: list[str] = field(default_factory=list)
+    package: str | None = None
+    needs: list[str] = field(default_factory=list)
+    served: list[str] = field(default_factory=list)
+    reached: list[str] = field(default_factory=list)
 
 
-@dataclass(frozen=True, slots=True)
-class _Contacts:
-    """What the modules first loaded during one inspected import touched.
+@final
+class _Branch(ModuleType):
+    """A loaded package as an inspected module sees it: set-aside children grafted, nothing changed.
 
-    Attributes:
-        condemned: Each to set aside, mapped to the set-aside module it is set
-            aside through.
-        retried: Each to import again, truthfully.
+    ``import app.fixtures`` binds ``app``, and ``from app import fixtures``
+    reads it off ``app``: where ``app`` is loaded and ``app.fixtures`` set
+    aside, the package itself must not hold the module. This holds it instead,
+    and answers everything else as the package does.
     """
 
-    condemned: dict[str, str]
-    retried: set[str]
+    def __init__(self, package: ModuleType, grafted: Mapping[str, ModuleType]) -> None:
+        super().__init__(package.__name__)
+        self._package = package
+        self._grafted = dict(grafted)
+
+    @override
+    def __getattr__(self, name: str) -> object:
+        grafted = self._grafted.get(name)
+        return grafted if grafted is not None else cast("object", getattr(self._package, name))
 
 
 @final
@@ -130,13 +113,15 @@ class Inspection:
 
     __slots__ = (
         "_application",
+        "_failing",
+        "_fatal",
+        "_finder",
         "_inactive",
-        "_inspecting",
         "_missing",
-        "_partial",
-        "_reached",
+        "_open",
+        "_running",
         "_set_aside",
-        "_truthful",
+        "_thread",
     )
 
     def __init__(self, application: tuple[str, ...], inactive_packages: frozenset[str]) -> None:
@@ -154,12 +139,31 @@ class Inspection:
         self._inactive = inactive_packages
         self._missing: set[str] = set()
         self._set_aside: dict[str, SetAsideModule] = {}
-        self._inspecting: list[str] = []
-        self._partial: dict[str, dict[str, object]] = {}
-        # What each module imported while one module was imported, its inspections included.
-        self._reached: dict[str, set[str]] = {}
-        # The modules the failed import before the inspections loaded, running truthfully.
-        self._truthful: frozenset[str] = frozenset()
+        # Modules whose body a failed import ran through: importing one again fails again.
+        self._failing: set[str] = set()
+        # The namespaces whose bodies are running, outermost first.
+        self._running: list[ModuleType] = []
+        self._fatal: ResourceImportError | None = None
+        self._finder = RefusalFinder(self._set_aside)
+        self._thread = threading.get_ident()
+        self._open = False
+
+    def __enter__(self) -> Self:
+        """Start refusing what is set aside, to every import of this thread."""
+        self._finder.install()
+        self._open = True
+        return self
+
+    def __exit__(
+        self,
+        kind: type[BaseException] | None,
+        error: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Stop refusing, and stop serving: what is set aside imports as anything does."""
+        del kind, error, traceback
+        self._open = False
+        self._finder.remove()
 
     @property
     def set_aside(self) -> Mapping[str, SetAsideModule]:
@@ -167,41 +171,27 @@ class Inspection:
         return self._set_aside
 
     def import_module(self, name: str) -> ModuleType:
-        """Import ``name``, or inspect and set it aside when a package it needs is not installed.
+        """Import ``name``, or set it aside when a package it needs is not installed.
 
         Raises:
             ResourceImportError: If it fails to import, and is not to be set
-                aside, or still fails with what it needs stood in for.
+                aside, or its code fails with what it needs served.
         """
-        found = self._set_aside.get(name)
-        if found is not None:
-            return found.module
-        loaded = frozenset(sys.modules)
-        self._reached = {}
         try:
-            with ImportTracker(imports=self._reached):
-                module = importlib.import_module(name)
-        except ImportError as error:
-            failure = error
+            module = self._load(name)
+        except ResourceImportError:
+            raise
         except Exception as error:
             raise ResourceImportError(name) from error
-        else:
-            self._drop_reloaded(loaded)
-            return module
-        # Inspected outside the handler: what fails meanwhile is not raised over this failure.
-        missing = self._not_installed(failure)
-        if missing is None:
-            raise ResourceImportError(name) from failure
-        self._truthful = frozenset(entry for entry in sys.modules if entry not in loaded)
-        self._keep_partial(failure, inspected=None)
-        # The modules it failed through fail on their own: each is inspected first, innermost first.
-        for culprit in _failing_modules(failure, self._set_aside):
-            if culprit != name and culprit not in self._set_aside:
-                _ = self._inspect(culprit, missing, loaded)
-        return self._inspect(name, missing, loaded)
+        if self._fatal is not None:
+            # Raised inside an inspected body that caught it: it is fatal all the same.
+            raise self._fatal
+        self._explain()
+        return module
 
     def reports(self) -> list[SetAsideReport]:
         """Return what was set aside, as the scan report holds it, and forget it."""
+        self._explain()
         reports = [
             SetAsideReport(
                 module=name,
@@ -215,29 +205,76 @@ class Inspection:
         self._set_aside.clear()
         return reports
 
-    def _drop_reloaded(self, loaded: frozenset[str]) -> None:
-        """Take out again each set-aside module an import that succeeded ran afresh.
+    # --- importing truthfully, and deciding what is set aside ---------------------------
 
-        A module importing a set-aside package optionally (``try: import
-        app.seeds``) runs it, and what it imports, truthfully: what of it was
-        set aside is not left loaded.
+    def _load(self, name: str) -> ModuleType:
+        """Return ``name``: imported truthfully, or set aside. Its packages come first.
+
+        Raises:
+            ImportError: The failure of its truthful import, when that is not
+                one to set it aside for — a missing-module error naming a
+                package that is not installed among them, when ``name`` itself
+                lies in that package.
+            Exception: Whatever else its import raised.
         """
-        for entry in [entry for entry in sys.modules if entry not in loaded]:
-            if _holder(entry, self._set_aside) is not None:
-                _drop(entry, sys.modules[entry])
+        found = self._set_aside.get(name)
+        if found is not None:
+            return found.module
+        parent = name.rpartition(".")[0]
+        if parent and parent not in sys.modules:
+            # An orphan would be handed back from sys.modules with no finder asked.
+            _ = self._load(parent)
+        if name in self._failing or holder_of(name, self._set_aside) is not None:
+            return self._put_aside(name).module
+        try:
+            with self._out_of_sight():
+                return importlib.import_module(name)
+        except ImportError as error:
+            failure = error
+        # Set aside outside the handler: what fails meanwhile is not raised over this failure.
+        if not self._sets_aside(failure) or name.partition(".")[0] in self._missing:
+            raise failure
+        self._failing.update(_failed_bodies(failure))
+        return self._put_aside(name).module
 
-    def _not_installed(self, error: ImportError) -> str | None:
-        """Return the top-level package ``error`` found missing, when it is not installed.
+    @contextmanager
+    def _out_of_sight(self) -> Generator[None]:
+        """Take the namespace whose body is running out of ``sys.modules`` meanwhile.
 
-        An import error a library raised over the missing module — "install
-        the extra", naming no module — is read through to it. ``None`` — the
-        failure is not one to set aside — for a module missing from the
-        application, or from a package that is installed, and for an import
-        error naming a module of its own: that is a broken installation, or a
-        mistake in the code.
+        It sits there for its own code alone: a module imported truthfully
+        while it runs must not find it, and what it holds, by its name.
         """
-        missing = _missing_module(error)
-        if missing is None or not missing.name:
+        running = self._running[-1] if self._running else None
+        hidden = running is not None and sys.modules.get(running.__name__) is running
+        if running is not None and hidden:
+            del sys.modules[running.__name__]
+        try:
+            yield
+        finally:
+            if running is not None and hidden:
+                sys.modules[running.__name__] = running
+
+    def _sets_aside(self, failure: ImportError) -> bool:
+        """Whether ``failure`` sets the module it stopped aside; note the package it lacked."""
+        missing = _missing_module(failure)
+        if missing is None:
+            return False
+        if isinstance(missing, SetAsideRefused):
+            return True
+        package = self._not_installed(missing)
+        if package is None:
+            return False
+        self._missing.add(package)
+        return True
+
+    def _not_installed(self, missing: ModuleNotFoundError) -> str | None:
+        """Return the top-level package ``missing`` names, when it is not installed.
+
+        ``None`` — the failure is not one to set aside — for a module missing
+        from the application, or from a package that is installed: that is a
+        broken installation, or a mistake in the code.
+        """
+        if not missing.name:
             return None
         package = missing.name.partition(".")[0]
         if package in self._missing:
@@ -248,290 +285,246 @@ class Inspection:
             return None
         return package if importlib.util.find_spec(package) is None else None
 
-    def _inspect(self, name: str, missing: str, loaded: frozenset[str]) -> ModuleType:
-        """Import ``name`` with what it needs stood in for, and set it aside.
+    # --- setting aside ------------------------------------------------------------------
 
-        A module ``name`` imports that fails for a package not installed is
-        inspected, and set aside, first. ``loaded`` is what was loaded before
-        the scan first tried ``name``.
+    def _put_aside(self, name: str) -> SetAsideModule:
+        """Set ``name`` aside: as it is when loaded, else by running its code in a namespace.
+
+        Its packages are settled already: each is loaded, or set aside.
+        """
+        found = self._set_aside.get(name)
+        if found is not None:
+            return found
+        loaded = sys.modules.get(name)
+        return self._adopt(name, loaded) if loaded is not None else self._execute(name)
+
+    def _adopt(self, name: str, loaded: ModuleType) -> SetAsideModule:
+        """Take ``loaded`` out of the loaded modules, as it is: it ran truthfully, once."""
+        _drop(name, loaded)
+        entry = SetAsideModule(loaded, package=self._package_of(name))
+        self._set_aside[name] = entry
+        self._bind(name, loaded)
+        self._adopt_children(name)
+        return entry
+
+    def _adopt_children(self, name: str) -> None:
+        """Set aside every loaded module under ``name``, parents before their modules."""
+        for child in sorted(entry for entry in sys.modules if entry.startswith(f"{name}.")):
+            loaded = sys.modules.get(child)
+            if loaded is not None and child not in self._set_aside:
+                _ = self._adopt(child, loaded)
+
+    def _package_of(self, name: str) -> str | None:
+        """Return the nearest package ``name`` lies in that is set aside."""
+        parent = name.rpartition(".")[0]
+        while parent:
+            if parent in self._set_aside:
+                return parent
+            parent = parent.rpartition(".")[0]
+        return None
+
+    def _bind(self, name: str, module: ModuleType) -> None:
+        """Set ``module`` on its package where that is set aside too, as its import would have.
+
+        A loaded package is never touched: what an inspected module reads
+        off one goes through a :class:`_Branch`.
+        """
+        parent, _, leaf = name.rpartition(".")
+        holder = self._set_aside.get(parent)
+        if holder is not None:
+            setattr(holder.module, leaf, module)
+
+    def _execute(self, name: str) -> SetAsideModule:
+        """Run the code of ``name`` in a namespace of its own, its imports served.
+
+        The namespace sits in ``sys.modules`` for its own body only: a
+        dataclass, among others, looks its module up there by name.
 
         Raises:
-            ResourceImportError: If it still fails to import, or the modules
-                failing import one another.
+            ResourceImportError: If it has no code to run, or its code fails.
         """
-        self._missing.add(missing)
-        self._inspecting.append(name)
-        try:
-            while True:
-                found = self._set_aside.get(name)
-                if found is not None:
-                    # Set aside, meanwhile, through a module inspected before it.
-                    return found.module
-                module, chain, package = self._attempt(name, loaded)
-                if module is not None:
-                    return module
-                self._missing.add(package)
-                for culprit in chain:
-                    if culprit not in self._set_aside:
-                        _ = self._inspect(culprit, package, loaded)
-        finally:
-            _ = self._inspecting.pop()
+        record = self._record_of(name)
+        code = _code_of(name, record)
+        module = _namespace(name, record)
+        entry = SetAsideModule(module, package=self._package_of(name))
+        served = cast("object", partial(self._serve, entry))
+        vars(module)["__builtins__"] = {**vars(builtins), "__import__": served}
+        # Recorded before it runs: refused to every truthful import, and served as it stands.
+        self._set_aside[name] = entry
+        self._adopt_children(name)
+        with self._out_of_sight():
+            self._running.append(module)
+            sys.modules[name] = module
+            try:
+                exec(code, vars(module))  # noqa: S102 — a module's own code, as its import runs it
+            except ResourceImportError as error:
+                self._fatal = error
+                raise
+            except Exception as error:
+                # Not set aside after all: it is the failure of the scan.
+                del self._set_aside[name]
+                self._fatal = _still_failing(name, error, entry, self._lacked(error))
+                raise self._fatal from error
+            finally:
+                _ = self._running.pop()
+                if sys.modules.get(name) is module:
+                    del sys.modules[name]
+        self._bind(name, module)
+        return entry
 
-    def _attempt(
-        self, name: str, loaded: frozenset[str]
-    ) -> tuple[ModuleType | None, list[str], str]:
-        """Import ``name`` once, inspected; return it, or what to inspect before it, and why.
+    def _record_of(self, name: str) -> importlib.machinery.ModuleSpec | None:
+        """Find the import record of ``name`` on its package's path, importing nothing."""
+        parent = name.rpartition(".")[0]
+        if not parent:
+            return importlib.machinery.PathFinder.find_spec(name, None)
+        found = self._set_aside.get(parent)
+        holder = found.module if found is not None else sys.modules.get(parent)
+        path = cast("Sequence[str] | None", getattr(holder, "__path__", None))
+        return importlib.machinery.PathFinder.find_spec(name, path) if path is not None else None
 
-        The modules to inspect first come innermost first, with the package
-        found missing; none, and that package, when ``name`` needs it itself.
+    def _lacked(self, error: BaseException) -> str | None:
+        """Return what ``error`` lacked that an inspected module's own imports are served."""
+        missing = _missing_module(error)
+        if isinstance(missing, SetAsideRefused):
+            return missing.module
+        return self._not_installed(missing) if missing is not None else None
 
-        Raises:
-            ResourceImportError: If it fails for anything else.
+    # --- serving the imports of an inspected module -------------------------------------
+
+    def _serve(  # noqa: PLR0913, PLR0917 — the signature of builtins.__import__, after the entry
+        self,
+        entry: SetAsideModule,
+        name: str,
+        globals: Mapping[str, object] | None = None,  # noqa: A002 — the signature of builtins.__import__
+        locals: Mapping[str, object] | None = None,  # noqa: A002 — the signature of builtins.__import__
+        fromlist: Sequence[str] | None = (),
+        level: int = 0,
+    ) -> ModuleType:
+        """Answer an import statement of the inspected module ``entry`` is.
+
+        Once the scan is over, or on another thread, the import is the
+        process's own: nothing is served.
         """
-        finder = StandInFinder(
-            frozenset(self._missing),
-            name,
-            {entry: found.module for entry, found in self._set_aside.items()},
-        )
-
-        def restore() -> None:
-            # The inspected body has its hands back: what it was served is on its packages again.
-            if running_module() == name:
-                finder.restore()
-
-        tracker = ImportTracker(before=finder.sweep, after=restore, imports=self._reached)
-        placed = self._place_packages(name)
-        module: ModuleType | None = None
-        failure: ImportError | None = None
-        contacts = _Contacts({}, set())
-        sys.meta_path.insert(0, finder)
-        try:
-            with tracker:
-                module = importlib.import_module(name)
-        except ImportError as error:
-            failure = error
-        except Exception as error:
-            raise _still_failing(name, error, finder) from error
-        finally:
-            sys.meta_path.remove(finder)
-            finder.close()
-            contacts, held = self._tidy(name, loaded, finder, placed)
-        if failure is not None or module is None:
-            chain, package = self._first(name, failure, finder)
-            return None, chain, package
-        self._warn_lent(name, finder, loaded)
-        self._set_aside[name] = self._entry(name, module, finder, tracker, placed)
-        for entry, through in contacts.condemned.items():
-            if entry in self._set_aside:
-                continue
-            source = self._set_aside[through]
-            self._set_aside[entry] = SetAsideModule(
-                held[entry], set(source.missing), through, source.expected
+        if not self._open or threading.get_ident() != self._thread:
+            return importlib.__import__(name, globals, locals, fromlist or (), level)
+        absolute = name
+        if level:
+            package = globals.get("__package__") if globals is not None else None
+            absolute = importlib.util.resolve_name(
+                "." * level + name, package if isinstance(package, str) else None
             )
-        return module, [], ""
+        parts = absolute.split(".")
+        # Each package first, as an import does.
+        views = [self._reach(entry, ".".join(parts[:end])) for end in range(1, len(parts) + 1)]
+        if fromlist:
+            return self._taken_from(entry, absolute, views[-1], fromlist)
+        return self._rooted(parts, views)
 
-    def _tidy(
-        self,
-        name: str,
-        loaded: frozenset[str],
-        finder: StandInFinder,
-        placed: list[tuple[str, ModuleType]],
-    ) -> tuple[_Contacts, dict[str, ModuleType]]:
-        """Take out what one attempt at ``name`` left loaded that cannot stay.
-
-        A module to set aside whose body ran only in the failed import before
-        the inspections stays loaded, as a failed import leaves it: it holds no
-        stand-in, and a package importing it again finds it there, as it would
-        at runtime, instead of running it twice.
-
-        Returns what the modules first loaded meanwhile touched, and each
-        module to set aside, as it is.
-        """
-        inspected = sys.modules.get(name)
-        if inspected is not None:
-            _drop(name, inspected)
-        for package_name, package_module in reversed(placed):
-            _drop(package_name, package_module)
-        contacts = self._contacts(name, loaded, finder, [package for package, _ in placed])
-        held = {entry: sys.modules[entry] for entry in contacts.condemned}
-        for entry in [*contacts.condemned, *contacts.retried]:
-            if entry in contacts.retried or entry not in self._truthful:
-                _drop(entry, sys.modules[entry])
-        return contacts, held
-
-    def _contacts(
-        self,
-        name: str,
-        loaded: frozenset[str],
-        finder: StandInFinder,
-        placed: Collection[str],
-    ) -> _Contacts:
-        """Sort the modules first loaded while ``name`` was tried by what they touched.
-
-        Only the inspected module, the set-aside modules given back and the
-        packages put in place carry what the body built: a module that merely
-        asked for a missing package was answered truthfully, and is kept. A
-        bare package put in place is inspected next: what touched it is left
-        for that inspection.
-        """
-        fresh = [entry for entry in sys.modules if entry not in loaded]
-        failing = {name, *finder.modules_served, *(p for p in placed if p in self._set_aside)}
-        condemned: dict[str, str] = {}
-        retried: set[str] = set()
-        changed = True
-        while changed:
-            changed = False
-            for entry in fresh:
-                if entry in condemned:
-                    continue
-                reached = self._reached.get(entry, set())
-                source = _holder(entry, failing) or next(
-                    (
-                        found
-                        for target in reached
-                        if (found := _holder(target, failing | condemned.keys())) is not None
-                    ),
-                    None,
-                )
-                if source is not None:
-                    condemned[entry] = condemned.get(source, source)
-                    retried.discard(entry)
-                    changed = True
-                elif entry not in retried and (
-                    entry in finder.lent_to
-                    or any(_holder(target, retried) is not None for target in reached)
-                ):
-                    retried.add(entry)
-                    changed = True
-        return _Contacts(condemned, retried)
-
-    def _place_packages(self, name: str) -> list[tuple[str, ModuleType]]:
-        """Settle each package ``name`` lies in that is not loaded; return those put in place.
-
-        Outermost first: a set-aside one is put back as it is; any other is
-        its bare package, built from where it is found, its body not run —
-        holding what that body had defined when its import last failed.
-        """
-        placed: list[tuple[str, ModuleType]] = []
-        parts = name.split(".")
-        for index in range(1, len(parts)):
-            package = ".".join(parts[:index])
-            if package in sys.modules:
-                continue
-            found = self._set_aside.get(package)
-            if found is not None:
-                module = found.module
+    def _reach(self, entry: SetAsideModule, name: str) -> ModuleType:
+        """Return what ``entry``'s code gets for ``name``, recording why it is set aside."""
+        entry.reached.append(name)
+        root = name.partition(".")[0]
+        if root not in self._missing:
+            try:
+                module = self._load(name)
+            except ModuleNotFoundError:
+                if root not in self._missing:
+                    raise
             else:
-                location = importlib.util.find_spec(package)
-                if location is None:  # pragma: no cover — a package its module was found in
-                    break
-                module = importlib.util.module_from_spec(location)
-                vars(module).update(self._partial.get(package, {}))
-            sys.modules[package] = module
-            holder_name, _, child = package.rpartition(".")
-            if holder_name:
-                setattr(sys.modules[holder_name], child, module)
-            placed.append((package, module))
-        return placed
+                if name in self._set_aside and name not in entry.served:
+                    entry.served.append(name)
+                return module
+        if root not in entry.needs:
+            entry.needs.append(root)
+        return StandInModule(name)
 
-    def _keep_partial(self, error: BaseException, *, inspected: str | None) -> None:
-        """Keep what each body ``error`` ran through had defined, but the one inspected.
+    def _taken_from(
+        self, entry: SetAsideModule, name: str, module: ModuleType, fromlist: Sequence[str]
+    ) -> ModuleType:
+        """Return ``module`` for ``from name import ...``: a name it lacks may be a module of it.
 
-        A package whose body failed may be stood for by its bare package
-        later: it then holds what its body had defined before it failed.
+        One that is set aside is read off a :class:`_Branch` where ``module``
+        is loaded: the package itself is left as it is.
         """
-        traceback: TracebackType | None = error.__traceback__
-        while traceback is not None:
-            frame = traceback.tb_frame
-            body = frame.f_globals.get("__name__")
-            if (
-                frame.f_code.co_name == "<module>"
-                and isinstance(body, str)
-                and body != inspected
-                and body not in sys.modules
-            ):
-                namespace = cast("dict[str, object]", frame.f_globals)
-                self._partial[body] = {
-                    key: value
-                    for key, value in namespace.items()
-                    if not (key.startswith("__") and key.endswith("__"))
-                }
-            traceback = traceback.tb_next
+        entry.reached.extend(f"{name}.{item}" for item in fromlist if item != "*")
+        if isinstance(module, StandInModule):
+            return module
+        grafted: dict[str, ModuleType] = {}
+        for item in fromlist:
+            if item == "*" or hasattr(module, item):
+                continue
+            child = f"{name}.{item}"
+            try:
+                found = self._reach(entry, child)
+            except ModuleNotFoundError as error:
+                if error.name != child:
+                    raise
+                # No such module: the statement fails for the name, as it would.
+                continue
+            if found is not sys.modules.get(child) and name not in self._set_aside:
+                grafted[item] = found
+        return _Branch(module, grafted) if grafted else module
 
-    def _warn_lent(self, name: str, finder: StandInFinder, loaded: frozenset[str]) -> None:
-        """Warn of each module loaded before, and kept, whose function ``name`` had served."""
-        for lent in sorted(finder.lent_to):
-            if lent in loaded and lent in sys.modules:
-                _LOGGER.warning(
+    def _rooted(self, parts: Sequence[str], views: Sequence[ModuleType]) -> ModuleType:
+        """Return what ``import a.b.c`` binds: ``a``, holding what is set aside under it."""
+        view = views[-1]
+        for index in range(len(views) - 2, -1, -1):
+            holder = views[index]
+            child = ".".join(parts[: index + 2])
+            ours = (
+                isinstance(holder, StandInModule) or ".".join(parts[: index + 1]) in self._set_aside
+            )
+            if ours or view is sys.modules.get(child):
+                view = holder
+            else:
+                view = _Branch(holder, {parts[index + 1]: view})
+        return view
+
+    # --- saying why ---------------------------------------------------------------------
+
+    def _explain(self) -> None:
+        """Work out why each module is set aside: what it lacks, through which, expected or not."""
+        for name, entry in self._set_aside.items():
+            entry.missing = self._missing_of(name, set())
+            entry.expected = self._expected(name, set())
+            ancestors = {name, *_ancestors(name)}
+            # The first module served that lacks something other than through this one.
+            entry.through = (
+                None
+                if entry.needs
+                else next(
                     (
-                        "While inspecting %s, a function of %s it called was handed a stand-in "
-                        "for %s, not installed here; whatever %s keeps of it stays until the "
-                        "process ends."
+                        served
+                        for served in entry.served
+                        if served not in ancestors and self._missing_of(served, {name})
                     ),
-                    name,
-                    lent,
-                    ", ".join(sorted(finder.packages_served)),
-                    lent,
+                    entry.package,
                 )
+            )
 
-    def _first(
-        self, name: str, error: ImportError | None, finder: StandInFinder
-    ) -> tuple[list[str], str]:
-        """Return the modules to inspect before ``name``, innermost first, and the package lacked.
+    def _missing_of(self, name: str, seen: set[str]) -> set[str]:
+        entry = self._set_aside.get(name)
+        if entry is None or name in seen:
+            return set()
+        seen.add(name)
+        missing = set(entry.needs)
+        for source in (*entry.served, entry.package):
+            if source is not None:
+                missing |= self._missing_of(source, seen)
+        return missing
 
-        Raises:
-            ResourceImportError: If the failure is not for a package not
-                installed, ``name`` itself fails for one it was given, or the
-                modules failing import one another.
-        """
-        if error is None:  # pragma: no cover — an import gives back its module or raises
-            raise ResourceImportError(name)
-        signal = _signal(error)
-        if signal is not None:
-            if signal.child in self._inspecting:
-                raise _still_failing(name, error, finder) from error
-            lacking = sorted(self._set_aside[signal.parent].missing) or sorted(self._missing)
-            return [signal.child], lacking[0]
-        package = self._not_installed(error)
-        if package is None:
-            raise _still_failing(name, error, finder) from error
-        # The inspected package's own namespace too: a module of it inspected next stands under it.
-        self._keep_partial(error, inspected=None)
-        chain = [body for body in _failing_modules(error, self._set_aside) if body != name]
-        stuck = not chain and package in self._missing
-        if stuck or any(body in self._inspecting for body in chain):
-            raise _still_failing(name, error, finder) from error
-        return chain, package
-
-    def _entry(
-        self,
-        name: str,
-        module: ModuleType,
-        finder: StandInFinder,
-        tracker: ImportTracker,
-        placed: list[tuple[str, ModuleType]],
-    ) -> SetAsideModule:
-        """Say why ``name`` is set aside: what it was served or lies in, and what it reached."""
-        through_names = [package for package, _ in placed if package in self._set_aside]
-        through_names.extend(
-            served for served in finder.modules_served if served not in through_names
+    def _expected(self, name: str, seen: set[str]) -> bool:
+        entry = self._set_aside.get(name)
+        if entry is None or name in seen:
+            return False
+        seen.add(name)
+        if any(holder_of(target, self._inactive) for target in (*entry.needs, *entry.reached)):
+            return True
+        return any(
+            self._expected(source, seen)
+            for source in (*entry.served, entry.package)
+            if source is not None
         )
-        through_modules = [self._set_aside[served] for served in through_names]
-        missing = set(finder.packages_served)
-        for served in through_modules:
-            missing.update(served.missing)
-        through = None if finder.packages_served else next(iter(through_names), None)
-        reached = tracker.imports.get(name, set()) | tracker.lookups.get(name, set())
-        expected = (
-            any(self._is_inactive(package) for package in missing)
-            or any(self._is_inactive(target) for target in reached)
-            or any(served.expected for served in through_modules)
-        )
-        return SetAsideModule(module, missing, through, expected)
-
-    def _is_inactive(self, module: str) -> bool:
-        """Whether ``module`` belongs to the package of a listed bundle that is not active."""
-        return _holder(module, self._inactive) is not None
 
 
 def _missing_module(error: BaseException) -> ModuleNotFoundError | None:
@@ -556,69 +549,109 @@ def _missing_module(error: BaseException) -> ModuleNotFoundError | None:
     return None
 
 
-def _signal(error: BaseException) -> ChildOfSetAside | None:
-    """Return the :class:`ChildOfSetAside` ``error`` is, or was raised over; ``None`` if none."""
-    seen: set[int] = set()
-    current: BaseException | None = error
-    while current is not None and id(current) not in seen:
-        if isinstance(current, ChildOfSetAside):
-            return current
-        seen.add(id(current))
-        current = current.__cause__ or current.__context__
-    return None
-
-
-def _failing_modules(error: BaseException, set_aside: Mapping[str, object]) -> list[str]:
-    """Return the modules whose bodies failed, innermost first, as ``error``'s traceback shows.
-
-    The error ran through each body, so each fails while the one inside it
-    does. A set-aside module run again by a truthful import fails as it
-    always did: the module that imported it is the one to inspect.
-    """
+def _failed_bodies(error: BaseException) -> list[str]:
+    """Return the modules whose bodies ``error`` ran through: each failed to import with it."""
     bodies: list[str] = []
     traceback: TracebackType | None = error.__traceback__
     while traceback is not None:
         frame = traceback.tb_frame
         name = frame.f_globals.get("__name__")
-        if frame.f_code.co_name == "<module>" and isinstance(name, str) and name not in bodies:
+        if frame.f_code.co_name == "<module>" and isinstance(name, str):
             bodies.append(name)
         traceback = traceback.tb_next
-    return [body for body in reversed(bodies) if body not in set_aside]
+    return bodies
 
 
-def _still_failing(name: str, error: BaseException, finder: StandInFinder) -> ResourceImportError:
-    """Return the failure of ``name``, imported again with what it needs stood in for."""
+def _ancestors(name: str) -> list[str]:
+    """Return each package ``name`` lies in, outermost first."""
+    parts = name.split(".")
+    return [".".join(parts[:end]) for end in range(1, len(parts))]
+
+
+def _code_of(name: str, record: importlib.machinery.ModuleSpec | None) -> CodeType:
+    """Return the code of the module ``record`` was found for.
+
+    Raises:
+        ResourceImportError: If it has none to run in a namespace: it is not
+            found where its package lies, or is not written in Python.
+    """
+    loader = record.loader if record is not None else None
+    get_code = cast("object", getattr(loader, "get_code", None))
+    code = cast("CodeType | None", get_code(name)) if callable(get_code) else None
+    if code is None:
+        failure = ResourceImportError(name)
+        failure.add_note(
+            "it needs a package that is not installed here; it has no code to run again"
+        )
+        raise failure
+    return code
+
+
+def _namespace(name: str, record: importlib.machinery.ModuleSpec | None) -> ModuleType:
+    """Return a module for the code of ``name`` to run in, named as its import would name it."""
+    module = ModuleType(name)
+    locations = record.submodule_search_locations if record is not None else None
+    module.__spec__ = record
+    module.__loader__ = record.loader if record is not None else None
+    module.__package__ = name if locations is not None else name.rpartition(".")[0]
+    if record is not None and record.origin is not None:
+        module.__file__ = record.origin
+    if locations is not None:
+        module.__path__ = list(locations)
+    return module
+
+
+def _still_failing(
+    name: str, error: BaseException, entry: SetAsideModule, lacked: str | None
+) -> ResourceImportError:
+    """Return the failure of ``name``, run again with what its imports ask for served.
+
+    ``lacked`` is what the error lacked that only the module's own imports are served.
+    """
     failure = ResourceImportError(name)
-    if finder.packages_served:
-        packages = ", ".join(repr(package) for package in sorted(finder.packages_served))
+    if entry.needs:
+        packages = ", ".join(repr(package) for package in sorted(entry.needs))
         served = f"with {packages} stood in for — not installed here —"
     else:
         served = "with the modules it needs set aside given back"
     note = f"imported again {served} to see what it defines, it failed with {error!r}"
-    missing = _missing_module(error)
-    lacked = missing.name.partition(".")[0] if missing is not None and missing.name else None
-    if lacked is not None and lacked in finder.packages_served:
+    if lacked is not None:
         note += (
-            f"; {lacked!r} is stood in for only where this module's own code imports it — "
-            "not for code run with no module name, nor on another thread"
+            f"; {lacked!r} is served only to this module's own import statements — "
+            f"not to {_raised_in(error)}"
         )
     failure.add_note(note)
     return failure
 
 
+def _raised_in(error: BaseException) -> str:
+    """Say what made the import ``error`` came out of: whose statement, or whose call."""
+    traceback: TracebackType | None = error.__traceback__
+    where = "code naming no module"
+    called = False
+    while traceback is not None:
+        frame = traceback.tb_frame
+        module = frame.f_globals.get("__name__")
+        if module == "importlib" and frame.f_code.co_name == "import_module":
+            called = True
+        elif isinstance(module, str) and not module.startswith("importlib"):
+            # The import system's own frames are not who imported.
+            where = f"{module}:{frame.f_code.co_qualname}"
+            called = False
+        elif not frame.f_code.co_filename.startswith("<frozen importlib"):
+            where = "code naming no module"
+            called = False
+        traceback = traceback.tb_next
+    if called:
+        return f"importlib.import_module, called by {where}"
+    return f"an import statement of {where}"
+
+
 def _drop(name: str, module: ModuleType) -> None:
-    """Take ``module`` out of ``sys.modules`` and off its package: importing it runs it afresh."""
+    """Take ``module`` out of ``sys.modules``, and off its package where that is loaded."""
     if sys.modules.get(name) is module:
         del sys.modules[name]
     parent, _, child = name.rpartition(".")
     holder = sys.modules.get(parent) if parent else None
-    if holder is not None and getattr(holder, child, None) is module:
+    if holder is not None and vars(holder).get(child) is module:
         delattr(holder, child)
-
-
-def _holder(module: str, packages: Collection[str]) -> str | None:
-    """Return the one of ``packages`` that ``module`` is, or lies in; ``None`` if none."""
-    return next(
-        (package for package in packages if module == package or module.startswith(f"{package}.")),
-        None,
-    )

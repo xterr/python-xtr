@@ -11,15 +11,16 @@ import builtins
 import gc
 import importlib
 import importlib.util
-import logging
 import sys
 from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from tests.support.set_aside import violations
 from xtr_dependency_injection.exception import ResourceImportError, SetAsideModuleUsedError
 from xtr_dependency_injection.scan import DEFAULT_EXCLUDES
-from xtr_dependency_injection.scan._stand_ins import StandIn, StandInFinder, unwrapped
+from xtr_dependency_injection.scan._refusal import RefusalFinder
+from xtr_dependency_injection.scan._stand_ins import StandIn, unwrapped
 from xtr_dependency_injection.scan.scanner import Scanner
 
 if TYPE_CHECKING:
@@ -68,8 +69,24 @@ def _scanner(*, inactive: tuple[str, ...] = ("acme_tools",), env: str = "prod") 
 
 
 def _scan(scanner: Scanner | None = None) -> tuple[Scanner, ScanResult]:
+    """Scan the application; whether it fails or not, nothing untruthful is left behind."""
     scanner = scanner or _scanner()
-    return scanner, scanner.scan([APP], owner=None)
+    before = frozenset(sys.modules)
+    meta_path, import_function = cast("list[object]", list(sys.meta_path)), builtins.__import__
+    result: ScanResult | None = None
+    try:
+        result = scanner.scan([APP], owner=None)
+    finally:
+        left = violations(
+            scanner,
+            result,
+            loaded_before=before,
+            meta_path=meta_path,
+            import_function=import_function,
+        )
+        assert left == []
+    assert result is not None
+    return scanner, result
 
 
 def _runs() -> list[str]:
@@ -206,9 +223,10 @@ def test_each_package_a_module_turns_out_to_need_is_stood_in_for(
 # --- however it reached the missing package ------------------------------------------
 
 
-def test_a_module_reaching_the_missing_package_through_a_function_it_calls_is_set_aside(
+def test_a_module_reaching_the_missing_package_through_a_function_it_calls_fails_naming_it(
     application: ScratchModules,
 ) -> None:
+    # Only the module's own import statements are served: the helper imports for itself.
     application.write(
         {
             f"{APP}.aa_util": "def make():\n    import acme_faker\n    return acme_faker.Faker()\n",
@@ -219,26 +237,30 @@ def test_a_module_reaching_the_missing_package_through_a_function_it_calls_is_se
         }
     )
 
-    scanner, result = _scan()
+    with pytest.raises(ResourceImportError) as caught:
+        _ = _scan()
 
-    assert _set_aside(scanner)[f"{APP}.zz_seed"] == (("acme_faker",), None)
-    assert f"{APP}.zz_seed:Seeder" not in _services(result)
-    assert f"{APP}.aa_util" not in _set_aside(scanner)
+    assert caught.value.module == f"{APP}.zz_seed"
+    (note,) = caught.value.__notes__
+    assert f"not to an import statement of {APP}.aa_util:make" in note
+    assert f"{APP}.aa_util" in sys.modules
 
 
-def test_a_module_importing_the_missing_package_with_importlib_is_set_aside(
+def test_a_module_importing_the_missing_package_with_importlib_fails_saying_so(
     application: ScratchModules,
 ) -> None:
     application.write(
         {f"{APP}.dynamic": "import importlib\n\nfaker = importlib.import_module('acme_faker')\n"}
     )
 
-    scanner, _ = _scan()
+    with pytest.raises(ResourceImportError) as caught:
+        _ = _scan()
 
-    assert _set_aside(scanner)[f"{APP}.dynamic"] == (("acme_faker",), None)
+    (note,) = caught.value.__notes__
+    assert f"not to importlib.import_module, called by {APP}.dynamic:<module>" in note
 
 
-def test_a_module_importing_a_set_aside_module_with_importlib_is_set_aside(
+def test_a_module_importing_a_set_aside_module_with_importlib_fails_saying_so(
     application: ScratchModules,
 ) -> None:
     application.write(
@@ -250,10 +272,12 @@ def test_a_module_importing_a_set_aside_module_with_importlib_is_set_aside(
         }
     )
 
-    scanner, result = _scan()
+    with pytest.raises(ResourceImportError) as caught:
+        _ = _scan()
 
-    assert _set_aside(scanner)[f"{APP}.zz_loader"][1] == f"{APP}.fixtures.users"
-    assert f"{APP}.zz_loader:Loader" not in _services(result)
+    assert caught.value.module == f"{APP}.zz_loader"
+    (note,) = caught.value.__notes__
+    assert f"'{APP}.fixtures.users' is served only to this module's own import statements" in note
 
 
 # --- what is kept --------------------------------------------------------------------
@@ -451,7 +475,7 @@ def test_a_set_aside_module_imported_twice_by_one_module_is_served_twice(
     assert _set_aside(scanner)[f"{APP}.zz_twice"][1] == f"{APP}.fixtures.users"
 
 
-def test_modules_needing_each_other_and_a_missing_package_are_fatal(
+def test_modules_needing_each_other_and_a_missing_package_are_both_set_aside(
     application: ScratchModules,
 ) -> None:
     application.write(
@@ -461,8 +485,11 @@ def test_modules_needing_each_other_and_a_missing_package_are_fatal(
         }
     )
 
-    with pytest.raises(ResourceImportError):
-        _ = _scan()
+    scanner, _ = _scan()
+
+    set_aside = _set_aside(scanner)
+    assert set_aside[f"{APP}.aa_one"] == (("acme_faker",), None)
+    assert set_aside[f"{APP}.bb_two"] == (("acme_faker",), None)
 
 
 def test_an_import_error_for_no_missing_module_stays_fatal(application: ScratchModules) -> None:
@@ -485,7 +512,7 @@ def test_an_import_error_raised_over_nothing_missing_stays_fatal(
     assert caught.value.module == f"{APP}.broken"
 
 
-def test_a_module_reaching_faker_through_a_helper_inside_another_inspection_is_set_aside(
+def test_a_module_reaching_faker_through_a_helper_inside_another_inspection_fails_naming_it(
     application: ScratchModules,
 ) -> None:
     application.write(
@@ -499,11 +526,12 @@ def test_a_module_reaching_faker_through_a_helper_inside_another_inspection_is_s
         }
     )
 
-    scanner, result = _scan()
+    with pytest.raises(ResourceImportError) as caught:
+        _ = _scan()
 
-    assert _set_aside(scanner)[f"{APP}.zz_svc"] == (("acme_faker",), None)
-    assert _set_aside(scanner)[f"{APP}.bb_seed"] == (("acme_faker",), None)
-    assert f"{APP}.zz_svc:Svc" not in _services(result)
+    assert caught.value.module == f"{APP}.zz_svc"
+    (note,) = caught.value.__notes__
+    assert f"not to an import statement of {APP}.aa_util:make" in note
 
 
 def test_a_lazy_object_in_a_module_imported_while_inspecting_is_left_alone(
@@ -858,7 +886,7 @@ def test_no_stand_in_and_no_import_hook_outlive_the_scan() -> None:
     _ = _scan()
 
     assert (builtins.__import__, importlib.import_module, importlib.util.find_spec) == hooks
-    assert not any(isinstance(finder, StandInFinder) for finder in sys.meta_path)
+    assert not any(isinstance(finder, RefusalFinder) for finder in sys.meta_path)
     assert "acme_tools" not in sys.modules
     assert "acme_faker" not in sys.modules
 
@@ -1079,32 +1107,6 @@ def test_each_module_of_a_failing_chain_runs_once_more_only(application: Scratch
 # --- what other modules keep ------------------------------------------------------------
 
 
-def test_a_module_imported_after_a_helper_imported_for_the_inspection_learns_the_truth(
-    application: ScratchModules,
-) -> None:
-    # The helper calls import_module bound before any inspection: no hook sees its import.
-    application.write(
-        {
-            f"{APP}.aa_helpers": (
-                "from importlib import import_module\n\n\n"
-                "def load(name):\n    return import_module(name)\n"
-            ),
-            f"{APP}.bb_seed": (
-                f"from {APP}.aa_helpers import load\n\nfaker = load('acme_faker')\n"
-                f"import {APP}.zz_svc\n"
-            ),
-            f"{APP}.zz_svc": (
-                "try:\n    import acme_faker\n    HAS = True\n"
-                "except ImportError:\n    HAS = False\n"
-            ),
-        }
-    )
-
-    _ = _scan()
-
-    assert vars(sys.modules[f"{APP}.zz_svc"])["HAS"] is False
-
-
 def test_code_naming_no_module_is_never_served(application: ScratchModules) -> None:
     application.write(
         {
@@ -1121,8 +1123,8 @@ def test_code_naming_no_module_is_never_served(application: ScratchModules) -> N
     assert vars(sys.modules[f"{APP}.zz_exec"])["HAS"] is False
 
 
-def test_a_loaded_helper_handed_a_stand_in_for_the_inspected_body_is_warned_of(
-    application: ScratchModules, caplog: pytest.LogCaptureFixture
+def test_a_loaded_helper_called_by_an_inspected_module_is_never_handed_a_stand_in(
+    application: ScratchModules,
 ) -> None:
     application.write(
         {
@@ -1138,15 +1140,14 @@ def test_a_loaded_helper_handed_a_stand_in_for_the_inspected_body_is_warned_of(
         }
     )
 
-    with caplog.at_level(logging.WARNING, logger="xtr_dependency_injection"):
-        scanner, _ = _scan()
+    with pytest.raises(ResourceImportError) as caught:
+        _ = _scan()
 
-    assert f"{APP}.bb_seed" in _set_aside(scanner)
-    (warning,) = caplog.records
-    assert f"a function of {APP}.aa_util it called was handed a stand-in" in warning.getMessage()
+    assert caught.value.module == f"{APP}.bb_seed"
+    assert vars(sys.modules[f"{APP}.aa_util"])["_FAKE"] is None
 
 
-def test_a_helper_loaded_for_the_inspection_and_handed_a_stand_in_is_imported_again(
+def test_a_helper_probing_for_an_inspected_module_learns_the_truth(
     application: ScratchModules,
 ) -> None:
     application.write(
@@ -1415,7 +1416,7 @@ def test_a_mistake_in_a_fallback_for_a_missing_package_stays_fatal(
     assert caught.value.module == f"{APP}.fallback"
 
 
-def test_a_helper_the_failed_import_loaded_and_handed_a_stand_in_is_imported_again(
+def test_a_helper_the_failed_import_loaded_is_never_handed_a_stand_in(
     application: ScratchModules,
 ) -> None:
     application.write(
@@ -1428,29 +1429,11 @@ def test_a_helper_the_failed_import_loaded_and_handed_a_stand_in_is_imported_aga
         }
     )
 
-    _ = _scan()
-
-    assert vars(sys.modules[f"{APP}.zmaker"])["CACHE"] == []
-
-
-def test_a_loaded_helper_importing_through_a_function_bound_early_is_warned_of(
-    application: ScratchModules, caplog: pytest.LogCaptureFixture
-) -> None:
-    application.write(
-        {
-            f"{APP}.aa_kept": (
-                "from importlib import import_module as _im\n\n\n"
-                "def get():\n    return _im('acme_faker')\n"
-            ),
-            f"{APP}.bb_fx": f"import {APP}.aa_kept\nimport acme_faker\n\nX = {APP}.aa_kept.get()\n",
-        }
-    )
-
-    with caplog.at_level(logging.WARNING, logger="xtr_dependency_injection"):
+    with pytest.raises(ResourceImportError) as caught:
         _ = _scan()
 
-    (warning,) = caplog.records
-    assert f"a function of {APP}.aa_kept it called was handed a stand-in" in warning.getMessage()
+    assert caught.value.module == f"{APP}.fx2"
+    assert vars(sys.modules[f"{APP}.zmaker"])["CACHE"] == []
 
 
 def test_a_bare_package_holds_what_its_body_defined_before_it_failed(
@@ -1472,24 +1455,26 @@ def test_a_bare_package_holds_what_its_body_defined_before_it_failed(
     assert set_aside[f"{APP}.seeds"] == (("acme_faker",), f"{APP}.seeds.people")
 
 
-def test_a_missing_package_imported_where_nothing_is_served_says_why(
+def test_code_an_inspected_module_runs_with_no_module_name_is_served_as_its_own(
     application: ScratchModules,
 ) -> None:
+    # Code run with a bare namespace takes the builtins of the module running it.
     application.write({f"{APP}.execs": "import acme_faker\n\nexec('import acme_faker', {})\n"})
 
-    with pytest.raises(ResourceImportError) as caught:
-        _ = _scan()
+    scanner, _ = _scan()
 
-    (note,) = caught.value.__notes__
-    assert "is stood in for only where this module's own code imports it" in note
+    assert _set_aside(scanner)[f"{APP}.execs"] == (("acme_faker",), None)
 
 
 # --- what the failed import before an inspection loaded --------------------------------
 
 
-def test_the_other_half_of_a_cycle_imported_before_the_failing_line_is_refused(
+def test_the_other_half_of_a_cycle_imported_before_the_failing_line_stays_as_that_import_left_it(
     application: ScratchModules,
 ) -> None:
+    # Loaded by the truthful import that failed after it, it holds that module half-run, as it
+    # would at runtime: nothing tells the scan it imported it. Scanned first, it is refused:
+    # see the test below.
     application.write(
         {
             f"{APP}.aa_fx": f"import {APP}.zz_helper\nimport acme_faker\n\n\nclass F:\n    pass\n",
@@ -1500,54 +1485,31 @@ def test_the_other_half_of_a_cycle_imported_before_the_failing_line_is_refused(
         }
     )
 
+    scanner, result = _scan()
+
+    assert f"{APP}.zz_helper:Helper" in _services(result)
+    assert f"{APP}.aa_fx" in _set_aside(scanner)
+    half_run = cast("object", vars(sys.modules[f"{APP}.zz_helper"])["aa_fx"])
+    assert "F" not in vars(half_run)
+
+
+def test_the_other_half_of_a_cycle_scanned_before_the_failing_module_is_refused(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.zz_fx": f"import {APP}.aa_helper\nimport acme_faker\n\n\nclass F:\n    pass\n",
+            f"{APP}.aa_helper": (
+                "from xtr_dependency_injection import as_service\n"
+                f"from {APP} import zz_fx\n\n\n@as_service\nclass Helper:\n    pass\n"
+            ),
+        }
+    )
+
     with pytest.raises(SetAsideModuleUsedError) as caught:
         _ = _scan()
 
-    assert (caught.value.module, caught.value.through) == (f"{APP}.zz_helper", f"{APP}.aa_fx")
-
-
-def test_a_package_re_exporting_a_helper_imported_again_holds_its_new_classes(
-    application: ScratchModules,
-) -> None:
-    application.write(
-        {
-            f"{APP}.helpers.__init__": "from .fakes import Maker, make\n",
-            f"{APP}.helpers.fakes": (
-                "class Maker:\n    pass\n\n\ndef make():\n    import acme_faker\n"
-                "    return acme_faker\n"
-            ),
-            f"{APP}.aa_fx": f"from {APP}.helpers import make\nimport acme_faker\n\nX = make()\n",
-        }
-    )
-
-    _ = _scan()
-
-    helpers, fakes = sys.modules[f"{APP}.helpers"], sys.modules[f"{APP}.helpers.fakes"]
-    assert vars(helpers)["Maker"] is vars(fakes)["Maker"]
-
-
-def test_a_module_importing_a_helper_imported_again_is_imported_again_with_it(
-    application: ScratchModules,
-) -> None:
-    # Two missing packages: kk and hh are loaded by the first attempt, make() is lent in the second.
-    application.write(
-        {
-            f"{APP}.fx3": (
-                f"import acme_faker\nfrom {APP} import kk, hh\n"
-                "from acme_tools.fixtures import Fixture\n\nfake = hh.make()\n"
-            ),
-            f"{APP}.hh": (
-                "class Dep:\n    pass\n\n\n"
-                "def make():\n    import acme_faker\n    return acme_faker\n"
-            ),
-            f"{APP}.kk": f"from {APP}.hh import Dep\n\n\nclass K:\n    dep = Dep\n",
-        }
-    )
-
-    _ = _scan()
-
-    kept = cast("type", vars(sys.modules[f"{APP}.kk"])["K"])
-    assert vars(kept)["dep"] is vars(sys.modules[f"{APP}.hh"])["Dep"]
+    assert (caught.value.module, caught.value.through) == (f"{APP}.aa_helper", f"{APP}.zz_fx")
 
 
 def test_a_healthy_module_its_package_loads_before_a_fixture_runs_once(
@@ -1612,9 +1574,10 @@ def test_a_package_whose_modules_import_what_it_re_exports_is_set_aside(
     assert {f"{APP}.fixtures", f"{APP}.fixtures.orders", f"{APP}.fixtures.users"} <= set(set_aside)
 
 
-def test_a_set_aside_module_is_reached_by_its_dotted_name_after_a_caught_failed_import(
+def test_a_set_aside_module_is_reached_by_its_dotted_name_after_an_optional_import(
     application: ScratchModules,
 ) -> None:
+    # An inspected module is served a stand-in for a package it only tries: it is said to need it.
     application.write(
         {
             f"{APP}.zz_seeder": (
@@ -1627,7 +1590,10 @@ def test_a_set_aside_module_is_reached_by_its_dotted_name_after_a_caught_failed_
 
     scanner, _ = _scan()
 
-    assert _set_aside(scanner)[f"{APP}.zz_seeder"][1] == f"{APP}.fixtures.users"
+    assert _set_aside(scanner)[f"{APP}.zz_seeder"] == (
+        ("acme_faker", "acme_orjson", "acme_tools"),
+        None,
+    )
 
 
 def test_a_set_aside_package_keeps_the_modules_its_own_body_imported(

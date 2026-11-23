@@ -1,36 +1,31 @@
 """What a set-aside module is inspected with: stand-ins for the packages that are not installed.
 
 A module the application scan cannot import, because a package it needs is not
-installed, is imported once more to learn what it defines. For that one
-import, and for that module's body alone, each such package is answered by a
-:class:`StandInModule`, and every name taken from it by a :class:`StandIn`: an
-object that can be imported, subclassed, subscripted, called, compared,
-counted and read, so module-level code built on the missing package runs to
-its end. Nothing it produces is used afterwards: the module is set aside, then
-dropped.
+installed, has its code run in a namespace of its own to learn what it
+defines. To that module's own import statements alone, each such package is
+answered by a :class:`StandInModule`, and every name taken from it by a
+:class:`StandIn`: an object that can be imported, subclassed, subscripted,
+called, compared, counted and read, so module-level code built on the missing
+package runs to its end. Nothing it produces is used afterwards: the module is
+set aside, then dropped.
 
 Private to the scan.
 """
 
 from __future__ import annotations
 
-import importlib.abc
-import importlib.machinery
 import sys
-import threading
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import TYPE_CHECKING, Final, cast, final, override
 
-from ._frames import importing_module, running_module
+from ._frames import running_module
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping, Sequence
+    from collections.abc import Iterator
 
 __all__ = [
     "STAND_IN_ATTRIBUTE",
-    "ChildOfSetAside",
     "StandIn",
-    "StandInFinder",
     "StandInModule",
     "unwrapped",
 ]
@@ -286,168 +281,3 @@ class StandInModule(ModuleType):
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
         return StandIn(f"{self.__name__}.{name}")
-
-
-@final
-class StandInFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
-    """Answers one inspection: stand-ins for packages not installed, set-aside modules as they are.
-
-    Placed first: a set-aside module's own file would otherwise be found, and
-    run again. It answers for nothing else — a package no other finder finds,
-    being not installed, or a module set aside — and, on the thread that
-    created it, only an import the inspected module's own code makes.
-    Every other module whose body runs meanwhile imports truthfully: one
-    probing for a missing package learns it is missing, and one needing it
-    fails, which tells the scan to inspect that one first.
-
-    One exception: a function of another module, called by the inspected
-    body, is answered too — it imports for that body, which would fail
-    without it. What it keeps of a stand-in, that module keeps:
-    :attr:`lent_to` names it.
-
-    What it serves is loaded only for the import statement asking for it:
-    :meth:`sweep`, called before the next import, takes it out of
-    ``sys.modules`` and off the packages it was set on, so no module run by
-    that import finds it; :meth:`restore`, called once the inspected body has
-    its hands back, puts it on its packages again, for the body to reach by
-    a dotted name; :meth:`close` takes it off for good.
-
-    A module of a set-aside package that is not set aside itself is never
-    loaded under it: asked for one, the finder raises :class:`ChildOfSetAside`,
-    for the inspection to inspect that module first.
-
-    Attributes:
-        packages_served: The packages not installed it stood in for.
-        modules_served: The set-aside modules it gave back, in the order asked.
-        lent_to: The modules whose functions, called by the inspected body,
-            it answered.
-    """
-
-    def __init__(
-        self,
-        packages: frozenset[str],
-        inspected: str,
-        set_aside: Mapping[str, ModuleType],
-    ) -> None:
-        """Answer the inspection of ``inspected``.
-
-        Args:
-            packages: Top-level packages not installed, to stand in for.
-            inspected: The module being inspected.
-            set_aside: The modules set aside so far, to give back as they are.
-        """
-        self._packages = packages
-        self._inspected = inspected
-        self._set_aside = set_aside
-        self._thread = threading.get_ident()
-        self._served: dict[str, ModuleType] = {}
-        self._attached: list[tuple[ModuleType, str, ModuleType]] = []
-        self._own_records: dict[str, importlib.machinery.ModuleSpec | None] = {}
-        self.packages_served: set[str] = set()
-        self.modules_served: list[str] = []
-        self.lent_to: set[str] = set()
-
-    @override
-    def find_spec(
-        self,
-        fullname: str,
-        path: Sequence[str] | None,
-        target: ModuleType | None = None,
-    ) -> importlib.machinery.ModuleSpec | None:
-        """Answer for ``fullname`` with a stand-in or a set-aside module; ``None`` leaves it be."""
-        del path, target
-        if threading.get_ident() != self._thread:
-            return None
-        package = fullname.partition(".")[0]
-        set_aside = self._set_aside.get(fullname)
-        parent = fullname.rpartition(".")[0]
-        if set_aside is None and package not in self._packages and parent not in self._set_aside:
-            return None
-        asking = importing_module()
-        if asking != self._inspected:
-            # Code naming no module, or another module's body, imports for itself.
-            if asking is None or running_module() != self._inspected:
-                return None
-            self.lent_to.add(asking)
-        if set_aside is None and package in self._packages:
-            self.packages_served.add(package)
-            return importlib.machinery.ModuleSpec(fullname, self, is_package=True)
-        if set_aside is None:
-            raise ChildOfSetAside(fullname, parent)
-        if fullname not in self.modules_served:
-            self.modules_served.append(fullname)
-        return importlib.machinery.ModuleSpec(
-            fullname, self, is_package=hasattr(set_aside, "__path__")
-        )
-
-    @override
-    def create_module(self, spec: importlib.machinery.ModuleSpec) -> ModuleType:
-        """Return the set-aside module asked for, else a stand-in for it."""
-        module = self._set_aside.get(spec.name)
-        if module is None:
-            return StandInModule(spec.name)
-        # The import system gives a module the record it was found by; it gets its own back.
-        _ = self._own_records.setdefault(spec.name, module.__spec__)
-        return module
-
-    @override
-    def exec_module(self, module: ModuleType) -> None:
-        """Record what was served, to take it away before the next import statement."""
-        self._served[module.__name__] = module
-
-    def sweep(self) -> None:
-        """Take out of ``sys.modules``, and off its packages, all it served so far.
-
-        Only this finder answers for those names, and it is swept before every
-        import: nothing else can have put another module there. What it was
-        set on the inspected module itself stays: that is what the module
-        defines, and whatever reaches the module is set aside with it.
-        """
-        for name, module in self._served.items():
-            parent, _, child = name.rpartition(".")
-            holder = sys.modules.get(parent) if parent and parent != self._inspected else None
-            if holder is not None and getattr(holder, child, None) is module:
-                self._attached.append((holder, child, module))
-        for name, module in self._served.items():
-            if sys.modules.get(name) is module:
-                del sys.modules[name]
-        self._served.clear()
-        self._detach()
-
-    def restore(self) -> None:
-        """Put what it served back on its packages, where nothing else took its place."""
-        for holder, child, module in self._attached:
-            if child not in vars(holder):
-                setattr(holder, child, module)
-
-    def close(self) -> None:
-        """Sweep, for good; give set-aside modules their own record back."""
-        self.sweep()
-        self._attached.clear()
-        for name, record in self._own_records.items():
-            self._set_aside[name].__spec__ = record
-        self._own_records.clear()
-
-    def _detach(self) -> None:
-        for holder, child, module in reversed(self._attached):
-            if vars(holder).get(child) is module:
-                delattr(holder, child)
-
-
-@final
-class ChildOfSetAside(ImportError):  # noqa: N818 — a signal to the inspection, not an error
-    """Raised to the inspection through the inspected body: a set-aside package's module is needed.
-
-    Its package is set aside, so the module cannot be loaded truthfully
-    there; the inspection inspects it first, and imports the body again.
-
-    Attributes:
-        child: The module asked for.
-        parent: Its set-aside package.
-    """
-
-    def __init__(self, child: str, parent: str) -> None:
-        """Signal that ``child``, of the set-aside ``parent``, must be inspected first."""
-        super().__init__(f"{child!r} lies in the set-aside {parent!r}", name=child)
-        self.child = child
-        self.parent = parent

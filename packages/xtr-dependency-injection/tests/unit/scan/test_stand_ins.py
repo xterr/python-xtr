@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import importlib
 import math
-import sys
-import threading
 import types
 from typing import TYPE_CHECKING, cast
 
@@ -11,17 +9,12 @@ import pytest
 
 from xtr_dependency_injection.scan._stand_ins import (
     STAND_IN_ATTRIBUTE,
-    ChildOfSetAside,
     StandIn,
-    StandInFinder,
     StandInModule,
     unwrapped,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-    from types import ModuleType
-
     from tests.support.modules import ScratchModules
 
 
@@ -253,159 +246,3 @@ def test_a_module_answers_every_name_with_a_stand_in() -> None:
 def test_a_module_lacks_its_dunders_as_any_module_does() -> None:
     with pytest.raises(AttributeError):
         _ = StandInModule("acme_faker").__all__
-
-
-_SET_ASIDE = types.ModuleType("acme_app.seed")
-
-
-def _finder(inspected: str = "acme_app.asking") -> StandInFinder:
-    return StandInFinder(frozenset({"acme_faker"}), inspected, {"acme_app.seed": _SET_ASIDE})
-
-
-@pytest.fixture
-def finder() -> Iterator[StandInFinder]:
-    finder = _finder()
-    sys.meta_path.insert(0, finder)
-    try:
-        yield finder
-    finally:
-        sys.meta_path.remove(finder)
-        finder.close()
-
-
-def test_the_finder_stands_in_for_a_package_and_its_modules(
-    finder: StandInFinder, scratch_modules: ScratchModules
-) -> None:
-    scratch_modules.write({"acme_app.asking": "import acme_faker.providers as providers\n"})
-
-    module = importlib.import_module("acme_app.asking")
-
-    assert isinstance(cast("ModuleType", vars(module)["providers"]), StandInModule)
-    assert finder.packages_served == {"acme_faker"}
-
-
-def test_the_finder_gives_a_set_aside_module_back_as_it_is(
-    finder: StandInFinder, scratch_modules: ScratchModules
-) -> None:
-    scratch_modules.write({"acme_app.asking": "import acme_app.seed as seed\n"})
-
-    module = importlib.import_module("acme_app.asking")
-
-    assert vars(module)["seed"] is _SET_ASIDE
-    assert finder.modules_served == ["acme_app.seed"]
-
-
-def test_the_finder_answers_no_module_but_the_inspected_one(
-    finder: StandInFinder, scratch_modules: ScratchModules
-) -> None:
-    scratch_modules.write({"acme_app.other": "import acme_faker\n"})
-
-    with pytest.raises(ModuleNotFoundError):
-        _ = importlib.import_module("acme_app.other")
-
-    assert finder.packages_served == set()
-
-
-@pytest.mark.usefixtures("finder")
-def test_the_finder_leaves_any_other_package_missing() -> None:
-    with pytest.raises(ModuleNotFoundError):
-        _ = importlib.import_module("acme_other")
-
-
-def test_the_finder_leaves_an_installed_module_to_the_others(finder: StandInFinder) -> None:
-    module = importlib.import_module("json")
-
-    assert not isinstance(module, StandInModule)
-    assert finder.packages_served == set()
-
-
-def test_sweeping_takes_what_was_served_out_of_the_modules_and_closing_off_their_packages(
-    finder: StandInFinder, scratch_modules: ScratchModules
-) -> None:
-    scratch_modules.write(
-        {"acme_app.asking": "import acme_faker.providers\nimport acme_app.seed\n"}
-    )
-    _ = importlib.import_module("acme_app.asking")
-
-    finder.sweep()
-
-    assert {"acme_faker", "acme_faker.providers", "acme_app.seed"}.isdisjoint(sys.modules)
-    assert "seed" not in vars(sys.modules["acme_app"])
-
-    # Put back on its package for the inspected body, once it has its hands back.
-    finder.restore()
-
-    assert vars(sys.modules["acme_app"])["seed"] is _SET_ASIDE
-
-    finder.close()
-
-    assert not hasattr(sys.modules["acme_app"], "seed")
-    # The set-aside module gets its own import record back: it had none.
-    assert _SET_ASIDE.__spec__ is None
-
-
-def test_the_finder_signals_a_module_of_a_set_aside_package_that_is_not_set_aside(
-    scratch_modules: ScratchModules,
-) -> None:
-    scratch_modules.write({"acme_app.asking": "import acme_app.seeds.child\n"})
-    package = types.ModuleType("acme_app.seeds")
-    package.__path__ = []
-    finder = StandInFinder(frozenset(), "acme_app.asking", {"acme_app.seeds": package})
-    sys.meta_path.insert(0, finder)
-    try:
-        with pytest.raises(ChildOfSetAside) as caught:
-            _ = importlib.import_module("acme_app.asking")
-    finally:
-        sys.meta_path.remove(finder)
-        finder.close()
-
-    assert (caught.value.child, caught.value.parent) == ("acme_app.seeds.child", "acme_app.seeds")
-    assert caught.value.name == "acme_app.seeds.child"
-
-
-def test_the_finder_lends_to_a_function_of_another_module_the_inspected_body_calls(
-    finder: StandInFinder, scratch_modules: ScratchModules
-) -> None:
-    scratch_modules.write(
-        {
-            "acme_app.helpers": "def load():\n    import acme_faker\n    return acme_faker\n",
-            "acme_app.asking": "from acme_app.helpers import load\n\nFAKER = load()\n",
-        }
-    )
-
-    module = importlib.import_module("acme_app.asking")
-
-    assert isinstance(cast("ModuleType", vars(module)["FAKER"]), StandInModule)
-    assert finder.lent_to == {"acme_app.helpers"}
-
-
-def test_the_finder_answers_no_code_naming_no_module(finder: StandInFinder) -> None:
-    with pytest.raises(ModuleNotFoundError):
-        exec("import acme_faker", {})  # noqa: S102 — code run with a namespace naming no module
-
-    assert finder.packages_served == set()
-
-
-def test_the_finder_answers_no_other_thread() -> None:
-    finder = _finder()
-    answers: list[object] = []
-    thread = threading.Thread(target=lambda: answers.append(finder.find_spec("acme_faker", None)))
-
-    thread.start()
-    thread.join()
-
-    assert answers == [None]
-
-
-def test_the_finder_answers_no_code_outside_the_inspected_module() -> None:
-    answers: list[tuple[object, set[str]]] = []
-
-    def ask() -> None:
-        finder = _finder()
-        answers.append((finder.find_spec("acme_faker", None), finder.packages_served))
-
-    thread = threading.Thread(target=ask)
-    thread.start()
-    thread.join()
-
-    assert answers == [(None, set())]
