@@ -18,6 +18,8 @@ send a message that failed for good to the configured failure transport. Every p
   behaviour.
 - A message that failed in a failure transport — consumed there, or retried from it — is never
   sent on to another one, whatever the configuration: it stays where it is.
+- Only a configured transport has a failure transport. A receiver registered on its own — the
+  scheduler's — keeps rejecting what fails, as before.
 - A receiver that is not a `RetryingReceiverInterface` has every failure treated as final, so
   with a failure transport configured its first failure is moved there. Implement `will_retry`
   on a receiver that retries a rejected message itself.
