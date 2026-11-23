@@ -606,6 +606,77 @@ A bundle can scan a module only when a peer is active: `services.load("pkg.comma
 `load_extension` runs after every bundle has loaded (the late scan). A late scan may not declare `@configure`, `@parameters` or `@compiler_pass`: each is needed
 before bundles load, so put it in an early resource.
 
+Where a bundle the application lists is not active, the application's scan leaves out the
+`resources` it names, so a package inside the application that a bundle active only in
+development names — commands, demos, whatever they import — is never imported in another
+environment. No `exclude` is needed for it. Where the bundle is active, the application's scan
+walks that package as any other, and what it finds there is the application's.
+
+### Development-only packages
+
+A deployment installed without its development dependencies (`uv sync --no-dev`) has neither
+the bundles the application lists for development nor the libraries only development uses —
+while application modules may still import them: data to seed a database with, built on a
+fixtures bundle and a fake-data library, say. Such a module is imported in every environment,
+so in that deployment it would fail the scan. The same goes for a bundle installed everywhere
+but listed for development only, whose development-only libraries are not.
+
+The bundle list says which bundles each environment runs. Where a listed bundle does not run —
+disabled for the environment, or not installed — what only it uses may be missing, so there,
+and only there, the application's scan **sets aside** a module that fails to import because a
+package it needs is not installed at all:
+
+- **Inspected.** The module is imported once more with each such package stood in for, only to
+  learn what it defines. A name taken from a stand-in can be subclassed, called, subscripted,
+  compared, counted, used as a context manager, as a metaclass and as a decorator — bare
+  (`@lib.register`) or as a factory handed a class (`@lib.depends_on(Users)`) — so module-level
+  code built on it runs through and every class and function stays what the module defines. A
+  module importing a set-aside module — however: `from . import sibling`, `import a.b as x`, a
+  dotted name, `importlib` — every module of a set-aside package, and a package whose
+  `__init__` re-exports a set-aside module, fails to import in turn, and is set aside the same
+  way; so is an installed package whose own body needs a missing package. The packages a module
+  lies in are settled before it is inspected, so no package body runs inside an inspection: a
+  package whose body failed while importing it stands bare, holding what that body had defined
+  by then.
+- **Only the inspected module is lied to.** The stand-ins, and the modules set aside so far, are
+  served to its own code alone — an import statement or `importlib` — and taken out of
+  `sys.modules`, and off their packages, before the next import; they are put back on their
+  packages once its body has its hands back. Every other module the inspection runs, an
+  installed library or the application's models a fixture imports first, runs truthfully, and
+  stays: one probing for the missing package (`try: import faker`, `find_spec("faker")`)
+  learns it is missing, whichever order the scan finds it in. One that needs it fails, and its
+  traceback names it: it is inspected and set aside first — a chain of modules failing through
+  one another innermost first — then the module that imported it is inspected again, served
+  it. A module first loaded meanwhile that is, lies in or imported the inspected module or a
+  set-aside one — a sibling reading `from .fixtures import fake`, a child its package's
+  `__init__` imports, the other half of an import cycle — would fail at runtime: it is set aside
+  through it, without being run again. One that is not set aside but was handed a stand-in by
+  the inspected module's call is not kept: the scan imports it again, truthfully.
+- **Registered nowhere.** Nothing a set-aside module defines becomes a service, and it is not
+  loaded once the scan ends: importing it later fails with the error it always had.
+- **Refused when needed.** If anything would use one of its objects, the build fails with
+  `SetAsideModuleUsedError`, naming the object, what would use it, the module and the missing
+  package: an object carrying a marker of this package (`@as_service`, `@as_alias`,
+  `@as_tagged_item`, `@configure`, `@parameters`, `@compiler_pass`, `@on_boot`, `@on_shutdown`,
+  `@as_decorator`, `@autoconfigure`, `@autoconfigure_tag`), or one an active bundle's
+  autoconfiguration would register — a command for
+  the console bundle, a handler for the messenger, a fixture for a fixtures bundle listed in
+  production. Each reader is asked about the object, and — for one under a stand-in decorator —
+  about what the module holds in its place, so a marker put over that decorator is refused too.
+  `@exclude` and a `@when` leaving the object out of the environment are honoured first.
+- **Reported.** The scan report lists every set-aside module, what it needs, through which
+  module, what it defines, and whether it is *expected*: it needs or reaches the package of a
+  listed bundle that is not active (`compiled.report.render("scan")`). The build logs one INFO
+  record on the `xtr_dependency_injection` standard-library logger, and a WARNING naming each
+  module that is not expected — a helper using a development library alone, but also what a
+  dependency missing from the installation or a mistyped import looks like.
+
+What stays fatal, as before: every failed import where every listed bundle is active; a module
+missing from the application or from a package that is installed; an import error naming a
+module of its own, even one raised while falling back from a missing package
+(`except ImportError: from app.models import Usr`); any failure other than a missing package; a
+bundle's own resources needing a missing package.
+
 ## Definitions and compiler passes
 
 `ContainerBuilder` — one method one purpose:
@@ -678,6 +749,7 @@ in scan order.
 |---|---|---|---|
 | `BEFORE_OPTIMIZATION` | 100 | `RegisterAutoconfigureAttributesPass` | `@autoconfigure` / `@autoconfigure_tag` markers become rules |
 | | 100 | `AutowireAsDecoratorPass` | Scanned `@as_decorator` become decorating definitions |
+| | 100 | `CheckSetAsideCandidatesPass` | Refuses a set-aside class or function an autoconfiguration reader would register |
 | | 100 | `AttributeAutoconfigurationPass` | Runs `register_attribute_for_autoconfiguration` callbacks |
 | | 100 | `ResolveInstanceofConditionalsPass` | Applies the autoconfiguration rules |
 | | 100 | `RegisterEnvVarProcessorsPass` | Registers the environment variable processors and loaders |
@@ -1315,6 +1387,11 @@ mail    default -> base shop.config:mail -> transform shop.config:mail_prod  Mai
 Render one section with `render("bundles" | "configs" | "definitions" | "scan")`. The console
 bundle exposes them as `debug:bundles`, `debug:config` and `debug:container`.
 
+The scan section lists the modules imported, the objects an environment condition left out,
+and the modules set aside where a listed bundle is not active (see
+[Development-only packages](#development-only-packages)); `report.scan.set_aside` holds them as
+`SetAsideReport` entries.
+
 ## Plain wireup — `integration.wireup`
 
 The module `xtr_dependency_injection.integration.wireup` is the **only** engine-facing public
@@ -1419,7 +1496,8 @@ Every error derives from `DependencyInjectionError` and carries its data as type
 | `CircularBundleDependencyError` | Bundle dependencies loop |
 | `InvalidEnvironmentError` | The environment is not in `allowed_envs` |
 | `UnknownEnvironmentFolderError` | A folder under `config/packages/` or `config/routes/` is named after no environment in `allowed_envs` |
-| `ResourceImportError` | A scanned module failed to import |
+| `ResourceImportError` | A scanned module failed to import — where a listed bundle is not active, other than for a package that is not installed, or still when imported again with it stood in for |
+| `SetAsideModuleUsedError` | An object of a set-aside module would be used: it carries a marker of this package, or an active bundle's autoconfiguration would register it |
 | `ConfigProviderError` | A bad `@configure` / `@parameters`, one found too late, `NoConfig` targeted, a bad parameter key, two queue markers on one object, an `alias_of` value of the wrong type |
 | `UnknownConfigTypeError` | No active bundle owns a configured type |
 | `ConflictingConfigProvidersError` | Two base providers, or an app base and an `alias_of`, in one group |
@@ -1464,6 +1542,46 @@ Every error derives from `DependencyInjectionError` and carries its data as type
   placeholder per distinct `env()` expression.
 - **Numbers and strings stand in for their placeholder while building**: validation sees the
   `default`, else `0` or the token.
+- **A set-aside module runs under stand-ins.** Its module-level code runs to learn what it
+  defines, and what it hands to other modules meanwhile stays with them: a class registering
+  itself with an installed library (`__init_subclass__`, a metaclass, a decorator's
+  registry), an `atexit` hook, a table added to shared table definitions, a value put in a
+  registry. Code handing a stand-in to a library that inspects it at import time — a
+  `json.dumps` of fake data, unpacking `a, b = fake.pair()` — fails the build, naming the
+  module and what it needs. A stand-in base cannot sit beside `Protocol`, nor parametrise
+  `Generic`.
+- **A function of another module, called by an inspected module, is served too.** It imports on
+  that module's behalf (`fake = helpers.faker()`, through an import statement or
+  `importlib.import_module`, however it was imported), which would fail otherwise. A module first
+  loaded for that inspection is then imported again truthfully; one loaded before keeps whatever
+  it cached of the stand-in, and the build logs a WARNING naming it. A value the inspected module
+  merely hands to another module's function (`registry.add(fake)`) stays there, with no warning.
+  Keep such helpers free of module-level caches, or import the library in the fixture itself.
+- **What fails part-way runs part-way again.** A module failing to import runs the lines
+  before its failing import each time it is attempted — once truthfully, then once more for each
+  missing package or failing module found while inspecting it, and once more for each module
+  importing it truthfully — as Python itself would on every retry. A module imported again
+  truthfully after an inspection runs once more too. Keep imports at the top of fixture modules.
+- **A bare package holds only what its body defined before it failed.** A module importing a
+  name its package's `__init__` defines after the import that failed gets an import error, which
+  fails the build.
+- **The bundle list itself is strict.** `config/bundles.py` may import a bundle that is not
+  installed, but a bundle module of the application that imports a missing package itself — or
+  a package a bundle lives in whose `__init__` does — fails the build while the list loads.
+- **A namespace shared with installed packages.** A missing module under a top-level name an
+  installed package also uses (`google.*`) is a module missing from an installed package: the
+  build fails.
+- **One scan at a time.** The scan's import hooks are the process's: it holds a lock while it
+  inspects, and stand-ins answer only its own thread. Between an import statement of the
+  inspected module and the next import, what it was served sits in `sys.modules`, where another
+  thread reading it directly would see it.
+- **Modules importing one another, both needing a missing package, are fatal.** Two fixture
+  modules in an import cycle cannot be inspected one before the other. A cycle in which only
+  one needs it sets the other aside through it.
+- **Every bundle active is strict.** An environment where every listed bundle runs sets
+  nothing aside: a library missing there fails the build, naming the module — and where one
+  does not run, a set-aside module an active bundle would use fails it too, naming the package
+  to install.
 
 ## Upgrading
 
