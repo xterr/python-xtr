@@ -10,6 +10,7 @@ from .loader import Loader
 from .ordered_fixture_interface import OrderedFixtureInterface
 from .reference_repository import ReferenceRepository
 from .shared_fixture_interface import SharedFixtureInterface
+from .table_definitions import TableDefinitions
 
 __all__ = [
     "DependentFixtureInterface",
@@ -20,4 +21,5 @@ __all__ = [
     "OrderedFixtureInterface",
     "ReferenceRepository",
     "SharedFixtureInterface",
+    "TableDefinitions",
 ]
