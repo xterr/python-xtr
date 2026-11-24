@@ -120,7 +120,8 @@ class StandIn:
             if self._remembered is not None:
                 return args[0]
             return StandIn(f"{self._path}()", unwrapped(args[0]))
-        built = _class_built(args, kwargs)
+        # A class statement's keywords go to its metaclass; one standing in takes none of them.
+        built = _class_built(args)
         if built is not None:
             return built
         return StandIn(f"{self._path}()")
@@ -250,14 +251,13 @@ def _readable(remembered: object) -> bool:
     return module == running_module() or module not in sys.modules
 
 
-def _class_built(args: tuple[object, ...], kwargs: dict[str, object]) -> type | None:
+def _class_built(args: tuple[object, ...]) -> type | None:
     """Build the class a stand-in metaclass is called for — a name, bases, a namespace."""
     if len(args) != 3:  # noqa: PLR2004 — the three arguments a metaclass is called with
         return None
     name, bases, namespace = args
     if not (isinstance(name, str) and isinstance(bases, tuple) and isinstance(namespace, dict)):
         return None
-    del kwargs
     # What a class statement hands its metaclass: a tuple of bases, a namespace of names.
     classes = tuple(base for base in cast("tuple[object, ...]", bases) if isinstance(base, type))
     return type(name, classes, dict(cast("dict[str, object]", namespace)))

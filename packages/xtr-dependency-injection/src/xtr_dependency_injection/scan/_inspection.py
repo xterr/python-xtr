@@ -130,10 +130,10 @@ class _Branch(ModuleType):
     and answers everything else as the package does.
     """
 
-    def __init__(self, package: ModuleType, grafted: Mapping[str, ModuleType]) -> None:
+    def __init__(self, package: ModuleType) -> None:
         super().__init__(package.__name__)
         self._package = package
-        self._grafted = dict(grafted)
+        self._grafted: dict[str, ModuleType] = {}
         # Set by the module type for every module: read off the package instead.
         for dunder in ("__doc__", "__package__", "__loader__", "__spec__"):
             setattr(self, dunder, getattr(package, dunder, None))
@@ -261,10 +261,18 @@ class Inspection:
         error: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Stop refusing, and stop serving: what is set aside imports as anything does."""
+        """Stop refusing, and stop serving: what is set aside imports as anything does.
+
+        What the scan kept to undo a body is let go: a set-aside function holds
+        this inspection, through what serves its module's imports, for as long
+        as the build keeps it.
+        """
         del kind, error, traceback
         self._open = False
         self._finder.remove()
+        self._loads.clear()
+        self._failing.clear()
+        self._running.clear()
 
     @property
     def set_aside(self) -> Mapping[str, SetAsideModule]:
@@ -287,8 +295,13 @@ class Inspection:
         if self._fatal is not None:
             # Raised inside an inspected body that caught it: it is fatal all the same.
             raise self._fatal
-        self._explain()
         return module
+
+    def explain(self, name: str) -> SetAsideModule:
+        """Return the set-aside ``name``, having worked out why: what it lacks, through which."""
+        entry = self._set_aside[name]
+        self._explain_one(name, entry)
+        return entry
 
     def reports(self) -> list[SetAsideReport]:
         """Return what was set aside, as the scan report holds it, and forget it.
@@ -296,8 +309,8 @@ class Inspection:
         Each namespace keeps what it lacks: read after the scan, it is refused
         naming that, though the scan's records are gone.
         """
-        self._explain()
         for name, entry in self._set_aside.items():
+            self._explain_one(name, entry)
             if isinstance(entry.module, _Inspected):
                 vars(entry.module)[_MARK] = (name, partial(_given, self._first_lacking(name)))
         reports = [
@@ -332,10 +345,15 @@ class Inspection:
         if parent and parent not in sys.modules:
             # An orphan would be handed back from sys.modules with no finder asked.
             _ = self._load(parent)
+        aside = name in self._failing or holder_of(name, self._set_aside) is not None
+        loaded = sys.modules.get(name)
+        if loaded is not None and not aside:
+            # Loaded truthfully already: importing it again would load nothing.
+            return loaded
         before = frozenset(sys.modules)
-        if name in self._failing or holder_of(name, self._set_aside) is not None:
+        if aside:
             entry = self._put_aside(name, self._failing.get(name))
-            self._settle_orphans(before)
+            self._settle_orphans(_fresh(before))
             return entry.module
         try:
             with self._out_of_sight():
@@ -343,32 +361,32 @@ class Inspection:
         except ImportError as error:
             failure = error
         else:
-            self._record_loads(before)
-            self._settle_orphans(before)
+            fresh = _fresh(before)
+            self._record_loads(fresh)
+            self._settle_orphans(fresh)
             return module
-        self._record_loads(before)
+        fresh = _fresh(before)
+        self._record_loads(fresh)
         # Set aside outside the handler: what fails meanwhile is not raised over this failure.
-        if not self._sets_aside(failure) or name.partition(".")[0] in self._missing:
+        lacking = self._lacking_of(failure)
+        if lacking is None or name.partition(".")[0] in self._missing:
             raise failure
-        missing = _missing_module(failure)
-        # What a truthful import of it fails for, first: a refusal of it says the same.
-        lacking = missing.name.partition(".")[0] if missing is not None and missing.name else None
         for body in _failed_bodies(failure):
             # A body the error ran through that loaded all the same caught it, and is healthy.
             if body not in sys.modules:
                 _ = self._failing.setdefault(body, lacking)
+        # What a truthful import of it fails for: a refusal of it says the same.
         entry = self._put_aside(name, lacking)
-        self._settle_orphans(before)
+        self._settle_orphans(fresh)
         return entry.module
 
-    def _record_loads(self, before: frozenset[str]) -> None:
-        """Record each module a truthful import loaded, since ``before``."""
-        self._loads.extend(
-            (entry, module) for entry, module in sys.modules.items() if entry not in before
-        )
+    def _record_loads(self, fresh: Sequence[str]) -> None:
+        """Record the modules a truthful import made while a body runs: undoing it keeps them."""
+        if self._running:
+            self._loads.extend((entry, sys.modules[entry]) for entry in fresh)
 
-    def _settle_orphans(self, before: frozenset[str]) -> None:
-        """Settle the package of each module a truthful import left orphaned.
+    def _settle_orphans(self, fresh: Sequence[str]) -> None:
+        """Settle the package of each module of ``fresh`` a truthful import left orphaned.
 
         A failed import caught by the module making it (``try: import
         app.fixtures``) leaves loaded what it loaded before failing, without
@@ -379,7 +397,6 @@ class Inspection:
         order it finds them in. One failing for a reason of its own is left as
         Python leaves it.
         """
-        fresh = [entry for entry in sys.modules if entry not in before]
         for orphan in sorted(fresh):
             parent = orphan.rpartition(".")[0]
             if not parent or parent in sys.modules or orphan not in sys.modules:
@@ -410,18 +427,21 @@ class Inspection:
             if running is not None and hidden:
                 sys.modules[running.__name__] = running
 
-    def _sets_aside(self, failure: ImportError) -> bool:
-        """Whether ``failure`` sets the module it stopped aside; note the package it lacked."""
+    def _lacking_of(self, failure: ImportError) -> str | None:
+        """Return the package not installed ``failure`` sets its module aside for; ``None`` if none.
+
+        A refusal names the package its set-aside module lacks; a package
+        found not installed is noted as missing.
+        """
         missing = _missing_module(failure)
         if missing is None:
-            return False
+            return None
         if isinstance(missing, SetAsideRefused):
-            return True
+            return missing.name
         package = self._not_installed(missing)
-        if package is None:
-            return False
-        self._missing.add(package)
-        return True
+        if package is not None:
+            self._missing.add(package)
+        return package
 
     def _not_installed(self, missing: ModuleNotFoundError) -> str | None:
         """Return the top-level package ``missing`` names, when it is not installed.
@@ -463,24 +483,26 @@ class Inspection:
         entry = SetAsideModule(loaded, package=self._package_of(name), lacking=lacking)
         self._set_aside[name] = entry
         self._bind(name, loaded)
-        self._adopt_children(name)
+        _ = self._adopt_children(name)
         return entry
 
-    def _adopt_children(self, name: str) -> None:
-        """Set aside every loaded module under ``name``, parents before their modules."""
-        for child in sorted(entry for entry in sys.modules if entry.startswith(f"{name}.")):
+    def _adopt_children(self, name: str) -> list[str]:
+        """Set aside every loaded module under ``name``, parents before their modules; name them."""
+        children = sorted(
+            entry
+            for entry in sys.modules
+            if entry.startswith(f"{name}.") and entry not in self._set_aside
+        )
+        for child in children:
             loaded = sys.modules.get(child)
             if loaded is not None and child not in self._set_aside:
                 _ = self._adopt(child, loaded)
+        return children
 
     def _package_of(self, name: str) -> str | None:
         """Return the nearest package ``name`` lies in that is set aside."""
         parent = name.rpartition(".")[0]
-        while parent:
-            if parent in self._set_aside:
-                return parent
-            parent = parent.rpartition(".")[0]
-        return None
+        return holder_of(parent, self._set_aside) if parent else None
 
     def _bind(self, name: str, module: ModuleType) -> None:
         """Set ``module`` on its package where that is set aside too, as its import would have.
@@ -517,9 +539,7 @@ class Inspection:
         vars(module)["__builtins__"] = _Builtins({"__import__": served})
         # Recorded before it runs: refused to every truthful import, and served as it stands.
         self._set_aside[name] = entry
-        adopted_before = frozenset(self._set_aside)
-        self._adopt_children(name)
-        adopted = [child for child in self._set_aside if child not in adopted_before]
+        adopted = self._adopt_children(name)
         with self._out_of_sight():
             self._running.append(module)
             loaded_before = dict(sys.modules)
@@ -588,8 +608,8 @@ class Inspection:
     def _first_lacking(self, name: str) -> str:
         """Return the package not installed a truthful import of the set-aside ``name`` fails for.
 
-        The first its own imports asked for, else the first one a module it was
-        served, or its package, lacks.
+        As :func:`_first_of` finds it; else, for a module the scan knows too
+        little of, the first package found missing.
         """
         found = _first_of(name, self._set_aside, set())
         if found is not None:
@@ -709,25 +729,28 @@ class Inspection:
 
     # --- saying why ---------------------------------------------------------------------
 
-    def _explain(self) -> None:
-        """Work out why each module is set aside: what it lacks, through which, expected or not."""
-        for name, entry in self._set_aside.items():
-            entry.missing = self._missing_of(name, set())
-            entry.expected = self._expected(name, set())
-            ancestors = {name, *_ancestors(name)}
-            # The first module served that lacks something other than through this one.
-            entry.through = (
-                None
-                if entry.needs
-                else next(
-                    (
-                        served
-                        for served in entry.served
-                        if served not in ancestors and self._missing_of(served, {name})
-                    ),
-                    entry.package,
-                )
+    def _explain_one(self, name: str, entry: SetAsideModule) -> None:
+        """Work out why ``name`` is set aside: what it lacks, through which, expected or not.
+
+        Done when it is read — for the report, or for an error naming it — not
+        after every import: the answer depends on every module set aside
+        before it, and on nothing after.
+        """
+        entry.missing = self._missing_of(name, set())
+        entry.expected = self._expected(name, set())
+        # The first module served that lacks something other than through this one.
+        entry.through = (
+            None
+            if entry.needs
+            else next(
+                (
+                    served
+                    for served in entry.served
+                    if holder_of(name, (served,)) is None and self._missing_of(served, {name})
+                ),
+                entry.package,
             )
+        )
 
     def _missing_of(self, name: str, seen: set[str]) -> set[str]:
         entry = self._set_aside.get(name)
@@ -745,7 +768,8 @@ class Inspection:
         if entry is None or name in seen:
             return False
         seen.add(name)
-        if any(holder_of(target, self._inactive) for target in (*entry.needs, *entry.reached)):
+        # Every package it needs is the root of a name it reached.
+        if any(holder_of(target, self._inactive) for target in entry.reached):
             return True
         return any(
             self._expected(source, seen)
@@ -789,12 +813,6 @@ def _failed_bodies(error: BaseException) -> list[str]:
     return bodies
 
 
-def _ancestors(name: str) -> list[str]:
-    """Return each package ``name`` lies in, outermost first."""
-    parts = name.split(".")
-    return [".".join(parts[:end]) for end in range(1, len(parts))]
-
-
 def _code_of(name: str, record: importlib.machinery.ModuleSpec | None) -> CodeType:
     """Return the code of the module ``record`` was found for.
 
@@ -830,12 +848,12 @@ def _graft(entry: SetAsideModule, package: ModuleType, child: str, module: Modul
     """
     view = entry.views.get(package.__name__)
     if view is None:
-        view = _Branch(package, {})
+        view = _Branch(package)
         entry.views[package.__name__] = view
-        if isinstance(entry.module, _Inspected):
-            namespace = cast("dict[str, object]", vars(entry.module))
-            for bound in [key for key, value in namespace.items() if value is package]:
-                namespace[bound] = view
+        # Only an inspected module's code is served, so its namespace is the one to rebind.
+        namespace = cast("dict[str, object]", vars(entry.module))
+        for bound in [key for key, value in namespace.items() if value is package]:
+            namespace[bound] = view
     view.graft(child, module)
     return view
 
@@ -965,6 +983,11 @@ def _origin(error: BaseException) -> tuple[str, bool]:
             called = False
         traceback = traceback.tb_next
     return where, called
+
+
+def _fresh(before: frozenset[str]) -> list[str]:
+    """Return the names loaded since ``before``, in the order they were loaded."""
+    return [entry for entry in sys.modules if entry not in before]
 
 
 def _drop(name: str, module: ModuleType) -> None:

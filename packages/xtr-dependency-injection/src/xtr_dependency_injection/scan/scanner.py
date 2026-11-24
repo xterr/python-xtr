@@ -431,12 +431,14 @@ class Scanner:
         if autoconfigure_tags_of(obj):
             uses.append("@autoconfigure_tag")
         if uses:
+            inspection = self._inspection
+            explained = inspection.explain(module) if inspection is not None else set_aside
             raise SetAsideModuleUsedError(
                 scanned.name,
                 " and ".join(uses),
                 module=module,
-                missing=tuple(sorted(set_aside.missing)),
-                through=set_aside.through,
+                missing=tuple(sorted(explained.missing)),
+                through=explained.through,
             )
         result.set_aside.append(scanned)
         if held is not scanned.obj:

@@ -55,11 +55,18 @@ class SetAsideRefused(ModuleNotFoundError):  # noqa: N818 — named for what the
 
 
 def holder_of(module: str, packages: Collection[str]) -> str | None:
-    """Return the one of ``packages`` that ``module`` is, or lies in; ``None`` if none."""
-    return next(
-        (package for package in packages if module == package or module.startswith(f"{package}.")),
-        None,
-    )
+    """Return the one of ``packages`` that ``module`` is, or lies in; ``None`` if none.
+
+    The nearest, should several hold it: ``module`` itself, else its innermost
+    package among them. Asked for ``module`` and each of its packages in
+    turn, not for each of ``packages``.
+    """
+    candidate = module
+    while candidate:
+        if candidate in packages:
+            return candidate
+        candidate = candidate.rpartition(".")[0]
+    return None
 
 
 @final

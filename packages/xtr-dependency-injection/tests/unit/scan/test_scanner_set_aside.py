@@ -1733,3 +1733,41 @@ def test_a_package_failing_with_any_error_of_its_own_is_blamed_whatever_the_orde
 
     assert caught.value.module == f"{APP}.{package}"
     assert isinstance(caught.value.__cause__, ValueError)
+
+
+def test_a_module_named_as_a_resource_inside_a_set_aside_package_runs_once(
+    application: ScratchModules,
+) -> None:
+    # Its package's own code imports it: set aside then, it is not run again when named.
+    application.write(
+        {
+            "acme_registry.__init__": REGISTRY,
+            f"{APP}.seeds.__init__": "import acme_faker\nfrom . import people\n",
+            f"{APP}.seeds.people": "import acme_registry\n\nacme_registry.register('people')\n",
+        }
+    )
+
+    scanner = _scanner()
+    _ = scanner.scan([f"{APP}.seeds", f"{APP}.seeds.people"], owner=None)
+
+    assert _set_aside(scanner)[f"{APP}.seeds.people"][1] == f"{APP}.seeds"
+    assert cast("list[str]", importlib.import_module("acme_registry").NAMES) == ["people"]
+
+
+def test_a_module_a_set_aside_one_put_among_the_loaded_modules_is_set_aside_as_it_is(
+    application: ScratchModules,
+) -> None:
+    application.write(
+        {
+            f"{APP}.aa_fx": (
+                "import sys\nimport types\nimport acme_faker\n\n"
+                f"made = types.ModuleType('{APP}.aa_fx_made')\nmade.VALUE = 1\n"
+                f"sys.modules['{APP}.aa_fx_made'] = made\n"
+            ),
+            f"{APP}.bb_user": f"import acme_faker\nfrom {APP}.aa_fx_made import VALUE\n",
+        }
+    )
+
+    scanner, _ = _scan()
+
+    assert {f"{APP}.aa_fx", f"{APP}.bb_user"} <= set(_set_aside(scanner))

@@ -73,8 +73,8 @@ A package inside the application that a listed bundle names in its `resources` i
 the application's scan wherever that bundle is not active, so it needs no `exclude`; where the
 bundle is active, the application's scan walks it as any other. Where a listed bundle is not
 active — disabled for the environment, or not installed, as in a deployment without development
-dependencies — a
-module needing a package that is not installed (a fixtures bundle, a fake-data library) is
+dependencies — a module needing a package that is not installed (a fixtures bundle, a fake-data
+library) is
 **set aside**: nothing it defines is registered, the scan report lists it, and
 `SetAsideModuleUsedError` fails the build if anything would use it. Where every listed bundle is
 active, nothing is set aside. See the README's *Development-only packages*.

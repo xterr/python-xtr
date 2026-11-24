@@ -137,3 +137,11 @@ def test_a_module_is_held_by_the_package_it_is_or_lies_in() -> None:
     assert holder_of("acme_app.seeds", packages) == "acme_app.seeds"
     assert holder_of("acme_app.seeds.users", packages) == "acme_app.seeds"
     assert holder_of("acme_app.seeds_more", packages) is None
+
+
+def test_a_module_held_by_two_set_aside_packages_is_held_by_the_nearest() -> None:
+    # A module set aside under a loaded package, whose package was set aside later.
+    packages = {"acme_app.seeds.users": None, "acme_app.seeds": None}
+
+    assert holder_of("acme_app.seeds.users.admins", packages) == "acme_app.seeds.users"
+    assert holder_of("acme_app.seeds.orders", packages) == "acme_app.seeds"
