@@ -67,7 +67,7 @@ class SchemaUpdateCommand(ConnectionCommand):
         if force:
             try:
                 await migrator.apply(comparison)
-            except SQLAlchemyError as error:
+            except (MigrationError, SQLAlchemyError) as error:
                 io.error(
                     f'Could not update the "{name}" connection\'s database schema: '
                     f"{escape(str(error))}"

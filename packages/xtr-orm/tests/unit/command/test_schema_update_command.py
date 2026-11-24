@@ -6,7 +6,7 @@ from io import StringIO
 from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import Column, Integer, MetaData, Table, text
 from xtr_console import ConsoleStyle, ExitCode
 
 from tests.support.console import output
@@ -126,6 +126,29 @@ async def test_without_table_definitions_the_run_fails(
 
     assert code == ExitCode.FAILURE
     assert "no table definitions" in " ".join(shown.getvalue().split())
+
+
+async def test_a_table_defined_twice_fails_the_run_with_the_reason(
+    engine: AsyncEngine, database_url: str, migrations_directory: Path
+) -> None:
+    first, second = MetaData(), MetaData()
+    _ = Table("shared", first, Column("id", Integer, primary_key=True))
+    _ = Table("shared", second, Column("id", Integer, primary_key=True))
+    registry = ConnectionRegistry()
+    registry.register(
+        "default",
+        engine=engine,
+        migrator=Migrator(
+            engine, MigrationsConfig(directory=str(migrations_directory)), [first, second]
+        ),
+        database=DatabaseManager(database_url),
+    )
+    shown = StringIO()
+
+    code = await SchemaUpdateCommand(registry)(ConsoleStyle(shown, StringIO(), decorated=False))
+
+    assert code == ExitCode.FAILURE
+    assert "Duplicate table keys" in shown.getvalue()
 
 
 async def _execute(engine: AsyncEngine, *statements: str) -> None:

@@ -32,7 +32,7 @@ class SchemaValidateCommand(ConnectionCommand):
 
     __slots__ = ()
 
-    async def __call__(  # noqa: C901 — each check reports its own failure and adds its part
+    async def __call__(
         self,
         io: ConsoleStyle,
         *,
@@ -42,12 +42,13 @@ class SchemaValidateCommand(ConnectionCommand):
     ) -> int:
         """Check the mapping and the database schema; the exit code says what failed.
 
-        The mapping check runs ``configure_mappers()`` and names the tables
-        the definitions hold more than once. The sync check compares the
-        database with the table definitions as it is — the revisions it is
-        at play no part — and, when they differ, shows the statements
-        bringing it in sync at ``-v``. Each failing check adds to the exit
-        code: 1 for the mapping, 2 for the schema — 3 for both.
+        The mapping check runs ``configure_mappers()`` — which configures
+        every mapper in the process, not only this connection's — and names
+        the tables the definitions hold more than once. The sync check
+        compares the database with the table definitions as it is — the
+        revisions it is at play no part — and, when they differ, shows the
+        statements bringing it in sync at ``-v``. Each failing check adds to
+        the exit code: 1 for the mapping, 2 for the schema — 3 for both.
 
         Args:
             io: Where the command writes.
@@ -80,11 +81,6 @@ class SchemaValidateCommand(ConnectionCommand):
                 comparison = await migrator.compare()
             except MigrationError as error:
                 io.error(escape(error.reason))
-                code += _OUT_OF_SYNC
-            except ValueError as error:
-                # The comparison itself refuses the definitions — a table
-                # named more than once, which the mapping check names too.
-                io.error(escape(str(error)))
                 code += _OUT_OF_SYNC
             else:
                 if comparison.is_empty:

@@ -401,11 +401,12 @@ class Migrator(LoggerAware):
             )
 
         def work(connection: Connection) -> SchemaComparison:
-            # produce_migrations types the definitions MetaData, but the autogen
-            # context it builds takes a sequence too.
-            script = produce_migrations(
-                self._environment.comparison(connection), cast("MetaData", self._metadata)
-            )
+            with refusing():
+                # produce_migrations types the definitions MetaData, but the autogen
+                # context it builds takes a sequence too.
+                script = produce_migrations(
+                    self._environment.comparison(connection), cast("MetaData", self._metadata)
+                )
             upgrade = script.upgrade_ops
             if upgrade is None:  # pragma: no cover — a comparison always has its operations
                 raise MigrationError("No comparison was produced.")
@@ -425,7 +426,10 @@ class Migrator(LoggerAware):
 
         def work(connection: Connection) -> None:
             context = self._environment.invocation(connection)
-            invoke(Operations(context), comparison, connection, batch=self._config.render_as_batch)
+            with refusing():
+                invoke(
+                    Operations(context), comparison, connection, batch=self._config.render_as_batch
+                )
 
         await self._connected(work)
 
@@ -439,7 +443,10 @@ class Migrator(LoggerAware):
         def work(connection: Connection) -> str:
             output = StringIO()
             context = self._environment.invocation(connection, output=output)
-            invoke(Operations(context), comparison, connection, batch=self._config.render_as_batch)
+            with refusing():
+                invoke(
+                    Operations(context), comparison, connection, batch=self._config.render_as_batch
+                )
             return output.getvalue()
 
         return await self._connected(work)
