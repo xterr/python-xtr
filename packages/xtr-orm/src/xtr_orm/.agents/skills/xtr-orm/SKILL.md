@@ -82,9 +82,9 @@ only.
 | `await migrator.execute(versions, Direction.UP)` | Exactly those revisions, nothing before or after. `plan_for_versions(versions, direction)` and `execute_sql(...)` alongside |
 | `migrator.generate("message")` | Writes an empty revision after the latest (not awaited) |
 | `await migrator.diff("message")` | Writes what the table definitions add; takes `allow_empty=`, `from_empty_schema=` |
-| `await migrator.compare()` | What differs between the database and the table definitions, as operations — nothing written or run; backs `orm:schema:update` and `orm:schema:validate` |
-| `await migrator.apply(upgrade)` | Runs those operations against the database, recording nothing — `orm:schema:update --force` |
-| `await migrator.apply_sql(upgrade)` | The SQL `apply()` would run — `orm:schema:update --dump-sql`, and `orm:schema:validate` at `-v` |
+| `await migrator.compare()` | What differs between the database and the table definitions — nothing written or run; backs `orm:schema:update` and `orm:schema:validate` |
+| `await migrator.apply(comparison)` | Runs the comparison against the database, recording nothing — `orm:schema:update --force` |
+| `await migrator.apply_sql(comparison)` | The SQL `apply()` would run — `orm:schema:update --dump-sql`, and `orm:schema:validate` at `-v` |
 | `await migrator.dump_schema("message", table_filters=...)` | A first revision creating every table an existing database has |
 | `await migrator.add_versions(v)` / `add_all_versions()` | Records revisions as applied, running nothing |
 | `await migrator.delete_versions(v)` / `delete_all_versions()` | Records them as not applied |

@@ -109,9 +109,9 @@ one (`+1`, `-2`, `ae10+1`), or `latest`, `first` (before every revision), `next`
 | `plan_for_versions(versions, direction)` / `execute(...)` / `execute_sql(...)` | What running exactly those revisions, each up or down, runs — every id resolved and checked / run them, nothing before or after / the SQL it would run |
 | `generate(message)` | Write an empty revision after the latest |
 | `diff(message, allow_empty=, from_empty_schema=)` | Write what differs between the database and the table definitions |
-| `compare()` | What differs between the database and the table definitions, as operations — nothing written or run |
-| `apply(upgrade)` | Run those operations against the database, recording nothing |
-| `apply_sql(upgrade)` | The SQL `apply()` would run |
+| `compare()` | What differs between the database and the table definitions — nothing written or run |
+| `apply(comparison)` | Run the comparison against the database, recording nothing |
+| `apply_sql(comparison)` | The SQL `apply()` would run |
 | `dump_schema(message, table_filters=)` | Write a first revision creating every table an existing database has |
 | `add_versions(versions)` / `add_all_versions()` | Record revisions as applied, running nothing |
 | `delete_versions(versions)` / `delete_all_versions()` | Record revisions as not applied, running nothing |
