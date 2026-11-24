@@ -854,5 +854,25 @@ async def test_apply_drops_a_column_in_a_batch(migrator: Migrator, engine: Async
     assert "legacy" not in columns
 
 
+async def test_apply_drops_a_column_without_a_batch(
+    engine: AsyncEngine, migrations_directory: Path
+) -> None:
+    migrator = Migrator(engine, MigrationsConfig(directory=str(migrations_directory)), METADATA)
+    await _create_catalogue(engine)
+    await _execute(engine, "insert into author (id, name) values (1, 'a')")
+    await _execute(engine, "insert into book (id, title, author_id) values (1, 't', 1)")
+    await _execute(engine, "alter table book add column legacy varchar(10)")
+
+    comparison = await migrator.compare()
+
+    assert comparison.changes == 1
+    await migrator.apply(comparison)
+
+    columns = [row[1] for row in await rows(engine, "pragma table_info(book)")]
+    assert "title" in columns
+    assert "legacy" not in columns
+    assert await rows(engine, "select id, title, author_id from book") == [(1, "t", 1)]
+
+
 def _read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")

@@ -141,6 +141,25 @@ async def test_without_table_definitions_the_run_fails(
     assert "no table definitions" in " ".join(shown.getvalue().split())
 
 
+async def test_a_failing_update_reports_the_reason(
+    tester: ApplicationTester, engine: AsyncEngine
+) -> None:
+    await _execute(
+        engine,
+        "create table author (id integer not null, primary key (id))",
+        "insert into author (id) values (1)",
+        "create table book (id integer not null, title varchar(200) not null,"
+        " author_id integer not null, primary key (id),"
+        " foreign key(author_id) references author (id))",
+        "create index ix_book_title on book (title)",
+    )
+
+    assert await tester.execute(["orm:schema:update", "--force"]) == ExitCode.FAILURE
+    shown = output(tester)
+    assert "Could not update" in shown
+    assert "Cannot add a NOT NULL column" in shown
+
+
 async def test_a_table_defined_twice_fails_the_run_with_the_reason(
     engine: AsyncEngine, database_url: str, migrations_directory: Path
 ) -> None:
