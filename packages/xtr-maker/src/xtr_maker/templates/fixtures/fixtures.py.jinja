@@ -1,0 +1,23 @@
+"""The data ``{{ class_name }}`` seeds the database with."""
+
+from __future__ import annotations
+
+{{ imports }}
+
+__all__ = ["{{ class_name }}"]
+
+
+{% if final_classes %}
+@final
+{% endif %}
+class {{ class_name }}({{ base }}):
+    """Seeds the database; describe what it adds here."""
+
+    @{{ override }}
+    async def load(self, session: {{ session }}) -> None:
+        """Add this fixture's objects to ``session``; the run commits them.
+
+        ``session.add(book)`` adds one; ``self.add_reference("dune", book)``
+        hands it to the fixtures that depend on this one.
+        """
+        del session  # Replace with the objects this fixture adds.

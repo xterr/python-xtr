@@ -54,6 +54,8 @@ dev = [
     "xtr-messenger>=7.0,<8",
     # With its SQLite driver: the entity and migration makers' tests use a SQLite database.
     "xtr-orm[sqlite]>=7.0,<8",
+    # Development-only, so never an extra: make:fixtures writes code for it, importing nothing.
+    "xtr-orm-fixtures>=7.0,<8",
     "xtr-scheduler>=7.0,<8",
     "xtr-webhook>=7.0,<8",
     # The bundles make:schedule's --stateful and --lock need active.

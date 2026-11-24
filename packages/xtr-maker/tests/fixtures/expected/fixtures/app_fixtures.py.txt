@@ -1,0 +1,26 @@
+"""The data ``AppFixtures`` seeds the database with."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, final, override
+
+from xtr_orm_fixtures import Fixture
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+__all__ = ["AppFixtures"]
+
+
+@final
+class AppFixtures(Fixture):
+    """Seeds the database; describe what it adds here."""
+
+    @override
+    async def load(self, session: AsyncSession) -> None:
+        """Add this fixture's objects to ``session``; the run commits them.
+
+        ``session.add(book)`` adds one; ``self.add_reference("dune", book)``
+        hands it to the fixtures that depend on this one.
+        """
+        del session  # Replace with the objects this fixture adds.

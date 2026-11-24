@@ -47,6 +47,7 @@ uv add --dev "xtr-maker[messenger,scheduler,webhook,orm,event-dispatcher]"
 | [`make:command`](#makecommand) | A console command class | — (the console bundle alone) |
 | [`make:listener`](#makelistener) | A listener or a subscriber of one event | `event_dispatcher` |
 | [`make:migration`](#makemigration) | A revision of what the tables changed | `orm` |
+| [`make:fixtures`](#makefixtures) | A fixture class seeding the database | `orm_fixtures` |
 
 `list make` shows the ones an application has. A maker whose bundle is not active is not
 registered at all: there is no command that tells you to install something.
@@ -69,6 +70,7 @@ class per module:
 | `command/` | `<snake>_command.py` | `make:command` |
 | `event_listener/` | `<snake>_listener.py` | `make:listener` |
 | `event_subscriber/` | `<snake>_subscriber.py` | `make:listener` |
+| `fixtures/` | `<snake>.py` | `make:fixtures` |
 
 A name may carry a subpackage: `make:message ordering.PlaceOrder` writes
 `message/ordering/place_order.py`. A folder with no `__init__.py` gets one declaring nothing, so
@@ -358,6 +360,34 @@ $ uv run app make:migration --message books -n
 
 Next:
   - Review the new revision, then run orm:migrations:migrate -n.
+```
+
+## `make:fixtures`
+
+```
+make:fixtures [name]
+```
+
+Writes a class built on [xtr-orm-fixtures](../xtr-orm-fixtures)'s `Fixture`, with an empty
+`load(session)` to fill with the objects it seeds. The fixtures bundle finds a fixture wherever it
+is, so `fixtures/` is only where the maker puts it.
+
+- The name gets `Fixtures` at its end unless it has it: `books` writes `BooksFixtures`. Asked when
+  left out, offering `AppFixtures`; without a terminal it must be given.
+- `catalog.BookFixtures` writes `fixtures/catalog/book_fixtures.py`.
+- Listed when the fixtures bundle is active, which is in `dev` and `test`. xtr-orm-fixtures is
+  never an extra here: it is a development dependency of the application itself.
+
+```sh
+$ uv run app make:fixtures AppFixtures -n
+ created: src/app/fixtures/__init__.py
+ created: src/app/fixtures/app_fixtures.py
+
+  [OK] Wrote AppFixtures.
+
+Next:
+  - Open src/app/fixtures/app_fixtures.py and add the objects it seeds.
+  - Load them with orm:fixtures:load.
 ```
 
 ## What every maker does, and never does
