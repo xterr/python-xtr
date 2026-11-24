@@ -62,6 +62,7 @@ To use a package alone, install it with `uv add` and read its README.
 | Package | What it does | API |
 |---|---|---|
 | [xtr-orm](https://github.com/xterr/python-xtr/tree/main/packages/xtr-orm) | Async database engines, sessions and versioned schema migrations. | [API](https://xterr.github.io/python-xtr/api/xtr_orm/) |
+| [xtr-orm-fixtures](https://github.com/xterr/python-xtr/tree/main/packages/xtr-orm-fixtures) | Fills a development database from fixture classes, in one transaction, after it empties the tables in foreign key sequence. | [API](https://xterr.github.io/python-xtr/api/xtr_orm_fixtures/) |
 | [xtr-orm-messenger](https://github.com/xterr/python-xtr/tree/main/packages/xtr-orm-messenger) | A message bus transport that keeps its messages in a database table. | [API](https://xterr.github.io/python-xtr/api/xtr_orm_messenger/) |
 | [xtr-cache](https://github.com/xterr/python-xtr/tree/main/packages/xtr-cache) | Cache pools in memory, in files or in Redis, with tags and protection against a stampede. | [API](https://xterr.github.io/python-xtr/api/xtr_cache/) |
 | [xtr-storage](https://github.com/xterr/python-xtr/tree/main/packages/xtr-storage) | Files on a local disk, in memory or in object stores, behind one async interface. | [API](https://xterr.github.io/python-xtr/api/xtr_storage/) |

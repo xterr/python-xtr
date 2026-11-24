@@ -15,7 +15,7 @@ lines = []
 
 [notes]
 steps = [
-  "Write fixtures anywhere in the application: a class built on xtr_orm_fixtures.Fixture, with an async load(session).",
+  "Write fixtures anywhere in the application — make:fixtures AppFixtures writes a first one.",
 ]
 check = [
   "<script> debug:bundles — orm_fixtures is listed and active in dev",

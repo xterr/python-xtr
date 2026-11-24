@@ -58,6 +58,13 @@ dot is relative to the application package. The kernel adds these patterns to
 `DEFAULT_EXCLUDES`, which keeps the tests and the `__main__` modules out of the
 scan.
 
+A module can import a package that only development installs, for example a
+fixture or a library of fake data. In a deployment without the development
+dependencies, the scan cannot import that module. If a bundle in the list is not
+active there, the kernel ignores the module. The kernel registers nothing from
+that module, and `debug:bundles` shows it in the `Set aside` table. A module
+that production uses must not import such a package.
+
 ## The bundles
 
 `src/shop/config/bundles.py` lists the bundles of the application. Each bundle
