@@ -671,7 +671,8 @@ package it needs is not installed at all:
   `@exclude` and a `@when` leaving the object out of the environment are honoured first.
 - **Reported.** The scan report lists every set-aside module, what it needs, through which
   module, what it defines, and whether it is *expected*: it needs or reaches the package of a
-  listed bundle that is not active (`compiled.report.render("scan")`). The build logs one INFO
+  listed bundle that is not active (`compiled.report.render("scan")`, and `debug:bundles` when
+  the console bundle is active). The build logs one INFO
   record on the `xtr_dependency_injection` standard-library logger, and a WARNING naming each
   module that is not expected — a helper using a development library alone, but also what a
   dependency missing from the installation or a mistyped import looks like.

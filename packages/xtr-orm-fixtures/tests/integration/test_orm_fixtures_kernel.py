@@ -370,8 +370,13 @@ async def test_dev_only_install_boots_in_prod_with_fixtures_set_aside(
         f"{APP}.purging": ("xtr_orm_fixtures",),
     }
     assert f"{APP}.naming:Naming" in _registered(report)
-    async with await _kernel("prod", database_url).boot():
-        pass
+    async with await _kernel("prod", database_url).boot() as booted:
+        tester = ApplicationTester(await booted.container.get(Application), width=200)
+        assert await tester.execute(["debug:bundles"]) == ExitCode.SUCCESS
+
+    listed = tester.display.split("Set aside", 1)[1]
+    assert f"{APP}.people.users" in listed
+    assert f"{APP}.catalog.groups" in listed
 
 
 async def test_regular_install_with_bundle_everywhere_loads_in_prod(

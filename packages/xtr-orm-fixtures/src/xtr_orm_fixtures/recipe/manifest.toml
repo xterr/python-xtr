@@ -19,7 +19,7 @@ steps = [
 ]
 check = [
   "<script> debug:bundles — orm_fixtures is listed and active in dev",
-  "APP_ENV=prod uv run --no-dev <script> debug:bundles — production boots without the package, and orm_fixtures is not active",
+  "APP_ENV=prod uv run --no-dev <script> debug:bundles — orm_fixtures is not active, and the fixture modules are listed as set aside",
 ]
 run = [
   "<script> orm:fixtures:load",

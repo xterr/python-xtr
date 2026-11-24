@@ -19,7 +19,7 @@ With the console bundle active the same sections are commands:
 
 | Command | Answers |
 | --- | --- |
-| `debug:bundles` | Which bundles are active and why — `listed`, `required`, skipped — and which installed ones the application left out |
+| `debug:bundles` | Which bundles are active and why — `listed`, `required`, skipped — which installed ones the application left out, and which application modules were set aside for a package not installed |
 | `debug:config [bundle]` | Each config's resolution steps and final value; placeholders print as `env(NAME)` |
 | `debug:container [--tag TAG]` | Every definition, in emission order |
 

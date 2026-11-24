@@ -39,7 +39,7 @@ after `uv tool install xtr-cli`. Run the `xtr-recipes` commands with
 
 | Command | Package | What it does |
 |---|---|---|
-| `debug:bundles` | `xtr-console` | Lists each bundle that the kernel found, and the installed bundles that are not active. |
+| `debug:bundles` | `xtr-console` | Lists each bundle that the kernel found, the installed bundles that are not active, and the application modules set aside because a package they need is not installed. |
 | `debug:config` | `xtr-console` | Shows the configuration of each bundle, or of one bundle. |
 | `debug:container` | `xtr-console` | Lists the services of the container. The `--tag` option selects the services with a tag. |
 | `debug:dotenv` | `xtr-dotenv` | Lists each environment file, and the value of each variable in each file. |
