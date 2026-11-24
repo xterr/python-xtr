@@ -309,6 +309,10 @@ every message is a unit of work: its handlers share one `AsyncSession` per conne
 | `metadata` | `None` | The table definitions a diff compares with; advanced-alchemy's for `bind_key` when `None` |
 | `migrations` | `None` | `MigrationsConfig`; `migrations` in the project directory for the default connection, `migrations/<name>` for any other, when `None` |
 
+`connection.table_definitions()` returns the table definitions in force for a connection —
+its `metadata`, else advanced-alchemy's for its `bind_key` — the ones its migrations compare
+the database with, for any library that must act on the same tables.
+
 ### Options in the URL
 
 One environment variable can configure a whole connection. An engine or session option, or
