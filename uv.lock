@@ -5470,22 +5470,10 @@ name = "xtr-orm-fixtures"
 version = "7.1.0"
 source = { editable = "packages/xtr-orm-fixtures" }
 dependencies = [
-    { name = "advanced-alchemy" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "xtr-dependency-injection" },
     { name = "xtr-logging-contracts" },
     { name = "xtr-orm" },
-]
-
-[package.optional-dependencies]
-mysql = [
-    { name = "asyncmy" },
-]
-postgres = [
-    { name = "asyncpg" },
-]
-sqlite = [
-    { name = "aiosqlite" },
 ]
 
 [package.dev-dependencies]
@@ -5506,16 +5494,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "advanced-alchemy", specifier = ">=1.11" },
-    { name = "aiosqlite", marker = "extra == 'sqlite'", specifier = ">=0.20" },
-    { name = "asyncmy", marker = "extra == 'mysql'", specifier = ">=0.2.12" },
-    { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.31" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
     { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
     { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
     { name = "xtr-orm", editable = "packages/xtr-orm" },
 ]
-provides-extras = ["postgres", "sqlite", "mysql"]
 
 [package.metadata.requires-dev]
 dev = [

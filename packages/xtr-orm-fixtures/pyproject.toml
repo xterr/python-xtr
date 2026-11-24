@@ -19,8 +19,6 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # Table definitions for a connection's bind key.
-    "advanced-alchemy>=1.11",
     "sqlalchemy[asyncio]>=2.0.52",
     # The bundle, and the service locator the purger factories are found through.
     "xtr-dependency-injection>=7.0,<8",
@@ -29,16 +27,14 @@ dependencies = [
     "xtr-orm>=7.0,<8",
 ]
 
-[project.optional-dependencies]
-postgres = [
-    "asyncpg>=0.31",
-]
-sqlite = [
-    "aiosqlite>=0.20",
-]
-mysql = [
-    "asyncmy>=0.2.12",
-]
+# Advertises the bundle so debug:bundles can name it when installed but not listed.
+# Advertising activates nothing: an application lists the bundles it wants.
+[project.entry-points."xtr_dependency_injection.bundles"]
+orm_fixtures = "xtr_orm_fixtures.bundle:OrmFixturesBundle"
+
+# Advertises the recipe — what *Use in an application* takes — for recipes:sync.
+[project.entry-points."xtr_recipes"]
+orm_fixtures = "xtr_orm_fixtures.recipe"
 
 [dependency-groups]
 dev = [
