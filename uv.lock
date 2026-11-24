@@ -4450,6 +4450,7 @@ source = { editable = "packages/xtr-console" }
 dependencies = [
     { name = "cyclopts" },
     { name = "rich" },
+    { name = "xtr-clock" },
 ]
 
 [package.dev-dependencies]
@@ -4470,6 +4471,7 @@ dev = [
 requires-dist = [
     { name = "cyclopts", specifier = ">=5.0,<6" },
     { name = "rich", specifier = ">=15.0" },
+    { name = "xtr-clock", editable = "packages/xtr-clock" },
 ]
 
 [package.metadata.requires-dev]
