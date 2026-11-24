@@ -789,6 +789,15 @@ async def test_a_compare_without_table_definitions_is_refused(
         _ = await bare.compare()
 
 
+async def test_a_compare_with_empty_table_definitions_is_refused(
+    engine: AsyncEngine, migrations_directory: Path
+) -> None:
+    bare = Migrator(engine, MigrationsConfig(directory=str(migrations_directory)), MetaData())
+
+    with pytest.raises(MigrationError, match="no table definitions"):
+        _ = await bare.compare()
+
+
 async def test_a_compare_sees_the_tables_a_mapping_driver_added(
     engine: AsyncEngine, migrations_directory: Path
 ) -> None:

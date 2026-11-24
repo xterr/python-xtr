@@ -45,6 +45,19 @@ async def test_without_a_flag_the_changes_are_only_named(
     assert await table_names(engine) == set()
 
 
+async def test_the_caution_names_the_tables_that_would_be_dropped(
+    tester: ApplicationTester, engine: AsyncEngine
+) -> None:
+    _ = await tester.execute(
+        ["orm:run-sql", "create table legacy (id integer not null, primary key (id))"]
+    )
+
+    assert await tester.execute(["orm:schema:update"]) == ExitCode.FAILURE
+    shown = output(tester)
+    assert 'would be dropped: "legacy"' in shown
+    assert await table_names(engine) == {"legacy"}
+
+
 async def test_dump_sql_prints_the_statements_without_running(
     tester: ApplicationTester, engine: AsyncEngine
 ) -> None:

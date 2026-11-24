@@ -395,7 +395,9 @@ class Migrator(LoggerAware):
         Raises:
             MigrationError: With no table definitions to compare with.
         """
-        if self._metadata is None:
+        # None, or definitions holding no table: against nothing the comparison
+        # would drop every table there is.
+        if not tables_of(self._metadata):
             raise MigrationError(
                 f'The "{self._name}" connection has no table definitions to compare with.',
             )

@@ -80,16 +80,19 @@ class SchemaUpdateCommand(ConnectionCommand):
             return ExitCode.SUCCESS
         if dump_sql:
             return ExitCode.SUCCESS
-        io.caution(
-            "\n".join(
-                (
-                    "This operation should not be executed in a production environment.",
-                    (
-                        f'The "{name}" connection\'s database schema is not in sync with the '
-                        f"table definitions: {changes} change{plural} would bring it in sync."
-                    ),
-                    "Re-run with --dump-sql to see the statements, or with --force to run them.",
-                )
+        lines = [
+            "This operation should not be executed in a production environment.",
+            (
+                f'The "{name}" connection\'s database schema is not in sync with the '
+                f"table definitions: {changes} change{plural} would bring it in sync."
+            ),
+        ]
+        if comparison.dropped_tables:
+            dropped = ", ".join(f'"{escape(each)}"' for each in comparison.dropped_tables)
+            lines.append(
+                f"The tables the database has but the definitions do not would be "
+                f"dropped: {dropped}."
             )
-        )
+        lines.append("Re-run with --dump-sql to see the statements, or with --force to run them.")
+        io.caution("\n".join(lines))
         return ExitCode.FAILURE
