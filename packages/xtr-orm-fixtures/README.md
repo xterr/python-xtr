@@ -339,6 +339,12 @@ Every one derives from `OrmFixturesError`, in `xtr_orm_fixtures.exception`:
   emptying both: empty such a set with `DELETE`, or leave the referenced table out too.
 - **The session is never cleared between fixtures**: a very large seed keeps every object it
   added in memory until the run ends.
+- **A run loads every fixture into one connection**, the one `--connection` names: a fixture
+  adding objects of another connection's tables fails the run, which then takes everything back.
+  Keep such fixtures in a group (`--connection reports --group reports`), and run the default
+  connection with the groups it owns.
+- **PostgreSQL's `TRUNCATE` keeps its sequences**, as `DELETE` does; MySQL's restarts each
+  table's auto-increment counter.
 - **`Loader.load_from_package` builds each fixture with no arguments**: a fixture whose
   constructor takes services is built by the container, through the bundle.
 - **A set-aside module's top-level code runs once** while the scan learns what it defines, with
