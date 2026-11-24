@@ -39,7 +39,7 @@ after `uv tool install xtr-cli`. Run the `xtr-recipes` commands with
 
 | Command | Package | What it does |
 |---|---|---|
-| `debug:bundles` | `xtr-console` | Lists each bundle that the kernel found, and the installed bundles that are not active. |
+| `debug:bundles` | `xtr-console` | Lists each bundle that the kernel found, and the installed bundles that are not active. It also lists the modules that the kernel ignores because a package is missing. |
 | `debug:config` | `xtr-console` | Shows the configuration of each bundle, or of one bundle. |
 | `debug:container` | `xtr-console` | Lists the services of the container. The `--tag` option selects the services with a tag. |
 | `debug:dotenv` | `xtr-dotenv` | Lists each environment file, and the value of each variable in each file. |
@@ -73,8 +73,9 @@ library is active.
 | `make:command` | A console command class. |
 | `make:listener` | A listener of one event, or a subscriber of one event. |
 | `make:migration` | A revision of the differences between the database and the table definitions. |
+| `make:fixtures` | A fixture class that adds data to the database. |
 
-`make:command` needs only the console bundle. The six other commands need the
+`make:command` needs only the console bundle. The seven other commands need the
 bundle of the library that they write code for. The
 [Generate code](../guides/generate-code.md) guide shows one flow, and the
 [xtr-maker README](https://github.com/xterr/python-xtr/tree/main/packages/xtr-maker)
@@ -115,6 +116,21 @@ All these commands are in the `xtr-orm` package.
 > [!WARNING]
 > `orm:database:drop` deletes the database and all its data. Make a backup
 > before you use it on a database that has data you need.
+
+## Fixtures
+
+| Command | Package | What it does |
+|---|---|---|
+| `orm:fixtures:load` | `xtr-orm-fixtures` | Empties the tables of a connection, then loads each fixture of the application in one transaction. |
+
+`xtr-orm-fixtures` is a development dependency. The command is in the console
+only where the fixtures bundle is active, usually in `dev` and `test`. The
+`--append` option adds data and empties no table. The `--dry-run` option does all
+of the work, then cancels all of the changes.
+
+> [!WARNING]
+> Use `orm:fixtures:load` only on a database that has no data you need. It
+> deletes each row of the tables that the application maps.
 
 ## Security
 

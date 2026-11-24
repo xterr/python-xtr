@@ -1,0 +1,187 @@
+[project]
+name = "xtr-orm-fixtures"
+version = "7.1.0"
+description = "Seed a database from fixture classes: ordered, grouped and sharing references, loaded in one transaction after an emptying in foreign-key order."
+readme = "README.md"
+requires-python = ">=3.14.4"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Xterr", email = "me@xterr.dev" }
+]
+keywords = ["orm", "database", "fixtures", "seeding", "sqlalchemy", "asyncio"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+    "Typing :: Typed",
+]
+dependencies = [
+    "sqlalchemy[asyncio]>=2.0.52",
+    # The bundle, and the service locator the purger factories are found through.
+    "xtr-dependency-injection>=7.0,<8",
+    "xtr-logging-contracts>=7.0,<8",
+    # The connections fixtures are loaded into.
+    "xtr-orm>=7.0,<8",
+]
+
+# Advertises the bundle so debug:bundles can name it when installed but not listed.
+# Advertising activates nothing: an application lists the bundles it wants.
+[project.entry-points."xtr_dependency_injection.bundles"]
+orm_fixtures = "xtr_orm_fixtures.bundle:OrmFixturesBundle"
+
+# Advertises the recipe — what *Use in an application* takes — for recipes:sync.
+[project.entry-points."xtr_recipes"]
+orm_fixtures = "xtr_orm_fixtures.recipe"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.31.7",
+    "ruff>=0.14.7",
+    "pytest>=8.4",
+    "pytest-cov>=7.1",
+    "anyio>=4.10",
+    "ty>=0.0.83",
+    # Every test runs on SQLite files under the test's own directory; the server tests
+    # run when their URL is set.
+    "aiosqlite>=0.20",
+    "asyncpg>=0.31",
+    "asyncmy>=0.2.12",
+    "xtr-console>=7.0,<8",
+    "xtr-logging>=7.0,<8",
+    "xtr-service-contracts>=7.0,<8",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+# ─────────────────────────────────────────────────────────────────
+# basedpyright — typeCheckingMode = "all" sets every report flag to error
+# ─────────────────────────────────────────────────────────────────
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.14"
+pythonPlatform = "All"
+include = ["src", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/build", "**/dist", ".tmp"]
+
+reportUnusedCallResult = "warning"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnusedVariable = "error"
+reportMissingParameterType = "error"
+reportPrivateUsage = "error"
+
+# An error message long enough to be useful has to wrap, and a 100-column
+# limit puts the break inside the string.
+reportImplicitStringConcatenation = "none"
+
+# Tests check what a component keeps to itself, for the same reason ruff's
+# SLF001 is off for tests.
+[[tool.basedpyright.executionEnvironments]]
+root = "tests"
+extraPaths = ["."]
+reportPrivateUsage = "none"
+
+# ─────────────────────────────────────────────────────────────────
+# ruff — select = ["ALL"], minimal justified ignores
+# ─────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Formatter conflicts (ruff documents these)
+    "COM812",
+    "ISC001",
+    # Mutually-exclusive docstring conventions; keep the modern one
+    "D203",
+    "D213",
+    # Project-specific noise
+    "CPY001",
+    "FBT001",
+    "FBT002",
+    "TD002",
+    "TD003",
+    "FIX002",
+    # Exceptions compose their own messages from typed fields; the string at a
+    # raise site is a `reason` data field. See xtr_orm_fixtures/exception/.
+    "TRY003",
+    "EM101",
+    "EM102",
+    # A context mapping after the message is the logger interface's signature, not a
+    # stray %-format argument: these rules assume every `logger.info` is stdlib's.
+    "PLE1205",
+    "PLE1206",
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# xtr-console reads a command's annotations at runtime — the constructor's for
+# a container, __call__'s for the command line — so none can be deferred.
+# A command's command line is its signature, so options add parameters.
+"src/xtr_orm_fixtures/command/*.py" = ["TC001", "TC002", "TC003", "PLR0913"]
+# The bundle registers factory functions whose signatures the engine reads at
+# runtime, and the container resolves its config's fields; deferring these
+# would register the factories under nothing.
+"src/xtr_orm_fixtures/bundle/*.py" = ["TC001", "TC002", "TC003"]
+"tests/**/*.py" = [
+    "S101",    # assert is the point of pytest
+    "ARG",     # fixtures look unused
+    "PLR2004", # magic numbers in test data
+    "SLF001",  # tests reach into privates
+    "D",       # test names are the docs
+    "S608",    # SQL written by the test itself, against its own SQLite file
+    "PLR0913", # fixtures and parameters arrive as arguments
+    "PLR0917",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+# ─────────────────────────────────────────────────────────────────
+# ty — a second opinion on the source
+# ─────────────────────────────────────────────────────────────────
+[tool.ty.src]
+include = ["src", "tests"]
+
+# ─────────────────────────────────────────────────────────────────
+# pytest
+# ─────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-config", "--strict-markers"]
+filterwarnings = [
+    "error",
+    # The database layer still decorates its mixins with a marker SQLAlchemy 2.1
+    # deprecated; it warns once, on import, and changes nothing.
+    "ignore:The declarative_mixin decorator:sqlalchemy.exc.SADeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+# CI runs the tests with --cov; a change taking coverage below this fails there.
+fail_under = 95
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    # A Protocol body states a contract; there is nothing there to run.
+    "^\\s*\\.\\.\\.$",
+]

@@ -2091,6 +2091,7 @@ dev = [
     { name = "xtr-lock", editable = "../../packages/xtr-lock" },
     { name = "xtr-messenger", editable = "../../packages/xtr-messenger" },
     { name = "xtr-orm", extras = ["sqlite"], editable = "../../packages/xtr-orm" },
+    { name = "xtr-orm-fixtures", editable = "../../packages/xtr-orm-fixtures" },
     { name = "xtr-scheduler", editable = "../../packages/xtr-scheduler" },
     { name = "xtr-webhook", editable = "../../packages/xtr-webhook" },
 ]

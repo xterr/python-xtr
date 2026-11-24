@@ -36,6 +36,7 @@ members = [
     "xtr-mime",
     "xtr-notifier",
     "xtr-orm",
+    "xtr-orm-fixtures",
     "xtr-orm-messenger",
     "xtr-password-hasher",
     "xtr-rate-limiter",
@@ -5167,6 +5168,7 @@ dev = [
     { name = "xtr-lock" },
     { name = "xtr-messenger" },
     { name = "xtr-orm", extra = ["sqlite"] },
+    { name = "xtr-orm-fixtures" },
     { name = "xtr-scheduler" },
     { name = "xtr-webhook" },
 ]
@@ -5198,6 +5200,7 @@ dev = [
     { name = "xtr-lock", editable = "packages/xtr-lock" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
     { name = "xtr-orm", extras = ["sqlite"], editable = "packages/xtr-orm" },
+    { name = "xtr-orm-fixtures", editable = "packages/xtr-orm-fixtures" },
     { name = "xtr-scheduler", editable = "packages/xtr-scheduler" },
     { name = "xtr-webhook", editable = "packages/xtr-webhook" },
 ]
@@ -5461,6 +5464,57 @@ dev = [
     { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-messenger", editable = "packages/xtr-messenger" },
     { name = "xtr-orm-messenger", editable = "packages/xtr-orm-messenger" },
+    { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
+]
+
+[[package]]
+name = "xtr-orm-fixtures"
+version = "7.1.0"
+source = { editable = "packages/xtr-orm-fixtures" }
+dependencies = [
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "xtr-dependency-injection" },
+    { name = "xtr-logging-contracts" },
+    { name = "xtr-orm" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "aiosqlite" },
+    { name = "anyio" },
+    { name = "asyncmy" },
+    { name = "asyncpg" },
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "xtr-console" },
+    { name = "xtr-logging" },
+    { name = "xtr-service-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
+    { name = "xtr-dependency-injection", editable = "packages/xtr-dependency-injection" },
+    { name = "xtr-logging-contracts", editable = "packages/xtr-logging-contracts" },
+    { name = "xtr-orm", editable = "packages/xtr-orm" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "aiosqlite", specifier = ">=0.20" },
+    { name = "anyio", specifier = ">=4.10" },
+    { name = "asyncmy", specifier = ">=0.2.12" },
+    { name = "asyncpg", specifier = ">=0.31" },
+    { name = "basedpyright", specifier = ">=1.31.7" },
+    { name = "pytest", specifier = ">=8.4" },
+    { name = "pytest-cov", specifier = ">=7.1" },
+    { name = "ruff", specifier = ">=0.14.7" },
+    { name = "ty", specifier = ">=0.0.83" },
+    { name = "xtr-console", editable = "packages/xtr-console" },
+    { name = "xtr-logging", editable = "packages/xtr-logging" },
     { name = "xtr-service-contracts", editable = "packages/xtr-service-contracts" },
 ]
 

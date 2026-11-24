@@ -14,6 +14,7 @@ contributors.
 | [nyholm/psr7](https://github.com/Nyholm/psr7) (Tobias Nyholm) and [php-http/psr7-integration-tests](https://github.com/php-http/psr7-integration-tests) (PHP HTTP Team) | xtr-http-message |
 | [Flysystem](https://flysystem.thephpleague.com) and [FlysystemBundle](https://github.com/thephpleague/flysystem-bundle) | xtr-storage |
 | [Doctrine Migrations](https://github.com/doctrine/migrations), [DoctrineBundle](https://github.com/doctrine/DoctrineBundle) and [DoctrineMigrationsBundle](https://github.com/doctrine/DoctrineMigrationsBundle) | xtr-orm |
+| [Doctrine Data Fixtures](https://github.com/doctrine/data-fixtures) and [DoctrineFixturesBundle](https://github.com/doctrine/DoctrineFixturesBundle) | xtr-orm-fixtures |
 | [LexikJWTAuthenticationBundle](https://github.com/lexik/LexikJWTAuthenticationBundle) | xtr-security-jwt |
 | [thephpleague/oauth2-server](https://github.com/thephpleague/oauth2-server) (Alex Bilbie) and its token revocation and introspection [pull request #1473](https://github.com/thephpleague/oauth2-server/pull/1473) (Hafez Divandari) | xtr-security-oauth2-server, xtr-security-oauth2-server-core |
 | [thephpleague/oauth2-server-bundle](https://github.com/thephpleague/oauth2-server-bundle) (Robin Chalas, Trikoder) | xtr-security-oauth2-server |

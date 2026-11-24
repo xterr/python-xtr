@@ -1,0 +1,26 @@
+# The recipe for xtr-orm-fixtures: what *Use in an application* in the README takes,
+# as data. Keep the two in step — the README is the source.
+
+[bundles]
+# "<module>:<class>" = the environments it is listed with, exactly as in BUNDLES.
+# Fixtures seed development and test databases, so the bundle is listed for those two; the
+# package is a development dependency, added with `recipes:add --dev xtr-orm-fixtures`.
+"xtr_orm_fixtures.bundle:OrmFixturesBundle" = { dev = true, test = true }
+
+# No [files] or [env]: the bundle needs no configuration and reads no variable.
+
+[gitignore]
+# Nothing to ignore: fixtures are code to commit.
+lines = []
+
+[notes]
+steps = [
+  "Write fixtures anywhere in the application — make:fixtures AppFixtures writes a first one.",
+]
+check = [
+  "<script> debug:bundles — orm_fixtures is listed and active in dev",
+  "APP_ENV=prod uv run --no-dev --exact <script> debug:bundles — orm_fixtures is not active, and the fixture modules are listed as set aside",
+]
+run = [
+  "<script> orm:fixtures:load",
+]

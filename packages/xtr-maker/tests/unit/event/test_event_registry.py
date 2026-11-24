@@ -162,6 +162,16 @@ def test_the_application_events_are_listed_under_the_module_defining_them(site: 
     assert events == (KnownEvent("OrderPlaced", module), KnownEvent("OrderShipped", module))
 
 
+def test_an_event_module_answering_every_name_is_not_taken_for_a_package(site: _Site) -> None:
+    app = site.name("app")
+    site.write(f"{app}.event", f"{_EVENTS}\n\ndef __getattr__(name):\n    return 1\n")
+
+    events = _registry(site).events()
+
+    module = f"{app}.event"
+    assert events == (KnownEvent("OrderPlaced", module), KnownEvent("OrderShipped", module))
+
+
 def test_the_dispatcher_events_are_listed_by_class_or_by_name(site: _Site) -> None:
     dispatcher = EventDispatcher()
     dispatcher.add_listener(EventRegistry, print)

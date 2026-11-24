@@ -187,7 +187,8 @@ class EventRegistry:
         if package is None:
             return
         yield package
-        path = cast("Sequence[str]", getattr(package, "__path__", ()))
+        # Read where the import system sets it: a module ``__getattr__`` may answer any name.
+        path = cast("Sequence[str]", vars(package).get("__path__", ()))
         for found in pkgutil.walk_packages(path, prefix=f"{package.__name__}."):
             module = _module(found.name)
             if module is not None:

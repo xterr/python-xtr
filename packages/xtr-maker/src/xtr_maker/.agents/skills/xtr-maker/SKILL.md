@@ -20,6 +20,7 @@ written outside the project, and no secret is ever generated.
 | `make:command [name] [--argument A]... [--option O]...` | `command/<snake>_command.py` | — |
 | `make:listener [name] [event]` | `event_listener/<snake>_listener.py` or `event_subscriber/<snake>_subscriber.py` | `event_dispatcher` |
 | `make:migration [--message M] [--connection C]` | a revision in the connection's migrations directory | `orm` |
+| `make:fixtures [name]` | `fixtures/<snake>.py`, a `Fixture` with an empty `load` | `orm_fixtures` |
 
 - Anything left off the command line is asked; `-n` asks nothing and takes the defaults, but the
   name always has to be given.
@@ -107,6 +108,16 @@ uv run app make:migration --message books -n
 Compares the connection's database with its table definitions and lets its migrator write the
 revision, as `orm:migrations:diff` does. Every revision must be applied first, or the run fails
 with `Run orm:migrations:migrate -n first.` Nothing differing writes nothing and still succeeds.
+
+## A fixture
+
+```sh
+uv run app make:fixtures catalog.BookFixtures -n
+```
+
+Writes `fixtures/catalog/book_fixtures.py`: a `Fixture` subclass whose `load(session)` adds what
+it seeds. A name without `Fixtures` at its end gets it. Then fill `load` and run
+`orm:fixtures:load` — see the `xtr-orm-fixtures` skill.
 
 ## Testing
 
