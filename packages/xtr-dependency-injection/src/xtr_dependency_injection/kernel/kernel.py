@@ -535,6 +535,7 @@ def prepare(  # noqa: PLR0913 — each input is a separate build decision.
     core.info.activate(active)
     report.bundles.extend(resolved.reports)
     inactive_config_owners = _inactive_config_owners(listed, active)
+    inactive_listed = _inactive_listed(resolved.reports)
     assembly = assemble(
         name=name,
         package=package,
@@ -550,11 +551,9 @@ def prepare(  # noqa: PLR0913 — each input is a separate build decision.
         allowed_envs=allowed_envs,
         given=given,
         environ=environ,
-        inactive_packages=_inactive_packages(resolved.reports, listed, package),
+        inactive_packages=_inactive_packages(inactive_listed, listed, package),
         application_exclude=_inactive_resources(listed, active),
-        sets_aside=any(
-            report.source == "listed" and report.state != "active" for report in resolved.reports
-        ),
+        sets_aside=bool(inactive_listed),
     )
     _log_set_aside(report.set_aside)
     ordered = emission_order(assembly.state.store.entries(), assembly.state.forwards)
@@ -622,6 +621,11 @@ def _inactive_resources(listed: ListedBundles, active: Sequence[str]) -> tuple[s
     return tuple(names)
 
 
+def _inactive_listed(reports: Sequence[BundleReport]) -> list[BundleReport]:
+    """Return the report of each bundle the application lists that is not active here."""
+    return [report for report in reports if report.source == "listed" and report.state != "active"]
+
+
 def _inactive_packages(
     reports: Sequence[BundleReport], listed: ListedBundles, application: str
 ) -> tuple[str, ...]:
@@ -644,9 +648,7 @@ def _inactive_packages(
         qualified_name(entry): entry for entry in listed if not isinstance(entry, AbsentBundle)
     }
     packages: set[str] = set()
-    for report in reports:
-        if report.source != "listed" or report.state == "active":
-            continue
+    for report in _inactive_listed(reports):
         module = report.qualname.partition(":")[0]
         if not application or (module != application and not module.startswith(f"{application}.")):
             package = _own_package(module, application)
