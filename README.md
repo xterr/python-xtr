@@ -98,6 +98,7 @@ graph LR
     events -. optional .-> stopwatch
     stopwatch[xtr-stopwatch] --> clock
     messenger -. optional .-> console[xtr-console]
+    console --> clock
     scheduler[xtr-scheduler] --> messenger
     scheduler --> serializer
     scheduler --> clock
