@@ -99,6 +99,8 @@ All these commands are in the `xtr-orm` package.
 | `orm:database:create` | Creates the database of a connection on its server. |
 | `orm:database:drop` | Drops the database of a connection from its server. |
 | `orm:run-sql` | Runs a statement and shows the result. |
+| `orm:schema:update` | Brings the database schema to the table definitions, without a revision. |
+| `orm:schema:validate` | Tells if the mapping is valid and the schema matches the table definitions. |
 | `orm:migrations:status` | Shows the state of the database against its revisions. |
 | `orm:migrations:list` | Lists each revision, and shows if the database has it. |
 | `orm:migrations:current` | Shows the revisions that the database has now. |
