@@ -9,19 +9,20 @@ from sqlalchemy import MetaData, Table, inspect
 
 if TYPE_CHECKING:
     from alembic.operations import Operations
-    from alembic.operations.ops import UpgradeOps
     from sqlalchemy.engine import Connection
 
-__all__ = ["invoke", "present"]
+    from .schema_comparison import SchemaComparison
+
+__all__ = ["invoke"]
 
 
 def invoke(
-    operations: Operations, upgrade: UpgradeOps, connection: Connection, *, batch: bool
+    operations: Operations, comparison: SchemaComparison, connection: Connection, *, batch: bool
 ) -> None:
-    """Invoke each operation ``upgrade`` holds, batching a table's changes when ``batch``."""
+    """Invoke each operation ``comparison`` holds, batching a table's changes when ``batch``."""
     # ModifyTableOps is organizational only — unroll it. OpContainer exposes
     # .ops and defines no __iter__.
-    for op in upgrade.ops:
+    for op in comparison.ops:
         if not isinstance(op, ModifyTableOps):
             operations.invoke(op)
         elif not batch:
@@ -29,13 +30,13 @@ def invoke(
                 operations.invoke(inner)
         else:
             with operations.batch_alter_table(
-                op.table_name, schema=op.schema, copy_from=present(connection, op)
+                op.table_name, schema=op.schema, copy_from=_reflected(connection, op)
             ) as batch_op:
                 for inner in op.ops:
                     batch_op.invoke(inner)
 
 
-def present(connection: Connection, op: ModifyTableOps) -> Table | None:
+def _reflected(connection: Connection, op: ModifyTableOps) -> Table | None:
     """Reflect the table a batch rebuilds, or None when it is not there.
 
     ``connection`` is the real one: a context rendering SQL wraps its own in

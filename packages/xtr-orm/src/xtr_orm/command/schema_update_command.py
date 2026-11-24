@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, cast, final
+from typing import Annotated, final
 
 from sqlalchemy.exc import SQLAlchemyError
 from xtr_console import ConsoleStyle, ExitCode, Option, as_command, escape
@@ -49,25 +49,24 @@ class SchemaUpdateCommand(ConnectionCommand):
         if migrator is None:
             return ExitCode.FAILURE
         try:
-            upgrade = await migrator.compare()
+            comparison = await migrator.compare()
         except MigrationError as error:
             io.error(escape(error.reason))
             return ExitCode.FAILURE
         name = escape(self._name(connection))
-        if upgrade.is_empty():
+        if comparison.is_empty:
             io.success(
                 f'Nothing to update: the "{name}" connection\'s database schema is in sync '
                 "with the table definitions."
             )
             return ExitCode.SUCCESS
-        # Alembic leaves as_diffs() untyped; the count is all the command reads of it.
-        changes = len(cast("list[object]", upgrade.as_diffs()))
+        changes = comparison.changes
         plural = "" if changes == 1 else "s"
         if dump_sql:
-            io.text(escape(await migrator.apply_sql(upgrade)))
+            io.text(escape(await migrator.apply_sql(comparison)))
         if force:
             try:
-                await migrator.apply(upgrade)
+                await migrator.apply(comparison)
             except SQLAlchemyError as error:
                 io.error(
                     f'Could not update the "{name}" connection\'s database schema: '

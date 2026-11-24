@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, final
 
 import pytest
-from alembic.operations.ops import CreateTableOp, DropTableOp
+from alembic.operations.ops import CreateTableOp
 from sqlalchemy import Column, Integer, MetaData, Table, text
 from xtr_orm_messenger.transport.messages_table_driver import MessagesTableDriver
 
@@ -722,11 +722,11 @@ async def _execute(engine: AsyncEngine, sql: str) -> None:
 async def test_a_compare_finds_the_tables_the_database_lacks(
     migrator: Migrator, engine: AsyncEngine
 ) -> None:
-    upgrade = await migrator.compare()
+    comparison = await migrator.compare()
 
-    assert not upgrade.is_empty()
-    creates = [op for op in upgrade.ops if isinstance(op, CreateTableOp)]
-    assert sorted(op.table_name for op in creates) == ["author", "book"]
+    assert not comparison.is_empty
+    assert comparison.changes == 3  # the author and book tables, and the book title index
+    assert comparison.dropped_tables == ()
     assert await table_names(engine) == set()
 
 
@@ -735,9 +735,10 @@ async def test_a_compare_is_empty_when_the_database_matches_the_definitions(
 ) -> None:
     await _create_catalogue(engine)
 
-    upgrade = await migrator.compare()
+    comparison = await migrator.compare()
 
-    assert upgrade.is_empty()
+    assert comparison.is_empty
+    assert comparison.changes == 0
 
 
 async def test_a_compare_finds_orphaned_tables_to_drop(
@@ -746,10 +747,9 @@ async def test_a_compare_finds_orphaned_tables_to_drop(
     await _create_catalogue(engine)
     await _execute(engine, "create table legacy (id integer not null, primary key (id))")
 
-    upgrade = await migrator.compare()
+    comparison = await migrator.compare()
 
-    drops = [op for op in upgrade.ops if isinstance(op, DropTableOp)]
-    assert [op.table_name for op in drops] == ["legacy"]
+    assert comparison.dropped_tables == ("legacy",)
 
 
 async def test_a_compare_leaves_the_orphans_the_object_filter_keeps(
@@ -766,18 +766,18 @@ async def test_a_compare_leaves_the_orphans_the_object_filter_keeps(
 
     config = MigrationsConfig(directory=str(migrations_directory), include_object=include_object)
 
-    upgrade = await Migrator(engine, config, METADATA).compare()
+    comparison = await Migrator(engine, config, METADATA).compare()
 
-    assert upgrade.is_empty()
+    assert comparison.is_empty
 
 
 async def test_the_version_and_history_tables_stay_out_of_a_compare(migrator: Migrator) -> None:
     _ = await migrator.diff("create the catalogue")
     _ = await migrator.migrate()
 
-    upgrade = await migrator.compare()
+    comparison = await migrator.compare()
 
-    assert upgrade.is_empty()
+    assert comparison.is_empty
 
 
 async def test_a_compare_without_table_definitions_is_refused(
@@ -796,9 +796,9 @@ async def test_a_compare_sees_the_tables_a_mapping_driver_added(
     _ = MessagesTableDriver("messenger_messages").load_metadata(metadata)
     config = MigrationsConfig(directory=str(migrations_directory))
 
-    upgrade = await Migrator(engine, config, metadata).compare()
+    comparison = await Migrator(engine, config, metadata).compare()
 
-    creates = [op for op in upgrade.ops if isinstance(op, CreateTableOp)]
+    creates = [op for op in comparison.ops if isinstance(op, CreateTableOp)]
     assert [op.table_name for op in creates] == ["messenger_messages"]
 
 

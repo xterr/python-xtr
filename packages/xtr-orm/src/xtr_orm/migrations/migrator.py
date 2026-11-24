@@ -34,11 +34,12 @@ from .executed_migration import ExecutedMigration
 from .migration_plan import MigrationPlan
 from .migration_status import MigrationStatus
 from .migrations_config import MigrationsConfig
+from .schema_comparison import SchemaComparison
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
 
-    from alembic.operations.ops import MigrationScript, UpgradeOps
+    from alembic.operations.ops import MigrationScript
     from alembic.runtime.migration import MigrationContext, RevisionStep
     from alembic.script import Script, ScriptDirectory
     from sqlalchemy.engine import Connection
@@ -384,8 +385,8 @@ class Migrator(LoggerAware):
 
         return await self._connected(work)
 
-    async def compare(self) -> UpgradeOps:
-        """Return the operations that would bring the database to the table definitions.
+    async def compare(self) -> SchemaComparison:
+        """Return what differs between the database and the table definitions.
 
         The database is compared with the table definitions as it is — the
         revisions it is at play no part — and nothing is written, run or
@@ -399,7 +400,7 @@ class Migrator(LoggerAware):
                 f'The "{self._name}" connection has no table definitions to compare with.',
             )
 
-        def work(connection: Connection) -> UpgradeOps:
+        def work(connection: Connection) -> SchemaComparison:
             # produce_migrations types the definitions MetaData, but the autogen
             # context it builds takes a sequence too.
             script = produce_migrations(
@@ -408,21 +409,28 @@ class Migrator(LoggerAware):
             upgrade = script.upgrade_ops
             if upgrade is None:  # pragma: no cover — a comparison always has its operations
                 raise MigrationError("No comparison was produced.")
-            return upgrade
+            # Alembic leaves as_diffs() untyped; the flattened count is all the
+            # comparison reports of it.
+            changes = len(cast("list[object]", upgrade.as_diffs()))
+            return SchemaComparison(changes, upgrade.ops)
 
         return await self._connected(work)
 
-    async def apply(self, upgrade: UpgradeOps) -> None:
-        """Run ``upgrade`` against the database, committing it; nothing is recorded."""
+    async def apply(self, comparison: SchemaComparison) -> None:
+        """Run ``comparison`` against the database, committing it; nothing is recorded.
+
+        The run is one transaction, but a dialect without transactional DDL
+        cannot make it all-or-nothing: what ran before a failure stays.
+        """
 
         def work(connection: Connection) -> None:
             context = self._environment.invocation(connection)
-            invoke(Operations(context), upgrade, connection, batch=self._config.render_as_batch)
+            invoke(Operations(context), comparison, connection, batch=self._config.render_as_batch)
 
         await self._connected(work)
 
-    async def apply_sql(self, upgrade: UpgradeOps) -> str:
-        """Return the SQL running ``upgrade`` against the database would produce.
+    async def apply_sql(self, comparison: SchemaComparison) -> str:
+        """Return the SQL running ``comparison`` against the database would produce.
 
         The operations run against a context that only renders: the database
         stays as it is, and nothing is recorded.
@@ -431,7 +439,7 @@ class Migrator(LoggerAware):
         def work(connection: Connection) -> str:
             output = StringIO()
             context = self._environment.invocation(connection, output=output)
-            invoke(Operations(context), upgrade, connection, batch=self._config.render_as_batch)
+            invoke(Operations(context), comparison, connection, batch=self._config.render_as_batch)
             return output.getvalue()
 
         return await self._connected(work)

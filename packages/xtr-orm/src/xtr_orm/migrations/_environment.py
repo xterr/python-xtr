@@ -99,9 +99,13 @@ class Environment:
         With ``output`` the context renders rather than runs: every
         statement's SQL is written to it.
         """
+        config = self._config
         options: dict[str, object] = {}
         if output is not None:
             options = {"as_sql": True, "literal_binds": True, "output_buffer": output}
+        if config.transactional_ddl is not None:
+            options["transactional_ddl"] = config.transactional_ddl
+        options.update(config.context_options)
         return MigrationContext.configure(connection, opts=options)
 
     def run(  # noqa: PLR0913 — every runner option, each passed by keyword

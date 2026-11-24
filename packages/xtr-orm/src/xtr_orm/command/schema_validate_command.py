@@ -77,7 +77,7 @@ class SchemaValidateCommand(ConnectionCommand):
         if not skip_sync:
             name = escape(self._name(connection))
             try:
-                upgrade = await migrator.compare()
+                comparison = await migrator.compare()
             except MigrationError as error:
                 io.error(escape(error.reason))
                 code += _OUT_OF_SYNC
@@ -87,7 +87,7 @@ class SchemaValidateCommand(ConnectionCommand):
                 io.error(escape(str(error)))
                 code += _OUT_OF_SYNC
             else:
-                if upgrade.is_empty():
+                if comparison.is_empty:
                     io.success(
                         f'The "{name}" connection\'s database schema is in sync '
                         "with the table definitions."
@@ -99,7 +99,7 @@ class SchemaValidateCommand(ConnectionCommand):
                     )
                     code += _OUT_OF_SYNC
                     io.text(
-                        escape(await migrator.apply_sql(upgrade)),
+                        escape(await migrator.apply_sql(comparison)),
                         verbosity=Verbosity.VERBOSE,
                     )
         return code
