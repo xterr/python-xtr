@@ -1,5 +1,47 @@
 # Upgrading
 
+## To 7.2
+
+7.2 adds the console's about command, the orm's two schema commands and the xtr-orm-fixtures
+package. Every package moves to 7.2 together; only the packages below change anything you can
+observe.
+
+### xtr-orm
+
+- The console gains two commands, seventeen in all. `orm:schema:update` brings the database
+  schema to the table definitions without a revision — `--dump-sql` prints the statements,
+  `--force` runs them, and with neither the command only describes them and exits 1 — and
+  `orm:schema:validate` exits 1 when the mapping does not validate, 2 when the schema differs
+  from the table definitions and 3 for both. Tables the database has but the definitions do not
+  are dropped by an update; `MigrationsConfig.include_object` keeps them. Neither command writes
+  a revision or records anything: the migration history stays the way to production.
+- `Migrator.compare()` returns what differs as a `SchemaComparison` — `is_empty`, `changes`,
+  `dropped_tables` — and `Migrator.apply()` and `apply_sql()` run or render it. A connection
+  whose table definitions hold no table is refused: comparing against empty definitions would
+  drop everything.
+- Every refusal of the migration tooling arrives as `MigrationError`. A `ValueError` raised
+  while a comparison or a revision read runs — alembic's duplicate-table-key refusal, or one
+  from a hook — used to escape raw, and now carries its message in the error the package
+  documents.
+
+### xtr-console
+
+- `about` shows the project at a glance: its directories, environment, locale and timezone, and
+  the versions it runs on.
+
+### xtr-dependency-injection
+
+- The kernel takes a `log_dir` parameter: `var/log` in the project, where every environment's
+  logs go; nothing is created until something writes.
+- Where a listed bundle is not active, a module needing a package that is not installed is set
+  aside in a namespace of its own instead of failing the import of its module tree; a set-aside
+  module is refused to every import.
+
+### xtr-orm-fixtures
+
+- New package, development-only: a database seeded from fixture classes — ordered, grouped and
+  sharing references — loaded in one transaction after an emptying in foreign-key order.
+
 ## To 7.1
 
 7.1 adds the messenger's console commands for transports and failed messages, and has workers
