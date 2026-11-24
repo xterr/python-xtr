@@ -44,6 +44,7 @@ uv add "xtr-orm[postgres]" xtr-dependency-injection   # + the container, for the
 uv add xtr-console                                    # beside it: the orm:* commands
 uv add xtr-messenger                                  # beside it: the message bus middleware
 uv add "xtr-messenger[orm]"                           # beside it: the orm:// transport too
+uv add --dev xtr-orm-fixtures                         # beside it: seed databases from fixture classes
 ```
 
 | Extra | Brings | For |
