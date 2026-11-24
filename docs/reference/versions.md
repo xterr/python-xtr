@@ -6,7 +6,7 @@ same version always work together.
 
 ## Version numbers
 
-The version number has three parts: `MAJOR.MINOR.PATCH`, for example `7.1.0`.
+The version number has three parts: `MAJOR.MINOR.PATCH`, for example `7.2.0`.
 
 | Part | When it changes |
 |---|---|
@@ -17,7 +17,7 @@ The version number has three parts: `MAJOR.MINOR.PATCH`, for example `7.1.0`.
 ## Dependencies between packages
 
 A package requires each other xtr package by its major version. For example,
-`xtr-messenger` 7.1.0 requires `xtr-logging-contracts>=7.0,<8`. Thus, uv can
+`xtr-messenger` 7.2.0 requires `xtr-logging-contracts>=7.0,<8`. Thus, uv can
 install any version 7 of the packages together.
 
 Require the xtr packages in your application in the same way:
