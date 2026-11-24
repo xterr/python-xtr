@@ -595,7 +595,8 @@ class Inspection:
             return importlib.machinery.PathFinder.find_spec(name, None)
         found = self._set_aside.get(parent)
         holder = found.module if found is not None else sys.modules.get(parent)
-        path = cast("Sequence[str] | None", getattr(holder, "__path__", None))
+        # Read where the import system sets it: a module ``__getattr__`` may answer any name.
+        path = cast("Sequence[str] | None", vars(holder).get("__path__") if holder else None)
         return importlib.machinery.PathFinder.find_spec(name, path) if path is not None else None
 
     def _lacked(self, error: BaseException) -> str | None:

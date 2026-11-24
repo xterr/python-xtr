@@ -302,7 +302,8 @@ class Scanner:
             self._module_names.add(name)
             self.modules.append(name)
         yield module
-        path = cast("list[str] | None", getattr(module, "__path__", None))
+        # Read where the import system sets it: a module ``__getattr__`` may answer any name.
+        path = cast("list[str] | None", vars(module).get("__path__"))
         if path is None:
             return
         holds_folders = name in self._environment_parents
