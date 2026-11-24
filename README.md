@@ -49,6 +49,7 @@ packages is one commit, and released separately so an application installs only 
 | [xtr-telegram-notifier](packages/xtr-telegram-notifier) | Telegram for xtr-notifier: chat messages posted, edited and answered through a bot, with keyboards, media and file uploads. |
 | [xtr-slack-notifier](packages/xtr-slack-notifier) | Slack for xtr-notifier: chat messages posted, scheduled and updated in a channel, laid out with Block Kit blocks. |
 | [xtr-orm](packages/xtr-orm) | Engines, sessions and versioned schema migrations for async applications, configured once per connection. |
+| [xtr-orm-fixtures](packages/xtr-orm-fixtures) | Development-only: a database seeded from fixture classes — ordered, grouped and sharing references — in one transaction after an emptying in foreign-key order. |
 | [xtr-orm-messenger](packages/xtr-orm-messenger) | A database transport for xtr-messenger: messages kept in a table on an xtr-orm connection, claimed by workers, delayed, redelivered and woken by notifications. |
 | [xtr-password-hasher](packages/xtr-password-hasher) | Password hashing behind one interface: argon2id by default, legacy hashes verified and upgraded. |
 | [xtr-security-core](packages/xtr-security-core) | The security core: users, tokens, roles, voters and the authorization decision. |
@@ -142,6 +143,9 @@ graph LR
     orm -. optional .-> messenger
     orm -. optional .-> ormmessenger
     ormmessenger[xtr-orm-messenger] --> messenger
+    ormfixtures[xtr-orm-fixtures] --> orm
+    ormfixtures --> di
+    ormfixtures --> logcon
     ormmessenger --> orm
     ormmessenger --> clock
     messenger -. optional .-> ormmessenger
