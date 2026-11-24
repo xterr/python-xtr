@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from io import StringIO
-from typing import TYPE_CHECKING, Final, final
+from typing import TYPE_CHECKING, Final, cast, final
 
-from alembic.autogenerate import RevisionContext
+from alembic.autogenerate import RevisionContext, produce_migrations
 from alembic.config import Config
+from alembic.operations import Operations
 from sqlalchemy import Column, MetaData, String, Table, delete
 from xtr_logging_contracts import LoggerAware
 
@@ -14,6 +15,7 @@ from xtr_orm.exception import MigrationError
 
 from ._environment import Environment
 from ._history import HistoryRecorder, HistoryTable
+from ._operations import invoke
 from ._revisions import (
     applied,
     available,
@@ -36,7 +38,7 @@ from .migrations_config import MigrationsConfig
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
 
-    from alembic.operations.ops import MigrationScript
+    from alembic.operations.ops import MigrationScript, UpgradeOps
     from alembic.runtime.migration import MigrationContext, RevisionStep
     from alembic.script import Script, ScriptDirectory
     from sqlalchemy.engine import Connection
@@ -116,6 +118,11 @@ class Migrator(LoggerAware):
     def config(self) -> MigrationsConfig:
         """Where the revisions are and how they are recorded."""
         return self._config
+
+    @property
+    def metadata(self) -> MetaData | Sequence[MetaData] | None:
+        """The table definitions a diff or a comparison compares the database with."""
+        return self._metadata
 
     async def status(self) -> MigrationStatus:
         """Read where the database stands against the revision files."""
@@ -374,6 +381,58 @@ class Migrator(LoggerAware):
             if written is None:  # pragma: no cover — the operations above are never empty
                 raise MigrationError("No revision was written.")
             return written
+
+        return await self._connected(work)
+
+    async def compare(self) -> UpgradeOps:
+        """Return the operations that would bring the database to the table definitions.
+
+        The database is compared with the table definitions as it is — the
+        revisions it is at play no part — and nothing is written, run or
+        recorded; the version and history tables stay out of the comparison.
+
+        Raises:
+            MigrationError: With no table definitions to compare with.
+        """
+        if self._metadata is None:
+            raise MigrationError(
+                f'The "{self._name}" connection has no table definitions to compare with.',
+            )
+
+        def work(connection: Connection) -> UpgradeOps:
+            # produce_migrations types the definitions MetaData, but the autogen
+            # context it builds takes a sequence too.
+            script = produce_migrations(
+                self._environment.comparison(connection), cast("MetaData", self._metadata)
+            )
+            upgrade = script.upgrade_ops
+            if upgrade is None:  # pragma: no cover — a comparison always has its operations
+                raise MigrationError("No comparison was produced.")
+            return upgrade
+
+        return await self._connected(work)
+
+    async def apply(self, upgrade: UpgradeOps) -> None:
+        """Run ``upgrade`` against the database, committing it; nothing is recorded."""
+
+        def work(connection: Connection) -> None:
+            context = self._environment.invocation(connection)
+            invoke(Operations(context), upgrade, connection, batch=self._config.render_as_batch)
+
+        await self._connected(work)
+
+    async def apply_sql(self, upgrade: UpgradeOps) -> str:
+        """Return the SQL running ``upgrade`` against the database would produce.
+
+        The operations run against a context that only renders: the database
+        stays as it is, and nothing is recorded.
+        """
+
+        def work(connection: Connection) -> str:
+            output = StringIO()
+            context = self._environment.invocation(connection, output=output)
+            invoke(Operations(context), upgrade, connection, batch=self._config.render_as_batch)
+            return output.getvalue()
 
         return await self._connected(work)
 
