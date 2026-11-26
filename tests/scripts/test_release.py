@@ -47,10 +47,10 @@ def _apply(writes: list[Any]) -> None:
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for name, requirements in (
         ("xtr-a", []),
-        ("xtr-ab", ['"xtr-a>=1.0,<2",', '"other>=3",']),
+        ("xtr-ab", ['"xtr-a>=1.3,<2",', '"other>=3",']),
         (
             "xtr-b",
-            ["\"xtr-ab[extra]>=1.0,<2; python_version >= '3.11'\",", "'xtr-a>=1.0,<2',"],
+            ["\"xtr-ab[extra]>=1.3,<2; python_version >= '3.11'\",", "'xtr-a>=1.3,<2',"],
         ),
     ):
         directory = tmp_path / "packages" / name
@@ -87,30 +87,42 @@ def site_page(workspace: Path) -> Path:
     page = workspace / "docs" / "reference" / "versions.md"
     page.parent.mkdir(parents=True)
     _ = page.write_text(
-        "for example `1.3.0`.\n`xtr-ab` 1.3.0 requires `xtr-a>=1.0,<2`.\n"
+        "for example `1.3.0`.\n`xtr-ab` 1.3.0 requires\n`xtr-a>=1.3,<2`.\n"
         "any version 1 of the packages.\n"
+        '"xtr-ab>=1.0,<2"\n'
         'ConsoleConfig(name="shop", version="1.0.0")\n'
     )
     return page
 
 
 def test_ranges_on_siblings_move_to_the_new_major_and_nothing_else_moves(workspace: Path) -> None:
-    _apply(release.ranged_manifests(release.packages(), 2))
+    _apply(release.ranged_manifests(release.packages(), "2.0.0"))
 
     text = _written(workspace, "xtr-b")
     assert "\"xtr-ab[extra]>=2.0,<3; python_version >= '3.11'\"" in text
     assert '"other>=3"' in _written(workspace, "xtr-ab")
 
 
+def test_ranges_on_siblings_open_at_the_new_minor(workspace: Path) -> None:
+    _apply(release.ranged_manifests(release.packages(), "1.4.0"))
+
+    assert '"xtr-a>=1.4,<2"' in _written(workspace, "xtr-ab")
+
+
+@pytest.mark.usefixtures("workspace")
+def test_a_patch_release_leaves_the_ranges_alone() -> None:
+    assert release.ranged_manifests(release.packages(), "1.3.1") == []
+
+
 def test_a_requirement_in_a_literal_string_is_ranged_too(workspace: Path) -> None:
-    _apply(release.ranged_manifests(release.packages(), 2))
+    _apply(release.ranged_manifests(release.packages(), "2.0.0"))
 
     assert "'xtr-a>=2.0,<3'" in _written(workspace, "xtr-b")
 
 
 @pytest.mark.usefixtures("workspace")
-def test_a_manifest_already_on_the_major_is_left_alone() -> None:
-    planned = release.ranged_manifests(release.packages(), 1)
+def test_a_manifest_already_on_the_minor_is_left_alone() -> None:
+    planned = release.ranged_manifests(release.packages(), "1.3.0")
 
     assert planned == []
 
@@ -121,16 +133,16 @@ def test_an_unclosed_extra_is_reported_before_anything_is_written(workspace: Pat
     before = _written(workspace, "xtr-ab")
 
     with pytest.raises(SystemExit, match="unclosed extras"):
-        _ = release.ranged_manifests(release.packages(), 2)
+        _ = release.ranged_manifests(release.packages(), "2.0.0")
 
     assert _written(workspace, "xtr-ab") == before
 
 
 def test_the_readme_template_follows_the_version_and_its_major() -> None:
-    text = 'version = "1.3.0"\n"xtr-a>=1.0,<2"\ngit tag 1.3.0\n'
+    text = 'version = "1.3.0"\n"xtr-a>=1.0,<2"\nrequires `xtr-b>=1.3,<2`\ngit tag 1.3.0\n'
 
-    assert release.synced_readme(text, "2.0.0") == (
-        'version = "2.0.0"\n"xtr-a>=2.0,<3"\ngit tag 2.0.0\n'
+    assert release.synced_readme(text, "2.1.0") == (
+        'version = "2.1.0"\n"xtr-a>=2.0,<3"\nrequires `xtr-b>=2.1,<3`\ngit tag 2.1.0\n'
     )
 
 
@@ -164,12 +176,14 @@ def test_a_shipped_skill_and_its_references_follow_the_major(skill_page: Path) -
 
 @pytest.mark.usefixtures("workspace")
 def test_a_documentation_page_follows_the_version_and_its_major(site_page: Path) -> None:
-    _apply(release.synced_docs("2.0.0"))
+    _apply(release.synced_docs("2.1.0"))
 
-    assert site_page.read_text().splitlines()[:3] == [
-        "for example `2.0.0`.",
-        "`xtr-ab` 2.0.0 requires `xtr-a>=2.0,<3`.",
+    assert site_page.read_text().splitlines()[:5] == [
+        "for example `2.1.0`.",
+        "`xtr-ab` 2.1.0 requires",
+        "`xtr-a>=2.1,<3`.",
         "any version 2 of the packages.",
+        '"xtr-ab>=2.0,<3"',
     ]
 
 
@@ -245,11 +259,11 @@ def test_check_names_an_example_left_behind(workspace: Path) -> None:
         release.check(None)
 
 
-def test_check_names_a_range_left_on_another_major(workspace: Path) -> None:
+def test_check_names_a_range_left_on_another_minor(workspace: Path) -> None:
     manifest = workspace / "packages" / "xtr-ab" / "pyproject.toml"
-    _ = manifest.write_text(_manifest("xtr-ab", "1.3.0", ['"xtr-a>=0.0,<1",']))
+    _ = manifest.write_text(_manifest("xtr-ab", "1.3.0", ['"xtr-a>=1.0,<2",']))
 
-    with pytest.raises(SystemExit, match=r"xtr-ab requires xtr-a>=0\.0,<1"):
+    with pytest.raises(SystemExit, match=r"1\.3\.0's minor: xtr-ab requires xtr-a>=1\.0,<2"):
         release.check(None)
 
 
@@ -299,6 +313,7 @@ def test_every_line_the_readme_sync_rewrites_is_still_in_the_readme() -> None:
 
     assert missing == []
     assert release.DOC_RANGE.search(text) is not None
+    assert release.DOC_FLOOR.search(text) is not None
 
 
 def test_every_line_the_documentation_sync_rewrites_is_still_on_the_versions_page() -> None:
@@ -307,3 +322,4 @@ def test_every_line_the_documentation_sync_rewrites_is_still_on_the_versions_pag
     assert release.DOCS_VERSION.findall(text) == ["for example `", "`xtr-messenger` "]
     assert release.DOCS_MAJOR.search(text) is not None
     assert release.DOC_RANGE.search(text) is not None
+    assert release.DOC_FLOOR.search(text) is not None

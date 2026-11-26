@@ -320,14 +320,17 @@ uv add "xtr-scheduler[cron]"
 ## Versions
 
 Every package shares one version and is released together, even one that did not change — any
-two `xtr-*` packages at the same version are known to work together. Packages require their
-siblings by major version (`xtr-logging-contracts>=7.0,<8`).
+two `xtr-*` packages at the same version are known to work together. A package requires each
+sibling from the minor version it was released at, up to the next major: `xtr-messenger` requires
+`xtr-logging-contracts>=7.2,<8`. Upgrade them together with
+`uv run xtr-recipes recipes:upgrade`, which moves every `xtr-*` package an application has to its
+newest release.
 
 [`scripts/release.py`](scripts/release.py) keeps that consistent:
 
 ```sh
 uv run scripts/release.py check        # every package, this README and the docs on one version (CI runs this)
-uv run scripts/release.py bump 7.2.0   # move every package, this README and the docs; on a new major, rewrite the ranges
+uv run scripts/release.py bump 7.2.0   # move every package, this README and the docs; on a new minor, rewrite the ranges
 ```
 
 A package classified `Private :: Do Not Upload` moves with the rest but is never published or

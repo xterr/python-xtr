@@ -17,11 +17,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-security-core>=7.0,<8",
-    "xtr-security-jwt>=7.0,<8",
-    "xtr-clock>=7.0,<8",
-    "xtr-event-dispatcher-contracts>=7.0,<8",
-    "xtr-http-message-contracts>=7.0,<8",
+    "xtr-security-core>=7.2,<8",
+    "xtr-security-jwt>=7.2,<8",
+    "xtr-clock>=7.2,<8",
+    "xtr-event-dispatcher-contracts>=7.2,<8",
+    "xtr-http-message-contracts>=7.2,<8",
     "joserfc>=1.7",
 ]
 
@@ -35,7 +35,7 @@ dev = [
     "ty>=0.0.83",
     # The library speaks the message contracts; the tests need messages to hand
     # it, which is what the implementation is for.
-    "xtr-http-message>=7.0,<8",
+    "xtr-http-message>=7.2,<8",
 ]
 
 [build-system]

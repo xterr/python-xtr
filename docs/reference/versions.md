@@ -16,11 +16,13 @@ The version number has three parts: `MAJOR.MINOR.PATCH`, for example `7.2.0`.
 
 ## Dependencies between packages
 
-A package requires each other xtr package by its major version. For example,
-`xtr-messenger` 7.2.0 requires `xtr-logging-contracts>=7.0,<8`. Thus, uv can
-install any version 7 of the packages together.
+A package requires each other xtr package from its own minor version, up to the
+next major. For example, `xtr-messenger` 7.2.0 requires
+`xtr-logging-contracts>=7.2,<8`. Thus, uv cannot install a package beside a
+sibling that is older than it.
 
-Require the xtr packages in your application in the same way:
+In your application, require the xtr packages by their major version. Thus, uv
+can install any version 7 of the packages:
 
 ```toml
 dependencies = [
@@ -31,6 +33,18 @@ dependencies = [
 
 The `xtr-cli` templates and the `xtr-recipes` tool write the requirements in
 this format.
+
+## Upgrade the packages
+
+uv upgrades only the packages that you name. Upgrade all the xtr packages of an
+application together:
+
+```sh
+uv run xtr-recipes recipes:upgrade
+```
+
+The command upgrades each installed xtr package to its newest release, then
+applies the recipes that changed.
 
 ## Python versions
 

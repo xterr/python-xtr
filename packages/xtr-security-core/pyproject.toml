@@ -17,10 +17,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-password-hasher>=7.0,<8",
-    "xtr-clock>=7.0,<8",
-    "xtr-event-dispatcher-contracts>=7.0,<8",
-    "xtr-service-contracts>=7.0,<8",
+    "xtr-password-hasher>=7.2,<8",
+    "xtr-clock>=7.2,<8",
+    "xtr-event-dispatcher-contracts>=7.2,<8",
+    "xtr-service-contracts>=7.2,<8",
 ]
 
 [dependency-groups]

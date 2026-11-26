@@ -22,7 +22,7 @@ classifiers = [
 # and a newline before anything of ours sees the string). Everything else the
 # six classes need is in the standard library.
 dependencies = [
-    "xtr-http-message-contracts>=7.0,<8",
+    "xtr-http-message-contracts>=7.2,<8",
     "uritools>=6.1,<7",
 ]
 

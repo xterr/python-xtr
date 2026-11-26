@@ -18,22 +18,22 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-clock>=7.0,<8",
+    "xtr-clock>=7.2,<8",
     # The client interface a webhook is sent through; the client itself is installed by the
     # application that sends webhooks.
-    "xtr-http-client-contracts>=7.0,<8",
+    "xtr-http-client-contracts>=7.2,<8",
     # The matchers a parser says which requests are its sender's with.
-    "xtr-http-foundation>=7.0,<8",
-    "xtr-http-message-contracts>=7.0,<8",
-    "xtr-messenger>=7.0,<8",
-    "xtr-remote-event>=7.0,<8",
+    "xtr-http-foundation>=7.2,<8",
+    "xtr-http-message-contracts>=7.2,<8",
+    "xtr-messenger>=7.2,<8",
+    "xtr-remote-event>=7.2,<8",
     # What writes the event's payload as the body, and decodes the JSON of an arriving one.
-    "xtr-serializer>=7.0,<8",
-    "xtr-service-contracts>=7.0,<8",
+    "xtr-serializer>=7.2,<8",
+    "xtr-service-contracts>=7.2,<8",
     # The endpoint webhooks arrive at, contributed to the application's routes.
-    "xtr-http-kernel>=7.0,<8",
+    "xtr-http-kernel>=7.2,<8",
     # What xtr_webhook.testing builds its requests with.
-    "xtr-http-message>=7.0,<8",
+    "xtr-http-message>=7.2,<8",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -55,10 +55,10 @@ dev = [
     "ty>=0.0.83",
     # The tests drive the endpoint over an in-process transport of their own.
     "httpx>=0.27",
-    "xtr-dependency-injection>=7.0,<8",
-    "xtr-http-client>=7.0,<8",
-    "xtr-http-kernel>=7.0,<8",
-    "xtr-http-message>=7.0,<8",
+    "xtr-dependency-injection>=7.2,<8",
+    "xtr-http-client>=7.2,<8",
+    "xtr-http-kernel>=7.2,<8",
+    "xtr-http-message>=7.2,<8",
 ]
 
 [build-system]

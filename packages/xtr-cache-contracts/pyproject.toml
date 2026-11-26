@@ -20,7 +20,7 @@ classifiers = [
 # `xtr-clock`, itself free of dependencies, so early recomputation reads the
 # clock a test can freeze.
 dependencies = [
-    "xtr-clock>=7.0,<8",
+    "xtr-clock>=7.2,<8",
 ]
 
 [dependency-groups]

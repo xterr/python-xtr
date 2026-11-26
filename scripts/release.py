@@ -7,6 +7,12 @@ All packages are released together, at one version, tagged ``X.Y.Z``. A package
 classified ``Private :: Do Not Upload`` moves with the rest but is never
 published or split.
 
+A package requires each sibling from the minor version it is released at, up to
+the next major (``xtr-messenger>=X.Y,<X+1``): a release may lean on what its
+siblings added in that same minor, and a range opening at the major would let a
+lock keep an older sibling beside it. A patch release leaves the ranges as they
+are, and an application still requires the packages by major.
+
     uv run scripts/release.py check [X.Y.Z]   # every package and every doc on one version
     uv run scripts/release.py bump X.Y.Z      # move everything, rewrite ranges, relock
 
@@ -45,6 +51,7 @@ README_VERSION = re.compile(
 DOCS_VERSION = re.compile(r"(for example `|`xtr-[a-z0-9-]+` )\d+\.\d+\.\d+")
 DOCS_MAJOR = re.compile(r"(any version )\d+(?= of the packages)")
 DOC_RANGE = re.compile(r"(xtr-[a-z0-9-]+(?:\[[a-z,]+\])?>=)\d+\.0,<\d+")
+DOC_FLOOR = re.compile(r"(requires\s+`xtr-[a-z0-9-]+(?:\[[a-z,]+\])?)>=\d+\.\d+,<\d+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,12 +128,21 @@ def synced_ranges(text: str, major: int) -> str:
     return DOC_RANGE.sub(lambda m: f"{m.group(1)}{major}.0,<{major + 1}", text)
 
 
+def synced_floors(text: str, version: str) -> str:
+    """Return a doc with every range a package ``requires`` on ``version``'s minor."""
+    return DOC_FLOOR.sub(lambda m: f"{m.group(1)}{floor_range(version)}", text)
+
+
+def floor_range(version: str) -> str:
+    """Return the range a package of ``version`` requires its siblings by."""
+    major, minor, _ = version.split(".")
+    return f">={major}.{minor},<{int(major) + 1}"
+
+
 def synced_readme(text: str, version: str) -> str:
     """Return the root README with its template and release commands on ``version``."""
-    return synced_ranges(
-        README_VERSION.sub(lambda m: f"{m.group(1)}{version}", text),
-        int(version.split(".", maxsplit=1)[0]),
-    )
+    text = README_VERSION.sub(lambda m: f"{m.group(1)}{version}", text)
+    return synced_floors(synced_ranges(text, int(version.split(".", maxsplit=1)[0])), version)
 
 
 def synced_page(text: str, version: str) -> str:
@@ -138,14 +154,16 @@ def synced_page(text: str, version: str) -> str:
     """
     major = int(version.split(".", maxsplit=1)[0])
     text = DOCS_VERSION.sub(lambda m: f"{m.group(1)}{version}", text)
-    return synced_ranges(DOCS_MAJOR.sub(lambda m: f"{m.group(1)}{major}", text), major)
+    text = synced_ranges(DOCS_MAJOR.sub(lambda m: f"{m.group(1)}{major}", text), major)
+    return synced_floors(text, version)
 
 
 def synced_docs(version: str) -> list[Write]:
     """Return every doc whose version literals are not on ``version`` yet.
 
     The root README and the documentation site carry the version itself; a
-    package README and the skills beside it quote ranges, which follow the major.
+    package README and the skills beside it quote ranges, which follow the major —
+    and a range a package ``requires``, which follows the minor.
     A skill ships inside the import package, at the version it describes, so its
     pages move with the README beside them.
     """
@@ -161,18 +179,18 @@ def synced_docs(version: str) -> list[Write]:
         elif path in site:
             wanted = synced_page(text, version)
         else:
-            wanted = synced_ranges(text, major)
+            wanted = synced_floors(synced_ranges(text, major), version)
         if wanted != text:
             planned.append(Write(path, wanted))
     return planned
 
 
-def sibling_range(requirement: str, name: str, major: int) -> str:
-    """Return ``requirement`` ranged on ``major``, its extras and marker kept."""
+def sibling_range(requirement: str, name: str, version: str) -> str:
+    """Return ``requirement`` ranged from ``version``'s minor, its extras and marker kept."""
     rest = requirement[len(name) :]
     extras = rest[: rest.find("]") + 1] if rest.startswith("[") else ""
     marker = rest[rest.index(";") :] if ";" in rest else ""
-    return f"{name}{extras}>={major}.0,<{major + 1}{marker}"
+    return f"{name}{extras}{floor_range(version)}{marker}"
 
 
 def requoted(text: str, requirement: str, ranged: str) -> str:
@@ -207,9 +225,9 @@ def sibling_requirements(found: list[Package]) -> Iterator[tuple[Package, str, s
             yield package, requirement, name.group()
 
 
-def stale_ranges(found: list[Package], major: int) -> list[str]:
-    """Return every requirement on a sibling not ranged ``>={major}.0,<{major + 1}``."""
-    wanted = f">={major}.0,<{major + 1}"
+def stale_ranges(found: list[Package], version: str) -> list[str]:
+    """Return every requirement on a sibling not ranged from ``version``'s minor."""
+    wanted = floor_range(version)
     stale: list[str] = []
     for package, requirement, name in sibling_requirements(found):
         rest = requirement[len(name) :].split(";", 1)[0].strip()
@@ -220,8 +238,8 @@ def stale_ranges(found: list[Package], major: int) -> list[str]:
     return stale
 
 
-def ranged_manifests(found: list[Package], major: int) -> list[Write]:
-    """Return every manifest whose requirements on a sibling must move to ``major``.
+def ranged_manifests(found: list[Package], version: str) -> list[Write]:
+    """Return every manifest whose requirements on a sibling must move to ``version``'s minor.
 
     Nothing is written here: a requirement the script cannot read stops the whole
     bump while the tree is still untouched.
@@ -229,7 +247,7 @@ def ranged_manifests(found: list[Package], major: int) -> list[Write]:
     ranged = {package.pyproject: package.text for package in found}
     for package, requirement, name in sibling_requirements(found):
         ranged[package.pyproject] = requoted(
-            ranged[package.pyproject], requirement, sibling_range(requirement, name, major)
+            ranged[package.pyproject], requirement, sibling_range(requirement, name, version)
         )
     return [
         Write(package.pyproject, ranged[package.pyproject])
@@ -251,9 +269,9 @@ def check(expected: str | None) -> None:
         )
         sys.exit(f"not on one version: workspace {workspace}, {listed}")
     version = versions.pop()
-    stale = stale_ranges(found, int(version.split(".", maxsplit=1)[0]))
+    stale = stale_ranges(found, version)
     if stale:
-        sys.exit(f"ranges not on {version}'s major: {', '.join(stale)}")
+        sys.exit(f"ranges not from {version}'s minor: {', '.join(stale)}")
     if expected is not None and expected != version:
         sys.exit(f"cannot release {expected}: the packages are at {version}")
     behind = [str(write.path.relative_to(ROOT)) for write in synced_docs(version)]
@@ -301,7 +319,7 @@ def bump(version: str) -> None:
     if matched is None:
         sys.exit(f"not a X.Y.Z version: {version}")
     found = packages()
-    writes = ranged_manifests(found, int(matched.group(1))) + synced_docs(version)
+    writes = ranged_manifests(found, version) + synced_docs(version)
     try:
         for write in writes:
             _ = write.path.write_text(write.text)

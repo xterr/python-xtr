@@ -20,8 +20,8 @@ classifiers = [
 dependencies = [
     "pydantic-ai-slim>=2.66,<3",
     "sqlalchemy[asyncio]>=2.0.52",
-    "xtr-ai>=7.0,<8",
-    "xtr-orm>=7.0,<8",
+    "xtr-ai>=7.2,<8",
+    "xtr-orm>=7.2,<8",
 ]
 
 [dependency-groups]

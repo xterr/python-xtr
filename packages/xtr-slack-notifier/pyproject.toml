@@ -18,9 +18,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-notifier>=7.0,<8",
+    "xtr-notifier>=7.2,<8",
     # The Web API is reached through the application's client.
-    "xtr-http-client-contracts>=7.0,<8",
+    "xtr-http-client-contracts>=7.2,<8",
 ]
 
 # Found by the chatter when a DSN's scheme is slack, with no wiring.
@@ -40,9 +40,9 @@ dev = [
     "anyio>=4.10",
     "ty>=0.0.83",
     # MockHttpClient stands in for the Slack Web API in transport tests.
-    "xtr-http-client>=7.0,<8",
+    "xtr-http-client>=7.2,<8",
     # Read the shipped recipe with the parser recipes:sync uses.
-    "xtr-recipes>=7.0,<8",
+    "xtr-recipes>=7.2,<8",
 ]
 
 [build-system]

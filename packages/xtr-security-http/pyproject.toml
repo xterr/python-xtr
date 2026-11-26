@@ -17,24 +17,24 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-security-core>=7.0,<8",
-    "xtr-security-csrf>=7.0,<8",
-    "xtr-http-kernel>=7.0,<8",
-    "xtr-http-foundation>=7.0,<8",
-    "xtr-http-message-contracts>=7.0,<8",
+    "xtr-security-core>=7.2,<8",
+    "xtr-security-csrf>=7.2,<8",
+    "xtr-http-kernel>=7.2,<8",
+    "xtr-http-foundation>=7.2,<8",
+    "xtr-http-message-contracts>=7.2,<8",
     # The client interface the introspection endpoint is reached through; the client
     # itself is installed by the application that introspects.
-    "xtr-http-client-contracts>=7.0,<8",
+    "xtr-http-client-contracts>=7.2,<8",
     # The cache contract the introspection responses are cached under; the pool
     # behind it is the application's choice.
-    "xtr-cache-contracts>=7.0,<8",
-    "xtr-dependency-injection>=7.0,<8",
-    "xtr-event-dispatcher>=7.0,<8",
-    "xtr-event-dispatcher-contracts>=7.0,<8",
-    "xtr-clock>=7.0,<8",
-    "xtr-logging-contracts>=7.0,<8",
-    "xtr-password-hasher>=7.0,<8",
-    "xtr-rate-limiter>=7.0,<8",
+    "xtr-cache-contracts>=7.2,<8",
+    "xtr-dependency-injection>=7.2,<8",
+    "xtr-event-dispatcher>=7.2,<8",
+    "xtr-event-dispatcher-contracts>=7.2,<8",
+    "xtr-clock>=7.2,<8",
+    "xtr-logging-contracts>=7.2,<8",
+    "xtr-password-hasher>=7.2,<8",
+    "xtr-rate-limiter>=7.2,<8",
     # The floors xtr-http-kernel serves on; see its pyproject.toml for why.
     "fastapi>=0.143.1",
     "starlette>=1.6",
@@ -55,12 +55,12 @@ dev = [
     "ty>=0.0.83",
     "joserfc>=1.7",
     # The tests match real requests, so they build the request messages.
-    "xtr-http-message>=7.0,<8",
+    "xtr-http-message>=7.2,<8",
     # The tests drive the introspection endpoint through the scripted client and
     # cache the responses in the in-memory pool.
-    "xtr-http-client>=7.0,<8",
-    "xtr-cache>=7.0,<8",
-    "xtr-console>=7.0,<8",
+    "xtr-http-client>=7.2,<8",
+    "xtr-cache>=7.2,<8",
+    "xtr-console>=7.2,<8",
 ]
 
 [build-system]

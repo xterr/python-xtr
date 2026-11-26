@@ -34,7 +34,7 @@ dev = [
     "anyio>=4.10",
     "ty>=0.0.83",
     "pwdlib[argon2,bcrypt]>=0.3",
-    "xtr-console>=7.0,<8",
+    "xtr-console>=7.2,<8",
 ]
 
 [build-system]

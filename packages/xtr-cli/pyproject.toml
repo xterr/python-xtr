@@ -18,7 +18,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-console>=7.0,<8",
+    "xtr-console>=7.2,<8",
 ]
 
 # `uvx xtr-cli <command>` runs the script named after the distribution; `xtr` is the
