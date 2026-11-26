@@ -1,6 +1,6 @@
 [project]
 name = "xtr-workflow"
-version = "7.2.0"
+version = "7.3.0"
 description = "Move objects through workflows and state machines — weighted places and transitions, guards, events at every step, definitions in code, config or on a class, dumped as Graphviz, PlantUML or Mermaid."
 readme = "README.md"
 authors = [
@@ -18,15 +18,15 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-clock>=7.2,<8",
+    "xtr-clock>=7.3,<8",
     # The implementation too, not only the contracts: the workflow listener
     # decorators wrap its as_event_listener, the audit trail listener is an
     # EventSubscriberInterface, which only it defines, and listing a workflow's
     # listeners sees through the lazy and traced wrappers it puts around them.
-    "xtr-event-dispatcher>=7.2,<8",
-    "xtr-event-dispatcher-contracts>=7.2,<8",
-    "xtr-logging-contracts>=7.2,<8",
-    "xtr-service-contracts>=7.2,<8",
+    "xtr-event-dispatcher>=7.3,<8",
+    "xtr-event-dispatcher-contracts>=7.3,<8",
+    "xtr-logging-contracts>=7.3,<8",
+    "xtr-service-contracts>=7.3,<8",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -47,12 +47,12 @@ dev = [
     "anyio>=4.10",
     "ty>=0.0.83",
     # The profiler panel's collector, tested against the http kernel's profiler.
-    "xtr-http-kernel>=7.2,<8",
-    "xtr-console>=7.2,<8",
-    "xtr-dependency-injection>=7.2,<8",
-    "xtr-logging>=7.2,<8",
-    "xtr-security>=7.2,<8",
-    "xtr-security-core>=7.2,<8",
+    "xtr-http-kernel>=7.3,<8",
+    "xtr-console>=7.3,<8",
+    "xtr-dependency-injection>=7.3,<8",
+    "xtr-logging>=7.3,<8",
+    "xtr-security>=7.3,<8",
+    "xtr-security-core>=7.3,<8",
 ]
 
 [build-system]

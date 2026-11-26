@@ -1,6 +1,6 @@
 [project]
 name = "xtr-http-client-contracts"
-version = "7.2.0"
+version = "7.3.0"
 description = "The async HTTP client contract alone: a request call, a response read on demand, typed options and the errors they raise."
 readme = "README.md"
 authors = [
@@ -21,7 +21,7 @@ classifiers = [
 # The message contract, because a client response is an HTTP response before it
 # is anything else.
 dependencies = [
-    "xtr-http-message-contracts>=7.2,<8",
+    "xtr-http-message-contracts>=7.3,<8",
 ]
 
 [project.optional-dependencies]
@@ -31,7 +31,7 @@ dependencies = [
 testing = [
     "anyio>=4.10",
     "pytest>=8.4",
-    "xtr-http-message>=7.2,<8",
+    "xtr-http-message>=7.3,<8",
 ]
 
 [dependency-groups]
@@ -42,7 +42,7 @@ dev = [
     "pytest-cov>=7.1",
     "anyio>=4.10",
     "ty>=0.0.83",
-    "xtr-http-message>=7.2,<8",
+    "xtr-http-message>=7.3,<8",
 ]
 
 [build-system]

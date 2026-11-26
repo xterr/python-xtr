@@ -1,6 +1,6 @@
 [project]
 name = "xtr-maker"
-version = "7.2.0"
+version = "7.3.0"
 description = "Console commands that write application code for the xtr libraries: messages, schedules, webhooks, entities, commands and listeners."
 readme = "README.md"
 requires-python = ">=3.14.4"
@@ -19,18 +19,18 @@ classifiers = [
 dependencies = [
     "jinja2>=3.1",
     "libcst>=1.8.6",
-    "xtr-console>=7.2,<8",
-    "xtr-dependency-injection>=7.2,<8",
+    "xtr-console>=7.3,<8",
+    "xtr-dependency-injection>=7.3,<8",
 ]
 
 # Each maker writes code for one library, and is offered only when that library's bundle is
 # active; an extra installs the library beside the makers.
 [project.optional-dependencies]
-event-dispatcher = ["xtr-event-dispatcher>=7.2,<8"]
-messenger = ["xtr-messenger>=7.2,<8"]
-orm = ["xtr-orm>=7.2,<8"]
-scheduler = ["xtr-scheduler>=7.2,<8"]
-webhook = ["xtr-webhook>=7.2,<8"]
+event-dispatcher = ["xtr-event-dispatcher>=7.3,<8"]
+messenger = ["xtr-messenger>=7.3,<8"]
+orm = ["xtr-orm>=7.3,<8"]
+scheduler = ["xtr-scheduler>=7.3,<8"]
+webhook = ["xtr-webhook>=7.3,<8"]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
 # Advertising activates nothing: an application lists the bundles it wants.
@@ -50,17 +50,17 @@ dev = [
     "anyio>=4.10",
     "ty>=0.0.83",
     # Every peer a maker writes code for, so each maker's tests run against its library.
-    "xtr-event-dispatcher>=7.2,<8",
-    "xtr-messenger>=7.2,<8",
+    "xtr-event-dispatcher>=7.3,<8",
+    "xtr-messenger>=7.3,<8",
     # With its SQLite driver: the entity and migration makers' tests use a SQLite database.
-    "xtr-orm[sqlite]>=7.2,<8",
+    "xtr-orm[sqlite]>=7.3,<8",
     # Development-only, so never an extra: make:fixtures writes code for it, importing nothing.
-    "xtr-orm-fixtures>=7.2,<8",
-    "xtr-scheduler>=7.2,<8",
-    "xtr-webhook>=7.2,<8",
+    "xtr-orm-fixtures>=7.3,<8",
+    "xtr-scheduler>=7.3,<8",
+    "xtr-webhook>=7.3,<8",
     # The bundles make:schedule's --stateful and --lock need active.
-    "xtr-cache>=7.2,<8",
-    "xtr-lock>=7.2,<8",
+    "xtr-cache>=7.3,<8",
+    "xtr-lock>=7.3,<8",
 ]
 
 [build-system]
