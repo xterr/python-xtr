@@ -65,6 +65,13 @@ def test_build_synchronizer_returns_one_for_the_project(tmp_path: Path) -> None:
     assert isinstance(command_support.build_synchronizer(project), Synchronizer)
 
 
+def test_installed_distributions_names_this_environment_normalised_and_sorted() -> None:
+    installed = command_support.installed_distributions()
+
+    assert "xtr-recipes" in installed
+    assert list(installed) == sorted(installed)
+
+
 def test_run_returns_the_exit_code_of_the_process(tmp_path: Path) -> None:
     argv: Sequence[str] = (sys.executable, "-c", "raise SystemExit(3)")
 

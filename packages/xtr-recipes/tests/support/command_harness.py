@@ -12,6 +12,7 @@ from xtr_recipes.command import (
     RemoveCommand,
     ShowCommand,
     SyncCommand,
+    UpgradeCommand,
 )
 from xtr_recipes.synchronizer import Synchronizer
 
@@ -37,14 +38,15 @@ __all__ = [
     "TEMPLATE",
     "ProcessRecorder",
     "build_tester",
+    "install_distributions",
     "install_recipes",
     "messenger_project",
     "record_processes",
     "snapshot",
 ]
 
-DECLARED = (AddCommand, InstallCommand, RemoveCommand, ShowCommand, SyncCommand)
-"""The command classes, named here so importing this module declares all five.
+DECLARED = (AddCommand, InstallCommand, RemoveCommand, ShowCommand, SyncCommand, UpgradeCommand)
+"""The command classes, named here so importing this module declares all six.
 
 ``@as_command`` writes to the console's registry as each module is read, so a
 tester only finds a command whose module something has imported.
@@ -148,6 +150,15 @@ def record_processes(monkeypatch: pytest.MonkeyPatch, *codes: int) -> ProcessRec
     recorder = ProcessRecorder(codes)
     monkeypatch.setattr(command_support, "run", recorder)
     return recorder
+
+
+def install_distributions(monkeypatch: pytest.MonkeyPatch, *names: str) -> None:
+    """Make the commands see ``names`` as the distributions installed, and no other."""
+
+    def installed() -> tuple[str, ...]:
+        return names
+
+    monkeypatch.setattr(command_support, "installed_distributions", installed)
 
 
 def snapshot(directory: Path) -> dict[str, str]:

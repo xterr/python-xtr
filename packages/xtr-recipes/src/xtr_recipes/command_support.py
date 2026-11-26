@@ -3,9 +3,10 @@
 Every command in :mod:`xtr_recipes.command` reaches the library through this
 module rather than building a
 :class:`~xtr_recipes.synchronizer.Synchronizer` or starting a process itself.
-That keeps one answer to "which project, read how" for all five, and leaves a
-test a single place to put a synchronizer reading recipes it wrote and a
-recorder in place of the process that would be started.
+That keeps one answer to "which project, read how" for all six, and leaves a
+test a single place to put a synchronizer reading recipes it wrote, the
+distributions it says are installed, and a recorder in place of the process
+that would be started.
 
 It sits beside that package rather than in it so that the package's
 ``__init__`` can import every command module — which is what declares the
@@ -15,6 +16,7 @@ commands — without a command module importing the package back.
 from __future__ import annotations
 
 import subprocess
+from importlib.metadata import distributions
 from typing import TYPE_CHECKING
 
 from xtr_console import ExitCode, escape
@@ -36,6 +38,7 @@ __all__ = [
     "build_synchronizer",
     "change_dependency",
     "failed",
+    "installed_distributions",
     "load_project",
     "normalise",
     "report",
@@ -62,6 +65,15 @@ def build_synchronizer(project: Project) -> Synchronizer:
     has to be installed for a command to be exercised.
     """
     return Synchronizer(project)
+
+
+def installed_distributions() -> tuple[str, ...]:
+    """Return the normalised name of every distribution installed here, sorted.
+
+    Here is the project's environment: the commands run through ``uv run``,
+    inside it. A test replaces this with the names it wants installed.
+    """
+    return tuple(sorted({normalise(distribution.name) for distribution in distributions()}))
 
 
 def run(argv: Sequence[str], cwd: Path) -> int:

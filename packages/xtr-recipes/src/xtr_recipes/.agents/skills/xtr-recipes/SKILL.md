@@ -1,6 +1,6 @@
 ---
 name: xtr-recipes
-description: How to add, configure and remove xtr packages in an application with the recipes:* commands instead of editing config/bundles.py, config files, .env and .gitignore by hand. Use when adding or removing an xtr dependency, when a package's use-in-an-application steps need applying, when config/bundles.py or a config/packages/<name>.py is missing or drifted, when wiring the recipes:sync --check gate into CI, or when shipping a recipe beside a new bundle.
+description: How to add, upgrade, configure and remove xtr packages in an application with the recipes:* commands instead of editing config/bundles.py, config files, .env and .gitignore by hand. Use when adding, upgrading or removing an xtr dependency, when a package's use-in-an-application steps need applying, when config/bundles.py or a config/packages/<name>.py is missing or drifted, when wiring the recipes:sync --check gate into CI, or when shipping a recipe beside a new bundle.
 ---
 
 # xtr-recipes
@@ -19,6 +19,8 @@ It is a developer and CI tool, so install it as a dev dependency.
   `uv run xtr-recipes recipes:add --dev xtr-maker`.
 - After a plain `uv add`, catch up with: `uv run xtr-recipes recipes:sync`.
 - Remove a package and undo its recipe: `uv run xtr-recipes recipes:remove xtr-messenger`.
+- Upgrade every xtr package together, then re-apply what changed:
+  `uv run xtr-recipes recipes:upgrade`.
 - See what is configured and what a sync would do: `uv run xtr-recipes recipes:show`.
 - Read one recipe in full: `uv run xtr-recipes recipes:show xtr-messenger`.
 - Restore a config file you deleted: `uv run xtr-recipes recipes:install xtr-messenger`.
@@ -43,6 +45,9 @@ uv run xtr-recipes recipes:sync
 
 # undo everything the recipe wrote, then drop the dependency
 uv run xtr-recipes recipes:remove xtr-messenger
+
+# move every installed xtr-* package to its newest release, then sync
+uv run xtr-recipes recipes:upgrade
 ```
 
 `recipes:add` runs `uv add` (`uv add --dev` with `--dev`) then syncs as a fresh process;
@@ -178,3 +183,5 @@ Every error derives from `RecipesError` and names the package and the key or fil
   a firewall's authenticators are printed as `steps` for you to make.
 - Do not add `xtr-recipes` as a runtime dependency or a bundle; it is a dev tool.
 - Do not forget to commit `xtr.lock`; `recipes:sync --check` in CI depends on it.
+- Do not upgrade one xtr package with `uv lock --upgrade-package`: its siblings stay behind. Run
+  `recipes:upgrade`.

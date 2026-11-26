@@ -67,6 +67,7 @@ uv run xtr-recipes recipes:show [<package>]        # the project's recipes, or o
 uv run xtr-recipes recipes:install <package> [--force]   # re-apply one; --force overwrites edited files
 uv run xtr-recipes recipes:add <requirement> [--dev]   # uv add [--dev] <requirement>, then sync afresh
 uv run xtr-recipes recipes:remove <package>        # uv remove [--dev] <package>, then sync afresh
+uv run xtr-recipes recipes:upgrade                 # uv lock --upgrade-package each installed xtr-* package, then sync afresh
 ```
 
 ### `recipes:sync`
@@ -147,6 +148,16 @@ dependency, which a plain `uv remove` would not find. `uv` is found on `PATH` an
 project directory; a non-zero exit from it stops before the sync. The sync runs as a fresh process
 (`uv run xtr-recipes recipes:sync`), because installing or removing has changed the environment
 under the running interpreter.
+
+### `recipes:upgrade`
+
+The `xtr-*` packages are released together, and only packages at one version were tested together,
+but `uv lock --upgrade-package <package>` moves only the package it names and leaves its siblings
+where the lock has them. `recipes:upgrade` names them all: it runs `uv lock` with an
+`--upgrade-package` for every `xtr-*` distribution installed in the project's environment — a direct
+dependency or not — so each moves to its newest release and nothing else does. Then it syncs
+afresh, as `recipes:add` does; the sync's `uv run` installs what the lock now names, and re-applies
+any recipe the new releases changed. Run it with `uv run`, so it reads the project's environment.
 
 ## The manifest
 

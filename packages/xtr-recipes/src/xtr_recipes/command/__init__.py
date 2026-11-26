@@ -1,4 +1,4 @@
-"""The five commands that drive a project's recipes.
+"""The six commands that drive a project's recipes.
 
 Importing this package declares all of them: ``@as_command`` writes to the
 console's registry as each module is read, which is why the entry point
@@ -16,6 +16,7 @@ from .install_command import InstallCommand
 from .remove_command import RemoveCommand
 from .show_command import ShowCommand
 from .sync_command import SyncCommand
+from .upgrade_command import UpgradeCommand
 
 __all__ = [
     "AddCommand",
@@ -23,4 +24,5 @@ __all__ = [
     "RemoveCommand",
     "ShowCommand",
     "SyncCommand",
+    "UpgradeCommand",
 ]
