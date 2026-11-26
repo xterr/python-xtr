@@ -1,5 +1,29 @@
 # Upgrading
 
+## To 7.3
+
+7.3 adds the recipes' upgrade command and tightens what each package requires of its siblings.
+Every package moves to 7.3 together; only the changes below are ones you can observe.
+
+### Every package
+
+- A package requires each sibling from the minor version it is released at, up to the next major:
+  `xtr-messenger` 7.3.0 requires `xtr-logging-contracts>=7.3,<8`, where 7.2 asked for `>=7.0,<8`.
+  A lock can no longer keep an older sibling beside a newer package — `xtr-messenger[amqp]` 7.2
+  beside `xtr-amqp-messenger` 7.1, whose transports `messenger:setup-transports` could not set up.
+  An application still requires the packages by major.
+
+### xtr-recipes
+
+- `recipes:upgrade` runs `uv lock` with an `--upgrade-package` for every `xtr-*` package installed
+  in the project's environment, then syncs the recipes afresh: one command moves them all to their
+  newest release. Run it rather than upgrading one xtr package at a time.
+
+### xtr-console
+
+- `list <namespace>` lists a nested namespace too: `list orm:migrations` shows the
+  `orm:migrations:*` commands, where it used to report no commands in that namespace.
+
 ## To 7.2
 
 7.2 adds the console's about command, the orm's two schema commands and the xtr-orm-fixtures
