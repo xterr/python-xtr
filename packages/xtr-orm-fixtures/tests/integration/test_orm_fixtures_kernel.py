@@ -300,6 +300,25 @@ async def test_fixtures_are_found_in_any_folder(
     assert f"{APP}.people.users:UserFixtures" in registered
 
 
+async def test_command_reports_an_application_without_fixtures(
+    site: ScratchSite, monkeypatch: pytest.MonkeyPatch, database_url: str
+) -> None:
+    site.write(
+        {
+            f"{APP}.__init__": "",
+            f"{APP}.bundles": _bundles(DEV_TEST),
+            f"{APP}.config": CONFIG,
+            f"{APP}.models": MODELS,
+        }
+    )
+    site.install(monkeypatch)
+
+    code, shown, _ = await _run("dev", database_url, ["orm:fixtures:load", "--append"])
+
+    assert code == ExitCode.FAILURE
+    assert "Could not find any fixture services to load." in shown
+
+
 async def test_abstract_fixture_bases_are_not_registered(
     site: ScratchSite, libraries: ScratchSite, monkeypatch: pytest.MonkeyPatch, database_url: str
 ) -> None:
