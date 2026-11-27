@@ -153,12 +153,26 @@ async def jwks(
 
 @as_route_resource("oauth2_server")
 def oauth2_server_routes(router: APIRouter) -> None:
-    """Fill the router with the five protocol endpoints, each under its published name."""
+    """Fill the router with the five protocol endpoints, each under its published name.
+
+    The authorization endpoint is two routes, one per method: one route is one
+    operation of the API's description, and a route answering both methods
+    would describe two operations under one identifier, which client
+    generators refuse. ``GET`` keeps the published name; ``POST`` answers to
+    that name with ``_post`` after it, as no two routes of a resource may share
+    a name. Both reach the one endpoint, so the discovery document finds either.
+    """
     router.add_api_route(
         AUTHORIZE_PATH,
         authorize,
-        methods=["GET", "POST"],
+        methods=["GET"],
         name=ROUTE_NAMES[AUTHORIZE_PATH],
+    )
+    router.add_api_route(
+        AUTHORIZE_PATH,
+        authorize,
+        methods=["POST"],
+        name=f"{ROUTE_NAMES[AUTHORIZE_PATH]}_post",
     )
     router.add_api_route(TOKEN_PATH, token, methods=["POST"], name=ROUTE_NAMES[TOKEN_PATH])
     router.add_api_route(

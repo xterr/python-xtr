@@ -266,7 +266,8 @@ Two route resources, registered by `<app>/config/routes/openid_connect_server.py
 
 | Resource | Route | Path | Methods |
 |---|---|---|---|
-| `openid_connect_server` | `openid_connect_server_userinfo` | `/userinfo` | `GET`, `POST` |
+| `openid_connect_server` | `openid_connect_server_userinfo` | `/userinfo` | `GET` |
+| `openid_connect_server` | `openid_connect_server_userinfo_post` | `/userinfo` | `POST` |
 | `openid_connect_server_well_known` | `openid_connect_server_configuration` | `/.well-known/openid-configuration` | `GET` |
 
 - **`/userinfo`** reads no credential of its own: it answers from the token the request's firewall

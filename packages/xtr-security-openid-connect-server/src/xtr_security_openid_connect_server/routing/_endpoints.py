@@ -78,12 +78,26 @@ async def openid_configuration(
 
 @as_route_resource("openid_connect_server")
 def openid_connect_server_routes(router: APIRouter) -> None:
-    """Fill the router with the userinfo endpoint, under its published name."""
+    """Fill the router with the userinfo endpoint, under its published name.
+
+    It is two routes, one per method: one route is one operation of the API's
+    description, and a route answering both methods would describe two
+    operations under one identifier, which client generators refuse. ``GET``
+    keeps the published name; ``POST`` answers to that name with ``_post``
+    after it, as no two routes of a resource may share a name. Both reach the
+    one endpoint, so the configuration document finds either.
+    """
     router.add_api_route(
         USERINFO_PATH,
         userinfo,
-        methods=["GET", "POST"],
+        methods=["GET"],
         name=ROUTE_NAMES[USERINFO_PATH],
+    )
+    router.add_api_route(
+        USERINFO_PATH,
+        userinfo,
+        methods=["POST"],
+        name=f"{ROUTE_NAMES[USERINFO_PATH]}_post",
     )
 
 

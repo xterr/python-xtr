@@ -14,14 +14,14 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-def _mounted(fill: Callable[[APIRouter], None]) -> dict[str, tuple[str, tuple[str, ...]]]:
+def _routes(fill: Callable[[APIRouter], None]) -> list[APIRoute]:
     router = APIRouter()
     fill(router)
-    return {
-        route.name: (route.path, tuple(sorted(route.methods or ())))
-        for route in router.routes
-        if isinstance(route, APIRoute)
-    }
+    return [route for route in router.routes if isinstance(route, APIRoute)]
+
+
+def _mounted(fill: Callable[[APIRouter], None]) -> dict[str, tuple[str, tuple[str, ...]]]:
+    return {route.name: (route.path, tuple(sorted(route.methods or ()))) for route in _routes(fill)}
 
 
 def test_it_is_imported_as_oauth2_server() -> None:
@@ -30,7 +30,8 @@ def test_it_is_imported_as_oauth2_server() -> None:
 
 def test_every_protocol_endpoint_is_contributed_under_the_name_a_url_is_built_by() -> None:
     assert _mounted(oauth2_server_routes) == {
-        "oauth2_authorize": ("/authorize", ("GET", "POST")),
+        "oauth2_authorize": ("/authorize", ("GET",)),
+        "oauth2_authorize_post": ("/authorize", ("POST",)),
         "oauth2_token": ("/token", ("POST",)),
         "oauth2_device_code": ("/device-code", ("POST",)),
         "oauth2_revoke": ("/revoke", ("POST",)),
@@ -39,7 +40,15 @@ def test_every_protocol_endpoint_is_contributed_under_the_name_a_url_is_built_by
 
 
 def test_the_authorization_endpoint_also_answers_the_consent_form_posting_back() -> None:
-    assert "POST" in _mounted(oauth2_server_routes)["oauth2_authorize"][1]
+    assert _mounted(oauth2_server_routes)["oauth2_authorize_post"] == ("/authorize", ("POST",))
+
+
+def test_every_operation_is_described_under_an_identifier_of_its_own() -> None:
+    routes = [*_routes(oauth2_server_routes), *_routes(well_known_routes)]
+    identifiers = [route.unique_id for route in routes]
+
+    assert all(len(route.methods or ()) == 1 for route in routes)
+    assert len(identifiers) == len(set(identifiers))
 
 
 def test_the_well_known_documents_live_where_the_standard_fixes_them() -> None:

@@ -383,7 +383,8 @@ wherever it ends up, leaving out the ones excluded:
 
 | Method | Path | Route name | Answers when |
 |---|---|---|---|
-| `GET`, `POST` | `/authorize` | `oauth2_authorize` | always; behind the application's own sign-in firewall |
+| `GET` | `/authorize` | `oauth2_authorize` | always; behind the application's own sign-in firewall |
+| `POST` | `/authorize` | `oauth2_authorize_post` | always; behind the application's own sign-in firewall |
 | `POST` | `/token` | `oauth2_token` | always |
 | `POST` | `/device-code` | `oauth2_device_code` | `enable_device_code_grant` |
 | `POST` | `/revoke` | `oauth2_revoke` | `enable_revocation_endpoint` |
