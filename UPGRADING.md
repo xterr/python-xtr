@@ -1,5 +1,29 @@
 # Upgrading
 
+## To 7.4
+
+7.4 adds the console's environment options. Every package moves to 7.4 together; only the
+changes below are ones you can observe.
+
+### xtr-console
+
+- An application run by a kernel takes `-e`/`--env` and `--no-debug`, anywhere on the command
+  line: they choose the kernel, so call `use_environment_options()` first in the console entry
+  point, before the environment files load and the kernel is built. Without it, a run asking for
+  another environment than the kernel's is refused with `INVALID` rather than run against the
+  wrong one. `-e`, `--env` and `--no-debug` are now global options, so a command can no longer
+  declare them.
+- Help lays its sections out as `list` does: each title starts the line, a namespace one column
+  in, entries two columns in. A test matching a section title reads `Options:` and
+  `Available commands:` now.
+
+### xtr-dependency-injection
+
+- A `ServiceLocator[T]` a class asks for on its `__call__` — a command's or a handler's
+  parameter — is provided even when nothing is registered under `T`: it is empty, where the
+  call used to fail with an unknown dependency. `orm:fixtures:load` in an application without
+  fixtures now says it found none.
+
 ## To 7.3
 
 7.3 adds the recipes' upgrade command and tightens what each package requires of its siblings.
