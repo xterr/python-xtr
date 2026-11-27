@@ -1,5 +1,18 @@
 # Upgrading
 
+## To 7.5
+
+7.5 adds the http kernel's OpenAPI export. Every package moves to 7.5 together; only the change
+below is one you can observe.
+
+### xtr-http-kernel
+
+- `api:openapi:export` writes the application's OpenAPI description as JSON, to standard output
+  or with `-o PATH` to a file. `-y`/`--yaml` writes YAML and needs PyYAML: install
+  `xtr-http-kernel[yaml]`. `--api-gateway` reshapes it for an Amazon API Gateway import and
+  `--filter-tags TAG` keeps the operations of the tags named. Like the router commands, it reads
+  the application from `--app` or `HttpKernelConfig.app`.
+
 ## To 7.4
 
 7.4 adds the console's environment options. Every package moves to 7.4 together; only the
