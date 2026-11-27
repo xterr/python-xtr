@@ -1,6 +1,6 @@
 [project]
 name = "xtr"
-version = "7.5.0"
+version = "7.5.1"
 readme = "README.md"
 requires-python = ">=3.14.4"
 dependencies = []

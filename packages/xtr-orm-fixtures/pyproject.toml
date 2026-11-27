@@ -1,6 +1,6 @@
 [project]
 name = "xtr-orm-fixtures"
-version = "7.5.0"
+version = "7.5.1"
 description = "Seed a database from fixture classes: ordered, grouped and sharing references, loaded in one transaction after an emptying in foreign-key order."
 readme = "README.md"
 requires-python = ">=3.14.4"
