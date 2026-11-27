@@ -54,6 +54,7 @@ after `uv tool install xtr-cli`. Run the `xtr-recipes` commands with
 |---|---|---|
 | `dotenv:dump` | `xtr-dotenv` | Compiles the environment files of one environment into one JSON file. |
 | `router:match` | `xtr-http-kernel` | Shows the route that a path and a method find. It does not serve a request. |
+| `api:openapi:export` | `xtr-http-kernel` | Writes the OpenAPI description of the web application, as JSON or, with the `yaml` extra, as YAML. |
 | `messenger:consume` | `xtr-messenger` | Receives messages from the transports that you name, until you stop it. |
 | `workflow:dump` | `xtr-workflow` | Writes a workflow as the source of a diagram. |
 

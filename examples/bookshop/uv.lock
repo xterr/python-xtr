@@ -1909,6 +1909,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.1" },
     { name = "python-multipart", specifier = ">=0.0.21" },
+    { name = "pyyaml", marker = "extra == 'yaml'", specifier = ">=6.0.3" },
     { name = "starlette", specifier = ">=1.6" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-dependency-injection", editable = "../../packages/xtr-dependency-injection" },
@@ -1920,6 +1921,7 @@ requires-dist = [
     { name = "xtr-service-contracts", editable = "../../packages/xtr-service-contracts" },
     { name = "xtr-stopwatch", editable = "../../packages/xtr-stopwatch" },
 ]
+provides-extras = ["yaml"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1928,8 +1930,10 @@ dev = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", specifier = ">=8.4" },
     { name = "pytest-cov", specifier = ">=7.1" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "ruff", specifier = ">=0.14.7" },
     { name = "ty", specifier = ">=0.0.83" },
+    { name = "types-pyyaml", specifier = ">=6.0.12" },
     { name = "xtr-clock", editable = "../../packages/xtr-clock" },
     { name = "xtr-console", editable = "../../packages/xtr-console" },
     { name = "xtr-logging", editable = "../../packages/xtr-logging" },
