@@ -1,6 +1,6 @@
 [project]
 name = "xtr-clock"
-version = "7.4.0"
+version = "7.5.0"
 description = "Decouples an application from the system clock: an injectable clock, a timezone-aware instant, and a frozen clock for tests."
 readme = "README.md"
 requires-python = ">=3.14.4"
@@ -46,7 +46,7 @@ dev = [
     "pytest-cov>=7.1",
     "anyio>=4.10",
     "ty>=0.0.83",
-    "xtr-dependency-injection>=7.4,<8",
+    "xtr-dependency-injection>=7.5,<8",
 ]
 
 [build-system]

@@ -1,6 +1,6 @@
 [project]
 name = "xtr-notifier"
-version = "7.4.0"
+version = "7.5.0"
 description = "Send notifications to chat, SMS and push channels — one notification, the channels its importance or its recipient call for, any provider configured by DSN."
 readme = "README.md"
 authors = [
@@ -19,20 +19,20 @@ classifiers = [
 ]
 dependencies = [
     # What a round-robin or failover transport measures a dead transport's rest with.
-    "xtr-clock>=7.4,<8",
+    "xtr-clock>=7.5,<8",
     # Transports announce every message they send, and the failures, as events.
-    "xtr-event-dispatcher-contracts>=7.4,<8",
+    "xtr-event-dispatcher-contracts>=7.5,<8",
     # The client interface provider transports talk through; the client itself is
     # installed by the application.
-    "xtr-http-client-contracts>=7.4,<8",
+    "xtr-http-client-contracts>=7.5,<8",
     # A notification's importance can be read from a log level.
-    "xtr-logging-contracts>=7.4,<8",
-    "xtr-service-contracts>=7.4,<8",
+    "xtr-logging-contracts>=7.5,<8",
+    "xtr-service-contracts>=7.5,<8",
 ]
 
 [project.optional-dependencies]
 # The Slack provider, found by its `slack://` DSN scheme.
-slack = ["xtr-slack-notifier>=7.4,<8"]
+slack = ["xtr-slack-notifier>=7.5,<8"]
 
 # Provider factories advertise themselves here, keyed by the DSN scheme they serve so only
 # the matching library is ever imported: chat providers under the chatter's group, SMS and
@@ -61,14 +61,14 @@ dev = [
     "anyio>=4.10",
     "ty>=0.0.83",
     # The profiler panel's collector, tested against the http kernel's profiler.
-    "xtr-http-kernel>=7.4,<8",
-    "xtr-dependency-injection>=7.4,<8",
-    "xtr-event-dispatcher>=7.4,<8",
+    "xtr-http-kernel>=7.5,<8",
+    "xtr-dependency-injection>=7.5,<8",
+    "xtr-event-dispatcher>=7.5,<8",
     # MockHttpClient stands in for the network in transport tests.
-    "xtr-http-client>=7.4,<8",
-    "xtr-messenger>=7.4,<8",
+    "xtr-http-client>=7.5,<8",
+    "xtr-messenger>=7.5,<8",
     # The bus tests write messages through a serializer of their own.
-    "xtr-serializer>=7.4,<8",
+    "xtr-serializer>=7.5,<8",
 ]
 
 [build-system]

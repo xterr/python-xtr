@@ -1,6 +1,6 @@
 [project]
 name = "xtr-ai-orm-conversation-store"
-version = "7.4.0"
+version = "7.5.0"
 description = "Agent conversations stored in a relational database through xtr-orm, for xtr-ai."
 readme = "README.md"
 authors = [
@@ -20,8 +20,8 @@ classifiers = [
 dependencies = [
     "pydantic-ai-slim>=2.66,<3",
     "sqlalchemy[asyncio]>=2.0.52",
-    "xtr-ai>=7.4,<8",
-    "xtr-orm>=7.4,<8",
+    "xtr-ai>=7.5,<8",
+    "xtr-orm>=7.5,<8",
 ]
 
 [dependency-groups]

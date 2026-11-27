@@ -1,6 +1,6 @@
 [project]
 name = "xtr-web-profiler"
-version = "7.4.0"
+version = "7.5.0"
 description = "A development toolbar on every page and a profile of every request: timing, logs, events, routing, the request and the response."
 readme = "README.md"
 requires-python = ">=3.14.4"
@@ -22,9 +22,9 @@ dependencies = [
     "jinja2>=3.1",
     "markupsafe>=2.1",
     "starlette>=1.6",
-    "xtr-dependency-injection>=7.4,<8",
-    "xtr-http-kernel>=7.4,<8",
-    "xtr-http-message-contracts>=7.4,<8",
+    "xtr-dependency-injection>=7.5,<8",
+    "xtr-http-kernel>=7.5,<8",
+    "xtr-http-message-contracts>=7.5,<8",
 ]
 
 # Advertises the bundle so debug:bundles can name it when installed but not listed.
@@ -46,7 +46,7 @@ dev = [
     "pytest-cov>=7.1",
     "ty>=0.0.83",
     # The log panel's tests log through it.
-    "xtr-logging>=7.4,<8",
+    "xtr-logging>=7.5,<8",
 ]
 
 [build-system]

@@ -1,6 +1,6 @@
 [project]
 name = "xtr-stopwatch"
-version = "7.4.0"
+version = "7.5.0"
 description = "Times what code does, in named events grouped by category and nested in sections, kept apart for every concurrent unit of work."
 readme = "README.md"
 requires-python = ">=3.14.4"
@@ -18,7 +18,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "xtr-clock>=7.4,<8",
+    "xtr-clock>=7.5,<8",
 ]
 
 [dependency-groups]

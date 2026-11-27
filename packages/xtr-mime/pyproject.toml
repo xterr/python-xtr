@@ -1,6 +1,6 @@
 [project]
 name = "xtr-mime"
-version = "7.4.0"
+version = "7.5.0"
 description = "Build email messages — addresses, headers, text and HTML bodies, attachments and inline images — rendered to standard MIME by Python's own email package, signed with DKIM or S/MIME when asked."
 readme = "README.md"
 authors = [
@@ -18,7 +18,7 @@ classifiers = [
 ]
 dependencies = [
     # A message's Date header is read from a clock the application can freeze.
-    "xtr-clock>=7.4,<8",
+    "xtr-clock>=7.5,<8",
     # An international domain is encoded to ASCII before an address reaches the wire.
     "idna>=3.11",
     # Validates an address the quick pattern cannot settle against the full grammar;
@@ -54,7 +54,7 @@ dev = [
     "cryptography>=46",
     "dkimpy>=1.1.8,<2",
     "python-magic>=0.4.27",
-    "xtr-dependency-injection>=7.4,<8",
+    "xtr-dependency-injection>=7.5,<8",
 ]
 
 [build-system]
